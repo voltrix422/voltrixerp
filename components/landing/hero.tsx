@@ -1,40 +1,13 @@
 // @ts-nocheck
 import { ArrowRight } from "lucide-react"
-import Hyperspeed from "./hyperspeed"
 import SplitText from "./split-text"
 import GradualBlur from "./gradual-blur"
 
 export default function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-black">
-      <Hyperspeed
-        effectOptions={{
-          distortion: "turbulentDistortion",
-          length: 400,
-          roadWidth: 10,
-          islandWidth: 2,
-          lanesPerRoad: 3,
-          fov: 90,
-          fovSpeedUp: 150,
-          speedUp: 2,
-          carLightsFade: 0.4,
-          totalSideLightSticks: 20,
-          lightPairsPerRoadWay: 40,
-          colors: {
-            roadColor: 0x080808,
-            islandColor: 0x0a0a0a,
-            background: 0x000000,
-            shoulderLines: 0x131318,
-            brokenLines: 0x131318,
-            leftCars: [0xd856bf, 0x6750a2, 0xc247ac],
-            rightCars: [0x03b3c3, 0x0e5ea5, 0x324555],
-            sticks: 0x03b3c3,
-          },
-        }}
-      />
 
       {/* Overlays */}
-      <div className="absolute inset-0 z-[1] pointer-events-none bg-[radial-gradient(ellipse_100%_60%_at_50%_40%,black_0%,transparent_70%)]" />
       <div className="absolute inset-x-0 top-0 h-40 z-[1] pointer-events-none bg-gradient-to-b from-black to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-48 z-[1] pointer-events-none bg-gradient-to-t from-black to-transparent" />
 
