@@ -354,7 +354,7 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
 
       <ConfirmDialog
         isOpen={showConfirmDialog}
-        onClose={() => setShowConfirmDialog(false)}
+        onCancel={() => setShowConfirmDialog(false)}
         onConfirm={confirmAndSendToInventory}
         title="Confirm Order"
         message="Confirm this order and send to Inventory for dispatch?"
