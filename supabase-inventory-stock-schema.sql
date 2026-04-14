@@ -30,4 +30,4 @@
   CREATE INDEX IF NOT EXISTS idx_inventory_stock_item_id ON erp_inventory_stock(item_id);
   CREATE INDEX IF NOT EXISTS idx_inventory_stock_available_qty ON erp_inventory_stock(available_qty);
   CREATE INDEX IF NOT EXISTS idx_inventory_stock_created_at ON erp_inventory_stock(created_at DESC);
-          pleasaa   
+             

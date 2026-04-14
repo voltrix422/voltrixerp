@@ -143,3 +143,17 @@ select option:checked {
   background-color: rgba(5, 46, 22, 0.3) !important; /* green-950/30 */
   background: rgba(5, 46, 22, 0.3) !important;
 }
+
+/* SplitText gradient — applied per char span */
+.teal-gradient-text .split-char {
+  background: linear-gradient(90deg, #1a9f9a, #a8edea);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+}
+
+/* Tighten SplitText char spacing */
+.split-parent .split-char {
+  letter-spacing: -0.03em;
+}
