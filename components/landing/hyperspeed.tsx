@@ -379,8 +379,11 @@ const DEFAULT_OPTIONS: Required<HyperspeedOptions> = {
 
 // ─── App class ───────────────────────────────────────────────────────────────
 
+type DistortionObject = { uniforms: Record<string, { value: unknown }>; getDistortion: string; getJS?: (p: number, t: number) => THREE.Vector3 }
+type ResolvedOptions = Omit<Required<HyperspeedOptions>, 'distortion'> & { distortion: DistortionObject }
+
 class App {
-  options: Required<HyperspeedOptions> & { distortion: typeof distortions[string] }
+  options: ResolvedOptions
   container: HTMLElement
   renderer: THREE.WebGLRenderer
   composer: EffectComposer
@@ -402,8 +405,8 @@ class App {
   bloomPass!: EffectPass
 
   constructor(container: HTMLElement, options: Required<HyperspeedOptions>) {
-    const distortion = distortions[options.distortion] ?? distortions.turbulentDistortion
-    this.options = { ...options, distortion }
+    const distortion = distortions[options.distortion as string] ?? distortions.turbulentDistortion
+    this.options = { ...options, distortion } as ResolvedOptions
     this.container = container
     this.hasValidSize = false
     const w = Math.max(1, container.offsetWidth)
