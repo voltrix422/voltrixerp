@@ -1,5 +1,4 @@
 import { DM_Sans } from "next/font/google"
-import SmoothScroll from "@/components/landing/smooth-scroll"
 import SectionBlur from "@/components/landing/section-blur"
 import Navbar from "@/components/landing/navbar"
 import Hero from "@/components/landing/hero"
@@ -25,8 +24,7 @@ const dmSans = DM_Sans({
 
 export default function Home() {
   return (
-    <SmoothScroll>
-      <main
+    <main
         className={`${dmSans.variable} min-h-screen bg-white text-neutral-900 antialiased`}
         style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
       >
@@ -48,6 +46,5 @@ export default function Home() {
         <Footer />
         <WhatsappButton />
       </main>
-    </SmoothScroll>
   )
 }
