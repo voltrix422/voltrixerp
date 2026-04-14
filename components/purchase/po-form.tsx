@@ -73,6 +73,14 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
       receivingLocation,
       suppliersSent: [],
       quotes: [],
+      finalizedSupplierId: undefined,
+      payments: [],
+      adminDocuments: [],
+      financeDocuments1: [],
+      purchaseDocuments: [],
+      financeDocuments2: [],
+      importedItems: [],
+      flowHistory: [],
     })
   }
 

@@ -78,6 +78,7 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
       purchaseDocuments: [],
       financeDocuments2: [],
       importedItems: [],
+      flowHistory: [],
     })
     setSaving(false)
   }
