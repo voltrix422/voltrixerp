@@ -3,7 +3,8 @@
 import { motion } from "motion/react"
 import { useEffect, useRef, useState, useMemo } from "react"
 
-type Snapshot = Record<string, unknown>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Snapshot = Record<string, any>
 
 const buildKeyframes = (from: Snapshot, steps: Snapshot[]) => {
   const keys = new Set([...Object.keys(from), ...steps.flatMap(s => Object.keys(s))])
