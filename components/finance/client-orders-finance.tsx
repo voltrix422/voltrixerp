@@ -363,6 +363,7 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
       <SuccessNotification
         isOpen={showSuccess}
         onClose={() => setShowSuccess(false)}
+        title="Order Confirmed"
         message="Order confirmed and sent to Inventory!"
       />
     </div>
