@@ -204,7 +204,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
   async function handleMarkAsDelivered() {
     // Check if this is a custom order (no stock tracking needed)
-    const isCustomOrder = order.items.every(item => !item.trackInventory)
+    const isCustomOrder = order.items.every(item => item.isCustom)
     
     if (isCustomOrder) {
       // For custom orders, just show a simple confirmation
@@ -525,7 +525,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading stock data...</p>
                 </div>
-              ) : order.items.every(item => !item.trackInventory) ? (
+              ) : order.items.every(item => item.isCustom) ? (
                 <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-6 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
@@ -663,7 +663,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 size="sm" 
                 className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto" 
                 onClick={() => updateStatus("delivered")} 
-                disabled={updating || loadingStock || (!order.items.every(item => !item.trackInventory) && stockItems.length === 0)}
+                disabled={updating || loadingStock || (!order.items.every(item => item.isCustom) && stockItems.length === 0)}
               >
                 <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Confirm & Mark as Delivered"}
               </Button>
