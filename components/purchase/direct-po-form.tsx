@@ -73,6 +73,11 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
       }],
       finalizedSupplierId: supplierId,
       payments: [],
+      adminDocuments: [],
+      financeDocuments1: [],
+      purchaseDocuments: [],
+      financeDocuments2: [],
+      importedItems: [],
     })
     setSaving(false)
   }
