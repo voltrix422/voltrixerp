@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import GradualBlur from "./gradual-blur"
+import RotatingText from "./rotating-text"
 
 const images = [
   "/(WL-5)-Photoroom.png",
@@ -31,8 +32,23 @@ export default function Hero() {
 
         {/* Left — text */}
         <div className="flex-1 flex flex-col items-start gap-6 max-w-xl">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.05] text-neutral-900">
-            Power your drive<br />
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
+            Power your{" "}
+            <span className="inline-flex items-center">
+              <RotatingText
+                texts={["drive", "solar", "EVs", "car", "house"]}
+                mainClassName="bg-neutral-900 text-white px-3 py-1 rounded-lg font-bold"
+                staggerDuration={0.03}
+                staggerFrom="last"
+                rotationInterval={2500}
+                transition={{ type: "spring", damping: 20, stiffness: 200 }}
+                initial={{ y: "100%", opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: "-100%", opacity: 0 }}
+                splitLevelClassName="overflow-hidden"
+              />
+            </span>
+            <br />
             <span className="teal-gradient-text">with Voltrix.</span>
           </h1>
           <p className="text-base text-neutral-500 leading-relaxed max-w-md">
@@ -54,7 +70,7 @@ export default function Hero() {
         {/* Right — rotating image */}
         <div className="flex-1 flex items-center justify-center relative h-[420px] lg:h-[520px] w-full">
           <div
-            className="relative w-full h-full transition-opacity duration-400"
+            className="relative w-full h-full"
             style={{ opacity: fade ? 1 : 0, transition: "opacity 0.4s ease" }}
           >
             <Image
@@ -72,7 +88,7 @@ export default function Hero() {
               <button
                 key={i}
                 onClick={() => { setFade(false); setTimeout(() => { setCurrent(i); setFade(true) }, 400) }}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${i === current ? "bg-neutral-900 w-5" : "bg-neutral-300"}`}
+                className={`h-2 rounded-full transition-all duration-300 ${i === current ? "bg-neutral-900 w-5" : "bg-neutral-300 w-2"}`}
               />
             ))}
           </div>
