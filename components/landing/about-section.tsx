@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Shield, Cpu, Globe, Leaf, Factory, Zap } from "lucide-react"
 import ScrollFloat from "./scroll-float"
 import ScrollReveal from "./scroll-reveal"

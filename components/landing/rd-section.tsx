@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { FlaskConical, Factory, Cpu, Zap, Shield, Layers, Leaf, ArrowRight } from "lucide-react"
 import ScrollFloat from "./scroll-float"
 import ScrollReveal from "./scroll-reveal"

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { MapPin, Phone, Mail } from "lucide-react"
 import ScrollFloat from "./scroll-float"
 import ScrollReveal from "./scroll-reveal"

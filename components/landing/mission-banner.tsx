@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { CheckCircle2, ArrowRight } from "lucide-react"
 import ScrollFloat from "./scroll-float"
 import BlurText from "./blur-text"

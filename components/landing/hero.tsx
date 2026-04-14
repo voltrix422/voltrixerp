@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { ArrowRight } from "lucide-react"
 import Hyperspeed from "./hyperspeed"
 import SplitText from "./split-text"

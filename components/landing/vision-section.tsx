@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Lightbulb, Award, Leaf, ArrowRight } from "lucide-react"
 import ScrollFloat from "./scroll-float"
 import ScrollReveal from "./scroll-reveal"

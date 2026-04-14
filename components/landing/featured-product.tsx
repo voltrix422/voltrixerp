@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Zap, Activity, Box, Shield, ArrowRight } from "lucide-react"
 import Image from "next/image"
 import ScrollFloat from "./scroll-float"

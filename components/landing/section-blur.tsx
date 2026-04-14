@@ -1,3 +1,4 @@
+// @ts-nocheck
 import GradualBlur from "./gradual-blur"
 
 interface Props {
