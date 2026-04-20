@@ -77,9 +77,11 @@ export async function DELETE(req: NextRequest) {
   }
   
   // Delete all inventory items with this poNumber
-  await prisma.erpInventoryStock.deleteMany({
-    where: { poNumber: po.poNumber }
-  })
+  if (po.poNumber) {
+    await prisma.erpInventoryStock.deleteMany({
+      where: { poNumber: po.poNumber }
+    })
+  }
   
   // Delete the PO
   await prisma.erpPurchaseOrder.delete({ where: { id } })
