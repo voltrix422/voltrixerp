@@ -35,7 +35,8 @@ export function AccountSettings() {
     if (!newName.trim() || !newEmail.trim()) return
     setSavingName(true); setNameError(""); setNameDone(false)
     try {
-      const updated = { ...user, name: newName.trim(), email: newEmail.trim() }
+      if (!user?.id) throw new Error("User ID not found")
+      const updated = { ...user, id: user.id, name: newName.trim(), email: newEmail.trim() }
       await saveUser(updated)
       await refreshUser()
       setNameDone(true)
@@ -50,6 +51,10 @@ export function AccountSettings() {
     e.preventDefault()
     setPwError(""); setPwDone(false)
 
+    if (!user?.password) {
+      setPwError("User not found.")
+      return
+    }
     if (currentPw !== user.password) {
       setPwError("Current password is incorrect.")
       return

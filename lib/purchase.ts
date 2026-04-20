@@ -57,6 +57,7 @@ export interface ImportedPOItem {
   qty: number
   unit: string
   unitPrice: number
+  specs?: string
   duties?: ItemDuty[] // Array of named duties per item
 }
 

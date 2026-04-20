@@ -47,10 +47,10 @@ export function generateOrderPDF(order: OrderData): Blob {
   const doc = new jsPDF()
   
   // Colors matching website branding
-  const primaryColor = [26, 159, 154] // #1a9f9a
-  const darkGray = [64, 64, 64]
-  const lightGray = [128, 128, 128]
-  const backgroundColor = [248, 250, 252]
+  const primaryColor: [number, number, number] = [26, 159, 154] // #1a9f9a
+  const darkGray: [number, number, number] = [64, 64, 64]
+  const lightGray: [number, number, number] = [128, 128, 128]
+  const backgroundColor: [number, number, number] = [248, 250, 252]
 
   // Header with logo area and company info
   doc.setFillColor(...backgroundColor)

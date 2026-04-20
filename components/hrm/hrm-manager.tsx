@@ -207,7 +207,7 @@ export function HrmManager() {
         const staffData = await res.json()
         // Load documents and photos from IndexedDB for each staff member
         const staffWithDocs = await Promise.all(
-          staffData.map(async (s) => ({
+          staffData.map(async (s: any) => ({
             ...s,
             documents: await loadDocuments(s.id),
             photo_url: await loadPhoto(s.id)
