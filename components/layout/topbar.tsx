@@ -81,7 +81,7 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
               </div>
               <button
                 onClick={() => { setOpen(false); logout() }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-[hsl(var(--accent))] transition-colors"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-[hsl(var(--accent))] transition-colors cursor-pointer"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
+// DB health via /api/health (Prisma)
 import { WifiOff, RefreshCw, Loader2 } from "lucide-react"
 
 export function DBConnectionCheck() {
@@ -20,16 +20,12 @@ export function DBConnectionCheck() {
         setTimeout(() => reject(new Error("Connection timeout")), 10000)
       )
       
-      const queryPromise = supabase.from("erp_users").select("count", { count: "exact", head: true })
+      const healthPromise = fetch("/api/health").then(r => r.ok)
       
-      const { error } = await Promise.race([queryPromise, timeoutPromise]) as any
+      const ok = await Promise.race([healthPromise, timeoutPromise]) as boolean
       
-      if (error) {
-        if (error.message?.includes("fetch") || error.message?.includes("network")) {
-          setErrorMessage("No internet connection")
-        } else {
-          setErrorMessage("Database connection failed")
-        }
+      if (!ok) {
+        setErrorMessage("Database connection failed")
         setShowError(true)
       } else {
         setShowError(false)

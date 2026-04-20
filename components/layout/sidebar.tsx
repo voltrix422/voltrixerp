@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, GitBranch,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -18,8 +18,11 @@ const ALL_NAV = [
   { href: "/finance", label: "Finance", icon: DollarSign, module: "finance" as Module },
   { href: "/crm", label: "CRM", icon: Users2, module: "crm" as Module },
   { href: "/inventory", label: "Inventory", icon: Package, module: "inventory" as Module },
+  { href: "/dispatches", label: "Dispatches", icon: Truck, module: "dispatches" as Module },
   { href: "/website", label: "Website", icon: Globe, module: "website" as Module },
   { href: "/docs", label: "Documentation", icon: BookOpen, module: "docs" as Module },
+  { href: "/hrm", label: "HRM", icon: UserCog, module: "hrm" as Module },
+  { href: "/branches", label: "Branches", icon: GitBranch, module: "branches" as Module },
 ]
 
 const navSecondary = [
@@ -59,7 +62,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="px-2 py-3 border-t space-y-0.5">
+      <div className="px-3 py-3 border-t space-y-0.5">
         {navSecondary.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
@@ -71,22 +74,6 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             <span>{label}</span>
           </Link>
         ))}
-      </div>
-
-      <div className="px-3 py-3 border-t">
-        <div
-          className="flex items-center gap-2.5 rounded-md px-1 py-1.5 hover:bg-[hsl(var(--accent))] transition-colors cursor-pointer group"
-          onClick={logout}
-          title="Click to sign out"
-        >
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--foreground))] text-[hsl(var(--background))] text-xs font-semibold">
-            {user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-          </div>
-          <div className="flex flex-col leading-none min-w-0">
-            <span className="text-xs font-medium truncate">{user?.name}</span>
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{user?.email}</span>
-          </div>
-        </div>
       </div>
     </>
   )

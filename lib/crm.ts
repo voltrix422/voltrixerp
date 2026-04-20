@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase"
-
 export interface Client {
   id: string
   name: string
@@ -19,58 +17,46 @@ export interface Client {
   createdBy: string
 }
 
-function rowToClient(r: Record<string, unknown>): Client {
+function mapRow(r: Record<string, unknown>): Client {
   return {
     id: r.id as string,
     name: r.name as string,
-    company: r.company as string,
-    email: r.email as string,
-    phone: r.phone as string,
-    address: r.address as string,
-    city: r.city as string,
-    country: r.country as string,
+    company: (r.company as string) ?? "",
+    email: (r.email as string) ?? "",
+    phone: (r.phone as string) ?? "",
+    address: (r.address as string) ?? "",
+    city: (r.city as string) ?? "",
+    country: (r.country as string) ?? "",
     website: (r.website as string) ?? "",
-    taxId: (r.tax_id as string) ?? "",
+    taxId: (r.taxId as string) ?? "",
     industry: (r.industry as string) ?? "",
-    contactPerson: (r.contact_person as string) ?? "",
-    imageUrl: (r.image_url as string) ?? undefined,
-    notes: r.notes as string,
-    createdAt: r.created_at as string,
-    createdBy: r.created_by as string,
+    contactPerson: (r.contactPerson as string) ?? "",
+    imageUrl: (r.imageUrl as string) ?? undefined,
+    notes: (r.notes as string) ?? "",
+    createdAt: r.createdAt as string,
+    createdBy: r.createdBy as string,
   }
 }
 
 export async function getClients(): Promise<Client[]> {
-  const { data, error } = await supabase
-    .from("erp_clients")
-    .select("*")
-    .order("created_at", { ascending: false })
-  if (error) { console.error(error); return [] }
-  return (data ?? []).map(rowToClient)
+  const res = await fetch("/api/db/clients")
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.map(mapRow)
 }
 
 export async function saveClient(client: Client): Promise<void> {
-  const { error } = await supabase.from("erp_clients").upsert({
-    id: client.id,
-    name: client.name,
-    company: client.company,
-    email: client.email,
-    phone: client.phone,
-    address: client.address,
-    city: client.city,
-    country: client.country,
-    website: client.website,
-    tax_id: client.taxId,
-    industry: client.industry,
-    contact_person: client.contactPerson,
-    image_url: client.imageUrl,
-    notes: client.notes,
-    created_at: client.createdAt,
-    created_by: client.createdBy,
+  await fetch("/api/db/clients", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(client),
   })
-  if (error) console.error("saveClient error:", error.message)
 }
 
 export async function deleteClient(id: string): Promise<void> {
-  await supabase.from("erp_clients").delete().eq("id", id)
+  await fetch("/api/db/clients", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
 }

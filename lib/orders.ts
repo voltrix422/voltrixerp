@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 
 export type OrderStatus = "draft" | "pending_approval" | "approved" | "rejected" | "finalized" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
 
@@ -55,81 +55,65 @@ export interface OrderPayment {
 function rowToOrder(r: Record<string, unknown>): Order {
   return {
     id: r.id as string,
-    orderNumber: r.order_number as string,
-    clientId: r.client_id as string,
-    clientName: r.client_name as string,
+    orderNumber: r.orderNumber as string,
+    clientId: r.clientId as string,
+    clientName: r.clientName as string,
     items: (r.items as OrderItem[]) ?? [],
     subtotal: (r.subtotal as number) ?? 0,
-    taxPercent: (r.tax_percent as number) ?? 0,
+    taxPercent: (r.taxPercent as number) ?? 0,
     tax: (r.tax as number) ?? 0,
-    transportCost: (r.transport_cost as number) ?? 0,
-    transportLabel: (r.transport_label as string) ?? "Transport",
-    otherCost: (r.other_cost as number) ?? 0,
-    otherCostLabel: (r.other_cost_label as string) ?? "Other",
+    transportCost: (r.transportCost as number) ?? 0,
+    transportLabel: (r.transportLabel as string) ?? "Transport",
+    otherCost: (r.otherCost as number) ?? 0,
+    otherCostLabel: (r.otherCostLabel as string) ?? "Other",
     shipping: (r.shipping as number) ?? 0,
     discount: (r.discount as number) ?? 0,
     total: (r.total as number) ?? 0,
     status: r.status as OrderStatus,
-    notes: (r.notes as string) ?? "",
-    createdAt: r.created_at as string,
-    createdBy: r.created_by as string,
-    deliveryAddress: (r.delivery_address as string) ?? "",
-    deliveryDate: (r.delivery_date as string) ?? "",
+    notes: r.notes as string,
+    createdAt: r.createdAt as string,
+    createdBy: r.createdBy as string,
+    deliveryAddress: (r.deliveryAddress as string) ?? "",
+    deliveryDate: (r.deliveryDate as string) ?? "",
     dispatcher: (r.dispatcher as string) ?? undefined,
-    pdfUrl: (r.pdf_url as string) ?? undefined,
+    pdfUrl: (r.pdfUrl as string) ?? undefined,
     payments: (r.payments as OrderPayment[]) ?? [],
   }
 }
 
 export async function getOrders(): Promise<Order[]> {
-  const { data, error } = await supabase
-    .from("erp_orders")
-    .select("*")
-    .order("created_at", { ascending: false })
-  if (error) { console.error(error); return [] }
-  return (data ?? []).map(rowToOrder)
+  try {
+    const res = await fetch("/api/db/orders")
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data ?? []).map(rowToOrder)
+  } catch { return [] }
 }
 
 export async function saveOrder(order: Order): Promise<void> {
-  const { error } = await supabase.from("erp_orders").upsert({
-    id: order.id,
-    order_number: order.orderNumber,
-    client_id: order.clientId,
-    client_name: order.clientName,
-    items: order.items,
-    subtotal: order.subtotal,
-    tax_percent: order.taxPercent,
-    tax: order.tax,
-    transport_cost: order.transportCost,
-    transport_label: order.transportLabel,
-    other_cost: order.otherCost,
-    other_cost_label: order.otherCostLabel,
-    shipping: order.shipping,
-    discount: order.discount,
-    total: order.total,
-    status: order.status,
-    notes: order.notes,
-    created_at: order.createdAt,
-    created_by: order.createdBy,
-    delivery_address: order.deliveryAddress,
-    delivery_date: order.deliveryDate,
-    dispatcher: order.dispatcher,
-    pdf_url: order.pdfUrl,
-    payments: order.payments,
+  const res = await fetch("/api/db/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(order),
   })
-  if (error) console.error("saveOrder error:", error.message)
+  if (!res.ok) console.error("saveOrder error:", res.statusText)
 }
 
 export async function deleteOrder(id: string): Promise<void> {
-  await supabase.from("erp_orders").delete().eq("id", id)
+  await fetch("/api/db/orders", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
 }
 
 export async function generateOrderNumber(): Promise<string> {
-  const { count } = await supabase
-    .from("erp_orders")
-    .select("*", { count: "exact", head: true })
-  const n = (count ?? 0) + 1
-  return `ORD-${String(n).padStart(5, "0")}`
+  try {
+    const res = await fetch("/api/db/orders/count")
+    const { count } = await res.json()
+    const n = (count ?? 0) + 1
+    return `ORD-${String(n).padStart(5, "0")}`
+  } catch { return `ORD-${Date.now()}` }
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {

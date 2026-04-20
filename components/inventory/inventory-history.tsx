@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getInventoryHistory, type InventoryTransaction } from "@/lib/inventory-history"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Package, ShoppingCart, X } from "lucide-react"
@@ -14,13 +14,8 @@ export function InventoryHistory() {
 
   useEffect(() => {
     loadHistory()
-    const channel = supabase
-      .channel("inventory_history")
-      .on("postgres_changes", { event: "*", schema: "public", table: "erp_inventory_history" }, () => {
-        loadHistory()
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const interval = setInterval(loadHistory, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   async function loadHistory() {
@@ -58,7 +53,7 @@ export function InventoryHistory() {
         <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-1">
           <button
             onClick={() => setFilterType("all")}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer ${
               filterType === "all" 
                 ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" 
                 : "hover:bg-[hsl(var(--muted))]/50"
@@ -68,7 +63,7 @@ export function InventoryHistory() {
           </button>
           <button
             onClick={() => setFilterType("in")}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer ${
               filterType === "in" 
                 ? "bg-green-600 text-white" 
                 : "hover:bg-[hsl(var(--muted))]/50"
@@ -78,7 +73,7 @@ export function InventoryHistory() {
           </button>
           <button
             onClick={() => setFilterType("out")}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer ${
               filterType === "out" 
                 ? "bg-red-600 text-white" 
                 : "hover:bg-[hsl(var(--muted))]/50"

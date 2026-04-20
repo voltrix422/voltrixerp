@@ -5,14 +5,14 @@ import { type User, getSession, setSession, clearSession, getUsers, login as aut
 
 interface AuthContextType {
   user: User | null
-  login: (email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string) => Promise<User | null>
   logout: () => void
   refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: async () => false,
+  login: async () => null,
   logout: () => {},
   refreshUser: async () => {},
 })
@@ -53,10 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, checked, pathname, router])
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<User | null> => {
     const result = await authLogin(email, password)
-    if (result) { setUser(result); return true }
-    return false
+    if (result) { setUser(result); return result }
+    return null
   }, [])
 
   const logout = useCallback(() => {

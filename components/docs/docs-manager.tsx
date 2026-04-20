@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getDocs, saveDoc, deleteDoc, uploadFile, DOC_CATEGORIES, type Doc } from "@/lib/docs"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Search, Upload, X, FileText, Download, Trash2, Eye, Filter, Edit2 } from "lucide-react"

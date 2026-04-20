@@ -45,7 +45,7 @@ function StepBar({ status }: { status: string }) {
               "bg-[hsl(var(--border))]"
             }`} />
             {rejected && i === 2 ? "Rejected" : s}
-          </div>
+          </div>  
           {i < STEPS.length - 1 && <ChevronRight className="h-4 w-4 text-[hsl(var(--border))] mx-1" />}
         </div>
       ))}
@@ -75,7 +75,8 @@ function QuoteForm({ po, supplierId, supplierName, existing, onSave, onCancel }:
     const item = po.items.find(i => i.id === qi.itemId)
     return s + qi.unitPrice * (item?.qty ?? 0)
   }, 0)
-  const grandTotal = itemsTotal + tax + transport + other
+  const taxAmount = itemsTotal * (tax / 100)
+  const grandTotal = itemsTotal + taxAmount + transport + other
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -115,7 +116,7 @@ function QuoteForm({ po, supplierId, supplierName, existing, onSave, onCancel }:
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "Tax (PKR)", val: tax, set: setTax },
+          { label: "Tax (%)", val: tax, set: setTax },
           { label: "Transport Cost", val: transport, set: setTransport },
           { label: "Other Cost", val: other, set: setOther },
         ].map(f => (
@@ -275,11 +276,18 @@ function QuoteComparison({ po }: { po: PurchaseOrder }) {
                 </tr>
                 <tr>
                   <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">Tax</td>
-                  {po.quotes.map(q => (
-                    <td key={q.supplierId} className="px-3 py-2 text-right font-medium text-xs">
-                      PKR {q.taxPct.toLocaleString()}
-                    </td>
-                  ))}
+                  {po.quotes.map(q => {
+                    const itemsTotal = po.items.reduce((sum, item) => {
+                      const qi = q.items.find(x => x.itemId === item.id)
+                      return sum + (qi ? qi.unitPrice * item.qty : 0)
+                    }, 0)
+                    const taxAmount = itemsTotal * (q.taxPct / 100)
+                    return (
+                      <td key={q.supplierId} className="px-3 py-2 text-right font-medium text-xs">
+                        {q.taxPct}% (PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                      </td>
+                    )
+                  })}
                 </tr>
                 <tr>
                   <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">Transport</td>
@@ -363,6 +371,8 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
         ...po,
         status: "sharing",
         suppliersSent: [...po.suppliersSent, { supplierId: sup.id, supplierName: sup.name, sentAt: new Date().toISOString() }],
+        supplierIds: [...po.supplierIds, sup.id],
+        supplierNames: [...po.supplierNames, sup.name],
       }
       onUpdate(updated)
     }
@@ -399,35 +409,34 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
   }
 
   // Suppliers to show in sharing step — all suppliers of same type
-  const shareableSuppliers = allSuppliers.filter(s => s.type === po.type && po.supplierIds.includes(s.id))
+  const shareableSuppliers = allSuppliers.filter(s => s.type === po.type)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-5xl max-h-[92vh] flex flex-col rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="w-full max-w-6xl max-h-[92vh] flex flex-col rounded-2xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
 
         {/* Chrome header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-[hsl(var(--muted))]/40 to-transparent shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-[hsl(var(--primary))]">{po.poNumber}</span>
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">Purchase Order</span>
+        <div className="flex items-center justify-between px-8 py-5 border-b bg-gradient-to-r from-[hsl(var(--primary))]/5 to-[hsl(var(--muted))]/10 shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-[hsl(var(--primary))]/10 border border-[hsl(var(--primary))]/20">
+              <span className="text-2xl font-bold text-[hsl(var(--primary))]">{po.poNumber}</span>
             </div>
-            <div className="h-8 w-px bg-[hsl(var(--border))]" />
+            <div className="h-10 w-px bg-[hsl(var(--border))]" />
             <div className="flex items-center gap-2">
-              <Badge variant={STATUS_VARIANT[po.status]} className="text-[10px]">{STATUS_LABELS[po.status]}</Badge>
-              <Badge variant={po.type === "local" ? "secondary" : "secondary"} className="text-[10px]">{po.type}</Badge>
+              <Badge variant={STATUS_VARIANT[po.status]} className="text-xs px-3 py-1">{STATUS_LABELS[po.status]}</Badge>
+              <Badge variant="outline" className="text-xs px-3 py-1">{po.type}</Badge>
               {po.quotes.length > 0 && (
-                <Badge variant="secondary" className="text-[10px] gap-1">
+                <Badge variant="secondary" className="text-xs px-3 py-1 gap-1">
                   {po.quotes.length} Quote{po.quotes.length !== 1 ? "s" : ""}
                 </Badge>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => setShowDownloadOptions(true)}>
-              Download
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-9 text-xs gap-2 cursor-pointer" onClick={() => setShowDownloadOptions(true)}>
+              <Download className="h-3.5 w-3.5" /> Download
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[hsl(var(--muted))]/20" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-[hsl(var(--muted))]/20 cursor-pointer" onClick={onClose}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -438,37 +447,38 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-8 pt-6 pb-4 border-b bg-gradient-to-b from-[hsl(var(--muted))]/5 to-transparent">
-            <div className="flex items-start justify-between gap-8">
+          <div className="px-8 py-6 border-b bg-gradient-to-b from-[hsl(var(--muted))]/5 to-transparent">
+            <div className="flex items-start justify-between gap-12">
               <div>
-                <p className="text-2xl font-bold tracking-tight">Purchase Order</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">VoltrixERP · Procurement</p>
+                <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">Purchase Order</h1>
+                <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">VoltrixERP · Procurement</p>
               </div>
-              <div className="text-right space-y-2 shrink-0">
+              <div className="text-right space-y-1.5 shrink-0">
                 <div className="flex items-center justify-end gap-2">
-                  <span className="text-xl font-bold text-[hsl(var(--primary))]">{po.poNumber}</span>
+                  <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                  <span className="text-sm text-[hsl(var(--foreground))]">{new Date(po.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</span>
                 </div>
-                <div className="flex items-center justify-end gap-1.5 text-xs text-[hsl(var(--muted-foreground))]">
-                  <span>{new Date(po.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</span>
-                </div>
-                <div className="flex items-center justify-end gap-1.5 text-xs text-[hsl(var(--muted-foreground))]">
-                  <span>{po.createdBy}</span>
+                <div className="flex items-center justify-end gap-2">
+                  <User className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                  <span className="text-sm text-[hsl(var(--muted-foreground))]">{po.createdBy}</span>
                 </div>
                 {po.deliveryDate && (
-                  <div className="flex items-center justify-end gap-1.5 text-xs">
-                    <span className="font-medium text-[hsl(var(--foreground))]">Required by {po.deliveryDate}</span>
+                  <div className="flex items-center justify-end gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-[hsl(var(--primary))]" />
+                    <span className="text-sm font-medium text-[hsl(var(--primary))]">Required by {po.deliveryDate}</span>
                   </div>
                 )}
                 {po.receivingLocation && (
-                  <div className="flex items-center justify-end gap-1.5 text-xs">
-                    <span className="font-medium text-[hsl(var(--foreground))]">{po.receivingLocation}</span>
+                  <div className="flex items-center justify-end gap-2">
+                    <MapPin className="h-3.5 w-3.5 text-[hsl(var(--primary))]" />
+                    <span className="text-sm font-medium text-[hsl(var(--primary))]">{po.receivingLocation}</span>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="px-6 py-4 space-y-4">
+          <div className="px-8 py-6 space-y-6">
             {/* Row 1: Best Supplier + Suppliers */}
             <div className="grid grid-cols-3 gap-4">
               {/* Best Supplier - 1 col */}
@@ -493,19 +503,32 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
               )}
 
               {/* Suppliers - 2 cols */}
-              <div className="col-span-2 rounded-lg border bg-gradient-to-br from-[hsl(var(--muted))]/5 to-transparent p-3 space-y-2">
+              <div className="col-span-2 rounded-xl border bg-gradient-to-br from-[hsl(var(--muted))]/10 to-[hsl(var(--muted))]/5 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Suppliers ({po.supplierNames.length})</p>
-                  <Badge variant="secondary" className="text-[8px] h-5">{po.supplierNames.length} Active</Badge>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Suppliers ({po.supplierNames.length})</h3>
+                  <Badge variant="secondary" className="text-xs px-2.5 py-1 h-6">{po.supplierNames.length} Active</Badge>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   {selectedSuppliers.map(supplier => (
-                    <div key={supplier.id} className="rounded-lg border bg-[hsl(var(--card))] p-2.5 hover:shadow-md transition-shadow">
-                      <p className="text-[10px] font-bold text-[hsl(var(--primary))]">{supplier.name}</p>
-                      <div className="space-y-1 mt-1.5">
-                        {supplier.company && <div className="flex items-center gap-1 text-[9px] text-[hsl(var(--muted-foreground))]"><span>{supplier.company}</span></div>}
-                        <div className="flex items-center gap-1 text-[9px] text-[hsl(var(--muted-foreground))]"><span className="font-medium">{supplier.contact}</span></div>
-                        {supplier.email && <div className="flex items-center gap-1 text-[9px] text-[hsl(var(--muted-foreground))]"><span>{supplier.email}</span></div>}
+                    <div key={supplier.id} className="rounded-lg border bg-[hsl(var(--card))] p-3 hover:shadow-lg transition-all hover:border-[hsl(var(--primary))]/30">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-[hsl(var(--foreground))]">{supplier.name}</p>
+                          {supplier.company && <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{supplier.company}</p>}
+                        </div>
+                        <Building2 className="h-4 w-4 text-[hsl(var(--primary))]" />
+                      </div>
+                      <div className="space-y-1.5 mt-2">
+                        <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                          <Phone className="h-3 w-3" />
+                          <span className="font-medium">{supplier.contact}</span>
+                        </div>
+                        {supplier.email && (
+                          <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                            <Mail className="h-3 w-3" />
+                            <span>{supplier.email}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -516,25 +539,31 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
             {/* Quote Comparison */}
             {po.quotes.length > 0 && <QuoteComparison po={po} />}
 
-            {/* Items — shown when pending approval (no quotes yet) */}
-            {po.status === "sent_to_admin" && po.items.length > 0 && (
+            {/* Items — shown for all statuses */}
+            {po.items.length > 0 && (
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
-                <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-xs">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Order Items</h3>
+                <div className="rounded-xl border overflow-hidden">
+                  <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                        <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                        <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-16">Qty</th>
-                        <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))] w-16">Unit</th>
+                      <tr className="bg-gradient-to-r from-[hsl(var(--muted))]/30 to-[hsl(var(--muted))]/10 border-b">
+                        <th className="px-5 py-3.5 text-left text-sm font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
+                        <th className="px-5 py-3.5 text-center text-sm font-semibold text-[hsl(var(--muted-foreground))] w-28">Qty</th>
+                        <th className="px-5 py-3.5 text-left text-sm font-semibold text-[hsl(var(--muted-foreground))] w-28">Unit</th>
+                        {po.items.some(i => i.specs) && (
+                          <th className="px-5 py-3.5 text-left text-sm font-semibold text-[hsl(var(--muted-foreground))] w-36">Specs</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {po.items.map(item => (
-                        <tr key={item.id}>
-                          <td className="px-3 py-2">{item.description}</td>
-                          <td className="px-3 py-2 text-center">{item.qty}</td>
-                          <td className="px-3 py-2">{item.unit}</td>
+                        <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/5 transition-colors">
+                          <td className="px-5 py-3.5 text-sm font-semibold">{item.description}</td>
+                          <td className="px-5 py-3.5 text-center text-sm font-medium">{item.qty}</td>
+                          <td className="px-5 py-3.5 text-sm text-[hsl(var(--muted-foreground))]">{item.unit}</td>
+                          {po.items.some(i => i.specs) && (
+                            <td className="px-5 py-3.5 text-sm text-[hsl(var(--muted-foreground))]">{item.specs || "—"}</td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -545,42 +574,42 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
 
             {/* Send to Suppliers */}
             {!isAdmin && po.status !== "sent_to_admin" && po.status !== "direct" && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <button
                   onClick={() => setAddingQuoteFor(addingQuoteFor === "toggle-suppliers" ? null : "toggle-suppliers")}
-                  className="flex items-center justify-between w-full"
+                  className="flex items-center justify-between w-full cursor-pointer"
                 >
                   <div className="flex items-center justify-between flex-1">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Send to Suppliers</p>
-                    <Badge variant="outline" className="text-[8px] gap-1 h-5">
+                    <p className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Send to Suppliers</p>
+                    <Badge variant="outline" className="text-xs gap-1 h-6 px-2">
                       {po.suppliersSent.length} sent · {po.quotes.length} quoted
                     </Badge>
                   </div>
-                  <span className="text-xs ml-2">{addingQuoteFor === "toggle-suppliers" ? "−" : "+"}</span>
+                  <span className="text-sm ml-2">{addingQuoteFor === "toggle-suppliers" ? "−" : "+"}</span>
                 </button>
                 
                 {addingQuoteFor === "toggle-suppliers" && (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {shareableSuppliers.map(sup => {
                       const sent = po.suppliersSent.find(s => s.supplierId === sup.id)
                       const hasQuote = po.quotes.find(q => q.supplierId === sup.id)
                       return (
-                        <div key={sup.id} className={`flex items-center justify-between rounded-lg border px-2.5 py-2 transition-all text-xs ${
+                        <div key={sup.id} className={`flex items-center justify-between rounded-lg border px-3 py-2.5 transition-all text-xs ${
                           hasQuote ? "bg-[hsl(var(--muted))]/30 border-[hsl(var(--border))]" : "hover:bg-[hsl(var(--muted))]/20"
                         }`}>
                           <div>
-                            <p className="text-[9px] font-semibold text-[hsl(var(--foreground))]">{sup.name}</p>
-                            <p className="text-[8px] text-[hsl(var(--muted-foreground))]">{sup.contact}</p>
+                            <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{sup.name}</p>
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{sup.contact}</p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            {hasQuote && <Badge variant="secondary" className="text-[7px] gap-0.5 h-4">Quoted</Badge>}
-                            {sent && !hasQuote && <Badge variant="secondary" className="text-[7px] h-4">Sent</Badge>}
-                            <Button size="sm" variant={sent ? "outline" : "default"} className="h-5 text-[8px] px-1.5 gap-0.5"
+                          <div className="flex items-center gap-1.5">
+                            {hasQuote && <Badge variant="secondary" className="text-[9px] gap-0.5 h-5">Quoted</Badge>}
+                            {sent && !hasQuote && <Badge variant="secondary" className="text-[9px] h-5">Sent</Badge>}
+                            <Button size="sm" variant={sent ? "outline" : "default"} className="h-6 text-[10px] px-2 gap-0.5 cursor-pointer"
                               onClick={() => sendWhatsApp(sup)}>
                               {sent ? "Resend" : "Send"}
                             </Button>
                             {sent && (
-                              <Button size="sm" variant="outline" className="h-5 text-[8px] px-1.5"
+                              <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 cursor-pointer"
                                 onClick={() => setAddingQuoteFor(addingQuoteFor === sup.id ? null : sup.id)}>
                                 {hasQuote ? "Edit" : "Add Quote"}
                               </Button>
@@ -598,71 +627,75 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
 
             {/* Admin note */}
             {isAdmin && po.status !== "approved" && po.status !== "in_inventory" && (
-              <div className="space-y-1">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Admin Note</p>
-                <textarea value={adminNote} onChange={e => setAdminNote(e.target.value)} rows={2}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Admin Note</h3>
+                <textarea value={adminNote} onChange={e => setAdminNote(e.target.value)} rows={3}
                   placeholder="Add notes for this PO"
-                  className="w-full rounded-lg border bg-[hsl(var(--background))] px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
+                  className="w-full rounded-xl border bg-[hsl(var(--background))] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] resize-none transition-all" />
               </div>
             )}
 
             {po.adminNote && !isAdmin && (
-              <div className={`rounded-lg border px-3 py-2 ${po.status === "rejected" ? "border-red-200 bg-red-50 dark:bg-red-950/20" : "bg-[hsl(var(--muted))]/30"}`}>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">Admin Note</p>
-                <p className={`text-xs ${po.status === "rejected" ? "text-red-700 dark:text-red-400" : ""}`}>{po.adminNote}</p>
+              <div className={`rounded-xl border px-4 py-3 ${po.status === "rejected" ? "border-red-200 bg-red-50 dark:bg-red-950/20" : "bg-[hsl(var(--muted))]/30"}`}>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Admin Note</h3>
+                <p className={`text-sm ${po.status === "rejected" ? "text-red-700 dark:text-red-400" : ""}`}>{po.adminNote}</p>
               </div>
             )}
 
             {po.notes && (
-              <div className="rounded-lg border px-3 py-2">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">Notes</p>
-                <p className="text-xs">{po.notes}</p>
+              <div className="rounded-xl border px-5 py-4 bg-[hsl(var(--muted))]/20">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Notes</h3>
+                <p className="text-sm">{po.notes}</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Footer actions */}
-        <div className="flex flex-wrap items-center gap-2 px-8 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          {po.status !== "direct" && !isAdmin && (
-            <>
-              {po.status === "draft" && (
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onUpdate({ ...po, status: "draft" })}>
-                  Back to Draft
-                </Button>
-              )}
-              {po.status === "draft" && (
-                <Button size="sm" className="h-8 text-xs" onClick={sendToAdmin}>
-                  Send to Admin
-                </Button>
-              )}
-              {po.status !== "finalized" && po.status !== "in_inventory" && po.quotes.length > 0 && (
-                <Button size="sm" className="h-8 text-xs" onClick={finalize}>
-                  Finalize Order
-                </Button>
-              )}
-            </>
-          )}
-          {po.status !== "direct" && isAdmin && (
-            <>
-              {po.status !== "draft" && po.status !== "finalized" && po.status !== "approved" && po.status !== "in_inventory" && (
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onUpdate({ ...po, status: "draft" })}>
-                  Back to Draft
-                </Button>
-              )}
-              {po.status !== "approved" && po.status !== "rejected" && po.status !== "finalized" && po.status !== "in_inventory" && (
-                <Button size="sm" className="h-8 text-xs" onClick={approve}>
-                  Approve
-                </Button>
-              )}
-              {po.status !== "rejected" && po.status !== "finalized" && po.status !== "approved" && po.status !== "in_inventory" && (
-                <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={reject}>
-                  Reject
-                </Button>
-              )}
-            </>
-          )}
-          <Button size="sm" variant="ghost" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-8 py-5 border-t bg-gradient-to-r from-[hsl(var(--muted))]/20 to-transparent shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {po.status !== "direct" && !isAdmin && (
+              <>
+                {po.status === "draft" && (
+                  <Button size="sm" variant="outline" className="h-9 text-xs cursor-pointer" onClick={() => onUpdate({ ...po, status: "draft" })}>
+                    Back to Draft
+                  </Button>
+                )}
+                {po.status === "draft" && (
+                  <Button size="sm" className="h-9 text-xs cursor-pointer" onClick={sendToAdmin}>
+                    Send to Admin
+                  </Button>
+                )}
+                {po.status !== "finalized" && po.status !== "in_inventory" && po.quotes.length > 0 && (
+                  <Button size="sm" className="h-9 text-xs cursor-pointer" onClick={finalize}>
+                    Finalize Order
+                  </Button>
+                )}
+              </>
+            )}
+            {po.status !== "direct" && isAdmin && (
+              <>
+                {po.status === "sent_to_admin" && (
+                  <Button size="sm" variant="outline" className="h-9 text-xs cursor-pointer" onClick={() => onUpdate({ ...po, status: "draft" })}>
+                    Back to Draft
+                  </Button>
+                )}
+                {po.status === "sent_to_admin" && (
+                  <Button size="sm" className="h-9 text-xs gap-2 cursor-pointer" onClick={approve}>
+                    <CheckCircle className="h-4 w-4" /> Approve
+                  </Button>
+                )}
+                {po.status === "sent_to_admin" && (
+                  <Button size="sm" variant="destructive" className="h-9 text-xs gap-2 cursor-pointer" onClick={reject}>
+                    <XCircle className="h-4 w-4" /> Reject
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+          <Button size="sm" variant="outline" className="h-9 text-xs cursor-pointer" onClick={onClose}>
+            Close
+          </Button>
         </div>
       </div>
 

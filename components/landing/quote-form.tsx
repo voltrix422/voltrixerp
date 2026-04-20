@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import { Battery, Zap, Cpu, Package, ChevronDown, Loader2, CheckCircle2, X } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 
 const productTypes = [
   { id: "battery",  label: "Battery Pack", icon: Battery },
@@ -37,22 +37,31 @@ export default function QuoteForm() {
     e.preventDefault()
     setLoading(true)
     setError("")
-    const { error: err } = await supabase.from("quotations").insert({
-      product_type:   selected,
-      voltage,
-      capacity,
-      quantity:       quantity ? parseInt(quantity) : null,
-      budget,
-      application,
-      specifications: specs,
-      timeline,
-      full_name:      fullName,
-      company,
-      email,
-      phone,
-    })
-    setLoading(false)
-    if (err) { setError("Something went wrong. Please try again."); return }
+    try {
+      const res = await fetch("/api/db/quotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_type:   selected,
+          voltage,
+          capacity,
+          quantity:       quantity ? parseInt(quantity) : null,
+          budget,
+          application,
+          specifications: specs,
+          timeline,
+          full_name:      fullName,
+          company,
+          email,
+          phone,
+        }),
+      })
+      setLoading(false)
+      if (!res.ok) { setError("Something went wrong. Please try again."); return }
+    } catch {
+      setLoading(false)
+      setError("Something went wrong. Please try again."); return
+    }
     setToast(true)
     setTimeout(() => setToast(false), 4000)
     // Reset form

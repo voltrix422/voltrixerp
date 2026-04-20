@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Loader2, RefreshCw, ExternalLink, Package } from "lucide-react"
 import ProductsManager from "@/components/website/products-manager"
@@ -44,12 +44,29 @@ export default function WebsitePage() {
 
   const fetchQuotes = async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from("quotations")
-      .select("*")
-      .order("created_at", { ascending: false })
-    if (error) console.error("Quotations fetch error:", error)
-    setQuotes((data as Quotation[]) || [])
+    try {
+      const res = await fetch("/api/db/quotations")
+      if (res.ok) {
+        const data = await res.json()
+        setQuotes(data.map((q: Record<string, unknown>) => ({
+          id: q.id as string,
+          created_at: (q.createdAt || q.created_at) as string,
+          product_type: (q.productType || q.product_type) as string | null,
+          voltage: q.voltage as string | null,
+          capacity: q.capacity as string | null,
+          quantity: q.quantity as number | null,
+          budget: q.budget as string | null,
+          application: q.application as string | null,
+          specifications: (q.specifications || q.specs) as string | null,
+          timeline: q.timeline as string | null,
+          full_name: (q.fullName || q.full_name) as string,
+          company: q.company as string | null,
+          email: q.email as string,
+          phone: q.phone as string,
+          status: (q.status || "new") as Quotation["status"],
+        })))
+      }
+    } catch (e) { console.error("Quotations fetch error:", e) }
     setLoading(false)
   }
 
@@ -57,7 +74,13 @@ export default function WebsitePage() {
 
   const updateStatus = async (id: string, status: string) => {
     setUpdating(true)
-    await supabase.from("quotations").update({ status }).eq("id", id)
+    try {
+      await fetch("/api/db/quotations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      })
+    } catch {}
     setQuotes(q => q.map(x => x.id === id ? { ...x, status: status as Quotation["status"] } : x))
     if (selected?.id === id) setSelected(s => s ? { ...s, status: status as Quotation["status"] } : s)
     setUpdating(false)

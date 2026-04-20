@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getOrders, saveOrder, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, CheckCircle2, XCircle } from "lucide-react"
@@ -16,13 +16,8 @@ export function ClientOrdersApproval() {
 
   useEffect(() => {
     getOrders().then(setOrders)
-    const channel = supabase
-      .channel("dashboard_orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "erp_orders" }, () => {
-        getOrders().then(setOrders)
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const interval = setInterval(() => getOrders().then(setOrders), 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const pendingOrders = orders.filter(o => o.status === "pending_approval")
@@ -70,7 +65,7 @@ export function ClientOrdersApproval() {
         <div className="flex gap-1 border-b border-[hsl(var(--border))]">
           {(["pending", "approved"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
+              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
                 tab === t ? "text-[hsl(var(--foreground))]"
                 : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
@@ -83,12 +78,6 @@ export function ClientOrdersApproval() {
               )}
             </button>
           ))}
-        </div>
-
-        <div>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            {displayOrders.length} order{displayOrders.length !== 1 ? "s" : ""} {tab === "pending" ? "pending" : "approved"}
-          </p>
         </div>
 
         {displayOrders.length === 0 ? (

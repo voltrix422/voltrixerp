@@ -5,7 +5,8 @@ import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight } from "lucide-react"
 import Link from "next/link"
-import { createClient } from "@supabase/supabase-js"
+import { promises as fs } from 'fs'
+import path from 'path'
 
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-dm-sans" })
 
@@ -24,19 +25,18 @@ function StockBadge({ stock }: { stock: any }) {
 }
 
 async function getProducts() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-  const { data } = await supabase
-    .from("products")
-    .select("*")
-    .eq("published", true)
-    .order("created_at", { ascending: false })
-  return data || []
+  try {
+    const dataFile = path.join(process.cwd(), 'data', 'products.json')
+    const data = await fs.readFile(dataFile, 'utf-8')
+    const products = JSON.parse(data)
+    return products.filter((p: any) => p.published)
+  } catch (error) {
+    console.error('Error reading products:', error)
+    return []
+  }
 }
 
-export const revalidate = 60
+export const revalidate = 0
 
 export default async function ProductsPage() {
   const products = await getProducts()

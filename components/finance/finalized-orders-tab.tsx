@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { getPOs, savePO, type PurchaseOrder, type Supplier, type PaymentRecord, STATUS_LABELS, STATUS_VARIANT, calcQuoteTotal } from "@/lib/purchase"
 import { getSuppliers } from "@/lib/purchase"
-import { supabase } from "@/lib/supabase"
+import { uploadFile } from "@/lib/upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Loader2, X } from "lucide-react"
@@ -24,16 +24,14 @@ export function FinalizedOrdersTab() {
       setSuppliers(s)
       setLoading(false)
     })
-    const channel = supabase
-      .channel("finance_orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "erp_purchase_orders" }, () => {
-        getPOs().then(p => setPOs(p.filter(po =>
-          (po.type === "local" && (po.status === "finalized" || po.status === "direct" || po.status === "in_inventory")) ||
-          (po.type === "imported" && !po.status.startsWith("imp_admin_draft") && !po.status.startsWith("imp_purchase") && po.status !== "imp_rejected")
-        )))
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    // Refresh data periodically (replaces Supabase realtime)
+    const interval = setInterval(() => {
+      getPOs().then(p => setPOs(p.filter(po =>
+        (po.type === "local" && (po.status === "finalized" || po.status === "direct" || po.status === "in_inventory")) ||
+        (po.type === "imported" && !po.status.startsWith("imp_admin_draft") && !po.status.startsWith("imp_purchase") && po.status !== "imp_rejected")
+      )))
+    }, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   async function handleUpdate(updated: PurchaseOrder) {
@@ -59,7 +57,7 @@ export function FinalizedOrdersTab() {
       <div className="flex gap-0 border-b -mx-6 px-6">
         {(["finalized", "direct", "imported"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px cursor-pointer ${
               tab === t ? "border-[hsl(var(--foreground))] text-[hsl(var(--foreground))]"
               : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
             }`}>
@@ -124,14 +122,16 @@ export function FinalizedOrdersTab() {
                   )
                 }
                 const supplier = suppliers.find(s => s.id === po.finalizedSupplierId)
-                const quote = po.quotes.find(q => q.supplierId === po.finalizedSupplierId)
+                const quote = po.quotes.find(q => q.supplierId === po.finalizedSupplierId) || po.quotes[0]
                 const totalCost = quote ? calcQuoteTotal(po, quote) : 0
                 const totalPaid = (po.payments || []).reduce((s, p) => s + p.amount, 0)
                 const remaining = totalCost - totalPaid
+                const supplierName = supplier?.name || quote?.supplierName || po.supplierNames?.[0] || "—"
+                const poNumberDisplay = po.poNumber || `PO-${po.id.slice(0, 8)}`
                 return (
                   <tr key={po.id} onClick={() => setSelectedPO(po)} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer">
-                    <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{po.poNumber}</td>
-                    <td className="px-4 py-2.5 text-xs font-medium">{supplier?.name || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{poNumberDisplay}</td>
+                    <td className="px-4 py-2.5 text-xs font-medium">{supplierName}</td>
                     <td className="px-4 py-2.5"><Badge variant={po.type === "local" ? "success" : "info"} className="text-[10px] px-1.5 py-0">{po.type}</Badge></td>
                     <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{po.items.length}</td>
                     <td className="px-4 py-2.5 text-xs font-semibold">PKR {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -182,13 +182,15 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
   const [saving, setSaving] = useState(false)
 
   const supplier = suppliers.find(s => s.id === po.finalizedSupplierId)
-  const quote = po.quotes.find(q => q.supplierId === po.finalizedSupplierId)
+  const quote = po.quotes.find(q => q.supplierId === po.finalizedSupplierId) || po.quotes[0]
 
-  const itemsTotal = po.items.reduce((sum, item) => {
-    const qi = quote?.items.find(q => q.itemId === item.id)
-    return sum + (qi ? qi.unitPrice * item.qty : 0)
+  const itemsTotal = po.items.reduce((sum, item, idx) => {
+    const qi = quote?.items.find(q => q.itemId === item.id) || quote?.items[idx]
+    const unitPrice = qi?.unitPrice || 0
+    return sum + unitPrice * item.qty
   }, 0)
-  const totalCost = itemsTotal + (quote?.taxPct || 0) + (quote?.transportCost || 0) + (quote?.otherCost || 0)
+  const taxAmount = itemsTotal * ((quote?.taxPct || 0) / 100)
+  const totalCost = itemsTotal + taxAmount + (quote?.transportCost || 0) + (quote?.otherCost || 0)
   const payments = po.payments || []
   const totalPaid = payments.reduce((s, p) => s + p.amount, 0)
   const remaining = totalCost - totalPaid
@@ -208,15 +210,7 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
 
     let proofUrl: string | undefined
     if (proofFile) {
-      const ext = proofFile.name.split(".").pop()
-      const path = `payment-proofs/${po.id}-${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from("erp-files")
-        .upload(path, proofFile, { upsert: true })
-      if (!uploadError) {
-        const { data } = supabase.storage.from("erp-files").getPublicUrl(path)
-        proofUrl = data.publicUrl
-      }
+      try { proofUrl = await uploadFile(proofFile, "payment-proofs") } catch {}
     }
 
     const newPayment: PaymentRecord = {
@@ -254,13 +248,13 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
             <p className="text-lg font-bold text-[hsl(var(--primary))]">{po.poNumber}</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Finalized Order</p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}><X className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}><X className="h-4 w-4" /></Button>
         </div>
 
         <div className="flex gap-0 border-b px-6 bg-[hsl(var(--background))] shrink-0">
           {(["order", "payment"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px cursor-pointer ${
                 tab === t ? "border-[hsl(var(--foreground))] text-[hsl(var(--foreground))]"
                 : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
@@ -282,29 +276,36 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
 
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
-                <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-xs">
-                    <thead><tr className="bg-[hsl(var(--muted))]/40 border-b">
-                      <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                      <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-16">Qty</th>
-                      <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-24">Unit Price</th>
-                      <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-24">Total</th>
-                    </tr></thead>
-                    <tbody className="divide-y">
-                      {po.items.map(item => {
-                        const qi = quote?.items.find(q => q.itemId === item.id)
-                        return (
-                          <tr key={item.id}>
-                            <td className="px-3 py-2">{item.description}</td>
-                            <td className="px-3 py-2 text-center">{item.qty} {item.unit}</td>
-                            <td className="px-3 py-2 text-right">PKR {qi?.unitPrice.toLocaleString() || "—"}</td>
-                            <td className="px-3 py-2 text-right font-medium">PKR {(qi ? qi.unitPrice * item.qty : 0).toLocaleString()}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {!quote || quote.items.length === 0 ? (
+                  <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/20 p-4 text-center">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">No quote data available for this order</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead><tr className="bg-[hsl(var(--muted))]/40 border-b">
+                        <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
+                        <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-16">Qty</th>
+                        <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-24">Unit Price</th>
+                        <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-24">Total</th>
+                      </tr></thead>
+                      <tbody className="divide-y">
+                        {po.items.map((item, idx) => {
+                          const qi = quote?.items.find(q => q.itemId === item.id) || quote?.items[idx]
+                          const unitPrice = qi?.unitPrice || 0
+                          return (
+                            <tr key={item.id}>
+                              <td className="px-3 py-2">{item.description}</td>
+                              <td className="px-3 py-2 text-center">{item.qty} {item.unit}</td>
+                              <td className="px-3 py-2 text-right">PKR {unitPrice.toLocaleString()}</td>
+                              <td className="px-3 py-2 text-right font-medium">PKR {(unitPrice * item.qty).toLocaleString()}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -313,7 +314,7 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
                   <table className="w-full text-xs">
                     <tbody className="divide-y">
                       <tr><td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">Items Subtotal</td><td className="px-3 py-2 text-right font-medium">PKR {itemsTotal.toLocaleString()}</td></tr>
-                      {quote && quote.taxPct > 0 && <tr><td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">Tax</td><td className="px-3 py-2 text-right font-medium">PKR {quote.taxPct.toLocaleString()}</td></tr>}
+                      {quote && quote.taxPct > 0 && <tr><td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">Tax</td><td className="px-3 py-2 text-right font-medium">{quote.taxPct}% (PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })})</td></tr>}
                       {quote && quote.transportCost > 0 && <tr><td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">Transport</td><td className="px-3 py-2 text-right font-medium">PKR {quote.transportCost.toLocaleString()}</td></tr>}
                       {quote && quote.otherCost > 0 && <tr><td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">{quote.otherCostLabel || "Other"}</td><td className="px-3 py-2 text-right font-medium">PKR {quote.otherCost.toLocaleString()}</td></tr>}
                       <tr className="bg-[hsl(var(--muted))]/30 font-bold"><td className="px-3 py-2">Total Cost</td><td className="px-3 py-2 text-right">PKR {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
@@ -371,7 +372,7 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
 
               {/* Add payment */}
               {!showAddForm ? (
-                <Button size="sm" variant="outline" className="h-8 text-xs w-full"
+                <Button size="sm" variant="outline" className="h-8 text-xs w-full cursor-pointer"
                   onClick={() => setShowAddForm(true)}>
                   + Add Another Payment
                 </Button>
@@ -416,7 +417,7 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
                       className="w-full text-xs file:mr-3 file:h-7 file:rounded file:border-0 file:bg-[hsl(var(--muted))] file:px-3 file:text-xs file:font-medium cursor-pointer" />
                     {proofPreview && <img src={proofPreview} alt="Preview" className="mt-2 h-24 rounded-lg border object-cover" />}
                   </div>
-                  <Button size="sm" className="h-8 text-xs" onClick={addPayment}
+                  <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={addPayment}
                     disabled={saving || !amount || !method || !date}>
                     {saving ? "Saving..." : "Add Payment"}
                   </Button>
@@ -428,14 +429,14 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
           {isFullyPaid && !isInInventory && (po.status === "direct" || po.status === "finalized") && (
-            <Button size="sm" className="h-8 text-xs" onClick={moveToInventory} disabled={saving}>
+            <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={moveToInventory} disabled={saving}>
               {saving ? "Moving..." : "Move to Inventory"}
             </Button>
           )}
           {isInInventory && (
             <Badge variant="success" className="text-xs">In Inventory</Badge>
           )}
-          <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>Close</Button>
         </div>
       </div>
     </div>

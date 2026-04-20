@@ -1,110 +1,93 @@
-import { supabase } from "@/lib/supabase"
 import { type Order, type OrderItem } from "@/lib/orders"
 import { logInventoryTransaction } from "@/lib/inventory-history"
 
 /**
- * Deduct inventory quantities from PO items when order is delivered
- * This reduces the available quantity by tracking usedQty in PO items
+ * Deduct inventory quantities from inventory-stock table when order is delivered
+ * This reduces the available quantity directly from the inventory-stock table
  */
 export async function deductInventoryForOrder(order: Order): Promise<void> {
   console.log("🔄 Deducting inventory for delivered order:", order.orderNumber)
   
-  // Get all received POs
-  const { getPOs, savePO } = await import("@/lib/purchase")
-  const allPOs = await getPOs()
-  const receivedPOs = allPOs.filter(p => 
-    p.flowHistory?.some(h => h.step === "Items Received")
-  )
-  
-  console.log(`📦 Found ${receivedPOs.length} received POs to check`)
-  
   for (const orderItem of order.items) {
-    let remainingQty = orderItem.qty
-    console.log(`🔍 Looking to deduct ${remainingQty} ${orderItem.unit} of "${orderItem.description}"`)
-    
-    // Find POs with matching items (FIFO - First In, First Out)
-    for (const po of receivedPOs) {
-      if (remainingQty <= 0) break
-      
-      if (po.type === "imported") {
-        // Check imported items
-        for (const poItem of po.importedItems) {
-          if (poItem.description === orderItem.description && remainingQty > 0) {
-            const usedQty = (poItem as any).usedQty || 0
-            const availableQty = poItem.qty - usedQty
-            
-            if (availableQty > 0) {
-              const deductQty = Math.min(remainingQty, availableQty)
-              const newUsedQty = usedQty + deductQty
-              
-              // Update the PO item with new usedQty
-              ;(poItem as any).usedQty = newUsedQty
-              await savePO(po)
-              
-              remainingQty -= deductQty
-              console.log(`✅ Deducted ${deductQty} from PO ${po.poNumber} item "${poItem.description}": ${availableQty} → ${availableQty - deductQty} available`)
-              
-              // Log the transaction
-              try {
-                await logInventoryTransaction(
-                  orderItem.description,
-                  "out",
-                  deductQty,
-                  orderItem.unit,
-                  "order",
-                  order.id,
-                  order.orderNumber,
-                  order.createdBy || "System",
-                  `Delivered to ${order.clientName} from PO ${po.poNumber}`
-                )
-              } catch (e) {
-                // Silently ignore logging errors
-              }
-            }
-          }
-        }
-      } else {
-        // Check direct PO items
-        for (const poItem of po.items) {
-          if (poItem.description === orderItem.description && remainingQty > 0) {
-            const usedQty = (poItem as any).usedQty || 0
-            const availableQty = poItem.qty - usedQty
-            
-            if (availableQty > 0) {
-              const deductQty = Math.min(remainingQty, availableQty)
-              const newUsedQty = usedQty + deductQty
-              
-              // Update the PO item with new usedQty
-              ;(poItem as any).usedQty = newUsedQty
-              await savePO(po)
-              
-              remainingQty -= deductQty
-              console.log(`✅ Deducted ${deductQty} from PO ${po.poNumber} item "${poItem.description}": ${availableQty} → ${availableQty - deductQty} available`)
-              
-              // Log the transaction
-              try {
-                await logInventoryTransaction(
-                  orderItem.description,
-                  "out",
-                  deductQty,
-                  orderItem.unit,
-                  "order",
-                  order.id,
-                  order.orderNumber,
-                  order.createdBy || "System",
-                  `Delivered to ${order.clientName} from PO ${po.poNumber}`
-                )
-              } catch (e) {
-                // Silently ignore logging errors
-              }
-            }
-          }
-        }
-      }
+    if (orderItem.isCustom) {
+      console.log(`⏭️ Skipping custom item: ${orderItem.description}`)
+      continue
     }
     
-    if (remainingQty > 0) {
-      console.warn(`⚠️ Insufficient inventory for ${orderItem.description}. Could not deduct: ${remainingQty}`)
+    console.log(`🔍 Looking to deduct ${orderItem.qty} ${orderItem.unit} of "${orderItem.description}"`)
+    
+    try {
+      // Fetch stock items matching this description
+      const res = await fetch(`/api/db/inventory-stock?descriptions=${encodeURIComponent(orderItem.description)}`)
+      if (!res.ok) {
+        console.warn(`Failed to fetch inventory-stock for ${orderItem.description}`)
+        continue
+      }
+      
+      const stockItems = await res.json()
+      console.log(`Found ${stockItems?.length || 0} stock items for ${orderItem.description}:`, stockItems)
+      
+      if (!stockItems || stockItems.length === 0) {
+        console.warn(`No stock items found for ${orderItem.description}`)
+        continue
+      }
+      
+      let remainingQty = orderItem.qty
+      
+      // Deduct from stock items (FIFO - First In, First Out)
+      for (const stockItem of stockItems) {
+        if (remainingQty <= 0) break
+        
+        const currentQty = stockItem.availableQty || stockItem.available_qty || 0
+        if (currentQty <= 0) {
+          console.log(`⏭️ Skipping stock item with 0 available qty: ${stockItem.id}`)
+          continue
+        }
+        
+        const deductQty = Math.min(remainingQty, currentQty)
+        const newAvailableQty = Math.max(0, currentQty - deductQty)
+        
+        console.log(`Updating inventory-stock ${stockItem.id} (${stockItem.description}): ${currentQty} → ${newAvailableQty} (deducting ${deductQty})`)
+        
+        const updateRes = await fetch("/api/db/inventory-stock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "update", id: stockItem.id, data: { availableQty: newAvailableQty } }),
+        })
+        
+        if (!updateRes.ok) {
+          console.warn(`Failed to update inventory-stock for ${stockItem.description}`)
+          continue
+        }
+        
+        console.log(`✅ Updated inventory-stock ${stockItem.id}: ${currentQty} → ${newAvailableQty}`)
+        remainingQty -= deductQty
+        
+        // Log the transaction
+        try {
+          await logInventoryTransaction(
+            orderItem.description,
+            "out",
+            deductQty,
+            orderItem.unit,
+            "order",
+            order.id,
+            order.orderNumber,
+            order.createdBy || "System",
+            `Delivered to ${order.clientName} (PO: ${stockItem.poNumber || stockItem.po_number})`
+          )
+        } catch (e) {
+          console.warn(`Failed to log inventory transaction:`, e)
+        }
+      }
+      
+      if (remainingQty > 0) {
+        console.warn(`⚠️ Insufficient inventory for ${orderItem.description}. Could not deduct: ${remainingQty}`)
+      } else {
+        console.log(`✅ Successfully deducted ${orderItem.qty} ${orderItem.unit} of "${orderItem.description}"`)
+      }
+    } catch (e) {
+      console.error(`Failed to deduct inventory for ${orderItem.description}:`, e)
     }
   }
   
@@ -125,44 +108,40 @@ export async function restoreInventoryForOrder(order: Order): Promise<void> {
   
   for (const item of order.items) {
     // Find the most recent stock item for this description to restore to
-    const { data: stockItems } = await supabase
-      .from("erp_inventory_stock")
-      .select("*")
-      .eq("description", item.description)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-    
-    if (!stockItems || stockItems.length === 0) {
-      console.warn(`No stock items found for restoration: ${item.description}`)
+    try {
+      const res = await fetch(`/api/db/inventory-stock?descriptions=${encodeURIComponent(item.description)}`)
+      const stockItems = await res.json()
+      if (!stockItems || stockItems.length === 0) {
+        console.warn(`No stock items found for restoration: ${item.description}`)
+        continue
+      }
+      const stockItem = stockItems[0]
+      const newAvailableQty = stockItem.availableQty + item.qty
+
+      await fetch("/api/db/inventory-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", id: stockItem.id, data: { availableQty: newAvailableQty } }),
+      })
+
+      console.log(`Restored ${item.qty} to stock ${stockItem.id} (${stockItem.description}): ${stockItem.availableQty} -> ${newAvailableQty}`)
+
+      // Log the restoration transaction
+      await logInventoryTransaction(
+        item.description,
+        "in",
+        item.qty,
+        item.unit,
+        "order",
+        order.id,
+        order.orderNumber,
+        order.createdBy || "System",
+        `Restored from cancelled/deleted order ${order.orderNumber} to stock ${stockItem.poNumber}`
+      )
+    } catch {
+      console.warn(`Failed to restore stock for: ${item.description}`)
       continue
     }
-    
-    const stockItem = stockItems[0]
-    const newAvailableQty = stockItem.available_qty + item.qty
-    
-    // Restore the quantity to the stock item
-    await supabase
-      .from("erp_inventory_stock")
-      .update({ 
-        available_qty: newAvailableQty,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", stockItem.id)
-    
-    console.log(`Restored ${item.qty} to stock ${stockItem.id} (${stockItem.description}): ${stockItem.available_qty} -> ${newAvailableQty}`)
-    
-    // Log the restoration transaction
-    await logInventoryTransaction(
-      item.description,
-      "in",
-      item.qty,
-      item.unit,
-      "order",
-      order.id,
-      order.orderNumber,
-      order.createdBy || "System",
-      `Restored from cancelled/deleted order ${order.orderNumber} to stock ${stockItem.po_number}`
-    )
   }
   
   console.log("Stock restoration completed for order:", order.orderNumber)
@@ -180,25 +159,29 @@ export async function addStockFromPO(poId: string, poNumber: string, items: any[
     console.log(`📦 Adding stock item: ${item.description} (${item.qty} ${item.unit})`)
     
     // Add to inventory stock table
-    const { error } = await supabase
-      .from("erp_inventory_stock")
-      .insert({
-        id: stockId,
-        po_id: poId,
-        po_number: poNumber,
-        item_id: item.id || stockId,
-        description: item.description,
-        unit: item.unit,
-        received_qty: item.qty,
-        available_qty: item.qty,
-        allocated_qty: 0,
-        cost_price: item.unitPrice || 0,
-        supplier_name: supplierName,
-        po_type: poType
-      })
-    
-    if (error) {
-      console.error("❌ Error adding stock:", error)
+    const res = await fetch("/api/db/inventory-stock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "insert",
+        data: {
+          id: stockId,
+          poId,
+          poNumber,
+          itemId: item.id || stockId,
+          description: item.description,
+          unit: item.unit,
+          receivedQty: item.qty,
+          availableQty: item.qty,
+          allocatedQty: 0,
+          costPrice: item.unitPrice || 0,
+          supplierName,
+          poType,
+        },
+      }),
+    })
+    if (!res.ok) {
+      console.error("❌ Error adding stock")
       continue
     }
     
@@ -230,18 +213,15 @@ export async function addStockFromPO(poId: string, poNumber: string, items: any[
  * Get current stock levels for items
  */
 export async function getStockLevels(itemDescriptions: string[]): Promise<Record<string, number>> {
-  const { data: stockItems } = await supabase
-    .from("erp_inventory_stock")
-    .select("description, available_qty")
-    .in("description", itemDescriptions)
-  
-  const stockLevels: Record<string, number> = {}
-  
-  if (stockItems) {
-    for (const item of stockItems) {
-      stockLevels[item.description] = (stockLevels[item.description] || 0) + item.available_qty
+  try {
+    const res = await fetch(`/api/db/inventory-stock?descriptions=${encodeURIComponent(itemDescriptions.join(","))}`)
+    const stockItems = await res.json()
+    const stockLevels: Record<string, number> = {}
+    if (stockItems) {
+      for (const item of stockItems) {
+        stockLevels[item.description] = (stockLevels[item.description] || 0) + item.availableQty
+      }
     }
-  }
-  
-  return stockLevels
+    return stockLevels
+  } catch { return {} }
 }

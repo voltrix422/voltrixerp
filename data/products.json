@@ -1,0 +1,79 @@
+[
+  {
+    "name": "AEP-12KS48P3",
+    "category": "Residential",
+    "description": "",
+    "full_desc": "",
+    "specification": "",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [],
+    "images": [
+      "/uploads/products/1776247735457-ig7odc.PNG"
+    ],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "a5c77a4b-98b8-4480-81d9-ac0196489641",
+    "created_at": "2026-04-15T10:08:55.499Z"
+  },
+  {
+    "name": "AEP-8KS48P3",
+    "category": "Residential",
+    "description": "",
+    "full_desc": "",
+    "specification": "",
+    "price": "0",
+    "warranty": "",
+    "stock": 1,
+    "specs": [],
+    "images": [
+      "/uploads/misc/1776603102753-f5i00l.png",
+      "/uploads/products/1776247723521-55522n.PNG"
+    ],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "0f080f45-eddd-449f-b178-0780a33110f9",
+    "created_at": "2026-04-15T10:08:43.555Z"
+  },
+  {
+    "name": "AEP-8KS48P",
+    "category": "Residential",
+    "description": "",
+    "full_desc": "",
+    "specification": "",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [],
+    "images": [
+      "/uploads/products/1776247709098-1yj5k.PNG"
+    ],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "65b881a7-772a-417d-a237-c707cf163c48",
+    "created_at": "2026-04-15T10:08:29.132Z"
+  },
+  {
+    "name": "AEP-6KS48P",
+    "category": "Residential",
+    "description": "",
+    "full_desc": "",
+    "specification": "",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [],
+    "images": [
+      "/uploads/products/1776247675410-ukzi8a.PNG"
+    ],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "21ec04b2-a289-4652-ad24-09ed82631e5c",
+    "created_at": "2026-04-15T10:07:55.558Z"
+  }
+]

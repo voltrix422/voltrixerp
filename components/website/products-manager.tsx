@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { supabase } from "@/lib/supabase"
 import {
   Loader2, Plus, Trash2, Upload, X, ImageIcon,
   Globe, EyeOff, RefreshCw, Star, Check, GripVertical
@@ -58,8 +57,14 @@ export default function ProductsManager() {
 
   const fetchAll = async () => {
     setLoading(true)
-    const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false })
-    setProducts((data as Product[]) || [])
+    try {
+      const res = await fetch('/api/products')
+      const data = await res.json()
+      setProducts(data || [])
+    } catch (error) {
+      console.error('Error fetching products:', error)
+      setProducts([])
+    }
     setLoading(false)
   }
 
@@ -67,11 +72,19 @@ export default function ProductsManager() {
 
   const pick = (p: Product) => {
     setSelected(p)
+    // Convert stock number to string for form
+    let stockStr = "in"
+    if (typeof p.stock === "number") {
+      stockStr = p.stock > 0 ? "in" : p.stock === 0 ? "low" : "out"
+    } else {
+      stockStr = String(p.stock)
+    }
+    
     setForm({
       name: p.name || "", category: p.category || "Residential",
       description: p.description || "", full_desc: p.full_desc || "",
       specification: p.specification || "", price: String(p.price ?? ""),
-      warranty: p.warranty || "", stock: String(p.stock ?? "in"),
+      warranty: p.warranty || "", stock: stockStr,
       specs: Array.isArray(p.specs) ? p.specs : [],
       images: Array.isArray(p.images) ? p.images : [],
       published: p.published || false, unit: p.unit || "pcs",
@@ -121,71 +134,115 @@ export default function ProductsManager() {
 
   // ── upload to storage ──────────────────────────────────
   const uploadToStorage = async (files: PendingImage[]): Promise<string[]> => {
-    const urls: string[] = []
-    for (let i = 0; i < files.length; i++) {
-      const { file } = files[i]
-      const ext  = file.name.split(".").pop()
-      const path = `products/${Date.now()}-${i}.${ext}`
-      const { error } = await supabase.storage.from("product-images").upload(path, file)
-      if (error) continue
-      const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(path)
-      urls.push(publicUrl)
+    try {
+      const formData = new FormData()
+      files.forEach(({ file }) => formData.append('files', file))
+      
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!res.ok) throw new Error('Upload failed')
+      
+      const { urls } = await res.json()
+      return urls || []
+    } catch (error) {
+      console.error('Error uploading images:', error)
+      return []
     }
-    return urls
   }
 
   // ── save ───────────────────────────────────────────────
-  const save = async (publishOverride?: boolean) => {
+  const save = async (publishOverride?: boolean, closeAfter = false) => {
     if (!form.name.trim()) { setSaveError("Product name is required."); return }
     setSaving(true); setSaveError(""); setSaveOk(false)
 
-    // Upload pending images first
-    let newUrls: string[] = []
-    if (pendingImgs.length > 0) {
-      newUrls = await uploadToStorage(pendingImgs)
+    try {
+      // Upload pending images first
+      let newUrls: string[] = []
+      if (pendingImgs.length > 0) {
+        newUrls = await uploadToStorage(pendingImgs)
+      }
+
+      const allImages = [...form.images, ...newUrls]
+      const published = publishOverride !== undefined ? publishOverride : form.published
+
+      const payload = {
+        name: form.name, category: form.category, description: form.description,
+        full_desc: form.full_desc, specification: form.specification,
+        price: form.price || 0, warranty: form.warranty,
+        stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
+        specs: form.specs, images: allImages, published, unit: form.unit,
+      }
+
+      if (isNew) {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, created_by: "admin" }),
+        })
+        
+        if (!res.ok) throw new Error('Failed to create product')
+        
+        const p = await res.json()
+        setProducts(prev => [p, ...prev])
+        
+        if (closeAfter) {
+          // Close the form and show the product in sidebar
+          setSelected(null)
+          setIsNew(false)
+          setForm(EMPTY)
+          setPendingImgs([])
+        } else {
+          setSelected(p)
+          setForm(f => ({ ...f, images: allImages, published }))
+          setPendingImgs([])
+          setIsNew(false)
+        }
+      } else if (selected) {
+        const res = await fetch('/api/products', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, id: selected.id }),
+        })
+        
+        if (!res.ok) throw new Error('Failed to update product')
+        
+        const updated = await res.json()
+        setProducts(prev => prev.map(x => x.id === selected.id ? updated : x))
+        
+        if (closeAfter) {
+          // Close the form
+          setSelected(null)
+          setForm(EMPTY)
+          setPendingImgs([])
+        } else {
+          setSelected(updated)
+          setForm(f => ({ ...f, images: allImages, published }))
+          setPendingImgs([])
+        }
+      }
+
+      setSaveOk(true)
+      setTimeout(() => setSaveOk(false), 3000)
+    } catch (error: any) {
+      setSaveError(error.message || 'Failed to save product')
+    } finally {
+      setSaving(false)
     }
-
-    const allImages = [...form.images, ...newUrls]
-    const published = publishOverride !== undefined ? publishOverride : form.published
-
-    const payload = {
-      name: form.name, category: form.category, description: form.description,
-      full_desc: form.full_desc, specification: form.specification,
-      price: form.price || 0, warranty: form.warranty,
-      stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
-      specs: form.specs, images: allImages, published, unit: form.unit,
-    }
-
-    if (isNew) {
-      const { data, error } = await supabase.from("products").insert([{ ...payload, id: crypto.randomUUID(), created_by: "admin" }]).select().single()
-      if (error) { setSaveError(error.message); setSaving(false); return }
-      const p = data as Product
-      setProducts(prev => [p, ...prev])
-      setSelected(p)
-      setForm(f => ({ ...f, images: allImages, published }))
-      setPendingImgs([])
-      setIsNew(false)
-    } else if (selected) {
-      const { error } = await supabase.from("products").update(payload).eq("id", selected.id)
-      if (error) { setSaveError(error.message); setSaving(false); return }
-      const updated = { ...selected, ...payload }
-      setProducts(prev => prev.map(x => x.id === selected.id ? updated : x))
-      setSelected(updated)
-      setForm(f => ({ ...f, images: allImages, published }))
-      setPendingImgs([])
-    }
-
-    setSaveOk(true)
-    setTimeout(() => setSaveOk(false), 3000)
-    setSaving(false)
   }
 
   // ── delete product ─────────────────────────────────────
   const deleteProduct = async (id: string) => {
     if (!confirm("Delete this product?")) return
-    await supabase.from("products").delete().eq("id", id)
-    setProducts(prev => prev.filter(x => x.id !== id))
-    if (selected?.id === id) { setSelected(null); setIsNew(false) }
+    try {
+      await fetch(`/api/products?id=${id}`, { method: 'DELETE' })
+      setProducts(prev => prev.filter(x => x.id !== id))
+      if (selected?.id === id) { setSelected(null); setIsNew(false) }
+    } catch (error) {
+      console.error('Error deleting product:', error)
+    }
   }
 
   // ── remove saved image ─────────────────────────────────
@@ -268,21 +325,25 @@ export default function ProductsManager() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <h2 className="text-base font-semibold">{isNew ? "New Product" : form.name || "Edit Product"}</h2>
               <div className="flex items-center gap-2">
+                <button onClick={() => { setSelected(null); setIsNew(false); setForm(EMPTY); setPendingImgs([]) }}
+                  className="p-2 rounded-lg hover:bg-accent text-muted-foreground transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
                 {selected && (
                   <button onClick={() => deleteProduct(selected.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
-                <button onClick={() => save(false)} disabled={saving}
+                <button onClick={() => save(false, false)} disabled={saving}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border hover:bg-accent disabled:opacity-60">
                   {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  Save draft
+                  Save
                 </button>
-                <button onClick={() => save(true)} disabled={saving}
+                <button onClick={() => save(true, true)} disabled={saving}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
                   style={{ backgroundColor: "#1a9f9a" }}>
                   {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
-                  Save & Publish
+                  Save & Close
                 </button>
               </div>
             </div>
@@ -440,23 +501,29 @@ export default function ProductsManager() {
             </div>
 
             {/* Bottom bar */}
-            <div className="flex items-center justify-end gap-3 pt-2 pb-8">
-              {selected && (
-                <button onClick={() => deleteProduct(selected.id)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-red-500 border border-red-100 hover:bg-red-50">
-                  Delete product
+            <div className="flex items-center justify-between gap-3 pt-2 pb-8">
+              <button onClick={() => { setSelected(null); setIsNew(false); setForm(EMPTY); setPendingImgs([]) }}
+                className="px-4 py-2 rounded-lg text-sm font-medium border hover:bg-accent">
+                Close
+              </button>
+              <div className="flex items-center gap-3">
+                {selected && (
+                  <button onClick={() => deleteProduct(selected.id)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-red-500 border border-red-100 hover:bg-red-50">
+                    Delete product
+                  </button>
+                )}
+                <button onClick={() => save(false, false)} disabled={saving}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border hover:bg-accent disabled:opacity-60">
+                  Save
                 </button>
-              )}
-              <button onClick={() => save(false)} disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm font-medium border hover:bg-accent disabled:opacity-60">
-                Save draft
-              </button>
-              <button onClick={() => save(true)} disabled={saving}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
-                style={{ backgroundColor: "#1a9f9a" }}>
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-                Save & Publish
-              </button>
+                <button onClick={() => save(true, true)} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ backgroundColor: "#1a9f9a" }}>
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                  Save & Close
+                </button>
+              </div>
             </div>
 
           </div>

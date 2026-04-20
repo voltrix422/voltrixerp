@@ -18,7 +18,7 @@ export async function generatePOPdf(po: PurchaseOrder, suppliers: (Supplier | un
   doc.setFont("times", "normal")
   doc.setFontSize(10)
   doc.setTextColor(0, 0, 0)
-  doc.text(po.poNumber, W - margin, y, { align: "right" })
+  doc.text(po.poNumber || "N/A", W - margin, y, { align: "right" })
   
   y += 8
   doc.setDrawColor(0, 0, 0)
@@ -28,10 +28,10 @@ export async function generatePOPdf(po: PurchaseOrder, suppliers: (Supplier | un
 
   // ── Meta Information ─────────────────────────────────────────
   const metaItems = [
-    { label: "DATE", value: new Date(po.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) },
-    { label: "CREATED BY", value: po.createdBy },
-    { label: "TYPE", value: po.type.charAt(0).toUpperCase() + po.type.slice(1) },
-    { label: "STATUS", value: STATUS_LABELS[po.status] },
+    { label: "DATE", value: po.createdAt ? new Date(po.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "N/A" },
+    { label: "CREATED BY", value: po.createdBy || "N/A" },
+    { label: "TYPE", value: po.type ? po.type.charAt(0).toUpperCase() + po.type.slice(1) : "N/A" },
+    { label: "STATUS", value: STATUS_LABELS[po.status] || "N/A" },
     ...(po.deliveryDate ? [{ label: "REQUIRED BY", value: po.deliveryDate }] : []),
   ]
 
@@ -63,7 +63,7 @@ export async function generatePOPdf(po: PurchaseOrder, suppliers: (Supplier | un
       doc.setFont("times", "bold")
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text(supplier.name, margin, y + 4)
+      doc.text(supplier.name || "N/A", margin, y + 4)
       
       let sy = y + 8
       doc.setFont("times", "normal")
@@ -136,12 +136,12 @@ export async function generatePOPdf(po: PurchaseOrder, suppliers: (Supplier | un
 
     doc.text(String(idx + 1), colXs[0] + 1, y + 3.5)
 
-    const desc = doc.splitTextToSize(item.description, colWidths[1] - 2)[0]
+    const desc = doc.splitTextToSize(item.description || "N/A", colWidths[1] - 2)[0]
     doc.text(desc, colXs[1] + 1, y + 3.5)
 
     doc.text(String(item.qty), colXs[2] + colWidths[2] - 1, y + 3.5, { align: "right" })
 
-    doc.text(item.unit, colXs[3] + 1, y + 3.5)
+    doc.text(item.unit || "N/A", colXs[3] + 1, y + 3.5)
 
     y += rowH
   })

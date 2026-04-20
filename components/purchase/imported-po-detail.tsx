@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import { type PurchaseOrder, type PODocument, type ImportedPOItem, type PaymentRecord, savePO } from "@/lib/purchase"
-import { supabase } from "@/lib/supabase"
+import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -27,15 +27,12 @@ function DocUploader({ docs, onAdd, uploaderLabel }: {
   async function upload() {
     if (!name.trim() || !file) return
     setUploading(true)
-    const ext = file.name.split(".").pop()
-    const path = `imported-po-docs/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from("erp-files").upload(path, file, { upsert: true })
-    if (!error) {
-      const { data } = supabase.storage.from("erp-files").getPublicUrl(path)
-      onAdd({ id: Date.now().toString(), name: name.trim(), url: data.publicUrl, uploadedBy: uploaderLabel, uploadedAt: new Date().toISOString() })
+    try {
+      const url = await uploadFile(file, "imported-po-docs")
+      onAdd({ id: Date.now().toString(), name: name.trim(), url, uploadedBy: uploaderLabel, uploadedAt: new Date().toISOString() })
       setName("")
       setFile(null)
-    }
+    } catch {}
     setUploading(false)
   }
 
@@ -62,7 +59,7 @@ function DocUploader({ docs, onAdd, uploaderLabel }: {
           className="flex h-8 cursor-pointer items-center gap-1 rounded-md border bg-[hsl(var(--muted))]/40 px-3 text-xs hover:bg-[hsl(var(--muted))]/60">
           <Upload className="h-3 w-3" /> {file ? file.name.slice(0, 12) + "..." : "File"}
         </label>
-        <Button type="button" size="sm" className="h-8 text-xs px-3" onClick={upload} disabled={uploading || !name.trim() || !file}>
+        <Button type="button" size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={upload} disabled={uploading || !name.trim() || !file}>
           {uploading ? "..." : "Add"}
         </Button>
       </div>
@@ -87,13 +84,7 @@ function PaymentForm({ pssid, payments, onAdd }: {
     setUploading(true)
     let proofUrl: string | undefined
     if (proofFile) {
-      const ext = proofFile.name.split(".").pop()
-      const path = `payment-proofs/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from("erp-files").upload(path, proofFile, { upsert: true })
-      if (!error) {
-        const { data } = supabase.storage.from("erp-files").getPublicUrl(path)
-        proofUrl = data.publicUrl
-      }
+      try { proofUrl = await uploadFile(proofFile, "payment-proofs") } catch {}
     }
     onAdd({
       id: Date.now().toString(),
@@ -161,7 +152,7 @@ function PaymentForm({ pssid, payments, onAdd }: {
             className="flex h-8 cursor-pointer items-center gap-1 rounded-md border bg-[hsl(var(--muted))]/40 px-3 text-xs hover:bg-[hsl(var(--muted))]/60">
             <Upload className="h-3 w-3" /> {proofFile ? proofFile.name.slice(0, 16) + "..." : "Proof of Payment"}
           </label>
-          <Button type="button" size="sm" className="h-8 text-xs px-3 ml-auto" onClick={submit}
+          <Button type="button" size="sm" className="h-8 text-xs px-3 ml-auto cursor-pointer" onClick={submit}
             disabled={uploading || !amount || Number(amount) <= 0}>
             {uploading ? "..." : "Add Payment"}
           </Button>
@@ -193,7 +184,7 @@ function FlowHistory({ po }: { po: PurchaseOrder }) {
   )
 }
 
-function ReadonlySection({ po, showAll, onUpdate }: { po: PurchaseOrder; showAll?: boolean; onUpdate: (updated: PurchaseOrder) => void }) {
+function ReadonlySection({ po, showAll }: { po: PurchaseOrder; showAll?: boolean }) {
   const allDocs = [
     ...po.adminDocuments.map(d => ({ ...d, section: "Admin" })),
     ...po.financeDocuments1.map(d => ({ ...d, section: "Finance (Round 1)" })),
@@ -209,20 +200,10 @@ function ReadonlySection({ po, showAll, onUpdate }: { po: PurchaseOrder; showAll
         </div>
       )}
       {po.importedItems.length > 0 && (
-        <div>
-          <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Items</p>
-          <div className="space-y-2">
-            {po.importedItems.map(item => (
-              <ItemCard key={item.id} item={item} po={po} onUpdate={onUpdate} />
-            ))}
-            
-            <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
-              <div className="flex items-center justify-between text-sm font-bold">
-                <span>Grand Total</span>
-                <span>PKR {po.importedItems.reduce((s, i) => s + (i.unitPrice * i.qty) + (i.duties || []).reduce((sum, d) => sum + d.amount, 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-2">
+          {po.importedItems.map(item => (
+            <ItemCard key={item.id} item={item} />
+          ))}
         </div>
       )}
       {po.pssid && (
@@ -273,132 +254,32 @@ function ReadonlySection({ po, showAll, onUpdate }: { po: PurchaseOrder; showAll
 }
 
 
-function ItemCard({ item, po, onUpdate }: { item: ImportedPOItem, po: PurchaseOrder, onUpdate: (updated: PurchaseOrder) => void }) {
-  // Load initial state from localStorage
-  const [showDuties, setShowDuties] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(`duties-show-${item.id}`)
-      return saved === 'true'
-    }
-    return false
-  })
-  const [editingDuties, setEditingDuties] = useState(false)
-  const [dutyName, setDutyName] = useState("")
-  const [dutyAmount, setDutyAmount] = useState("")
-  const [editingDutyId, setEditingDutyId] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; dutyId: string; dutyName: string }>({
-    show: false,
-    dutyId: "",
-    dutyName: ""
-  })
-  
-  // Save state to localStorage whenever it changes
-  const toggleShowDuties = () => {
-    const newState = !showDuties
-    setShowDuties(newState)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`duties-show-${item.id}`, String(newState))
-    }
-  }
-  
+function ItemCard({ item }: { item: ImportedPOItem }) {
   const itemTotal = item.unitPrice * item.qty
   const totalDuties = (item.duties || []).reduce((sum, d) => sum + d.amount, 0)
   const totalWithDuties = itemTotal + totalDuties
+  const [showDuties, setShowDuties] = useState(false)
   
-  const addDuty = () => {
-    if (!dutyName.trim() || !dutyAmount || Number(dutyAmount) <= 0) {
-      alert("Please enter valid duty name and amount")
-      return
-    }
-    
-    if (editingDutyId) {
-      // Edit existing duty
-      const updatedDuties = (item.duties || []).map(d =>
-        d.id === editingDutyId ? { ...d, name: dutyName.trim(), amount: Number(dutyAmount) } : d
-      )
-      const updatedItems = po.importedItems.map(i =>
-        i.id === item.id ? { ...i, duties: updatedDuties } : i
-      )
-      onUpdate({ ...po, importedItems: updatedItems })
-      savePO({ ...po, importedItems: updatedItems })
-      setEditingDutyId(null)
-    } else {
-      // Add new duty
-      const newDuty = {
-        id: Date.now().toString(),
-        name: dutyName.trim(),
-        amount: Number(dutyAmount)
-      }
-      
-      const updatedDuties = [...(item.duties || []), newDuty]
-      const updatedItems = po.importedItems.map(i =>
-        i.id === item.id ? { ...i, duties: updatedDuties } : i
-      )
-      onUpdate({ ...po, importedItems: updatedItems })
-      savePO({ ...po, importedItems: updatedItems })
-    }
-    
-    setDutyName("")
-    setDutyAmount("")
-  }
-  
-  const editDuty = (duty: any) => {
-    setDutyName(duty.name)
-    setDutyAmount(duty.amount.toString())
-    setEditingDutyId(duty.id)
-  }
-  
-  const cancelEdit = () => {
-    setDutyName("")
-    setDutyAmount("")
-    setEditingDutyId(null)
-  }
-  
-  const removeDuty = (dutyId: string) => {
-    const updatedDuties = (item.duties || []).filter(d => d.id !== dutyId)
-    const updatedItems = po.importedItems.map(i =>
-      i.id === item.id ? { ...i, duties: updatedDuties } : i
-    )
-    onUpdate({ ...po, importedItems: updatedItems })
-    savePO({ ...po, importedItems: updatedItems })
-    setConfirmDelete({ show: false, dutyId: "", dutyName: "" })
+  const toggleShowDuties = () => {
+    setShowDuties(!showDuties)
   }
   
   return (
-    <div className="rounded-lg border bg-[hsl(var(--card))]">
-      <div className="flex items-center justify-between p-3 bg-[hsl(var(--muted))]/20">
-        <div className="flex items-center gap-4 flex-1">
-          <div className="flex-1">
-            <p className="text-sm font-semibold">{item.description}</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              {item.qty} {item.unit} × PKR {item.unitPrice.toLocaleString()} = PKR {itemTotal.toLocaleString()}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">Total with Duties</p>
-            <p className="text-sm font-bold">PKR {totalWithDuties.toLocaleString()}</p>
-          </div>
+    <div>
+      <div className="flex items-center justify-between py-2">
+        <div className="flex-1">
+          <p className="text-sm font-semibold">{item.description}</p>
         </div>
-        <div className="flex items-center gap-2 ml-4">
+        {(item.duties || []).length > 0 && (
           <Button
             size="sm"
-            variant="outline"
-            className="h-7 text-xs"
-            onClick={() => setEditingDuties(true)}
+            variant="ghost"
+            className="h-7 text-xs cursor-pointer ml-4"
+            onClick={toggleShowDuties}
           >
-            <Plus className="h-3 w-3 mr-1" /> Manage Duties
+            {showDuties ? "Hide" : "Show"} ({item.duties?.length})
           </Button>
-          {(item.duties || []).length > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs"
-              onClick={toggleShowDuties}
-            >
-              {showDuties ? "Hide" : "Show"} ({item.duties?.length})
-            </Button>
-          )}
-        </div>
+        )}
       </div>
       
       {showDuties && (item.duties || []).length > 0 && (
@@ -411,29 +292,6 @@ function ItemCard({ item, po, onUpdate }: { item: ImportedPOItem, po: PurchaseOr
                   <span className="text-[hsl(var(--muted-foreground))]">{duty.name}</span>
                   <span className="font-medium">PKR {duty.amount.toLocaleString()}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => {
-                      editDuty(duty)
-                      setEditingDuties(true)
-                    }}
-                    className="text-blue-500 hover:text-blue-700 p-1"
-                    title="Edit"
-                  >
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setConfirmDelete({ show: true, dutyId: duty.id, dutyName: duty.name })
-                    }}
-                    className="text-red-500 hover:text-red-700 p-1"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
               </div>
             ))}
             <div className="flex items-center justify-between text-xs py-1 border-t pt-2 font-bold">
@@ -443,110 +301,6 @@ function ItemCard({ item, po, onUpdate }: { item: ImportedPOItem, po: PurchaseOr
           </div>
         </div>
       )}
-      
-      {editingDuties && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setEditingDuties(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <div>
-                <p className="text-base font-bold">{editingDutyId ? "Edit Duty" : "Manage Duties"}</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{item.description}</p>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                setEditingDuties(false)
-                cancelEdit()
-              }}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {(item.duties || []).length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold mb-2">Current Duties:</p>
-                  <div className="space-y-2">
-                    {item.duties?.map(duty => (
-                      <div key={duty.id} className="flex items-center justify-between p-2 rounded-md border bg-[hsl(var(--muted))]/20">
-                        <div>
-                          <p className="text-xs font-medium">{duty.name}</p>
-                          <p className="text-xs text-[hsl(var(--muted-foreground))]">PKR {duty.amount.toLocaleString()}</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs text-red-500 hover:text-red-700"
-                          onClick={() => removeDuty(duty.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              <div className="border-t pt-4">
-                <p className="text-xs font-semibold mb-2">{editingDutyId ? "Edit Duty:" : "Add New Duty:"}</p>
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={dutyName}
-                    onChange={e => setDutyName(e.target.value)}
-                    placeholder="Duty name (e.g., Customs Duty)"
-                    className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-                  />
-                  <input
-                    type="number"
-                    value={dutyAmount}
-                    onChange={e => setDutyAmount(e.target.value)}
-                    placeholder="Amount"
-                    className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-                  />
-                  <div className="flex gap-2">
-                    {editingDutyId && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 h-8 text-xs"
-                        onClick={cancelEdit}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      className="flex-1 h-8 text-xs"
-                      onClick={addDuty}
-                    >
-                      <Plus className="h-3 w-3 mr-1" /> {editingDutyId ? "Update Duty" : "Add Duty"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-              <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={() => {
-                setEditingDuties(false)
-                cancelEdit()
-              }}>
-                Done
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <ConfirmDialog
-        isOpen={confirmDelete.show}
-        title="Delete Duty"
-        message={`Are you sure you want to delete the duty "${confirmDelete.dutyName}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-        onConfirm={() => removeDuty(confirmDelete.dutyId)}
-        onCancel={() => setConfirmDelete({ show: false, dutyId: "", dutyName: "" })}
-      />
     </div>
   )
 }
@@ -566,8 +320,12 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
   const [finance2Docs, setFinance2Docs] = useState<PODocument[]>(po.financeDocuments2)
   const [payments, setPayments] = useState<PaymentRecord[]>(po.payments ?? [])
   const [saving, setSaving] = useState(false)
+  const [editingDutiesForItem, setEditingDutiesForItem] = useState<string | null>(null)
+  const [dutyName, setDutyName] = useState("")
+  const [dutyAmount, setDutyAmount] = useState("")
+  const [editingDutyId, setEditingDutyId] = useState<string | null>(null)
 
-  const itemsTotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
+  const itemsTotal = items.reduce((s, i) => s + i.unitPrice * i.qty + (i.duties || []).reduce((sum, d) => sum + d.amount, 0), 0)
 
   function addItem() {
     setItems(prev => [...prev, { id: Date.now().toString(), description: "", qty: 1, unit: "pcs", unitPrice: 0 }])
@@ -575,6 +333,66 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
 
   function updateItem(id: string, key: string, value: string | number) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, [key]: value } : i))
+  }
+
+  function addDutyForItem(itemId: string) {
+    if (!dutyName.trim() || !dutyAmount || Number(dutyAmount) <= 0) {
+      alert("Please enter valid duty name and amount")
+      return
+    }
+
+    if (editingDutyId) {
+      const updatedItems = items.map(item => {
+        if (item.id === itemId) {
+          const updatedDuties = (item.duties || []).map(d =>
+            d.id === editingDutyId ? { ...d, name: dutyName.trim(), amount: Number(dutyAmount) } : d
+          )
+          return { ...item, duties: updatedDuties }
+        }
+        return item
+      })
+      setItems(updatedItems)
+      setEditingDutyId(null)
+    } else {
+      const newDuty = {
+        id: Date.now().toString(),
+        name: dutyName.trim(),
+        amount: Number(dutyAmount)
+      }
+      const updatedItems = items.map(item => {
+        if (item.id === itemId) {
+          return { ...item, duties: [...(item.duties || []), newDuty] }
+        }
+        return item
+      })
+      setItems(updatedItems)
+    }
+
+    setDutyName("")
+    setDutyAmount("")
+  }
+
+  function editDutyForItem(itemId: string, duty: any) {
+    setDutyName(duty.name)
+    setDutyAmount(duty.amount.toString())
+    setEditingDutyId(duty.id)
+  }
+
+  function removeDutyForItem(itemId: string, dutyId: string) {
+    const updatedItems = items.map(item => {
+      if (item.id === itemId) {
+        return { ...item, duties: (item.duties || []).filter(d => d.id !== dutyId) }
+      }
+      return item
+    })
+    setItems(updatedItems)
+  }
+
+  function closeDutyModal() {
+    setEditingDutiesForItem(null)
+    setDutyName("")
+    setDutyAmount("")
+    setEditingDutyId(null)
   }
 
   function addFlowStep(step: string, actor: string, n: string) {
@@ -616,7 +434,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
             </div>
             <Badge variant="secondary" className="text-[10px]">{po.status.replace("imp_", "").replace(/_/g, " ")}</Badge>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -626,7 +444,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
           {/* Always show PO details at the top for all statuses except admin draft */}
           {s !== "imp_admin_draft" && (
             <div className="mb-6">
-              <ReadonlySection po={{ ...po, payments, financeDocuments2: finance2Docs }} showAll onUpdate={onUpdate} />
+              <ReadonlySection po={{ ...po, payments, financeDocuments2: finance2Docs }} showAll />
             </div>
           )}
 
@@ -642,7 +460,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
                 <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
                   className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
               </div>
-              <Button size="sm" className="h-8 text-xs" disabled={saving}
+              <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving}
                 onClick={() => transition("imp_purchase", "Admin created PO", "Admin")}>
                 Send to Purchase
               </Button>
@@ -651,65 +469,76 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
 
           {/* STEP 2: Purchase fills in details + uploads docs */}
           {s === "imp_purchase" && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {po.adminDocuments.length > 0 && (
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Admin Documents</p>
+                  <p className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Admin Documents</p>
                   {po.adminDocuments.map(d => (
-                    <div key={d.id} className="flex items-center justify-between rounded-md border bg-[hsl(var(--muted))]/20 px-3 py-2 mb-1">
-                      <p className="text-xs font-medium">{d.name}</p>
-                      <a href={d.url} target="_blank" rel="noreferrer" className="text-[10px] text-[hsl(var(--primary))] underline">View</a>
+                    <div key={d.id} className="flex items-center justify-between rounded-lg border bg-[hsl(var(--muted))]/20 px-4 py-3 mb-2">
+                      <p className="text-sm font-medium">{d.name}</p>
+                      <a href={d.url} target="_blank" rel="noreferrer" className="text-sm text-[hsl(var(--primary))] underline">View</a>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Supplier Name</label>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Supplier Name</label>
                 <input value={supplierName} onChange={e => setSupplierName(e.target.value)}
                   placeholder="Enter supplier name"
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-10 rounded-lg border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]" />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Items</p>
-                  <Button type="button" size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={addItem}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Items</p>
+                  <Button type="button" size="sm" variant="outline" className="h-9 text-sm px-3 cursor-pointer" onClick={addItem}>
+                    <Plus className="h-4 w-4 mr-1" /> Add
                   </Button>
                 </div>
                 <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-xs">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                        <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                        <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-14">Qty</th>
-                        <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-14">Unit</th>
-                        <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-24">Unit Price</th>
-                        <th className="w-8" />
+                        <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
+                        <th className="px-4 py-3 text-center font-semibold text-[hsl(var(--muted-foreground))] w-20">Qty</th>
+                        <th className="px-4 py-3 text-center font-semibold text-[hsl(var(--muted-foreground))] w-20">Unit</th>
+                        <th className="px-4 py-3 text-right font-semibold text-[hsl(var(--muted-foreground))] w-28">Unit Price</th>
+                        <th className="px-4 py-3 text-center font-semibold text-[hsl(var(--muted-foreground))] w-28">Duties</th>
+                        <th className="w-12" />
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {items.map(item => (
                         <tr key={item.id}>
-                          <td className="px-2 py-1.5">
+                          <td className="px-3 py-2.5">
                             <input value={item.description} onChange={e => updateItem(item.id, "description", e.target.value)}
-                              className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                              className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]" />
                           </td>
-                          <td className="px-2 py-1.5">
+                          <td className="px-3 py-2.5">
                             <input type="number" min="1" value={item.qty} onChange={e => updateItem(item.id, "qty", Number(e.target.value))}
-                              className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                              className="w-full h-12 rounded border bg-[hsl(var(--background))] px-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]" />
                           </td>
-                          <td className="px-2 py-1.5">
+                          <td className="px-3 py-2.5">
                             <input value={item.unit} onChange={e => updateItem(item.id, "unit", e.target.value)}
-                              className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                              className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]" />
                           </td>
-                          <td className="px-2 py-1.5">
+                          <td className="px-3 py-2.5">
                             <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", Number(e.target.value))}
-                              className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                              className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]" />
                           </td>
-                          <td className="px-1">
+                          <td className="px-3 py-2.5 text-center">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-sm px-3 cursor-pointer"
+                              onClick={() => setEditingDutiesForItem(item.id)}
+                            >
+                              Manage ({(item.duties || []).length})
+                            </Button>
+                          </td>
+                          <td className="px-2">
                             {items.length > 1 && (
-                              <button type="button" onClick={() => setItems(p => p.filter(i => i.id !== item.id))}>
-                                <Trash2 className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] hover:text-red-500" />
+                              <button type="button" onClick={() => setItems(p => p.filter(i => i.id !== item.id))} className="cursor-pointer">
+                                <Trash2 className="h-4 w-4 text-[hsl(var(--muted-foreground))] hover:text-red-500" />
                               </button>
                             )}
                           </td>
@@ -718,20 +547,131 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
                     </tbody>
                   </table>
                 </div>
-                <div className="flex justify-end mt-1">
-                  <p className="text-xs font-semibold">Total: PKR {itemsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                <div className="flex justify-end mt-2">
+                  <p className="text-sm font-semibold">Total: PKR {itemsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
+
+              {/* Duty Management Modal */}
+              {editingDutiesForItem && (() => {
+                const item = items.find(i => i.id === editingDutiesForItem)
+                if (!item) return null
+                const totalDuties = (item.duties || []).reduce((sum, d) => sum + d.amount, 0)
+                return (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={closeDutyModal}>
+                    <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-2xl" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between px-6 py-4 border-b">
+                        <div>
+                          <p className="text-base font-bold">{editingDutyId ? "Edit Duty" : "Manage Duties"}</p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{item.description}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={closeDutyModal}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="p-6 space-y-4">
+                        {(item.duties || []).length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold mb-2">Current Duties:</p>
+                            <div className="space-y-2">
+                              {item.duties?.map(duty => (
+                                <div key={duty.id} className="flex items-center justify-between p-2 rounded-md border bg-[hsl(var(--muted))]/20">
+                                  <div>
+                                    <p className="text-xs font-medium">{duty.name}</p>
+                                    <p className="text-xs text-[hsl(var(--muted-foreground))]">PKR {duty.amount.toLocaleString()}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => editDutyForItem(item.id, duty)}
+                                      className="text-blue-500 hover:text-blue-700 p-1"
+                                      title="Edit"
+                                    >
+                                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => removeDutyForItem(item.id, duty.id)}
+                                      className="text-red-500 hover:text-red-700 p-1"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between text-xs py-2 border-t font-bold">
+                              <span>Total Duties</span>
+                              <span>PKR {totalDuties.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="border-t pt-4">
+                          <p className="text-xs font-semibold mb-2">{editingDutyId ? "Edit Duty:" : "Add New Duty:"}</p>
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={dutyName}
+                              onChange={e => setDutyName(e.target.value)}
+                              placeholder="Duty name (e.g., Customs Duty)"
+                              className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                            />
+                            <input
+                              type="number"
+                              value={dutyAmount}
+                              onChange={e => setDutyAmount(e.target.value)}
+                              placeholder="Amount"
+                              className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                            />
+                            <div className="flex gap-2">
+                              {editingDutyId && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 h-8 text-xs cursor-pointer"
+                                  onClick={() => {
+                                    setEditingDutyId(null)
+                                    setDutyName("")
+                                    setDutyAmount("")
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                className="flex-1 h-8 text-xs cursor-pointer"
+                                onClick={() => addDutyForItem(item.id)}
+                              >
+                                <Plus className="h-3 w-3 mr-1" /> {editingDutyId ? "Update Duty" : "Add Duty"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
+                        <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={closeDutyModal}>
+                          Done
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Purchase Documents</p>
+                <p className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Purchase Documents</p>
                 <DocUploader docs={purchaseDocs} onAdd={d => setPurchaseDocs(prev => [...prev, d])} uploaderLabel="Purchase" />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Note</label>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
-                  className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Note</label>
+                <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
+                  className="w-full rounded-lg border bg-[hsl(var(--background))] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))] resize-none" />
               </div>
-              <Button size="sm" className="h-8 text-xs" disabled={saving || !supplierName}
+              <Button size="default" className="h-10 text-sm cursor-pointer" disabled={saving || !supplierName}
                 onClick={() => transition("imp_finance_1", "Purchase added items", "Purchase")}>
                 Forward to Finance
               </Button>
@@ -741,7 +681,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
           {/* STEP 3: Finance round 1 */}
           {s === "imp_finance_1" && role === "finance" && (
             <div className="space-y-4">
-              <ReadonlySection po={po} onUpdate={onUpdate} />
+              <ReadonlySection po={po} />
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Finance Documents</p>
                 <DocUploader docs={finance1Docs} onAdd={d => setFinance1Docs(prev => [...prev, d])} uploaderLabel="Finance" />
@@ -751,7 +691,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
                 <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
                   className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
               </div>
-              <Button size="sm" className="h-8 text-xs" disabled={saving}
+              <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving}
                 onClick={() => transition("imp_purchase_2", "Finance uploaded docs", "Finance")}>
                 Send to Purchase
               </Button>
@@ -775,7 +715,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
                 <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
                   className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
               </div>
-              <Button size="sm" className="h-8 text-xs" disabled={saving || !pssid}
+              <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving || !pssid}
                 onClick={() => transition("imp_pending_approval", "Purchase added PSSID", "Purchase")}>
                 Send to Admin for Approval
               </Button>
@@ -791,11 +731,11 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
                   className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
               </div>
               <div className="flex gap-2">
-                <Button size="sm" className="h-8 text-xs" disabled={saving}
+                <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving}
                   onClick={() => transition("imp_finance_2", "Admin approved", "Admin")}>
                   Approve
                 </Button>
-                <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={saving}
+                <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" disabled={saving}
                   onClick={() => transition("imp_rejected", "Admin rejected", "Admin")}>
                   Reject
                 </Button>
@@ -820,7 +760,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
                   className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
               </div>
               {payments.length > 0 && (
-                <Button size="sm" className="h-8 text-xs" disabled={saving}
+                <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving}
                   onClick={() => transition("imp_purchase_final", "Finance completed payments", "Finance")}>
                   Move to Purchase
                 </Button>
@@ -836,7 +776,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
                 <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
                   className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
               </div>
-              <Button size="sm" className="h-8 text-xs" disabled={saving}
+              <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving}
                 onClick={() => transition("imp_inventory", "Purchase approved, moved to Inventory", "Purchase")}>
                 Approve & Move to Inventory
               </Button>
@@ -870,7 +810,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
         </div>
 
         <div className="flex items-center px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>Close</Button>
         </div>
       </div>
     </div>

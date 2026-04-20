@@ -5,15 +5,17 @@ import { getClients, type Client } from "@/lib/crm"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useToast } from "@/components/ui/toast"
 import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, ArrowLeft, Save } from "lucide-react"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 
 export function OrdersList({ currentUser }: { currentUser: string }) {
+  const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,6 +23,10 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Order | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
+  const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<Order | null>(null)
 
   useEffect(() => {
     Promise.all([getOrders(), getClients()]).then(([o, c]) => {
@@ -28,56 +34,145 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
       setClients(c)
       setLoading(false)
     })
-    const channel = supabase
-      .channel("crm_orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "erp_orders" }, () => {
-        getOrders().then(setOrders)
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const interval = setInterval(() => getOrders().then(setOrders), 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const filtered = orders.filter(o => {
-    const matchesSearch = o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-      o.clientName.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = (o.orderNumber?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (o.clientName?.toLowerCase() || "").includes(search.toLowerCase())
     
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
     
-    return matchesSearch && matchesStatus
+    const matchesDateRange = (!fromDate || !toDate) || (
+      o.createdAt && 
+      new Date(o.createdAt) >= new Date(fromDate) && 
+      new Date(o.createdAt) <= new Date(toDate)
+    )
+    
+    return matchesSearch && matchesStatus && matchesDateRange
   })
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end gap-3">
-        <div className="relative">
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className="h-7 pl-2 pr-6 rounded border bg-[hsl(var(--background))] text-[10px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] appearance-none cursor-pointer transition-colors"
-          >
-            <option value="all">All Status</option>
-            <option value="pending_approval">Pending Approval</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="finalized">Finalized</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <svg className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 text-[hsl(var(--muted-foreground))] pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-        <div className="relative w-48">
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
           <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search orders..."
-            className="w-full h-8 px-3 border-b-2 border-t-0 border-x-0 border-[hsl(var(--border))] bg-transparent text-xs focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
+            type="date"
+            value={fromDate}
+            onChange={e => setFromDate(e.target.value)}
+            className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
           />
+          <input
+            type="date"
+            value={toDate}
+            onChange={e => setToDate(e.target.value)}
+            className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          />
+          <div className="relative flex-1">
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search orders..."
+              className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            />
+          </div>
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setFromDate(""); setToDate(""); setSearch("") }}>
+            Clear
+          </Button>
         </div>
-        <Button size="sm" className="h-8 text-xs px-3" onClick={() => setShowForm(true)}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> Order
-        </Button>
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1 border-b">
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              statusFilter === "all"
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            All
+            {statusFilter === "all" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+            )}
+          </button>
+          <button
+            onClick={() => setStatusFilter("pending_approval")}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              statusFilter === "pending_approval"
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            Pending
+            {statusFilter === "pending_approval" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+            )}
+          </button>
+          <button
+            onClick={() => setStatusFilter("approved")}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              statusFilter === "approved"
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            Approved
+            {statusFilter === "approved" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+            )}
+          </button>
+          <button
+            onClick={() => setStatusFilter("rejected")}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              statusFilter === "rejected"
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            Rejected
+            {statusFilter === "rejected" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+            )}
+          </button>
+          <button
+            onClick={() => setStatusFilter("finalized")}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              statusFilter === "finalized"
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            Finalized
+            {statusFilter === "finalized" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+            )}
+          </button>
+          <button
+            onClick={() => setStatusFilter("delivered")}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              statusFilter === "delivered"
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            Delivered
+            {statusFilter === "delivered" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+            )}
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+            {showFilters ? "Hide Filters" : "Filters"}
+          </Button>
+          <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Order
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -102,21 +197,34 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
                 <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
+                <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-16">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {filtered.map(order => (
-                <tr key={order.id} onClick={() => setSelected(order)} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer">
-                  <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{order.orderNumber}</td>
-                  <td className="px-4 py-2.5 text-xs font-medium">{order.clientName}</td>
-                  <td className="px-4 py-2.5 text-xs text-center">{order.items.length}</td>
-                  <td className="px-4 py-2.5 text-xs text-right font-semibold">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status]}`}>
-                      {STATUS_LABELS[order.status]}
+                <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
+                  <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>{order.orderNumber || "—"}</td>
+                  <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>{order.clientName || "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>{order.items?.length || 0}</td>
+                  <td className="px-4 py-2.5 text-xs text-right font-semibold cursor-pointer" onClick={() => setSelected(order)}>PKR {(order.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}>
+                      {STATUS_LABELS[order.status] || order.status || "Unknown"}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{new Date(order.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer" onClick={() => setSelected(order)}>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteConfirmOrder(order)
+                      }}
+                      className="text-red-500 hover:text-red-700 cursor-pointer transition-colors"
+                      title="Delete order"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -151,6 +259,24 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
           }}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmOrder}
+        title="Delete Order"
+        message={`Are you sure you want to delete order ${deleteConfirmOrder?.orderNumber}?`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteConfirmOrder) {
+            deleteOrder(deleteConfirmOrder.id).then(() => {
+              setOrders(prev => prev.filter(x => x.id !== deleteConfirmOrder.id))
+            })
+          }
+          setDeleteConfirmOrder(null)
+        }}
+        onCancel={() => setDeleteConfirmOrder(null)}
+      />
     </div>
   )
 }
@@ -161,6 +287,7 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   onClose: () => void
   onSave: (o: Order) => void
 }) {
+  const { toast } = useToast()
   const [clientId, setClientId] = useState("")
   const [items, setItems] = useState<OrderItem[]>([])
   const [deliveryAddress, setDeliveryAddress] = useState("")
@@ -170,11 +297,23 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [showInventory, setShowInventory] = useState(false)
   const [showClientDropdown, setShowClientDropdown] = useState(false)
+  const [clientSearch, setClientSearch] = useState("")
+  const [inventorySearch, setInventorySearch] = useState("")
+  const [quantityError, setQuantityError] = useState<string | null>(null)
 
   useEffect(() => {
     // Load inventory items
     getInventoryItems().then(setInventoryItems)
   }, [])
+
+  useEffect(() => {
+    if (quantityError) {
+      const timer = setTimeout(() => {
+        setQuantityError(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [quantityError])
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   const total = subtotal
@@ -190,8 +329,10 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
         if (key === "qty" && i.availableQty !== undefined) {
           const newQty = Number(value)
           if (newQty > i.availableQty) {
-            alert(`Maximum available quantity is ${i.availableQty} ${i.unit}`)
+            setQuantityError(`Maximum available quantity is ${i.availableQty} ${i.unit}`)
             return i
+          } else {
+            setQuantityError(null)
           }
         }
         return { ...i, [key]: value }
@@ -216,8 +357,6 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             ? { ...i, qty: i.qty + 1 }
             : i
         ))
-      } else {
-        alert(`Maximum available quantity is ${invItem.qty} ${invItem.unit}`)
       }
     } else {
       // Add new item with cost price, user can edit to add profit
@@ -274,53 +413,73 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-5xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-3.5 border-b shrink-0">
-          <p className="text-sm font-semibold">Create New Order</p>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+    <>
+      {quantityError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+          <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">{quantityError}</p>
         </div>
+      )}
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+        <div className="w-full max-w-5xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-8 py-5 border-b shrink-0">
+            <p className="text-lg font-bold">Create New Order</p>
+            <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer" onClick={onClose}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          <div className="space-y-1 relative">
-            <label className="text-[10px] font-medium">Select Client *</label>
+          <div className="flex-1 overflow-y-auto p-8 space-y-6">
+            <div className="space-y-2 relative">
+            <label className="text-sm font-semibold">Select Client *</label>
             <button
               type="button"
               onClick={() => setShowClientDropdown(!showClientDropdown)}
-              className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs text-left focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+              className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm text-left focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between cursor-pointer"
             >
               <span className={clientId ? "capitalize" : "text-[hsl(var(--muted-foreground))]"}>
                 {clientId ? clients.find(c => c.id === clientId)?.name : "Choose a client..."}
               </span>
-              <svg className="h-4 w-4 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
             {showClientDropdown && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowClientDropdown(false)} />
-                <div className="absolute z-20 w-full mt-1 max-h-60 overflow-auto rounded-md border bg-[hsl(var(--background))] shadow-lg">
+                <div className="absolute z-20 w-full mt-1 max-h-80 overflow-auto rounded-md border bg-[hsl(var(--background))] shadow-lg">
+                  <div className="p-3 border-b">
+                    <input
+                      type="text"
+                      value={clientSearch}
+                      onChange={e => setClientSearch(e.target.value)}
+                      placeholder="Search client..."
+                      className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                    />
+                  </div>
                   <div
                     onClick={() => {
                       setClientId("")
                       setShowClientDropdown(false)
                     }}
-                    className="px-2.5 py-2 text-xs cursor-pointer hover:bg-green-50 dark:hover:bg-green-950/30 text-[hsl(var(--muted-foreground))]"
+                    className="px-3.5 py-2.5 text-sm cursor-pointer hover:bg-green-50 dark:hover:bg-green-950/30 text-[hsl(var(--muted-foreground))]"
                   >
                     Choose a client...
                   </div>
-                  {clients.map(c => (
+                  {clients.filter(c => 
+                    c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                    (c.company && c.company.toLowerCase().includes(clientSearch.toLowerCase()))
+                  ).map(c => (
                     <div
                       key={c.id}
                       onClick={() => {
                         setClientId(c.id)
                         setShowClientDropdown(false)
+                        setClientSearch("")
                       }}
-                      className="px-2.5 py-2 text-xs cursor-pointer hover:bg-green-50 dark:hover:bg-green-950/30 border-t capitalize"
+                      className="px-3.5 py-2.5 text-sm cursor-pointer hover:bg-green-50 dark:hover:bg-green-950/30 border-t capitalize"
                     >
                       {c.name}
+                      {c.company && <span className="text-[hsl(var(--muted-foreground))] ml-2 text-xs">({c.company})</span>}
                     </div>
                   ))}
                 </div>
@@ -328,85 +487,85 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             )}
           </div>
 
-          <div className="pt-2 border-t">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order Items *</p>
+          <div className="pt-4 border-t">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order Items *</p>
               <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] px-2.5" onClick={() => setShowInventory(true)}>
-                  <Plus className="h-3 w-3 mr-1" /> Add from Inventory
+                <Button type="button" size="sm" variant="outline" className="h-9 text-xs px-3 cursor-pointer" onClick={() => setShowInventory(true)}>
+                  <Plus className="h-4 w-4 mr-1.5" /> Add from Inventory
                 </Button>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] px-2.5" onClick={addCustomItem}>
-                  <Plus className="h-3 w-3 mr-1" /> Add Custom Product
+                <Button type="button" size="sm" variant="outline" className="h-9 text-xs px-3 cursor-pointer" onClick={addCustomItem}>
+                  <Plus className="h-4 w-4 mr-1.5" /> Add Custom Product
                 </Button>
               </div>
             </div>
 
             {items.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-center bg-[hsl(var(--muted))]/10">
-                <ShoppingCart className="h-8 w-8 text-[hsl(var(--muted-foreground))] opacity-30 mx-auto mb-2" />
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">No items added yet</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Add items from inventory or create custom products</p>
+              <div className="rounded-lg border border-dashed p-8 text-center bg-[hsl(var(--muted))]/10">
+                <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mx-auto mb-3" />
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">No items added yet</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add items from inventory or create custom products</p>
               </div>
             ) : (
               <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-xs">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                      <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                      <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-24">Qty</th>
-                      <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-16">Unit</th>
-                      <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-32">Unit Price</th>
-                      <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-28">Total</th>
-                      <th className="w-10" />
+                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
+                      <th className="px-4 py-3 text-center font-semibold text-[hsl(var(--muted-foreground))] w-28">Qty</th>
+                      <th className="px-4 py-3 text-center font-semibold text-[hsl(var(--muted-foreground))] w-20">Unit</th>
+                      <th className="px-4 py-3 text-right font-semibold text-[hsl(var(--muted-foreground))] w-36">Unit Price</th>
+                      <th className="px-4 py-3 text-right font-semibold text-[hsl(var(--muted-foreground))] w-32">Total</th>
+                      <th className="w-12" />
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {items.map(item => (
                       <tr key={item.id}>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <div>
                             <input value={item.description} onChange={e => updateItem(item.id, "description", e.target.value)}
                               disabled={!item.isCustom}
                               placeholder="Product description"
-                              className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-60" />
+                              className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-60" />
                             {item.availableQty !== undefined && (
-                              <p className="text-[10px] text-green-600 dark:text-green-400 font-medium mt-0.5 px-1">
+                              <p className="text-xs text-green-600 dark:text-green-400 font-medium mt-1 px-1">
                                 Stock: {item.availableQty} {item.unit}
                               </p>
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <input type="number" min="1" max={item.availableQty} value={item.qty} onChange={e => updateItem(item.id, "qty", Number(e.target.value))}
-                            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                            className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <input value={item.unit} onChange={e => updateItem(item.id, "unit", e.target.value)}
                             disabled={!item.isCustom}
-                            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-60" />
+                            className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-60" />
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <div>
                             <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", Number(e.target.value))}
-                              className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                              className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
                             {item.costPrice !== undefined && (
-                              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium mt-0.5 px-1">
+                              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1 px-1">
                                 Cost: PKR {item.costPrice.toLocaleString()}
                               </p>
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 text-right font-medium">PKR {(item.unitPrice * item.qty).toLocaleString()}</td>
-                        <td className="px-1">
-                          <button type="button" onClick={() => removeItem(item.id)}>
-                            <Trash2 className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] hover:text-red-500" />
+                        <td className="px-3 py-2 text-right font-medium">PKR {(item.unitPrice * item.qty).toLocaleString()}</td>
+                        <td className="px-2">
+                          <button type="button" onClick={() => removeItem(item.id)} className="cursor-pointer">
+                            <Trash2 className="h-4 w-4 text-[hsl(var(--muted-foreground))] hover:text-red-500" />
                           </button>
                         </td>
                       </tr>
                     ))}
                     <tr className="bg-[hsl(var(--muted))]/30 font-bold">
-                      <td colSpan={4} className="px-3 py-2 text-right">Total</td>
-                      <td className="px-3 py-2 text-right">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td colSpan={4} className="px-4 py-3 text-right">Total</td>
+                      <td className="px-4 py-3 text-right">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                       <td></td>
                     </tr>
                   </tbody>
@@ -415,39 +574,39 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             )}
           </div>
 
-          <div className="pt-2 border-t">
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Delivery Information</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-medium">Delivery Address</label>
+          <div className="pt-4 border-t">
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Delivery Information</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Delivery Address</label>
                 <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)}
                   placeholder="Enter delivery address"
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-medium">Delivery Date</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Delivery Date</label>
                 <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
-                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
               </div>
             </div>
           </div>
 
-          <div className="pt-2 border-t">
-            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Additional Information</p>
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium">Notes</label>
+          <div className="pt-4 border-t">
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Additional Information</p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notes</label>
               <input value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="Add any special instructions or notes"
-                className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          <Button size="sm" className="h-8 text-xs" onClick={submit} disabled={saving || !clientId || items.length === 0}>
+        <div className="flex items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
+          <Button size="sm" className="h-10 text-sm px-6 cursor-pointer" onClick={submit} disabled={saving || !clientId || items.length === 0}>
             {saving ? "Creating..." : "Create Order"}
           </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onClose}>Cancel</Button>
+          <Button size="sm" variant="outline" className="h-10 text-sm px-6 cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
       </div>
 
@@ -456,42 +615,100 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
           <div className="w-full max-w-3xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <p className="text-sm font-semibold">Select from Inventory</p>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowInventory(false)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={() => setShowInventory(false)}>
                 <X className="h-4 w-4" />
               </Button>
+            </div>
+            <div className="p-4 border-b">
+              <input
+                type="text"
+                value={inventorySearch}
+                onChange={e => setInventorySearch(e.target.value)}
+                placeholder="Search inventory..."
+                className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+              />
             </div>
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               {inventoryItems.length === 0 ? (
                 <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-8">No items in inventory</p>
-              ) : (
-                <div className="space-y-2">
-                  {inventoryItems.map(item => (
-                    <div key={item.id}
-                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors cursor-pointer">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{item.description}</p>
-                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                          {item.poNumber} · {item.supplier}
-                        </p>
-                        <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
-                          Available: {item.qty} {item.unit} in stock
-                        </p>
+              ) : (() => {
+                const filteredItems = inventoryItems.filter(item => 
+                  item.description.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+                  (item.supplier && item.supplier.toLowerCase().includes(inventorySearch.toLowerCase())) ||
+                  (item.poNumber && item.poNumber.toLowerCase().includes(inventorySearch.toLowerCase()))
+                )
+                // Manual items: no poNumber or poNumber starts with "MI-"
+                const manualItems = filteredItems.filter(item => !item.poNumber || item.poNumber?.startsWith("MI-"))
+                // PO items: has poNumber and doesn't start with "MI-"
+                const poItems = filteredItems.filter(item => item.poNumber && !item.poNumber.startsWith("MI-"))
+                
+                if (filteredItems.length === 0) {
+                  return (
+                    <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-8">No items found matching your search</p>
+                  )
+                }
+                
+                return (
+                  <div className="space-y-6">
+                    {poItems.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] border-b pb-2">From Purchase Orders</p>
+                        {poItems.map(item => (
+                          <div key={item.id}
+                            className="flex items-center justify-between p-3 rounded-lg border hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors cursor-pointer">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{item.description}</p>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                {item.poNumber} · {item.supplier}
+                              </p>
+                              <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
+                                Available: {item.qty} {item.unit} in stock
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">PKR {item.unitPrice.toLocaleString()}/{item.unit}</p>
+                              <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => addFromInventory(item)}>
+                                Add
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">PKR {item.unitPrice.toLocaleString()}/{item.unit}</p>
-                        <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => addFromInventory(item)}>
-                          Add
-                        </Button>
+                    )}
+                    {manualItems.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] border-b pb-2">From Manual Inventory</p>
+                        {manualItems.map(item => (
+                          <div key={item.id}
+                            className="flex items-center justify-between p-3 rounded-lg border hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors cursor-pointer">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{item.description}</p>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                {item.poNumber || "Manual"} · {item.supplier}
+                              </p>
+                              <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
+                                Available: {item.qty} {item.unit} in stock
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">PKR {item.unitPrice.toLocaleString()}/{item.unit}</p>
+                              <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => addFromInventory(item)}>
+                                Add
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
       )}
     </div>
+    </>
   )
 }
 
@@ -573,6 +790,19 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   async function updateStatus(newStatus: typeof status) {
     setStatus(newStatus)
     const updated = { ...order, status: newStatus }
+    
+    // Deduct inventory when order is delivered
+    if (newStatus === "delivered" && status !== "delivered") {
+      try {
+        const { deductInventoryForOrder } = await import("@/lib/inventory")
+        await deductInventoryForOrder(updated)
+        console.log("Inventory deducted for delivered order:", updated.orderNumber)
+      } catch (error) {
+        console.error("Error deducting inventory:", error)
+        // Don't fail the status update if inventory deduction fails
+      }
+    }
+    
     await saveOrder(updated)
     onUpdate(updated)
   }
@@ -627,50 +857,50 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
         />
       ) : (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-4xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-          <div className="flex items-center gap-6">
+      <div className="w-full max-w-6xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-8 py-5 border-b shrink-0">
+          <div className="flex items-center gap-8">
             <button
               onClick={() => setIsEditing(!isEditing)}
-              className="h-7 w-7 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center transition-colors"
+              className="h-9 w-9 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center transition-colors cursor-pointer"
               title={isEditing ? "Back to view" : "Edit order"}
             >
-              <ArrowLeft className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+              <ArrowLeft className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
             </button>
             <div>
-              <div className="flex items-center gap-2">
-                <p className="text-base font-bold text-[hsl(var(--primary))]">{order.orderNumber}</p>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status]}`}>
+              <div className="flex items-center gap-3">
+                <p className="text-xl font-bold text-[hsl(var(--primary))]">{order.orderNumber}</p>
+                <span className={`inline-flex items-center px-3 py-1 rounded text-xs font-medium ${STATUS_COLORS[order.status]}`}>
                   {STATUS_LABELS[order.status]}
                 </span>
               </div>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 capitalize">{order.clientName}</p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize">{order.clientName}</p>
             </div>
             {!isEditing && order.deliveryDate && (
-              <div className="border-l pl-4">
-                <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))]">Delivery date</p>
-                <p className="text-xs mt-0.5">{new Date(order.deliveryDate).toLocaleDateString()}</p>
+              <div className="border-l pl-6">
+                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Delivery date</p>
+                <p className="text-sm mt-1">{new Date(order.deliveryDate).toLocaleDateString()}</p>
               </div>
             )}
             {!isEditing && (
-              <div className="border-l pl-4">
-                <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))]">Created</p>
-                <p className="text-xs mt-0.5">{new Date(order.createdAt).toLocaleDateString()} by {order.createdBy}</p>
+              <div className="border-l pl-6">
+                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Created</p>
+                <p className="text-sm mt-1">{new Date(order.createdAt).toLocaleDateString()} by {order.createdBy}</p>
               </div>
             )}
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-            <X className="h-3.5 w-3.5" />
+          <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer" onClick={onClose}>
+            <X className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-8 space-y-6">
           {isEditing ? (
             <>
               {/* Edit Form */}
-              <div className="space-y-3">
-                <div className="border-b pb-3">
-                  <label className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1 block">Notes</label>
+              <div className="space-y-4">
+                <div className="border-b pb-4">
+                  <label className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2 block">Notes</label>
                   <textarea
                     value={editNotes}
                     onChange={e => setEditNotes(e.target.value)}
@@ -759,34 +989,48 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
           ) : (
             <>
               {/* View Mode */}
+              {order.dispatcher && (
+                <div className="border-b pb-4">
+                  <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Dispatcher</p>
+                  <p className="text-sm font-medium">{order.dispatcher}</p>
+                </div>
+              )}
+
+              {order.deliveryAddress && (
+                <div className="border-b pb-4">
+                  <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Delivery address</p>
+                  <p className="text-sm whitespace-pre-wrap">{order.deliveryAddress}</p>
+                </div>
+              )}
+
               {order.notes && (
-                <div className="border-b pb-3">
-                  <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1">Notes</p>
-                  <p className="text-xs whitespace-pre-wrap">{order.notes}</p>
+                <div className="border-b pb-4">
+                  <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Notes</p>
+                  <p className="text-sm whitespace-pre-wrap">{order.notes}</p>
                 </div>
               )}
 
           <div>
-            <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1.5">Order items</p>
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] mb-3">Order items</p>
             <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                    <th className="px-2.5 py-1.5 text-center text-[10px] font-semibold text-[hsl(var(--muted-foreground))] w-14">Qty</th>
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold text-[hsl(var(--muted-foreground))] w-14">Unit</th>
-                    <th className="px-2.5 py-1.5 text-right text-[10px] font-semibold text-[hsl(var(--muted-foreground))] w-24">Unit Price</th>
-                    <th className="px-2.5 py-1.5 text-right text-[10px] font-semibold text-[hsl(var(--muted-foreground))] w-24">Total</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-20">Qty</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))] w-20">Unit</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-32">Unit Price</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-32">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {order.items.map(item => (
                     <tr key={item.id}>
-                      <td className="px-2.5 py-1.5">{item.description}</td>
-                      <td className="px-2.5 py-1.5 text-center">{item.qty}</td>
-                      <td className="px-2.5 py-1.5">{item.unit}</td>
-                      <td className="px-2.5 py-1.5 text-right">PKR {item.unitPrice.toLocaleString()}</td>
-                      <td className="px-2.5 py-1.5 text-right font-medium">PKR {(item.unitPrice * item.qty).toLocaleString()}</td>
+                      <td className="px-4 py-3">{item.description}</td>
+                      <td className="px-4 py-3 text-center">{item.qty}</td>
+                      <td className="px-4 py-3">{item.unit}</td>
+                      <td className="px-4 py-3 text-right">PKR {item.unitPrice.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-medium">PKR {(item.unitPrice * item.qty).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -794,71 +1038,57 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
             </div>
           </div>
 
-          <div className="flex flex-col items-end space-y-1.5">
+          <div className="flex flex-col items-end space-y-2">
             {order.taxPercent > 0 && (
               <div className="flex flex-col items-end">
-                <div className="flex items-center text-xs gap-20">
+                <div className="flex items-center text-sm gap-24">
                   <span>Tax ({order.taxPercent}%)</span>
-                  <span className="font-medium w-32 text-right">PKR {order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium w-40 text-right">PKR {order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-1.5" />
+                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
               </div>
             )}
             {order.transportCost > 0 && (
               <div className="flex flex-col items-end">
-                <div className="flex items-center text-xs gap-20">
+                <div className="flex items-center text-sm gap-24">
                   <span>Transport cost</span>
-                  <span className="font-medium w-32 text-right">PKR {order.transportCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium w-40 text-right">PKR {order.transportCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-1.5" />
+                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
               </div>
             )}
             {order.otherCost > 0 && (
               <div className="flex flex-col items-end">
-                <div className="flex items-center text-xs gap-20">
+                <div className="flex items-center text-sm gap-24">
                   <span>Other cost</span>
-                  <span className="font-medium w-32 text-right">PKR {order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium w-40 text-right">PKR {order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-1.5" />
+                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
               </div>
             )}
             {order.shipping > 0 && (
               <div className="flex flex-col items-end">
-                <div className="flex items-center text-xs gap-20">
+                <div className="flex items-center text-sm gap-24">
                   <span>Shipping</span>
-                  <span className="font-medium w-32 text-right">PKR {order.shipping.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium w-40 text-right">PKR {order.shipping.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-1.5" />
+                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
               </div>
             )}
             {order.discount > 0 && (
               <div className="flex flex-col items-end">
-                <div className="flex items-center text-xs gap-20">
+                <div className="flex items-center text-sm gap-24">
                   <span>Discount</span>
-                  <span className="text-red-600 font-medium w-32 text-right">-PKR {order.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="text-red-600 font-medium w-40 text-right">-PKR {order.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-1.5" />
+                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
               </div>
             )}
-            <div className="flex items-center text-sm font-bold gap-20 pt-1.5">
+            <div className="flex items-center text-base font-bold gap-24 pt-2">
               <span>Total</span>
-              <span className="w-32 text-right">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span className="w-40 text-right">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
-
-          {order.dispatcher && (
-            <div className="border-t pt-3">
-              <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1">Dispatcher</p>
-              <p className="text-xs font-medium">{order.dispatcher}</p>
-            </div>
-          )}
-
-          {order.deliveryAddress && (
-            <div className="border-t pt-3">
-              <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1">Delivery address</p>
-              <p className="text-xs whitespace-pre-wrap">{order.deliveryAddress}</p>
-            </div>
-          )}
 
           {order.payments && order.payments.length > 0 && (
             <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-3">
@@ -893,37 +1123,47 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
           )}
         </div>
 
-        <div className="flex items-center gap-2 px-5 py-3 border-t bg-[hsl(var(--muted))]/20 shrink-0">
+        <div className="flex items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
           {isEditing ? (
             <>
-              <Button size="sm" className="h-7 text-xs bg-green-400 hover:bg-green-500 text-white" onClick={handleSaveEdit} disabled={saving}>
-                <Save className="h-3 w-3 mr-1.5" /> {saving ? "Saving..." : "Save Changes"}
+              <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={handleSaveEdit} disabled={saving}>
+                <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : "Save Changes"}
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={cancelEdit}>Cancel</Button>
+              <Button size="sm" variant="outline" className="h-10 text-sm cursor-pointer" onClick={cancelEdit}>Cancel</Button>
             </>
           ) : (
             <>
+              {order.status === "pending_approval" && (
+                <>
+                  <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => updateStatus("approved")}>
+                    Approve Order
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-10 text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => updateStatus("rejected")}>
+                    Reject Order
+                  </Button>
+                </>
+              )}
               {canFinalize && (
-                <Button size="sm" className="h-7 text-xs bg-green-400 hover:bg-green-500 text-white" onClick={() => setShowFinalize(true)}>
-                  <FileText className="h-3 w-3 mr-1.5" /> Finalize Order
+                <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => setShowFinalize(true)}>
+                  <FileText className="h-4 w-4 mr-2" /> Finalize Order
                 </Button>
               )}
               {hasInvoiceDetails && (
                 <>
-                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={viewInvoice} title="View Invoice">
-                    <Eye className="h-3.5 w-3.5" />
+                  <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={viewInvoice} title="View Invoice">
+                    <Eye className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={downloadInvoice} title="Download PDF">
-                    <Download className="h-3.5 w-3.5" />
+                  <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={downloadInvoice} title="Download PDF">
+                    <Download className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" className="h-7 text-xs bg-blue-400 hover:bg-blue-500 text-white" onClick={() => setShowPayment(true)}>
-                    <Plus className="h-3 w-3 mr-1" /> Payment
+                  <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Payment
                   </Button>
                 </>
               )}
-              <Button size="sm" variant="outline" className="h-7 text-xs ml-auto" onClick={onClose}>Close</Button>
-              <Button size="sm" className="h-7 text-xs bg-red-400 hover:bg-red-500 text-white" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
-                <Trash2 className="h-3 w-3 mr-1.5" /> {deleting ? "Deleting..." : "Delete"}
+              <Button size="sm" variant="outline" className="h-10 text-sm ml-auto cursor-pointer" onClick={onClose}>Close</Button>
+              <Button size="sm" className="h-10 text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
+                <Trash2 className="h-4 w-4 mr-2" /> {deleting ? "Deleting..." : "Delete"}
               </Button>
             </>
           )}

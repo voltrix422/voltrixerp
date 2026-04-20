@@ -1,6 +1,4 @@
-import { supabase } from "@/lib/supabase"
-
-export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "website" | "docs"
+export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches"
 
 export interface User {
   id: string
@@ -11,7 +9,7 @@ export interface User {
   modules: Module[]
 }
 
-export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "website", "docs"]
+export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches"]
 
 export const MODULE_LABELS: Record<Module, string> = {
   dashboard: "Dashboard",
@@ -19,13 +17,15 @@ export const MODULE_LABELS: Record<Module, string> = {
   finance: "Finance",
   crm: "CRM",
   inventory: "Inventory",
+  dispatches: "Dispatches",
   website: "Website",
   docs: "Documentation",
+  hrm: "HRM",
+  branches: "Branches",
 }
 
 const SESSION_KEY = "erp_session"
 
-// ── Session (still localStorage — just the logged-in user) ───────
 export function getSession(): User | null {
   if (typeof window === "undefined") return null
   const s = localStorage.getItem(SESSION_KEY)
@@ -40,51 +40,64 @@ export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
 }
 
-// ── Users — Supabase ─────────────────────────────────────────────
+function mapRow(row: Record<string, unknown>): User {
+  // Parse modules from JSON - it might be a string or already an array
+  let modules: Module[] = []
+  if (row.modules) {
+    try {
+      if (typeof row.modules === 'string') {
+        modules = JSON.parse(row.modules as string)
+      } else {
+        modules = row.modules as Module[]
+      }
+    } catch (e) {
+      modules = []
+    }
+  }
+
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    email: row.email as string,
+    password: row.password as string,
+    role: row.role as "superadmin" | "user",
+    modules,
+  }
+}
+
 export async function getUsers(): Promise<User[]> {
-  const { data, error } = await supabase.from("erp_users").select("*").order("id")
-  if (error) { console.error(error); return [] }
-  return (data ?? []).map(row => ({
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    password: row.password,
-    role: row.role,
-    modules: row.modules as Module[],
-  }))
+  const res = await fetch("/api/db/users")
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.map(mapRow)
 }
 
 export async function saveUser(user: User): Promise<void> {
-  await supabase.from("erp_users").upsert({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    password: user.password,
-    role: user.role,
-    modules: user.modules,
+  await fetch("/api/db/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(user),
   })
 }
 
 export async function deleteUser(id: string): Promise<void> {
-  await supabase.from("erp_users").delete().eq("id", id)
+  await fetch("/api/db/users", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
 }
 
 export async function login(email: string, password: string): Promise<User | null> {
-  const { data, error } = await supabase
-    .from("erp_users")
-    .select("*")
-    .eq("email", email)
-    .eq("password", password)
-    .single()
-  if (error || !data) return null
-  const user: User = {
-    id: data.id,
-    name: data.name,
-    email: data.email,
-    password: data.password,
-    role: data.role,
-    modules: data.modules as Module[],
-  }
+  const res = await fetch("/api/db/users/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  if (!data) return null
+  const user = mapRow(data)
   setSession(user)
   return user
 }

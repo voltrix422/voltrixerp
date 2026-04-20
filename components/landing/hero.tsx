@@ -36,8 +36,8 @@ export default function Hero() {
             Power your{" "}
             <span className="inline-flex items-center">
               <RotatingText
-                texts={["drive", "solar", "EVs", "car", "house"]}
-                mainClassName="bg-neutral-900 text-white px-3 py-1 rounded-lg font-bold"
+                texts={["Drive", "Solar", "EVs", "Car", "House"]}
+                mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
                 staggerDuration={0.03}
                 staggerFrom="last"
                 rotationInterval={2500}

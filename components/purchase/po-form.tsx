@@ -14,7 +14,7 @@ interface Props {
 
 const emptyItem = (): POItem => ({
   id: Date.now().toString() + Math.random(),
-  description: "", qty: 1, unit: "pcs",
+  description: "", qty: 1, unit: "pcs", specs: "",
 })
 
 export function POForm({ onSave, onCancel, createdBy, type }: Props) {
@@ -93,7 +93,7 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
             <p className="text-sm font-semibold">New {type === "local" ? "Local" : "Imported"} Purchase Order</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Fill in the details below</p>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCancel}>
+          <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={onCancel}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -104,13 +104,13 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
             <label className="text-xs font-medium">Supplier *</label>
             <div className="flex gap-2">
               <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
-                className="flex-1 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]">
+                className="flex-1 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer">
                 <option value="">Select supplier...</option>
                 {suppliers.map(s => (
                   <option key={s.id} value={s.id}>{s.name} {s.company ? `(${s.company})` : ""}</option>
                 ))}
               </select>
-              <Button type="button" variant="outline" size="sm" className="h-9" onClick={addSupplier} disabled={!supplierId}>
+              <Button type="button" variant="outline" size="sm" className="h-9 cursor-pointer" onClick={addSupplier} disabled={!supplierId}>
                 <Plus className="h-3.5 w-3.5" /> Add
               </Button>
             </div>
@@ -129,7 +129,7 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
                 {selectedSuppliers.map(s => (
                   <Badge key={s.id} variant="secondary" className="flex items-center gap-1.5 px-2.5 py-1">
                     {s.name}
-                    <button type="button" onClick={() => removeSupplier(s.id)} className="hover:text-red-500">
+                    <button type="button" onClick={() => removeSupplier(s.id)} className="hover:text-red-500 cursor-pointer">
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
@@ -157,7 +157,7 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-medium">Items *</label>
-              <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addItem}>
+              <Button type="button" variant="outline" size="sm" className="h-7 text-xs cursor-pointer" onClick={addItem}>
                 <Plus className="h-3.5 w-3.5" /> Add Row
               </Button>
             </div>
@@ -166,9 +166,10 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-[hsl(var(--muted))]/50 border-b">
-                    <th className="px-3 py-2 text-left font-medium text-[hsl(var(--muted-foreground))] w-[60%]">Description</th>
-                    <th className="px-3 py-2 text-left font-medium text-[hsl(var(--muted-foreground))] w-[18%]">Qty</th>
-                    <th className="px-3 py-2 text-left font-medium text-[hsl(var(--muted-foreground))] w-[18%]">Unit</th>
+                    <th className="px-3 py-2 text-left font-medium text-[hsl(var(--muted-foreground))] w-[45%]">Description</th>
+                    <th className="px-3 py-2 text-left font-medium text-[hsl(var(--muted-foreground))] w-[12%]">Qty</th>
+                    <th className="px-3 py-2 text-left font-medium text-[hsl(var(--muted-foreground))] w-[12%]">Unit</th>
+                    <th className="px-3 py-2 text-left font-medium text-[hsl(var(--muted-foreground))] w-[20%]">Specs (e.g. KW)</th>
                     <th className="px-3 py-2 w-[4%]" />
                   </tr>
                 </thead>
@@ -189,8 +190,13 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
                           className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
                       </td>
                       <td className="px-2 py-1.5">
+                        <input value={item.specs || ""} onChange={e => updateItem(item.id, "specs", e.target.value)}
+                          placeholder="e.g. 5KW"
+                          className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+                      </td>
+                      <td className="px-2 py-1.5">
                         {items.length > 1 && (
-                          <button type="button" onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600">
+                          <button type="button" onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 cursor-pointer">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
@@ -211,10 +217,10 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">
-            <Button type="submit" size="sm" disabled={selectedSuppliers.length === 0}>
+            <Button type="submit" size="sm" className="cursor-pointer" disabled={selectedSuppliers.length === 0}>
               Create &amp; Send to Dashboard
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
+            <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={onCancel}>Cancel</Button>
           </div>
         </form>
       </div>

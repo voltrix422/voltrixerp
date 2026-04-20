@@ -1,10 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getOrders, saveOrder, type Order } from "@/lib/orders"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, X, Eye, Download, Truck, FileText } from "lucide-react"
+import { Loader2, X, Eye, Download, Truck, FileText, Search } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder } from "@/lib/inventory"
@@ -13,6 +13,11 @@ export function ClientOrdersInventory() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [search, setSearch] = useState("")
+  const [statusSubTab, setStatusSubTab] = useState<"confirmed" | "processing" | "shipped" | "delivered">("confirmed")
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     getOrders().then(o => {
@@ -27,27 +32,110 @@ export function ClientOrdersInventory() {
       setOrders(filtered)
       setLoading(false)
     })
-    const channel = supabase
-      .channel("inventory_client_orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "erp_orders" }, () => {
-        getOrders().then(o => {
-          const filtered = o.filter(order => 
-            order.status === "confirmed" || 
-            order.status === "processing" || 
-            order.status === "shipped" || 
-            order.status === "delivered"
-          )
-          console.log("Inventory orders updated:", filtered.length, filtered)
-          setOrders(filtered)
-        })
+    const interval = setInterval(() => {
+      getOrders().then(o => {
+        const filtered = o.filter(order => 
+          order.status === "confirmed" || 
+          order.status === "processing" || 
+          order.status === "shipped" || 
+          order.status === "delivered"
+        )
+        console.log("Inventory orders updated:", filtered.length, filtered)
+        setOrders(filtered)
       })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    }, 30000)
+    return () => clearInterval(interval)
   }, [])
+
+  const filteredOrders = orders.filter(order => {
+    const searchLower = search.toLowerCase()
+    const matchesSearch = !search || 
+      order.orderNumber.toLowerCase().includes(searchLower) ||
+      order.clientName.toLowerCase().includes(searchLower) ||
+      (order.dispatcher || "").toLowerCase().includes(searchLower)
+    
+    const matchesStatus = order.status === statusSubTab
+    
+    const orderDate = order.deliveryDate ? new Date(order.deliveryDate) : new Date()
+    const matchesDateRange = 
+      (!fromDate || orderDate >= new Date(fromDate)) &&
+      (!toDate || orderDate <= new Date(toDate))
+    
+    return matchesSearch && matchesStatus && matchesDateRange
+  })
+
+  const statusCounts = {
+    confirmed: orders.filter(o => o.status === "confirmed").length,
+    processing: orders.filter(o => o.status === "processing").length,
+    shipped: orders.filter(o => o.status === "shipped").length,
+    delivered: orders.filter(o => o.status === "delivered").length,
+  }
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">{orders.length} order{orders.length !== 1 ? "s" : ""} for dispatch</p>
+      {/* Header with count */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">{orders.length} order{orders.length !== 1 ? "s" : ""} for dispatch</p>
+        {!loading && orders.length > 0 && (
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+            Filters
+          </Button>
+        )}
+      </div>
+
+      {/* Sub-tabs */}
+      {!loading && orders.length > 0 && (
+        <div className="flex gap-0 border-b">
+          {(["confirmed", "processing", "shipped", "delivered"] as const).map(status => (
+            <button key={status} onClick={() => setStatusSubTab(status)}
+              className={`px-4 py-2 text-sm font-medium transition-colors relative cursor-pointer ${
+                statusSubTab === status ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}>
+              {status === "confirmed" ? "Confirmed" : status === "processing" ? "Processing" : status === "shipped" ? "Shipped" : "Delivered"}
+              <span className="ml-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+                ({statusCounts[status]})
+              </span>
+              {statusSubTab === status && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      {showFilters && !loading && orders.length > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search order, client, dispatcher..."
+              className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            />
+          </div>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={e => setFromDate(e.target.value)}
+            placeholder="From Date"
+            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
+          />
+          <input
+            type="date"
+            value={toDate}
+            onChange={e => setToDate(e.target.value)}
+            placeholder="To Date"
+            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
+          />
+          {(search || fromDate || toDate) && (
+            <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setSearch(""); setFromDate(""); setToDate("") }}>
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
 
       {loading && (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -65,7 +153,16 @@ export function ClientOrdersInventory() {
         </div>
       )}
 
-      {!loading && orders.length > 0 && (
+      {!loading && filteredOrders.length === 0 && orders.length > 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-sm font-medium">No orders match your filters</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+            Try adjusting your search or filter criteria.
+          </p>
+        </div>
+      )}
+
+      {!loading && filteredOrders.length > 0 && (
         <div className="rounded-lg border overflow-hidden">
           <table className="w-full">
             <thead>
@@ -76,7 +173,7 @@ export function ClientOrdersInventory() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {orders.map(order => (
+              {filteredOrders.map(order => (
                 <tr key={order.id} onClick={() => setSelectedOrder(order)} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer">
                   <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{order.orderNumber}</td>
                   <td className="px-4 py-2.5 text-xs font-medium">{order.clientName}</td>
@@ -216,82 +313,22 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     setShowDeliveryConfirm(true)
     
     try {
-      console.log("📦 Loading inventory from received POs...")
+      console.log("📦 Loading inventory from inventory-stock table...")
       
-      // Get all POs that have been received
-      const allPOs = await import("@/lib/purchase").then(m => m.getPOs())
-      const receivedPOs = allPOs.filter(p => 
-        p.flowHistory?.some(h => h.step === "Items Received")
-      )
-      
-      console.log(`✅ Found ${receivedPOs.length} received POs`)
-      
-      // Build inventory from received POs
-      const inventoryItems: any[] = []
-      
-      for (const po of receivedPOs) {
-        if (po.type === "imported") {
-          for (const item of po.importedItems) {
-            const usedQty = (item as any).usedQty || 0
-            const availableQty = item.qty - usedQty
-            
-            inventoryItems.push({
-              id: `${po.id}-${item.id}`,
-              po_id: po.id,
-              po_number: po.poNumber,
-              item_id: item.id,
-              description: item.description,
-              unit: item.unit,
-              available_qty: availableQty,
-              cost_price: item.unitPrice,
-              supplier_name: po.importedSupplierName || "—",
-              po_type: "imported",
-              created_at: po.flowHistory.find(h => h.step === "Items Received")?.doneAt || po.createdAt
-            })
-          }
-        } else {
-          // Direct PO - calculate landed cost
-          const quote = po.quotes.find(q => q.supplierId === po.finalizedSupplierId)
-          const itemsTotal = po.items.reduce((sum, item) => {
-            const qi = quote?.items.find(q => q.itemId === item.id)
-            return sum + (qi ? qi.unitPrice * item.qty : 0)
-          }, 0)
-          const additionalCosts = (quote?.taxPct || 0) + (quote?.transportCost || 0) + (quote?.otherCost || 0)
-          
-          for (const item of po.items) {
-            const qi = quote?.items.find(q => q.itemId === item.id)
-            const basePrice = qi?.unitPrice || 0
-            const itemTotal = basePrice * item.qty
-            const proportionalAdditionalCost = itemsTotal > 0 ? (itemTotal / itemsTotal) * additionalCosts : 0
-            const landedCostPerUnit = basePrice + (item.qty > 0 ? proportionalAdditionalCost / item.qty : 0)
-            
-            const usedQty = (item as any).usedQty || 0
-            const availableQty = item.qty - usedQty
-            
-            inventoryItems.push({
-              id: `${po.id}-${item.id}`,
-              po_id: po.id,
-              po_number: po.poNumber,
-              item_id: item.id,
-              description: item.description,
-              unit: item.unit,
-              available_qty: availableQty,
-              cost_price: landedCostPerUnit,
-              supplier_name: po.supplierNames[0] || "—",
-              po_type: "local",
-              created_at: po.flowHistory?.find(h => h.step === "Items Received")?.doneAt || po.createdAt
-            })
-          }
-        }
+      // Load stock items directly from inventory-stock table
+      const res = await fetch("/api/db/inventory-stock")
+      if (!res.ok) {
+        throw new Error("Failed to load inventory")
       }
       
-      console.log(`📋 Total inventory items: ${inventoryItems.length}`)
+      const stockItems = await res.json()
+      console.log(`✅ Found ${stockItems.length} stock items`)
       
       // Filter for items matching the order
       const itemDescriptions = order.items.map(item => item.description)
       console.log("🔍 Looking for items:", itemDescriptions)
       
-      const matchingStock = inventoryItems.filter(stock => 
+      const matchingStock = stockItems.filter((stock: any) => 
         itemDescriptions.includes(stock.description)
       )
       
@@ -590,13 +627,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                           {stockItems.map(stock => (
                             <tr key={stock.id}>
                               <td className="px-3 py-2">{stock.description}</td>
-                              <td className="px-3 py-2 text-[hsl(var(--primary))] font-semibold">{stock.po_number}</td>
-                              <td className="px-3 py-2">{stock.supplier_name || "—"}</td>
-                              <td className="px-3 py-2 text-center font-medium">{stock.available_qty}</td>
+                              <td className="px-3 py-2 text-[hsl(var(--primary))] font-semibold">{stock.poNumber || stock.po_number}</td>
+                              <td className="px-3 py-2">{stock.supplierName || stock.supplier_name || "—"}</td>
+                              <td className="px-3 py-2 text-center font-medium">{stock.availableQty || stock.available_qty}</td>
                               <td className="px-3 py-2">{stock.unit}</td>
-                              <td className="px-3 py-2 text-right">PKR {(stock.cost_price || 0).toFixed(2)}</td>
-                              <td className="px-3 py-2 text-right font-medium">PKR {((stock.cost_price || 0) * stock.available_qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                              <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">{new Date(stock.created_at).toLocaleDateString()}</td>
+                              <td className="px-3 py-2 text-right">PKR {((stock.costPrice || stock.cost_price || 0)).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-medium">PKR {((stock.costPrice || stock.cost_price || 0) * (stock.availableQty || stock.available_qty)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">{new Date(stock.createdAt || stock.created_at).toLocaleDateString()}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -605,34 +642,43 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   </div>
 
                   <div className="rounded-lg border bg-yellow-50 dark:bg-yellow-950/30 p-4">
-                    <p className="text-sm font-semibold mb-3 text-yellow-900 dark:text-yellow-100">Quantities to be deducted:</p>
-                    <div className="space-y-2">
+                    <p className="text-sm font-semibold mb-3 text-yellow-900 dark:text-yellow-100">Stock Check:</p>
+                    <div className="space-y-3">
                       {order.items.map((item, index) => {
                         const itemStocks = stockItems.filter(s => s.description === item.description)
-                        const totalAvailable = itemStocks.reduce((sum, s) => sum + s.available_qty, 0)
+                        const totalAvailable = itemStocks.reduce((sum, s) => sum + (s.availableQty || s.available_qty || 0), 0)
                         const hasEnough = totalAvailable >= item.qty
+                        const shortage = item.qty - totalAvailable
                         
                         return (
-                          <div key={index} className="flex items-center justify-between py-2 border-b last:border-b-0 border-yellow-200 dark:border-yellow-800">
-                            <div className="flex-1">
-                              <p className="font-medium text-yellow-900 dark:text-yellow-100">{item.description}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-yellow-700 dark:text-yellow-300">
-                                  Current: <span className="font-semibold">{totalAvailable} {item.unit}</span>
+                          <div key={index} className="rounded-lg border bg-white dark:bg-gray-900 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="font-semibold text-sm">{item.description}</p>
+                              {hasEnough ? (
+                                <span className="text-xs font-semibold text-green-600 bg-green-100 dark:bg-green-900 dark:text-green-400 px-2 py-1 rounded-full">
+                                  ✓ In Stock
                                 </span>
-                                <span className="text-xs text-yellow-700 dark:text-yellow-300">→</span>
-                                <span className={`text-xs font-semibold ${hasEnough ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                  After: {totalAvailable - item.qty} {item.unit}
+                              ) : (
+                                <span className="text-xs font-semibold text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-400 px-2 py-1 rounded-full">
+                                  ⚠ Shortage
                                 </span>
-                              </div>
-                              {!hasEnough && (
-                                <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
-                                  ⚠ Insufficient stock! Need {item.qty - totalAvailable} more
-                                </p>
                               )}
                             </div>
-                            <div className="text-right ml-4">
-                              <p className="font-bold text-red-600 dark:text-red-400">- {item.qty} {item.unit}</p>
+                            <div className="grid grid-cols-3 gap-4 text-xs">
+                              <div>
+                                <p className="text-[hsl(var(--muted-foreground))]">Available</p>
+                                <p className="font-semibold text-lg">{totalAvailable} {item.unit}</p>
+                              </div>
+                              <div>
+                                <p className="text-[hsl(var(--muted-foreground))]">Required</p>
+                                <p className="font-semibold text-lg">{item.qty} {item.unit}</p>
+                              </div>
+                              <div>
+                                <p className="text-[hsl(var(--muted-foreground))]">Remaining</p>
+                                <p className={`font-semibold text-lg ${hasEnough ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                  {hasEnough ? totalAvailable - item.qty : `-${shortage}`}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         )

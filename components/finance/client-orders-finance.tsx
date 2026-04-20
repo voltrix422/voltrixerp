@@ -1,19 +1,20 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getOrders, type Order } from "@/lib/orders"
-import { supabase } from "@/lib/supabase"
+// DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, X, Eye, Download, CheckCircle } from "lucide-react"
-import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { SuccessNotification } from "@/components/ui/success-notification"
+import { Loader2, X, Search, Calendar, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react"
 
 export function ClientOrdersFinance() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [tab, setTab] = useState<"pending" | "paid">("pending")
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     getOrders().then(o => {
@@ -27,35 +28,55 @@ export function ClientOrdersFinance() {
       ))
       setLoading(false)
     })
-    const channel = supabase
-      .channel("finance_client_orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "erp_orders" }, () => {
-        getOrders().then(o => setOrders(o.filter(order => 
-          order.status === "finalized" || 
-          order.status === "confirmed" || 
-          order.status === "processing" || 
-          order.status === "shipped" || 
-          order.status === "delivered"
-        )))
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const interval = setInterval(() => {
+      getOrders().then(o => setOrders(o.filter(order => 
+        order.status === "finalized" || 
+        order.status === "confirmed" || 
+        order.status === "processing" || 
+        order.status === "shipped" || 
+        order.status === "delivered"
+      )))
+    }, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   // Filter based on status: finalized = pending, all others = paid
   const filteredOrders = orders.filter(order => {
-    if (tab === "pending") {
-      return order.status === "finalized"
-    } else {
-      return order.status === "confirmed" || 
-             order.status === "processing" || 
-             order.status === "shipped" || 
-             order.status === "delivered"
-    }
+    const q = search.toLowerCase()
+    const matchSearch = !search ||
+      order.orderNumber.toLowerCase().includes(q) ||
+      order.clientName.toLowerCase().includes(q)
+    
+    const orderDate = new Date(order.createdAt)
+    const matchFrom = !dateFrom || orderDate >= new Date(dateFrom)
+    const matchTo = !dateTo || orderDate <= new Date(dateTo + "T23:59:59")
+    
+    const statusMatch = tab === "pending"
+      ? order.status === "finalized"
+      : order.status === "confirmed" || 
+        order.status === "processing" || 
+        order.status === "shipped" || 
+        order.status === "delivered"
+    
+    return statusMatch && matchSearch && matchFrom && matchTo
   })
 
   const pendingCount = orders.filter(o => o.status === "finalized").length
   const paidCount = orders.filter(o => o.status === "confirmed" || o.status === "processing" || o.status === "shipped" || o.status === "delivered").length
+
+  // Calculate total payments for filtered orders
+  const totalPayments = filteredOrders.reduce((sum, order) => {
+    return sum + (order.payments || []).reduce((s, p) => s + p.amount, 0)
+  }, 0)
+
+  const totalOrdersValue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
+  const hasFilters = search || dateFrom || dateTo
+
+  function clearFilters() {
+    setSearch("")
+    setDateFrom("")
+    setDateTo("")
+  }
 
   return (
     <div className="space-y-3">
@@ -63,7 +84,7 @@ export function ClientOrdersFinance() {
       <div className="flex items-center gap-1 border-b border-[hsl(var(--border))]">
         <button
           onClick={() => setTab("pending")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
+          className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
             tab === "pending"
               ? "text-[hsl(var(--foreground))]"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
@@ -76,7 +97,7 @@ export function ClientOrdersFinance() {
         </button>
         <button
           onClick={() => setTab("paid")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
+          className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
             tab === "paid"
               ? "text-[hsl(var(--foreground))]"
               : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
@@ -89,6 +110,85 @@ export function ClientOrdersFinance() {
         </button>
       </div>
 
+      {/* Summary Section */}
+      {!loading && filteredOrders.length > 0 && (
+        <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                  Orders
+                </p>
+                <p className="text-xl font-bold tabular-nums leading-tight text-[hsl(var(--foreground))]">
+                  {filteredOrders.length}
+                </p>
+              </div>
+              <div className="border-l pl-6">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                  {hasFilters ? "Filtered" : "Total"} Payments
+                </p>
+                <p className="text-xl font-bold tabular-nums leading-tight text-[hsl(var(--foreground))]">
+                  PKR {totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm" variant="outline"
+              className="h-8 text-xs gap-1.5 cursor-pointer"
+              onClick={() => setShowFilters(v => !v)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+              {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#1faca6]" />}
+              {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Filters - Collapsible */}
+      {showFilters && (
+        <div className="rounded-lg border bg-[hsl(var(--card))] p-4 flex flex-wrap gap-3 items-center">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by order # or client name..."
+              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]"
+            />
+          </div>
+
+          {/* Date Range */}
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="h-9 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32"
+            />
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">—</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="h-9 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32"
+            />
+          </div>
+
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="h-9 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border rounded-md transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {loading && (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
@@ -99,7 +199,10 @@ export function ClientOrdersFinance() {
       {!loading && filteredOrders.length === 0 && (
         <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            No {tab === "pending" ? "pending" : "paid"} orders
+            {hasFilters 
+              ? `No ${tab === "pending" ? "pending" : "paid"} orders match your filters`
+              : `No ${tab === "pending" ? "pending" : "paid"} orders`
+            }
           </p>
         </div>
       )}
@@ -156,44 +259,24 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
   onClose: () => void
   onUpdate: (order: Order) => void
 }) {
-  const [confirming, setConfirming] = useState(false)
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [markingDelivered, setMarkingDelivered] = useState(false)
 
-  async function downloadInvoice() {
-    try {
-      await downloadInvoicePDF(order)
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
-    }
-  }
-
-  async function viewInvoice() {
-    try {
-      const blob = await import("@/lib/generate-invoice-pdf").then(m => m.generateInvoicePDF(order))
-      const url = URL.createObjectURL(blob)
-      window.open(url, "_blank")
-      setTimeout(() => URL.revokeObjectURL(url), 100)
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
-    }
-  }
-
-  async function confirmAndSendToInventory() {
-    setShowConfirmDialog(false)
-    setConfirming(true)
+  async function markAsDelivered() {
+    setMarkingDelivered(true)
     
     const updated: Order = {
       ...order,
-      status: "confirmed"
+      status: "delivered"
     }
     
     await import("@/lib/orders").then(m => m.saveOrder(updated))
-    setConfirming(false)
-    setShowSuccess(true)
+    
+    // Deduct inventory when order is delivered
+    await import("@/lib/inventory").then(m => m.deductInventoryForOrder(updated))
+    
+    setMarkingDelivered(false)
     onUpdate(updated)
+    onClose()
   }
 
   const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0)
@@ -239,7 +322,7 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
               </>
             )}
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -337,35 +420,20 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
         </div>
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
-            <Eye className="h-3 w-3 mr-1.5" /> View Invoice
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={downloadInvoice}>
-            <Download className="h-3 w-3 mr-1.5" /> Download PDF
-          </Button>
-          {isFullyPaid && order.status === "finalized" && (
-            <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowConfirmDialog(true)} disabled={confirming}>
-              <CheckCircle className="h-3 w-3 mr-1.5" /> {confirming ? "Confirming..." : "Confirm & Send to Inventory"}
+          {order.status !== "delivered" ? (
+            <Button 
+              size="sm" 
+              className="h-8 text-xs bg-green-600 hover:bg-green-700 cursor-pointer ml-auto" 
+              onClick={markAsDelivered} 
+              disabled={markingDelivered}
+            >
+              {markingDelivered ? "Marking..." : "Mark as Delivered"}
             </Button>
+          ) : (
+            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">Already delivered</span>
           )}
-          <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
         </div>
       </div>
-
-      <ConfirmDialog
-        isOpen={showConfirmDialog}
-        onCancel={() => setShowConfirmDialog(false)}
-        onConfirm={confirmAndSendToInventory}
-        title="Confirm Order"
-        message="Confirm this order and send to Inventory for dispatch?"
-      />
-
-      <SuccessNotification
-        isOpen={showSuccess}
-        onClose={() => setShowSuccess(false)}
-        title="Order Confirmed"
-        message="Order confirmed and sent to Inventory!"
-      />
     </div>
   )
 }

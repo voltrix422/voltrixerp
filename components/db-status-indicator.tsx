@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
+// DB health via /api/health (Prisma)
 import { Wifi, WifiOff } from "lucide-react"
 
 export function DBStatusIndicator() {
@@ -20,11 +20,11 @@ export function DBStatusIndicator() {
         setTimeout(() => reject(new Error("timeout")), 5000)
       )
       
-      const queryPromise = supabase.from("erp_users").select("count", { count: "exact", head: true })
+      const healthPromise = fetch("/api/health").then(r => r.ok)
       
-      const { error } = await Promise.race([queryPromise, timeoutPromise]) as any
+      const ok = await Promise.race([healthPromise, timeoutPromise]) as boolean
       
-      setIsConnected(!error)
+      setIsConnected(ok)
       setLastChecked(new Date())
     } catch {
       setIsConnected(false)

@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ErpUser {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("user")
+  modules   Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("erp_users")
+}
+
+model ErpSupplier {
+  id               String  @id @default(cuid())
+  name             String
+  type             String
+  contact          String  @default("")
+  email            String  @default("")
+  address          String  @default("")
+  company          String  @default("")
+  bankAccountName  String? @map("bank_account_name")
+  bankIban         String? @map("bank_iban")
+  image            String? @default("")
+
+  @@map("erp_suppliers")
+}
+
+model ErpPurchaseOrder {
+  id                   String   @id @default(cuid())
+  poNumber             String?  @map("po_number")
+  type                 String
+  supplierIds          Json     @default("[]") @map("supplier_ids")
+  supplierNames        Json     @default("[]") @map("supplier_names")
+  items                Json     @default("[]")
+  notes                String   @default("")
+  status               String
+  createdBy            String?  @map("created_by")
+  createdAt            DateTime @default(now()) @map("created_at")
+  adminNote            String   @default("") @map("admin_note")
+  sentToSupplier       Boolean  @default(false) @map("sent_to_supplier")
+  deliveryDate         String   @default("") @map("delivery_date")
+  receivingLocation    String   @default("") @map("receiving_location")
+  suppliersSent        Json     @default("[]") @map("suppliers_sent")
+  quotes               Json     @default("[]")
+  finalizedSupplierId  String?  @map("finalized_supplier_id")
+  payments             Json     @default("[]")
+  paymentAmount        Float?   @map("payment_amount")
+  paymentMethod        String?  @map("payment_method")
+  paymentDate          String?  @map("payment_date")
+  paymentProof         String?  @map("payment_proof")
+  paymentNotes         String?  @map("payment_notes")
+  adminDocuments       Json     @default("[]") @map("admin_documents")
+  financeDocuments1    Json     @default("[]") @map("finance_documents_1")
+  purchaseDocuments    Json     @default("[]") @map("purchase_documents")
+  financeDocuments2    Json     @default("[]") @map("finance_documents_2")
+  pssid                String?
+  importedSupplierName String?  @map("imported_supplier_name")
+  importedItems        Json     @default("[]") @map("imported_items")
+  flowHistory          Json     @default("[]") @map("flow_history")
+
+  @@map("erp_purchase_orders")
+}
+
+model ErpOrder {
+  id               String   @id @default(cuid())
+  orderNumber      String   @map("order_number")
+  clientId         String   @map("client_id")
+  clientName       String   @map("client_name")
+  items            Json     @default("[]")
+  subtotal         Float    @default(0)
+  taxPercent       Float    @default(0) @map("tax_percent")
+  tax              Float    @default(0)
+  transportCost    Float    @default(0) @map("transport_cost")
+  transportLabel   String   @default("Transport") @map("transport_label")
+  otherCost        Float    @default(0) @map("other_cost")
+  otherCostLabel   String   @default("Other") @map("other_cost_label")
+  shipping         Float    @default(0)
+  discount         Float    @default(0)
+  total            Float    @default(0)
+  status           String
+  notes            String   @default("")
+  createdAt        DateTime @default(now()) @map("created_at")
+  createdBy        String   @map("created_by")
+  deliveryAddress  String   @default("") @map("delivery_address")
+  deliveryDate     String   @default("") @map("delivery_date")
+  dispatcher       String?
+  pdfUrl           String?  @map("pdf_url")
+  payments         Json     @default("[]")
+
+  @@map("erp_orders")
+}
+
+model ErpClient {
+  id            String   @id @default(cuid())
+  name          String
+  company       String   @default("")
+  email         String   @default("")
+  phone         String   @default("")
+  address       String   @default("")
+  city          String   @default("")
+  country       String   @default("")
+  website       String   @default("")
+  taxId         String   @default("") @map("tax_id")
+  industry      String   @default("")
+  contactPerson String   @default("") @map("contact_person")
+  imageUrl      String?  @map("image_url")
+  notes         String   @default("")
+  createdAt     DateTime @default(now()) @map("created_at")
+  createdBy     String   @map("created_by")
+
+  @@map("erp_clients")
+}
+
+model ErpDoc {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  fileUrl     String   @map("file_url")
+  fileType    String?  @map("file_type")
+  fileSize    Int?     @map("file_size")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   String   @map("created_by")
+
+  @@map("erp_docs")
+}
+
+model ErpInventoryStock {
+  id           String   @id @default(cuid())
+  poId         String?  @map("po_id")
+  poNumber     String   @map("po_number")
+  itemId       String   @map("item_id")
+  description  String
+  unit         String   @default("")
+  specs        String   @default("")
+  receivedQty  Float    @default(0) @map("received_qty")
+  availableQty Float    @default(0) @map("available_qty")
+  allocatedQty Float    @default(0) @map("allocated_qty")
+  costPrice    Float    @default(0) @map("cost_price")
+  supplierName String   @default("") @map("supplier_name")
+  poType       String   @default("local") @map("po_type")
+  gst          Float    @default(0)
+  otherExpense Float    @default(0) @map("other_expense")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("erp_inventory_stock")
+}
+
+model ErpInventoryHistory {
+  id              String   @id @default(cuid())
+  itemDescription String   @map("item_description")
+  transactionType String   @map("transaction_type")
+  quantity        Float
+  unit            String
+  referenceType   String   @map("reference_type")
+  referenceId     String   @map("reference_id")
+  referenceNumber String   @map("reference_number")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  createdBy       String   @map("created_by")
+
+  @@map("erp_inventory_history")
+}
+
+model ErpQuotation {
+  id              String   @id @default(cuid())
+  productType     String?  @map("product_type")
+  voltage         String?
+  capacity        String?
+  quantity        Int?
+  budget          String?
+  application     String?
+  specifications  String?
+  timeline        String?
+  fullName        String   @map("full_name")
+  company         String   @default("")
+  email           String
+  phone           String   @default("")
+  status          String   @default("new")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("quotations")
+}
+
+model ErpStaff {
+  id            String   @id @default(cuid())
+  name          String
+  role          String
+  department    String
+  email         String
+  phone         String
+  address       String
+  salary        Float
+  currency      String
+  joinDate      String   @map("join_date")
+  status        String
+  notes         String
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("erp_staff")
+}
+
+model ErpFinanceRecord {
+  id          String   @id @default(cuid())
+  title       String
+  amount      Float
+  currency    String
+  purpose     String
+  category    String
+  tag         String
+  proof_url   String   @map("proof_url")
+  proof_name  String   @map("proof_name")
+  notes       String
+  created_by  String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("erp_finance_records")
+}
+
+model ErpBranch {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  type        String   @default("outlet")
+  address     String   @default("")
+  city        String   @default("")
+  country     String   @default("")
+  phone       String   @default("")
+  email       String   @default("")
+  manager     String   @default("")
+  status      String   @default("active")
+  notes       String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   String   @map("created_by")
+
+  @@map("erp_branches")
+}
+
+model ErpBranchInventory {
+  id                String   @id @default(cuid())
+  branchId          String   @map("branch_id")
+  inventoryId       String   @map("inventory_id")
+  productDescription String   @default("") @map("product_description")
+  quantity          Float    @default(0)
+  unit              String   @default("")
+  assignedAt        DateTime @default(now()) @map("assigned_at")
+  assignedBy        String   @map("assigned_by")
+  notes             String   @default("")
+
+  @@map("erp_branch_inventory")
+}

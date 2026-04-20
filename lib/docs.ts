@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase"
-
 export interface Doc {
   id: string
   name: string
@@ -13,85 +11,55 @@ export interface Doc {
 }
 
 export const DOC_CATEGORIES = [
-  "Policies",
-  "Procedures",
-  "Contracts",
-  "Invoices",
-  "Reports",
-  "Certificates",
-  "Legal",
-  "HR",
-  "Finance",
-  "Operations",
-  "Other"
+  "Policies", "Procedures", "Contracts", "Invoices", "Reports",
+  "Certificates", "Legal", "HR", "Finance", "Operations", "Other"
 ] as const
 
 export type DocCategory = typeof DOC_CATEGORIES[number]
 
-const METADATA_FILE = "docs/metadata.json"
-
-async function getMetadata(): Promise<Doc[]> {
-  try {
-    const { data, error } = await supabase.storage
-      .from("erp-files")
-      .download(METADATA_FILE)
-    
-    if (error) {
-      console.log("No metadata file yet, returning empty array")
-      return []
-    }
-    
-    const text = await data.text()
-    return JSON.parse(text)
-  } catch (err) {
-    console.error("Error reading metadata:", err)
-    return []
+function mapRow(r: Record<string, unknown>): Doc {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    category: r.category as string,
+    file_url: (r.fileUrl ?? r.file_url) as string,
+    file_type: (r.fileType ?? r.file_type) as string | undefined,
+    file_size: (r.fileSize ?? r.file_size) as number | undefined,
+    description: r.description as string | undefined,
+    created_at: (r.createdAt ?? r.created_at) as string,
+    created_by: (r.createdBy ?? r.created_by) as string,
   }
-}
-
-async function saveMetadata(docs: Doc[]): Promise<void> {
-  const blob = new Blob([JSON.stringify(docs, null, 2)], { type: "application/json" })
-  
-  await supabase.storage
-    .from("erp-files")
-    .upload(METADATA_FILE, blob, { upsert: true })
 }
 
 export async function getDocs(): Promise<Doc[]> {
-  return await getMetadata()
+  const res = await fetch("/api/db/docs")
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.map(mapRow)
 }
 
 export async function saveDoc(doc: Doc): Promise<void> {
-  const docs = await getMetadata()
-  const index = docs.findIndex(d => d.id === doc.id)
-  
-  if (index >= 0) {
-    docs[index] = doc
-  } else {
-    docs.push(doc)
-  }
-  
-  await saveMetadata(docs)
+  await fetch("/api/db/docs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(doc),
+  })
 }
 
 export async function deleteDoc(id: string): Promise<void> {
-  const docs = await getMetadata()
-  const filtered = docs.filter(d => d.id !== id)
-  await saveMetadata(filtered)
+  await fetch("/api/db/docs", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
 }
 
 export async function uploadFile(file: File): Promise<string> {
-  const ext = file.name.split(".").pop()
-  const path = `docs/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`
-  
-  const { error } = await supabase.storage
-    .from("erp-files")
-    .upload(path, file, { upsert: true })
-  
-  if (error) {
-    throw new Error(`Upload failed: ${error.message}`)
-  }
-  
-  const { data: urlData } = supabase.storage.from("erp-files").getPublicUrl(path)
-  return urlData.publicUrl
+  const formData = new FormData()
+  formData.append("files", file)
+  formData.append("folder", "docs")
+  const res = await fetch("/api/upload", { method: "POST", body: formData })
+  if (!res.ok) throw new Error("Upload failed")
+  const { urls } = await res.json()
+  return urls[0]
 }

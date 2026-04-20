@@ -20,7 +20,7 @@ export default function CRMPage() {
           <div className="flex items-center gap-1 border-b mb-4">
             <button
               onClick={() => setTab("orders")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
+              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
                 tab === "orders"
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
@@ -33,7 +33,7 @@ export default function CRMPage() {
             </button>
             <button
               onClick={() => setTab("clients")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative ${
+              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
                 tab === "clients"
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"

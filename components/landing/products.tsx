@@ -6,7 +6,6 @@ import { ArrowRight, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import Image from "next/image"
 import ScrollFloat from "./scroll-float"
 import Link from "next/link"
-import { createClient } from "@supabase/supabase-js"
 
 const categoryColors: Record<string, string> = {
   Residential: "bg-blue-50 text-blue-600 border-blue-100",
@@ -15,9 +14,10 @@ const categoryColors: Record<string, string> = {
   BMS:         "bg-neutral-100 text-neutral-600 border-neutral-200",
 }
 
-function StockBadge({ stock }: { stock: string }) {
-  if (stock === "in")  return <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" /> In Stock</span>
-  if (stock === "low") return <span className="flex items-center gap-1 text-xs text-amber-500 font-medium"><AlertCircle className="w-3 h-3" /> Low Stock</span>
+function StockBadge({ stock }: { stock: any }) {
+  const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
+  if (s === "in")  return <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" /> In Stock</span>
+  if (s === "low") return <span className="flex items-center gap-1 text-xs text-amber-500 font-medium"><AlertCircle className="w-3 h-3" /> Low Stock</span>
   return <span className="flex items-center gap-1 text-xs text-neutral-400 font-medium"><XCircle className="w-3 h-3" /> Out of Stock</span>
 }
 
@@ -25,16 +25,13 @@ export default function Products() {
   const [products, setProducts] = useState<any[]>([])
 
   useEffect(() => {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-    supabase
-      .from("products")
-      .select("*")
-      .eq("published", true)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setProducts(data || []))
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(data => {
+        const published = (data || []).filter((p: any) => p.published)
+        setProducts(published)
+      })
+      .catch(err => console.error('Error fetching products:', err))
   }, [])
 
   return (
@@ -88,8 +85,8 @@ export default function Products() {
                     </div>
                     <div className="flex items-end justify-between pt-2 border-t border-neutral-50">
                       <div>
-                        <p className="text-lg font-bold text-neutral-900">{p.price}</p>
-                        <p className="text-xs text-neutral-400">Warranty: {p.warranty}</p>
+                        <p className="text-lg font-bold text-neutral-900">{p.price ? `Rs. ${Number(p.price).toLocaleString()}` : "—"}</p>
+                        <p className="text-xs text-neutral-400">Warranty: {p.warranty || "—"}</p>
                       </div>
                       <span className="flex items-center gap-1 text-xs text-neutral-400 group-hover:text-[#1a9f9a] transition-colors">
                         Details <ArrowRight className="w-3 h-3" />

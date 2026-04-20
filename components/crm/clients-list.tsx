@@ -1,8 +1,9 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getClients, saveClient, deleteClient, type Client } from "@/lib/crm"
-import { supabase } from "@/lib/supabase"
+import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Plus, Search, X, Upload, Trash2, User, ShoppingCart } from "lucide-react"
 
 export function ClientsList({ currentUser }: { currentUser: string }) {
@@ -11,19 +12,13 @@ export function ClientsList({ currentUser }: { currentUser: string }) {
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Client | null>(null)
+  const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null)
 
   useEffect(() => {
     getClients().then(c => {
       setClients(c)
       setLoading(false)
     })
-    const channel = supabase
-      .channel("crm_clients")
-      .on("postgres_changes", { event: "*", schema: "public", table: "erp_clients" }, () => {
-        getClients().then(setClients)
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
   }, [])
 
   const filtered = clients.filter(c =>
@@ -40,10 +35,10 @@ export function ClientsList({ currentUser }: { currentUser: string }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search clients..."
-            className="w-full h-9 px-3 border-b-2 border-t-0 border-x-0 border-[hsl(var(--border))] bg-transparent text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
+            className="w-full h-9 px-3 border-b-2 border-t-0 border-x-0 border-[hsl(var(--border))] bg-transparent text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors cursor-pointer"
           />
         </div>
-        <Button size="sm" className="h-8 text-xs px-3" onClick={() => setShowForm(true)}>
+        <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Clients
         </Button>
       </div>
@@ -117,8 +112,28 @@ export function ClientsList({ currentUser }: { currentUser: string }) {
             setClients(prev => prev.filter(x => x.id !== id))
             setSelected(null)
           }}
+          onRequestDelete={() => setDeleteConfirmClient(selected)}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmClient}
+        title="Delete Client"
+        message="Are you sure you want to delete this client?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteConfirmClient) {
+            deleteClient(deleteConfirmClient.id).then(() => {
+              setClients(prev => prev.filter(x => x.id !== deleteConfirmClient.id))
+            })
+          }
+          setDeleteConfirmClient(null)
+          setSelected(null)
+        }}
+        onCancel={() => setDeleteConfirmClient(null)}
+      />
     </div>
   )
 }
@@ -160,13 +175,7 @@ function ClientForm({ currentUser, existing, onClose, onSave }: {
 
     let imageUrl: string | undefined
     if (imageFile) {
-      const ext = imageFile.name.split(".").pop()
-      const path = `client-images/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from("erp-files").upload(path, imageFile, { upsert: true })
-      if (!error) {
-        const { data } = supabase.storage.from("erp-files").getPublicUrl(path)
-        imageUrl = data.publicUrl
-      }
+      try { imageUrl = await uploadFile(imageFile, "client-images") } catch {}
     }
 
     const client: Client = {
@@ -218,7 +227,7 @@ function ClientForm({ currentUser, existing, onClose, onSave }: {
             <div className="flex-1">
               <input type="file" id="client-image" className="hidden" accept="image/*" onChange={handleImageChange} />
               <label htmlFor="client-image">
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" asChild>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs cursor-pointer" asChild>
                   <span className="cursor-pointer">
                     <Upload className="h-3 w-3 mr-1" /> Upload Photo
                   </span>
@@ -320,27 +329,31 @@ function ClientForm({ currentUser, existing, onClose, onSave }: {
         </div>
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-          <Button size="sm" className="h-8 text-xs" onClick={submit} disabled={saving || !name.trim()}>
+          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={submit} disabled={saving || !name.trim()}>
             {saving ? "Saving..." : existing ? "Update Client" : "Add Client"}
           </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onClose}>Cancel</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
       </div>
     </div>
   )
 }
 
-function ClientDetail({ client, onClose, onUpdate, onDelete }: {
+function ClientDetail({ client, onClose, onUpdate, onDelete, onRequestDelete }: {
   client: Client
   onClose: () => void
   onUpdate: (c: Client) => void
   onDelete: (id: string) => void
+  onRequestDelete?: () => void
 }) {
   const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState(false)
 
   async function handleDelete() {
-    if (!confirm("Are you sure you want to delete this client?")) return
+    if (onRequestDelete) {
+      onRequestDelete()
+      return
+    }
     setDeleting(true)
     await deleteClient(client.id)
     onDelete(client.id)
@@ -463,13 +476,13 @@ function ClientDetail({ client, onClose, onUpdate, onDelete }: {
             </div>
 
             <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-              <Button size="sm" className="h-8 text-xs" onClick={() => setEditing(true)}>
+              <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setEditing(true)}>
                 Edit
               </Button>
-              <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleDelete} disabled={deleting}>
+              <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" onClick={handleDelete} disabled={deleting}>
                 <Trash2 className="h-3 w-3 mr-1.5" /> {deleting ? "Deleting..." : "Delete"}
               </Button>
-              <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>Close</Button>
             </div>
           </div>
         </div>

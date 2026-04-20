@@ -17,7 +17,7 @@ const modules = [
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, user } = useAuth()
   const [email, setEmail]     = useState("")
   const [password, setPassword] = useState("")
   const [showPw, setShowPw]   = useState(false)
@@ -29,12 +29,28 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
     await new Promise(r => setTimeout(r, 300))
-    const ok = login(email.trim(), password)
+    const loggedInUser = await login(email.trim(), password)
     setLoading(false)
-    if (!ok) { setError("Invalid email or password."); return }
-    const redirectPath = sessionStorage.getItem("redirectAfterLogin")
-    if (redirectPath) { sessionStorage.removeItem("redirectAfterLogin"); router.replace(redirectPath) }
-    else router.replace("/dashboard")
+    if (!loggedInUser) { setError("Invalid email or password."); return }
+
+    console.log("Logged in user:", loggedInUser)
+    console.log("User role:", loggedInUser.role)
+    console.log("User modules:", loggedInUser.modules)
+
+    // Redirect based on user role and modules
+    if (loggedInUser.role === "superadmin") {
+      console.log("Redirecting to /dashboard (superadmin)")
+      router.replace("/dashboard")
+    } else if (loggedInUser.modules && loggedInUser.modules.length > 0) {
+      // Redirect to first assigned module
+      const targetModule = loggedInUser.modules[0]
+      console.log("Redirecting to /" + targetModule)
+      router.replace(`/${targetModule}`)
+    } else {
+      // Fallback to dashboard if no modules assigned
+      console.log("Redirecting to /dashboard (no modules)")
+      router.replace("/dashboard")
+    }
   }
 
   return (

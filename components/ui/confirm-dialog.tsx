@@ -81,14 +81,14 @@ export function ConfirmDialog({
           <Button 
             size="sm" 
             variant="outline" 
-            className="h-10 text-sm flex-1 font-medium" 
+            className="h-10 text-sm flex-1 font-medium cursor-pointer" 
             onClick={onCancel}
           >
             {cancelText}
           </Button>
           <Button 
             size="sm" 
-            className={`h-10 text-sm flex-1 font-medium ${config.button}`} 
+            className={`h-10 text-sm flex-1 font-medium ${config.button} cursor-pointer`} 
             onClick={onConfirm}
           >
             {confirmText}

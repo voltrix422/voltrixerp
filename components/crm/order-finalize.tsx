@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import { saveOrder, type Order, type OrderPayment } from "@/lib/orders"
-import { supabase } from "@/lib/supabase"
+import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { X, FileText } from "lucide-react"
 import { SuccessNotification } from "@/components/ui/success-notification"
@@ -88,13 +88,7 @@ export function OrderFinalize({ order, currentUser, onClose, onUpdate }: {
     let proofUrl: string | undefined
     if (paymentProofFile) {
       setUploadingProof(true)
-      const ext = paymentProofFile.name.split(".").pop()
-      const path = `payment-proofs/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from("erp-files").upload(path, paymentProofFile, { upsert: true })
-      if (!error) {
-        const { data } = supabase.storage.from("erp-files").getPublicUrl(path)
-        proofUrl = data.publicUrl
-      }
+      try { proofUrl = await uploadFile(paymentProofFile, "payment-proofs") } catch {}
       setUploadingProof(false)
     }
 
@@ -246,42 +240,42 @@ export function OrderFinalize({ order, currentUser, onClose, onUpdate }: {
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-        <div className="w-full max-w-4xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-            <div className="flex items-center gap-6">
+        <div className="w-full max-w-5xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-8 py-5 border-b shrink-0">
+            <div className="flex items-center gap-8">
               <div>
-                <p className="text-base font-bold text-[hsl(var(--primary))]">Finalize Order - {order.orderNumber}</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 capitalize">{order.clientName}</p>
+                <p className="text-xl font-bold text-[hsl(var(--primary))]">Finalize Order - {order.orderNumber}</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize">{order.clientName}</p>
               </div>
-              <div className="border-l pl-4">
-                <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))]">Dispatcher</p>
+              <div className="border-l pl-6">
+                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Dispatcher</p>
                 <input
                   type="text"
                   value={dispatcher}
                   onChange={e => setDispatcher(e.target.value)}
-                  className="w-40 h-7 mt-0.5 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                  className="w-48 h-10 mt-1 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                   placeholder="Assign dispatcher"
                 />
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-              <X className="h-3.5 w-3.5" />
+            <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer" onClick={onClose}>
+              <X className="h-5 w-5" />
             </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-3">
-            <div className="border-b pb-3">
-              <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1.5">Order summary</p>
-              <div className="flex justify-between text-xs">
+          <div className="flex-1 overflow-y-auto p-8 space-y-6">
+            <div className="border-b pb-4">
+              <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] mb-3">Order summary</p>
+              <div className="flex justify-between text-sm">
                 <span>Subtotal ({order.items.length} items)</span>
                 <span className="font-medium">PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 
-            <div className="space-y-2.5">
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="space-y-0.5">
-                  <label className="text-[10px] font-medium">Tax percentage (%)</label>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Tax percentage (%)</label>
                   <input
                     type="number"
                     min="0"
@@ -289,75 +283,75 @@ export function OrderFinalize({ order, currentUser, onClose, onUpdate }: {
                     step="0.01"
                     value={taxPercent}
                     onChange={e => setTaxPercent(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     placeholder="e.g., 18"
                   />
                 </div>
-                <div className="space-y-0.5">
-                  <label className="text-[10px] font-medium">Transport cost</label>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Transport cost</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={transportCost}
                     onChange={e => setTransportCost(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     placeholder=""
                   />
                 </div>
-                <div className="space-y-0.5">
-                  <label className="text-[10px] font-medium">Other cost</label>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Other cost</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={otherCost}
                     onChange={e => setOtherCost(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     placeholder=""
                   />
                 </div>
               </div>
             </div>
 
-            <div className="space-y-1.5 border-t pt-3">
-              <div className="flex justify-between text-xs">
+            <div className="space-y-2 border-t pt-4">
+              <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
                 <span>PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
               {Number(taxPercent) > 0 && (
-                <div className="flex justify-between text-xs text-[hsl(var(--muted-foreground))]">
+                <div className="flex justify-between text-sm text-[hsl(var(--muted-foreground))]">
                   <span>Tax ({taxPercent}%)</span>
                   <span>PKR {tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
               )}
               {Number(transportCost) > 0 && (
-                <div className="flex justify-between text-xs text-[hsl(var(--muted-foreground))]">
+                <div className="flex justify-between text-sm text-[hsl(var(--muted-foreground))]">
                   <span>Transport cost</span>
                   <span>PKR {Number(transportCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
               )}
               {Number(otherCost) > 0 && (
-                <div className="flex justify-between text-xs text-[hsl(var(--muted-foreground))]">
+                <div className="flex justify-between text-sm text-[hsl(var(--muted-foreground))]">
                   <span>Other cost</span>
                   <span>PKR {Number(otherCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm font-bold pt-1.5">
+              <div className="flex justify-between text-base font-bold pt-2">
                 <span>Total</span>
                 <span>PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 px-5 py-3 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+          <div className="flex items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
+            <Button size="sm" variant="outline" className="h-10 text-sm cursor-pointer" onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : "Save Changes"}
             </Button>
-            <Button size="sm" className="h-7 text-xs bg-green-400 hover:bg-green-500 text-white" onClick={handleGeneratePDF} disabled={generating}>
-              <FileText className="h-3 w-3 mr-1.5" /> {generating ? "Generating..." : "Generate PDF & Send to Finance"}
+            <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={handleGeneratePDF} disabled={generating}>
+              <FileText className="h-4 w-4 mr-2" /> {generating ? "Generating..." : "Generate PDF & Send to Finance"}
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs ml-auto" onClick={onClose}>Close</Button>
+            <Button size="sm" variant="outline" className="h-10 text-sm ml-auto cursor-pointer" onClick={onClose}>Close</Button>
           </div>
         </div>
       </div>
