@@ -10,7 +10,7 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "Voltrix",
-  description: "Enterprise Resource Planning System",
+  description: "Voltrix Batteries",
   icons: { icon: "/logo.png" },
 }
 
