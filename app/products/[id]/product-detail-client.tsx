@@ -5,6 +5,8 @@ import Image from "next/image"
 import Link from "next/link"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight } from "lucide-react"
 
+type TabType = 'description' | 'specifications'
+
 function StockBadge({ stock }: { stock: any }) {
   const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
   if (s === "in")  return <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium"><CheckCircle2 className="w-4 h-4" /> In Stock</span>
@@ -224,70 +226,99 @@ export default function ProductDetailClient({
   categoryColors: Record<string, string>
 }) {
   const images = Array.isArray(product.images) ? product.images : []
+  const [activeTab, setActiveTab] = useState<TabType>('description')
 
   return (
     <section className="pt-36 pb-24 px-4">
-      <div className="max-w-5xl mx-auto space-y-12">
+      <div className="max-w-6xl mx-auto space-y-12">
 
         <Link href="/products" className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-700 transition-colors">
           <ArrowLeft className="w-3.5 h-3.5" /> All products
         </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
           {/* Left - Images */}
           <div className="space-y-6">
             <ProductImages images={images} productName={product.name} />
           </div>
 
           {/* Right - Product Details */}
-          <div className="space-y-8">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
-                <StockBadge stock={product.stock} />
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
-              
-              <p className="text-neutral-600 text-lg leading-relaxed">{product.full_desc}</p>
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
+              <StockBadge stock={product.stock} />
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
 
-              <div className="grid grid-cols-2 gap-6 pt-2">
-                <div className="space-y-2">
-                  <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
-                  <p className="text-3xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Warranty</p>
-                  <p className="text-lg font-semibold text-neutral-900">{product.warranty || "—"}</p>
-                </div>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
+                <p className="text-3xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
               </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20" style={{ backgroundColor: "#1a9f9a" }}>
-                  Request a quote <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link href="/#contact" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-medium text-neutral-600 border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
-                  Contact us
-                </Link>
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Warranty</p>
+                <p className="text-lg font-semibold text-neutral-900">{product.warranty || "—"}</p>
               </div>
             </div>
 
-            {/* Specifications */}
-            {product.specs?.length > 0 && (
-              <div className="pt-8 border-t border-neutral-200">
-                <h3 className="text-lg font-bold text-neutral-900 mb-6">Specifications</h3>
-                <div className="rounded-2xl border border-neutral-200 overflow-hidden bg-white">
-                  <div className="grid grid-cols-1 divide-y divide-neutral-200">
-                    {product.specs.map((s: any, index: number) => (
-                      <div key={s.label} className={`flex items-center justify-between px-6 py-4 ${index % 2 === 0 ? 'bg-neutral-50/50' : 'bg-white'}`}>
-                        <p className="text-sm font-medium text-neutral-600">{s.label}</p>
-                        <p className="text-sm font-semibold text-neutral-900">{s.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20" style={{ backgroundColor: "#1a9f9a" }}>
+                Request a quote <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link href="/#contact" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-medium text-neutral-600 border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
+                Contact us
+              </Link>
+            </div>
+
+            {/* Tabs */}
+            <div className="pt-8 border-t border-neutral-200">
+              <div className="flex gap-1 border-b border-neutral-200">
+                <button
+                  onClick={() => setActiveTab('description')}
+                  className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeTab === 'description'
+                      ? 'border-[#1a9f9a] text-[#1a9f9a]'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  }`}
+                >
+                  Description
+                </button>
+                {product.specs?.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab('specifications')}
+                    className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                      activeTab === 'specifications'
+                        ? 'border-[#1a9f9a] text-[#1a9f9a]'
+                        : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                    }`}
+                  >
+                    Specifications
+                  </button>
+                )}
               </div>
-            )}
+
+              <div className="py-6">
+                {activeTab === 'description' && (
+                  <div className="text-neutral-600 leading-relaxed">
+                    {product.full_desc || product.description || <span className="text-neutral-400">No description available.</span>}
+                  </div>
+                )}
+
+                {activeTab === 'specifications' && product.specs?.length > 0 && (
+                  <div className="rounded-2xl border border-neutral-200 overflow-hidden bg-white">
+                    <div className="grid grid-cols-1 divide-y divide-neutral-200">
+                      {product.specs.map((s: any, index: number) => (
+                        <div key={s.label} className={`flex items-center justify-between px-6 py-4 ${index % 2 === 0 ? 'bg-neutral-50/50' : 'bg-white'}`}>
+                          <p className="text-sm font-medium text-neutral-600">{s.label}</p>
+                          <p className="text-sm font-semibold text-neutral-900">{s.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
