@@ -137,6 +137,7 @@ export default function ProductsManager() {
     try {
       const formData = new FormData()
       files.forEach(({ file }) => formData.append('files', file))
+      formData.append('folder', 'products')
       
       const res = await fetch('/api/upload', {
         method: 'POST',
