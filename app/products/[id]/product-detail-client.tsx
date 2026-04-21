@@ -251,6 +251,10 @@ export default function ProductDetailClient({
             
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
 
+            {product.description && (
+              <p className="text-neutral-600 text-base leading-relaxed">{product.description}</p>
+            )}
+
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
