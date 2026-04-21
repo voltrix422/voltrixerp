@@ -9,7 +9,7 @@ import { DBConnectionCheck } from "@/components/db-connection-check"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "VoltrixERP",
+  title: "Voltrix",
   description: "Enterprise Resource Planning System",
   icons: { icon: "/logo.png" },
 }
