@@ -37,3 +37,11 @@ export async function PATCH(req: NextRequest) {
   })
   return NextResponse.json(record)
 }
+
+export async function DELETE(req: NextRequest) {
+  const { id } = await req.json()
+  await prisma.erpQuotation.delete({
+    where: { id },
+  })
+  return NextResponse.json({ success: true })
+}

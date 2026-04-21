@@ -5,7 +5,7 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
-import { Loader2, RefreshCw, ExternalLink, Package } from "lucide-react"
+import { Loader2, RefreshCw, ExternalLink, Package, Trash2 } from "lucide-react"
 import ProductsManager from "@/components/website/products-manager"
 
 type Quotation = {
@@ -83,6 +83,21 @@ export default function WebsitePage() {
     } catch {}
     setQuotes(q => q.map(x => x.id === id ? { ...x, status: status as Quotation["status"] } : x))
     if (selected?.id === id) setSelected(s => s ? { ...s, status: status as Quotation["status"] } : s)
+    setUpdating(false)
+  }
+
+  const deleteQuote = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this quotation?")) return
+    setUpdating(true)
+    try {
+      await fetch("/api/db/quotations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+      setQuotes(q => q.filter(x => x.id !== id))
+      setSelected(null)
+    } catch {}
     setUpdating(false)
   }
 
@@ -169,14 +184,24 @@ export default function WebsitePage() {
                   {selected.company && <p className="text-sm text-muted-foreground">{selected.company}</p>}
                   <p className="text-xs text-muted-foreground mt-0.5">{new Date(selected.created_at).toLocaleString()}</p>
                 </div>
-                <select
-                  value={selected.status}
-                  disabled={updating}
-                  onChange={e => updateStatus(selected.id, e.target.value)}
-                  className={`text-xs font-medium px-3 py-1.5 rounded-full border outline-none cursor-pointer ${statusColors[selected.status]}`}
-                >
-                  {statusOptions.map(s => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selected.status}
+                    disabled={updating}
+                    onChange={e => updateStatus(selected.id, e.target.value)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full border outline-none cursor-pointer ${statusColors[selected.status]}`}
+                  >
+                    {statusOptions.map(s => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                  </select>
+                  <button
+                    onClick={() => deleteQuote(selected.id)}
+                    disabled={updating}
+                    className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50"
+                    title="Delete quotation"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Contact */}
