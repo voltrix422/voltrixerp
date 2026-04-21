@@ -233,53 +233,58 @@ export default function ProductDetailClient({
           <ArrowLeft className="w-3.5 h-3.5" /> All products
         </Link>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
-          {/* Left */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+          {/* Left - Images */}
           <div className="space-y-6">
             <ProductImages images={images} productName={product.name} />
-
-            <div className="flex items-center gap-3">
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
-              <StockBadge stock={product.stock} />
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight text-neutral-900">{product.name}</h1>
-            <p className="text-neutral-500 text-base leading-relaxed">{product.full_desc}</p>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-6 h-11 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity" style={{ backgroundColor: "#1a9f9a" }}>
-                Request a quote <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              <Link href="/#contact" className="inline-flex items-center justify-center gap-2 px-6 h-11 rounded-full text-sm font-medium text-neutral-600 border border-neutral-200 hover:border-neutral-300 transition-colors">
-                Contact us
-              </Link>
-            </div>
           </div>
 
-          {/* Right */}
-          <div className="space-y-5">
-            <div className="p-6 rounded-2xl border border-neutral-100 bg-neutral-50/60 space-y-4">
-              <div>
-                <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
-                <p className="text-3xl font-bold text-neutral-900 mt-1">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
+          {/* Right - Product Details */}
+          <div className="space-y-8">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
+                <StockBadge stock={product.stock} />
               </div>
-              <div>
-                <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Warranty</p>
-                <p className="text-base font-semibold text-neutral-900 mt-1">{product.warranty || "—"}</p>
+              
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
+              
+              <p className="text-neutral-600 text-lg leading-relaxed">{product.full_desc}</p>
+
+              <div className="grid grid-cols-2 gap-6 pt-2">
+                <div className="space-y-2">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
+                  <p className="text-3xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Warranty</p>
+                  <p className="text-lg font-semibold text-neutral-900">{product.warranty || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20" style={{ backgroundColor: "#1a9f9a" }}>
+                  Request a quote <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link href="/#contact" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-medium text-neutral-600 border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
+                  Contact us
+                </Link>
               </div>
             </div>
 
+            {/* Specifications */}
             {product.specs?.length > 0 && (
-              <div className="rounded-2xl border border-neutral-100 overflow-hidden">
-                <div className="px-5 py-3 border-b border-neutral-100 bg-neutral-50/60">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Specifications</p>
-                </div>
-                <div className="divide-y divide-neutral-50">
-                  {product.specs.map((s: any) => (
-                    <div key={s.label} className="flex items-center justify-between px-5 py-3">
-                      <p className="text-sm text-neutral-500">{s.label}</p>
-                      <p className="text-sm font-semibold text-neutral-900">{s.value}</p>
-                    </div>
-                  ))}
+              <div className="pt-8 border-t border-neutral-200">
+                <h3 className="text-lg font-bold text-neutral-900 mb-6">Specifications</h3>
+                <div className="rounded-2xl border border-neutral-200 overflow-hidden bg-white">
+                  <div className="grid grid-cols-1 divide-y divide-neutral-200">
+                    {product.specs.map((s: any, index: number) => (
+                      <div key={s.label} className={`flex items-center justify-between px-6 py-4 ${index % 2 === 0 ? 'bg-neutral-50/50' : 'bg-white'}`}>
+                        <p className="text-sm font-medium text-neutral-600">{s.label}</p>
+                        <p className="text-sm font-semibold text-neutral-900">{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
