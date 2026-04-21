@@ -24,6 +24,7 @@ type Product = {
   images: string[]
   published: boolean
   unit: string
+  quoteMode: boolean
 }
 
 const CATEGORIES = ["Residential", "Industrial", "EV", "BMS"]
@@ -38,7 +39,7 @@ type PendingImage = { file: File; preview: string }
 const EMPTY = {
   name: "", category: "Residential", description: "", full_desc: "",
   specification: "", price: "", warranty: "", stock: "in",
-  specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs",
+  specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
 }
 
 export default function ProductsManager() {
@@ -87,7 +88,7 @@ export default function ProductsManager() {
       warranty: p.warranty || "", stock: stockStr,
       specs: Array.isArray(p.specs) ? p.specs : [],
       images: Array.isArray(p.images) ? p.images : [],
-      published: p.published || false, unit: p.unit || "pcs",
+      published: p.published || false, unit: p.unit || "pcs", quoteMode: p.quoteMode || false,
     })
     setPendingImgs([])
     setIsNew(false)
@@ -174,7 +175,7 @@ export default function ProductsManager() {
         full_desc: form.full_desc, specification: form.specification,
         price: form.price || 0, warranty: form.warranty,
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
-        specs: form.specs, images: allImages, published, unit: form.unit,
+        specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
       }
 
       if (isNew) {
@@ -454,9 +455,30 @@ export default function ProductsManager() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Price</label>
-                  <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                    className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" placeholder="e.g. 210000" />
+                  <label className="text-xs font-medium text-muted-foreground">Pricing</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, quoteMode: !f.quoteMode }))}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        form.quoteMode 
+                          ? 'bg-[#1a9f9a] text-white border-[#1a9f9a]' 
+                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                      }`}
+                    >
+                      {form.quoteMode ? <Check className="w-4 h-4" /> : null}
+                      {form.quoteMode ? 'Quote Button Enabled' : 'Add Quote Button'}
+                    </button>
+                  </div>
+                  {form.quoteMode && (
+                    <p className="text-xs text-muted-foreground mt-1">Quote button will be shown instead of price on product page</p>
+                  )}
+                  {!form.quoteMode && (
+                    <div className="mt-2">
+                      <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                        className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" placeholder="e.g. 210000" />
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Warranty</label>

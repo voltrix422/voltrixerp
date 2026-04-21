@@ -256,10 +256,16 @@ export default function ProductDetailClient({
             )}
 
             <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
-                <p className="text-3xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
-              </div>
+              {product.quoteMode ? (
+                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20 w-full" style={{ backgroundColor: "#1a9f9a" }}>
+                  Request a Quote <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
+                  <p className="text-3xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Warranty</p>
                 <p className="text-lg font-semibold text-neutral-900">{product.warranty || "—"}</p>
@@ -267,9 +273,11 @@ export default function ProductDetailClient({
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-4">
-              <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20" style={{ backgroundColor: "#1a9f9a" }}>
-                Request a quote <ArrowRight className="w-4 h-4" />
-              </Link>
+              {!product.quoteMode && (
+                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20" style={{ backgroundColor: "#1a9f9a" }}>
+                  Request a quote <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
               <Link href="/#contact" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-medium text-neutral-600 border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
                 Contact us
               </Link>
