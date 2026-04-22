@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ComingSoon } from "@/components/layout/coming-soon"
-import { Eye, Users, Building2, Package, FileText, ShoppingCart, BarChart3 } from "lucide-react"
+import { Eye, Users, Building2, Package, FileText, ShoppingCart, BarChart3, DollarSign } from "lucide-react"
 import Link from "next/link"
 
 import { useToast } from "@/components/ui/toast"
@@ -271,20 +271,51 @@ function ERPStats() {
     quotations: 0,
     orders: 0,
     inventoryItems: 0,
+    currentMonthFinance: 0,
+    totalPOValue: 0,
+    totalOrdersValue: 0,
   })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [staffRes, clientsRes, productsRes, quotationsRes, ordersRes, inventoryRes] = await Promise.all([
+        const [staffRes, clientsRes, productsRes, quotationsRes, ordersRes, inventoryRes, financeRes, poRes, clientOrdersRes] = await Promise.all([
           fetch('/api/db/staff').then(r => r.json()).catch(() => ({ length: 0 })),
           fetch('/api/db/clients').then(r => r.json()).catch(() => ({ length: 0 })),
           fetch('/api/products').then(r => r.json()).catch(() => ({ length: 0 })),
           fetch('/api/db/quotations').then(r => r.json()).catch(() => ({ length: 0 })),
           fetch('/api/db/orders').then(r => r.json()).catch(() => ({ length: 0 })),
           fetch('/api/inventory/stock').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/finance/records').then(r => r.json()).catch(() => ({ length: 0 })),
+          getPOs().catch(() => []),
+          fetch('/api/db/client-orders').then(r => r.json()).catch(() => ({ length: 0 })),
         ])
+
+        // Calculate current month finance cost
+        const currentMonth = new Date().getMonth()
+        const currentYear = new Date().getFullYear()
+        const currentMonthFinance = Array.isArray(financeRes)
+          ? financeRes
+              .filter((r: any) => {
+                const date = new Date(r.date)
+                return date.getMonth() === currentMonth && date.getFullYear() === currentYear
+              })
+              .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0)
+          : 0
+
+        // Calculate total PO value
+        const totalPOValue = Array.isArray(poRes)
+          ? poRes.reduce((sum: number, po: any) => {
+              const poTotal = po.items?.reduce((itemSum: number, item: any) => itemSum + (Number(item.totalPrice) || 0), 0) || 0
+              return sum + poTotal
+            }, 0)
+          : 0
+
+        // Calculate total client orders value
+        const totalOrdersValue = Array.isArray(clientOrdersRes)
+          ? clientOrdersRes.reduce((sum: number, order: any) => sum + (Number(order.totalAmount) || 0), 0)
+          : 0
 
         setStats({
           staff: Array.isArray(staffRes) ? staffRes.length : 0,
@@ -293,6 +324,9 @@ function ERPStats() {
           quotations: Array.isArray(quotationsRes) ? quotationsRes.length : 0,
           orders: Array.isArray(ordersRes) ? ordersRes.length : 0,
           inventoryItems: Array.isArray(inventoryRes) ? inventoryRes.length : 0,
+          currentMonthFinance,
+          totalPOValue,
+          totalOrdersValue,
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
@@ -304,6 +338,10 @@ function ERPStats() {
     fetchStats()
   }, [])
 
+  const formatCurrency = (value: number) => {
+    return `Rs. ${value.toLocaleString()}`
+  }
+
   const statCards = [
     { label: "Staff", value: stats.staff, icon: Users, color: "bg-blue-50 text-blue-600", href: "/hrm" },
     { label: "Clients", value: stats.clients, icon: Building2, color: "bg-purple-50 text-purple-600", href: "/crm" },
@@ -311,10 +349,13 @@ function ERPStats() {
     { label: "Quotations", value: stats.quotations, icon: FileText, color: "bg-green-50 text-green-600", href: "/website" },
     { label: "Orders", value: stats.orders, icon: ShoppingCart, color: "bg-pink-50 text-pink-600", href: "/dashboard" },
     { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, color: "bg-cyan-50 text-cyan-600", href: "/inventory" },
+    { label: "This Month", value: formatCurrency(stats.currentMonthFinance), icon: DollarSign, color: "bg-emerald-50 text-emerald-600", href: "/finance" },
+    { label: "Total POs", value: formatCurrency(stats.totalPOValue), icon: DollarSign, color: "bg-amber-50 text-amber-600", href: "/purchase" },
+    { label: "Total Orders", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, color: "bg-rose-50 text-rose-600", href: "/dashboard" },
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
       {statCards.map((card) => {
         const Icon = card.icon
         return (
@@ -324,7 +365,7 @@ function ERPStats() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">{card.label}</p>
-                    <p className="text-3xl font-semibold text-neutral-900 mt-1">{loading ? "—" : card.value}</p>
+                    <p className="text-xl font-semibold text-neutral-900 mt-1">{loading ? "—" : card.value}</p>
                   </div>
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.color}`}>
                     <Icon className="w-6 h-6" />
