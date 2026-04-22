@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ComingSoon } from "@/components/layout/coming-soon"
-import { Eye } from "lucide-react"
+import { Eye, Users, Building2, Package, FileText, ShoppingCart, BarChart3 } from "lucide-react"
+import Link from "next/link"
 
 import { useToast } from "@/components/ui/toast"
 import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
@@ -304,31 +305,36 @@ function ERPStats() {
   }, [])
 
   const statCards = [
-    { label: "Staff", value: stats.staff, icon: "👥", color: "bg-blue-50 text-blue-600 border-blue-100" },
-    { label: "Clients", value: stats.clients, icon: "🏢", color: "bg-purple-50 text-purple-600 border-purple-100" },
-    { label: "Products", value: stats.products, icon: "📦", color: "bg-orange-50 text-orange-600 border-orange-100" },
-    { label: "Quotations", value: stats.quotations, icon: "📄", color: "bg-green-50 text-green-600 border-green-100" },
-    { label: "Orders", value: stats.orders, icon: "🛒", color: "bg-pink-50 text-pink-600 border-pink-100" },
-    { label: "Inventory Items", value: stats.inventoryItems, icon: "📊", color: "bg-cyan-50 text-cyan-600 border-cyan-100" },
+    { label: "Staff", value: stats.staff, icon: Users, color: "bg-blue-50 text-blue-600", href: "/hrm" },
+    { label: "Clients", value: stats.clients, icon: Building2, color: "bg-purple-50 text-purple-600", href: "/crm" },
+    { label: "Products", value: stats.products, icon: Package, color: "bg-orange-50 text-orange-600", href: "/website" },
+    { label: "Quotations", value: stats.quotations, icon: FileText, color: "bg-green-50 text-green-600", href: "/website" },
+    { label: "Orders", value: stats.orders, icon: ShoppingCart, color: "bg-pink-50 text-pink-600", href: "/dashboard" },
+    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, color: "bg-cyan-50 text-cyan-600", href: "/inventory" },
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-      {statCards.map((card) => (
-        <Card key={card.label} className="border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">{card.label}</p>
-                <p className="text-2xl font-bold mt-1">{loading ? "—" : card.value}</p>
-              </div>
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${card.color}`}>
-                {card.icon}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      {statCards.map((card) => {
+        const Icon = card.icon
+        return (
+          <Link key={card.label} href={card.href}>
+            <Card className="border border-neutral-200 hover:border-[#1a9f9a] transition-colors cursor-pointer">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">{card.label}</p>
+                    <p className="text-3xl font-semibold text-neutral-900 mt-1">{loading ? "—" : card.value}</p>
+                  </div>
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.color}`}>
+                    <Icon className="w-6 h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )
+      })}
     </div>
   )
 }
