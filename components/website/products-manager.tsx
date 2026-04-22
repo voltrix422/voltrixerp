@@ -53,6 +53,9 @@ export default function ProductsManager() {
   const [saveOk, setSaveOk]           = useState(false)
   const [isNew, setIsNew]             = useState(false)
   const [search, setSearch]           = useState("")
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const fileRef                       = useRef<HTMLInputElement>(null)
   const dragIdx                       = useRef<number | null>(null)
 
@@ -236,15 +239,22 @@ export default function ProductsManager() {
   }
 
   // ── delete product ─────────────────────────────────────
-  const deleteProduct = async (id: string) => {
-    if (!confirm("Delete this product?")) return
+  const deleteProduct = (product: Product) => {
+    setProductToDelete(product)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return
     try {
-      await fetch(`/api/products?id=${id}`, { method: 'DELETE' })
-      setProducts(prev => prev.filter(x => x.id !== id))
-      if (selected?.id === id) { setSelected(null); setIsNew(false) }
+      await fetch(`/api/products?id=${productToDelete.id}`, { method: 'DELETE' })
+      setProducts(prev => prev.filter(x => x.id !== productToDelete.id))
+      if (selected?.id === productToDelete.id) { setSelected(null); setIsNew(false) }
     } catch (error) {
       console.error('Error deleting product:', error)
     }
+    setDeleteDialogOpen(false)
+    setProductToDelete(null)
   }
 
   // ── remove saved image ─────────────────────────────────
@@ -262,6 +272,32 @@ export default function ProductsManager() {
     (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (p.category || "").toLowerCase().includes(search.toLowerCase())
   )
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = (dropIndex: number) => {
+    if (draggedIndex === null || draggedIndex === dropIndex) return
+    
+    const newProducts = [...products]
+    const [draggedItem] = newProducts.splice(draggedIndex, 1)
+    newProducts.splice(dropIndex, 0, draggedItem)
+    
+    setProducts(newProducts)
+    setDraggedIndex(null)
+    
+    // Save new order to API
+    fetch('/api/products/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productIds: newProducts.map(p => p.id) })
+    }).catch(err => console.error('Error saving order:', err))
+  }
 
   const allImages = [...form.images, ...pendingImgs.map(p => p.preview)]
 
@@ -292,9 +328,17 @@ export default function ProductsManager() {
           <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">No products found</div>
         ) : (
           <div className="flex-1 overflow-y-auto divide-y">
-            {filtered.map(p => (
-              <button key={p.id} onClick={() => pick(p)}
-                className={`w-full text-left px-3 py-2.5 hover:bg-accent transition-colors flex items-center gap-3 ${selected?.id === p.id ? "bg-accent" : ""}`}>
+            {filtered.map((p, index) => (
+              <button
+                key={p.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop(index)}
+                onClick={() => pick(p)}
+                className={`w-full text-left px-3 py-2.5 hover:bg-accent transition-colors flex items-center gap-3 ${selected?.id === p.id ? "bg-accent" : ""} ${draggedIndex === index ? "opacity-50" : ""} cursor-grab active:cursor-grabbing`}
+              >
+                <GripVertical className="w-4 h-4 text-neutral-300 shrink-0" />
                 <div className="w-10 h-10 rounded-lg border bg-neutral-50 shrink-0 overflow-hidden flex items-center justify-center">
                   {p.images?.[0]
                     ? <img src={p.images[0]} alt="" className="w-full h-full object-contain p-1" />
@@ -332,7 +376,7 @@ export default function ProductsManager() {
                   <X className="w-4 h-4" />
                 </button>
                 {selected && (
-                  <button onClick={() => deleteProduct(selected.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                  <button onClick={() => deleteProduct(selected)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
@@ -537,7 +581,7 @@ export default function ProductsManager() {
               </button>
               <div className="flex items-center gap-3">
                 {selected && (
-                  <button onClick={() => deleteProduct(selected.id)}
+                  <button onClick={() => deleteProduct(selected)}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-red-500 border border-red-100 hover:bg-red-50">
                     Delete product
                   </button>
@@ -558,6 +602,32 @@ export default function ProductsManager() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {deleteDialogOpen && productToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-neutral-900 mb-2">Delete Product</h3>
+            <p className="text-sm text-neutral-600 mb-4">
+              Are you sure you want to delete <span className="font-medium text-neutral-900">"{productToDelete.name}"</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setDeleteDialogOpen(false); setProductToDelete(null) }}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-neutral-600 border border-neutral-200 hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
