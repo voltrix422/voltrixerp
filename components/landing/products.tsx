@@ -23,6 +23,7 @@ function StockBadge({ stock }: { stock: any }) {
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>("All")
 
   useEffect(() => {
     fetch('/api/products')
@@ -33,6 +34,11 @@ export default function Products() {
       })
       .catch(err => console.error('Error fetching products:', err))
   }, [])
+
+  const categories = ["All", "Residential", "Industrial", "EV", "BMS"]
+  const filteredProducts = selectedCategory === "All" 
+    ? products 
+    : products.filter((p: any) => p.category === selectedCategory)
 
   return (
     <section className="py-24 px-4 bg-neutral-50/40" id="products">
@@ -56,11 +62,28 @@ export default function Products() {
           </p>
         </div>
 
-        {products.length === 0 ? (
-          <div className="text-center py-16 text-neutral-400 text-sm">Products coming soon.</div>
+        {/* Category Filter */}
+        <div className="flex flex-wrap justify-center gap-2">
+          {categories.map((category) => (
+            <button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                selectedCategory === category
+                  ? "bg-[#1a9f9a] text-white shadow-md"
+                  : "bg-white text-neutral-600 border border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a]"
+              }`}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+
+        {filteredProducts.length === 0 ? (
+          <div className="text-center py-16 text-neutral-400 text-sm">No products in this category.</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map((p) => {
+            {filteredProducts.map((p) => {
               const images = Array.isArray(p.images) ? p.images : []
               const thumb = images[0]
               return (
