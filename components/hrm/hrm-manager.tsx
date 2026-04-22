@@ -341,111 +341,111 @@ export function HrmManager() {
   const activeCount = staff.filter(s => s.status === "active").length
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-base font-bold">Human Resources</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">Manage staff profiles and information</p>
+          <p className="text-lg font-semibold text-neutral-900">Human Resources</p>
+          <p className="text-sm text-neutral-500">Manage staff profiles and information</p>
         </div>
-        <Button size="sm" className="h-8 text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowForm(true)}>
-          <Plus className="h-3.5 w-3.5" /> Add Staff
+        <Button size="sm" className="h-9 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4" /> Add Staff
         </Button>
       </div>
 
       {/* Stats */}
       {staff.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border bg-gradient-to-br from-[#1faca6]/10 to-[#1faca6]/5 border-[#1faca6]/20 p-4">
-            <p className="text-[10px] text-[#1faca6] uppercase tracking-widest font-semibold">Total Staff</p>
-            <p className="text-xl font-bold mt-1">{staff.length}</p>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="rounded-xl border border-neutral-200 bg-white p-5">
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Total Staff</p>
+            <p className="text-2xl font-bold text-neutral-900 mt-1">{staff.length}</p>
           </div>
-          <div className="rounded-xl border bg-[hsl(var(--card))] p-4">
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-widest font-semibold">Active</p>
-            <p className="text-xl font-bold mt-1 text-green-500">{activeCount}</p>
+          <div className="rounded-xl border border-neutral-200 bg-white p-5">
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Active</p>
+            <p className="text-2xl font-bold text-green-600 mt-1">{activeCount}</p>
           </div>
-          <div className="rounded-xl border bg-[hsl(var(--card))] p-4">
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-widest font-semibold">Inactive</p>
-            <p className="text-xl font-bold mt-1 text-red-400">{staff.length - activeCount}</p>
+          <div className="rounded-xl border border-neutral-200 bg-white p-5">
+            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Inactive</p>
+            <p className="text-2xl font-bold text-red-500 mt-1">{staff.length - activeCount}</p>
           </div>
         </div>
       )}
 
       {/* Filters */}
       {staff.length > 0 && (
-        <div className="rounded-xl border bg-[hsl(var(--card))] p-3 flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+        <div className="rounded-xl border border-neutral-200 bg-white p-4 flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search by name, role, email..."
-              className="w-full h-8 rounded-lg border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+              className="w-full h-10 rounded-lg border border-neutral-300 bg-white pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
           </div>
           <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
-            className="h-8 rounded-lg border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]">
+            className="h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Departments</option>
             {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="h-8 rounded-lg border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]">
+            className="h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
           {(search || filterDept !== "All" || filterStatus !== "All") && (
             <button onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All") }}
-              className="h-8 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-foreground border rounded-lg">Clear</button>
+              className="h-10 px-4 text-sm text-neutral-500 hover:text-neutral-900 border border-neutral-300 rounded-lg hover:bg-neutral-50">Clear</button>
           )}
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {staff.length}</span>
+          <span className="text-sm text-neutral-400 ml-auto">{filtered.length} of {staff.length}</span>
         </div>
       )}
 
       {/* Staff list */}
       {loading ? (
-        <div className="text-center py-12 text-xs text-[hsl(var(--muted-foreground))]">Loading...</div>
+        <div className="text-center py-16 text-sm text-neutral-400">Loading...</div>
       ) : staff.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed rounded-2xl">
-          <div className="h-12 w-12 rounded-full bg-[hsl(var(--accent))] flex items-center justify-center mx-auto mb-3">
-            <UserCog className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />
+        <div className="text-center py-20 border-2 border-dashed border-neutral-300 rounded-2xl bg-white">
+          <div className="h-16 w-16 rounded-full bg-neutral-100 flex items-center justify-center mx-auto mb-4">
+            <UserCog className="h-8 w-8 text-neutral-400" />
           </div>
-          <p className="text-sm font-semibold">No staff yet</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add your first staff member to get started</p>
+          <p className="text-base font-semibold text-neutral-900">No staff yet</p>
+          <p className="text-sm text-neutral-500 mt-2">Add your first staff member to get started</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-xs text-[hsl(var(--muted-foreground))] border rounded-xl border-dashed">No staff match your filters.</div>
+        <div className="text-center py-12 text-sm text-neutral-400 border border-dashed border-neutral-300 rounded-xl bg-white">No staff match your filters.</div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {filtered.map(s => (
             <div key={s.id} onClick={() => setViewMember(s)}
-              className="group flex items-center gap-3 rounded-lg border bg-[hsl(var(--card))] px-3 py-2 hover:border-[#1faca6]/50 hover:bg-[#1faca6]/5 cursor-pointer transition-all">
+              className="group flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-5 py-4 hover:border-[#1a9f9a] hover:bg-neutral-50 cursor-pointer transition-all">
               {/* Avatar */}
-              <div className="h-8 w-8 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--accent))] flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full shrink-0 overflow-hidden bg-neutral-100 flex items-center justify-center">
                 {s.photo_url
                   ? <img src={s.photo_url} alt={s.name} className="h-full w-full object-cover" />
-                  : <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
+                  : <span className="text-sm font-semibold text-neutral-500">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
                 }
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs font-semibold truncate">{s.name}</p>
-                  <span className="text-[9px] px-1.5 py-px rounded-full bg-[hsl(var(--accent))] font-medium shrink-0 leading-4">{s.department}</span>
-                  <span className={`text-[9px] px-1.5 py-px rounded-full font-medium shrink-0 leading-4 ${s.status === "active" ? "bg-green-500/10 text-green-500" : "bg-red-400/10 text-red-400"}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm font-semibold text-neutral-900 truncate">{s.name}</p>
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600 font-medium shrink-0">{s.department}</span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${s.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                     {s.status}
                   </span>
                 </div>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{s.role}{s.email ? ` · ${s.email}` : ""}</p>
+                <p className="text-sm text-neutral-500 truncate">{s.role}{s.email ? ` · ${s.email}` : ""}</p>
               </div>
 
               <div className="text-right shrink-0">
-                {s.salary > 0 && <p className="text-xs font-bold tabular-nums">{s.currency} {s.salary.toLocaleString()}</p>}
-                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{s.join_date || "—"}</p>
+                {s.salary > 0 && <p className="text-sm font-semibold tabular-nums text-neutral-900">{s.currency} {s.salary.toLocaleString()}</p>}
+                <p className="text-xs text-neutral-400">{s.join_date || "—"}</p>
               </div>
 
               <Button size="icon" variant="ghost"
-                className="h-6 w-6 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                 onClick={e => { e.stopPropagation(); handleDelete(s.id) }}>
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
@@ -455,113 +455,113 @@ export function HrmManager() {
       {/* Add Staff Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={resetForm}>
-          <div className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-              <p className="text-sm font-semibold">{editingMember ? "Edit Staff Member" : "Add Staff Member"}</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resetForm}><X className="h-4 w-4" /></Button>
+          <div className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 shrink-0">
+              <p className="text-base font-semibold text-neutral-900">{editingMember ? "Edit Staff Member" : "Add Staff Member"}</p>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-neutral-900" onClick={resetForm}><X className="h-5 w-5" /></Button>
             </div>
-            <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-5">
 
               {/* Photo */}
               <div className="flex items-center gap-4">
                 <div onClick={() => fileRef.current?.click()}
-                  className="h-16 w-16 rounded-full border-2 border-dashed flex items-center justify-center cursor-pointer hover:border-[#1faca6] overflow-hidden shrink-0 transition-colors">
+                  className="h-20 w-20 rounded-full border-2 border-dashed border-neutral-300 flex items-center justify-center cursor-pointer hover:border-[#1a9f9a] overflow-hidden shrink-0 transition-colors bg-neutral-50">
                   {photoPreview
                     ? <img src={photoPreview} alt="photo" className="h-full w-full object-cover" />
-                    : <Upload className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />}
+                    : <Upload className="h-6 w-6 text-neutral-400" />}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-medium">Photo</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Click circle to upload</p>
+                  <p className="text-sm font-medium text-neutral-900">Photo</p>
+                  <p className="text-sm text-neutral-500">Click circle to upload</p>
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-medium">Full Name *</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-medium text-neutral-700">Full Name *</label>
                   <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Ahmed Khan"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Job Title *</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Job Title *</label>
                   <input value={role} onChange={e => setRole(e.target.value)} required placeholder="e.g. Engineer"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Department</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Department</label>
                   <select value={department} onChange={e => setDepartment(e.target.value)}
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]">
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
                     {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Email</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Email</label>
                   <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="email@company.com"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Phone</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Phone</label>
                   <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+92 300 0000000"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Salary</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Salary</label>
                   <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Currency</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Currency</label>
                   <select value={currency} onChange={e => setCurrency(e.target.value)}
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]">
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
                     {CURRENCIES.map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Join Date</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Join Date</label>
                   <input value={joinDate} onChange={e => setJoinDate(e.target.value)} type="date"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Status</label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-neutral-700">Status</label>
                   <select value={status} onChange={e => setStatus(e.target.value as "active" | "inactive")}
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]">
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-medium">Address</label>
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-medium text-neutral-700">Address</label>
                   <input value={address} onChange={e => setAddress(e.target.value)} placeholder="City, Country"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
+                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-medium">Notes</label>
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-medium text-neutral-700">Notes</label>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional info..."
-                    className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6] resize-none" />
+                    className="w-full rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent resize-none" />
                 </div>
               </div>
 
               {/* Documents */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium">Documents</label>
+                  <label className="text-sm font-medium text-neutral-700">Documents</label>
                   <button type="button" onClick={() => docFileRef.current?.click()}
-                    className="flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline font-medium">
-                    <Plus className="h-3 w-3" /> Add Document
+                    className="flex items-center gap-1.5 text-sm text-[#1a9f9a] hover:underline font-medium">
+                    <Plus className="h-4 w-4" /> Add Document
                   </button>
                 </div>
                 <input ref={docFileRef} type="file" multiple className="hidden" onChange={handleDocFileChange} />
                 
                 {/* Existing documents (in edit mode) */}
                 {editingMember && editingMember.documents.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">Existing Documents</p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">Existing Documents</p>
                     {editingMember.documents.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-2.5 py-1.5">
-                        <FileText className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
-                        <span className="flex-1 min-w-0 text-xs truncate">{doc.name}</span>
-                        <span className="text-[9px] text-[hsl(var(--muted-foreground))] shrink-0">
+                      <div key={i} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                        <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                        <span className="flex-1 min-w-0 text-sm truncate">{doc.name}</span>
+                        <span className="text-xs text-neutral-400 shrink-0">
                           {(doc.size / 1024).toFixed(0)}KB
                         </span>
                         <button type="button" onClick={() => {
@@ -569,7 +569,7 @@ export function HrmManager() {
                           setEditingMember({ ...editingMember, documents: updated })
                         }}
                           className="text-red-400 hover:text-red-600 shrink-0">
-                          <X className="h-3 w-3" />
+                          <X className="h-4 w-4" />
                         </button>
                       </div>
                     ))}
@@ -579,42 +579,42 @@ export function HrmManager() {
                 {/* New documents to upload */}
                 {documents.length === 0 && (!editingMember || editingMember.documents.length === 0) ? (
                   <div onClick={() => docFileRef.current?.click()}
-                    className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2.5 cursor-pointer hover:border-[#1faca6] transition-colors">
-                    <FileText className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Click to upload documents (PDF, DOCX, images…)</p>
+                    className="flex items-center gap-3 rounded-lg border-2 border-dashed border-neutral-300 px-4 py-4 cursor-pointer hover:border-[#1a9f9a] transition-colors bg-neutral-50">
+                    <FileText className="h-5 w-5 text-neutral-400" />
+                    <p className="text-sm text-neutral-500">Click to upload documents (PDF, DOCX, images…)</p>
                   </div>
                 ) : documents.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {editingMember && <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">New Documents</p>}
+                  <div className="space-y-2">
+                    {editingMember && <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">New Documents</p>}
                     {documents.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-2.5 py-1.5">
-                        <FileText className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
+                      <div key={i} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                        <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
                         <input
                           value={doc.name}
                           onChange={e => updateDocName(i, e.target.value)}
                           placeholder="Document name"
-                          className="flex-1 min-w-0 bg-transparent text-xs focus:outline-none"
+                          className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
                         />
-                        <span className="text-[9px] text-[hsl(var(--muted-foreground))] shrink-0">
+                        <span className="text-xs text-neutral-400 shrink-0">
                           {(doc.file.size / 1024).toFixed(0)}KB
                         </span>
                         <button type="button" onClick={() => removeDoc(i)}
                           className="text-red-400 hover:text-red-600 shrink-0">
-                          <X className="h-3 w-3" />
+                          <X className="h-4 w-4" />
                         </button>
                       </div>
                     ))}
                     <button type="button" onClick={() => docFileRef.current?.click()}
-                      className="flex items-center gap-1 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] transition-colors">
-                      <Plus className="h-3 w-3" /> Add more
+                      className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-[#1a9f9a] transition-colors">
+                      <Plus className="h-4 w-4" /> Add more
                     </button>
                   </div>
                 ) : null}
               </div>
 
-              <div className="flex gap-2 pt-1">
-                <Button type="button" variant="outline" size="sm" className="flex-1 h-9" onClick={resetForm}>Cancel</Button>
-                <Button type="submit" size="sm" className="flex-1 h-9 bg-[#1faca6] hover:bg-[#17857f] text-white" disabled={saving}>
+              <div className="flex gap-3 pt-2">
+                <Button type="button" variant="outline" size="sm" className="flex-1 h-10" onClick={resetForm}>Cancel</Button>
+                <Button type="submit" size="sm" className="flex-1 h-10 bg-[#1a9f9a] hover:bg-[#158a85] text-white" disabled={saving}>
                   {saving ? "Saving..." : editingMember ? "Update Staff" : "Save Staff"}
                 </Button>
               </div>
@@ -625,83 +625,82 @@ export function HrmManager() {
 
       {/* View Staff Modal */}
       {viewMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setViewMember(null)}>
-          <div className="w-full max-w-md rounded-2xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="h-1.5 w-full bg-gradient-to-r from-[#1faca6] to-[#17857f]" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setViewMember(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white overflow-hidden" onClick={e => e.stopPropagation()}>
 
             {/* Profile header */}
-            <div className="flex items-center gap-4 px-6 pt-5 pb-4">
-              <div className="h-14 w-14 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--accent))] flex items-center justify-center border-2 border-[#1faca6]/30">
+            <div className="flex items-center gap-4 px-6 pt-6 pb-5">
+              <div className="h-16 w-16 rounded-full shrink-0 overflow-hidden bg-neutral-100 flex items-center justify-center border-2 border-neutral-200">
                 {viewMember.photo_url
                   ? <img src={viewMember.photo_url} alt={viewMember.name} className="h-full w-full object-cover" />
-                  : <span className="text-lg font-bold text-[hsl(var(--muted-foreground))]">{viewMember.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
+                  : <span className="text-lg font-semibold text-neutral-500">{viewMember.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
                 }
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-base font-bold truncate">{viewMember.name}</p>
+                <p className="text-lg font-semibold text-neutral-900 truncate">{viewMember.name}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[hsl(var(--accent))] font-medium">{viewMember.department}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${viewMember.status === "active" ? "bg-green-500/10 text-green-500" : "bg-red-400/10 text-red-400"}`}>
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600 font-medium">{viewMember.department}</span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${viewMember.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                     {viewMember.status}
                   </span>
                 </div>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{viewMember.role}</p>
+                <p className="text-sm text-neutral-500 mt-1">{viewMember.role}</p>
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setViewMember(null)}><X className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-neutral-900 shrink-0" onClick={() => setViewMember(null)}><X className="h-5 w-5" /></Button>
             </div>
 
             {/* Salary block */}
             {viewMember.salary > 0 && (
-              <div className="mx-6 mb-4 rounded-xl bg-[hsl(var(--accent))] px-5 py-3 flex items-center justify-between">
+              <div className="mx-6 mb-5 rounded-xl bg-neutral-50 border border-neutral-200 px-5 py-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-widest font-medium">Monthly Salary</p>
-                  <p className="text-xl font-bold tabular-nums">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
+                  <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">Monthly Salary</p>
+                  <p className="text-2xl font-bold tabular-nums text-neutral-900">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
                 </div>
-                <Briefcase className="h-6 w-6 text-[#1faca6]" />
+                <Briefcase className="h-6 w-6 text-[#1a9f9a]" />
               </div>
             )}
 
             {/* Info grid */}
-            <div className="px-6 pb-5 grid grid-cols-2 gap-2.5">
+            <div className="px-6 pb-5 grid grid-cols-2 gap-3">
               {viewMember.email && (
-                <div className="col-span-2 flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2.5">
-                  <Mail className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
-                  <p className="text-xs truncate">{viewMember.email}</p>
+                <div className="col-span-2 flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                  <Mail className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                  <p className="text-sm truncate">{viewMember.email}</p>
                 </div>
               )}
               {viewMember.phone && (
-                <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2.5">
-                  <Phone className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
-                  <p className="text-xs truncate">{viewMember.phone}</p>
+                <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                  <Phone className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                  <p className="text-sm truncate">{viewMember.phone}</p>
                 </div>
               )}
               {viewMember.join_date && (
-                <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2.5">
-                  <Briefcase className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
-                  <p className="text-xs">Joined {viewMember.join_date}</p>
+                <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                  <Briefcase className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                  <p className="text-sm">Joined {viewMember.join_date}</p>
                 </div>
               )}
               {viewMember.address && (
-                <div className="col-span-2 flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2.5">
-                  <MapPin className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
-                  <p className="text-xs truncate">{viewMember.address}</p>
+                <div className="col-span-2 flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                  <MapPin className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                  <p className="text-sm truncate">{viewMember.address}</p>
                 </div>
               )}
               {viewMember.notes && (
-                <div className="col-span-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2.5">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium mb-0.5">Notes</p>
-                  <p className="text-xs">{viewMember.notes}</p>
+                <div className="col-span-2 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                  <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium mb-1">Notes</p>
+                  <p className="text-sm">{viewMember.notes}</p>
                 </div>
               )}
               {viewMember.documents?.length > 0 && (
-                <div className="col-span-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2.5 space-y-1.5">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">Documents ({viewMember.documents.length})</p>
+                <div className="col-span-2 rounded-lg border border-neutral-200 bg-white px-4 py-3 space-y-2">
+                  <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">Documents ({viewMember.documents.length})</p>
                   {viewMember.documents.map((doc, i) => (
                     <a key={i} href={doc.data} download={doc.name}
-                      className="flex items-center gap-2 rounded-md hover:bg-[hsl(var(--accent))] px-2 py-1.5 transition-colors group">
-                      <FileText className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
-                      <span className="text-xs flex-1 truncate">{doc.name}</span>
-                      <Download className="h-3 w-3 text-[hsl(var(--muted-foreground))] group-hover:text-[#1faca6] shrink-0" />
+                      className="flex items-center gap-3 rounded-lg hover:bg-neutral-50 px-3 py-2 transition-colors group">
+                      <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                      <span className="text-sm flex-1 truncate">{doc.name}</span>
+                      <Download className="h-4 w-4 text-neutral-400 group-hover:text-[#1a9f9a] shrink-0" />
                     </a>
                   ))}
                 </div>
@@ -709,15 +708,15 @@ export function HrmManager() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 pb-5 flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => setViewMember(null)}>Close</Button>
-              <Button size="sm" className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
+            <div className="px-6 pb-6 flex gap-3">
+              <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => setViewMember(null)}>Close</Button>
+              <Button size="sm" className="flex-1 h-10 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
                 onClick={() => openEditForm(viewMember)}>
                 Edit
               </Button>
-              <Button size="sm" className="h-8 text-xs bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20"
+              <Button size="sm" className="h-10 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
                 onClick={() => handleDelete(viewMember.id)}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                <Trash2 className="h-4 w-4 mr-1.5" /> Delete
               </Button>
             </div>
           </div>
