@@ -442,10 +442,16 @@ export default function ProductsManager() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Category</label>
-                  <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a] bg-white">
-                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <input 
+                    value={form.category} 
+                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                    list="category-options"
+                    className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" 
+                    placeholder="e.g. Residential, Industrial, EV, BMS"
+                  />
+                  <datalist id="category-options">
+                    {CATEGORIES.map(c => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Stock Status</label>

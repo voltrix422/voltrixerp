@@ -35,7 +35,7 @@ export default function Products() {
       .catch(err => console.error('Error fetching products:', err))
   }, [])
 
-  const categories = ["All", "Residential", "Industrial", "EV", "BMS"]
+  const categories = ["All", ...Array.from(new Set(products.map((p: any) => p.category).filter(Boolean)))]
   const filteredProducts = selectedCategory === "All" 
     ? products 
     : products.filter((p: any) => p.category === selectedCategory)
