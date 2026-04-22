@@ -271,35 +271,39 @@ function ERPStats() {
     quotations: 0,
     orders: 0,
     inventoryItems: 0,
-    currentMonthFinance: 0,
+    financeTotal: 0,
     totalPOValue: 0,
     totalOrdersValue: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [dateRange, setDateRange] = useState({
+    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0],
+  })
 
   useEffect(() => {
     async function fetchStats() {
       try {
         const [staffRes, clientsRes, productsRes, quotationsRes, ordersRes, inventoryRes, financeRes, poRes, clientOrdersRes] = await Promise.all([
-          fetch('/api/db/staff').then(r => r.json()).catch(() => ({ length: 0 })),
-          fetch('/api/db/clients').then(r => r.json()).catch(() => ({ length: 0 })),
-          fetch('/api/products').then(r => r.json()).catch(() => ({ length: 0 })),
-          fetch('/api/db/quotations').then(r => r.json()).catch(() => ({ length: 0 })),
-          fetch('/api/db/orders').then(r => r.json()).catch(() => ({ length: 0 })),
-          fetch('/api/inventory/stock').then(r => r.json()).catch(() => ({ length: 0 })),
-          fetch('/api/finance/records').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/hrm/staff').then(r => r.json()).catch(() => []),
+          fetch('/api/db/clients').then(r => r.json()).catch(() => []),
+          fetch('/api/products').then(r => r.json()).catch(() => []),
+          fetch('/api/db/quotations').then(r => r.json()).catch(() => []),
+          fetch('/api/db/orders').then(r => r.json()).catch(() => []),
+          fetch('/api/inventory/stock').then(r => r.json()).catch(() => []),
+          fetch('/api/finance/records').then(r => r.json()).catch(() => []),
           getPOs().catch(() => []),
-          fetch('/api/db/client-orders').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/db/client-orders').then(r => r.json()).catch(() => []),
         ])
 
-        // Calculate current month finance cost
-        const currentMonth = new Date().getMonth()
-        const currentYear = new Date().getFullYear()
-        const currentMonthFinance = Array.isArray(financeRes)
+        // Calculate finance total based on date range
+        const financeTotal = Array.isArray(financeRes)
           ? financeRes
               .filter((r: any) => {
                 const date = new Date(r.date)
-                return date.getMonth() === currentMonth && date.getFullYear() === currentYear
+                const fromDate = new Date(dateRange.from)
+                const toDate = new Date(dateRange.to)
+                return date >= fromDate && date <= toDate
               })
               .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0)
           : 0
@@ -324,7 +328,7 @@ function ERPStats() {
           quotations: Array.isArray(quotationsRes) ? quotationsRes.length : 0,
           orders: Array.isArray(ordersRes) ? ordersRes.length : 0,
           inventoryItems: Array.isArray(inventoryRes) ? inventoryRes.length : 0,
-          currentMonthFinance,
+          financeTotal,
           totalPOValue,
           totalOrdersValue,
         })
@@ -336,46 +340,67 @@ function ERPStats() {
     }
 
     fetchStats()
-  }, [])
+  }, [dateRange])
 
   const formatCurrency = (value: number) => {
     return `Rs. ${value.toLocaleString()}`
   }
 
   const statCards = [
-    { label: "Staff", value: stats.staff, icon: Users, color: "bg-blue-50 text-blue-600", href: "/hrm" },
-    { label: "Clients", value: stats.clients, icon: Building2, color: "bg-purple-50 text-purple-600", href: "/crm" },
-    { label: "Products", value: stats.products, icon: Package, color: "bg-orange-50 text-orange-600", href: "/website" },
-    { label: "Quotations", value: stats.quotations, icon: FileText, color: "bg-green-50 text-green-600", href: "/website" },
-    { label: "Orders", value: stats.orders, icon: ShoppingCart, color: "bg-pink-50 text-pink-600", href: "/dashboard" },
-    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, color: "bg-cyan-50 text-cyan-600", href: "/inventory" },
-    { label: "This Month", value: formatCurrency(stats.currentMonthFinance), icon: DollarSign, color: "bg-emerald-50 text-emerald-600", href: "/finance" },
-    { label: "Total POs", value: formatCurrency(stats.totalPOValue), icon: DollarSign, color: "bg-amber-50 text-amber-600", href: "/purchase" },
-    { label: "Total Orders", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, color: "bg-rose-50 text-rose-600", href: "/dashboard" },
+    { label: "Staff", value: stats.staff, icon: Users, color: "bg-blue-500", href: "/hrm" },
+    { label: "Clients", value: stats.clients, icon: Building2, color: "bg-purple-500", href: "/crm" },
+    { label: "Products", value: stats.products, icon: Package, color: "bg-orange-500", href: "/website" },
+    { label: "Quotations", value: stats.quotations, icon: FileText, color: "bg-green-500", href: "/website" },
+    { label: "Orders", value: stats.orders, icon: ShoppingCart, color: "bg-pink-500", href: "/dashboard" },
+    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, color: "bg-cyan-500", href: "/inventory" },
+    { label: "Expenses This Month", value: formatCurrency(stats.financeTotal), icon: DollarSign, color: "bg-emerald-500", href: "/finance" },
+    { label: "Total POs", value: formatCurrency(stats.totalPOValue), icon: DollarSign, color: "bg-amber-500", href: "/purchase" },
+    { label: "Total Orders", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, color: "bg-rose-500", href: "/dashboard" },
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
-      {statCards.map((card) => {
-        const Icon = card.icon
-        return (
-          <Link key={card.label} href={card.href}>
-            <Card className="border border-neutral-200 hover:border-[#1a9f9a] transition-colors cursor-pointer">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">{card.label}</p>
-                    <p className="text-xl font-semibold text-neutral-900 mt-1">{loading ? "—" : card.value}</p>
+    <div className="space-y-4 mb-6">
+      {/* Date Range Picker */}
+      <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg p-3 w-fit">
+        <span className="text-xs font-medium text-neutral-600">Date Range:</span>
+        <input
+          type="date"
+          value={dateRange.from}
+          onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+          className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+        />
+        <span className="text-neutral-400">to</span>
+        <input
+          type="date"
+          value={dateRange.to}
+          onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+          className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+        />
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {statCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <Link key={card.label} href={card.href}>
+              <Card className="border-0 bg-white hover:bg-neutral-50 transition-all cursor-pointer">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-1">{card.label}</p>
+                      <p className="text-2xl font-bold text-neutral-900">{loading ? "—" : card.value}</p>
+                    </div>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.color} text-white shadow-sm`}>
+                      <Icon className="w-6 h-6" />
+                    </div>
                   </div>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.color}`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        )
-      })}
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
+      </div>
     </div>
   )
 }
