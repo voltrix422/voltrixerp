@@ -262,6 +262,77 @@ function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, open
   )
 }
 
+function ERPStats() {
+  const [stats, setStats] = useState({
+    staff: 0,
+    clients: 0,
+    products: 0,
+    quotations: 0,
+    orders: 0,
+    inventoryItems: 0,
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const [staffRes, clientsRes, productsRes, quotationsRes, ordersRes, inventoryRes] = await Promise.all([
+          fetch('/api/db/staff').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/db/clients').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/products').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/db/quotations').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/db/orders').then(r => r.json()).catch(() => ({ length: 0 })),
+          fetch('/api/inventory/stock').then(r => r.json()).catch(() => ({ length: 0 })),
+        ])
+
+        setStats({
+          staff: Array.isArray(staffRes) ? staffRes.length : 0,
+          clients: Array.isArray(clientsRes) ? clientsRes.length : 0,
+          products: Array.isArray(productsRes) ? productsRes.length : 0,
+          quotations: Array.isArray(quotationsRes) ? quotationsRes.length : 0,
+          orders: Array.isArray(ordersRes) ? ordersRes.length : 0,
+          inventoryItems: Array.isArray(inventoryRes) ? inventoryRes.length : 0,
+        })
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStats()
+  }, [])
+
+  const statCards = [
+    { label: "Staff", value: stats.staff, icon: "👥", color: "bg-blue-50 text-blue-600 border-blue-100" },
+    { label: "Clients", value: stats.clients, icon: "🏢", color: "bg-purple-50 text-purple-600 border-purple-100" },
+    { label: "Products", value: stats.products, icon: "📦", color: "bg-orange-50 text-orange-600 border-orange-100" },
+    { label: "Quotations", value: stats.quotations, icon: "📄", color: "bg-green-50 text-green-600 border-green-100" },
+    { label: "Orders", value: stats.orders, icon: "🛒", color: "bg-pink-50 text-pink-600 border-pink-100" },
+    { label: "Inventory Items", value: stats.inventoryItems, icon: "📊", color: "bg-cyan-50 text-cyan-600 border-cyan-100" },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      {statCards.map((card) => (
+        <Card key={card.label} className="border">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">{card.label}</p>
+                <p className="text-2xl font-bold mt-1">{loading ? "—" : card.value}</p>
+              </div>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${card.color}`}>
+                {card.icon}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const [pendingCount, setPendingCount] = useState(0)
@@ -290,6 +361,9 @@ export default function DashboardPage() {
       />
       <div className="flex-1 overflow-auto">
         <div className="p-6 max-w-6xl">
+          {/* ERP Stats Overview */}
+          <ERPStats />
+
           {/* Tabs */}
           <div className="flex items-center gap-1 border-b border-[hsl(var(--border))] mb-4">
             <button
