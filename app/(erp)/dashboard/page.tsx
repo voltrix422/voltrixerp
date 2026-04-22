@@ -360,11 +360,11 @@ function ERPStats() {
   ]
 
   return (
-    <div className="space-y-4 mb-6">
+    <div className="space-y-6">
       {/* Date Range Toggle */}
       <button
         onClick={() => setShowDateFilter(!showDateFilter)}
-        className="flex items-center gap-2 text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors"
+        className="flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-neutral-900 transition-colors"
       >
         <svg className={`w-4 h-4 transition-transform ${showDateFilter ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -374,40 +374,40 @@ function ERPStats() {
 
       {/* Date Range Picker - Collapsible */}
       {showDateFilter && (
-        <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg p-3 w-fit animate-in slide-in-from-top-2">
-          <span className="text-xs font-medium text-neutral-600">Date Range:</span>
+        <div className="flex items-center gap-3 bg-white border border-neutral-200 rounded-xl p-4 w-fit animate-in slide-in-from-top-2">
+          <span className="text-sm font-medium text-neutral-600">Date Range:</span>
           <input
             type="date"
             value={dateRange.from}
             onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-            className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+            className="h-10 px-4 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
           />
           <span className="text-neutral-400">to</span>
           <input
             type="date"
             value={dateRange.to}
             onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-            className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+            className="h-10 px-4 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
           />
         </div>
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
         {statCards.map((card) => {
           const Icon = card.icon
           return (
             <Link key={card.label} href={card.href}>
-              <Card className="border border-neutral-200 bg-white hover:border-[#1a9f9a] hover:bg-neutral-50 transition-all cursor-pointer relative overflow-hidden">
+              <Card className="border border-neutral-200 bg-white hover:border-[#1a9f9a] hover:bg-neutral-50 transition-all cursor-pointer relative overflow-hidden h-32">
                 <CardContent className="p-6">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col h-full">
                     <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">{card.label}</p>
-                    <p className="text-3xl font-semibold text-neutral-900 tabular-nums tracking-tight" style={{ fontFamily: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+                    <p className="text-3xl font-semibold text-neutral-900 tabular-nums tracking-tight mt-auto" style={{ fontFamily: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
                       {loading ? "—" : card.value}
                     </p>
                   </div>
-                  <div className={`absolute top-4 right-4 w-10 h-10 rounded-lg flex items-center justify-center ${card.bgColor} ${card.color} opacity-20`}>
-                    <Icon className="w-5 h-5" />
+                  <div className={`absolute top-5 right-5 w-12 h-12 rounded-xl flex items-center justify-center ${card.bgColor} ${card.color} opacity-20`}>
+                    <Icon className="w-6 h-6" />
                   </div>
                 </CardContent>
               </Card>
@@ -445,49 +445,51 @@ export default function DashboardPage() {
         pendingCount={pendingCount}
         onPendingClick={() => openFirstPending?.()}
       />
-      <div className="flex-1 overflow-auto">
-        <div className="p-6 max-w-6xl">
+      <div className="flex-1 overflow-auto bg-neutral-50">
+        <div className="p-8 max-w-7xl">
           {/* ERP Stats Overview */}
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 border-b border-[hsl(var(--border))] mb-4">
+          <div className="flex items-center gap-1 border-b border-neutral-200 mb-6 bg-white rounded-t-lg px-6">
             <button
               onClick={() => setActiveTab("orders")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
                 activeTab === "orders"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  ? "text-neutral-900"
+                  : "text-neutral-500 hover:text-neutral-900"
               }`}
             >
               Client Orders
               {activeTab === "orders" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
               )}
             </button>
             <button
               onClick={() => setActiveTab("pos")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
                 activeTab === "pos"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  ? "text-neutral-900"
+                  : "text-neutral-500 hover:text-neutral-900"
               }`}
             >
               Purchase Orders
               {activeTab === "pos" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
               )}
             </button>
           </div>
 
           {/* Tab Content */}
-          {activeTab === "orders" && <ClientOrdersApproval />}
-          {activeTab === "pos" && (
-            <POsWidget onPendingChange={(count, openFirst) => {
-              setPendingCount(count)
-              setOpenFirstPending(() => openFirst)
-            }} />
-          )}
+          <div className="bg-white rounded-b-lg p-6 border-x border-b border-neutral-200">
+            {activeTab === "orders" && <ClientOrdersApproval />}
+            {activeTab === "pos" && (
+              <POsWidget onPendingChange={(count, openFirst) => {
+                setPendingCount(count)
+                setOpenFirstPending(() => openFirst)
+              }} />
+            )}
+          </div>
         </div>
       </div>
     </>
