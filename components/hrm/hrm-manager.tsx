@@ -144,6 +144,7 @@ export function HrmManager() {
   const [search, setSearch] = useState("")
   const [filterDept, setFilterDept] = useState("All")
   const [filterStatus, setFilterStatus] = useState("All")
+  const [showFilters, setShowFilters] = useState(false)
 
   // form
   const [name, setName] = useState("")
@@ -372,9 +373,22 @@ export function HrmManager() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters Toggle */}
       {staff.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 flex flex-wrap gap-3 items-center">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-2 text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors"
+        >
+          <svg className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+          Filter staff
+        </button>
+      )}
+
+      {/* Filters */}
+      {staff.length > 0 && showFilters && (
+        <div className="rounded-xl border border-neutral-200 bg-white p-4 flex flex-wrap gap-3 items-center animate-in slide-in-from-top-2">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
             <input value={search} onChange={e => setSearch(e.target.value)}
