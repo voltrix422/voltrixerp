@@ -276,6 +276,7 @@ function ERPStats() {
     totalOrdersValue: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [showDateFilter, setShowDateFilter] = useState(false)
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     to: new Date().toISOString().split('T')[0],
@@ -347,36 +348,49 @@ function ERPStats() {
   }
 
   const statCards = [
-    { label: "Staff", value: stats.staff, icon: Users, color: "bg-blue-500", href: "/hrm" },
-    { label: "Clients", value: stats.clients, icon: Building2, color: "bg-purple-500", href: "/crm" },
-    { label: "Products", value: stats.products, icon: Package, color: "bg-orange-500", href: "/website" },
-    { label: "Quotations", value: stats.quotations, icon: FileText, color: "bg-green-500", href: "/website" },
-    { label: "Orders", value: stats.orders, icon: ShoppingCart, color: "bg-pink-500", href: "/dashboard" },
-    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, color: "bg-cyan-500", href: "/inventory" },
-    { label: "Expenses This Month", value: formatCurrency(stats.financeTotal), icon: DollarSign, color: "bg-emerald-500", href: "/finance" },
-    { label: "Total POs", value: formatCurrency(stats.totalPOValue), icon: DollarSign, color: "bg-amber-500", href: "/purchase" },
-    { label: "Total Orders", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, color: "bg-rose-500", href: "/dashboard" },
+    { label: "Staff", value: stats.staff, icon: Users, color: "text-blue-500", bgColor: "bg-blue-50", href: "/hrm" },
+    { label: "Clients", value: stats.clients, icon: Building2, color: "text-purple-500", bgColor: "bg-purple-50", href: "/crm" },
+    { label: "Products", value: stats.products, icon: Package, color: "text-orange-500", bgColor: "bg-orange-50", href: "/website" },
+    { label: "Quotations", value: stats.quotations, icon: FileText, color: "text-green-500", bgColor: "bg-green-50", href: "/website" },
+    { label: "Orders", value: stats.orders, icon: ShoppingCart, color: "text-pink-500", bgColor: "bg-pink-50", href: "/dashboard" },
+    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, color: "text-cyan-500", bgColor: "bg-cyan-50", href: "/inventory" },
+    { label: "Expenses This Month", value: formatCurrency(stats.financeTotal), icon: DollarSign, color: "text-emerald-500", bgColor: "bg-emerald-50", href: "/finance" },
+    { label: "Total POs", value: formatCurrency(stats.totalPOValue), icon: DollarSign, color: "text-amber-500", bgColor: "bg-amber-50", href: "/purchase" },
+    { label: "Total Orders", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, color: "text-rose-500", bgColor: "bg-rose-50", href: "/dashboard" },
   ]
 
   return (
     <div className="space-y-4 mb-6">
-      {/* Date Range Picker */}
-      <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg p-3 w-fit">
-        <span className="text-xs font-medium text-neutral-600">Date Range:</span>
-        <input
-          type="date"
-          value={dateRange.from}
-          onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-          className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
-        />
-        <span className="text-neutral-400">to</span>
-        <input
-          type="date"
-          value={dateRange.to}
-          onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-          className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
-        />
-      </div>
+      {/* Date Range Toggle */}
+      <button
+        onClick={() => setShowDateFilter(!showDateFilter)}
+        className="flex items-center gap-2 text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors"
+      >
+        <svg className={`w-4 h-4 transition-transform ${showDateFilter ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+        Filter by date
+      </button>
+
+      {/* Date Range Picker - Collapsible */}
+      {showDateFilter && (
+        <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg p-3 w-fit animate-in slide-in-from-top-2">
+          <span className="text-xs font-medium text-neutral-600">Date Range:</span>
+          <input
+            type="date"
+            value={dateRange.from}
+            onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+            className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+          />
+          <span className="text-neutral-400">to</span>
+          <input
+            type="date"
+            value={dateRange.to}
+            onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+            className="h-8 px-3 text-xs border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+          />
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -384,16 +398,16 @@ function ERPStats() {
           const Icon = card.icon
           return (
             <Link key={card.label} href={card.href}>
-              <Card className="border-0 bg-white hover:bg-neutral-50 transition-all cursor-pointer">
+              <Card className="border border-neutral-200 bg-white hover:border-[#1a9f9a] hover:bg-neutral-50 transition-all cursor-pointer relative overflow-hidden">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-1">{card.label}</p>
-                      <p className="text-2xl font-bold text-neutral-900">{loading ? "—" : card.value}</p>
-                    </div>
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.color} text-white shadow-sm`}>
-                      <Icon className="w-6 h-6" />
-                    </div>
+                  <div className="flex flex-col">
+                    <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">{card.label}</p>
+                    <p className="text-3xl font-semibold text-neutral-900 tabular-nums tracking-tight" style={{ fontFamily: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+                      {loading ? "—" : card.value}
+                    </p>
+                  </div>
+                  <div className={`absolute top-4 right-4 w-10 h-10 rounded-lg flex items-center justify-center ${card.bgColor} ${card.color} opacity-20`}>
+                    <Icon className="w-5 h-5" />
                   </div>
                 </CardContent>
               </Card>
