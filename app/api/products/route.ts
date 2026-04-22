@@ -26,6 +26,42 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const url = new URL(request.url)
+  const action = url.searchParams.get('action')
+  
+  if (action === 'reorder') {
+    try {
+      await ensureDataFile()
+      const { productIds } = await request.json()
+      
+      const data = await fs.readFile(DATA_FILE, 'utf-8')
+      const products = JSON.parse(data)
+      
+      // Update order for each product
+      const updatedProducts = productIds.map((id: string, index: number) => {
+        const product = products.find((p: any) => p.id === id)
+        if (product) {
+          product.order = index
+        }
+        return product
+      }).filter(Boolean)
+      
+      // Sort all products by order
+      const allProducts = products.map((p: any) => {
+        const updated = updatedProducts.find((up: any) => up.id === p.id)
+        return updated || p
+      }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+      
+      await fs.writeFile(DATA_FILE, JSON.stringify(allProducts, null, 2))
+      
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      console.error('Error reordering products:', error)
+      return NextResponse.json({ error: 'Failed to reorder products' }, { status: 500 })
+    }
+  }
+  
+  // Original POST for creating products
   try {
     await ensureDataFile()
     const product = await request.json()
@@ -34,6 +70,7 @@ export async function POST(request: NextRequest) {
     
     product.id = product.id || crypto.randomUUID()
     product.created_at = product.created_at || new Date().toISOString()
+    product.order = product.order ?? products.length
     
     products.unshift(product)
     await fs.writeFile(DATA_FILE, JSON.stringify(products, null, 2))

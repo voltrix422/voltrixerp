@@ -25,6 +25,7 @@ type Product = {
   published: boolean
   unit: string
   quoteMode: boolean
+  order?: number
 }
 
 const CATEGORIES = ["Residential", "Industrial", "EV", "BMS"]
@@ -64,7 +65,8 @@ export default function ProductsManager() {
     try {
       const res = await fetch('/api/products')
       const data = await res.json()
-      setProducts(data || [])
+      const sorted = (data || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+      setProducts(sorted)
     } catch (error) {
       console.error('Error fetching products:', error)
       setProducts([])
@@ -292,7 +294,7 @@ export default function ProductsManager() {
     setDraggedIndex(null)
     
     // Save new order to API
-    fetch('/api/products/reorder', {
+    fetch('/api/products?action=reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ productIds: newProducts.map(p => p.id) })

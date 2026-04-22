@@ -30,7 +30,8 @@ export default function Products() {
       .then(res => res.json())
       .then(data => {
         const published = (data || []).filter((p: any) => p.published)
-        setProducts(published)
+        const sorted = published.sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        setProducts(sorted)
       })
       .catch(err => console.error('Error fetching products:', err))
   }, [])
