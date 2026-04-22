@@ -12,15 +12,18 @@ export const metadata: Metadata = {
   title: "Voltrix",
   description: "Voltrix Batteries",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/favicon-32x32.png",
+    shortcut: "/favicon-32x32.png",
+    apple: "/favicon-32x32.png",
   },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <head>
+        <link rel="icon" type="image/png" href="/favicon-32x32.png" />
+      </head>
       <body>
         <ThemeProvider>
           <DialogProvider>
