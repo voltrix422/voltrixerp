@@ -2,7 +2,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowRight, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+import { ArrowRight, CheckCircle2, XCircle, AlertCircle, FileText } from "lucide-react"
 import Image from "next/image"
 import ScrollFloat from "./scroll-float"
 import Link from "next/link"
@@ -85,7 +85,14 @@ export default function Products() {
                     </div>
                     <div className="flex items-end justify-between pt-2 border-t border-neutral-50">
                       <div>
-                        <p className="text-lg font-bold text-neutral-900">{p.price ? `Rs. ${Number(p.price).toLocaleString()}` : "—"}</p>
+                        {p.quoteMode ? (
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-[#1a9f9a]" />
+                            <span className="text-sm font-semibold text-[#1a9f9a]">Request Quote</span>
+                          </div>
+                        ) : (
+                          <p className="text-lg font-bold text-neutral-900">{p.price ? `Rs. ${Number(p.price).toLocaleString()}` : "—"}</p>
+                        )}
                         <p className="text-xs text-neutral-400">Warranty: {p.warranty || "—"}</p>
                       </div>
                       <span className="flex items-center gap-1 text-xs text-neutral-400 group-hover:text-[#1a9f9a] transition-colors">
