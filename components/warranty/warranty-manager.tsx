@@ -1,9 +1,8 @@
 "use client"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle } from "lucide-react"
+import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Eye, Filter, X } from "lucide-react"
 
 interface Warranty {
   id: string
@@ -25,7 +24,12 @@ export function WarrantyManager() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editingWarranty, setEditingWarranty] = useState<Warranty | null>(null)
+  const [viewDetail, setViewDetail] = useState<Warranty | null>(null)
   const [search, setSearch] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expiring" | "expired">("all")
 
   // Form state
   const [productName, setProductName] = useState("")
@@ -89,6 +93,12 @@ export function WarrantyManager() {
     setNotes("")
     setEditingWarranty(null)
     setShowForm(false)
+  }
+
+  function clearFilters() {
+    setDateFrom("")
+    setDateTo("")
+    setStatusFilter("all")
   }
 
   function openEditForm(warranty: Warranty) {
@@ -186,11 +196,29 @@ export function WarrantyManager() {
     return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
   }
 
-  const filtered = warranties.filter(w =>
-    w.productName.toLowerCase().includes(search.toLowerCase()) ||
-    (w.customerName && w.customerName.toLowerCase().includes(search.toLowerCase())) ||
-    (w.customerEmail && w.customerEmail.toLowerCase().includes(search.toLowerCase()))
-  )
+  const filtered = warranties.filter(w => {
+    const remaining = calculateRemainingWarranty(w.warrantyEndDate)
+    
+    // Search filter
+    const matchesSearch = 
+      w.productName.toLowerCase().includes(search.toLowerCase()) ||
+      (w.customerName && w.customerName.toLowerCase().includes(search.toLowerCase())) ||
+      (w.customerEmail && w.customerEmail.toLowerCase().includes(search.toLowerCase()))
+    
+    // Status filter
+    const matchesStatus = statusFilter === "all" || remaining.status === statusFilter
+    
+    // Date range filter
+    let matchesDateRange = true
+    if (dateFrom) {
+      matchesDateRange = matchesDateRange && new Date(w.warrantyStartDate) >= new Date(dateFrom)
+    }
+    if (dateTo) {
+      matchesDateRange = matchesDateRange && new Date(w.warrantyEndDate) <= new Date(dateTo)
+    }
+    
+    return matchesSearch && matchesStatus && matchesDateRange
+  })
 
   return (
     <div className="space-y-6">
@@ -205,16 +233,70 @@ export function WarrantyManager() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by product name, customer..."
-          className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
-        />
+      {/* Search and Filters */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by product name, customer..."
+            className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+          />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-10 gap-2"
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          <Filter className="h-4 w-4" />
+          Filters
+          {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
       </div>
+
+      {/* Collapsible Filters */}
+      {showFilters && (
+        <div className="p-4 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Warranty Start From</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Warranty End To</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as "all" | "active" | "expiring" | "expired")}
+                className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="expiring">Expiring Soon</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
+          </div>
+          <Button size="sm" variant="ghost" className="h-8 text-xs gap-1" onClick={clearFilters}>
+            <X className="h-3 w-3" /> Clear Filters
+          </Button>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -232,18 +314,39 @@ export function WarrantyManager() {
         </div>
       )}
 
-      {/* Warranty List */}
+      {/* Warranty Table */}
       {!loading && warranties.length > 0 && (
-        <div className="grid gap-4">
-          {filtered.map(warranty => {
-            const remaining = calculateRemainingWarranty(warranty.warrantyEndDate)
-            return (
-              <Card key={warranty.id} className="border-[hsl(var(--border))] bg-[hsl(var(--card))]">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">{warranty.productName}</h3>
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Product</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Customer</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Sold Date</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Warranty Period</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(warranty => {
+                  const remaining = calculateRemainingWarranty(warranty.warrantyEndDate)
+                  return (
+                    <tr key={warranty.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-medium text-[hsl(var(--foreground))]">{warranty.productName}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-[hsl(var(--foreground))]">{warranty.customerName || "-"}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-[hsl(var(--foreground))]">{formatDate(warranty.soldDate)}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatDate(warranty.warrantyStartDate)} - {formatDate(warranty.warrantyEndDate)}</p>
+                      </td>
+                      <td className="px-4 py-3">
                         <Badge
                           variant={remaining.status === "active" ? "success" : remaining.status === "expiring" ? "warning" : "destructive"}
                           className="text-[10px] px-2 py-0.5"
@@ -253,49 +356,26 @@ export function WarrantyManager() {
                           {remaining.status === "expired" && <AlertCircle className="h-3 w-3 mr-1 inline" />}
                           {remaining.status === "expired" ? `Expired ${remaining.days} days ago` : remaining.status === "expiring" ? `Expiring in ${remaining.days} days` : `${remaining.days} days remaining`}
                         </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Sold Date</p>
-                          <p className="text-[hsl(var(--foreground))]">{formatDate(warranty.soldDate)}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setViewDetail(warranty)}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => openEditForm(warranty)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => handleDelete(warranty.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                        <div>
-                          <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Warranty Start</p>
-                          <p className="text-[hsl(var(--foreground))]">{formatDate(warranty.warrantyStartDate)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Warranty End</p>
-                          <p className="text-[hsl(var(--foreground))]">{formatDate(warranty.warrantyEndDate)}</p>
-                        </div>
-                        {warranty.customerName && (
-                          <div>
-                            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer</p>
-                            <p className="text-[hsl(var(--foreground))]">{warranty.customerName}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {warranty.notes && (
-                        <div className="mt-3 pt-3 border-t border-[hsl(var(--border))]">
-                          <p className="text-xs text-[hsl(var(--muted-foreground))]">{warranty.notes}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => openEditForm(warranty)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => handleDelete(warranty.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -436,6 +516,87 @@ export function WarrantyManager() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Detail View Modal */}
+      {viewDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setViewDetail(null)}>
+          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
+              <p className="text-base font-semibold text-[hsl(var(--foreground))]">Warranty Details</p>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setViewDetail(null)}>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </Button>
+            </div>
+            <div className="overflow-y-auto p-6 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-[#1a9f9a]/10 flex items-center justify-center">
+                  <Shield className="h-6 w-6 text-[#1a9f9a]" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-[hsl(var(--foreground))]">{viewDetail.productName}</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">Warranty ID: {viewDetail.id.slice(0, 8)}...</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Sold Date</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{formatDate(viewDetail.soldDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Warranty Start Date</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{formatDate(viewDetail.warrantyStartDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Warranty End Date</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{formatDate(viewDetail.warrantyEndDate)}</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer Name</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerName || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer Email</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerEmail || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer Phone</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerPhone || "-"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[hsl(var(--border))]">
+                <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Notes</p>
+                <p className="text-sm text-[hsl(var(--foreground))] bg-[hsl(var(--muted))]/30 rounded-lg p-3">{viewDetail.notes || "No notes"}</p>
+              </div>
+
+              <div className="pt-4 border-t border-[hsl(var(--border))]">
+                <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Warranty Status</p>
+                {(() => {
+                  const remaining = calculateRemainingWarranty(viewDetail.warrantyEndDate)
+                  return (
+                    <Badge
+                      variant={remaining.status === "active" ? "success" : remaining.status === "expiring" ? "warning" : "destructive"}
+                      className="text-sm px-3 py-1"
+                    >
+                      {remaining.status === "active" && <CheckCircle className="h-4 w-4 mr-2 inline" />}
+                      {remaining.status === "expiring" && <AlertCircle className="h-4 w-4 mr-2 inline" />}
+                      {remaining.status === "expired" && <AlertCircle className="h-4 w-4 mr-2 inline" />}
+                      {remaining.status === "expired" ? `Expired ${remaining.days} days ago` : remaining.status === "expiring" ? `Expiring in ${remaining.days} days` : `${remaining.days} days remaining`}
+                    </Badge>
+                  )
+                })()}
+              </div>
+            </div>
           </div>
         </div>
       )}
