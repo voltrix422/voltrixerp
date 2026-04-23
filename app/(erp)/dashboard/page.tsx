@@ -398,11 +398,11 @@ function ERPStats() {
           const Icon = card.icon
           return (
             <Link key={card.label} href={card.href}>
-              <Card className="border-2 border-neutral-200 bg-transparent hover:border-[#1a9f9a] hover:bg-neutral-100/50 transition-all cursor-pointer relative overflow-hidden h-32">
+              <Card className="border-2 border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[#1a9f9a] hover:bg-[hsl(var(--muted))]/10 transition-all cursor-pointer relative overflow-hidden h-32">
                 <CardContent className="p-6">
                   <div className="flex flex-col h-full">
-                    <p className="text-xs font-medium text-neutral-600 uppercase tracking-wide mb-2">{card.label}</p>
-                    <p className="text-3xl font-semibold text-neutral-900 tabular-nums tracking-tight mt-auto" style={{ fontFamily: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">{card.label}</p>
+                    <p className="text-3xl font-semibold text-[hsl(var(--foreground))] tabular-nums tracking-tight mt-auto" style={{ fontFamily: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
                       {loading ? "—" : card.value}
                     </p>
                   </div>
@@ -451,13 +451,13 @@ export default function DashboardPage() {
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 border-b-2 border-neutral-200 mb-6 px-6">
+          <div className="flex items-center gap-1 border-b-2 border-[hsl(var(--border))] mb-6 px-6">
             <button
               onClick={() => setActiveTab("orders")}
               className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
                 activeTab === "orders"
-                  ? "text-neutral-900"
-                  : "text-neutral-500 hover:text-neutral-900"
+                  ? "text-[hsl(var(--foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
             >
               Client Orders
@@ -469,8 +469,8 @@ export default function DashboardPage() {
               onClick={() => setActiveTab("pos")}
               className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
                 activeTab === "pos"
-                  ? "text-neutral-900"
-                  : "text-neutral-500 hover:text-neutral-900"
+                  ? "text-[hsl(var(--foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
             >
               Purchase Orders
@@ -481,7 +481,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="bg-transparent p-6 border-2 border-neutral-200 rounded-xl">
+          <div className="bg-[hsl(var(--card))] p-6 border-2 border-[hsl(var(--border))] rounded-xl">
             {activeTab === "orders" && <ClientOrdersApproval />}
             {activeTab === "pos" && (
               <POsWidget onPendingChange={(count, openFirst) => {
