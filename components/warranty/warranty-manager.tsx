@@ -32,6 +32,8 @@ export function WarrantyManager() {
   const [soldDate, setSoldDate] = useState("")
   const [warrantyStartDate, setWarrantyStartDate] = useState("")
   const [warrantyEndDate, setWarrantyEndDate] = useState("")
+  const [warrantyDuration, setWarrantyDuration] = useState<"2" | "5" | "10" | "custom">("5")
+  const [customYears, setCustomYears] = useState("")
   const [customerName, setCustomerName] = useState("")
   const [customerEmail, setCustomerEmail] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
@@ -40,6 +42,25 @@ export function WarrantyManager() {
   useEffect(() => {
     fetchWarranties()
   }, [])
+
+  // Auto-calculate warranty end date when start date or duration changes
+  useEffect(() => {
+    if (warrantyStartDate && warrantyDuration !== "custom") {
+      const startDate = new Date(warrantyStartDate)
+      const years = parseInt(warrantyDuration)
+      const endDate = new Date(startDate)
+      endDate.setFullYear(endDate.getFullYear() + years)
+      setWarrantyEndDate(endDate.toISOString().split("T")[0])
+    } else if (warrantyStartDate && warrantyDuration === "custom" && customYears) {
+      const startDate = new Date(warrantyStartDate)
+      const years = parseInt(customYears)
+      if (!isNaN(years) && years > 0) {
+        const endDate = new Date(startDate)
+        endDate.setFullYear(endDate.getFullYear() + years)
+        setWarrantyEndDate(endDate.toISOString().split("T")[0])
+      }
+    }
+  }, [warrantyStartDate, warrantyDuration, customYears])
 
   async function fetchWarranties() {
     try {
@@ -60,6 +81,8 @@ export function WarrantyManager() {
     setSoldDate("")
     setWarrantyStartDate("")
     setWarrantyEndDate("")
+    setWarrantyDuration("5")
+    setCustomYears("")
     setCustomerName("")
     setCustomerEmail("")
     setCustomerPhone("")
@@ -319,6 +342,32 @@ export function WarrantyManager() {
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium text-[hsl(var(--foreground))]">Warranty Duration</label>
+                <div className="flex gap-2">
+                  <select
+                    value={warrantyDuration}
+                    onChange={e => setWarrantyDuration(e.target.value as "2" | "5" | "10" | "custom")}
+                    className="flex-1 h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                  >
+                    <option value="2">2 Years</option>
+                    <option value="5">5 Years</option>
+                    <option value="10">10 Years</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  {warrantyDuration === "custom" && (
+                    <input
+                      type="number"
+                      value={customYears}
+                      onChange={e => setCustomYears(e.target.value)}
+                      placeholder="Years"
+                      min="1"
+                      className="w-24 h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium text-[hsl(var(--foreground))]">Warranty End Date *</label>
                 <input
                   type="date"
@@ -327,6 +376,7 @@ export function WarrantyManager() {
                   required
                   className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
                 />
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Auto-calculated based on warranty duration</p>
               </div>
 
               <div className="space-y-2">
