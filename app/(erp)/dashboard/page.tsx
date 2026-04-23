@@ -204,7 +204,7 @@ function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, open
         </div>
 
         {displayPOs.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
+          <div className="p-8 text-center">
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
               {subTab === "pending" ? "No pending purchase orders" : subTab === "received" ? "No received purchase orders in inventory" : "No approved purchase orders"}
             </p>
@@ -364,7 +364,7 @@ function ERPStats() {
       {/* Date Range Toggle */}
       <button
         onClick={() => setShowDateFilter(!showDateFilter)}
-        className="flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
+        className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
       >
         <svg className={`w-4 h-4 transition-transform ${showDateFilter ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -374,20 +374,20 @@ function ERPStats() {
 
       {/* Date Range Picker - Collapsible */}
       {showDateFilter && (
-        <div className="flex items-center gap-3 bg-neutral-100/50 border border-neutral-200 rounded-xl p-4 w-fit animate-in slide-in-from-top-2">
-          <span className="text-sm font-medium text-neutral-600">Date Range:</span>
+        <div className="flex items-center gap-3 border border-[hsl(var(--border))]/30 rounded-xl p-4 w-fit animate-in slide-in-from-top-2">
+          <span className="text-sm font-medium text-[hsl(var(--muted-foreground))]">Date Range:</span>
           <input
             type="date"
             value={dateRange.from}
             onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-            className="h-10 px-4 text-sm border border-neutral-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+            className="h-10 px-4 text-sm border border-[hsl(var(--border))]/30 bg-[hsl(var(--background))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent text-[hsl(var(--foreground))]"
           />
-          <span className="text-neutral-400">to</span>
+          <span className="text-[hsl(var(--muted-foreground))]">to</span>
           <input
             type="date"
             value={dateRange.to}
             onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-            className="h-10 px-4 text-sm border border-neutral-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+            className="h-10 px-4 text-sm border border-[hsl(var(--border))]/30 bg-[hsl(var(--background))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent text-[hsl(var(--foreground))]"
           />
         </div>
       )}
@@ -445,7 +445,7 @@ export default function DashboardPage() {
         pendingCount={pendingCount}
         onPendingClick={() => openFirstPending?.()}
       />
-      <div className="flex-1 overflow-auto bg-neutral-50">
+      <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
         <div className="p-8 max-w-7xl">
           {/* ERP Stats Overview */}
           <ERPStats />
