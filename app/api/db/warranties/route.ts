@@ -8,31 +8,44 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const warranty = await prisma.erpWarranty.upsert({
-    where: { id: body.id ?? "__new__" },
-    update: {
-      productName: body.productName,
-      soldDate: body.soldDate,
-      warrantyStartDate: body.warrantyStartDate,
-      warrantyEndDate: body.warrantyEndDate,
-      customerName: body.customerName,
-      customerEmail: body.customerEmail,
-      customerPhone: body.customerPhone,
-      notes: body.notes,
-    },
-    create: {
-      id: body.id,
-      productName: body.productName,
-      soldDate: body.soldDate,
-      warrantyStartDate: body.warrantyStartDate,
-      warrantyEndDate: body.warrantyEndDate,
-      customerName: body.customerName,
-      customerEmail: body.customerEmail,
-      customerPhone: body.customerPhone,
-      notes: body.notes,
-    },
-  })
-  return NextResponse.json(warranty)
+  
+  try {
+    if (body.id) {
+      // Update existing warranty
+      const warranty = await prisma.erpWarranty.update({
+        where: { id: body.id },
+        data: {
+          productName: body.productName,
+          soldDate: body.soldDate,
+          warrantyStartDate: body.warrantyStartDate,
+          warrantyEndDate: body.warrantyEndDate,
+          customerName: body.customerName,
+          customerEmail: body.customerEmail,
+          customerPhone: body.customerPhone,
+          notes: body.notes,
+        },
+      })
+      return NextResponse.json(warranty)
+    } else {
+      // Create new warranty
+      const warranty = await prisma.erpWarranty.create({
+        data: {
+          productName: body.productName,
+          soldDate: body.soldDate,
+          warrantyStartDate: body.warrantyStartDate,
+          warrantyEndDate: body.warrantyEndDate,
+          customerName: body.customerName,
+          customerEmail: body.customerEmail,
+          customerPhone: body.customerPhone,
+          notes: body.notes,
+        },
+      })
+      return NextResponse.json(warranty)
+    }
+  } catch (error) {
+    console.error("Error saving warranty:", error)
+    return NextResponse.json({ error: "Failed to save warranty", details: String(error) }, { status: 500 })
+  }
 }
 
 export async function DELETE(req: NextRequest) {
