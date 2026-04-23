@@ -23,11 +23,10 @@ const ALL_NAV = [
   { href: "/docs", label: "Documentation", icon: BookOpen, module: "docs" as Module },
   { href: "/hrm", label: "HRM", icon: UserCog, module: "hrm" as Module },
   { href: "/branches", label: "Branches", icon: GitBranch, module: "branches" as Module },
+  { href: "/tickets", label: "Tickets", icon: Ticket, module: "tickets" as Module },
 ]
 
-const ADMIN_ONLY_NAV = [
-  { href: "/tickets", label: "Tickets", icon: Ticket },
-]
+const ADMIN_ONLY_NAV = []
 
 const navSecondary = [
   { href: "/settings", label: "Settings", icon: Settings },
