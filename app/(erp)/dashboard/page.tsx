@@ -364,7 +364,7 @@ function ERPStats() {
       {/* Date Range Toggle */}
       <button
         onClick={() => setShowDateFilter(!showDateFilter)}
-        className="flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-neutral-900 transition-colors"
+        className="flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
       >
         <svg className={`w-4 h-4 transition-transform ${showDateFilter ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -374,20 +374,20 @@ function ERPStats() {
 
       {/* Date Range Picker - Collapsible */}
       {showDateFilter && (
-        <div className="flex items-center gap-3 bg-white border border-neutral-200 rounded-xl p-4 w-fit animate-in slide-in-from-top-2">
+        <div className="flex items-center gap-3 bg-neutral-100/50 border border-neutral-200 rounded-xl p-4 w-fit animate-in slide-in-from-top-2">
           <span className="text-sm font-medium text-neutral-600">Date Range:</span>
           <input
             type="date"
             value={dateRange.from}
             onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-            className="h-10 px-4 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+            className="h-10 px-4 text-sm border border-neutral-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
           />
           <span className="text-neutral-400">to</span>
           <input
             type="date"
             value={dateRange.to}
             onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-            className="h-10 px-4 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+            className="h-10 px-4 text-sm border border-neutral-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
           />
         </div>
       )}
@@ -398,15 +398,15 @@ function ERPStats() {
           const Icon = card.icon
           return (
             <Link key={card.label} href={card.href}>
-              <Card className="border border-neutral-200 bg-white hover:border-[#1a9f9a] hover:bg-neutral-50 transition-all cursor-pointer relative overflow-hidden h-32">
+              <Card className="border-2 border-neutral-200 bg-transparent hover:border-[#1a9f9a] hover:bg-neutral-100/50 transition-all cursor-pointer relative overflow-hidden h-32">
                 <CardContent className="p-6">
                   <div className="flex flex-col h-full">
-                    <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">{card.label}</p>
+                    <p className="text-xs font-medium text-neutral-600 uppercase tracking-wide mb-2">{card.label}</p>
                     <p className="text-3xl font-semibold text-neutral-900 tabular-nums tracking-tight mt-auto" style={{ fontFamily: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
                       {loading ? "—" : card.value}
                     </p>
                   </div>
-                  <div className={`absolute top-5 right-5 w-12 h-12 rounded-xl flex items-center justify-center ${card.bgColor} ${card.color} opacity-20`}>
+                  <div className={`absolute top-5 right-5 w-12 h-12 rounded-xl flex items-center justify-center ${card.bgColor} ${card.color} opacity-30`}>
                     <Icon className="w-6 h-6" />
                   </div>
                 </CardContent>
@@ -451,7 +451,7 @@ export default function DashboardPage() {
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 border-b border-neutral-200 mb-6 bg-white rounded-t-lg px-6">
+          <div className="flex items-center gap-1 border-b-2 border-neutral-200 mb-6 px-6">
             <button
               onClick={() => setActiveTab("orders")}
               className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
@@ -481,7 +481,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="bg-white rounded-b-lg p-6 border-x border-b border-neutral-200">
+          <div className="bg-transparent p-6 border-2 border-neutral-200 rounded-xl">
             {activeTab === "orders" && <ClientOrdersApproval />}
             {activeTab === "pos" && (
               <POsWidget onPendingChange={(count, openFirst) => {

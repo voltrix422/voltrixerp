@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, GitBranch,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, GitBranch, Ticket,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,10 @@ const ALL_NAV = [
   { href: "/branches", label: "Branches", icon: GitBranch, module: "branches" as Module },
 ]
 
+const ADMIN_ONLY_NAV = [
+  { href: "/tickets", label: "Tickets", icon: Ticket },
+]
+
 const navSecondary = [
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/help", label: "Get Help", icon: HelpCircle },
@@ -38,10 +42,31 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
     ? ALL_NAV
     : ALL_NAV.filter(n => user?.modules.includes(n.module))
 
+  const visibleAdminNav = user?.role === "superadmin" ? ADMIN_ONLY_NAV : []
+
   return (
     <>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {visibleNav.map(({ href, label, icon: Icon }) => {
+          const active = pathname.startsWith(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+                active
+                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">{label}</span>
+            </Link>
+          )
+        })}
+        {visibleAdminNav.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href)
           return (
             <Link

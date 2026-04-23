@@ -260,3 +260,23 @@ model ErpBranchInventory {
 
   @@map("erp_branch_inventory")
 }
+
+model ErpTicket {
+  id          String   @id @default(cuid())
+  ticketNumber String  @unique @map("ticket_number")
+  customerName String  @map("customer_name")
+  customerEmail String @map("customer_email")
+  customerPhone String? @map("customer_phone")
+  subject     String
+  description String
+  status      String   @default("open")
+  priority    String   @default("medium")
+  assignedTo  String?  @map("assigned_to")
+  resolution  String?  @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  closedAt    DateTime? @map("closed_at")
+  createdBy   String?  @map("created_by")
+
+  @@map("erp_tickets")
+}
