@@ -5,8 +5,9 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
-import { Loader2, RefreshCw, ExternalLink, Package, Trash2 } from "lucide-react"
+import { Loader2, RefreshCw, ExternalLink, Package, Trash2, Shield } from "lucide-react"
 import ProductsManager from "@/components/website/products-manager"
+import { WarrantyManager } from "@/components/warranty/warranty-manager"
 
 type Quotation = {
   id: string
@@ -36,7 +37,7 @@ const statusColors: Record<string, string> = {
 const statusOptions = ["new", "in_review", "quoted", "closed"]
 
 export default function WebsitePage() {
-  const [tab, setTab]           = useState<"quotations" | "products">("quotations")
+  const [tab, setTab]           = useState<"quotations" | "products" | "warranty">("quotations")
   const [quotes, setQuotes]     = useState<Quotation[]>([])
   const [loading, setLoading]   = useState(true)
   const [selected, setSelected] = useState<Quotation | null>(null)
@@ -115,10 +116,20 @@ export default function WebsitePage() {
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "products" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <Package className="w-3.5 h-3.5" /> Products
         </button>
+        <button onClick={() => setTab("warranty")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "warranty" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <Shield className="w-3.5 h-3.5" /> Warranty
+        </button>
       </div>
 
       {tab === "products" ? (
         <ProductsManager />
+      ) : tab === "warranty" ? (
+        <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
+          <div className="p-6 max-w-6xl">
+            <WarrantyManager />
+          </div>
+        </div>
       ) : (
       <div className="flex flex-1 overflow-hidden">
 

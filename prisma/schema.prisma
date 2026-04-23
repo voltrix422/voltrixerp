@@ -280,3 +280,20 @@ model ErpTicket {
 
   @@map("erp_tickets")
 }
+
+model ErpWarranty {
+  id                String   @id @default(cuid())
+  productName       String   @map("product_name")
+  soldDate          DateTime @map("sold_date")
+  warrantyStartDate DateTime @map("warranty_start_date")
+  warrantyEndDate   DateTime @map("warranty_end_date")
+  customerName      String?  @map("customer_name")
+  customerEmail     String?  @map("customer_email")
+  customerPhone     String?  @map("customer_phone")
+  notes             String?  @default("")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  createdBy          String?  @map("created_by")
+
+  @@map("erp_warranties")
+}
