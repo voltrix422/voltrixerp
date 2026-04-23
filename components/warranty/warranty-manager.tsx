@@ -135,9 +135,14 @@ export function WarrantyManager() {
           setWarranties(prev => [...prev, updated])
         }
         resetForm()
+      } else {
+        const errorData = await res.json()
+        alert("Failed to save warranty: " + (errorData.error || "Unknown error"))
+        console.error("API error:", errorData)
       }
     } catch (error) {
       console.error("Error saving warranty:", error)
+      alert("Failed to save warranty. Please try again.")
     } finally {
       setSaving(false)
     }
