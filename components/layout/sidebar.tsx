@@ -26,7 +26,7 @@ const ALL_NAV = [
   { href: "/tickets", label: "Tickets", icon: Ticket, module: "tickets" as Module },
 ]
 
-const ADMIN_ONLY_NAV = []
+const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any }> = []
 
 const navSecondary = [
   { href: "/settings", label: "Settings", icon: Settings },
