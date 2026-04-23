@@ -42,9 +42,15 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json(warranty)
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error saving warranty:", error)
-    return NextResponse.json({ error: "Failed to save warranty", details: String(error) }, { status: 500 })
+    console.error("Error details:", error.message)
+    console.error("Error code:", error.code)
+    return NextResponse.json({ 
+      error: "Failed to save warranty", 
+      details: error.message || String(error),
+      code: error.code || "UNKNOWN"
+    }, { status: 500 })
   }
 }
 
