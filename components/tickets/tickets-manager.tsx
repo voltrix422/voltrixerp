@@ -526,7 +526,7 @@ export function TicketsManager() {
               <div className="text-xs text-neutral-400 space-y-1 pt-4 border-t border-neutral-200">
                 <p>Created: {formatDate(viewTicket.createdAt)}</p>
                 <p>Updated: {formatDate(viewTicket.updatedAt)}</p>
-                {viewTicket.closedAt && <p>Closed: {formatDate(viewTicket.closedAt)}</p>
+                {viewTicket.closedAt && <p>Closed: {formatDate(viewTicket.closedAt)}</p>}
                 {viewTicket.createdBy && <p>Created by: {viewTicket.createdBy}</p>}
               </div>
             </div>
