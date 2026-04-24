@@ -269,22 +269,24 @@ export function TicketsManager() {
 
       {/* Stats */}
       {tickets.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
-          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Open</p>
-            <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{openCount}</p>
-          </div>
-          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">In Progress</p>
-            <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400 mt-0.5">{inProgressCount}</p>
-          </div>
-          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Resolved</p>
-            <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-0.5">{resolvedCount}</p>
-          </div>
-          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Closed</p>
-            <p className="text-xl font-bold text-gray-600 dark:text-gray-400 mt-0.5">{closedCount}</p>
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
+          <div className="grid grid-cols-4 divide-x divide-[hsl(var(--border))]">
+            <div className="p-3">
+              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Open</p>
+              <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{openCount}</p>
+            </div>
+            <div className="p-3">
+              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">In Progress</p>
+              <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400 mt-0.5">{inProgressCount}</p>
+            </div>
+            <div className="p-3">
+              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Resolved</p>
+              <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-0.5">{resolvedCount}</p>
+            </div>
+            <div className="p-3">
+              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Closed</p>
+              <p className="text-xl font-bold text-gray-600 dark:text-gray-400 mt-0.5">{closedCount}</p>
+            </div>
           </div>
         </div>
       )}
