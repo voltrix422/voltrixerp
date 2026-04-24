@@ -260,7 +260,7 @@ export function TicketsManager() {
     <div className="space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-end">
         <Button size="sm" className="h-8 text-sm gap-2 bg-black hover:bg-neutral-800 text-white cursor-pointer" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" /> New Ticket
         </Button>
