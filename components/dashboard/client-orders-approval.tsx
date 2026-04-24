@@ -62,7 +62,7 @@ export function ClientOrdersApproval() {
     <>
       <div className="space-y-3">
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-[hsl(var(--border))]/50">
+        <div className="flex gap-1">
           {(["pending", "approved"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
