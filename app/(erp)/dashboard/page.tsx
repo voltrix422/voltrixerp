@@ -412,7 +412,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="bg-[hsl(var(--card))] p-6 border border-[hsl(var(--border))]/50 rounded-xl">
+          <div className="bg-[hsl(var(--card))] p-6 rounded-xl">
             {activeTab === "orders" && <ClientOrdersApproval />}
             {activeTab === "pos" && (
               <POsWidget showFilters={showFilters} setShowFilters={setShowFilters} onPendingChange={(count, openFirst) => {
