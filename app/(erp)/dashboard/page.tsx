@@ -113,77 +113,77 @@ function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, open
 
   return (
     <>
-      <div className="space-y-3 my-4">
-        {/* Filters */}
-        <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 h-8 px-3 text-xs font-medium rounded-md cursor-pointer transition-all border ${
-              showFilters
-                ? "bg-[#1faca6] border-[#1faca6] text-white shadow-sm hover:bg-[#1a968f]"
-                : "bg-[hsl(var(--background))] border-[hsl(var(--border))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/50"
-            }`}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+      {/* Filters */}
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex items-center gap-2 h-8 px-3 text-xs font-medium rounded-md cursor-pointer transition-all border ${
+            showFilters
+              ? "bg-[#1faca6] border-[#1faca6] text-white shadow-sm hover:bg-[#1a968f]"
+              : "bg-[hsl(var(--background))] border-[hsl(var(--border))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/50"
+          }`}
+        >
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          <span>Filters</span>
+          {showFilters ? (
+            <svg className="h-3 w-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
             </svg>
-            <span>Filters</span>
-            {showFilters ? (
-              <svg className="h-3 w-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              </svg>
-            ) : (
-              <svg className="h-3 w-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            )}
-          </button>
-        </div>
+          ) : (
+            <svg className="h-3 w-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          )}
+        </button>
+      </div>
 
-        {/* Filter Panel */}
-        {showFilters && (
-          <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-2.5 space-y-2">
-            <div className="flex flex-wrap gap-2">
-              <div className="w-32 space-y-0.5">
-                <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Search</label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="PO, supplier..."
-                  className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                />
-              </div>
-              <div className="w-32 space-y-0.5">
-                <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">From</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={e => setDateFrom(e.target.value)}
-                  className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-                />
-              </div>
-              <div className="w-32 space-y-0.5">
-                <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">To</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={e => setDateTo(e.target.value)}
-                  className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-                />
-              </div>
-              <button
-                onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo("") }}
-                className="self-end px-2 py-1 text-[10px] border rounded hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-colors"
-              >
-                Clear
-              </button>
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-2.5 space-y-2 mb-3">
+          <div className="flex flex-wrap gap-2">
+            <div className="w-32 space-y-0.5">
+              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Search</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="PO, supplier..."
+                className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+              />
             </div>
+            <div className="w-32 space-y-0.5">
+              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">From</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
+              />
+            </div>
+            <div className="w-32 space-y-0.5">
+              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">To</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
+              />
+            </div>
+            <button
+              onClick={() => { setSearchQuery(""); setDateFrom(""); setDateTo("") }}
+              className="self-end px-2 py-1 text-[10px] border rounded hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-colors"
+            >
+              Clear
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
+      <div className="space-y-3">
         {/* Sub-tabs */}
-        <div className="flex gap-1 border-b border-[hsl(var(--border))]">
+        <div className="flex gap-1 border-b border-[hsl(var(--border))]/50">
           {(["pending", "approved", "received", "draft", "rejected"] as const).map(t => (
             <button key={t} onClick={() => setSubTab(t)}
               className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
@@ -192,9 +192,6 @@ function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, open
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
               {t === "pending" ? "Pending" : t === "approved" ? "Approved" : t === "received" ? "Received" : t === "draft" ? "Draft" : "Rejected"}
-              <span className="ml-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                ({t === "pending" ? filteredPending.length : t === "approved" ? filteredApproved.length : t === "received" ? filteredReceived.length : t === "draft" ? filteredDraft.length : filteredRejected.length})
-              </span>
               {subTab === t && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
@@ -202,23 +199,17 @@ function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, open
           ))}
         </div>
 
-        {displayPOs.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {subTab === "pending" ? "No pending purchase orders" : subTab === "received" ? "No received purchase orders in inventory" : "No approved purchase orders"}
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-lg border overflow-hidden">
+        {displayPOs.length === 0 ? null : (
+          <div className="rounded-lg border border-[hsl(var(--border))]/50 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-[hsl(var(--muted))]/40">
+                <tr className="border-b border-[hsl(var(--border))]/50 bg-[hsl(var(--muted))]/40">
                   {["PO #", "Supplier", "Type", "Items", "Created By", "Date", "Status"].map(h => (
                     <th key={h} className="h-8 px-4 text-left text-xs font-medium text-[hsl(var(--muted-foreground))]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-[hsl(var(--border))]/50">
                 {recent.map(po => {
                   const poNumberDisplay = (po.poNumber && po.poNumber.trim()) ? po.poNumber : `PO-${po.id.slice(0, 8)}`
                   const supplierNamesDisplay = (po.supplierNames && po.supplierNames.length > 0)
@@ -355,8 +346,8 @@ function ERPStats() {
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
-        <div className="grid grid-cols-9 divide-x divide-[hsl(var(--border))]">
+      <div className="rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] overflow-hidden">
+        <div className="grid grid-cols-9 divide-x divide-[hsl(var(--border))]/50">
           {statCards.map((card) => {
             const Icon = card.icon
             return (
@@ -408,7 +399,7 @@ export default function DashboardPage() {
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 border-b-2 border-[hsl(var(--border))] mb-6 px-6">
+          <div className="flex items-center gap-1 border-b border-[hsl(var(--border))]/50 mb-6 px-6">
             <button
               onClick={() => setActiveTab("orders")}
               className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
@@ -438,7 +429,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="bg-[hsl(var(--card))] p-6 border-2 border-[hsl(var(--border))] rounded-xl">
+          <div className="bg-[hsl(var(--card))] p-6 border border-[hsl(var(--border))]/50 rounded-xl">
             {activeTab === "orders" && <ClientOrdersApproval />}
             {activeTab === "pos" && (
               <POsWidget onPendingChange={(count, openFirst) => {
