@@ -257,37 +257,34 @@ export function TicketsManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Support Tickets</p>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">Manage customer support tickets and queries</p>
-        </div>
-        <Button size="sm" className="h-9 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
+        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Support Tickets</p>
+        <Button size="sm" className="h-8 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" /> New Ticket
         </Button>
       </div>
 
       {/* Stats */}
       {tickets.length > 0 && (
-        <div className="grid grid-cols-4 gap-4">
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-            <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Open</p>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{openCount}</p>
+        <div className="grid grid-cols-4 gap-3">
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Open</p>
+            <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{openCount}</p>
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-            <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">In Progress</p>
-            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{inProgressCount}</p>
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">In Progress</p>
+            <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400 mt-0.5">{inProgressCount}</p>
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-            <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Resolved</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{resolvedCount}</p>
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Resolved</p>
+            <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-0.5">{resolvedCount}</p>
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-            <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Closed</p>
-            <p className="text-2xl font-bold text-gray-600 dark:text-gray-400 mt-1">{closedCount}</p>
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Closed</p>
+            <p className="text-xl font-bold text-gray-600 dark:text-gray-400 mt-0.5">{closedCount}</p>
           </div>
         </div>
       )}
@@ -307,15 +304,15 @@ export function TicketsManager() {
 
       {/* Filters */}
       {tickets.length > 0 && showFilters && (
-        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 flex flex-wrap gap-3 items-center animate-in slide-in-from-top-2">
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 flex flex-wrap gap-2 items-center animate-in slide-in-from-top-2">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search by ticket #, name, email, subject..."
-              className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+              className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
           </div>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Status</option>
             <option value="open">Open</option>
             <option value="in_progress">In Progress</option>
@@ -323,7 +320,7 @@ export function TicketsManager() {
             <option value="closed">Closed</option>
           </select>
           <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}
-            className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Priority</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -332,56 +329,56 @@ export function TicketsManager() {
           </select>
           {(search || filterStatus !== "All" || filterPriority !== "All") && (
             <button onClick={() => { setSearch(""); setFilterStatus("All"); setFilterPriority("All") }}
-              className="h-10 px-4 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-lg hover:bg-[hsl(var(--muted))]/10">Clear</button>
+              className="h-9 px-3 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-lg hover:bg-[hsl(var(--muted))]/10">Clear</button>
           )}
-          <span className="text-sm text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {tickets.length}</span>
+          <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {tickets.length}</span>
         </div>
       )}
 
       {/* Tickets list */}
       {loading ? (
-        <div className="text-center py-16 text-sm text-[hsl(var(--muted-foreground))]">Loading...</div>
+        <div className="text-center py-12 text-sm text-[hsl(var(--muted-foreground))]">Loading...</div>
       ) : tickets.length === 0 ? (
-        <div className="text-center py-20 border-2 border-dashed border-[hsl(var(--border))]/30 rounded-2xl bg-[hsl(var(--card))]">
-          <div className="h-16 w-16 rounded-full bg-[hsl(var(--muted))]/30 flex items-center justify-center mx-auto mb-4">
-            <Ticket className="h-8 w-8 text-[hsl(var(--muted-foreground))]" />
+        <div className="text-center py-16 border-2 border-dashed border-[hsl(var(--border))]/30 rounded-xl bg-[hsl(var(--card))]">
+          <div className="h-12 w-12 rounded-full bg-[hsl(var(--muted))]/30 flex items-center justify-center mx-auto mb-3">
+            <Ticket className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />
           </div>
-          <p className="text-base font-semibold text-[hsl(var(--foreground))]">No tickets yet</p>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-2">Create your first support ticket to get started</p>
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">No tickets yet</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Create your first support ticket to get started</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-sm text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]/30 rounded-xl bg-[hsl(var(--card))]">No tickets match your filters.</div>
+        <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]/30 rounded-lg bg-[hsl(var(--card))]">No tickets match your filters.</div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {filtered.map(t => (
             <div key={t.id} onClick={() => setViewTicket(t)}
-              className="group flex items-center gap-4 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 py-4 hover:border-[#1a9f9a] hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-all">
+              className="group flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 hover:border-[#1a9f9a] hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-all">
               {/* Icon */}
-              <div className="h-10 w-10 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
-                {t.status === "open" ? <AlertCircle className="h-5 w-5 text-blue-500" /> :
-                 t.status === "in_progress" ? <Clock className="h-5 w-5 text-yellow-500" /> :
-                 t.status === "resolved" ? <CheckCircle className="h-5 w-5 text-green-500" /> :
-                 <CheckCircle className="h-5 w-5 text-gray-400" />}
+              <div className="h-8 w-8 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
+                {t.status === "open" ? <AlertCircle className="h-4 w-4 text-blue-500" /> :
+                 t.status === "in_progress" ? <Clock className="h-4 w-4 text-yellow-500" /> :
+                 t.status === "resolved" ? <CheckCircle className="h-4 w-4 text-green-500" /> :
+                 <CheckCircle className="h-4 w-4 text-gray-400" />}
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{t.ticketNumber}</p>
-                  <Badge variant={PRIORITY_VARIANT[t.priority]} className="text-[10px] px-1.5 py-0">{PRIORITY_LABELS[t.priority]}</Badge>
-                  <Badge variant={STATUS_VARIANT[t.status]} className="text-[10px] px-1.5 py-0">{STATUS_LABELS[t.status]}</Badge>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{t.ticketNumber}</p>
+                  <Badge variant={PRIORITY_VARIANT[t.priority]} className="text-[9px] px-1 py-0">{PRIORITY_LABELS[t.priority]}</Badge>
+                  <Badge variant={STATUS_VARIANT[t.status]} className="text-[9px] px-1 py-0">{STATUS_LABELS[t.status]}</Badge>
                 </div>
-                <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">{t.subject}</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">{t.customerName} · {t.customerEmail}</p>
+                <p className="text-xs font-medium text-[hsl(var(--foreground))] truncate">{t.subject}</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{t.customerName} · {t.customerEmail}</p>
               </div>
 
               <div className="text-right shrink-0">
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatDate(t.createdAt)}</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{formatDate(t.createdAt)}</p>
               </div>
 
               <Button size="icon" variant="ghost"
-                className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                 onClick={e => { e.stopPropagation(); handleDelete(t.id) }}>
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
           ))}

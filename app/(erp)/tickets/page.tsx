@@ -12,7 +12,7 @@ export default function TicketsPage() {
     <>
       <Topbar title="Tickets" description="Manage support tickets" />
       <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
-        <div className="p-8 max-w-7xl">
+        <div className="p-4 max-w-7xl">
           <TicketsManager />
         </div>
       </div>
