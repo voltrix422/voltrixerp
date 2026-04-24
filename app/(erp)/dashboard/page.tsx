@@ -6,11 +6,10 @@ import { useAuth } from "@/components/auth-provider"
 import { getPOs, savePO, getSuppliers, STATUS_LABELS, STATUS_VARIANT, type PurchaseOrder, type Supplier } from "@/lib/purchase"
 // DB access via /api/db routes (Prisma)
 import { PODetail } from "@/components/purchase/po-detail"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ComingSoon } from "@/components/layout/coming-soon"
-import { Eye, Users, Building2, Package, FileText, ShoppingCart, BarChart3, DollarSign } from "lucide-react"
+import { Users, Building2, Package, FileText, ShoppingCart, BarChart3, DollarSign } from "lucide-react"
 import Link from "next/link"
 
 import { useToast } from "@/components/ui/toast"
@@ -276,11 +275,6 @@ function ERPStats() {
     totalOrdersValue: 0,
   })
   const [loading, setLoading] = useState(true)
-  const [showDateFilter, setShowDateFilter] = useState(false)
-  const [dateRange, setDateRange] = useState({
-    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    to: new Date().toISOString().split('T')[0],
-  })
 
   useEffect(() => {
     async function fetchStats() {
@@ -297,14 +291,13 @@ function ERPStats() {
           fetch('/api/db/client-orders').then(r => r.json()).catch(() => []),
         ])
 
-        // Calculate finance total based on date range
+        // Calculate finance total for current month
+        const now = new Date()
         const financeTotal = Array.isArray(financeRes)
           ? financeRes
               .filter((r: any) => {
                 const date = new Date(r.date)
-                const fromDate = new Date(dateRange.from)
-                const toDate = new Date(dateRange.to)
-                return date >= fromDate && date <= toDate
+                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
               })
               .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0)
           : 0
@@ -341,7 +334,7 @@ function ERPStats() {
     }
 
     fetchStats()
-  }, [dateRange])
+  }, [])
 
   const formatCurrency = (value: number) => {
     return `Rs. ${value.toLocaleString()}`
@@ -360,60 +353,24 @@ function ERPStats() {
   ]
 
   return (
-    <div className="space-y-6">
-      {/* Date Range Toggle */}
-      <button
-        onClick={() => setShowDateFilter(!showDateFilter)}
-        className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
-      >
-        <svg className={`w-4 h-4 transition-transform ${showDateFilter ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-        Filter by date
-      </button>
-
-      {/* Date Range Picker - Collapsible */}
-      {showDateFilter && (
-        <div className="flex items-center gap-3 border border-[hsl(var(--border))]/30 rounded-xl p-4 w-fit animate-in slide-in-from-top-2">
-          <span className="text-sm font-medium text-[hsl(var(--muted-foreground))]">Date Range:</span>
-          <input
-            type="date"
-            value={dateRange.from}
-            onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-            className="h-10 px-4 text-sm border border-[hsl(var(--border))]/30 bg-[hsl(var(--background))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent text-[hsl(var(--foreground))]"
-          />
-          <span className="text-[hsl(var(--muted-foreground))]">to</span>
-          <input
-            type="date"
-            value={dateRange.to}
-            onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-            className="h-10 px-4 text-sm border border-[hsl(var(--border))]/30 bg-[hsl(var(--background))] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent text-[hsl(var(--foreground))]"
-          />
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
+        <div className="grid grid-cols-9 divide-x divide-[hsl(var(--border))]">
+          {statCards.map((card) => {
+            const Icon = card.icon
+            return (
+              <Link key={card.label} href={card.href} className="block">
+                <div className="p-2 text-center hover:bg-[hsl(var(--muted))]/10 transition-colors cursor-pointer">
+                  <p className="text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">{card.label}</p>
+                  <p className="text-sm font-semibold text-[hsl(var(--foreground))] tabular-nums tracking-tight mt-0.5">
+                    {loading ? "—" : card.value}
+                  </p>
+                </div>
+              </Link>
+            )
+          })}
         </div>
-      )}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-        {statCards.map((card) => {
-          const Icon = card.icon
-          return (
-            <Link key={card.label} href={card.href}>
-              <Card className="border-2 border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[#1a9f9a] hover:bg-[hsl(var(--muted))]/10 transition-all cursor-pointer relative overflow-hidden h-32">
-                <CardContent className="p-6">
-                  <div className="flex flex-col h-full">
-                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">{card.label}</p>
-                    <p className="text-3xl font-semibold text-[hsl(var(--foreground))] tabular-nums tracking-tight mt-auto" style={{ fontFamily: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-                      {loading ? "—" : card.value}
-                    </p>
-                  </div>
-                  <div className={`absolute top-5 right-5 w-12 h-12 rounded-xl flex items-center justify-center ${card.bgColor} ${card.color} opacity-30`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          )
-        })}
       </div>
     </div>
   )
