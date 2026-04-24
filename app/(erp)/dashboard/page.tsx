@@ -370,7 +370,7 @@ export default function DashboardPage() {
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center justify-between border-b border-[hsl(var(--border))]/50 mb-6 px-6">
+          <div className="flex items-center justify-between mb-6 px-6">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setActiveTab("orders")}
