@@ -15,7 +15,7 @@ import Link from "next/link"
 import { useToast } from "@/components/ui/toast"
 import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
 
-function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, openFirst: () => void) => void }) {
+function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilters: boolean, setShowFilters: (value: boolean) => void, onPendingChange?: (count: number, openFirst: () => void) => void }) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [pos, setPOs] = useState<PurchaseOrder[]>([])
@@ -23,7 +23,6 @@ function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, open
   const [selected, setSelected] = useState<PurchaseOrder | null>(null)
   const [notified, setNotified] = useState(false)
   const [subTab, setSubTab] = useState<"pending" | "approved" | "draft" | "rejected" | "received">("pending")
-  const [showFilters, setShowFilters] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -113,32 +112,6 @@ function POsWidget({ onPendingChange }: { onPendingChange?: (count: number, open
 
   return (
     <>
-      {/* Filters */}
-      <div className="flex items-center justify-end gap-2 mb-3">
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-2 h-8 px-3 text-xs font-medium rounded-md cursor-pointer transition-all border ${
-            showFilters
-              ? "bg-[#1faca6] border-[#1faca6] text-white shadow-sm hover:bg-[#1a968f]"
-              : "bg-[hsl(var(--background))] border-[hsl(var(--border))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/50"
-          }`}
-        >
-          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-          <span>Filters</span>
-          {showFilters ? (
-            <svg className="h-3 w-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-            </svg>
-          ) : (
-            <svg className="h-3 w-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          )}
-        </button>
-      </div>
-
       {/* Filter Panel */}
       {showFilters && (
         <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-2.5 space-y-2 mb-3">
@@ -372,6 +345,7 @@ export default function DashboardPage() {
   const [pendingCount, setPendingCount] = useState(0)
   const [openFirstPending, setOpenFirstPending] = useState<(() => void) | null>(null)
   const [activeTab, setActiveTab] = useState<"orders" | "pos">("orders")
+  const [showFilters, setShowFilters] = useState(false)
 
   if (!user) return null
 
@@ -399,40 +373,52 @@ export default function DashboardPage() {
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 border-b border-[hsl(var(--border))]/50 mb-6 px-6">
-            <button
-              onClick={() => setActiveTab("orders")}
-              className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
-                activeTab === "orders"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              Client Orders
-              {activeTab === "orders" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("pos")}
-              className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
-                activeTab === "pos"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              Purchase Orders
-              {activeTab === "pos" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
-              )}
-            </button>
+          <div className="flex items-center justify-between border-b border-[hsl(var(--border))]/50 mb-6 px-6">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveTab("orders")}
+                className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
+                  activeTab === "orders"
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                Client Orders
+                {activeTab === "orders" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab("pos")}
+                className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
+                  activeTab === "pos"
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                Purchase Orders
+                {activeTab === "pos" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
+                )}
+              </button>
+            </div>
+            {activeTab === "pos" && (
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Tab Content */}
           <div className="bg-[hsl(var(--card))] p-6 border border-[hsl(var(--border))]/50 rounded-xl">
             {activeTab === "orders" && <ClientOrdersApproval />}
             {activeTab === "pos" && (
-              <POsWidget onPendingChange={(count, openFirst) => {
+              <POsWidget showFilters={showFilters} setShowFilters={setShowFilters} onPendingChange={(count, openFirst) => {
                 setPendingCount(count)
                 setOpenFirstPending(() => openFirst)
               }} />

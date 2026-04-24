@@ -62,7 +62,7 @@ export function ClientOrdersApproval() {
     <>
       <div className="space-y-3">
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-[hsl(var(--border))]">
+        <div className="flex gap-1 border-b border-[hsl(var(--border))]/50">
           {(["pending", "approved"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
@@ -70,9 +70,6 @@ export function ClientOrdersApproval() {
                 : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
               {t === "pending" ? "Pending Approval" : "Approved Orders"}
-              <span className="ml-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                ({t === "pending" ? pendingOrders.length : approvedOrders.length})
-              </span>
               {tab === t && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
@@ -80,14 +77,8 @@ export function ClientOrdersApproval() {
           ))}
         </div>
 
-        {displayOrders.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {tab === "pending" ? "No orders pending approval" : "No approved orders"}
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-lg border overflow-hidden">
+        {displayOrders.length === 0 ? null : (
+          <div className="rounded-lg border border-[hsl(var(--border))]/50 overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-[hsl(var(--muted))]/40">
