@@ -65,14 +65,11 @@ export function ClientOrdersApproval() {
         <div className="flex gap-1">
           {(["pending", "approved"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                 tab === t ? "text-[hsl(var(--foreground))]"
                 : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
               {t === "pending" ? "Pending Approval" : "Approved Orders"}
-              {tab === t && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-              )}
             </button>
           ))}
         </div>
