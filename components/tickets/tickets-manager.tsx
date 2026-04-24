@@ -349,39 +349,55 @@ export function TicketsManager() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]/30 rounded-lg bg-[hsl(var(--card))]">No tickets match your filters.</div>
       ) : (
-        <div className="space-y-1.5">
-          {filtered.map(t => (
-            <div key={t.id} onClick={() => setViewTicket(t)}
-              className="group flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 hover:border-[#1a9f9a] hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-all">
-              {/* Icon */}
-              <div className="h-8 w-8 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
-                {t.status === "open" ? <AlertCircle className="h-4 w-4 text-blue-500" /> :
-                 t.status === "in_progress" ? <Clock className="h-4 w-4 text-yellow-500" /> :
-                 t.status === "resolved" ? <CheckCircle className="h-4 w-4 text-green-500" /> :
-                 <CheckCircle className="h-4 w-4 text-gray-400" />}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{t.ticketNumber}</p>
-                  <Badge variant={PRIORITY_VARIANT[t.priority]} className="text-[9px] px-1 py-0">{PRIORITY_LABELS[t.priority]}</Badge>
-                  <Badge variant={STATUS_VARIANT[t.status]} className="text-[9px] px-1 py-0">{STATUS_LABELS[t.status]}</Badge>
-                </div>
-                <p className="text-xs font-medium text-[hsl(var(--foreground))] truncate">{t.subject}</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{t.customerName} · {t.customerEmail}</p>
-              </div>
-
-              <div className="text-right shrink-0">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{formatDate(t.createdAt)}</p>
-              </div>
-
-              <Button size="icon" variant="ghost"
-                className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                onClick={e => { e.stopPropagation(); handleDelete(t.id) }}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
+        <div className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30">
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Ticket</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Priority</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Customer</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Subject</th>
+                <th className="text-right px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Created</th>
+                <th className="text-right px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(t => (
+                <tr key={t.id} onClick={() => setViewTicket(t)}
+                  className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-colors">
+                  <td className="px-3 py-2">
+                    <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{t.ticketNumber}</p>
+                  </td>
+                  <td className="px-3 py-2">
+                    <Badge variant={PRIORITY_VARIANT[t.priority]} className="text-[9px] px-1.5 py-0">{PRIORITY_LABELS[t.priority]}</Badge>
+                  </td>
+                  <td className="px-3 py-2">
+                    <Badge variant={STATUS_VARIANT[t.status]} className="text-[9px] px-1.5 py-0">{STATUS_LABELS[t.status]}</Badge>
+                  </td>
+                  <td className="px-3 py-2">
+                    <p className="text-xs text-[hsl(var(--foreground))]">{t.customerName}</p>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{t.customerEmail}</p>
+                  </td>
+                  <td className="px-3 py-2">
+                    <p className="text-xs text-[hsl(var(--foreground))] truncate max-w-[200px]">{t.subject}</p>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{formatDate(t.createdAt)}</p>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="icon" variant="ghost"
+                        className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        onClick={e => { e.stopPropagation(); handleDelete(t.id) }}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
