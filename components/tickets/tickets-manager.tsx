@@ -261,8 +261,7 @@ export function TicketsManager() {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Support Tickets</p>
-        <Button size="sm" className="h-8 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
+        <Button size="sm" className="h-8 text-sm gap-2 bg-black hover:bg-neutral-800 text-white cursor-pointer" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" /> New Ticket
         </Button>
       </div>
@@ -271,21 +270,21 @@ export function TicketsManager() {
       {tickets.length > 0 && (
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
           <div className="grid grid-cols-4 divide-x divide-[hsl(var(--border))]">
-            <div className="p-3">
+            <div className="p-3 text-center">
               <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Open</p>
-              <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{openCount}</p>
+              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{openCount}</p>
             </div>
-            <div className="p-3">
+            <div className="p-3 text-center">
               <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">In Progress</p>
-              <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400 mt-0.5">{inProgressCount}</p>
+              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{inProgressCount}</p>
             </div>
-            <div className="p-3">
+            <div className="p-3 text-center">
               <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Resolved</p>
-              <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-0.5">{resolvedCount}</p>
+              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{resolvedCount}</p>
             </div>
-            <div className="p-3">
+            <div className="p-3 text-center">
               <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Closed</p>
-              <p className="text-xl font-bold text-gray-600 dark:text-gray-400 mt-0.5">{closedCount}</p>
+              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{closedCount}</p>
             </div>
           </div>
         </div>
@@ -306,15 +305,15 @@ export function TicketsManager() {
 
       {/* Filters */}
       {tickets.length > 0 && showFilters && (
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 flex flex-wrap gap-2 items-center animate-in slide-in-from-top-2">
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 flex flex-wrap gap-2 items-center animate-in slide-in-from-top-2">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search by ticket #, name, email, subject..."
-              className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+              className="w-full h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent" />
           </div>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Status</option>
             <option value="open">Open</option>
             <option value="in_progress">In Progress</option>
@@ -322,7 +321,7 @@ export function TicketsManager() {
             <option value="closed">Closed</option>
           </select>
           <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}
-            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Priority</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -331,9 +330,9 @@ export function TicketsManager() {
           </select>
           {(search || filterStatus !== "All" || filterPriority !== "All") && (
             <button onClick={() => { setSearch(""); setFilterStatus("All"); setFilterPriority("All") }}
-              className="h-9 px-3 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-lg hover:bg-[hsl(var(--muted))]/10">Clear</button>
+              className="h-8 px-2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded hover:bg-[hsl(var(--muted))]/10">Clear</button>
           )}
-          <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {tickets.length}</span>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {tickets.length}</span>
         </div>
       )}
 
@@ -351,48 +350,48 @@ export function TicketsManager() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]/30 rounded-lg bg-[hsl(var(--card))]">No tickets match your filters.</div>
       ) : (
-        <div className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+        <div className="border border-[hsl(var(--border))] overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30">
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Ticket</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Priority</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Customer</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Subject</th>
-                <th className="text-right px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Created</th>
-                <th className="text-right px-3 py-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
+              <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20">
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Ticket</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Priority</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Customer</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Subject</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Created</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(t => (
                 <tr key={t.id} onClick={() => setViewTicket(t)}
-                  className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-colors">
-                  <td className="px-3 py-2">
-                    <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{t.ticketNumber}</p>
+                  className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/5 cursor-pointer transition-colors">
+                  <td className="px-2 py-1.5">
+                    <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{t.ticketNumber}</p>
                   </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={PRIORITY_VARIANT[t.priority]} className="text-[9px] px-1.5 py-0">{PRIORITY_LABELS[t.priority]}</Badge>
+                  <td className="px-2 py-1.5">
+                    <Badge variant={PRIORITY_VARIANT[t.priority]} className="text-[8px] px-1 py-0">{PRIORITY_LABELS[t.priority]}</Badge>
                   </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={STATUS_VARIANT[t.status]} className="text-[9px] px-1.5 py-0">{STATUS_LABELS[t.status]}</Badge>
+                  <td className="px-2 py-1.5">
+                    <Badge variant={STATUS_VARIANT[t.status]} className="text-[8px] px-1 py-0">{STATUS_LABELS[t.status]}</Badge>
                   </td>
-                  <td className="px-3 py-2">
-                    <p className="text-xs text-[hsl(var(--foreground))]">{t.customerName}</p>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{t.customerEmail}</p>
+                  <td className="px-2 py-1.5">
+                    <p className="text-[10px] text-[hsl(var(--foreground))]">{t.customerName}</p>
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{t.customerEmail}</p>
                   </td>
-                  <td className="px-3 py-2">
-                    <p className="text-xs text-[hsl(var(--foreground))] truncate max-w-[200px]">{t.subject}</p>
+                  <td className="px-2 py-1.5">
+                    <p className="text-[10px] text-[hsl(var(--foreground))] truncate max-w-[200px]">{t.subject}</p>
                   </td>
-                  <td className="px-3 py-2 text-right">
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{formatDate(t.createdAt)}</p>
+                  <td className="px-2 py-1.5 text-right">
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{formatDate(t.createdAt)}</p>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <div className="flex items-center justify-end gap-1">
                       <Button size="icon" variant="ghost"
-                        className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        className="h-5 w-5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                         onClick={e => { e.stopPropagation(); handleDelete(t.id) }}>
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-2.5 w-2.5" />
                       </Button>
                     </div>
                   </td>
