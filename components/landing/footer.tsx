@@ -39,7 +39,7 @@ export default function Footer() {
                                  item === "Documentation" ? "/documentation" : "#"
                     return (
                       <li key={item}>
-                        <a href={href} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors">
+                        <a href={href} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer">
                           {item}
                         </a>
                       </li>
