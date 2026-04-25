@@ -5,7 +5,7 @@ import Image from "next/image"
 const links = {
   Company: ["About", "Blog", "Careers"],
   Legal: ["Privacy", "Terms", "Cookies"],
-  Resources: ["Docs"],
+  Resources: ["Documentation"],
 }
 
 export default function Footer() {
@@ -36,7 +36,7 @@ export default function Footer() {
                                  item === "Privacy" ? "/privacy" :
                                  item === "Terms" ? "/terms" :
                                  item === "Cookies" ? "/cookies" :
-                                 item === "Docs" ? "/docs" : "#"
+                                 item === "Documentation" ? "/documentation" : "#"
                     return (
                       <li key={item}>
                         <a href={href} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors">
