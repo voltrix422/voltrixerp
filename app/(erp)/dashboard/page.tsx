@@ -159,12 +159,15 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
         <div className="flex gap-1">
           {(["pending", "approved", "received", "draft", "rejected"] as const).map(t => (
             <button key={t} onClick={() => setSubTab(t)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
                 subTab === t
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
               {t === "pending" ? "Pending" : t === "approved" ? "Approved" : t === "received" ? "Received" : t === "draft" ? "Draft" : "Rejected"}
+              {subTab === t && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+              )}
             </button>
           ))}
         </div>
@@ -370,7 +373,7 @@ export default function DashboardPage() {
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center justify-between mb-6 px-6">
+          <div className="flex items-center justify-between mb-2 px-6">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setActiveTab("orders")}
@@ -412,7 +415,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="bg-[hsl(var(--card))] p-6 rounded-xl">
+          <div className="bg-[hsl(var(--card))] p-6 rounded-xl mt-2">
             {activeTab === "orders" && <ClientOrdersApproval />}
             {activeTab === "pos" && (
               <POsWidget showFilters={showFilters} setShowFilters={setShowFilters} onPendingChange={(count, openFirst) => {
