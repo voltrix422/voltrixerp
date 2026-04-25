@@ -1,5 +1,287 @@
 [
   {
+    "name": "HS-TQS4.2KW+8038.4Wh",
+    "category": "Energy Storage",
+    "description": "Stackable energy storage battery with off-grid inverter",
+    "full_desc": "Stackable energy storage battery with off-grid inverter. Features 4200W rated output power, 8038.4Wh battery capacity, and advanced LiFePO4 technology.",
+    "specification": "Rated Output Power: 4200W, Battery: 25.6V 314Ah 8038.4Wh, PV Input: 5000W max, AC Output: 208-240Vac",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [
+      {
+        "label": "Rated Output Power",
+        "value": "4200W"
+      },
+      {
+        "label": "Battery Voltage",
+        "value": "25.6V"
+      },
+      {
+        "label": "Battery Capacity",
+        "value": "314Ah"
+      },
+      {
+        "label": "Battery Energy",
+        "value": "8038.4Wh"
+      },
+      {
+        "label": "PV Input Power",
+        "value": "5000W max"
+      },
+      {
+        "label": "AC Output Voltage",
+        "value": "208/220/230/240Vac"
+      },
+      {
+        "label": "Inverter Type",
+        "value": "Off-grid"
+      }
+    ],
+    "images": [],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "77207579-5f80-450c-a15d-f2310e9ea5ea",
+    "created_at": "2026-04-25T11:16:59.845Z",
+    "order": 4
+  },
+  {
+    "name": "VOLTRIX 16 KWh",
+    "category": "Energy Storage",
+    "description": "Lithium Iron Phosphate Battery with 10 years warranty",
+    "full_desc": "VOLTRIX 16 KWh Lithium Iron Phosphate Battery. Features 10 years warranty, 10,000+ long cycle life, and intelligent battery management system (BMS).",
+    "specification": "Nominal Energy: 16.08 KWh, Nominal Voltage: 51.2Vdc, Nominal Capacity: 314 Ah, DoD: 95%, Cycle Life: ≥10000 cycles",
+    "price": 560000,
+    "warranty": "10 YEARS",
+    "stock": 1,
+    "specs": [
+      {
+        "label": "Nominal Energy",
+        "value": "16.08 KWh"
+      },
+      {
+        "label": "Nominal Voltage",
+        "value": "51.2Vdc"
+      },
+      {
+        "label": "Nominal Capacity",
+        "value": "314 Ah"
+      },
+      {
+        "label": "DoD",
+        "value": "95%"
+      },
+      {
+        "label": "Cycle Life",
+        "value": "≥10000 cycles"
+      },
+      {
+        "label": "Dimensions",
+        "value": "915x445x280 mm"
+      },
+      {
+        "label": "Weight",
+        "value": "≈110 kg"
+      },
+      {
+        "label": "Communication",
+        "value": "CAN/RS485/RS232"
+      }
+    ],
+    "images": [],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "e20f19c5-fcbf-4178-8cfe-410b6d109f65",
+    "created_at": "2026-04-25T11:16:59.846Z",
+    "order": 4
+  },
+  {
+    "name": "HS-BG5000W-A6",
+    "category": "Energy Storage",
+    "description": "Energy storage battery 5.12 kWh",
+    "full_desc": "Energy storage battery with 5.12 kWh capacity. Features grid-connected functionality and advanced BMS protection.",
+    "specification": "Rated Voltage: 51.2V, Rated Capacity: 100Ah, Rated Energy: 5120Wh, Dimensions: 400x185x670mm",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [
+      {
+        "label": "Rated Voltage",
+        "value": "51.2V"
+      },
+      {
+        "label": "Rated Capacity",
+        "value": "100Ah"
+      },
+      {
+        "label": "Rated Energy",
+        "value": "5120Wh"
+      },
+      {
+        "label": "Dimensions",
+        "value": "400x185x670mm"
+      },
+      {
+        "label": "Weight",
+        "value": "49.3kg"
+      },
+      {
+        "label": "Communication",
+        "value": "RS485, CAN"
+      }
+    ],
+    "images": [],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "52316c58-1898-4561-b3a7-5c7efcae3caa",
+    "created_at": "2026-04-25T11:16:59.846Z",
+    "order": 4
+  },
+  {
+    "name": "HS-LD15KW-A2",
+    "category": "Energy Storage",
+    "description": "Energy storage battery 15.616 kWh for building load",
+    "full_desc": "Energy storage battery with 15.616 kWh capacity designed for building load applications. Features LED+LCD display and multiple communication ports.",
+    "specification": "Rated Voltage: 51.2V, Rated Capacity: 305Ah, Rated Energy: 15616Wh, Dimensions: 500x233x810mm",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [
+      {
+        "label": "Rated Voltage",
+        "value": "51.2V"
+      },
+      {
+        "label": "Rated Capacity",
+        "value": "305Ah"
+      },
+      {
+        "label": "Rated Energy",
+        "value": "15616Wh"
+      },
+      {
+        "label": "Dimensions",
+        "value": "500x233x810mm"
+      },
+      {
+        "label": "Weight",
+        "value": "117.5kg"
+      },
+      {
+        "label": "Communication",
+        "value": "RS485, CAN"
+      },
+      {
+        "label": "Cycle Life",
+        "value": ">8000 cycles"
+      }
+    ],
+    "images": [],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "51974a13-3aa7-45bd-92b6-3f822cbfdba4",
+    "created_at": "2026-04-25T11:16:59.846Z",
+    "order": 4
+  },
+  {
+    "name": "HS-12.8V100Ah",
+    "category": "Energy Storage",
+    "description": "12.8V 100Ah 1280Wh LiFePO4 battery",
+    "full_desc": "12.8V 100Ah 1280Wh LiFePO4 energy storage battery with 6000+ cycle life. Features square cell 3.2V100Ah technology.",
+    "specification": "Nominal Voltage: 12.8V, Nominal Capacity: 100Ah, Energy: 1280Wh, Dimensions: 532x207x215mm",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [
+      {
+        "label": "Nominal Voltage",
+        "value": "12.8V"
+      },
+      {
+        "label": "Nominal Capacity",
+        "value": "100Ah"
+      },
+      {
+        "label": "Energy",
+        "value": "1280Wh"
+      },
+      {
+        "label": "Dimensions",
+        "value": "532x207x215mm"
+      },
+      {
+        "label": "Weight",
+        "value": "20.5kg"
+      },
+      {
+        "label": "Cycle Life",
+        "value": "6000+"
+      },
+      {
+        "label": "Terminal",
+        "value": "M8"
+      }
+    ],
+    "images": [],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "940ac380-b15c-49fe-9abc-1e67539c2a38",
+    "created_at": "2026-04-25T11:16:59.846Z",
+    "order": 4
+  },
+  {
+    "name": "HS-25.6V100Ah",
+    "category": "Energy Storage",
+    "description": "25.6V 100Ah 2560Wh LiFePO4 battery",
+    "full_desc": "25.6V 100Ah 2560Wh LiFePO4 energy storage battery with 6000+ cycle life. Features square cell 3.2V100Ah technology.",
+    "specification": "Nominal Voltage: 25.6V, Nominal Capacity: 100Ah, Energy: 2560Wh, Dimensions: 532x207x215mm",
+    "price": 0,
+    "warranty": "",
+    "stock": 1,
+    "specs": [
+      {
+        "label": "Nominal Voltage",
+        "value": "25.6V"
+      },
+      {
+        "label": "Nominal Capacity",
+        "value": "100Ah"
+      },
+      {
+        "label": "Energy",
+        "value": "2560Wh"
+      },
+      {
+        "label": "Dimensions",
+        "value": "532x207x215mm"
+      },
+      {
+        "label": "Weight",
+        "value": "20.5kg"
+      },
+      {
+        "label": "Cycle Life",
+        "value": "6000+"
+      },
+      {
+        "label": "Terminal",
+        "value": "M8"
+      }
+    ],
+    "images": [],
+    "published": true,
+    "unit": "pcs",
+    "created_by": "admin",
+    "id": "50483d1d-d84f-42e7-8346-c370af997810",
+    "created_at": "2026-04-25T11:16:59.846Z",
+    "order": 4
+  },
+  {
     "name": "AEP-12KS48P3",
     "category": "Residential",
     "description": "",
