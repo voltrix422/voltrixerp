@@ -283,7 +283,7 @@ model ErpTicket {
 
 model ErpWarranty {
   id                String   @id @default(cuid())
-  warrantyId        String   @unique @map("warranty_id")
+  warrantyId        String?  @unique @map("warranty_id")
   productName       String   @map("product_name")
   soldDate          DateTime @map("sold_date")
   warrantyStartDate DateTime @map("warranty_start_date")
