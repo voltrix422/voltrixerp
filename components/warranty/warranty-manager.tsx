@@ -99,6 +99,7 @@ export function WarrantyManager() {
     setDateFrom("")
     setDateTo("")
     setStatusFilter("all")
+    setSearch("")
   }
 
   function openEditForm(warranty: Warranty) {
@@ -222,8 +223,8 @@ export function WarrantyManager() {
 
   return (
     <div className="space-y-3">
-      {/* Header with Filters and Add button */}
-      <div className="flex items-center gap-2">
+      {/* Header with Filters and Add button on right */}
+      <div className="flex items-center justify-end gap-2">
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`p-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer ${
@@ -237,21 +238,22 @@ export function WarrantyManager() {
         </Button>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by product name, customer..."
-          className="w-full h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
-        />
-      </div>
-
-      {/* Collapsible Filters */}
+      {/* Collapsible Filters with Search */}
       {showFilters && (
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 space-y-2">
           <div className="flex flex-wrap gap-2">
+            <div className="w-48 space-y-0.5">
+              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Search</label>
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Product, customer..."
+                  className="w-full h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-7 pr-2 text-[10px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
+                />
+              </div>
+            </div>
             <div className="w-32 space-y-0.5">
               <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Warranty Start From</label>
               <input
@@ -519,7 +521,7 @@ export function WarrantyManager() {
                   <Shield className="h-6 w-6 text-[#1a9f9a]" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-[hsl(var(--foreground))]">{viewDetail.productName}</h3>
+                  <h3 className="text-xl font-semibold text-[hsl(var(--foreground))]">{viewDetail.productName.charAt(0).toUpperCase() + viewDetail.productName.slice(1)}</h3>
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">Warranty ID: {viewDetail.id.slice(0, 8)}...</p>
                 </div>
               </div>
@@ -542,7 +544,7 @@ export function WarrantyManager() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer Name</p>
-                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerName || "-"}</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerName ? viewDetail.customerName.charAt(0).toUpperCase() + viewDetail.customerName.slice(1) : "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer Email</p>
