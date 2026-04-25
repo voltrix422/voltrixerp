@@ -352,147 +352,185 @@ export function HrmManager() {
     canvas.width = 638
     canvas.height = 1012
 
-    // White background
-    ctx.fillStyle = '#ffffff'
+    // Gradient background
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+    gradient.addColorStop(0, '#1a1a2e')
+    gradient.addColorStop(0.5, '#16213e')
+    gradient.addColorStop(1, '#0f3460')
+    ctx.fillStyle = gradient
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Black border
-    ctx.strokeStyle = '#000000'
-    ctx.lineWidth = 8
-    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8)
-
-    // Company logo area (top)
-    const logoY = 40
-    const logoSize = 80
-    
-    // Draw simple logo placeholder (V in a circle)
-    ctx.fillStyle = '#000000'
-    ctx.beginPath()
-    ctx.arc(canvas.width / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2)
-    ctx.fill()
-    
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 48px Arial'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('V', canvas.width / 2, logoY + logoSize / 2 + 4)
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-
-    // Company name below logo
-    ctx.fillStyle = '#000000'
-    ctx.font = 'bold 24px Arial'
-    ctx.textAlign = 'center'
-    ctx.fillText('VOLTRIX', canvas.width / 2, logoY + logoSize + 30)
-    ctx.textAlign = 'left'
-
-    // Staff photo (large, centered)
-    const photoX = 80
-    const photoY = 160
-    const photoSize = 200
-    
-    const drawPlaceholderPhoto = () => {
-      ctx.fillStyle = '#f0f0f0'
-      ctx.fillRect(photoX, photoY, photoSize, photoSize)
-      ctx.strokeStyle = '#000000'
-      ctx.lineWidth = 2
-      ctx.strokeRect(photoX, photoY, photoSize, photoSize)
-      ctx.fillStyle = '#999999'
-      ctx.font = 'bold 48px Arial'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(), photoX + photoSize/2, photoY + photoSize/2)
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'alphabetic'
+    // Decorative pattern
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)'
+    for (let i = 0; i < canvas.width; i += 40) {
+      ctx.fillRect(i, 0, 2, canvas.height)
     }
 
-    const finishCard = () => {
-      // Employee name
-      ctx.fillStyle = '#000000'
-      ctx.font = 'bold 28px Arial'
-      ctx.textAlign = 'center'
-      ctx.fillText(member.name, canvas.width / 2, photoY + photoSize + 50)
-
-      // Role
-      ctx.fillStyle = '#333333'
-      ctx.font = '20px Arial'
-      ctx.fillText(member.role, canvas.width / 2, photoY + photoSize + 85)
-
-      // Department
-      ctx.fillStyle = '#666666'
-      ctx.font = '16px Arial'
-      ctx.fillText(member.department, canvas.width / 2, photoY + photoSize + 115)
-
-      // Divider line
-      ctx.strokeStyle = '#000000'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.moveTo(40, photoY + photoSize + 140)
-      ctx.lineTo(canvas.width - 40, photoY + photoSize + 140)
-      ctx.stroke()
-
-      // Contact info
-      ctx.fillStyle = '#000000'
-      ctx.font = '16px Arial'
-      let yPos = photoY + photoSize + 180
-      const lineHeight = 35
-
-      if (member.email) {
+    // Company logo
+    const logoImg = new Image()
+    logoImg.crossOrigin = 'anonymous'
+    
+    const drawCard = () => {
+      // Draw logo if loaded, otherwise use text
+      if (logoImg.complete && logoImg.naturalWidth > 0) {
+        const logoSize = 100
+        const logoX = (canvas.width - logoSize) / 2
+        ctx.drawImage(logoImg, logoX, 30, logoSize, logoSize)
+      } else {
+        // Fallback logo
+        ctx.fillStyle = '#e94560'
+        ctx.beginPath()
+        ctx.arc(canvas.width / 2, 80, 50, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = '#ffffff'
+        ctx.font = 'bold 48px Arial'
         ctx.textAlign = 'center'
-        ctx.fillText(member.email, canvas.width / 2, yPos)
-        yPos += lineHeight
-      }
-      if (member.phone) {
-        ctx.fillText(member.phone, canvas.width / 2, yPos)
-        yPos += lineHeight
-      }
-      if (member.join_date) {
-        ctx.fillText('Joined: ' + member.join_date, canvas.width / 2, yPos)
-        yPos += lineHeight
+        ctx.textBaseline = 'middle'
+        ctx.fillText('V', canvas.width / 2, 85)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
       }
 
-      // Employee ID at bottom
-      ctx.fillStyle = '#000000'
-      ctx.font = 'bold 18px Arial'
-      ctx.fillText('ID: ' + member.id, canvas.width / 2, canvas.height - 60)
-
-      // Status badge at bottom
-      const statusColor = member.status === 'active' ? '#000000' : '#666666'
-      ctx.fillStyle = statusColor
-      ctx.roundRect(canvas.width / 2 - 60, canvas.height - 45, 120, 30, 15)
-      ctx.fill()
+      // Company name
       ctx.fillStyle = '#ffffff'
-      ctx.font = 'bold 14px Arial'
+      ctx.font = 'bold 22px Arial'
       ctx.textAlign = 'center'
-      ctx.fillText(member.status.toUpperCase(), canvas.width / 2, canvas.height - 25)
+      ctx.fillText('VOLTRIX', canvas.width / 2, 150)
+      ctx.font = '14px Arial'
+      ctx.fillStyle = '#a0a0a0'
+      ctx.fillText('Electric Vehicles', canvas.width / 2, 175)
       ctx.textAlign = 'left'
 
-      // Download
-      const link = document.createElement('a')
-      link.download = `${member.name.replace(/\s+/g, '_')}_ID_Card.png`
-      link.href = canvas.toDataURL('image/png')
-      link.click()
-    }
-    
-    if (member.photo_url) {
-      const img = new Image()
-      img.onload = () => {
-        ctx.drawImage(img, photoX, photoY, photoSize, photoSize)
-        // Add border around photo
-        ctx.strokeStyle = '#000000'
+      // Circular staff photo (avatar)
+      const photoCenterX = canvas.width / 2
+      const photoCenterY = 320
+      const photoRadius = 100
+      
+      // Photo background circle
+      ctx.fillStyle = '#2a2a4a'
+      ctx.beginPath()
+      ctx.arc(photoCenterX, photoCenterY, photoRadius + 10, 0, Math.PI * 2)
+      ctx.fill()
+
+      const drawStaffPhoto = () => {
+        if (member.photo_url) {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => {
+            ctx.save()
+            ctx.beginPath()
+            ctx.arc(photoCenterX, photoCenterY, photoRadius, 0, Math.PI * 2)
+            ctx.closePath()
+            ctx.clip()
+            ctx.drawImage(img, photoCenterX - photoRadius, photoCenterY - photoRadius, photoRadius * 2, photoRadius * 2)
+            ctx.restore()
+            finishCard()
+          }
+          img.onerror = () => {
+            drawPlaceholderAvatar()
+            finishCard()
+          }
+          img.src = member.photo_url
+        } else {
+          drawPlaceholderAvatar()
+          finishCard()
+        }
+      }
+
+      const drawPlaceholderAvatar = () => {
+        ctx.fillStyle = '#3a3a5a'
+        ctx.beginPath()
+        ctx.arc(photoCenterX, photoCenterY, photoRadius, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = '#e94560'
+        ctx.font = 'bold 50px Arial'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(), photoCenterX, photoCenterY)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
+      }
+
+      const finishCard = () => {
+        // Decorative line under photo
+        ctx.strokeStyle = '#e94560'
         ctx.lineWidth = 3
-        ctx.strokeRect(photoX, photoY, photoSize, photoSize)
-        finishCard()
+        ctx.beginPath()
+        ctx.moveTo(canvas.width / 2 - 60, photoCenterY + photoRadius + 30)
+        ctx.lineTo(canvas.width / 2 + 60, photoCenterY + photoRadius + 30)
+        ctx.stroke()
+
+        // Employee name
+        ctx.fillStyle = '#ffffff'
+        ctx.font = 'bold 32px Arial'
+        ctx.textAlign = 'center'
+        ctx.fillText(member.name, canvas.width / 2, photoCenterY + photoRadius + 80)
+
+        // Role
+        ctx.fillStyle = '#e94560'
+        ctx.font = '20px Arial'
+        ctx.fillText(member.role.toUpperCase(), canvas.width / 2, photoCenterY + photoRadius + 115)
+
+        // Department badge
+        const badgeWidth = 180
+        const badgeHeight = 40
+        const badgeX = (canvas.width - badgeWidth) / 2
+        const badgeY = photoCenterY + photoRadius + 135
+        
+        ctx.fillStyle = 'rgba(233, 69, 96, 0.2)'
+        ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 20)
+        ctx.fill()
+        ctx.strokeStyle = '#e94560'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        
+        ctx.fillStyle = '#ffffff'
+        ctx.font = '16px Arial'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(member.department, canvas.width / 2, badgeY + badgeHeight / 2)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'alphabetic'
+
+        // Info section
+        const infoY = badgeY + badgeHeight + 60
+        ctx.fillStyle = '#a0a0a0'
+        ctx.font = '14px Arial'
+        ctx.textAlign = 'center'
+        ctx.fillText('EMPLOYEE ID', canvas.width / 2, infoY)
+        
+        ctx.fillStyle = '#ffffff'
+        ctx.font = 'bold 28px Arial'
+        ctx.fillText('#' + String(member.id).padStart(6, '0'), canvas.width / 2, infoY + 35)
+
+        // Status indicator
+        const statusY = canvas.height - 80
+        const statusColor = member.status === 'active' ? '#22c55e' : '#ef4444'
+        
+        ctx.fillStyle = statusColor
+        ctx.beginPath()
+        ctx.arc(canvas.width / 2, statusY, 8, 0, Math.PI * 2)
+        ctx.fill()
+        
+        ctx.fillStyle = '#ffffff'
+        ctx.font = '16px Arial'
+        ctx.textAlign = 'center'
+        ctx.fillText(member.status.toUpperCase(), canvas.width / 2 + 20, statusY + 5)
+        ctx.textAlign = 'left'
+
+        // Download
+        const link = document.createElement('a')
+        link.download = `${member.name.replace(/\s+/g, '_')}_ID_Card.png`
+        link.href = canvas.toDataURL('image/png')
+        link.click()
       }
-      img.onerror = () => {
-        drawPlaceholderPhoto()
-        finishCard()
-      }
-      img.src = member.photo_url
-    } else {
-      drawPlaceholderPhoto()
-      finishCard()
+
+      drawStaffPhoto()
     }
+
+    logoImg.onload = drawCard
+    logoImg.onerror = drawCard
+    logoImg.src = '/logo.png'
   }
 
   return (
