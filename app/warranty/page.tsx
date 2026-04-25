@@ -2,6 +2,8 @@
 import { useState, useRef } from "react"
 import { Shield, Search, AlertCircle, CheckCircle, Calendar, User, Mail, Phone, Download } from "lucide-react"
 import { toPng } from "html-to-image"
+import Navbar from "@/components/landing/navbar"
+import Footer from "@/components/landing/footer"
 
 interface WarrantyData {
   id: string
@@ -81,8 +83,10 @@ export default function WarrantyLookupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 py-12 px-4">
-      <div className="max-w-md mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 flex flex-col">
+      <Navbar />
+      <div className="flex-1 py-12 px-4">
+        <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#1a9f9a]/10 mb-3">
@@ -234,6 +238,8 @@ export default function WarrantyLookupPage() {
           </div>
         )}
       </div>
+      </div>
+      <Footer />
     </div>
   )
 }
