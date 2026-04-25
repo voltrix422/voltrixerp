@@ -221,69 +221,61 @@ export function WarrantyManager() {
   })
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-[hsl(var(--foreground))]">Warranty Management</h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Track product warranties and check remaining coverage</p>
-        </div>
-        <Button size="sm" className="h-9 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4" /> Add Warranty
+    <div className="space-y-3">
+      {/* Header with Filters and Add button */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`p-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer ${
+            showFilters ? "text-[#1a9f9a]" : ""
+          }`}
+        >
+          <Filter className="h-4 w-4" />
+        </button>
+        <Button size="sm" className="h-8 text-xs gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
+          <Plus className="h-3.5 w-3.5" /> Add Warranty
         </Button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by product name, customer..."
-            className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
-          />
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-10 gap-2"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Filter className="h-4 w-4" />
-          Filters
-          {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by product name, customer..."
+          className="w-full h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
+        />
       </div>
 
       {/* Collapsible Filters */}
       {showFilters && (
-        <div className="p-4 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Warranty Start From</label>
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <div className="w-32 space-y-0.5">
+              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Warranty Start From</label>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={e => setDateFrom(e.target.value)}
-                className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                className="w-full h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-[10px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Warranty End To</label>
+            <div className="w-32 space-y-0.5">
+              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Warranty End To</label>
               <input
                 type="date"
                 value={dateTo}
                 onChange={e => setDateTo(e.target.value)}
-                className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                className="w-full h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-[10px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Status</label>
+            <div className="w-32 space-y-0.5">
+              <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">Status</label>
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value as "all" | "active" | "expiring" | "expired")}
-                className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                className="w-full h-7 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-[10px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -291,82 +283,71 @@ export function WarrantyManager() {
                 <option value="expired">Expired</option>
               </select>
             </div>
+            <button
+              onClick={clearFilters}
+              className="self-end px-2 py-1 text-[10px] border rounded hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-colors"
+            >
+              Clear
+            </button>
           </div>
-          <Button size="sm" variant="ghost" className="h-8 text-xs gap-1" onClick={clearFilters}>
-            <X className="h-3 w-3" /> Clear Filters
-          </Button>
         </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="text-center py-16 text-sm text-[hsl(var(--muted-foreground))]">Loading warranties...</div>
-      )}
-
-      {/* Empty State */}
-      {!loading && warranties.length === 0 && (
-        <div className="text-center py-20 border-2 border-dashed border-[hsl(var(--border))]/30 rounded-2xl bg-[hsl(var(--card))]">
-          <div className="h-16 w-16 rounded-full bg-[hsl(var(--muted))]/30 flex items-center justify-center mx-auto mb-4">
-            <Shield className="h-8 w-8 text-[hsl(var(--muted-foreground))]" />
-          </div>
-          <p className="text-base font-semibold text-[hsl(var(--foreground))]">No warranties yet</p>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-2">Add your first warranty record to start tracking</p>
-        </div>
+        <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))]">Loading warranties...</div>
       )}
 
       {/* Warranty Table */}
       {!loading && warranties.length > 0 && (
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
+        <div className="rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Product</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Customer</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Sold Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Warranty Period</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
+                <tr className="border-b border-[hsl(var(--border))]/50 bg-[hsl(var(--muted))]/30">
+                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Product</th>
+                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Customer</th>
+                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Sold Date</th>
+                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Warranty Period</th>
+                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                  <th className="text-right px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(warranty => {
                   const remaining = calculateRemainingWarranty(warranty.warrantyEndDate)
                   return (
-                    <tr key={warranty.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-[hsl(var(--foreground))]">{warranty.productName}</p>
+                    <tr key={warranty.id} className="border-b border-[hsl(var(--border))]/50 hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer" onClick={() => setViewDetail(warranty)}>
+                      <td className="px-2 py-1.5">
+                        <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{warranty.productName}</p>
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-[hsl(var(--foreground))]">{warranty.customerName || "-"}</p>
+                      <td className="px-2 py-1.5">
+                        <p className="text-[10px] text-[hsl(var(--foreground))]">{warranty.customerName || "-"}</p>
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-[hsl(var(--foreground))]">{formatDate(warranty.soldDate)}</p>
+                      <td className="px-2 py-1.5">
+                        <p className="text-[10px] text-[hsl(var(--foreground))]">{formatDate(warranty.soldDate)}</p>
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatDate(warranty.warrantyStartDate)} - {formatDate(warranty.warrantyEndDate)}</p>
+                      <td className="px-2 py-1.5">
+                        <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{formatDate(warranty.warrantyStartDate)} - {formatDate(warranty.warrantyEndDate)}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <Badge
                           variant={remaining.status === "active" ? "success" : remaining.status === "expiring" ? "warning" : "destructive"}
-                          className="text-[10px] px-2 py-0.5"
+                          className="text-[8px] px-1 py-0"
                         >
-                          {remaining.status === "active" && <CheckCircle className="h-3 w-3 mr-1 inline" />}
-                          {remaining.status === "expiring" && <AlertCircle className="h-3 w-3 mr-1 inline" />}
-                          {remaining.status === "expired" && <AlertCircle className="h-3 w-3 mr-1 inline" />}
+                          {remaining.status === "active" && <CheckCircle className="h-2.5 w-2.5 mr-0.5 inline" />}
+                          {remaining.status === "expiring" && <AlertCircle className="h-2.5 w-2.5 mr-0.5 inline" />}
+                          {remaining.status === "expired" && <AlertCircle className="h-2.5 w-2.5 mr-0.5 inline" />}
                           {remaining.status === "expired" ? `Expired ${remaining.days} days ago` : remaining.status === "expiring" ? `Expiring in ${remaining.days} days` : `${remaining.days} days remaining`}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setViewDetail(warranty)}>
-                            <Eye className="h-3.5 w-3.5" />
+                      <td className="px-2 py-1.5">
+                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                          <Button size="icon" variant="ghost" className="h-5 w-5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => openEditForm(warranty)}>
+                            <Edit className="h-2.5 w-2.5" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => openEditForm(warranty)}>
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => handleDelete(warranty.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
+                          <Button size="icon" variant="ghost" className="h-5 w-5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => handleDelete(warranty.id)}>
+                            <Trash2 className="h-2.5 w-2.5" />
                           </Button>
                         </div>
                       </td>
