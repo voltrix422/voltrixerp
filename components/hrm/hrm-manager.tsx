@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download } from "lucide-react"
+import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard } from "lucide-react"
 
 const STORAGE_KEY = "erp_hrm_staff"
 const DB_NAME = "erp_hrm_db"
@@ -342,6 +342,148 @@ export function HrmManager() {
 
   const activeCount = staff.filter(s => s.status === "active").length
 
+  function downloadIdCard(member: StaffMember) {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Card dimensions (standard ID card: 85.6mm x 53.98mm ~ 1012x638 pixels at 300dpi)
+    canvas.width = 1012
+    canvas.height = 638
+
+    // Background gradient
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+    gradient.addColorStop(0, '#1a9f9a')
+    gradient.addColorStop(1, '#0d7a75')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // White content area
+    ctx.fillStyle = '#ffffff'
+    ctx.roundRect(40, 40, canvas.width - 80, canvas.height - 80, 20)
+    ctx.fill()
+
+    // Company header
+    ctx.fillStyle = '#1a9f9a'
+    ctx.font = 'bold 32px Arial'
+    ctx.fillText('VOLTRIX', 80, 100)
+    ctx.font = '18px Arial'
+    ctx.fillStyle = '#666666'
+    ctx.fillText('Electric Vehicles', 80, 125)
+
+    // Photo placeholder or actual photo
+    const photoX = 80
+    const photoY = 160
+    const photoSize = 140
+    
+    if (member.photo_url) {
+      const img = new Image()
+      img.onload = () => {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2)
+        ctx.closePath()
+        ctx.clip()
+        ctx.drawImage(img, photoX, photoY, photoSize, photoSize)
+        ctx.restore()
+        finishCard()
+      }
+      img.onerror = () => {
+        drawPlaceholderPhoto()
+        finishCard()
+      }
+      img.src = member.photo_url
+    } else {
+      drawPlaceholderPhoto()
+      finishCard()
+    }
+
+    function drawPlaceholderPhoto() {
+      ctx.fillStyle = '#f0f0f0'
+      ctx.beginPath()
+      ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#999999'
+      ctx.font = 'bold 24px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText(member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(), photoX + photoSize/2, photoY + photoSize/2 + 8)
+      ctx.textAlign = 'left'
+    }
+
+    function finishCard() {
+      // Employee name
+      ctx.fillStyle = '#333333'
+      ctx.font = 'bold 28px Arial'
+      ctx.fillText(member.name, 260, 200)
+
+      // Role
+      ctx.fillStyle = '#666666'
+      ctx.font = '20px Arial'
+      ctx.fillText(member.role, 260, 235)
+
+      // Department badge
+      ctx.fillStyle = '#1a9f9a'
+      ctx.roundRect(260, 255, 140, 30, 15)
+      ctx.fill()
+      ctx.fillStyle = '#ffffff'
+      ctx.font = '16px Arial'
+      ctx.fillText(member.department, 275, 276)
+
+      // Divider line
+      ctx.strokeStyle = '#e0e0e0'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(80, 320)
+      ctx.lineTo(canvas.width - 80, 320)
+      ctx.stroke()
+
+      // Contact info
+      ctx.fillStyle = '#666666'
+      ctx.font = '16px Arial'
+      let yPos = 360
+      const lineHeight = 30
+
+      if (member.email) {
+        ctx.fillText('Email: ' + member.email, 80, yPos)
+        yPos += lineHeight
+      }
+      if (member.phone) {
+        ctx.fillText('Phone: ' + member.phone, 80, yPos)
+        yPos += lineHeight
+      }
+      if (member.department) {
+        ctx.fillText('Department: ' + member.department, 80, yPos)
+        yPos += lineHeight
+      }
+      if (member.join_date) {
+        ctx.fillText('Joined: ' + member.join_date, 80, yPos)
+        yPos += lineHeight
+      }
+
+      // Employee ID
+      ctx.fillStyle = '#1a9f9a'
+      ctx.font = 'bold 18px Arial'
+      ctx.fillText('ID: ' + member.id, canvas.width - 200, canvas.height - 60)
+
+      // Status badge
+      const statusColor = member.status === 'active' ? '#22c55e' : '#ef4444'
+      ctx.fillStyle = statusColor
+      ctx.roundRect(canvas.width - 200, canvas.height - 100, 100, 30, 15)
+      ctx.fill()
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 14px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText(member.status.toUpperCase(), canvas.width - 150, canvas.height - 80)
+      ctx.textAlign = 'left'
+
+      // Download
+      const link = document.createElement('a')
+      link.download = `${member.name.replace(/\s+/g, '_')}_ID_Card.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    }
+  }
+
   return (
     <div className="space-y-4">
 
@@ -667,11 +809,19 @@ export function HrmManager() {
           <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
               <div className="flex items-center gap-3">
-                <UserCog className="h-5 w-5 text-[#1a9f9a]" />
+                <div className="h-10 w-10 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center border border-[hsl(var(--border))]">
+                  {viewMember.photo_url
+                    ? <img src={viewMember.photo_url} alt={viewMember.name} className="h-full w-full object-cover" />
+                    : <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">{viewMember.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
+                  }
+                </div>
                 <p className="text-base font-semibold text-[hsl(var(--foreground))]">{viewMember.name}</p>
                 <Badge variant={viewMember.status === "active" ? "success" : "destructive"} className="text-[10px] px-1.5 py-0">{viewMember.status}</Badge>
               </div>
               <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => downloadIdCard(viewMember)}>
+                  <IdCard className="h-4 w-4" /> Download ID Card
+                </Button>
                 <Button size="sm" variant="outline" className="h-8" onClick={() => openEditForm(viewMember)}>Edit</Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setViewMember(null)}><X className="h-5 w-5" /></Button>
               </div>
