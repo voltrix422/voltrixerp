@@ -6,6 +6,7 @@ import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle,
 
 interface Warranty {
   id: string
+  warrantyId: string
   productName: string
   soldDate: string
   warrantyStartDate: string
@@ -522,7 +523,7 @@ export function WarrantyManager() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-[hsl(var(--foreground))]">{viewDetail.productName.charAt(0).toUpperCase() + viewDetail.productName.slice(1)}</h3>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">Warranty ID: {viewDetail.id.slice(0, 8)}...</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">Warranty ID: {viewDetail.warrantyId}</p>
                 </div>
               </div>
 

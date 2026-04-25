@@ -80,6 +80,12 @@ export default function Navbar() {
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
           <a
+            href="/warranty"
+            className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap"
+          >
+            Warranty
+          </a>
+          <a
             href="/quote"
             className="group relative flex items-center gap-2 pl-4 pr-1.5 h-9 rounded-full text-[13px] font-medium text-white transition-all duration-300 hover:opacity-90"
             style={{ backgroundColor: "#1a9f9a" }}

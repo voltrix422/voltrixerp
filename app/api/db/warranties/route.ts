@@ -27,9 +27,13 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json(warranty)
     } else {
+      // Generate warranty ID in vol-XXXXX format
+      const warrantyId = `vol-${Math.floor(10000 + Math.random() * 90000)}`
+      
       // Create new warranty
       const warranty = await prisma.erpWarranty.create({
         data: {
+          warrantyId,
           productName: body.productName,
           soldDate: body.soldDate,
           warrantyStartDate: body.warrantyStartDate,
