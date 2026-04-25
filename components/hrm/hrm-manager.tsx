@@ -376,29 +376,7 @@ export function HrmManager() {
     const photoY = 160
     const photoSize = 140
     
-    if (member.photo_url) {
-      const img = new Image()
-      img.onload = () => {
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2)
-        ctx.closePath()
-        ctx.clip()
-        ctx.drawImage(img, photoX, photoY, photoSize, photoSize)
-        ctx.restore()
-        finishCard()
-      }
-      img.onerror = () => {
-        drawPlaceholderPhoto()
-        finishCard()
-      }
-      img.src = member.photo_url
-    } else {
-      drawPlaceholderPhoto()
-      finishCard()
-    }
-
-    function drawPlaceholderPhoto() {
+    const drawPlaceholderPhoto = () => {
       ctx.fillStyle = '#f0f0f0'
       ctx.beginPath()
       ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2)
@@ -410,7 +388,7 @@ export function HrmManager() {
       ctx.textAlign = 'left'
     }
 
-    function finishCard() {
+    const finishCard = () => {
       // Employee name
       ctx.fillStyle = '#333333'
       ctx.font = 'bold 28px Arial'
@@ -481,6 +459,28 @@ export function HrmManager() {
       link.download = `${member.name.replace(/\s+/g, '_')}_ID_Card.png`
       link.href = canvas.toDataURL('image/png')
       link.click()
+    }
+    
+    if (member.photo_url) {
+      const img = new Image()
+      img.onload = () => {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2)
+        ctx.closePath()
+        ctx.clip()
+        ctx.drawImage(img, photoX, photoY, photoSize, photoSize)
+        ctx.restore()
+        finishCard()
+      }
+      img.onerror = () => {
+        drawPlaceholderPhoto()
+        finishCard()
+      }
+      img.src = member.photo_url
+    } else {
+      drawPlaceholderPhoto()
+      finishCard()
     }
   }
 
