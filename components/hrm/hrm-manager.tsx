@@ -396,9 +396,6 @@ export function HrmManager() {
       ctx.font = 'bold 22px Arial'
       ctx.textAlign = 'center'
       ctx.fillText('VOLTRIX', canvas.width / 2, 150)
-      ctx.font = '14px Arial'
-      ctx.fillStyle = '#a0a0a0'
-      ctx.fillText('Electric Vehicles', canvas.width / 2, 175)
       ctx.textAlign = 'left'
 
       // Circular staff photo (avatar)
@@ -452,70 +449,30 @@ export function HrmManager() {
       }
 
       const finishCard = () => {
-        // Decorative line under photo
-        ctx.strokeStyle = '#e94560'
-        ctx.lineWidth = 3
-        ctx.beginPath()
-        ctx.moveTo(canvas.width / 2 - 60, photoCenterY + photoRadius + 30)
-        ctx.lineTo(canvas.width / 2 + 60, photoCenterY + photoRadius + 30)
-        ctx.stroke()
-
-        // Employee name
+        // Employee name (first letter capital)
+        const capitalizedName = member.name.charAt(0).toUpperCase() + member.name.slice(1).toLowerCase()
         ctx.fillStyle = '#ffffff'
         ctx.font = 'bold 32px Arial'
         ctx.textAlign = 'center'
-        ctx.fillText(member.name, canvas.width / 2, photoCenterY + photoRadius + 80)
+        ctx.fillText(capitalizedName, canvas.width / 2, photoCenterY + photoRadius + 60)
 
-        // Role
+        // Role (first letter capital)
+        const capitalizedRole = member.role.charAt(0).toUpperCase() + member.role.slice(1).toLowerCase()
         ctx.fillStyle = '#e94560'
         ctx.font = '20px Arial'
-        ctx.fillText(member.role.toUpperCase(), canvas.width / 2, photoCenterY + photoRadius + 115)
+        ctx.fillText(capitalizedRole, canvas.width / 2, photoCenterY + photoRadius + 95)
 
-        // Department badge
-        const badgeWidth = 180
-        const badgeHeight = 40
-        const badgeX = (canvas.width - badgeWidth) / 2
-        const badgeY = photoCenterY + photoRadius + 135
-        
-        ctx.fillStyle = 'rgba(233, 69, 96, 0.2)'
-        ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 20)
-        ctx.fill()
-        ctx.strokeStyle = '#e94560'
-        ctx.lineWidth = 2
-        ctx.stroke()
-        
-        ctx.fillStyle = '#ffffff'
-        ctx.font = '16px Arial'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(member.department, canvas.width / 2, badgeY + badgeHeight / 2)
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'alphabetic'
-
-        // Info section
-        const infoY = badgeY + badgeHeight + 60
+        // Department (simple text)
         ctx.fillStyle = '#a0a0a0'
-        ctx.font = '14px Arial'
-        ctx.textAlign = 'center'
-        ctx.fillText('EMPLOYEE ID', canvas.width / 2, infoY)
-        
-        ctx.fillStyle = '#ffffff'
-        ctx.font = 'bold 28px Arial'
-        ctx.fillText('#' + String(member.id).padStart(6, '0'), canvas.width / 2, infoY + 35)
-
-        // Status indicator
-        const statusY = canvas.height - 80
-        const statusColor = member.status === 'active' ? '#22c55e' : '#ef4444'
-        
-        ctx.fillStyle = statusColor
-        ctx.beginPath()
-        ctx.arc(canvas.width / 2, statusY, 8, 0, Math.PI * 2)
-        ctx.fill()
-        
-        ctx.fillStyle = '#ffffff'
         ctx.font = '16px Arial'
+        ctx.fillText(member.department, canvas.width / 2, photoCenterY + photoRadius + 125)
+
+        // Employee ID (small, one line)
+        const infoY = photoCenterY + photoRadius + 160
+        ctx.fillStyle = '#ffffff'
+        ctx.font = 'bold 18px Arial'
         ctx.textAlign = 'center'
-        ctx.fillText(member.status.toUpperCase(), canvas.width / 2 + 20, statusY + 5)
+        ctx.fillText('ID: #' + String(member.id).padStart(6, '0'), canvas.width / 2, infoY)
         ctx.textAlign = 'left'
 
         // Download
