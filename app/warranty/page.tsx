@@ -85,7 +85,7 @@ export default function WarrantyLookupPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 flex flex-col">
       <Navbar />
-      <div className="flex-1 py-12 px-4">
+      <div className="flex-1 pt-24 pb-12 px-4">
         <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
