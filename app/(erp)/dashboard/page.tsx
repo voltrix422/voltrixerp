@@ -14,6 +14,8 @@ import Link from "next/link"
 
 import { useToast } from "@/components/ui/toast"
 import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
+import BlogManager from "@/components/blog/blog-manager"
+import JobManager from "@/components/careers/job-manager"
 
 function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilters: boolean, setShowFilters: (value: boolean) => void, onPendingChange?: (count: number, openFirst: () => void) => void }) {
   const { user } = useAuth()
@@ -344,7 +346,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [pendingCount, setPendingCount] = useState(0)
   const [openFirstPending, setOpenFirstPending] = useState<(() => void) | null>(null)
-  const [activeTab, setActiveTab] = useState<"orders" | "pos">("orders")
+  const [activeTab, setActiveTab] = useState<"orders" | "pos" | "blog" | "careers">("orders")
   const [showFilters, setShowFilters] = useState(false)
 
   if (!user) return null
@@ -401,6 +403,32 @@ export default function DashboardPage() {
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
                 )}
               </button>
+              <button
+                onClick={() => setActiveTab("blog")}
+                className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
+                  activeTab === "blog"
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                Blog
+                {activeTab === "blog" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab("careers")}
+                className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
+                  activeTab === "careers"
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                Careers
+                {activeTab === "careers" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
+                )}
+              </button>
             </div>
             {activeTab === "pos" && (
               <button
@@ -423,6 +451,8 @@ export default function DashboardPage() {
                 setOpenFirstPending(() => openFirst)
               }} />
             )}
+            {activeTab === "blog" && <BlogManager />}
+            {activeTab === "careers" && <JobManager />}
           </div>
         </div>
       </div>
