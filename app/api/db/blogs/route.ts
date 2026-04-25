@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (error: any) {
     console.error("Error saving blog:", error)
-    return NextResponse.json({ error: "Failed to save blog" }, { status: 500 })
+    return NextResponse.json({ error: error.message || "Failed to save blog" }, { status: 500 })
   }
 }
 
