@@ -3,9 +3,9 @@ import { Separator } from "@/components/ui/separator"
 import Image from "next/image"
 
 const links = {
-  Product: ["Overview", "Pricing", "Changelog", "Docs"],
-  Company: ["About", "Blog", "Careers", "Press"],
+  Company: ["About", "Blog", "Careers"],
   Legal: ["Privacy", "Terms", "Cookies"],
+  Resources: ["Docs"],
 }
 
 export default function Footer() {
@@ -29,13 +29,22 @@ export default function Footer() {
               <div key={group} className="space-y-3">
                 <p className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">{group}</p>
                 <ul className="space-y-2">
-                  {items.map((item) => (
-                    <li key={item}>
-                      <a href="#" className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors">
-                        {item}
-                      </a>
-                    </li>
-                  ))}
+                  {items.map((item) => {
+                    const href = item === "About" ? "/about" :
+                                 item === "Blog" ? "/blog" :
+                                 item === "Careers" ? "/careers" :
+                                 item === "Privacy" ? "/privacy" :
+                                 item === "Terms" ? "/terms" :
+                                 item === "Cookies" ? "/cookies" :
+                                 item === "Docs" ? "/docs" : "#"
+                    return (
+                      <li key={item}>
+                        <a href={href} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors">
+                          {item}
+                        </a>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ))}
