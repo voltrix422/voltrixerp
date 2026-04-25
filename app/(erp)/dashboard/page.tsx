@@ -156,7 +156,7 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
 
       <div className="space-y-3">
         {/* Sub-tabs */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 border-b border-[hsl(var(--border))]/50">
           {(["pending", "approved", "received", "draft", "rejected"] as const).map(t => (
             <button key={t} onClick={() => setSubTab(t)}
               className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
@@ -373,7 +373,7 @@ export default function DashboardPage() {
           <ERPStats />
 
           {/* Tabs */}
-          <div className="flex items-center justify-between mb-2 px-6">
+          <div className="flex items-center justify-between mb-2 px-6 border-b border-[hsl(var(--border))]/50">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setActiveTab("orders")}
