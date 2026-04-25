@@ -142,6 +142,7 @@ export function HrmManager() {
   const [saving, setSaving] = useState(false)
   const [viewMember, setViewMember] = useState<StaffMember | null>(null)
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null)
+  const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [filterDept, setFilterDept] = useState("All")
   const [filterStatus, setFilterStatus] = useState("All")
@@ -347,111 +348,123 @@ export function HrmManager() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Card dimensions (standard ID card: 85.6mm x 53.98mm ~ 1012x638 pixels at 300dpi)
-    canvas.width = 1012
-    canvas.height = 638
+    // Vertical ID card dimensions (standard vertical: 54mm x 85.6mm ~ 638x1012 pixels at 300dpi)
+    canvas.width = 638
+    canvas.height = 1012
 
-    // Background gradient
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-    gradient.addColorStop(0, '#1a9f9a')
-    gradient.addColorStop(1, '#0d7a75')
-    ctx.fillStyle = gradient
+    // White background
+    ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // White content area
-    ctx.fillStyle = '#ffffff'
-    ctx.roundRect(40, 40, canvas.width - 80, canvas.height - 80, 20)
+    // Black border
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 8
+    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8)
+
+    // Company logo area (top)
+    const logoY = 40
+    const logoSize = 80
+    
+    // Draw simple logo placeholder (V in a circle)
+    ctx.fillStyle = '#000000'
+    ctx.beginPath()
+    ctx.arc(canvas.width / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2)
     ctx.fill()
+    
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 48px Arial'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('V', canvas.width / 2, logoY + logoSize / 2 + 4)
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
 
-    // Company header
-    ctx.fillStyle = '#1a9f9a'
-    ctx.font = 'bold 32px Arial'
-    ctx.fillText('VOLTRIX', 80, 100)
-    ctx.font = '18px Arial'
-    ctx.fillStyle = '#666666'
-    ctx.fillText('Electric Vehicles', 80, 125)
+    // Company name below logo
+    ctx.fillStyle = '#000000'
+    ctx.font = 'bold 24px Arial'
+    ctx.textAlign = 'center'
+    ctx.fillText('VOLTRIX', canvas.width / 2, logoY + logoSize + 30)
+    ctx.textAlign = 'left'
 
-    // Photo placeholder or actual photo
+    // Staff photo (large, centered)
     const photoX = 80
     const photoY = 160
-    const photoSize = 140
+    const photoSize = 200
     
     const drawPlaceholderPhoto = () => {
       ctx.fillStyle = '#f0f0f0'
-      ctx.beginPath()
-      ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.fillRect(photoX, photoY, photoSize, photoSize)
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = 2
+      ctx.strokeRect(photoX, photoY, photoSize, photoSize)
       ctx.fillStyle = '#999999'
-      ctx.font = 'bold 24px Arial'
+      ctx.font = 'bold 48px Arial'
       ctx.textAlign = 'center'
-      ctx.fillText(member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(), photoX + photoSize/2, photoY + photoSize/2 + 8)
+      ctx.textBaseline = 'middle'
+      ctx.fillText(member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(), photoX + photoSize/2, photoY + photoSize/2)
       ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
     }
 
     const finishCard = () => {
       // Employee name
-      ctx.fillStyle = '#333333'
+      ctx.fillStyle = '#000000'
       ctx.font = 'bold 28px Arial'
-      ctx.fillText(member.name, 260, 200)
+      ctx.textAlign = 'center'
+      ctx.fillText(member.name, canvas.width / 2, photoY + photoSize + 50)
 
       // Role
-      ctx.fillStyle = '#666666'
+      ctx.fillStyle = '#333333'
       ctx.font = '20px Arial'
-      ctx.fillText(member.role, 260, 235)
+      ctx.fillText(member.role, canvas.width / 2, photoY + photoSize + 85)
 
-      // Department badge
-      ctx.fillStyle = '#1a9f9a'
-      ctx.roundRect(260, 255, 140, 30, 15)
-      ctx.fill()
-      ctx.fillStyle = '#ffffff'
+      // Department
+      ctx.fillStyle = '#666666'
       ctx.font = '16px Arial'
-      ctx.fillText(member.department, 275, 276)
+      ctx.fillText(member.department, canvas.width / 2, photoY + photoSize + 115)
 
       // Divider line
-      ctx.strokeStyle = '#e0e0e0'
+      ctx.strokeStyle = '#000000'
       ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.moveTo(80, 320)
-      ctx.lineTo(canvas.width - 80, 320)
+      ctx.moveTo(40, photoY + photoSize + 140)
+      ctx.lineTo(canvas.width - 40, photoY + photoSize + 140)
       ctx.stroke()
 
       // Contact info
-      ctx.fillStyle = '#666666'
+      ctx.fillStyle = '#000000'
       ctx.font = '16px Arial'
-      let yPos = 360
-      const lineHeight = 30
+      let yPos = photoY + photoSize + 180
+      const lineHeight = 35
 
       if (member.email) {
-        ctx.fillText('Email: ' + member.email, 80, yPos)
+        ctx.textAlign = 'center'
+        ctx.fillText(member.email, canvas.width / 2, yPos)
         yPos += lineHeight
       }
       if (member.phone) {
-        ctx.fillText('Phone: ' + member.phone, 80, yPos)
-        yPos += lineHeight
-      }
-      if (member.department) {
-        ctx.fillText('Department: ' + member.department, 80, yPos)
+        ctx.fillText(member.phone, canvas.width / 2, yPos)
         yPos += lineHeight
       }
       if (member.join_date) {
-        ctx.fillText('Joined: ' + member.join_date, 80, yPos)
+        ctx.fillText('Joined: ' + member.join_date, canvas.width / 2, yPos)
         yPos += lineHeight
       }
 
-      // Employee ID
-      ctx.fillStyle = '#1a9f9a'
+      // Employee ID at bottom
+      ctx.fillStyle = '#000000'
       ctx.font = 'bold 18px Arial'
-      ctx.fillText('ID: ' + member.id, canvas.width - 200, canvas.height - 60)
+      ctx.fillText('ID: ' + member.id, canvas.width / 2, canvas.height - 60)
 
-      // Status badge
-      const statusColor = member.status === 'active' ? '#22c55e' : '#ef4444'
+      // Status badge at bottom
+      const statusColor = member.status === 'active' ? '#000000' : '#666666'
       ctx.fillStyle = statusColor
-      ctx.roundRect(canvas.width - 200, canvas.height - 100, 100, 30, 15)
+      ctx.roundRect(canvas.width / 2 - 60, canvas.height - 45, 120, 30, 15)
       ctx.fill()
       ctx.fillStyle = '#ffffff'
       ctx.font = 'bold 14px Arial'
       ctx.textAlign = 'center'
-      ctx.fillText(member.status.toUpperCase(), canvas.width - 150, canvas.height - 80)
+      ctx.fillText(member.status.toUpperCase(), canvas.width / 2, canvas.height - 25)
       ctx.textAlign = 'left'
 
       // Download
@@ -464,13 +477,11 @@ export function HrmManager() {
     if (member.photo_url) {
       const img = new Image()
       img.onload = () => {
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(photoX + photoSize/2, photoY + photoSize/2, photoSize/2, 0, Math.PI * 2)
-        ctx.closePath()
-        ctx.clip()
         ctx.drawImage(img, photoX, photoY, photoSize, photoSize)
-        ctx.restore()
+        // Add border around photo
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = 3
+        ctx.strokeRect(photoX, photoY, photoSize, photoSize)
         finishCard()
       }
       img.onerror = () => {
@@ -809,7 +820,10 @@ export function HrmManager() {
           <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center border border-[hsl(var(--border))]">
+                <div 
+                  className="h-10 w-10 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center border border-[hsl(var(--border))] cursor-pointer hover:ring-2 hover:ring-[#1a9f9a] transition-all"
+                  onClick={() => viewMember.photo_url && setLightboxPhoto(viewMember.photo_url)}
+                >
                   {viewMember.photo_url
                     ? <img src={viewMember.photo_url} alt={viewMember.name} className="h-full w-full object-cover" />
                     : <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">{viewMember.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
@@ -912,6 +926,23 @@ export function HrmManager() {
                 <p>Created by: {viewMember.created_by}</p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Lightbox */}
+      {lightboxPhoto && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4" onClick={() => setLightboxPhoto(null)}>
+          <div className="relative max-w-4xl max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <img src={lightboxPhoto} alt="Employee photo" className="max-w-full max-h-[90vh] object-contain rounded-lg" />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute top-4 right-4 h-10 w-10 bg-white/10 hover:bg-white/20 text-white"
+              onClick={() => setLightboxPhoto(null)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
           </div>
         </div>
       )}
