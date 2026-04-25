@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!checked) return
-    if (!user && pathname !== "/login" && pathname !== "/" && !pathname.startsWith("/quote") && !pathname.startsWith("/products") && !pathname.startsWith("/services") && !pathname.startsWith("/vision") && !pathname.startsWith("/rd") && !pathname.startsWith("/about") && !pathname.startsWith("/contact") && !pathname.startsWith("/technology")) {
+    if (!user && pathname !== "/login" && pathname !== "/" && !pathname.startsWith("/quote") && !pathname.startsWith("/products") && !pathname.startsWith("/services") && !pathname.startsWith("/vision") && !pathname.startsWith("/rd") && !pathname.startsWith("/about") && !pathname.startsWith("/contact") && !pathname.startsWith("/technology") && !pathname.startsWith("/warranty")) {
       // Store the intended destination before redirecting to login
       if (typeof window !== "undefined") {
         sessionStorage.setItem("redirectAfterLogin", pathname)
