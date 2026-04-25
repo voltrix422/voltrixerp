@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
 
 interface Blog {
   id: string
@@ -17,6 +18,7 @@ interface Blog {
 }
 
 export default function BlogManager() {
+  const { user } = useAuth()
   const [blogs, setBlogs] = useState<Blog[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editingBlog, setEditingBlog] = useState<Blog | null>(null)
@@ -41,11 +43,10 @@ export default function BlogManager() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const user = JSON.parse(localStorage.getItem("user") || "{}")
     
     const payload = editingBlog
       ? { ...formData, id: editingBlog.id }
-      : { ...formData, createdBy: user.id }
+      : { ...formData, createdBy: user?.id }
 
     const res = await fetch("/api/db/blogs", {
       method: "POST",
@@ -58,6 +59,9 @@ export default function BlogManager() {
       setEditingBlog(null)
       setFormData({ title: "", slug: "", excerpt: "", content: "", coverImage: "", published: false })
       fetchBlogs()
+    } else {
+      const error = await res.json()
+      alert(error.error || "Failed to save blog")
     }
   }
 
@@ -98,64 +102,64 @@ export default function BlogManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Blog Management</h2>
-        <Button onClick={() => setShowForm(true)} className="bg-[#1a9f9a] hover:bg-[#158a85]">
-          <Plus className="h-4 w-4 mr-2" /> New Blog
+        <h2 className="text-lg font-semibold">Blog Management</h2>
+        <Button onClick={() => setShowForm(true)} className="bg-[#1a9f9a] hover:bg-[#158a85] h-8 px-3 text-sm">
+          <Plus className="h-3.5 w-3.5 mr-1.5" /> New Blog
         </Button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-lg border p-6 space-y-4">
-          <h3 className="text-lg font-semibold">{editingBlog ? "Edit Blog" : "New Blog"}</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-white rounded-lg border p-4 space-y-3">
+          <h3 className="text-sm font-semibold">{editingBlog ? "Edit Blog" : "New Blog"}</h3>
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Title</label>
+              <label className="block text-xs font-medium mb-1">Title</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={e => {
                   setFormData({ ...formData, title: e.target.value, slug: generateSlug(e.target.value) })
                 }}
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full border rounded px-2 py-1.5 text-sm"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Slug</label>
+              <label className="block text-xs font-medium mb-1">Slug</label>
               <input
                 type="text"
                 value={formData.slug}
                 onChange={e => setFormData({ ...formData, slug: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full border rounded px-2 py-1.5 text-sm"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Excerpt</label>
+              <label className="block text-xs font-medium mb-1">Excerpt</label>
               <textarea
                 value={formData.excerpt}
                 onChange={e => setFormData({ ...formData, excerpt: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 h-20"
+                className="w-full border rounded px-2 py-1.5 text-sm h-16"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Content</label>
+              <label className="block text-xs font-medium mb-1">Content</label>
               <textarea
                 value={formData.content}
                 onChange={e => setFormData({ ...formData, content: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 h-40"
+                className="w-full border rounded px-2 py-1.5 text-sm h-32"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Cover Image URL</label>
+              <label className="block text-xs font-medium mb-1">Cover Image URL</label>
               <input
                 type="text"
                 value={formData.coverImage}
                 onChange={e => setFormData({ ...formData, coverImage: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full border rounded px-2 py-1.5 text-sm"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -166,15 +170,16 @@ export default function BlogManager() {
                 onChange={e => setFormData({ ...formData, published: e.target.checked })}
                 className="rounded"
               />
-              <label htmlFor="published" className="text-sm">Published</label>
+              <label htmlFor="published" className="text-xs">Published</label>
             </div>
             <div className="flex gap-2">
-              <Button type="submit" className="bg-[#1a9f9a] hover:bg-[#158a85]">
+              <Button type="submit" className="bg-[#1a9f9a] hover:bg-[#158a85] h-8 px-3 text-sm">
                 {editingBlog ? "Update" : "Create"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
+                className="h-8 px-3 text-sm"
                 onClick={() => {
                   setShowForm(false)
                   setEditingBlog(null)
@@ -192,37 +197,33 @@ export default function BlogManager() {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-4 py-3 text-sm font-medium">Title</th>
-              <th className="text-left px-4 py-3 text-sm font-medium">Status</th>
-              <th className="text-left px-4 py-3 text-sm font-medium">Date</th>
-              <th className="text-right px-4 py-3 text-sm font-medium">Actions</th>
+              <th className="text-left px-3 py-2 text-xs font-medium">Title</th>
+              <th className="text-left px-3 py-2 text-xs font-medium">Status</th>
+              <th className="text-left px-3 py-2 text-xs font-medium">Date</th>
+              <th className="text-right px-3 py-2 text-xs font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
             {blogs.map(blog => (
-              <tr key={blog.id} className="border-t">
-                <td className="px-4 py-3">{blog.title}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+              <tr key={blog.id} className="border-t hover:bg-gray-50 cursor-pointer" onClick={() => handleEdit(blog)}>
+                <td className="px-3 py-2 text-sm">{blog.title}</td>
+                <td className="px-3 py-2">
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
                     blog.published ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
                   }`}>
-                    {blog.published ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                     {blog.published ? "Published" : "Draft"}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500">
+                <td className="px-3 py-2 text-xs text-gray-500">
                   {new Date(blog.createdAt).toLocaleDateString()}
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => handleEdit(blog)}>
-                      <Edit className="h-4 w-4" />
+                <td className="px-3 py-2 text-right">
+                  <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => togglePublish(blog)}>
+                      {blog.published ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => togglePublish(blog)}>
-                      {blog.published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(blog.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => handleDelete(blog.id)}>
+                      <Trash2 className="h-3 w-3 text-red-500" />
                     </Button>
                   </div>
                 </td>
