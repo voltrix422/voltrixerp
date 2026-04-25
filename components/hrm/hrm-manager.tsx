@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download } from "lucide-react"
 
 const STORAGE_KEY = "erp_hrm_staff"
@@ -342,33 +343,31 @@ export function HrmManager() {
   const activeCount = staff.filter(s => s.status === "active").length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-lg font-semibold text-neutral-900">Human Resources</p>
-          <p className="text-sm text-neutral-500">Manage staff profiles and information</p>
-        </div>
-        <Button size="sm" className="h-9 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4" /> Add Staff
+      <div className="flex items-center justify-end">
+        <Button size="sm" className="h-8 text-sm gap-2 bg-black hover:bg-neutral-800 text-white cursor-pointer" onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4" /> New Staff
         </Button>
       </div>
 
       {/* Stats */}
       {staff.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-xl border border-neutral-200 bg-white p-5">
-            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Total Staff</p>
-            <p className="text-2xl font-bold text-neutral-900 mt-1">{staff.length}</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-5">
-            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Active</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{activeCount}</p>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-5">
-            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Inactive</p>
-            <p className="text-2xl font-bold text-red-500 mt-1">{staff.length - activeCount}</p>
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
+          <div className="grid grid-cols-3 divide-x divide-[hsl(var(--border))]">
+            <div className="p-3 text-center">
+              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Total</p>
+              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{staff.length}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Active</p>
+              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{activeCount}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Inactive</p>
+              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{staff.length - activeCount}</p>
+            </div>
           </div>
         </div>
       )}
@@ -377,7 +376,7 @@ export function HrmManager() {
       {staff.length > 0 && (
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors"
+          className="flex items-center gap-2 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
         >
           <svg className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -388,178 +387,203 @@ export function HrmManager() {
 
       {/* Filters */}
       {staff.length > 0 && showFilters && (
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 flex flex-wrap gap-3 items-center animate-in slide-in-from-top-2">
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 flex flex-wrap gap-2 items-center animate-in slide-in-from-top-2">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search by name, role, email..."
-              className="w-full h-10 rounded-lg border border-neutral-300 bg-white pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+              className="w-full h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent" />
           </div>
           <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
-            className="h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Departments</option>
             {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
           {(search || filterDept !== "All" || filterStatus !== "All") && (
             <button onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All") }}
-              className="h-10 px-4 text-sm text-neutral-500 hover:text-neutral-900 border border-neutral-300 rounded-lg hover:bg-neutral-50">Clear</button>
+              className="h-8 px-2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded hover:bg-[hsl(var(--muted))]/10">Clear</button>
           )}
-          <span className="text-sm text-neutral-400 ml-auto">{filtered.length} of {staff.length}</span>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {staff.length}</span>
         </div>
       )}
 
       {/* Staff list */}
       {loading ? (
-        <div className="text-center py-16 text-sm text-neutral-400">Loading...</div>
+        <div className="text-center py-12 text-sm text-[hsl(var(--muted-foreground))]">Loading...</div>
       ) : staff.length === 0 ? (
-        <div className="text-center py-20 border-2 border-dashed border-neutral-300 rounded-2xl bg-white">
-          <div className="h-16 w-16 rounded-full bg-neutral-100 flex items-center justify-center mx-auto mb-4">
-            <UserCog className="h-8 w-8 text-neutral-400" />
+        <div className="text-center py-16 border-2 border-dashed border-[hsl(var(--border))]/30 rounded-xl bg-[hsl(var(--card))]">
+          <div className="h-12 w-12 rounded-full bg-[hsl(var(--muted))]/30 flex items-center justify-center mx-auto mb-3">
+            <UserCog className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />
           </div>
-          <p className="text-base font-semibold text-neutral-900">No staff yet</p>
-          <p className="text-sm text-neutral-500 mt-2">Add your first staff member to get started</p>
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">No staff yet</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add your first staff member to get started</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-sm text-neutral-400 border border-dashed border-neutral-300 rounded-xl bg-white">No staff match your filters.</div>
+        <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]/30 rounded-lg bg-[hsl(var(--card))]">No staff match your filters.</div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(s => (
-            <div key={s.id} onClick={() => setViewMember(s)}
-              className="group flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-5 py-4 hover:border-[#1a9f9a] hover:bg-neutral-50 cursor-pointer transition-all">
-              {/* Avatar */}
-              <div className="h-12 w-12 rounded-full shrink-0 overflow-hidden bg-neutral-100 flex items-center justify-center">
-                {s.photo_url
-                  ? <img src={s.photo_url} alt={s.name} className="h-full w-full object-cover" />
-                  : <span className="text-sm font-semibold text-neutral-500">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
-                }
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm font-semibold text-neutral-900 truncate">{s.name}</p>
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600 font-medium shrink-0">{s.department}</span>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${s.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                    {s.status}
-                  </span>
-                </div>
-                <p className="text-sm text-neutral-500 truncate">{s.role}{s.email ? ` · ${s.email}` : ""}</p>
-              </div>
-
-              <div className="text-right shrink-0">
-                {s.salary > 0 && <p className="text-sm font-semibold tabular-nums text-neutral-900">{s.currency} {s.salary.toLocaleString()}</p>}
-                <p className="text-xs text-neutral-400">{s.join_date || "—"}</p>
-              </div>
-
-              <Button size="icon" variant="ghost"
-                className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                onClick={e => { e.stopPropagation(); handleDelete(s.id) }}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+        <div className="border border-[hsl(var(--border))] overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20">
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Staff</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Contact</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Salary</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(s => (
+                <tr key={s.id} onClick={() => setViewMember(s)}
+                  className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/5 cursor-pointer transition-colors">
+                  <td className="px-2 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
+                        {s.photo_url
+                          ? <img src={s.photo_url} alt={s.name} className="h-full w-full object-cover" />
+                          : <span className="text-[8px] font-semibold text-[hsl(var(--muted-foreground))]">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
+                        }
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{s.name}</p>
+                        <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{s.role}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <p className="text-[10px] text-[hsl(var(--foreground))]">{s.department}</p>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <Badge variant={s.status === "active" ? "success" : "destructive"} className="text-[8px] px-1 py-0">{s.status}</Badge>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <p className="text-[10px] text-[hsl(var(--foreground))]">{s.email || "—"}</p>
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{s.phone || "—"}</p>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    {s.salary > 0 ? (
+                      <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{s.currency} {s.salary.toLocaleString()}</p>
+                    ) : (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">—</p>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="icon" variant="ghost"
+                        className="h-5 w-5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        onClick={e => { e.stopPropagation(); handleDelete(s.id) }}>
+                        <Trash2 className="h-2.5 w-2.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Add Staff Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={resetForm}>
-          <div className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 shrink-0">
-              <p className="text-base font-semibold text-neutral-900">{editingMember ? "Edit Staff Member" : "Add Staff Member"}</p>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-neutral-900" onClick={resetForm}><X className="h-5 w-5" /></Button>
+          <div className="w-full max-w-lg rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
+              <p className="text-base font-semibold text-[hsl(var(--foreground))]">{editingMember ? "Edit Staff Member" : "New Staff Member"}</p>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={resetForm}><X className="h-5 w-5" /></Button>
             </div>
             <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-5">
 
               {/* Photo */}
               <div className="flex items-center gap-4">
                 <div onClick={() => fileRef.current?.click()}
-                  className="h-20 w-20 rounded-full border-2 border-dashed border-neutral-300 flex items-center justify-center cursor-pointer hover:border-[#1a9f9a] overflow-hidden shrink-0 transition-colors bg-neutral-50">
+                  className="h-20 w-20 rounded-full border-2 border-dashed border-[hsl(var(--border))] flex items-center justify-center cursor-pointer hover:border-[#1a9f9a] overflow-hidden shrink-0 transition-colors bg-[hsl(var(--muted))]/10">
                   {photoPreview
                     ? <img src={photoPreview} alt="photo" className="h-full w-full object-cover" />
-                    : <Upload className="h-6 w-6 text-neutral-400" />}
+                    : <Upload className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-neutral-900">Photo</p>
-                  <p className="text-sm text-neutral-500">Click circle to upload</p>
+                  <p className="text-sm font-medium text-[hsl(var(--foreground))]">Photo</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">Click circle to upload</p>
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2 col-span-2">
-                  <label className="text-sm font-medium text-neutral-700">Full Name *</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Full Name *</label>
                   <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Ahmed Khan"
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Job Title *</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Job Title *</label>
                   <input value={role} onChange={e => setRole(e.target.value)} required placeholder="e.g. Engineer"
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Department</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Department</label>
                   <select value={department} onChange={e => setDepartment(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
                     {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Email</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Email</label>
                   <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="email@company.com"
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Phone</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Phone</label>
                   <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+92 300 0000000"
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Salary</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Salary</label>
                   <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0"
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Currency</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Currency</label>
                   <select value={currency} onChange={e => setCurrency(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
                     {CURRENCIES.map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Join Date</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Join Date</label>
                   <input value={joinDate} onChange={e => setJoinDate(e.target.value)} type="date"
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Status</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Status</label>
                   <select value={status} onChange={e => setStatus(e.target.value as "active" | "inactive")}
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <label className="text-sm font-medium text-neutral-700">Address</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Address</label>
                   <input value={address} onChange={e => setAddress(e.target.value)} placeholder="City, Country"
-                    className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <label className="text-sm font-medium text-neutral-700">Notes</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Notes</label>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional info..."
-                    className="w-full rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent resize-none" />
+                    className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent resize-none" />
                 </div>
               </div>
 
               {/* Documents */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-neutral-700">Documents</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Documents</label>
                   <button type="button" onClick={() => docFileRef.current?.click()}
                     className="flex items-center gap-1.5 text-sm text-[#1a9f9a] hover:underline font-medium">
                     <Plus className="h-4 w-4" /> Add Document
@@ -570,12 +594,12 @@ export function HrmManager() {
                 {/* Existing documents (in edit mode) */}
                 {editingMember && editingMember.documents.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">Existing Documents</p>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">Existing Documents</p>
                     {editingMember.documents.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                      <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3">
                         <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
                         <span className="flex-1 min-w-0 text-sm truncate">{doc.name}</span>
-                        <span className="text-xs text-neutral-400 shrink-0">
+                        <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">
                           {(doc.size / 1024).toFixed(0)}KB
                         </span>
                         <button type="button" onClick={() => {
@@ -593,23 +617,23 @@ export function HrmManager() {
                 {/* New documents to upload */}
                 {documents.length === 0 && (!editingMember || editingMember.documents.length === 0) ? (
                   <div onClick={() => docFileRef.current?.click()}
-                    className="flex items-center gap-3 rounded-lg border-2 border-dashed border-neutral-300 px-4 py-4 cursor-pointer hover:border-[#1a9f9a] transition-colors bg-neutral-50">
-                    <FileText className="h-5 w-5 text-neutral-400" />
-                    <p className="text-sm text-neutral-500">Click to upload documents (PDF, DOCX, images…)</p>
+                    className="flex items-center gap-3 rounded-lg border-2 border-dashed border-[hsl(var(--border))] px-4 py-4 cursor-pointer hover:border-[#1a9f9a] transition-colors bg-[hsl(var(--muted))]/10">
+                    <FileText className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">Click to upload documents (PDF, DOCX, images…)</p>
                   </div>
                 ) : documents.length > 0 ? (
                   <div className="space-y-2">
-                    {editingMember && <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">New Documents</p>}
+                    {editingMember && <p className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">New Documents</p>}
                     {documents.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+                      <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3">
                         <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
                         <input
                           value={doc.name}
                           onChange={e => updateDocName(i, e.target.value)}
                           placeholder="Document name"
-                          className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
+                          className="flex-1 min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] focus:outline-none"
                         />
-                        <span className="text-xs text-neutral-400 shrink-0">
+                        <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">
                           {(doc.file.size / 1024).toFixed(0)}KB
                         </span>
                         <button type="button" onClick={() => removeDoc(i)}
@@ -619,7 +643,7 @@ export function HrmManager() {
                       </div>
                     ))}
                     <button type="button" onClick={() => docFileRef.current?.click()}
-                      className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-[#1a9f9a] transition-colors">
+                      className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] hover:text-[#1a9f9a] transition-colors">
                       <Plus className="h-4 w-4" /> Add more
                     </button>
                   </div>
@@ -640,98 +664,103 @@ export function HrmManager() {
       {/* View Staff Modal */}
       {viewMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setViewMember(null)}>
-          <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white overflow-hidden" onClick={e => e.stopPropagation()}>
-
-            {/* Profile header */}
-            <div className="flex items-center gap-4 px-6 pt-6 pb-5">
-              <div className="h-16 w-16 rounded-full shrink-0 overflow-hidden bg-neutral-100 flex items-center justify-center border-2 border-neutral-200">
-                {viewMember.photo_url
-                  ? <img src={viewMember.photo_url} alt={viewMember.name} className="h-full w-full object-cover" />
-                  : <span className="text-lg font-semibold text-neutral-500">{viewMember.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
-                }
+          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
+              <div className="flex items-center gap-3">
+                <UserCog className="h-5 w-5 text-[#1a9f9a]" />
+                <p className="text-base font-semibold text-[hsl(var(--foreground))]">{viewMember.name}</p>
+                <Badge variant={viewMember.status === "active" ? "success" : "destructive"} className="text-[10px] px-1.5 py-0">{viewMember.status}</Badge>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-lg font-semibold text-neutral-900 truncate">{viewMember.name}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600 font-medium">{viewMember.department}</span>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${viewMember.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                    {viewMember.status}
-                  </span>
-                </div>
-                <p className="text-sm text-neutral-500 mt-1">{viewMember.role}</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-8" onClick={() => openEditForm(viewMember)}>Edit</Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setViewMember(null)}><X className="h-5 w-5" /></Button>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-neutral-900 shrink-0" onClick={() => setViewMember(null)}><X className="h-5 w-5" /></Button>
             </div>
+            <div className="overflow-y-auto p-6 space-y-6">
+              {/* Role & Department */}
+              <div>
+                <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Role & Department</p>
+                <p className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.role}</p>
+                <p className="text-sm text-[hsl(var(--foreground))]">{viewMember.department}</p>
+              </div>
 
-            {/* Salary block */}
-            {viewMember.salary > 0 && (
-              <div className="mx-6 mb-5 rounded-xl bg-neutral-50 border border-neutral-200 px-5 py-4 flex items-center justify-between">
+              {/* Contact Info */}
+              <div className="grid grid-cols-2 gap-4">
+                {viewMember.email && (
+                  <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-4 py-3">
+                    <Mail className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                    <div>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Email</p>
+                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewMember.email}</p>
+                    </div>
+                  </div>
+                )}
+                {viewMember.phone && (
+                  <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-4 py-3">
+                    <Phone className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                    <div>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Phone</p>
+                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewMember.phone}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Salary */}
+              {viewMember.salary > 0 && (
                 <div>
-                  <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">Monthly Salary</p>
-                  <p className="text-2xl font-bold tabular-nums text-neutral-900">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Salary</p>
+                  <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
                 </div>
-                <Briefcase className="h-6 w-6 text-[#1a9f9a]" />
-              </div>
-            )}
+              )}
 
-            {/* Info grid */}
-            <div className="px-6 pb-5 grid grid-cols-2 gap-3">
-              {viewMember.email && (
-                <div className="col-span-2 flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
-                  <Mail className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                  <p className="text-sm truncate">{viewMember.email}</p>
-                </div>
-              )}
-              {viewMember.phone && (
-                <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
-                  <Phone className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                  <p className="text-sm truncate">{viewMember.phone}</p>
-                </div>
-              )}
+              {/* Join Date */}
               {viewMember.join_date && (
-                <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
-                  <Briefcase className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                  <p className="text-sm">Joined {viewMember.join_date}</p>
+                <div>
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Join Date</p>
+                  <p className="text-sm text-[hsl(var(--foreground))]">{viewMember.join_date}</p>
                 </div>
               )}
-              {viewMember.address && (
-                <div className="col-span-2 flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
-                  <MapPin className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                  <p className="text-sm truncate">{viewMember.address}</p>
-                </div>
-              )}
-              {viewMember.notes && (
-                <div className="col-span-2 rounded-lg border border-neutral-200 bg-white px-4 py-3">
-                  <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium mb-1">Notes</p>
-                  <p className="text-sm">{viewMember.notes}</p>
-                </div>
-              )}
-              {viewMember.documents?.length > 0 && (
-                <div className="col-span-2 rounded-lg border border-neutral-200 bg-white px-4 py-3 space-y-2">
-                  <p className="text-xs text-neutral-500 uppercase tracking-wide font-medium">Documents ({viewMember.documents.length})</p>
-                  {viewMember.documents.map((doc, i) => (
-                    <a key={i} href={doc.data} download={doc.name}
-                      className="flex items-center gap-3 rounded-lg hover:bg-neutral-50 px-3 py-2 transition-colors group">
-                      <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                      <span className="text-sm flex-1 truncate">{doc.name}</span>
-                      <Download className="h-4 w-4 text-neutral-400 group-hover:text-[#1a9f9a] shrink-0" />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
 
-            {/* Footer */}
-            <div className="px-6 pb-6 flex gap-3">
-              <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => setViewMember(null)}>Close</Button>
-              <Button size="sm" className="flex-1 h-10 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
-                onClick={() => openEditForm(viewMember)}>
-                Edit
-              </Button>
-              <Button size="sm" className="h-10 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
-                onClick={() => handleDelete(viewMember.id)}>
-                <Trash2 className="h-4 w-4 mr-1.5" /> Delete
-              </Button>
+              {/* Address */}
+              {viewMember.address && (
+                <div>
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Address</p>
+                  <p className="text-sm text-[hsl(var(--foreground))]">{viewMember.address}</p>
+                </div>
+              )}
+
+              {/* Notes */}
+              {viewMember.notes && (
+                <div>
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Notes</p>
+                  <p className="text-sm text-[hsl(var(--foreground))] whitespace-pre-wrap bg-[hsl(var(--muted))]/10 rounded-lg border border-[hsl(var(--border))] p-4">{viewMember.notes}</p>
+                </div>
+              )}
+
+              {/* Documents */}
+              {viewMember.documents?.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Documents ({viewMember.documents.length})</p>
+                  <div className="space-y-2">
+                    {viewMember.documents.map((doc, i) => (
+                      <a key={i} href={doc.data} download={doc.name}
+                        className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 px-4 py-3 transition-colors group">
+                        <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                        <span className="text-sm flex-1 truncate">{doc.name}</span>
+                        <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">{(doc.size / 1024).toFixed(0)}KB</span>
+                        <Download className="h-4 w-4 text-[hsl(var(--muted-foreground))] group-hover:text-[#1a9f9a] shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Metadata */}
+              <div className="text-xs text-[hsl(var(--muted-foreground))] space-y-1 pt-4 border-t border-[hsl(var(--border))]">
+                <p>Created: {new Date(viewMember.created_at).toLocaleString()}</p>
+                <p>Created by: {viewMember.created_by}</p>
+              </div>
             </div>
           </div>
         </div>
