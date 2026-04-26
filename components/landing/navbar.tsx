@@ -13,6 +13,7 @@ const links = [
   { label: "R&D & Manufacturing",hash: "rd"        },
   { label: "About Us",           hash: "about"     },
   { label: "Contact",            hash: "contact"   },
+  { label: "Warranty",           href: "/warranty" },
 ]
 
 export default function Navbar() {
@@ -22,7 +23,7 @@ export default function Navbar() {
   const pathname = usePathname()
   const isHome = pathname === "/"
 
-  const getHref = (hash: string) => isHome ? `#${hash}` : `/#${hash}`
+  const getHref = (hash?: string) => hash ? (isHome ? `#${hash}` : `/#${hash}`) : ""
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20)
@@ -69,7 +70,7 @@ export default function Navbar() {
           {links.map((l) => (
             <a
               key={l.label}
-              href={getHref(l.hash)}
+              href={l.href || getHref(l.hash)}
               className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer"
             >
               {l.label}
@@ -79,12 +80,6 @@ export default function Navbar() {
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <a
-            href="/warranty"
-            className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer"
-          >
-            Warranty
-          </a>
           <a
             href="/quote"
             className="group relative flex items-center gap-2 pl-4 pr-1.5 h-9 rounded-full text-[13px] font-medium text-white transition-all duration-300 hover:opacity-90 cursor-pointer"
@@ -108,7 +103,7 @@ export default function Navbar() {
       {open && (
         <div className="absolute top-14 left-4 right-4 bg-white border border-neutral-200 rounded-2xl shadow-xl p-5 flex flex-col gap-4 md:hidden">
           {links.map((l) => (
-            <a key={l.label} href={getHref(l.hash)} className="text-sm text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer">
+            <a key={l.label} href={l.href || getHref(l.hash)} className="text-sm text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer">
               {l.label}
             </a>
           ))}
