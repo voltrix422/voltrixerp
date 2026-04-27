@@ -58,13 +58,10 @@ export default function FinancePage() {
             </div>
             <Button
               size="sm" variant="outline"
-              className="h-8 text-xs gap-1.5 cursor-pointer"
+              className="h-8 w-8 p-0 cursor-pointer"
               onClick={() => setShowFilters(v => !v)}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filters
-              {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#1faca6]" />}
-              {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </Button>
           </div>
 
