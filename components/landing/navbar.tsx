@@ -66,13 +66,13 @@ export default function Navbar() {
         </a>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center">
+        <div className="hidden md:inline-flex items-center">
           {links.map((l, i) => (
             <a
               key={l.label}
               href={l.href || getHref(l.hash)}
               className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer px-0 m-0"
-              style={{ marginLeft: i > 0 ? '-0.1rem' : '0' }}
+              style={{ marginLeft: i > 0 ? '-0.3rem' : '0' }}
             >
               {l.label}
             </a>
