@@ -5,7 +5,7 @@ import { getSuppliers } from "@/lib/purchase"
 import { uploadFile } from "@/lib/upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, X } from "lucide-react"
+import { Loader2, X, Search, Calendar, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react"
 import { ImportedPODetail } from "@/components/purchase/imported-po-detail"
 
 export function FinalizedOrdersTab() {
@@ -14,6 +14,10 @@ export function FinalizedOrdersTab() {
   const [loading, setLoading] = useState(true)
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null)
   const [tab, setTab] = useState<"finalized" | "direct" | "imported">("finalized")
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     Promise.all([getPOs(), getSuppliers()]).then(([p, s]) => {
@@ -41,15 +45,37 @@ export function FinalizedOrdersTab() {
   }
 
   const filtered = pos.filter(po => {
+    const q = search.toLowerCase()
+    const supplier = suppliers.find(s => s.id === po.finalizedSupplierId)
+    const quote = po.quotes.find(q => q.supplierId === po.finalizedSupplierId) || po.quotes[0]
+    const supplierName = supplier?.name || quote?.supplierName || po.supplierNames?.[0] || ""
+    const poNumberDisplay = po.poNumber || `PO-${po.id.slice(0, 8)}`
+
+    const matchSearch = !search ||
+      poNumberDisplay.toLowerCase().includes(q) ||
+      supplierName.toLowerCase().includes(q)
+
+    const poDate = new Date(po.createdAt)
+    const matchFrom = !dateFrom || poDate >= new Date(dateFrom)
+    const matchTo = !dateTo || poDate <= new Date(dateTo + "T23:59:59")
+
     if (tab === "imported") {
-      return po.type === "imported"
+      return po.type === "imported" && matchSearch && matchFrom && matchTo
     } else if (tab === "direct") {
-      return po.status === "direct" && po.type === "local"
+      return po.status === "direct" && po.type === "local" && matchSearch && matchFrom && matchTo
     } else if (tab === "finalized") {
-      return po.type === "local" && (po.status === "finalized" || po.status === "in_inventory")
+      return po.type === "local" && (po.status === "finalized" || po.status === "in_inventory") && matchSearch && matchFrom && matchTo
     }
     return false
   })
+
+  const hasFilters = search || dateFrom || dateTo
+
+  function clearFilters() {
+    setSearch("")
+    setDateFrom("")
+    setDateTo("")
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -74,7 +100,62 @@ export function FinalizedOrdersTab() {
         ))}
       </div>
 
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">{filtered.length} order{filtered.length !== 1 ? "s" : ""}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">{filtered.length} order{filtered.length !== 1 ? "s" : ""}</p>
+        <Button
+          size="sm" variant="outline"
+          className="h-8 text-xs gap-1.5 cursor-pointer"
+          onClick={() => setShowFilters(v => !v)}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filters
+          {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#1faca6]" />}
+          {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </Button>
+      </div>
+
+      {/* Filters - Collapsible */}
+      {showFilters && (
+        <div className="rounded-lg border bg-[hsl(var(--card))] p-4 flex flex-wrap gap-3 items-center">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by PO # or supplier..."
+              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]"
+            />
+          </div>
+
+          {/* Date Range */}
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="h-9 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32"
+            />
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">—</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="h-9 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32"
+            />
+          </div>
+
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="h-9 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border rounded-md transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {loading && (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -85,9 +166,19 @@ export function FinalizedOrdersTab() {
 
       {!loading && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-sm font-medium">No {tab === "direct" ? "direct" : "finalized"} orders</p>
+          <p className="text-sm font-medium">
+            {hasFilters 
+              ? `No ${tab === "direct" ? "direct" : tab === "imported" ? "imported" : "finalized"} orders match your filters`
+              : `No ${tab === "direct" ? "direct" : tab === "imported" ? "imported" : "finalized"} orders`
+            }
+          </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-            {tab === "direct" ? "Direct POs from purchase will appear here." : "Finalized POs from purchase will appear here."}
+            {hasFilters 
+              ? "Try adjusting your search or date range"
+              : (tab === "direct" ? "Direct POs from purchase will appear here." : 
+                 tab === "imported" ? "Imported POs will appear here." :
+                 "Finalized POs from purchase will appear here.")
+            }
           </p>
         </div>
       )}
