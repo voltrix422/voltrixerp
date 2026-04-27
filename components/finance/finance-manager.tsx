@@ -196,18 +196,16 @@ export function FinanceManager() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          {records.length > 0 && (
-            <Button
-              size="sm" variant="outline"
-              className="h-8 text-xs gap-1.5 cursor-pointer"
-              onClick={() => setShowFilters(v => !v)}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filters
-              {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#1faca6]" />}
-              {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </Button>
-          )}
+          <Button
+            size="sm" variant="outline"
+            className="h-8 text-xs gap-1.5 cursor-pointer"
+            onClick={() => setShowFilters(v => !v)}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filters
+            {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#1faca6]" />}
+            {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5" /> Add Record
           </Button>
@@ -215,7 +213,7 @@ export function FinanceManager() {
       </div>
 
       {/* Filters — collapsible, no shadow */}
-      {showFilters && records.length > 0 && (
+      {showFilters && (
         <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-wrap gap-2 items-center">
           {/* Search */}
           <div className="relative flex-1 min-w-[160px]">
