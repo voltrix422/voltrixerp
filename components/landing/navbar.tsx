@@ -66,12 +66,13 @@ export default function Navbar() {
         </a>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-x-1 gap-y-0">
-          {links.map((l) => (
+        <div className="hidden md:flex items-center">
+          {links.map((l, i) => (
             <a
               key={l.label}
               href={l.href || getHref(l.hash)}
               className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer"
+              style={{ marginRight: i < links.length - 1 ? '0.5rem' : '0' }}
             >
               {l.label}
             </a>
