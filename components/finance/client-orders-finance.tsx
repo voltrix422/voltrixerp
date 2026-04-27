@@ -4,17 +4,19 @@ import { getOrders, type Order } from "@/lib/orders"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, X, Search, Calendar, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 
-export function ClientOrdersFinance() {
+interface ClientOrdersFinanceProps {
+  search: string
+  dateFrom: string
+  dateTo: string
+}
+
+export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFinanceProps) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [tab, setTab] = useState<"pending" | "paid">("pending")
-  const [search, setSearch] = useState("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
-  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     getOrders().then(o => {
@@ -72,12 +74,6 @@ export function ClientOrdersFinance() {
   const totalOrdersValue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
   const hasFilters = search || dateFrom || dateTo
 
-  function clearFilters() {
-    setSearch("")
-    setDateFrom("")
-    setDateTo("")
-  }
-
   return (
     <div className="space-y-3">
       {/* Sub Tabs */}
@@ -110,82 +106,27 @@ export function ClientOrdersFinance() {
         </button>
       </div>
 
-      {/* Summary Section */}
-      {!loading && filteredOrders.length > 0 && (
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                  Orders
-                </p>
-                <p className="text-xl font-bold tabular-nums leading-tight text-[hsl(var(--foreground))]">
-                  {filteredOrders.length}
-                </p>
-              </div>
-              <div className="border-l pl-6">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                  {hasFilters ? "Filtered" : "Total"} Payments
-                </p>
-                <p className="text-xl font-bold tabular-nums leading-tight text-[hsl(var(--foreground))]">
-                  PKR {totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
+      {/* Stats */}
+      {filteredOrders.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                {tab === "pending" ? "Pending" : "Paid"} Orders
+              </p>
+              <p className="text-xl font-bold tabular-nums leading-tight text-[hsl(var(--foreground))]">
+                {filteredOrders.length}
+              </p>
             </div>
-            <Button
-              size="sm" variant="outline"
-              className="h-8 text-xs gap-1.5 cursor-pointer"
-              onClick={() => setShowFilters(v => !v)}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filters
-              {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#1faca6]" />}
-              {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </Button>
+            <div className="border-l pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                {hasFilters ? "Filtered" : "Total"} Payments
+              </p>
+              <p className="text-xl font-bold tabular-nums leading-tight text-[hsl(var(--foreground))]">
+                PKR {totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </p>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Filters - Collapsible */}
-      {showFilters && (
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-4 flex flex-wrap gap-3 items-center">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by order # or client name..."
-              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]"
-            />
-          </div>
-
-          {/* Date Range */}
-          <div className="flex items-center gap-2">
-            <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-              className="h-9 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32"
-            />
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">—</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-              className="h-9 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32"
-            />
-          </div>
-
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="h-9 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border rounded-md transition-colors cursor-pointer"
-            >
-              Clear
-            </button>
-          )}
         </div>
       )}
 

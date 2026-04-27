@@ -41,7 +41,13 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 
 const inputCls = "w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6] transition-colors"
 
-export function FinanceManager() {
+interface FinanceManagerProps {
+  search: string
+  dateFrom: string
+  dateTo: string
+}
+
+export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps) {
   const { user } = useAuth()
   const [records, setRecords] = useState<FinanceRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,11 +57,8 @@ export function FinanceManager() {
   const [viewRecord, setViewRecord] = useState<FinanceRecord | null>(null)
 
   // filters
-  const [search, setSearch] = useState("")
   const [filterCategory, setFilterCategory] = useState("All")
   const [filterTag, setFilterTag] = useState("All")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
 
   // form
   const [title, setTitle] = useState("")
@@ -68,8 +71,6 @@ export function FinanceManager() {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
-
-  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     async function fetchRecords() {
@@ -105,7 +106,7 @@ export function FinanceManager() {
 
   const totalAll = records.reduce((s, r) => s + r.amount, 0)
   const filteredTotal = filtered.reduce((s, r) => s + r.amount, 0)
-  const hasFilters = search || filterCategory !== "All" || filterTag !== "All" || dateFrom || dateTo
+  const hasFilters = filterCategory !== "All" || filterTag !== "All"
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -164,7 +165,7 @@ export function FinanceManager() {
   }
 
   function clearFilters() {
-    setSearch(""); setFilterCategory("All"); setFilterTag("All"); setDateFrom(""); setDateTo("")
+    setFilterCategory("All"); setFilterTag("All")
   }
 
   return (
@@ -196,33 +197,21 @@ export function FinanceManager() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Button
-            size="sm" variant="outline"
-            className="h-8 text-xs gap-1.5 cursor-pointer"
-            onClick={() => setShowFilters(v => !v)}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#1faca6]" />}
-            {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </Button>
+          {hasFilters && (
+            <button onClick={clearFilters}
+              className="h-8 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border rounded-md transition-colors cursor-pointer">
+              Clear Filters
+            </button>
+          )}
           <Button size="sm" className="h-8 text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5" /> Add Record
           </Button>
         </div>
       </div>
 
-      {/* Filters — collapsible, no shadow */}
-      {showFilters && (
+      {/* Additional filters for Manage tab */}
+      {hasFilters && (
         <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-wrap gap-2 items-center">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search records..."
-              className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]" />
-          </div>
-
           {/* Category */}
           <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
             className="h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]">
@@ -237,23 +226,6 @@ export function FinanceManager() {
               <option value="All">All Tags</option>
               {allTags.map(t => <option key={t}>{t}</option>)}
             </select>
-          )}
-
-          {/* Date range */}
-          <div className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32" />
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">—</span>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6] w-32" />
-          </div>
-
-          {hasFilters && (
-            <button onClick={clearFilters}
-              className="h-8 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border rounded-md transition-colors cursor-pointer">
-              Clear
-            </button>
           )}
         </div>
       )}
