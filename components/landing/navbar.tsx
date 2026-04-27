@@ -66,17 +66,7 @@ export default function Navbar() {
         </a>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-1">
-          {links.map((l) => (
-            <a
-              key={l.label}
-              href={l.href || getHref(l.hash)}
-              className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer px-0 m-0"
-            >
-              {l.label}
-            </a>
-          ))}
-        </div>
+        <div className="hidden md:flex items-center gap-0">{links.map((l) => <a key={l.label} href={l.href || getHref(l.hash)} className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer px-0 m-0" style={{ letterSpacing: '-0.5px' }}>{l.label}</a>)}</div>
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">

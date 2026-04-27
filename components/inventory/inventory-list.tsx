@@ -267,6 +267,18 @@ export function InventoryList() {
   const [savingManualItem, setSavingManualItem] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editItemData, setEditItemData] = useState({
+    description: "",
+    qty: "",
+    unit: "pcs",
+    unitPrice: "",
+    supplierName: "",
+    gst: "",
+    otherExpense: ""
+  })
+  const [savingEditItem, setSavingEditItem] = useState(false)
 
   async function deleteInventoryItem(item: InventoryItem) {
     setItemToDelete(item)
@@ -294,6 +306,78 @@ export function InventoryList() {
     } catch (error) {
       console.error("Error deleting item:", error)
       alert("Failed to delete item. Please try again.")
+    }
+  }
+
+  function openEditModal(item: InventoryItem) {
+    setEditingItem(item)
+    setEditItemData({
+      description: item.description,
+      qty: item.qty.toString(),
+      unit: item.unit,
+      unitPrice: item.unitPrice.toString(),
+      supplierName: item.supplier || "",
+      gst: (item.gst || 0).toString(),
+      otherExpense: (item.otherExpense || 0).toString()
+    })
+    setShowEditModal(true)
+  }
+
+  async function saveEditItem() {
+    if (!editingItem || !editItemData.description || !editItemData.qty || !editItemData.unitPrice) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    setSavingEditItem(true)
+
+    try {
+      const qty = parseFloat(editItemData.qty)
+      const gstTotal = parseFloat(editItemData.gst || "0")
+      const otherExpenseTotal = parseFloat(editItemData.otherExpense || "0")
+      const gstPerUnit = qty > 0 ? gstTotal / qty : 0
+      const otherExpensePerUnit = qty > 0 ? otherExpenseTotal / qty : 0
+      const landedCostPerUnit = parseFloat(editItemData.unitPrice) + gstPerUnit + otherExpensePerUnit
+
+      const updateData = {
+        description: editItemData.description,
+        unit: editItemData.unit,
+        receivedQty: qty,
+        availableQty: qty,
+        costPrice: landedCostPerUnit,
+        supplierName: editItemData.supplierName || "Manual",
+        gst: gstTotal,
+        otherExpense: otherExpenseTotal,
+      }
+
+      const res = await fetch("/api/db/inventory-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", id: editingItem.id, data: updateData }),
+      })
+
+      if (!res.ok) {
+        throw new Error("Failed to update item")
+      }
+
+      // Refresh inventory list
+      loadStockItems()
+      setShowEditModal(false)
+      setEditingItem(null)
+      setEditItemData({
+        description: "",
+        qty: "",
+        unit: "pcs",
+        unitPrice: "",
+        supplierName: "",
+        gst: "",
+        otherExpense: ""
+      })
+    } catch (error) {
+      console.error("Error updating item:", error)
+      alert("Failed to update item. Please try again.")
+    } finally {
+      setSavingEditItem(false)
     }
   }
 
@@ -865,17 +949,30 @@ export function InventoryList() {
                         <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{new Date(item.receivedAt).toLocaleDateString()}</td>
                         {inventorySubTab === "manual" && isManual && (
                           <td className="px-4 py-2.5 text-center">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                deleteInventoryItem(item)
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openEditModal(item)
+                                }}
+                              >
+                                <Calculator className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteInventoryItem(item)
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -1213,6 +1310,106 @@ export function InventoryList() {
               <div className="flex items-center gap-3 pt-2">
                 <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer flex-1" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
                 <Button size="sm" className="h-8 text-xs cursor-pointer flex-1 bg-red-600 hover:bg-red-700" onClick={confirmDelete}>Delete</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowEditModal(false)}>
+          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-[hsl(var(--muted))]/40 to-transparent shrink-0">
+              <div>
+                <p className="text-sm font-bold text-[hsl(var(--primary))]">Edit Manual Item</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Edit inventory item details</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={() => setShowEditModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Description *</label>
+                  <input
+                    type="text"
+                    value={editItemData.description}
+                    onChange={e => setEditItemData({ ...editItemData, description: e.target.value })}
+                    placeholder="Item description"
+                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Quantity *</label>
+                    <input
+                      type="number"
+                      value={editItemData.qty}
+                      onChange={e => setEditItemData({ ...editItemData, qty: e.target.value })}
+                      placeholder="0"
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Unit *</label>
+                    <input
+                      type="text"
+                      value={editItemData.unit}
+                      onChange={e => setEditItemData({ ...editItemData, unit: e.target.value })}
+                      placeholder="pcs"
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Unit Price (PKR) *</label>
+                  <input
+                    type="number"
+                    value={editItemData.unitPrice}
+                    onChange={e => setEditItemData({ ...editItemData, unitPrice: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Supplier Name</label>
+                  <input
+                    type="text"
+                    value={editItemData.supplierName}
+                    onChange={e => setEditItemData({ ...editItemData, supplierName: e.target.value })}
+                    placeholder="Optional supplier name"
+                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">GST (PKR)</label>
+                    <input
+                      type="number"
+                      value={editItemData.gst}
+                      onChange={e => setEditItemData({ ...editItemData, gst: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Other Expense (PKR)</label>
+                    <input
+                      type="number"
+                      value={editItemData.otherExpense}
+                      onChange={e => setEditItemData({ ...editItemData, otherExpense: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowEditModal(false)}>Cancel</Button>
+                <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={saveEditItem} disabled={savingEditItem}>
+                  {savingEditItem ? "Saving..." : "Update Item"}
+                </Button>
               </div>
             </div>
           </div>
