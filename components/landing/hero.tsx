@@ -1,10 +1,28 @@
 // @ts-nocheck
 "use client"
+import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
+import Image from "next/image"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
 
+const heroImages = [
+  "/craiyon_130718_image.png",
+  "/craiyon_130930_image.png",
+  "/craiyon_131152_image.png",
+  "/craiyon_132822_image.png"
+]
+
 export default function Hero() {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length)
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <section className="relative min-h-screen flex items-center bg-white overflow-hidden">
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48">
@@ -46,12 +64,30 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* Right - Rotated Rectangle */}
+        {/* Right - Rotated Rectangle with Images */}
         <div className="hidden lg:flex items-center justify-center flex-1">
           <div 
-            className="w-80 h-96 bg-[#1a9f9a] rounded-3xl shadow-2xl shadow-[#1a9f9a]/30"
-            style={{ transform: 'rotate(60deg)' }}
-          />
+            className="relative w-80 h-96 rounded-3xl shadow-2xl shadow-[#1a9f9a]/30 overflow-hidden"
+            style={{ transform: 'rotate(60deg)', backgroundColor: '#1a9f9a' }}
+          >
+            <div 
+              className="absolute inset-0"
+              style={{ transform: 'rotate(-60deg)' }}
+            >
+              {heroImages.map((img, index) => (
+                <Image
+                  key={img}
+                  src={img}
+                  alt="Voltrix product"
+                  fill
+                  className={`object-cover transition-opacity duration-1000 ${
+                    index === currentImageIndex ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  priority={index === 0}
+                />
+              ))}
+            </div>
+          </div>
         </div>
 
       </div>
