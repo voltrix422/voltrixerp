@@ -11,7 +11,7 @@ export default function Hero() {
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900 h-[clamp(4rem,8vw,6rem)]">
             Power your{" "}
             <span className="inline-flex items-center ml-2">
               <RotatingText
