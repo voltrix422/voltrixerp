@@ -10,7 +10,7 @@ export default function Hero() {
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48">
         
         {/* Left - Text Content */}
-        <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
+        <div className="flex flex-col gap-10 max-w-xl lg:max-w-2xl lg:mr-12">
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900 h-[clamp(4rem,8vw,6rem)] flex flex-col">
             <span>
               Power your{" "}
@@ -29,7 +29,7 @@ export default function Hero() {
                 />
               </span>
             </span>
-            <span className="teal-gradient-text mt-2">with Voltrix.</span>
+            <span className="teal-gradient-text mt-1">with Voltrix.</span>
           </h1>
           <p className="text-base text-neutral-500 leading-relaxed max-w-md">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
