@@ -70,14 +70,15 @@ export default function Hero() {
         {/* Right — rotating image */}
         <div className="flex-1 flex items-center justify-center relative h-[420px] lg:h-[520px] w-full">
           <div
-            className="relative w-full h-full"
+            className="relative w-full h-full flex items-center justify-center"
             style={{ opacity: fade ? 1 : 0, transition: "opacity 0.4s ease" }}
           >
             <Image
               src={images[current]}
               alt="Voltrix product"
-              fill
-              className="object-contain drop-shadow-2xl"
+              width={500}
+              height={500}
+              className="object-contain drop-shadow-2xl max-w-full max-h-full"
               priority
             />
           </div>

@@ -138,10 +138,10 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>((props, ref)
   }, [next, rotationInterval, auto])
 
   return (
-    <motion.span className={cn("inline-flex flex-wrap", mainClassName)} {...(rest as object)} layout transition={transition}>
+    <motion.span className={cn("inline-flex", mainClassName)} {...(rest as object)} layout transition={transition}>
       <span className="sr-only">{texts[currentTextIndex]}</span>
       <AnimatePresence mode={animatePresenceMode} initial={animatePresenceInitial}>
-        <motion.span key={currentTextIndex} className="inline-flex flex-wrap" layout aria-hidden="true">
+        <motion.span key={currentTextIndex} className="inline-flex" layout aria-hidden="true">
           {elements.map((wordObj, wordIndex, array) => {
             const previousCharsCount = array.slice(0, wordIndex).reduce((sum, w) => sum + w.characters.length, 0)
             const totalChars = array.reduce((sum, w) => sum + w.characters.length, 0)
