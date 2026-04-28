@@ -92,33 +92,33 @@ function ProductImages({ images, productName }: { images: string[], productName:
     <>
       <div className="space-y-4">
         <div 
-          className="relative w-full h-72 rounded-2xl overflow-hidden bg-neutral-50 border border-neutral-100 flex items-center justify-center cursor-pointer group"
+          className="relative w-full h-[500px] rounded-3xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 flex items-center justify-center cursor-pointer group shadow-lg"
           onClick={() => openLightbox(currentIndex)}
         >
           <Image 
             src={images[currentIndex]} 
             alt={productName} 
             fill 
-            className="object-contain p-6 group-hover:scale-105 transition-transform duration-300" 
+            className="object-contain p-8 group-hover:scale-125 group-hover:rotate-1 transition-all duration-500 ease-out" 
             priority 
           />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-3">
-              <svg className="w-6 h-6 text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
+            <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 bg-white/90 backdrop-blur-sm rounded-full p-4 shadow-xl">
+              <svg className="w-7 h-7 text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
               </svg>
             </div>
           </div>
           {images.length > 1 && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
               {images.map((_, i) => (
                 <button
                   key={i}
                   onClick={(e) => { e.stopPropagation(); setCurrentIndex(i) }}
-                  className={`h-1.5 rounded-full transition-all ${
+                  className={`h-2 rounded-full transition-all ${
                     i === currentIndex 
-                      ? 'w-6 bg-[#1a9f9a]' 
-                      : 'w-1.5 bg-neutral-300 hover:bg-neutral-400'
+                      ? 'w-8 bg-[#1a9f9a]' 
+                      : 'w-2 bg-neutral-300 hover:bg-neutral-400'
                   }`}
                 />
               ))}
@@ -127,18 +127,18 @@ function ProductImages({ images, productName }: { images: string[], productName:
         </div>
 
         {images.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-3 overflow-x-auto pb-2">
             {images.map((img: string, i: number) => (
               <button
                 key={i}
                 onClick={() => setCurrentIndex(i)}
-                className={`relative w-16 h-16 shrink-0 rounded-xl overflow-hidden border-2 bg-neutral-50 transition-all ${
+                className={`relative w-20 h-20 shrink-0 rounded-2xl overflow-hidden border-2 bg-white shadow-sm transition-all hover:shadow-md ${
                   i === currentIndex 
-                    ? 'border-[#1a9f9a] ring-2 ring-[#1a9f9a]/20' 
-                    : 'border-neutral-100 hover:border-neutral-300'
+                    ? 'border-[#1a9f9a] ring-2 ring-[#1a9f9a]/20 scale-105' 
+                    : 'border-neutral-200 hover:border-neutral-300'
                 }`}
               >
-                <Image src={img} alt="" fill className="object-contain p-1" />
+                <Image src={img} alt="" fill className="object-contain p-2" />
               </button>
             ))}
           </div>
@@ -229,11 +229,11 @@ export default function ProductDetailClient({
   const [activeTab, setActiveTab] = useState<TabType>('description')
 
   return (
-    <section className="pt-36 pb-24 px-4">
-      <div className="max-w-6xl mx-auto space-y-12">
+    <section className="pt-32 pb-24 px-4 bg-white min-h-screen">
+      <div className="max-w-7xl mx-auto space-y-12">
 
-        <Link href="/products" className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-700 transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5" /> All products
+        <Link href="/products" className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-[#1a9f9a] transition-colors">
+          <ArrowLeft className="w-4 h-4" /> All products
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
@@ -243,52 +243,52 @@ export default function ProductDetailClient({
           </div>
 
           {/* Right - Product Details */}
-          <div className="space-y-6">
+          <div className="space-y-8">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
+              <span className={`text-xs font-semibold px-4 py-2 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
               <StockBadge stock={product.stock} />
             </div>
             
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
 
             {product.description && (
-              <p className="text-neutral-600 text-base leading-relaxed">{product.description}</p>
+              <p className="text-neutral-600 text-lg leading-relaxed">{product.description}</p>
             )}
 
-            <div className="space-y-4 pt-2">
+            <div className="space-y-6 pt-4">
               {product.quoteMode ? (
-                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20 w-full" style={{ backgroundColor: "#1a9f9a" }}>
-                  Request a Quote <ArrowRight className="w-4 h-4" />
+                <Link href="/quote" className="inline-flex items-center justify-center gap-3 px-10 h-14 rounded-full text-base font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105 w-full">
+                  Request a Quote <ArrowRight className="w-5 h-5" />
                 </Link>
               ) : (
-                <div className="space-y-2">
-                  <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Price</p>
-                  <p className="text-3xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
+                <div className="space-y-3">
+                  <p className="text-xs text-neutral-400 uppercase tracking-wider font-semibold">Price</p>
+                  <p className="text-4xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
                 </div>
               )}
-              <div className="space-y-2">
-                <p className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Warranty</p>
-                <p className="text-lg font-semibold text-neutral-900">{product.warranty || "—"}</p>
+              <div className="space-y-3">
+                <p className="text-xs text-neutral-400 uppercase tracking-wider font-semibold">Warranty</p>
+                <p className="text-xl font-semibold text-neutral-900">{product.warranty || "—"}</p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
               {!product.quoteMode && (
-                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-lg shadow-[#1a9f9a]/20" style={{ backgroundColor: "#1a9f9a" }}>
-                  Request a quote <ArrowRight className="w-4 h-4" />
+                <Link href="/quote" className="inline-flex items-center justify-center gap-3 px-10 h-14 rounded-full text-base font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105">
+                  Request a quote <ArrowRight className="w-5 h-5" />
                 </Link>
               )}
-              <Link href="/#contact" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-medium text-neutral-600 border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
+              <Link href="/#contact" className="inline-flex items-center justify-center gap-3 px-10 h-14 rounded-full text-base font-medium text-neutral-600 border-2 border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] hover:bg-neutral-50 transition-all">
                 Contact us
               </Link>
             </div>
 
             {/* Tabs */}
-            <div className="pt-8 border-t border-neutral-200">
+            <div className="pt-10 border-t border-neutral-200">
               <div className="flex gap-1 border-b border-neutral-200">
                 <button
                   onClick={() => setActiveTab('description')}
-                  className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  className={`px-6 py-4 text-base font-semibold transition-colors border-b-2 -mb-px ${
                     activeTab === 'description'
                       ? 'border-[#1a9f9a] text-[#1a9f9a]'
                       : 'border-transparent text-neutral-500 hover:text-neutral-700'
@@ -299,7 +299,7 @@ export default function ProductDetailClient({
                 {product.specs?.length > 0 && (
                   <button
                     onClick={() => setActiveTab('specifications')}
-                    className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    className={`px-6 py-4 text-base font-semibold transition-colors border-b-2 -mb-px ${
                       activeTab === 'specifications'
                         ? 'border-[#1a9f9a] text-[#1a9f9a]'
                         : 'border-transparent text-neutral-500 hover:text-neutral-700'
@@ -310,20 +310,20 @@ export default function ProductDetailClient({
                 )}
               </div>
 
-              <div className="py-6">
+              <div className="py-8">
                 {activeTab === 'description' && (
-                  <div className="text-neutral-600 leading-relaxed">
+                  <div className="text-neutral-600 text-lg leading-relaxed">
                     {product.full_desc || product.description || <span className="text-neutral-400">No description available.</span>}
                   </div>
                 )}
 
                 {activeTab === 'specifications' && product.specs?.length > 0 && (
-                  <div className="rounded-2xl border border-neutral-200 overflow-hidden bg-white">
+                  <div className="rounded-3xl border border-neutral-200 overflow-hidden bg-neutral-50">
                     <div className="grid grid-cols-1 divide-y divide-neutral-200">
                       {product.specs.map((s: any, index: number) => (
-                        <div key={s.label} className={`flex items-center justify-between px-6 py-4 ${index % 2 === 0 ? 'bg-neutral-50/50' : 'bg-white'}`}>
-                          <p className="text-sm font-medium text-neutral-600">{s.label}</p>
-                          <p className="text-sm font-semibold text-neutral-900">{s.value}</p>
+                        <div key={s.label} className={`flex items-center justify-between px-8 py-5 ${index % 2 === 0 ? 'bg-white' : 'bg-neutral-50'}`}>
+                          <p className="text-base font-medium text-neutral-600">{s.label}</p>
+                          <p className="text-base font-semibold text-neutral-900">{s.value}</p>
                         </div>
                       ))}
                     </div>
@@ -336,23 +336,23 @@ export default function ProductDetailClient({
 
         {/* Related */}
         {related.length > 0 && (
-          <div className="space-y-6 pt-8 border-t border-neutral-100">
-            <h2 className="text-xl font-bold text-neutral-900">Related products</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-8 pt-12 border-t border-neutral-200">
+            <h2 className="text-2xl font-bold text-neutral-900">Related products</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {related.map((r: any) => {
                 const rImgs = Array.isArray(r.images) ? r.images : []
                 const rThumb = rImgs[0]
                 return (
-                  <Link key={r.id} href={`/products/${r.id}`} className="group flex flex-col gap-3 p-5 rounded-2xl border border-neutral-100 hover:border-neutral-200 hover:shadow-md hover:shadow-neutral-100 transition-all">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border w-fit ${categoryColors[r.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{r.category}</span>
-                    <div className="relative w-full h-36 rounded-xl overflow-hidden bg-neutral-50 flex items-center justify-center">
+                  <Link key={r.id} href={`/products/${r.id}`} className="group flex flex-col gap-4 p-6 rounded-3xl border border-neutral-200 bg-white hover:border-[#1a9f9a]/30 hover:shadow-xl hover:shadow-neutral-100 transition-all duration-300">
+                    <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg border w-fit ${categoryColors[r.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{r.category}</span>
+                    <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 flex items-center justify-center">
                       {rThumb
-                        ? <Image src={rThumb} alt={r.name} fill className="object-contain p-3" />
+                        ? <Image src={rThumb} alt={r.name} fill className="object-contain p-4 group-hover:scale-110 transition-transform duration-300" />
                         : <span className="text-xs text-neutral-300">No image</span>}
                     </div>
-                    <p className="font-bold text-neutral-900 text-sm">{r.name}</p>
-                    <p className="text-xs text-neutral-500 leading-relaxed line-clamp-2">{r.description}</p>
-                    <p className="text-sm font-bold text-neutral-900 mt-auto">{r.price ? `Rs. ${Number(r.price).toLocaleString()}` : "—"}</p>
+                    <p className="font-bold text-neutral-900 text-lg">{r.name}</p>
+                    <p className="text-sm text-neutral-500 leading-relaxed line-clamp-2">{r.description}</p>
+                    <p className="text-lg font-bold text-neutral-900 mt-auto">{r.price ? `Rs. ${Number(r.price).toLocaleString()}` : "—"}</p>
                   </Link>
                 )
               })}
