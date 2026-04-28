@@ -2,7 +2,6 @@
 "use client"
 import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
-import Image from "next/image"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
 
@@ -74,15 +73,13 @@ export default function Hero() {
           {/* Front Image Container */}
           <div className="relative w-80 h-96 rounded-3xl overflow-hidden">
             {heroImages.map((img, index) => (
-              <Image
+              <img
                 key={img}
                 src={img}
                 alt="Voltrix product"
-                fill
-                className={`object-cover transition-opacity duration-1000 ${
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
                   index === currentImageIndex ? 'opacity-100' : 'opacity-0'
                 }`}
-                priority={index === 0}
               />
             ))}
           </div>
