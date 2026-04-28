@@ -20,6 +20,9 @@ function ProductImages({ images, productName }: { images: string[], productName:
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [touchStart, setTouchStart] = useState(0)
   const [touchEnd, setTouchEnd] = useState(0)
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [isHovering, setIsHovering] = useState(false)
+  const imageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (images.length <= 1) return
@@ -80,9 +83,17 @@ function ProductImages({ images, productName }: { images: string[], productName:
     setIsLightboxOpen(true)
   }
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!imageRef.current) return
+    const rect = imageRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setMousePosition({ x, y })
+  }
+
   if (images.length === 0) {
     return (
-      <div className="relative w-full h-72 rounded-2xl overflow-hidden bg-neutral-50 border border-neutral-100 flex items-center justify-center">
+      <div className="relative w-full h-[600px] rounded-3xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 flex items-center justify-center shadow-lg">
         <span className="text-sm text-neutral-300">No image</span>
       </div>
     )
@@ -92,36 +103,100 @@ function ProductImages({ images, productName }: { images: string[], productName:
     <>
       <div className="space-y-4">
         <div 
-          className="relative w-full h-[500px] rounded-3xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 flex items-center justify-center cursor-pointer group shadow-lg"
+          ref={imageRef}
+          className="relative w-full h-[600px] rounded-3xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 shadow-lg cursor-crosshair"
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
           onClick={() => openLightbox(currentIndex)}
         >
+          {/* Base Image */}
           <Image 
             src={images[currentIndex]} 
             alt={productName} 
             fill 
-            className="object-contain p-8 group-hover:scale-125 group-hover:rotate-1 transition-all duration-500 ease-out" 
+            className="object-contain p-8" 
             priority 
           />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
-            <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 bg-white/90 backdrop-blur-sm rounded-full p-4 shadow-xl">
-              <svg className="w-7 h-7 text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-              </svg>
+          
+          {/* Zoomed Image Overlay */}
+          {isHovering && (
+            <div 
+              className="absolute inset-0 overflow-hidden pointer-events-none"
+              style={{
+                maskImage: 'radial-gradient(circle 150px at var(--mouse-x) var(--mouse-y), transparent, black)',
+                WebkitMaskImage: 'radial-gradient(circle 150px at var(--mouse-x) var(--mouse-y), transparent, black)'
+              }}
+              style={
+                {
+                  '--mouse-x': `${mousePosition.x}px`,
+                  '--mouse-y': `${mousePosition.y}px`
+                } as React.CSSProperties
+              }
+            >
+              <Image
+                src={images[currentIndex]}
+                alt={productName}
+                fill
+                className="object-contain p-8 scale-200 origin-center"
+                style={{
+                  transformOrigin: `${mousePosition}px ${mousePosition}px`
+                }}
+                priority
+              />
             </div>
-          </div>
+          )}
+
+          {/* Magnifying Lens */}
+          {isHovering && (
+            <div 
+              className="absolute pointer-events-none rounded-full border-4 border-white shadow-2xl overflow-hidden"
+              style={{
+                width: '200px',
+                height: '200px',
+                left: `${mousePosition.x - 100}px`,
+                top: `${mousePosition.y - 100}px`,
+                transform: 'translate(-50%, -50%)'
+              }}
+            >
+              <div className="w-full h-full bg-white">
+                <Image
+                  src={images[currentIndex]}
+                  alt={productName}
+                  fill
+                  className="object-contain p-4"
+                  style={{
+                    transform: 'scale(2.5)',
+                    transformOrigin: `${(mousePosition.x / 600) * 100}% ${(mousePosition.y / 600) * 100}%`
+                  }}
+                  priority
+                />
+              </div>
+            </div>
+          )}
+
           {images.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
               {images.map((_, i) => (
                 <button
                   key={i}
                   onClick={(e) => { e.stopPropagation(); setCurrentIndex(i) }}
                   className={`h-2 rounded-full transition-all ${
                     i === currentIndex 
-                      ? 'w-8 bg-[#1a9f9a]' 
-                      : 'w-2 bg-neutral-300 hover:bg-neutral-400'
+                      ? 'w-8 bg-white shadow-lg' 
+                      : 'w-2 bg-white/50 hover:bg-white/70'
                   }`}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Zoom hint */}
+          {!isHovering && (
+            <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm rounded-full p-3 shadow-lg">
+              <svg className="w-5 h-5 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+              </svg>
             </div>
           )}
         </div>
@@ -132,7 +207,7 @@ function ProductImages({ images, productName }: { images: string[], productName:
               <button
                 key={i}
                 onClick={() => setCurrentIndex(i)}
-                className={`relative w-20 h-20 shrink-0 rounded-2xl overflow-hidden border-2 bg-white shadow-sm transition-all hover:shadow-md ${
+                className={`relative w-24 h-24 shrink-0 rounded-2xl overflow-hidden border-2 bg-white shadow-sm transition-all hover:shadow-md ${
                   i === currentIndex 
                     ? 'border-[#1a9f9a] ring-2 ring-[#1a9f9a]/20 scale-105' 
                     : 'border-neutral-200 hover:border-neutral-300'
