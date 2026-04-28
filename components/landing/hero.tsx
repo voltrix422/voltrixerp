@@ -7,8 +7,8 @@ import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
 
 const images = [
-  "/(WL-5)-Photoroom.png",
-  "/Gemini_Generated_Image_7tmgjr7tmgjr7tmg-Photoroom.png",
+  "/hero-image-1.png",
+  "/hero-image-2.png",
 ]
 
 export default function Hero() {
