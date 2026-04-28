@@ -93,7 +93,7 @@ function ProductImages({ images, productName }: { images: string[], productName:
 
   if (images.length === 0) {
     return (
-      <div className="relative w-full h-[600px] rounded-3xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 flex items-center justify-center shadow-lg">
+      <div className="relative w-full h-[400px] rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 flex items-center justify-center">
         <span className="text-sm text-neutral-300">No image</span>
       </div>
     )
@@ -104,7 +104,7 @@ function ProductImages({ images, productName }: { images: string[], productName:
       <div className="space-y-4">
         <div 
           ref={imageRef}
-          className="relative w-full h-[600px] rounded-3xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 shadow-lg cursor-crosshair"
+          className="relative w-full h-[400px] rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 cursor-crosshair"
           onMouseMove={handleMouseMove}
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}
@@ -302,66 +302,66 @@ export default function ProductDetailClient({
   const [activeTab, setActiveTab] = useState<TabType>('description')
 
   return (
-    <section className="pt-32 pb-24 px-4 bg-white min-h-screen">
-      <div className="max-w-7xl mx-auto space-y-12">
+    <section className="pt-24 pb-16 px-4 bg-white min-h-screen">
+      <div className="max-w-6xl mx-auto space-y-8">
 
         <Link href="/products" className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-[#1a9f9a] transition-colors">
           <ArrowLeft className="w-4 h-4" /> All products
         </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           {/* Left - Images */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <ProductImages images={images} productName={product.name} />
           </div>
 
           {/* Right - Product Details */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className={`text-xs font-semibold px-4 py-2 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
+              <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
               <StockBadge stock={product.stock} />
             </div>
             
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 leading-tight">{product.name}</h1>
 
             {product.description && (
-              <p className="text-neutral-600 text-lg leading-relaxed">{product.description}</p>
+              <p className="text-neutral-600 text-base leading-relaxed">{product.description}</p>
             )}
 
-            <div className="space-y-6 pt-4">
+            <div className="space-y-4 pt-2">
               {product.quoteMode ? (
-                <Link href="/quote" className="inline-flex items-center justify-center gap-3 px-10 h-14 rounded-full text-base font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105 w-full">
-                  Request a Quote <ArrowRight className="w-5 h-5" />
+                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105 w-full">
+                  Request a Quote <ArrowRight className="w-4 h-4" />
                 </Link>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <p className="text-xs text-neutral-400 uppercase tracking-wider font-semibold">Price</p>
-                  <p className="text-4xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
+                  <p className="text-2xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
                 </div>
               )}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <p className="text-xs text-neutral-400 uppercase tracking-wider font-semibold">Warranty</p>
-                <p className="text-xl font-semibold text-neutral-900">{product.warranty || "—"}</p>
+                <p className="text-base font-semibold text-neutral-900">{product.warranty || "—"}</p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
               {!product.quoteMode && (
-                <Link href="/quote" className="inline-flex items-center justify-center gap-3 px-10 h-14 rounded-full text-base font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105">
-                  Request a quote <ArrowRight className="w-5 h-5" />
+                <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105">
+                  Request a quote <ArrowRight className="w-4 h-4" />
                 </Link>
               )}
-              <Link href="/#contact" className="inline-flex items-center justify-center gap-3 px-10 h-14 rounded-full text-base font-medium text-neutral-600 border-2 border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] hover:bg-neutral-50 transition-all">
+              <Link href="/#contact" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-medium text-neutral-600 border-2 border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] hover:bg-neutral-50 transition-all">
                 Contact us
               </Link>
             </div>
 
             {/* Tabs */}
-            <div className="pt-10 border-t border-neutral-200">
+            <div className="pt-6 border-t border-neutral-200">
               <div className="flex gap-1 border-b border-neutral-200">
                 <button
                   onClick={() => setActiveTab('description')}
-                  className={`px-6 py-4 text-base font-semibold transition-colors border-b-2 -mb-px ${
+                  className={`px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
                     activeTab === 'description'
                       ? 'border-[#1a9f9a] text-[#1a9f9a]'
                       : 'border-transparent text-neutral-500 hover:text-neutral-700'
@@ -372,7 +372,7 @@ export default function ProductDetailClient({
                 {product.specs?.length > 0 && (
                   <button
                     onClick={() => setActiveTab('specifications')}
-                    className={`px-6 py-4 text-base font-semibold transition-colors border-b-2 -mb-px ${
+                    className={`px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
                       activeTab === 'specifications'
                         ? 'border-[#1a9f9a] text-[#1a9f9a]'
                         : 'border-transparent text-neutral-500 hover:text-neutral-700'
@@ -383,20 +383,20 @@ export default function ProductDetailClient({
                 )}
               </div>
 
-              <div className="py-8">
+              <div className="py-5">
                 {activeTab === 'description' && (
-                  <div className="text-neutral-600 text-lg leading-relaxed">
+                  <div className="text-neutral-600 text-base leading-relaxed">
                     {product.full_desc || product.description || <span className="text-neutral-400">No description available.</span>}
                   </div>
                 )}
 
                 {activeTab === 'specifications' && product.specs?.length > 0 && (
-                  <div className="rounded-3xl border border-neutral-200 overflow-hidden bg-neutral-50">
+                  <div className="rounded-2xl border border-neutral-200 overflow-hidden bg-neutral-50">
                     <div className="grid grid-cols-1 divide-y divide-neutral-200">
                       {product.specs.map((s: any, index: number) => (
-                        <div key={s.label} className={`flex items-center justify-between px-8 py-5 ${index % 2 === 0 ? 'bg-white' : 'bg-neutral-50'}`}>
-                          <p className="text-base font-medium text-neutral-600">{s.label}</p>
-                          <p className="text-base font-semibold text-neutral-900">{s.value}</p>
+                        <div key={s.label} className={`flex items-center justify-between px-6 py-3 ${index % 2 === 0 ? 'bg-white' : 'bg-neutral-50'}`}>
+                          <p className="text-sm font-medium text-neutral-600">{s.label}</p>
+                          <p className="text-sm font-semibold text-neutral-900">{s.value}</p>
                         </div>
                       ))}
                     </div>
@@ -409,23 +409,23 @@ export default function ProductDetailClient({
 
         {/* Related */}
         {related.length > 0 && (
-          <div className="space-y-8 pt-12 border-t border-neutral-200">
-            <h2 className="text-2xl font-bold text-neutral-900">Related products</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-6 pt-8 border-t border-neutral-200">
+            <h2 className="text-xl font-bold text-neutral-900">Related products</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {related.map((r: any) => {
                 const rImgs = Array.isArray(r.images) ? r.images : []
                 const rThumb = rImgs[0]
                 return (
-                  <Link key={r.id} href={`/products/${r.id}`} className="group flex flex-col gap-4 p-6 rounded-3xl border border-neutral-200 bg-white hover:border-[#1a9f9a]/30 hover:shadow-xl hover:shadow-neutral-100 transition-all duration-300">
+                  <Link key={r.id} href={`/products/${r.id}`} className="group flex flex-col gap-3 p-5 rounded-2xl border border-neutral-200 bg-white hover:border-[#1a9f9a]/30 hover:shadow-xl hover:shadow-neutral-100 transition-all duration-300">
                     <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg border w-fit ${categoryColors[r.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{r.category}</span>
-                    <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 flex items-center justify-center">
+                    <div className="relative w-full h-40 rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 flex items-center justify-center">
                       {rThumb
                         ? <Image src={rThumb} alt={r.name} fill className="object-contain p-4 group-hover:scale-110 transition-transform duration-300" />
                         : <span className="text-xs text-neutral-300">No image</span>}
                     </div>
-                    <p className="font-bold text-neutral-900 text-lg">{r.name}</p>
+                    <p className="font-bold text-neutral-900 text-base">{r.name}</p>
                     <p className="text-sm text-neutral-500 leading-relaxed line-clamp-2">{r.description}</p>
-                    <p className="text-lg font-bold text-neutral-900 mt-auto">{r.price ? `Rs. ${Number(r.price).toLocaleString()}` : "—"}</p>
+                    <p className="text-base font-bold text-neutral-900 mt-auto">{r.price ? `Rs. ${Number(r.price).toLocaleString()}` : "—"}</p>
                   </Link>
                 )
               })}
