@@ -7,7 +7,7 @@ import RotatingText from "./rotating-text"
 export default function Hero() {
   return (
     <section className="relative min-h-screen flex items-center bg-white overflow-hidden">
-      <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-12 lg:pl-24">
+      <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-20 lg:pl-32">
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
