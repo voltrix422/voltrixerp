@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from "next/image"
 import Link from "next/link"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight } from "lucide-react"
@@ -123,14 +123,12 @@ function ProductImages({ images, productName }: { images: string[], productName:
           {isHovering && (
             <div 
               className="absolute inset-0 overflow-hidden pointer-events-none"
-              style={{
-                maskImage: 'radial-gradient(circle 150px at var(--mouse-x) var(--mouse-y), transparent, black)',
-                WebkitMaskImage: 'radial-gradient(circle 150px at var(--mouse-x) var(--mouse-y), transparent, black)'
-              }}
               style={
                 {
                   '--mouse-x': `${mousePosition.x}px`,
-                  '--mouse-y': `${mousePosition.y}px`
+                  '--mouse-y': `${mousePosition.y}px`,
+                  maskImage: 'radial-gradient(circle 150px at var(--mouse-x) var(--mouse-y), transparent, black)',
+                  WebkitMaskImage: 'radial-gradient(circle 150px at var(--mouse-x) var(--mouse-y), transparent, black)'
                 } as React.CSSProperties
               }
             >
