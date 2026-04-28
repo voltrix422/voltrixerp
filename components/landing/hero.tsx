@@ -65,28 +65,26 @@ export default function Hero() {
         </div>
 
         {/* Right - Rotated Rectangle with Images */}
-        <div className="hidden lg:flex items-center justify-center flex-1">
+        <div className="hidden lg:flex items-center justify-center flex-1 relative">
+          {/* Background Rectangle */}
           <div 
-            className="relative w-80 h-96 rounded-3xl shadow-2xl shadow-[#1a9f9a]/30 overflow-hidden"
+            className="absolute w-80 h-96 rounded-3xl shadow-2xl shadow-[#1a9f9a]/30"
             style={{ transform: 'rotate(60deg)', backgroundColor: '#1a9f9a' }}
-          >
-            <div 
-              className="absolute inset-0"
-              style={{ transform: 'rotate(-60deg)' }}
-            >
-              {heroImages.map((img, index) => (
-                <Image
-                  key={img}
-                  src={img}
-                  alt="Voltrix product"
-                  fill
-                  className={`object-cover transition-opacity duration-1000 ${
-                    index === currentImageIndex ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  priority={index === 0}
-                />
-              ))}
-            </div>
+          />
+          {/* Front Image Container */}
+          <div className="relative w-80 h-96 rounded-3xl overflow-hidden">
+            {heroImages.map((img, index) => (
+              <Image
+                key={img}
+                src={img}
+                alt="Voltrix product"
+                fill
+                className={`object-cover transition-opacity duration-1000 ${
+                  index === currentImageIndex ? 'opacity-100' : 'opacity-0'
+                }`}
+                priority={index === 0}
+              />
+            ))}
           </div>
         </div>
 
