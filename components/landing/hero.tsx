@@ -7,10 +7,10 @@ import RotatingText from "./rotating-text"
 export default function Hero() {
   return (
     <section className="relative min-h-screen flex items-center bg-white overflow-hidden">
-      <div className="container mx-auto px-6 lg:px-16 flex flex-col items-center justify-center gap-12 py-24">
-
-        {/* Center — text */}
-        <div className="flex flex-col items-center gap-6 max-w-xl text-center">
+      <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative">
+        
+        {/* Left - Text Content */}
+        <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
             Power your{" "}
             <span className="inline-flex items-center ml-2">
@@ -35,7 +35,7 @@ export default function Hero() {
           </p>
           <a
             href="#products"
-            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-neutral-900 overflow-hidden transition-all duration-300 hover:shadow-lg"
+            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-neutral-900 overflow-hidden transition-all duration-300 hover:shadow-lg w-fit"
           >
             <span className="transition-transform duration-300 group-hover:-translate-x-0.5">
               Explore products
@@ -44,6 +44,14 @@ export default function Hero() {
               <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </a>
+        </div>
+
+        {/* Right - Rotated Rectangle */}
+        <div className="hidden lg:flex items-center justify-center flex-1">
+          <div 
+            className="w-80 h-96 bg-[#1a9f9a] rounded-3xl shadow-2xl shadow-[#1a9f9a]/30"
+            style={{ transform: 'rotate(60deg)' }}
+          />
         </div>
 
       </div>
