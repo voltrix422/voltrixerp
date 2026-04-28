@@ -71,13 +71,13 @@ export default function Hero() {
             style={{ transform: 'rotate(60deg)', backgroundColor: '#1a9f9a' }}
           />
           {/* Front Image Container */}
-          <div className="relative w-80 h-96 rounded-3xl overflow-hidden bg-neutral-100">
+          <div className="relative w-80 h-96 rounded-3xl overflow-hidden">
             {heroImages.map((img, index) => (
               <img
                 key={img}
                 src={img}
                 alt=""
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+                className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 ${
                   index === currentImageIndex ? 'opacity-100' : 'opacity-0'
                 }`}
               />
