@@ -31,10 +31,9 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handler)
   }, [])
 
-  // Show navbar after hero text animation completes (~3.2s)
+  // Show navbar immediately
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 3200)
-    return () => clearTimeout(timer)
+    setVisible(true)
   }, [])
 
   return (
@@ -48,10 +47,10 @@ export default function Navbar() {
       }}
     >
       <nav
-        className={`flex items-center justify-between px-5 py-2.5 rounded-2xl border w-full max-w-5xl transition-all duration-500 ${
+        className={`flex items-center justify-between px-8 py-2.5 rounded-xl border w-full max-w-6xl mx-4 transition-all duration-500 ${
           scrolled
-            ? "bg-white border-neutral-200 shadow-lg shadow-neutral-200/50"
-            : "bg-white border-neutral-200 shadow-sm"
+            ? "bg-white border-neutral-200"
+            : "bg-white border-neutral-200"
         }`}
       >
         {/* Logo */}
@@ -66,13 +65,13 @@ export default function Navbar() {
         </a>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-0">{links.map((l) => <a key={l.label} href={l.href || getHref(l.hash)} className="text-[12px] text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer px-0 m-0" style={{ letterSpacing: '-0.5px' }}>{l.label}</a>)}</div>
+        <div className="hidden md:flex items-center gap-8">{links.map((l) => <a key={l.label} href={l.href || getHref(l.hash)} className="text-sm text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer" style={{ letterSpacing: '-0.5px' }}>{l.label}</a>)}</div>
 
         {/* CTA */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-6">
           <a
             href="/quote"
-            className="group relative flex items-center gap-2 pl-4 pr-1.5 h-9 rounded-full text-[13px] font-medium text-white transition-all duration-300 hover:opacity-90 cursor-pointer"
+            className="group relative flex items-center gap-2 pl-4 pr-1.5 h-9 rounded-full text-sm font-medium text-white transition-all duration-300 hover:opacity-90 cursor-pointer"
             style={{ backgroundColor: "#1a9f9a" }}
           >
             <span className="transition-transform duration-300 group-hover:-translate-x-0.5">Get a quote</span>

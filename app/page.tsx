@@ -1,4 +1,4 @@
-import { DM_Sans } from "next/font/google"
+import { Space_Grotesk } from "next/font/google"
 import SectionBlur from "@/components/landing/section-blur"
 import Navbar from "@/components/landing/navbar"
 import Hero from "@/components/landing/hero"
@@ -16,17 +16,17 @@ import ContactSection from "@/components/landing/contact-section"
 import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
 
-const dmSans = DM_Sans({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-dm-sans",
+  variable: "--font-space-grotesk",
 })
 
 export default function Home() {
   return (
     <main
-        className={`${dmSans.variable} min-h-screen bg-white text-neutral-900 antialiased`}
-        style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}
+        className={`${spaceGrotesk.variable} min-h-screen bg-white text-neutral-900 antialiased`}
+        style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}
       >
         <Navbar />
         <div id="home">
