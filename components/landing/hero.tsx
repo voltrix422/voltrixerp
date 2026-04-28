@@ -34,7 +34,7 @@ export default function Hero() {
         <div className="flex-1 flex flex-col items-start gap-6 max-w-xl">
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
             Power your{" "}
-            <span className="inline-flex items-center">
+            <span className="inline-flex items-center ml-2">
               <RotatingText
                 texts={["Drive", "Solar", "EVs", "Car", "House"]}
                 mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
@@ -70,15 +70,14 @@ export default function Hero() {
         {/* Right — rotating image */}
         <div className="flex-1 flex items-center justify-center relative h-[420px] lg:h-[520px] w-full">
           <div
-            className="relative w-full h-full flex items-center justify-center"
+            className="relative w-[320px] h-[320px] lg:w-[420px] lg:h-[420px] flex items-center justify-center"
             style={{ opacity: fade ? 1 : 0, transition: "opacity 0.4s ease" }}
           >
             <Image
               src={images[current]}
               alt="Voltrix product"
-              width={500}
-              height={500}
-              className="object-contain drop-shadow-2xl max-w-full max-h-full"
+              fill
+              className="object-contain drop-shadow-2xl"
               priority
             />
           </div>
