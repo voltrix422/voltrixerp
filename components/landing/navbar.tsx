@@ -65,13 +65,13 @@ export default function Navbar() {
         </a>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-8">{links.map((l) => <a key={l.label} href={l.href || getHref(l.hash)} className="text-sm text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer" style={{ letterSpacing: '-0.5px' }}>{l.label}</a>)}</div>
+        <div className="hidden md:flex items-center gap-8">{links.map((l) => <a key={l.label} href={l.href || getHref(l.hash)} className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer" style={{ letterSpacing: '-0.5px' }}>{l.label}</a>)}</div>
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-6">
           <a
             href="/quote"
-            className="group relative flex items-center gap-2 pl-4 pr-1.5 h-9 rounded-full text-sm font-medium text-white transition-all duration-300 hover:opacity-90 cursor-pointer"
+            className="group relative flex items-center gap-2 pl-4 pr-1.5 h-9 rounded-full text-base font-medium text-white transition-all duration-300 hover:opacity-90 cursor-pointer"
             style={{ backgroundColor: "#1a9f9a" }}
           >
             <span className="transition-transform duration-300 group-hover:-translate-x-0.5">Get a quote</span>
@@ -92,12 +92,12 @@ export default function Navbar() {
       {open && (
         <div className="absolute top-14 left-4 right-4 bg-white border border-neutral-200 rounded-2xl shadow-xl p-5 flex flex-col gap-4 md:hidden">
           {links.map((l) => (
-            <a key={l.label} href={l.href || getHref(l.hash)} className="text-sm text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer">
+            <a key={l.label} href={l.href || getHref(l.hash)} className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer">
               {l.label}
             </a>
           ))}
           <div className="pt-3 border-t border-neutral-100">
-            <a href="#" className="flex items-center justify-center gap-2 h-10 rounded-full text-sm font-medium text-black bg-white border border-neutral-200">
+            <a href="#" className="flex items-center justify-center gap-2 h-10 rounded-full text-base font-medium text-black bg-white border border-neutral-200">
               Get started
             </a>
           </div>
