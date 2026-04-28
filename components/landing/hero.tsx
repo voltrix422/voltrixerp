@@ -14,7 +14,6 @@ const heroImages = [
 
 export default function Hero() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -22,10 +21,6 @@ export default function Hero() {
     }, 8000)
     return () => clearInterval(interval)
   }, [])
-
-  const handleImageError = (index: number) => {
-    setImageErrors(prev => new Set([...prev, index]))
-  }
 
   return (
     <section className="relative min-h-screen flex items-center bg-white overflow-hidden">
@@ -77,11 +72,16 @@ export default function Hero() {
           />
           {/* Front Image Container */}
           <div className="relative w-80 h-96 rounded-3xl overflow-hidden bg-neutral-100">
-            <img
-              src="/craiyon_130718_image.png"
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            {heroImages.map((img, index) => (
+              <img
+                key={img}
+                src={img}
+                alt=""
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+                  index === currentImageIndex ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+            ))}
           </div>
         </div>
 
