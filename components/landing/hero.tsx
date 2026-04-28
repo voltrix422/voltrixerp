@@ -77,23 +77,11 @@ export default function Hero() {
           />
           {/* Front Image Container */}
           <div className="relative w-80 h-96 rounded-3xl overflow-hidden bg-neutral-100">
-            {heroImages.map((img, index) => (
-              <img
-                key={img}
-                src={img}
-                alt=""
-                onError={() => handleImageError(index)}
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-                  index === currentImageIndex && !imageErrors.has(index) ? 'opacity-100' : 'opacity-0'
-                }`}
-                style={{ display: imageErrors.has(index) ? 'none' : 'block' }}
-              />
-            ))}
-            {imageErrors.has(currentImageIndex) && (
-              <div className="absolute inset-0 flex items-center justify-center bg-neutral-200 text-neutral-400">
-                <span className="text-sm">Image unavailable</span>
-              </div>
-            )}
+            <img
+              src="/craiyon_130718_image.png"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
           </div>
         </div>
 
