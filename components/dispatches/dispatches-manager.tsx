@@ -7,17 +7,18 @@ import jsPDF from 'jspdf'
 
 const STORAGE_KEY = "erp_dispatches"
 
-// PDF — invoice-style layout
+// PDF — professional dispatch invoice
 async function generateDispatchPDF(d: Dispatch) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const W = 210, M = 16, RW = W - M * 2
+  const W = 210, M = 14, RW = W - M * 2
 
   const TEAL:  [number,number,number] = [26, 159, 154]
   const DARK:  [number,number,number] = [15,  23,  42]
   const INK:   [number,number,number] = [30,  30,  30]
-  const MUTED: [number,number,number] = [110, 110, 110]
+  const MUTED: [number,number,number] = [100, 110, 120]
   const LIGHT: [number,number,number] = [245, 247, 250]
   const RULE:  [number,number,number] = [220, 225, 232]
+  const WHITE: [number,number,number] = [255, 255, 255]
 
   const CHIP: Record<string,[number,number,number]> = {
     pending:    [217, 119,  6],
@@ -39,14 +40,20 @@ async function generateDispatchPDF(d: Dispatch) {
   const rule = (yy: number, col: [number,number,number] = RULE, lw = 0.2) => {
     doc.setDrawColor(...col); doc.setLineWidth(lw); doc.line(M, yy, W - M, yy)
   }
+  const box = (x: number, yy: number, w: number, h: number, col: [number,number,number], r = 1.5) => {
+    doc.setFillColor(...col); doc.roundedRect(x, yy, w, h, r, r, 'F')
+  }
 
   // ── HEADER ───────────────────────────────────────────────
-  // full-width teal bar
+  // Gradient-style header with dark background
+  doc.setFillColor(...DARK)
+  doc.rect(0, 0, W, 36, 'F')
+  // Teal accent stripe
   doc.setFillColor(...TEAL)
-  doc.rect(0, 0, W, 30, 'F')
+  doc.rect(0, 0, 4, 36, 'F')
 
-  // logo (white bg pill behind it for contrast)
-  let logoEndX = M
+  // Logo
+  let logoEndX = M + 4
   try {
     const res  = await fetch('/logo.png')
     const blob = await res.blob()
@@ -56,152 +63,165 @@ async function generateDispatchPDF(d: Dispatch) {
     const dims = await new Promise<{w:number,h:number}>(r => {
       const img = new Image(); img.onload = () => r({w:img.naturalWidth,h:img.naturalHeight}); img.src = b64
     })
-    const lh = 10, lw = lh * (dims.w / dims.h)
-    // white pill
+    const lh = 12, lw = lh * (dims.w / dims.h)
     doc.setFillColor(255, 255, 255)
-    doc.roundedRect(M - 2, 10, lw + 4, lh + 2, 2, 2, 'F')
-    doc.addImage(b64, 'PNG', M, 11, lw, lh)
-    logoEndX = M + lw + 6
+    doc.roundedRect(M + 2, 12, lw + 4, lh + 2, 2, 2, 'F')
+    doc.addImage(b64, 'PNG', M + 4, 13, lw, lh)
+    logoEndX = M + 4 + lw + 8
   } catch {
-    t('VOLTRIX', M, 20, 16, [255,255,255], 'bold')
-    logoEndX = M + 40
+    t('VOLTRIX', M + 6, 22, 18, WHITE, 'bold')
+    logoEndX = M + 50
   }
 
-  // right side of header
+  // Company info on left
+  t('Voltrix Energy Solutions', logoEndX, 14, 7, [180,190,200])
+  t('Dispatch Note', logoEndX, 20, 10, WHITE, 'bold')
+
+  // Right side - Order ID and status
   const statusLabel = STATUSES.find(s => s.value === d.status)?.label || d.status
-  t('DISPATCH DETAILS', W - M, 10, 7, [255,255,255,] as any, 'normal', 'right')
-  t(`Order #${d.order_id}`, W - M, 17, 12, [255,255,255], 'bold', 'right')
+  t('DISPATCH NOTE', W - M, 12, 7, [150,160,175], 'normal', 'right')
+  t(`#${d.order_id}`, W - M, 20, 14, WHITE, 'bold', 'right')
 
-  // status chip
+  // Status chip
   const chipCol = CHIP[d.status] ?? DARK
-  const cw = 28, ch = 5.5
-  doc.setFillColor(255,255,255)
-  doc.roundedRect(W - M - cw, 20, cw, ch, 1.5, 1.5, 'F')
-  t(statusLabel.toUpperCase(), W - M - cw / 2, 24, 6.5, chipCol, 'bold', 'center')
+  const chipW = 30, chipH = 6
+  doc.setFillColor(...TEAL)
+  doc.roundedRect(W - M - chipW, 26, chipW, chipH, 2, 2, 'F')
+  t(statusLabel.toUpperCase(), W - M - chipW / 2, 30.5, 7, WHITE, 'bold', 'center')
 
-  y = 38
+  y = 44
 
   // ── META ROW ─────────────────────────────────────────────
-  t('Generated:', M, y, 7, MUTED)
-  t(new Date().toLocaleDateString(), M + 18, y, 7, INK)
-  t('Created by:', M + 60, y, 7, MUTED)
-  t(d.created_by || '—', M + 78, y, 7, INK)
-  y += 8
-
-  rule(y, RULE, 0.3)
-  y += 7
+  box(M, y, RW, 10, LIGHT)
+  t('Date:', M + 3, y + 6.5, 7, MUTED)
+  t(new Date().toLocaleDateString(), M + 16, y + 6.5, 7.5, INK, 'bold')
+  t('Created by:', M + 60, y + 6.5, 7, MUTED)
+  t(d.created_by || '—', M + 78, y + 6.5, 7.5, INK, 'bold')
+  t('Items:', M + 120, y + 6.5, 7, MUTED)
+  t(`${d.items?.length || 0}`, M + 133, y + 6.5, 7.5, INK, 'bold')
+  y += 16
 
   // ── CUSTOMER + DELIVERY ───────────────────────────────────
-  // two columns
-  const LX = M, LW = 85
-  const RX = M + 97, RW2 = 85
+  const LX = M, LW2 = 86
+  const RX = M + 96, RW2 = 86
 
-  // left: customer
-  t('CUSTOMER', LX, y, 6.5, TEAL, 'bold')
-  y += 5
-  t('Name',  LX,      y, 7, MUTED); t(d.customer_name,  LX + 20, y, 8.5, INK)
-  y += 5.5
+  // Left: Customer card
+  box(LX, y, LW2, 32, WHITE); box(LX, y, LW2, 6, TEAL)
+  t('CUSTOMER', LX + 3, y + 4.5, 7, WHITE, 'bold')
+  const custY = y + 10
+  t('Name', LX + 3, custY, 6.5, MUTED)
+  t(d.customer_name, LX + 3, custY + 5, 9, INK, 'bold')
   if (d.customer_phone) {
-    t('Phone', LX, y, 7, MUTED); t(d.customer_phone, LX + 20, y, 8.5, INK)
-    y += 5.5
+    t('Phone', LX + 3, custY + 11, 6.5, MUTED)
+    t(d.customer_phone, LX + 3, custY + 16, 8.5, INK)
   }
 
-  // right: delivery (reset y to same start)
-  const afterCustomerY = y
-  y -= (d.customer_phone ? 11 : 5.5)
-  const deliveryStartY = y - 5
-
-  t('DELIVERY ADDRESS', RX, deliveryStartY, 6.5, TEAL, 'bold')
-  const aLines = doc.splitTextToSize(d.delivery_address, RW2)
+  // Right: Delivery card
+  box(RX, y, RW2, 32, WHITE); box(RX, y, RW2, 6, TEAL)
+  t('DELIVERY ADDRESS', RX + 3, y + 4.5, 7, WHITE, 'bold')
+  const aLines = doc.splitTextToSize(d.delivery_address, RW2 - 6)
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...INK)
-  doc.text(aLines, RX, deliveryStartY + 5)
+  doc.text(aLines, RX + 3, y + 12)
 
-  y = Math.max(afterCustomerY, deliveryStartY + 5 + aLines.length * 5) + 6
-
-  rule(y, RULE, 0.3)
-  y += 7
+  y += 40
 
   // ── ITEMS TABLE ───────────────────────────────────────────
-  t('ITEMS', M, y, 6.5, TEAL, 'bold')
-  y += 5
+  box(M, y, RW, 6, TEAL)
+  t('ITEMS', M + 3, y + 4.5, 7, WHITE, 'bold')
+  t(`${d.items?.length || 0} item(s)`, W - M - 3, y + 4.5, 7, WHITE, 'normal', 'right')
+  y += 8
 
-  // thead
+  // Table header
   doc.setFillColor(...DARK)
-  doc.rect(M, y - 1, RW, 7.5, 'F')
-  const cx = { a: M+2, b: M+60, c: M+98, d2: M+122, e: W-M-2 }
-  t('ITEM',       cx.a,  y+4, 7, [255,255,255], 'bold')
-  t('SPECS',      cx.b,  y+4, 7, [255,255,255], 'bold')
-  t('QTY',        cx.c,  y+4, 7, [255,255,255], 'bold')
-  t('UNIT PRICE', cx.d2, y+4, 7, [255,255,255], 'bold')
-  t('TOTAL',      cx.e,  y+4, 7, [255,255,255], 'bold', 'right')
-  y += 9
+  doc.rect(M, y, RW, 8, 'F')
+  const cx = { a: M+3, b: M+55, c: M+95, d2: M+118, e: W-M-3 }
+  t('#',          M + 5, y + 5.5, 6.5, WHITE, 'bold', 'center')
+  t('ITEM',       cx.a + 6, y + 5.5, 7, WHITE, 'bold')
+  t('SPECS',      cx.b,  y + 5.5, 7, WHITE, 'bold')
+  t('QTY',        cx.c,  y + 5.5, 7, WHITE, 'bold')
+  t('UNIT PRICE', cx.d2, y + 5.5, 7, WHITE, 'bold')
+  t('TOTAL',      cx.e,  y + 5.5, 7, WHITE, 'bold', 'right')
+  y += 10
 
   let total = 0
   d.items.forEach((item, i) => {
     const it = item.quantity * item.price; total += it
-    if (i % 2 === 0) { doc.setFillColor(...LIGHT); doc.rect(M, y-3.5, RW, 7, 'F') }
-    t(item.name,                            cx.a,  y, 8.5, INK)
+    if (i % 2 === 0) { doc.setFillColor(...LIGHT); doc.rect(M, y - 4, RW, 8, 'F') }
+    t(`${i + 1}`, M + 5, y, 7, MUTED, 'normal', 'center')
+    t(item.name,                            cx.a + 6, y, 8.5, INK, 'bold')
     t(item.specs || '—',                    cx.b,  y, 8.5, INK)
     t(`${item.quantity} ${item.unit}`,      cx.c,  y, 8.5, INK)
     t(`Rs. ${item.price.toLocaleString()}`, cx.d2, y, 8.5, INK)
-    t(`Rs. ${it.toLocaleString()}`,         cx.e,  y, 8.5, INK, 'normal', 'right')
-    y += 7
+    t(`Rs. ${it.toLocaleString()}`,         cx.e,  y, 8.5, INK, 'bold', 'right')
+    y += 8
   })
 
-  // total bar
-  y += 1
+  // Total bar
+  y += 2
   doc.setFillColor(...TEAL)
-  doc.rect(M, y, RW, 8.5, 'F')
-  t('Total Amount', cx.d2, y+5.5, 9, [255,255,255], 'bold')
-  t(`Rs. ${total.toLocaleString()}`, cx.e, y+5.5, 9, [255,255,255], 'bold', 'right')
-  y += 15
+  doc.rect(M, y, RW, 10, 'F')
+  t('TOTAL AMOUNT', cx.d2, y + 6.5, 9, WHITE, 'bold')
+  t(`Rs. ${total.toLocaleString()}`, cx.e, y + 6.5, 11, WHITE, 'bold', 'right')
+  y += 18
 
   // ── COURIER + DATES ───────────────────────────────────────
   const courierLabel = COURIER_SERVICES.find(c => c.value === d.courier_service)?.label || d.courier_service
-  const cRows: [string,string][] = [['Service', courierLabel]]
+
+  // Left: Courier card
+  box(LX, y, LW2, 30, WHITE); box(LX, y, LW2, 6, TEAL)
+  t('COURIER SERVICE', LX + 3, y + 4.5, 7, WHITE, 'bold')
+  let courierY = y + 11
+  t('Service', LX + 3, courierY, 6.5, MUTED); t(courierLabel, LX + 22, courierY, 8.5, INK, 'bold')
+  courierY += 6
   if (d.courier_service === 'own_driver') {
-    if (d.driver_name)    cRows.push(['Driver',  d.driver_name])
-    if (d.driver_phone)   cRows.push(['Phone',   d.driver_phone])
-    if (d.vehicle_number) cRows.push(['Vehicle', d.vehicle_number])
+    if (d.driver_name) { t('Driver', LX + 3, courierY, 6.5, MUTED); t(d.driver_name, LX + 22, courierY, 8.5, INK); courierY += 5.5 }
+    if (d.driver_phone) { t('Phone', LX + 3, courierY, 6.5, MUTED); t(d.driver_phone, LX + 22, courierY, 8.5, INK); courierY += 5.5 }
+    if (d.vehicle_number) { t('Vehicle', LX + 3, courierY, 6.5, MUTED); t(d.vehicle_number, LX + 22, courierY, 8.5, INK) }
   } else {
-    if (d.tracking_id) cRows.push(['Tracking', d.tracking_id])
+    if (d.tracking_id) { t('Tracking', LX + 3, courierY, 6.5, MUTED); t(d.tracking_id, LX + 22, courierY, 8.5, INK) }
   }
-  const dRows: [string,string][] = []
-  if (d.dispatch_date)     dRows.push(['Dispatched', d.dispatch_date])
-  if (d.expected_delivery) dRows.push(['Expected',   d.expected_delivery])
 
-  // left col
-  t('COURIER SERVICE', LX, y, 6.5, TEAL, 'bold'); y += 5
-  const courierStartY = y
-  cRows.forEach(([lbl, val]) => {
-    t(lbl, LX, y, 7, MUTED); t(val, LX + 20, y, 8.5, INK); y += 5.5
-  })
+  // Right: Dates card
+  box(RX, y, RW2, 30, WHITE); box(RX, y, RW2, 6, TEAL)
+  t('DATES', RX + 3, y + 4.5, 7, WHITE, 'bold')
+  let dateY = y + 11
+  if (d.dispatch_date) { t('Dispatched', RX + 3, dateY, 6.5, MUTED); t(d.dispatch_date, RX + 25, dateY, 8.5, INK, 'bold'); dateY += 6 }
+  if (d.expected_delivery) { t('Expected', RX + 3, dateY, 6.5, MUTED); t(d.expected_delivery, RX + 25, dateY, 8.5, INK, 'bold') }
 
-  // right col (reset y)
-  const afterCourierY = y
-  y = courierStartY - 5
-  t('DATES', RX, y, 6.5, TEAL, 'bold'); y += 5
-  dRows.forEach(([lbl, val]) => {
-    t(lbl, RX, y, 7, MUTED); t(val, RX + 22, y, 8.5, INK); y += 5.5
-  })
-
-  y = Math.max(afterCourierY, y) + 6
+  y += 38
 
   // ── NOTES ─────────────────────────────────────────────────
   if (d.notes) {
-    rule(y, RULE, 0.2); y += 5
-    t('NOTES', M, y, 6.5, TEAL, 'bold'); y += 5
+    box(M, y, RW, 20, WHITE); box(M, y, RW, 6, TEAL)
+    t('NOTES', M + 3, y + 4.5, 7, WHITE, 'bold')
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...INK)
-    const nl = doc.splitTextToSize(d.notes, RW)
-    doc.text(nl, M, y); y += nl.length * 5.5
+    const nl = doc.splitTextToSize(d.notes, RW - 6)
+    doc.text(nl, M + 3, y + 12)
+    y += 24
   }
+
+  // ── SIGNATURE AREA ────────────────────────────────────────
+  y += 5
+  rule(y, RULE, 0.3)
+  y += 8
+  // Two signature boxes
+  const sigW = 60
+  box(M, y, sigW, 20, LIGHT)
+  t('Authorized By', M + sigW / 2, y + 5, 6.5, MUTED, 'normal', 'center')
+  rule(y + 15, RULE, 0.3)
+  t('Signature', M + sigW / 2, y + 19, 6, MUTED, 'normal', 'center')
+
+  box(W - M - sigW, y, sigW, 20, LIGHT)
+  t('Received By', W - M - sigW / 2, y + 5, 6.5, MUTED, 'normal', 'center')
+  rule(y + 15, RULE, 0.3)
+  t('Signature', W - M - sigW / 2, y + 19, 6, MUTED, 'normal', 'center')
 
   // ── FOOTER ────────────────────────────────────────────────
   const PH = doc.internal.pageSize.height
-  doc.setFillColor(...DARK); doc.rect(0, PH-12, W, 12, 'F')
-  doc.setFillColor(...TEAL); doc.rect(0, PH-12, 3, 12, 'F')
-  t('Voltrix ERP System', M, PH-5, 7, [150,160,175])
-  t(new Date().toLocaleString(), W-M, PH-5, 7, [150,160,175], 'normal', 'right')
+  doc.setFillColor(...DARK); doc.rect(0, PH - 14, W, 14, 'F')
+  doc.setFillColor(...TEAL); doc.rect(0, PH - 14, 4, 14, 'F')
+  t('Voltrix ERP System  |  voltrixev.com', M + 4, PH - 5, 7, [130,140,155])
+  t(new Date().toLocaleString(), W - M, PH - 5, 7, [130,140,155], 'normal', 'right')
 
   doc.save(`${d.order_id}-dispatch.pdf`)
 }
@@ -344,7 +364,11 @@ const DispatchesManager = forwardRef<DispatchesManagerRef, { showForm: boolean, 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!orderId || !customerName || !deliveryAddress) {
-      alert("Please fill required fields")
+      alert("Please fill required fields (Order ID, Customer Name, Delivery Address)")
+      return
+    }
+    if (items.length === 0) {
+      alert("Please add at least one item to the dispatch")
       return
     }
     setSaving(true)
