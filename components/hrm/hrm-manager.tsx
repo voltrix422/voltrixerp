@@ -929,8 +929,8 @@ export function HrmManager() {
 
               {/* Metadata */}
               <div className="text-xs text-[hsl(var(--muted-foreground))] space-y-1 pt-4 border-t border-[hsl(var(--border))]">
-                <p>Created: {new Date(viewMember.created_at).toLocaleString()}</p>
-                <p>Created by: {viewMember.created_by}</p>
+                <p>Created: {(viewMember.created_at || (viewMember as any).createdAt) ? new Date(viewMember.created_at || (viewMember as any).createdAt).toLocaleString() : 'N/A'}</p>
+                <p>Created by: {viewMember.created_by || (viewMember as any).createdBy || 'Unknown'}</p>
               </div>
             </div>
           </div>
