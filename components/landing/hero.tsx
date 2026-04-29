@@ -67,11 +67,14 @@ export default function Hero() {
         <div className="hidden lg:flex items-center justify-center flex-1 relative">
           {/* Background Rectangle */}
           <div 
-            className="absolute w-80 h-96 rounded-3xl shadow-2xl shadow-[#1a9f9a]/30"
-            style={{ transform: 'rotate(60deg)', backgroundColor: '#1a9f9a' }}
+            className="absolute w-64 h-80 rounded-3xl shadow-2xl shadow-[#1a9f9a]/30"
+            style={{ 
+              transform: 'rotate(60deg)', 
+              background: 'linear-gradient(135deg, #1a9f9a 0%, #158a85 50%, #0d7a75 100%)'
+            }}
           />
           {/* Front Image Container */}
-          <div className="relative w-80 h-96 rounded-3xl overflow-hidden">
+          <div className="relative w-64 h-80 rounded-3xl overflow-hidden">
             {heroImages.map((img, index) => (
               <img
                 key={img}
