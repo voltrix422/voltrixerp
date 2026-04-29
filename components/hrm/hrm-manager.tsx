@@ -17,6 +17,13 @@ interface StaffDocument {
   size: number
 }
 
+interface StaffWarning {
+  level: 1 | 2 | 3
+  message: string
+  date: string
+  pointsAtWarning: number
+}
+
 interface StaffMember {
   id: string
   name: string
@@ -32,6 +39,9 @@ interface StaffMember {
   notes: string
   photo_url: string // Will be loaded from IndexedDB
   documents: StaffDocument[]
+  points: number
+  warnings: StaffWarning[]
+  last_reset?: string
   created_by: string
   created_at: string
 }
@@ -357,6 +367,135 @@ export function HrmManager() {
 
   const activeCount = staff.filter(s => s.status === "active").length
 
+  // Points management
+  function getWarningMessage(level: 1 | 2 | 3, points: number): string {
+    const messages = {
+      1: `First Warning: Your performance points have decreased to ${points}. Please improve your work performance to avoid further disciplinary action.`,
+      2: `Second Warning: Your points are now at ${points}. This is a serious concern. Immediate improvement is required.`,
+      3: `Final Warning: Your points have reached a critical level (${points}). HR will contact you for a formal review.`
+    }
+    return messages[level]
+  }
+
+  function checkWarningLevel(points: number): 0 | 1 | 2 | 3 {
+    if (points <= 20) return 3
+    if (points <= 50) return 2
+    if (points <= 70) return 1
+    return 0
+  }
+
+  async function updatePoints(memberId: string, delta: number) {
+    const member = staff.find(s => s.id === memberId)
+    if (!member) return
+
+    const newPoints = Math.max(0, Math.min(100, (member.points || 100) + delta))
+    const oldWarningLevel = checkWarningLevel(member.points || 100)
+    const newWarningLevel = checkWarningLevel(newPoints)
+
+    // Generate warning if level changed
+    let newWarnings = [...(member.warnings || [])]
+    if (newWarningLevel > oldWarningLevel) {
+      const warning: StaffWarning = {
+        level: newWarningLevel,
+        message: getWarningMessage(newWarningLevel, newPoints),
+        date: new Date().toISOString(),
+        pointsAtWarning: newPoints
+      }
+      newWarnings.push(warning)
+    }
+
+    const updatedMember = { ...member, points: newPoints, warnings: newWarnings }
+
+    try {
+      const res = await fetch('/api/hrm/staff', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: memberId,
+          points: newPoints,
+          warnings: newWarnings
+        })
+      })
+      if (res.ok) {
+        setStaff(prev => prev.map(s => s.id === memberId ? updatedMember : s))
+        if (viewMember?.id === memberId) {
+          setViewMember(updatedMember)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update points:', error)
+    }
+  }
+
+  function shouldResetPoints(lastReset?: string): boolean {
+    if (!lastReset) return true
+    const last = new Date(lastReset)
+    const now = new Date()
+    // Check if we're in a new month
+    return last.getMonth() !== now.getMonth() || last.getFullYear() !== now.getFullYear()
+  }
+
+  async function resetMonthlyPoints() {
+    const updates = staff.filter(s => shouldResetPoints(s.last_reset))
+    if (updates.length === 0) return
+
+    for (const member of updates) {
+      try {
+        await fetch('/api/hrm/staff', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: member.id,
+            points: 100,
+            warnings: [], // Clear warnings on reset
+            lastReset: new Date().toISOString()
+          })
+        })
+      } catch (error) {
+        console.error(`Failed to reset points for ${member.name}:`, error)
+      }
+    }
+    // Reload staff data
+    location.reload()
+  }
+
+  // Check for monthly reset on load
+  useEffect(() => {
+    const hasExpired = staff.some(s => shouldResetPoints(s.last_reset))
+    if (hasExpired) {
+      resetMonthlyPoints()
+    }
+  }, [staff])
+
+  // Points Progress Bar Component
+  function PointsBar({ points }: { points: number }) {
+    const getColor = () => {
+      if (points <= 20) return 'bg-red-500'
+      if (points <= 50) return 'bg-orange-500'
+      if (points <= 70) return 'bg-yellow-500'
+      return 'bg-emerald-500'
+    }
+
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-between text-xs mb-1">
+          <span className={points <= 20 ? 'text-red-600 font-bold' : 'text-[hsl(var(--muted-foreground))]'}>
+            {points} / 100 points
+          </span>
+          {points <= 20 && <span className="text-red-600 font-bold">CRITICAL</span>}
+          {points <= 50 && points > 20 && <span className="text-orange-600 font-medium">Warning</span>}
+          {points <= 70 && points > 50 && <span className="text-yellow-600 font-medium">Caution</span>}
+        </div>
+        <div className="h-2 w-full rounded-full bg-[hsl(var(--muted))]">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${getColor()}`}
+            style={{ width: `${points}%` }}
+          />
+        </div>
+      </div>
+    )
+  }
+
   function downloadIdCard(member: StaffMember) {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
@@ -596,6 +735,7 @@ export function HrmManager() {
                 <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Staff</th>
                 <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
                 <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Points</th>
                 <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Contact</th>
                 <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Salary</th>
                 <th className="text-right px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
@@ -604,7 +744,7 @@ export function HrmManager() {
             <tbody>
               {filtered.map(s => (
                 <tr key={s.id} onClick={() => setViewMember(s)}
-                  className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/5 cursor-pointer transition-colors">
+                  className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/5 cursor-pointer transition-colors ${(s.points || 100) <= 20 ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
                   <td className="px-2 py-1.5">
                     <div className="flex items-center gap-2">
                       <div className="h-6 w-6 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
@@ -624,6 +764,9 @@ export function HrmManager() {
                   </td>
                   <td className="px-2 py-1.5">
                     <Badge variant={s.status === "active" ? "success" : "destructive"} className="text-[8px] px-1 py-0">{s.status}</Badge>
+                  </td>
+                  <td className="px-2 py-1.5 w-32">
+                    <PointsBar points={s.points || 100} />
                   </td>
                   <td className="px-2 py-1.5">
                     <p className="text-[10px] text-[hsl(var(--foreground))]">{s.email || "—"}</p>
@@ -882,6 +1025,76 @@ export function HrmManager() {
                 <div>
                   <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Salary</p>
                   <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
+                </div>
+              )}
+
+              {/* Performance Points */}
+              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Performance Points</p>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    (viewMember.points || 100) <= 20 ? 'bg-red-100 text-red-700' :
+                    (viewMember.points || 100) <= 50 ? 'bg-orange-100 text-orange-700' :
+                    (viewMember.points || 100) <= 70 ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {(viewMember.points || 100)} / 100
+                  </span>
+                </div>
+                <PointsBar points={viewMember.points || 100} />
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-[hsl(var(--border))]">
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">Last reset: {viewMember.last_reset ? new Date(viewMember.last_reset).toLocaleDateString() : 'N/A'}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updatePoints(viewMember.id, -5)}
+                      disabled={(viewMember.points || 100) <= 0}
+                      className="h-8 px-3 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      -5
+                    </button>
+                    <button
+                      onClick={() => updatePoints(viewMember.id, 5)}
+                      disabled={(viewMember.points || 100) >= 100}
+                      className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      +5
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warnings History */}
+              {viewMember.warnings && viewMember.warnings.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">
+                    Warnings ({viewMember.warnings.length})
+                  </p>
+                  <div className="space-y-2">
+                    {viewMember.warnings.map((warning, i) => (
+                      <div key={i} className={`rounded-lg border px-4 py-3 ${
+                        warning.level === 3 ? 'bg-red-50 border-red-200' :
+                        warning.level === 2 ? 'bg-orange-50 border-orange-200' :
+                        'bg-yellow-50 border-yellow-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                            warning.level === 3 ? 'bg-red-500 text-white' :
+                            warning.level === 2 ? 'bg-orange-500 text-white' :
+                            'bg-yellow-500 text-white'
+                          }`}>
+                            Warning #{warning.level}
+                          </span>
+                          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                            {new Date(warning.date).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-[hsl(var(--foreground))]">{warning.message}</p>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                          Points at warning: {warning.pointsAtWarning}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

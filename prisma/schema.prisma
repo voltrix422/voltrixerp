@@ -205,6 +205,9 @@ model ErpStaff {
   joinDate      String   @map("join_date")
   status        String
   notes         String
+  points        Int      @default(100) @map("points")
+  warnings      Json     @default("[]") @map("warnings")
+  lastReset     DateTime @default(now()) @map("last_reset")
   createdBy     String   @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
 
