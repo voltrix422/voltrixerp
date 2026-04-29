@@ -167,12 +167,17 @@ export function HrmManager() {
 
   // documents
   const [documents, setDocuments] = useState<{ file: File; name: string }[]>([])
+  const [newDocName, setNewDocName] = useState("")
+  const pendingDocFileRef = useRef<File | null>(null)
 
   function handleDocFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
-    const newDocs = files.map(f => ({ file: f, name: f.name.replace(/\.[^.]+$/, "") }))
-    setDocuments(prev => [...prev, ...newDocs])
+    const file = files[0]
+    const name = newDocName.trim() || file.name.replace(/\.[^.]+$/, "")
+    setDocuments(prev => [...prev, { file, name }])
+    setNewDocName("")
+    pendingDocFileRef.current = null
     e.target.value = ""
   }
 
@@ -182,6 +187,14 @@ export function HrmManager() {
 
   function removeDoc(index: number) {
     setDocuments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function handlePendingUpload() {
+    if (!newDocName.trim()) {
+      alert("Please enter a document name first")
+      return
+    }
+    docFileRef.current?.click()
   }
 
   function openEditForm(member: StaffMember) {
@@ -326,6 +339,7 @@ export function HrmManager() {
     setJoinDate(""); setStatus("active"); setNotes("")
     setPhotoFile(null); setPhotoPreview(""); setShowForm(false)
     setDocuments([])
+    setNewDocName("")
     setEditingMember(null)
   }
 
@@ -730,14 +744,8 @@ export function HrmManager() {
 
               {/* Documents */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Documents</label>
-                  <button type="button" onClick={() => docFileRef.current?.click()}
-                    className="flex items-center gap-1.5 text-sm text-[#1a9f9a] hover:underline font-medium">
-                    <Plus className="h-4 w-4" /> Add Document
-                  </button>
-                </div>
-                <input ref={docFileRef} type="file" multiple className="hidden" onChange={handleDocFileChange} />
+                <label className="text-sm font-medium text-[hsl(var(--foreground))]">Documents</label>
+                <input ref={docFileRef} type="file" className="hidden" onChange={handleDocFileChange} />
                 
                 {/* Existing documents (in edit mode) */}
                 {editingMember && editingMember.documents.length > 0 && (
@@ -763,39 +771,43 @@ export function HrmManager() {
                 )}
 
                 {/* New documents to upload */}
-                {documents.length === 0 && (!editingMember || editingMember.documents.length === 0) ? (
-                  <div onClick={() => docFileRef.current?.click()}
-                    className="flex items-center gap-3 rounded-lg border-2 border-dashed border-[hsl(var(--border))] px-4 py-4 cursor-pointer hover:border-[#1a9f9a] transition-colors bg-[hsl(var(--muted))]/10">
-                    <FileText className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
-                    <p className="text-sm text-[hsl(var(--muted-foreground))]">Click to upload documents (PDF, DOCX, images…)</p>
-                  </div>
-                ) : documents.length > 0 ? (
-                  <div className="space-y-2">
-                    {editingMember && <p className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">New Documents</p>}
-                    {documents.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3">
-                        <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                        <input
-                          value={doc.name}
-                          onChange={e => updateDocName(i, e.target.value)}
-                          placeholder="Document name"
-                          className="flex-1 min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] focus:outline-none"
-                        />
-                        <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">
-                          {(doc.file.size / 1024).toFixed(0)}KB
-                        </span>
-                        <button type="button" onClick={() => removeDoc(i)}
-                          className="text-red-400 hover:text-red-600 shrink-0">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <button type="button" onClick={() => docFileRef.current?.click()}
-                      className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] hover:text-[#1a9f9a] transition-colors">
-                      <Plus className="h-4 w-4" /> Add more
+                {documents.map((doc, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3">
+                    <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                    <input
+                      value={doc.name}
+                      onChange={e => updateDocName(i, e.target.value)}
+                      placeholder="Document name"
+                      className="flex-1 min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] focus:outline-none"
+                    />
+                    <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">
+                      {(doc.file.size / 1024).toFixed(0)}KB
+                    </span>
+                    <button type="button" onClick={() => removeDoc(i)}
+                      className="text-red-400 hover:text-red-600 shrink-0">
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
-                ) : null}
+                ))}
+
+                {/* Add new document - label first, then upload */}
+                <div className="flex items-center gap-2">
+                  <input
+                    value={newDocName}
+                    onChange={e => setNewDocName(e.target.value)}
+                    placeholder="Enter document name..."
+                    className="flex-1 h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePendingUpload}
+                    disabled={!newDocName.trim()}
+                    className="h-10 px-4 rounded-lg bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a85] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shrink-0"
+                  >
+                    <Upload className="h-4 w-4" /> Upload
+                  </button>
+                </div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Enter a name, then click Upload to select file (PDF, DOCX, images…)</p>
               </div>
 
               <div className="flex gap-3 pt-2">
