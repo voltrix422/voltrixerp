@@ -393,9 +393,9 @@ export function HrmManager() {
     const oldWarningLevel = checkWarningLevel(member.points || 100)
     const newWarningLevel = checkWarningLevel(newPoints)
 
-    // Generate warning if level changed
+    // Generate warning if level changed (only for levels 1-3)
     let newWarnings = [...(member.warnings || [])]
-    if (newWarningLevel > oldWarningLevel) {
+    if (newWarningLevel > oldWarningLevel && newWarningLevel > 0) {
       const warning: StaffWarning = {
         level: newWarningLevel,
         message: getWarningMessage(newWarningLevel, newPoints),
