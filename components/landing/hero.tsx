@@ -18,7 +18,7 @@ export default function Hero() {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % heroImages.length)
-    }, 8000)
+    }, 4000)
     return () => clearInterval(interval)
   }, [])
 
@@ -65,16 +65,17 @@ export default function Hero() {
 
         {/* Right - Rotated Rectangle with Images */}
         <div className="hidden lg:flex items-center justify-center flex-1 relative">
-          {/* Background Rectangle */}
+          {/* Background Rectangle - Dotted border, no fill */}
           <div 
-            className="absolute w-64 h-80 rounded-3xl shadow-2xl shadow-[#1a9f9a]/30"
+            className="absolute w-48 h-64 rounded-3xl"
             style={{ 
               transform: 'rotate(60deg)', 
-              background: 'linear-gradient(135deg, #1a9f9a 0%, #158a85 50%, #0d7a75 100%)'
+              border: '3px dotted #1a9f9a',
+              background: 'transparent'
             }}
           />
           {/* Front Image Container */}
-          <div className="relative w-64 h-80 rounded-3xl overflow-hidden">
+          <div className="relative w-48 h-64 rounded-3xl overflow-hidden">
             {heroImages.map((img, index) => (
               <img
                 key={img}
