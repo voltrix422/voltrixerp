@@ -18,7 +18,7 @@ interface StaffDocument {
 }
 
 interface StaffWarning {
-  level: 1 | 2 | 3
+  level: 0 | 1 | 2 | 3
   message: string
   date: string
   pointsAtWarning: number
