@@ -67,7 +67,7 @@ export default function Hero() {
         <div className="hidden lg:flex items-center justify-center flex-1 relative">
           {/* Background Rectangle - Dotted border, no fill */}
           <div 
-            className="absolute w-48 h-64 rounded-3xl"
+            className="absolute w-56 h-72 rounded-3xl"
             style={{ 
               transform: 'rotate(60deg)', 
               border: '3px dotted #1a9f9a',
@@ -75,7 +75,7 @@ export default function Hero() {
             }}
           />
           {/* Front Image Container */}
-          <div className="relative w-48 h-64 rounded-3xl overflow-hidden">
+          <div className="relative w-56 h-72 rounded-3xl overflow-hidden">
             {heroImages.map((img, index) => (
               <img
                 key={img}
