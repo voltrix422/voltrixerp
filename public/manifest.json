@@ -1,0 +1,16 @@
+{
+  "name": "Voltrix ERP",
+  "short_name": "Voltrix",
+  "description": "Voltrix ERP System - Automotive Electrical Solutions",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a9f9a",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}

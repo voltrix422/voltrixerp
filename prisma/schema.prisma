@@ -330,3 +330,25 @@ model ErpJob {
 
   @@map("erp_jobs")
 }
+
+model ErpDispatch {
+  id               String   @id @default(cuid())
+  orderId          String   @map("order_id")
+  customerName     String   @map("customer_name")
+  customerPhone    String   @default("") @map("customer_phone")
+  deliveryAddress  String   @map("delivery_address")
+  items            Json     @default("[]")
+  dispatchDate     String   @default("") @map("dispatch_date")
+  expectedDelivery String   @default("") @map("expected_delivery")
+  status           String   @default("pending")
+  courierService   String   @default("own_driver") @map("courier_service")
+  driverName       String   @default("") @map("driver_name")
+  driverPhone      String   @default("") @map("driver_phone")
+  vehicleNumber    String   @default("") @map("vehicle_number")
+  trackingId       String   @default("") @map("tracking_id")
+  notes            String   @default("")
+  createdBy        String?  @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("erp_dispatches")
+}
