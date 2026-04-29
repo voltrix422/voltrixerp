@@ -368,8 +368,9 @@ export function HrmManager() {
   const activeCount = staff.filter(s => s.status === "active").length
 
   // Points management
-  function getWarningMessage(level: 1 | 2 | 3, points: number): string {
+  function getWarningMessage(level: 0 | 1 | 2 | 3, points: number): string {
     const messages = {
+      0: '',
       1: `First Warning: Your performance points have decreased to ${points}. Please improve your work performance to avoid further disciplinary action.`,
       2: `Second Warning: Your points are now at ${points}. This is a serious concern. Immediate improvement is required.`,
       3: `Final Warning: Your points have reached a critical level (${points}). HR will contact you for a formal review.`
