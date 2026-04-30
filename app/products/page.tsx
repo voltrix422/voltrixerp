@@ -1,4 +1,4 @@
-import { DM_Sans } from "next/font/google"
+import { Space_Grotesk } from "next/font/google"
 import Image from "next/image"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
@@ -8,7 +8,7 @@ import Link from "next/link"
 import { promises as fs } from 'fs'
 import path from 'path'
 
-const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-dm-sans" })
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 
 const categoryColors: Record<string, string> = {
   Residential: "bg-blue-50 text-blue-600 border-blue-100",
@@ -42,7 +42,7 @@ export default async function ProductsPage() {
   const products = await getProducts()
 
   return (
-    <main className={`${dmSans.variable} min-h-screen bg-white text-neutral-900 antialiased`} style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+    <main className={`${spaceGrotesk.className} min-h-screen bg-white text-neutral-900 antialiased`}>
       <Navbar />
       <section className="pt-36 pb-24 px-4">
         <div className="max-w-6xl mx-auto space-y-12">

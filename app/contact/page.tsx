@@ -1,13 +1,13 @@
-import { DM_Sans } from "next/font/google"
+import { Space_Grotesk } from "next/font/google"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { MapPin, Phone, Mail, Clock } from "lucide-react"
 
-const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-dm-sans" })
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 
 export default function ContactPage() {
   return (
-    <main className={`${dmSans.variable} min-h-screen bg-white text-neutral-900 antialiased`} style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
+    <main className={`${spaceGrotesk.className} min-h-screen bg-white text-neutral-900 antialiased`}>
       <Navbar />
       <section className="pt-36 pb-24 px-4">
         <div className="max-w-5xl mx-auto space-y-14">
