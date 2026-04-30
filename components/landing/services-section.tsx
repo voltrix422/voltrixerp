@@ -96,6 +96,7 @@ export default function ServicesSection() {
               <button
                 key={item.tag}
                 onClick={() => setActiveService(index)}
+                onMouseEnter={() => setActiveService(index)}
                 className={`w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all duration-200 ${
                   activeService === index 
                     ? 'bg-[#1a9f9a] text-white shadow-lg' 
