@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
+import DarkVeil from "./dark-veil"
 
 // Add fill animation styles
 const fillAnimation = `
@@ -39,14 +40,26 @@ export default function Hero() {
   }, [])
 
   return (
-    <section className="relative min-h-screen flex items-center bg-white overflow-hidden">
-      <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48">
+    <section className="relative min-h-screen flex items-center overflow-hidden">
+      {/* DarkVeil Background */}
+      <div className="absolute inset-0 z-0">
+        <DarkVeil
+          hueShift={180}
+          noiseIntensity={0.1}
+          scanlineIntensity={0.05}
+          speed={0.3}
+          scanlineFrequency={3}
+          warpAmount={0.2}
+        />
+      </div>
+      
+      <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-white">
             Power your{" "}
-            <span className="inline-flex items-center ml-2 min-w-[80px]">
+            <span className="inline-block w-[100px]">
               <RotatingText
                 texts={["Drive", "Solar", "EVs", "Car", "House"]}
                 mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
@@ -61,28 +74,28 @@ export default function Hero() {
               />
             </span>
             <br />
-            <span className="teal-gradient-text">with Voltrix.</span>
+            <span className="text-[#1a9f9a]">with Voltrix.</span>
           </h1>
-          <p className="text-base text-neutral-500 leading-relaxed max-w-md">
+          <p className="text-base text-white/80 leading-relaxed max-w-md">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
           </p>
           <a
             href="#products"
-            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-neutral-900 overflow-hidden transition-all duration-300 hover:shadow-lg w-fit"
+            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-[#1a9f9a] overflow-hidden transition-all duration-300 hover:shadow-lg hover:bg-[#158a85] w-fit"
           >
             <span className="transition-transform duration-300 group-hover:-translate-x-0.5">
               Explore products
             </span>
-            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 transition-all duration-300 group-hover:translate-x-0.5">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20 transition-all duration-300 group-hover:translate-x-0.5">
               <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </a>
         </div>
 
         {/* Right - Image Carousel */}
-        <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-4 min-w-[360px]">
+        <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-4 w-[400px] shrink-0">
           {/* Image Container - No bg, bigger, static position */}
-          <div className="relative w-80 h-96 rounded-3xl overflow-hidden">
+          <div className="relative w-96 h-[450px] rounded-3xl overflow-hidden">
             {heroImages.map((img, index) => (
               <img
                 key={img}
@@ -100,7 +113,7 @@ export default function Hero() {
             {heroImages.map((_, index) => (
               <div
                 key={index}
-                className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-neutral-200"
+                className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-white/30"
                 aria-label={`Slide ${index + 1}`}
               >
                 {/* Fill animation for active slide */}
