@@ -46,7 +46,7 @@ export default function Hero() {
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
             Power your{" "}
-            <span className="inline-flex items-center ml-2">
+            <span className="inline-flex items-center ml-2 min-w-[80px]">
               <RotatingText
                 texts={["Drive", "Solar", "EVs", "Car", "House"]}
                 mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
