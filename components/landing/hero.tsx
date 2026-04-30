@@ -5,6 +5,14 @@ import { ArrowRight } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
 
+// Add fill animation styles
+const fillAnimation = `
+@keyframes fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+`
+
 const heroImages = [
   "/craiyon_130718_image.png",
   "/craiyon_130930_image.png",
@@ -14,6 +22,14 @@ const heroImages = [
 
 export default function Hero() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  // Inject animation styles
+  useEffect(() => {
+    const style = document.createElement('style')
+    style.textContent = fillAnimation
+    document.head.appendChild(style)
+    return () => { document.head.removeChild(style) }
+  }, [])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -64,9 +80,9 @@ export default function Hero() {
         </div>
 
         {/* Right - Image Carousel */}
-        <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-6">
-          {/* Image Container - Bigger, no rectangle */}
-          <div className="relative w-72 h-80 rounded-3xl overflow-hidden shadow-2xl">
+        <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-4 min-w-[360px]">
+          {/* Image Container - No bg, bigger, static position */}
+          <div className="relative w-80 h-96 rounded-3xl overflow-hidden">
             {heroImages.map((img, index) => (
               <img
                 key={img}
@@ -79,19 +95,26 @@ export default function Hero() {
             ))}
           </div>
           
-          {/* Carousel Dots */}
-          <div className="flex items-center gap-2">
+          {/* Static Dots with Loading Animation */}
+          <div className="flex items-center gap-1.5">
             {heroImages.map((_, index) => (
-              <button
+              <div
                 key={index}
-                onClick={() => setCurrentImageIndex(index)}
-                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                  index === currentImageIndex 
-                    ? 'bg-[#1a9f9a] w-8' 
-                    : 'bg-neutral-300 hover:bg-neutral-400'
-                }`}
-                aria-label={`Go to slide ${index + 1}`}
-              />
+                className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-neutral-200"
+                aria-label={`Slide ${index + 1}`}
+              >
+                {/* Fill animation for active slide */}
+                <div 
+                  className={`absolute inset-0 bg-[#1a9f9a] origin-left ${
+                    index === currentImageIndex 
+                      ? 'animate-fill' 
+                      : 'scale-x-0'
+                  }`}
+                  style={{
+                    animation: index === currentImageIndex ? 'fill 4s linear' : 'none'
+                  }}
+                />
+              </div>
             ))}
           </div>
         </div>
