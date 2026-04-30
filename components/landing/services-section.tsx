@@ -211,23 +211,57 @@ export default function ServicesSection() {
       </div>
 
       {/* CTA */}
-      <div className="py-20 px-4">
-        <div
-          className="max-w-5xl mx-auto rounded-3xl p-12 text-center space-y-5 text-white relative overflow-hidden"
-          style={{ backgroundColor: "#1a9f9a" }}
-        >
-          <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/5 pointer-events-none" />
-          <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-white/5 pointer-events-none" />
-          <h3 className="relative text-3xl font-bold">Ready to get started?</h3>
-          <ScrollReveal baseOpacity={0.2} enableBlur baseRotation={1} blurStrength={3} textClassName="relative text-white/70 max-w-md mx-auto text-sm leading-relaxed">
-            Talk to our team about your energy needs and we'll design the right solution for you.
-          </ScrollReveal>
-          <a
-            href="#contact"
-            className="relative inline-flex items-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-black bg-white hover:bg-white/90 transition-colors"
+      <div className="py-24 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div
+            className="relative rounded-3xl p-12 md:p-16 overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, #1a9f9a 0%, #158a85 100%)"
+            }}
           >
-            Contact us <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle,rgba(255,255,255,0.1)_0%,transparent_70%)]" />
+
+            <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                <h3 className="text-4xl md:text-5xl font-bold text-white leading-tight">
+                  Ready to get started?
+                </h3>
+                <p className="text-white/80 text-lg leading-relaxed max-w-md">
+                  Talk to our team about your energy needs and we'll design the right solution for you.
+                </p>
+                <a
+                  href="#contact"
+                  className="inline-flex items-center gap-3 px-8 py-4 rounded-full text-base font-semibold text-[#1a9f9a] bg-white hover:bg-white/90 transition-all duration-300 hover:scale-105 hover:shadow-xl group"
+                >
+                  Contact us
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+                </a>
+              </div>
+
+              {/* Stats/Features */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center">
+                  <div className="text-3xl font-bold text-white mb-1">500+</div>
+                  <div className="text-white/70 text-sm">Projects Delivered</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center">
+                  <div className="text-3xl font-bold text-white mb-1">98%</div>
+                  <div className="text-white/70 text-sm">Client Satisfaction</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center">
+                  <div className="text-3xl font-bold text-white mb-1">24/7</div>
+                  <div className="text-white/70 text-sm">Support Available</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center">
+                  <div className="text-3xl font-bold text-white mb-1">10+</div>
+                  <div className="text-white/70 text-sm">Years Experience</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
