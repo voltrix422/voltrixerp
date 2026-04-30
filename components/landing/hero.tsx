@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
-import GradientBg from "./gradient-bg"
+import Silk from "./silk"
 
 // Add fill animation styles
 const fillAnimation = `
@@ -41,9 +41,15 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Gradient Background */}
-      <div className="absolute inset-0 z-0">
-        <GradientBg />
+      {/* Silk Background */}
+      <div className="absolute inset-0 z-0 opacity-30">
+        <Silk
+          speed={3}
+          scale={1}
+          color="#1a9f9a"
+          noiseIntensity={1}
+          rotation={0}
+        />
       </div>
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
