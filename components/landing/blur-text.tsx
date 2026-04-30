@@ -1,67 +1,66 @@
 // @ts-nocheck
 "use client"
 
-import { motion } from "motion/react"
-import { useEffect, useRef, useState, useMemo } from "react"
+import { motion } from 'motion/react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Snapshot = Record<string, any>
+const buildKeyframes = (from: any, steps: any[]) => {
+  const keys = new Set([...Object.keys(from), ...steps.flatMap(s => Object.keys(s))]);
 
-const buildKeyframes = (from: Snapshot, steps: Snapshot[]) => {
-  const keys = new Set([...Object.keys(from), ...steps.flatMap(s => Object.keys(s))])
-  const keyframes: Record<string, unknown[]> = {}
-  keys.forEach(k => { keyframes[k] = [from[k], ...steps.map(s => s[k])] })
-  return keyframes
-}
+  const keyframes: any = {};
+  keys.forEach(k => {
+    keyframes[k] = [from[k], ...steps.map(s => s[k])];
+  });
+  return keyframes;
+};
 
 interface BlurTextProps {
-  text?: string
-  delay?: number
-  className?: string
-  animateBy?: "words" | "characters"
-  direction?: "top" | "bottom"
-  threshold?: number
-  rootMargin?: string
-  animationFrom?: Snapshot
-  animationTo?: Snapshot[]
-  easing?: (t: number) => number
-  onAnimationComplete?: () => void
-  stepDuration?: number
+  text?: string;
+  delay?: number;
+  className?: string;
+  animateBy?: 'words' | 'characters';
+  direction?: 'top' | 'bottom';
+  threshold?: number;
+  rootMargin?: string;
+  animationFrom?: any;
+  animationTo?: any[];
+  easing?: (t: number) => number;
+  onAnimationComplete?: () => void;
+  stepDuration?: number;
 }
 
 export default function BlurText({
-  text = "",
+  text = '',
   delay = 200,
-  className = "",
-  animateBy = "words",
-  direction = "top",
+  className = '',
+  animateBy = 'words',
+  direction = 'top',
   threshold = 0.1,
-  rootMargin = "0px",
+  rootMargin = '0px',
   animationFrom,
   animationTo,
   easing = t => t,
   onAnimationComplete,
-  stepDuration = 0.35,
+  stepDuration = 0.35
 }: BlurTextProps) {
-  const elements = animateBy === "words" ? text.split(" ") : text.split("")
-  const [inView, setInView] = useState(false)
-  const ref = useRef<HTMLParagraphElement>(null)
+  const elements = animateBy === 'words' ? text.split(' ') : text.split('');
+  const [inView, setInView] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
-    if (!ref.current) return
+    if (!ref.current) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setInView(true)
-        } else {
-          setInView(false)
+          setInView(true);
+          observer.unobserve(ref.current);
         }
       },
       { threshold, rootMargin }
-    )
-    observer.observe(ref.current)
-    return () => observer.disconnect()
-  }, [threshold, rootMargin])
+    );
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [threshold, rootMargin]);
 
   const defaultFrom = useMemo<Snapshot>(() =>
     direction === "top"

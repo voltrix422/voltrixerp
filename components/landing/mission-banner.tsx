@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { Cpu, Battery, Factory, Globe, ArrowRight, Zap } from "lucide-react"
+import BlurText from "./blur-text"
 
 const highlights = [
   { 
@@ -36,14 +37,14 @@ export default function MissionBanner() {
           </div>
           
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4">
-            <span className="text-neutral-900">Powering Pakistan's</span>
-            <br />
-            <span className="text-[#1a9f9a]">Sustainable Future</span>
+            <BlurText
+              text="Powering Pakistan's Sustainable Future"
+              delay={100}
+              animateBy="words"
+              direction="top"
+              className="text-neutral-900"
+            />
           </h2>
-          
-          <p className="text-neutral-500 text-lg max-w-2xl mx-auto">
-            Leading the energy revolution with indigenous technology and world-class innovation
-          </p>
         </div>
 
         {/* Highlights Grid */}
