@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
-import DarkVeil from "./dark-veil"
+import GradientBg from "./gradient-bg"
 
 // Add fill animation styles
 const fillAnimation = `
@@ -41,16 +41,9 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* DarkVeil Background */}
+      {/* Gradient Background */}
       <div className="absolute inset-0 z-0">
-        <DarkVeil
-          hueShift={180}
-          noiseIntensity={0.1}
-          scanlineIntensity={0.05}
-          speed={0.3}
-          scanlineFrequency={3}
-          warpAmount={0.2}
-        />
+        <GradientBg />
       </div>
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
