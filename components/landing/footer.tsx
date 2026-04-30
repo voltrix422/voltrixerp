@@ -5,7 +5,7 @@ import Image from "next/image"
 const links = {
   Company: ["About", "Blog", "Careers"],
   Legal: ["Privacy", "Terms", "Cookies"],
-  Resources: ["Documentation"],
+  Resources: ["Documentation", "ERP"],
 }
 
 export default function Footer() {
@@ -36,7 +36,8 @@ export default function Footer() {
                                  item === "Privacy" ? "/privacy" :
                                  item === "Terms" ? "/terms" :
                                  item === "Cookies" ? "/cookies" :
-                                 item === "Documentation" ? "/documentation" : "#"
+                                 item === "Documentation" ? "/documentation" :
+                                 item === "ERP" ? "/login" : "#"
                     return (
                       <li key={item}>
                         <a href={href} className="text-sm text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer">
@@ -55,7 +56,6 @@ export default function Footer() {
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-400">
           <p>© 2026 Voltrix. All rights reserved.</p>
-          <a href="/login" className="hover:text-neutral-700 transition-colors hover:underline hover:decoration-dotted underline-offset-2">ERP Login</a>
         </div>
       </div>
     </footer>
