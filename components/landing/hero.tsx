@@ -63,19 +63,10 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* Right - Rotated Rectangle with Images */}
-        <div className="hidden lg:flex items-center justify-center flex-1 relative">
-          {/* Background Rectangle - Dotted border, no fill */}
-          <div 
-            className="absolute w-56 h-72 rounded-3xl"
-            style={{ 
-              transform: 'rotate(60deg)', 
-              border: '3px dotted #1a9f9a',
-              background: 'transparent'
-            }}
-          />
-          {/* Front Image Container */}
-          <div className="relative w-56 h-72 rounded-3xl overflow-hidden">
+        {/* Right - Image Carousel */}
+        <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-6">
+          {/* Image Container - Bigger, no rectangle */}
+          <div className="relative w-72 h-80 rounded-3xl overflow-hidden shadow-2xl">
             {heroImages.map((img, index) => (
               <img
                 key={img}
@@ -84,6 +75,22 @@ export default function Hero() {
                 className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 ${
                   index === currentImageIndex ? 'opacity-100' : 'opacity-0'
                 }`}
+              />
+            ))}
+          </div>
+          
+          {/* Carousel Dots */}
+          <div className="flex items-center gap-2">
+            {heroImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentImageIndex(index)}
+                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                  index === currentImageIndex 
+                    ? 'bg-[#1a9f9a] w-8' 
+                    : 'bg-neutral-300 hover:bg-neutral-400'
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
               />
             ))}
           </div>
