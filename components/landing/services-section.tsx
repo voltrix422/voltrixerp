@@ -1,10 +1,7 @@
 // @ts-nocheck
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import { Wrench, Truck, Settings, RefreshCw, ClipboardList, Zap, ArrowRight, Building2, Cpu, HardHat, Leaf } from "lucide-react"
-import ScrollFloat from "./scroll-float"
-import ScrollReveal from "./scroll-reveal"
 
 const cards = [
   {
@@ -77,134 +74,72 @@ const cards = [
 ]
 
 export default function ServicesSection() {
-  const [active, setActive] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const dragStartX = useRef<number | null>(null)
-  const isDragging = useRef(false)
-
-  const startTimer = () => {
-    if (timerRef.current) clearInterval(timerRef.current)
-    timerRef.current = setInterval(() => {
-      setActive((prev) => (prev + 1) % cards.length)
-    }, 10000)
-  }
-
-  useEffect(() => {
-    startTimer()
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [])
-
-  const goTo = (i: number) => {
-    setActive(i)
-    startTimer()
-  }
-
-  const onDragStart = (e: React.PointerEvent) => {
-    dragStartX.current = e.clientX
-    isDragging.current = false
-  }
-
-  const onDragMove = (e: React.PointerEvent) => {
-    if (dragStartX.current !== null && Math.abs(e.clientX - dragStartX.current) > 5) {
-      isDragging.current = true
-    }
-  }
-
-  const onDragEnd = (e: React.PointerEvent) => {
-    if (dragStartX.current === null) return
-    const diff = dragStartX.current - e.clientX
-    if (Math.abs(diff) > 50) {
-      if (diff > 0) goTo((active + 1) % cards.length)
-      else goTo((active - 1 + cards.length) % cards.length)
-    }
-    dragStartX.current = null
-    isDragging.current = false
-  }
-
-  const card = cards[active]
-
   return (
     <section id="services" className="bg-white">
 
       {/* Hero */}
-      <div className="py-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#1a9f9a" }}>Our Services</p>
-          <div className="flex flex-col gap-0">
-            <ScrollFloat animationDuration={1} ease="back.inOut(2)" scrollStart="center bottom+=50%" scrollEnd="bottom bottom-=40%" stagger={0.03} containerClassName="text-3xl font-bold tracking-tight text-neutral-900 leading-none">
-              Empowering Businesses with
-            </ScrollFloat>
-            <ScrollFloat animationDuration={1} ease="back.inOut(2)" scrollStart="center bottom+=50%" scrollEnd="bottom bottom-=40%" stagger={0.03} containerClassName="text-5xl md:text-6xl font-bold tracking-tight text-neutral-900 leading-none">
-              Smart Solutions
-            </ScrollFloat>
+      <div className="py-32 px-4 bg-gradient-to-b from-neutral-50 to-white">
+        <div className="max-w-6xl mx-auto text-center space-y-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#1a9f9a]/30 bg-[#1a9f9a]/10 mb-4">
+            <Zap className="w-4 h-4 text-[#1a9f9a]" />
+            <span className="text-sm font-semibold text-[#1a9f9a]">Our Services</span>
           </div>
-          <ScrollReveal baseOpacity={0.1} enableBlur baseRotation={2} blurStrength={4} textClassName="text-neutral-500 text-base leading-relaxed max-w-xl mx-auto">
+          <h2 className="text-5xl md:text-7xl font-bold tracking-tight text-neutral-900 leading-tight">
+            Empowering Businesses with
+            <br />
+            <span className="text-[#1a9f9a]">Smart Solutions</span>
+          </h2>
+          <p className="text-lg text-neutral-600 leading-relaxed max-w-2xl mx-auto">
             Innovative, reliable, and result-driven services to help you achieve your business goals efficiently and effectively.
-          </ScrollReveal>
+          </p>
         </div>
       </div>
 
-      {/* Carousel */}
+      {/* Services Grid */}
       <div className="pb-24 px-4">
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {cards.map((item, index) => (
+              <div
+                key={item.tag}
+                className="group rounded-3xl p-8 bg-white border border-neutral-100 hover:border-[#1a9f9a]/30 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              >
+                {/* Icon */}
+                <div className="w-14 h-14 rounded-2xl bg-[#1a9f9a]/10 flex items-center justify-center mb-6 group-hover:bg-[#1a9f9a] transition-colors duration-300">
+                  <item.icon className="w-7 h-7 text-[#1a9f9a] group-hover:text-white transition-colors duration-300" strokeWidth={1.8} />
+                </div>
 
-          {/* Card */}
-          <div
-            key={active}
-            className="rounded-3xl border border-neutral-100 bg-white p-8 md:p-10 space-y-6 shadow-sm select-none cursor-grab active:cursor-grabbing"
-            style={{ animation: "slideInRight 0.45s cubic-bezier(0.22,1,0.36,1)" }}
-            onPointerDown={onDragStart}
-            onPointerMove={onDragMove}
-            onPointerUp={onDragEnd}
-            onPointerLeave={onDragEnd}
-          >
-            {/* Top row */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#1a9f9a15" }}>
-                <card.icon className="w-4.5 h-4.5" style={{ color: "#1a9f9a" }} strokeWidth={1.8} />
-              </div>
-              <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#1a9f9a" }}>{card.tag}</span>
-            </div>
+                {/* Tag */}
+                <span className="text-xs font-semibold uppercase tracking-widest text-[#1a9f9a] mb-3 block">{item.tag}</span>
 
-            {/* Heading */}
-            <div>
-              <h3 className="text-2xl md:text-3xl font-bold text-neutral-900 tracking-tight leading-snug">{card.heading}</h3>
-              <p className="text-2xl md:text-3xl font-bold tracking-tight leading-snug" style={{ color: "#1a9f9a" }}>{card.sub}</p>
-            </div>
+                {/* Heading */}
+                <h3 className="text-xl font-bold text-neutral-900 tracking-tight leading-snug mb-2">
+                  {item.heading}
+                </h3>
+                <p className="text-xl font-bold text-[#1a9f9a] tracking-tight leading-snug mb-4">
+                  {item.sub}
+                </p>
 
-            {/* Body */}
-            <p className="text-neutral-500 text-sm leading-relaxed max-w-2xl">{card.body}</p>
+                {/* Body */}
+                <p className="text-neutral-600 text-sm leading-relaxed mb-6">{item.body}</p>
 
-            {/* Items grid */}
-            {card.items && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-                {card.items.map((item) => (
-                  <div key={item.title} className="flex items-start gap-3 p-4 rounded-2xl bg-neutral-50 border border-neutral-100">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: "#1a9f9a12" }}>
-                      <item.icon className="w-3.5 h-3.5" style={{ color: "#1a9f9a" }} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral-900">{item.title}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">{item.desc}</p>
-                    </div>
+                {/* Items */}
+                {item.items && (
+                  <div className="space-y-3">
+                    {item.items.map((subItem) => (
+                      <div key={subItem.title} className="flex items-start gap-3 p-3 rounded-xl bg-neutral-50">
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-[#1a9f9a]/10">
+                          <subItem.icon className="w-3 h-3 text-[#1a9f9a]" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-neutral-900">{subItem.title}</p>
+                          <p className="text-xs text-neutral-500 mt-0.5">{subItem.desc}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-
-          {/* Dots + progress */}
-          <div className="flex items-center justify-center gap-2">
-            {cards.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => goTo(i)}
-                className="h-1.5 rounded-full transition-all duration-300"
-                style={{
-                  width: i === active ? "2rem" : "0.5rem",
-                  backgroundColor: i === active ? "#1a9f9a" : "#d4d4d4",
-                }}
-              />
             ))}
           </div>
         </div>
@@ -264,13 +199,6 @@ export default function ServicesSection() {
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes slideInRight {
-          from { opacity: 0; transform: translateX(48px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-      `}</style>
     </section>
   )
 }
