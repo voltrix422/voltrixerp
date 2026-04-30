@@ -50,7 +50,7 @@ export default function Hero() {
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-white">
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
             Power your{" "}
             <span className="inline-block w-[100px]">
               <RotatingText
@@ -69,7 +69,7 @@ export default function Hero() {
             <br />
             <span className="text-[#1a9f9a]">with Voltrix.</span>
           </h1>
-          <p className="text-base text-white/80 leading-relaxed max-w-md">
+          <p className="text-base text-neutral-600 leading-relaxed max-w-md">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
           </p>
           <a
@@ -106,7 +106,7 @@ export default function Hero() {
             {heroImages.map((_, index) => (
               <div
                 key={index}
-                className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-white/30"
+                className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-neutral-300"
                 aria-label={`Slide ${index + 1}`}
               >
                 {/* Fill animation for active slide */}
