@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unknown-property */
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { forwardRef, useRef, useMemo, useLayoutEffect } from 'react';
-import { Color } from 'three';
+import { Color, Mesh } from 'three';
 
 const hexToNormalizedRGB = (hex: string) => {
   hex = hex.replace('#', '');
@@ -80,7 +80,7 @@ interface SilkPlaneProps {
   };
 }
 
-const SilkPlane = forwardRef(function SilkPlane({ uniforms }: SilkPlaneProps, ref: React.ForwardedRef<THREE.Mesh>) {
+const SilkPlane = forwardRef(function SilkPlane({ uniforms }: SilkPlaneProps, ref: React.ForwardedRef<Mesh>) {
   const { viewport } = useThree();
 
   useLayoutEffect(() => {
@@ -113,7 +113,7 @@ interface SilkProps {
 }
 
 const Silk = ({ speed = 5, scale = 1, color = '#1a9f9a', noiseIntensity = 1.5, rotation = 0 }: SilkProps) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<Mesh>(null);
 
   const uniforms = useMemo(
     () => ({
