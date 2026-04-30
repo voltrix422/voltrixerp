@@ -300,6 +300,15 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   const [clientSearch, setClientSearch] = useState("")
   const [inventorySearch, setInventorySearch] = useState("")
   const [quantityError, setQuantityError] = useState<string | null>(null)
+  
+  // Tax and expenses state
+  const [taxPercent, setTaxPercent] = useState<number>(0)
+  const [transportCost, setTransportCost] = useState<number>(0)
+  const [transportLabel, setTransportLabel] = useState<string>("Transport")
+  const [transportIsPercentage, setTransportIsPercentage] = useState<boolean>(false)
+  const [otherCost, setOtherCost] = useState<number>(0)
+  const [otherCostLabel, setOtherCostLabel] = useState<string>("Other")
+  const [otherCostIsPercentage, setOtherCostIsPercentage] = useState<boolean>(false)
 
   useEffect(() => {
     // Load inventory items
@@ -316,7 +325,22 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   }, [quantityError])
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
-  const total = subtotal
+  
+  // Calculate tax amount
+  const taxAmount = subtotal * (taxPercent / 100)
+  
+  // Calculate transport cost
+  const transportAmount = transportIsPercentage 
+    ? subtotal * (transportCost / 100) 
+    : transportCost
+  
+  // Calculate other cost
+  const otherAmount = otherCostIsPercentage 
+    ? subtotal * (otherCost / 100) 
+    : otherCost
+  
+  // Total calculation
+  const total = subtotal + taxAmount + transportAmount + otherAmount
 
   function addCustomItem() {
     setItems(prev => [...prev, { id: Date.now().toString(), description: "", qty: 1, unit: "pcs", unitPrice: 0, isCustom: true }])
@@ -389,12 +413,12 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
       clientName: client?.name || "",
       items,
       subtotal,
-      taxPercent: 0,
-      tax: 0,
-      transportCost: 0,
-      transportLabel: "Transport",
-      otherCost: 0,
-      otherCostLabel: "Other",
+      taxPercent,
+      tax: taxAmount,
+      transportCost: transportAmount,
+      transportLabel,
+      otherCost: otherAmount,
+      otherCostLabel,
       shipping: 0,
       discount: 0,
       total,
@@ -563,13 +587,159 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                         </td>
                       </tr>
                     ))}
-                    <tr className="bg-[hsl(var(--muted))]/30 font-bold">
+                    <tr className="bg-[hsl(var(--muted))]/30">
+                      <td colSpan={4} className="px-4 py-2 text-right font-medium">Subtotal</td>
+                      <td className="px-4 py-2 text-right font-medium">PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td></td>
+                    </tr>
+                    {taxAmount > 0 && (
+                      <tr className="bg-[hsl(var(--muted))]/30">
+                        <td colSpan={4} className="px-4 py-2 text-right font-medium">Tax ({taxPercent}%)</td>
+                        <td className="px-4 py-2 text-right font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td></td>
+                      </tr>
+                    )}
+                    {transportAmount > 0 && (
+                      <tr className="bg-[hsl(var(--muted))]/30">
+                        <td colSpan={4} className="px-4 py-2 text-right font-medium">{transportLabel}{transportIsPercentage && ` (${transportCost}%)`}</td>
+                        <td className="px-4 py-2 text-right font-medium">PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td></td>
+                      </tr>
+                    )}
+                    {otherAmount > 0 && (
+                      <tr className="bg-[hsl(var(--muted))]/30">
+                        <td colSpan={4} className="px-4 py-2 text-right font-medium">{otherCostLabel}{otherCostIsPercentage && ` (${otherCost}%)`}</td>
+                        <td className="px-4 py-2 text-right font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td></td>
+                      </tr>
+                    )}
+                    <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
                       <td colSpan={4} className="px-4 py-3 text-right">Total</td>
                       <td className="px-4 py-3 text-right">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                       <td></td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+
+          {/* Tax and Expenses */}
+          <div className="pt-4 border-t">
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Tax & Expenses</p>
+            
+            {/* Tax */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tax Percentage</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    max="100" 
+                    value={taxPercent} 
+                    onChange={e => setTaxPercent(Number(e.target.value))}
+                    placeholder="18"
+                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                  />
+                  <span className="text-sm text-[hsl(var(--muted-foreground))]">%</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tax Amount</label>
+                <div className="h-10 flex items-center px-3.5 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
+                  PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+
+            {/* Transport Cost */}
+            <div className="grid grid-cols-12 gap-4 mb-4">
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Expense Label</label>
+                <input 
+                  value={transportLabel} 
+                  onChange={e => setTransportLabel(e.target.value)}
+                  placeholder="Transport"
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                />
+              </div>
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Amount</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  step={transportIsPercentage ? "0.01" : "1"}
+                  value={transportCost} 
+                  onChange={e => setTransportCost(Number(e.target.value))}
+                  placeholder={transportIsPercentage ? "18" : "1000"}
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                />
+              </div>
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Type</label>
+                <div className="flex items-center gap-3 h-10">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={transportIsPercentage}
+                      onChange={e => setTransportIsPercentage(e.target.checked)}
+                      className="w-4 h-4 rounded border"
+                    />
+                    <span className="text-sm">Percentage (%)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            {transportCost > 0 && (
+              <div className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
+                {transportLabel}: PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {transportIsPercentage && ` (${transportCost}% of subtotal)`}
+              </div>
+            )}
+
+            {/* Other Cost */}
+            <div className="grid grid-cols-12 gap-4 mb-4">
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Expense Label</label>
+                <input 
+                  value={otherCostLabel} 
+                  onChange={e => setOtherCostLabel(e.target.value)}
+                  placeholder="Other"
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                />
+              </div>
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Amount</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  step={otherCostIsPercentage ? "0.01" : "1"}
+                  value={otherCost} 
+                  onChange={e => setOtherCost(Number(e.target.value))}
+                  placeholder={otherCostIsPercentage ? "5" : "500"}
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                />
+              </div>
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Type</label>
+                <div className="flex items-center gap-3 h-10">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={otherCostIsPercentage}
+                      onChange={e => setOtherCostIsPercentage(e.target.checked)}
+                      className="w-4 h-4 rounded border"
+                    />
+                    <span className="text-sm">Percentage (%)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            {otherCost > 0 && (
+              <div className="mb-2 text-sm text-[hsl(var(--muted-foreground))]">
+                {otherCostLabel}: PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {otherCostIsPercentage && ` (${otherCost}% of subtotal)`}
               </div>
             )}
           </div>
