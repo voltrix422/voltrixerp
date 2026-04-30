@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
-import Silk from "./silk"
 
 // Add fill animation styles
 const fillAnimation = `
@@ -41,27 +40,19 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Silk Background */}
-      <div className="absolute inset-0 z-0 opacity-100">
-        <Silk
-          speed={3}
-          scale={1}
-          color="#5eead4"
-          noiseIntensity={1}
-          rotation={0}
-        />
-      </div>
+      {/* Gradient Background */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#1a9f9a]/20 via-white to-white" />
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-white">
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
             Power your{" "}
             <span className="inline-block w-[100px]">
               <RotatingText
                 texts={["Drive", "Solar", "EVs", "Car", "House"]}
-                mainClassName="px-1 py-1 rounded-lg font-bold text-white"
+                mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
                 staggerDuration={0.03}
                 staggerFrom="last"
                 rotationInterval={2500}
@@ -73,9 +64,9 @@ export default function Hero() {
               />
             </span>
             <br />
-            <span className="text-white">with Voltrix.</span>
+            <span className="text-[#1a9f9a]">with Voltrix.</span>
           </h1>
-          <p className="text-base text-white/90 leading-relaxed max-w-md">
+          <p className="text-base text-neutral-600 leading-relaxed max-w-md">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
           </p>
           <a
