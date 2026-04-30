@@ -4,7 +4,7 @@ import { getPOs, savePO, type PurchaseOrder, type ImportedPOItem } from "@/lib/p
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Package, Search, X, CheckCircle2, Plus, Calendar, Calculator, Trash2 } from "lucide-react"
+import { Package, Search, X, CheckCircle2, Plus, Calendar, Calculator, Trash2, ChevronDown } from "lucide-react"
 import { generateGRN } from "@/lib/generate-grn"
 import { InventoryHistory } from "@/components/inventory/inventory-history"
 
@@ -266,6 +266,7 @@ export function InventoryList() {
     gstIsPercentage: false,
   })
   const [otherExpenses, setOtherExpenses] = useState<Array<{ id: string; label: string; amount: string; isPercentage: boolean }>>([])
+  const [showExpenseDropdown, setShowExpenseDropdown] = useState(false)
   const [savingManualItem, setSavingManualItem] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -1472,9 +1473,31 @@ export function InventoryList() {
                           </div>
                         )}
                         {otherExpensesTotal > 0 && (
-                          <div className="flex justify-between">
-                            <span>Other Expenses</span>
-                            <span className="font-medium">PKR {otherExpensesTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => setShowExpenseDropdown(!showExpenseDropdown)}
+                              className="w-full flex justify-between items-center hover:bg-[hsl(var(--muted))]/30 rounded px-2 -mx-2 py-1 transition-colors cursor-pointer"
+                            >
+                              <span className="flex items-center gap-2">
+                                Other Expenses
+                                <ChevronDown className={`h-4 w-4 text-[hsl(var(--muted-foreground))] transition-transform ${showExpenseDropdown ? 'rotate-180' : ''}`} />
+                              </span>
+                              <span className="font-medium">PKR {otherExpensesTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </button>
+                            {showExpenseDropdown && (
+                              <div className="ml-4 space-y-1 text-xs text-[hsl(var(--muted-foreground))] border-l-2 border-[hsl(var(--muted))] pl-3">
+                                {otherExpenses.map((exp, idx) => {
+                                  const amount = parseFloat(exp.amount || "0")
+                                  const calculatedAmount = exp.isPercentage ? subtotal * (amount / 100) : amount
+                                  return (
+                                    <div key={exp.id} className="flex justify-between py-1">
+                                      <span>{exp.label || `Expense ${idx + 1}`} {exp.isPercentage && `(${amount}%)`}</span>
+                                      <span>PKR {calculatedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
                           </div>
                         )}
                         <div className="flex justify-between pt-2 border-t font-bold text-base">
