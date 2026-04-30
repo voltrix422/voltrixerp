@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use client"
 
-import { Wrench, Truck, Settings, RefreshCw, ClipboardList, Zap, ArrowRight, Building2, Cpu, HardHat, Leaf } from "lucide-react"
+import { useState } from "react"
+import { Wrench, Truck, Settings, RefreshCw, ClipboardList, Zap, ArrowRight, Building2, Cpu, HardHat, Leaf, ChevronRight } from "lucide-react"
 
 const cards = [
   {
@@ -74,77 +75,92 @@ const cards = [
 ]
 
 export default function ServicesSection() {
+  const [activeService, setActiveService] = useState(0)
+  
   return (
-    <section id="services" className="bg-white">
-
-      {/* Hero */}
-      <div className="py-32 px-4 bg-gradient-to-b from-neutral-50 to-white">
-        <div className="max-w-6xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#1a9f9a]/30 bg-[#1a9f9a]/10 mb-4">
-            <Zap className="w-4 h-4 text-[#1a9f9a]" />
-            <span className="text-sm font-semibold text-[#1a9f9a]">Our Services</span>
-          </div>
-          <h2 className="text-5xl md:text-7xl font-bold tracking-tight text-neutral-900 leading-tight">
-            Empowering Businesses with
-            <br />
-            <span className="text-[#1a9f9a]">Smart Solutions</span>
+    <section id="services" className="bg-white py-20 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#1a9f9a] mb-2 block">Our Services</span>
+          <h2 className="text-4xl md:text-5xl font-bold text-neutral-900">
+            Smart Solutions for <span className="text-[#1a9f9a]">Every Need</span>
           </h2>
-          <p className="text-lg text-neutral-600 leading-relaxed max-w-2xl mx-auto">
-            Innovative, reliable, and result-driven services to help you achieve your business goals efficiently and effectively.
-          </p>
         </div>
-      </div>
 
-      {/* Services Grid */}
-      <div className="pb-24 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Compact Tabbed Layout */}
+        <div className="grid md:grid-cols-12 gap-6">
+          {/* Service List - Left Side */}
+          <div className="md:col-span-5 space-y-2">
             {cards.map((item, index) => (
-              <div
+              <button
                 key={item.tag}
-                className="group rounded-3xl p-8 bg-white border border-neutral-100 hover:border-[#1a9f9a]/30 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                onClick={() => setActiveService(index)}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all duration-200 ${
+                  activeService === index 
+                    ? 'bg-[#1a9f9a] text-white shadow-lg' 
+                    : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700'
+                }`}
               >
-                {/* Icon */}
-                <div className="w-14 h-14 rounded-2xl bg-[#1a9f9a]/10 flex items-center justify-center mb-6 group-hover:bg-[#1a9f9a] transition-colors duration-300">
-                  <item.icon className="w-7 h-7 text-[#1a9f9a] group-hover:text-white transition-colors duration-300" strokeWidth={1.8} />
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                  activeService === index ? 'bg-white/20' : 'bg-[#1a9f9a]/10'
+                }`}>
+                  <item.icon className={`w-5 h-5 ${activeService === index ? 'text-white' : 'text-[#1a9f9a]'}`} />
                 </div>
-
-                {/* Tag */}
-                <span className="text-xs font-semibold uppercase tracking-widest text-[#1a9f9a] mb-3 block">{item.tag}</span>
-
-                {/* Heading */}
-                <h3 className="text-xl font-bold text-neutral-900 tracking-tight leading-snug mb-2">
-                  {item.heading}
-                </h3>
-                <p className="text-xl font-bold text-[#1a9f9a] tracking-tight leading-snug mb-4">
-                  {item.sub}
-                </p>
-
-                {/* Body */}
-                <p className="text-neutral-600 text-sm leading-relaxed mb-6">{item.body}</p>
-
-                {/* Items */}
-                {item.items && (
-                  <div className="space-y-3">
-                    {item.items.map((subItem) => (
-                      <div key={subItem.title} className="flex items-start gap-3 p-3 rounded-xl bg-neutral-50">
-                        <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-[#1a9f9a]/10">
-                          <subItem.icon className="w-3 h-3 text-[#1a9f9a]" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-neutral-900">{subItem.title}</p>
-                          <p className="text-xs text-neutral-500 mt-0.5">{subItem.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">{item.tag}</p>
+                  <p className={`text-xs truncate ${activeService === index ? 'text-white/80' : 'text-neutral-500'}`}>
+                    {item.heading}
+                  </p>
+                </div>
+                <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${
+                  activeService === index ? 'rotate-90' : ''
+                }`} />
+              </button>
             ))}
           </div>
+
+          {/* Service Detail - Right Side */}
+          <div className="md:col-span-7">
+            <div className="bg-neutral-50 rounded-2xl p-6 h-full border border-neutral-100">
+              {(() => {
+                const item = cards[activeService]
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-[#1a9f9a]/10 flex items-center justify-center">
+                        <item.icon className="w-6 h-6 text-[#1a9f9a]" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-semibold uppercase tracking-widest text-[#1a9f9a]">{item.tag}</span>
+                        <h3 className="text-lg font-bold text-neutral-900">{item.heading} <span className="text-[#1a9f9a]">{item.sub}</span></h3>
+                      </div>
+                    </div>
+                    
+                    <p className="text-neutral-600 text-sm leading-relaxed">{item.body}</p>
+                    
+                    {item.items && (
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        {item.items.map((subItem) => (
+                          <div key={subItem.title} className="flex items-start gap-2 p-3 rounded-lg bg-white border border-neutral-100">
+                            <div className="w-5 h-5 rounded bg-[#1a9f9a]/10 flex items-center justify-center shrink-0">
+                              <subItem.icon className="w-3 h-3 text-[#1a9f9a]" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-neutral-900">{subItem.title}</p>
+                              <p className="text-xs text-neutral-500 leading-tight">{subItem.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
         </div>
       </div>
-
       {/* CTA */}
       <div className="py-24 px-4">
         <div className="max-w-6xl mx-auto">
