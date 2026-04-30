@@ -234,8 +234,12 @@ type InventoryItem = ImportedPOItem & {
   supplier: string
   pssid?: string
   receivedAt: string
+  name?: string
   gst?: number
+  gstIsPercentage?: boolean
+  gstInput?: number
   otherExpense?: number
+  otherExpenses?: Array<{ label: string; amount: number; isPercentage: boolean; inputAmount: number }>
   specs?: string
 }
 
@@ -405,8 +409,12 @@ export function InventoryList() {
             supplier: (stock.supplierName || stock.supplier_name || "—") as string,
             pssid: undefined,
             receivedAt: (stock.createdAt || stock.created_at || "") as string,
+            name: (stock.name || "") as string,
             gst: (stock.gst || 0) as number,
+            gstIsPercentage: (stock.gstIsPercentage || stock.gst_is_percentage || false) as boolean,
+            gstInput: (stock.gstInput || stock.gst_input || 0) as number,
             otherExpense: (stock.otherExpense || stock.other_expense || 0) as number,
+            otherExpenses: (stock.otherExpenses || stock.other_expenses || []) as Array<{ label: string; amount: number; isPercentage: boolean; inputAmount: number }>,
             specs: (stock.specs || "") as string,
           }))
 
@@ -1033,7 +1041,12 @@ export function InventoryList() {
                   <Package className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-[hsl(var(--foreground))]">{selectedInventoryItem.description}</p>
+                  <p className="text-base font-bold text-[hsl(var(--foreground))]">
+                    {selectedInventoryItem.name || selectedInventoryItem.description}
+                  </p>
+                  {selectedInventoryItem.name && selectedInventoryItem.description && (
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">{selectedInventoryItem.description}</p>
+                  )}
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">
                     {(() => {
                       const idHash = selectedInventoryItem.id.replace(/[^0-9]/g, '').slice(-6)
@@ -1189,30 +1202,59 @@ export function InventoryList() {
               {(selectedInventoryItem.gst || selectedInventoryItem.otherExpense) && (
                 <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4">
                   <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-3">Tax & Expenses</p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     {selectedInventoryItem.gst && selectedInventoryItem.gst > 0 && (
-                      <>
-                        <div className="flex items-center justify-between py-2 border-b border-[hsl(var(--border))]">
-                          <p className="text-xs text-[hsl(var(--muted-foreground))]">GST Total</p>
+                      <div className="flex items-center justify-between py-2 border-b border-[hsl(var(--border))]">
+                        <div>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                            GST {selectedInventoryItem.gstIsPercentage && `(${selectedInventoryItem.gstInput}%)`}
+                          </p>
+                          {!selectedInventoryItem.gstIsPercentage && (
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Fixed Amount</p>
+                          )}
+                        </div>
+                        <div className="text-right">
                           <p className="text-sm font-semibold">PKR {selectedInventoryItem.gst.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">PKR {(selectedInventoryItem.gst / selectedInventoryItem.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })} / unit</p>
                         </div>
-                        <div className="flex items-center justify-between py-2 border-b border-[hsl(var(--border))]">
-                          <p className="text-xs text-[hsl(var(--muted-foreground))]">GST/Unit</p>
-                          <p className="text-sm font-semibold">PKR {(selectedInventoryItem.gst / selectedInventoryItem.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                        </div>
-                      </>
+                      </div>
                     )}
-                    {selectedInventoryItem.otherExpense && selectedInventoryItem.otherExpense > 0 && (
-                      <>
-                        <div className="flex items-center justify-between py-2 border-b border-[hsl(var(--border))]">
-                          <p className="text-xs text-[hsl(var(--muted-foreground))]">Other Expense Total</p>
+                    
+                    {/* Other Expenses Breakdown */}
+                    {selectedInventoryItem.otherExpenses && selectedInventoryItem.otherExpenses.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-[hsl(var(--foreground))] pt-1">Other Expenses Breakdown:</p>
+                        {selectedInventoryItem.otherExpenses.map((exp, idx) => (
+                          <div key={idx} className="flex items-center justify-between py-1.5 border-b border-[hsl(var(--border))]/50">
+                            <div>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                {exp.label || `Expense ${idx + 1}`} {exp.isPercentage && `(${exp.inputAmount}%)`}
+                              </p>
+                              {exp.isPercentage && (
+                                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Percentage of subtotal</p>
+                              )}
+                            </div>
+                            <p className="text-sm font-medium">PKR {exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between py-2 border-t border-[hsl(var(--border))] font-medium">
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">Other Expenses Total</p>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold">PKR {selectedInventoryItem.otherExpense?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">PKR {((selectedInventoryItem.otherExpense || 0) / selectedInventoryItem.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })} / unit</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!selectedInventoryItem.otherExpenses && selectedInventoryItem.otherExpense && selectedInventoryItem.otherExpense > 0 && (
+                      <div className="flex items-center justify-between py-2 border-b border-[hsl(var(--border))]">
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">Other Expense Total</p>
+                        <div className="text-right">
                           <p className="text-sm font-semibold">PKR {selectedInventoryItem.otherExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">PKR {(selectedInventoryItem.otherExpense / selectedInventoryItem.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })} / unit</p>
                         </div>
-                        <div className="flex items-center justify-between py-2 border-b border-[hsl(var(--border))]">
-                          <p className="text-xs text-[hsl(var(--muted-foreground))]">Other Expense/Unit</p>
-                          <p className="text-sm font-semibold">PKR {(selectedInventoryItem.otherExpense / selectedInventoryItem.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                        </div>
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
