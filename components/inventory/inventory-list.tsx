@@ -256,6 +256,7 @@ export function InventoryList() {
   const [usingFallbackData, setUsingFallbackData] = useState(false)
   const [showManualItemModal, setShowManualItemModal] = useState(false)
   const [manualItem, setManualItem] = useState({
+    name: "",
     description: "",
     qty: "",
     unit: "pcs",
@@ -464,7 +465,7 @@ export function InventoryList() {
 
           const proportionalAdditionalCost = itemsTotal > 0 ? (itemTotal / itemsTotal) * additionalCosts : 0
 
-          const landedCostPerUnit = basePrice + (item.qty > 0 ? proportionalAdditionalCost / item.qty : 0)
+          const landedCostPerUnit = basePrice + (proportionalAdditionalCost / item.qty)
 
           return {
             id: item.id,
@@ -576,7 +577,7 @@ export function InventoryList() {
   const alreadyReceived = (po: PurchaseOrder) => po.flowHistory.some(h => h.step === "Items Received")
 
   async function saveManualItem() {
-    if (!manualItem.description || !manualItem.qty || !manualItem.unitPrice) {
+    if (!manualItem.name || !manualItem.description || !manualItem.qty || !manualItem.unitPrice) {
       alert("Please fill in all required fields")
       return
     }
@@ -618,6 +619,7 @@ export function InventoryList() {
       const itemData = {
         id: stockId,
         itemId: stockId,
+        name: manualItem.name,
         description: manualItem.description,
         unit: manualItem.unit,
         receivedQty: qty,
@@ -648,6 +650,7 @@ export function InventoryList() {
       loadStockItems()
       setShowManualItemModal(false)
       setManualItem({
+        name: "",
         description: "",
         qty: "",
         unit: "pcs",
@@ -756,33 +759,33 @@ export function InventoryList() {
       {/* Filter Section */}
       {showFilters && (
         <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-2">
+        <input
+          type="date"
+          value={fromDate}
+          onChange={e => setFromDate(e.target.value)}
+          placeholder="From Date"
+          className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
+        />
+        <input
+          type="date"
+          value={toDate}
+          onChange={e => setToDate(e.target.value)}
+          placeholder="To Date"
+          className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
+        />
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
           <input
-            type="date"
-            value={fromDate}
-            onChange={e => setFromDate(e.target.value)}
-            placeholder="From Date"
-            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={tab === "receiving" ? "Search PO, supplier, PSSID..." : "Search item, PO, supplier..."}
+            className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
           />
-          <input
-            type="date"
-            value={toDate}
-            onChange={e => setToDate(e.target.value)}
-            placeholder="To Date"
-            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
-          />
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={tab === "receiving" ? "Search PO, supplier, PSSID..." : "Search item, PO, supplier..."}
-              className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-            />
-          </div>
-          {(search || fromDate || toDate) && (
-            <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setSearch(""); setFromDate(""); setToDate("") }}>Clear</Button>
-          )}
         </div>
+        {(search || fromDate || toDate) && (
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setSearch(""); setFromDate(""); setToDate("") }}>Clear</Button>
+        )}
+      </div>
       )}
 
       {/* Main Tabs */}
@@ -946,7 +949,7 @@ export function InventoryList() {
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Unit</th>
                     <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Landed Cost/Unit</th>
                     <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total Value</th>
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Received</th>
+                    <th className="h-9 px-4 text-left text-[hsl(var(--muted-foreground))]">Received</th>
                     {inventorySubTab === "manual" && (
                       <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Actions</th>
                     )}
@@ -1233,12 +1236,22 @@ export function InventoryList() {
             <div className="flex-1 overflow-y-auto p-8 space-y-6">
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Description *</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Name *</label>
+                  <input
+                    type="text"
+                    value={manualItem.name}
+                    onChange={e => setManualItem({ ...manualItem, name: e.target.value })}
+                    placeholder="Item name"
+                    className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Description</label>
                   <input
                     type="text"
                     value={manualItem.description}
                     onChange={e => setManualItem({ ...manualItem, description: e.target.value })}
-                    placeholder="Item description"
+                    placeholder="Item description (optional)"
                     className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                   />
                 </div>
