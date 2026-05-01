@@ -15,23 +15,42 @@ export async function GET(req: NextRequest) {
   }
 
   const items = await prisma.erpInventoryStock.findMany({ orderBy: { createdAt: "desc" } })
-  return NextResponse.json(items)
+  
+  // Parse otherExpenses JSON string back to array for frontend
+  const parsedItems = items.map(item => ({
+    ...item,
+    otherExpenses: item.otherExpenses ? JSON.parse(item.otherExpenses) : [],
+  }))
+  
+  return NextResponse.json(parsedItems)
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
 
   if (body.action === "insert") {
-    const item = await prisma.erpInventoryStock.create({ data: body.data })
-    return NextResponse.json(item)
+    // Serialize otherExpenses array to JSON string for storage
+    const data = { ...body.data }
+    if (data.otherExpenses && Array.isArray(data.otherExpenses)) {
+      data.otherExpenses = JSON.stringify(data.otherExpenses)
+    }
+    
+    const item = await prisma.erpInventoryStock.create({ data })
+    return NextResponse.json({ ...item, otherExpenses: data.otherExpenses ? JSON.parse(data.otherExpenses) : [] })
   }
 
   if (body.action === "update") {
+    // Serialize otherExpenses array to JSON string for storage
+    const data = { ...body.data }
+    if (data.otherExpenses && Array.isArray(data.otherExpenses)) {
+      data.otherExpenses = JSON.stringify(data.otherExpenses)
+    }
+    
     const item = await prisma.erpInventoryStock.update({
       where: { id: body.id },
-      data: body.data,
+      data,
     })
-    return NextResponse.json(item)
+    return NextResponse.json({ ...item, otherExpenses: data.otherExpenses ? JSON.parse(data.otherExpenses) : [] })
   }
 
   if (body.action === "delete") {
