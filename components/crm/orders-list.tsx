@@ -803,6 +803,7 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                 <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-8">No items in inventory</p>
               ) : (() => {
                 const filteredItems = inventoryItems.filter(item => 
+                  (item.name && item.name.toLowerCase().includes(inventorySearch.toLowerCase())) ||
                   item.description.toLowerCase().includes(inventorySearch.toLowerCase()) ||
                   (item.supplier && item.supplier.toLowerCase().includes(inventorySearch.toLowerCase())) ||
                   (item.poNumber && item.poNumber.toLowerCase().includes(inventorySearch.toLowerCase()))
@@ -827,7 +828,10 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                           <div key={item.id}
                             className="flex items-center justify-between p-3 rounded-lg border hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors cursor-pointer">
                             <div className="flex-1">
-                              <p className="text-sm font-medium">{item.description}</p>
+                              <p className="text-sm font-medium">{item.name || item.description}</p>
+                              {item.name && item.description && (
+                                <p className="text-xs text-[hsl(var(--muted-foreground))]">{item.description}</p>
+                              )}
                               <p className="text-xs text-[hsl(var(--muted-foreground))]">
                                 {item.poNumber} · {item.supplier}
                               </p>
@@ -852,7 +856,10 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                           <div key={item.id}
                             className="flex items-center justify-between p-3 rounded-lg border hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors cursor-pointer">
                             <div className="flex-1">
-                              <p className="text-sm font-medium">{item.description}</p>
+                              <p className="text-sm font-medium">{item.name || item.description}</p>
+                              {item.name && item.description && (
+                                <p className="text-xs text-[hsl(var(--muted-foreground))]">{item.description}</p>
+                              )}
                               <p className="text-xs text-[hsl(var(--muted-foreground))]">
                                 {item.poNumber || "Manual"} · {item.supplier}
                               </p>

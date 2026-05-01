@@ -318,6 +318,7 @@ export function calcQuoteTotal(po: PurchaseOrder, quote: SupplierQuote): number 
 // ── Inventory Items ──────────────────────────────────────────────
 export interface InventoryItem {
   id: string
+  name?: string
   description: string
   qty: number
   unit: string
@@ -339,6 +340,7 @@ export async function getInventoryItems(): Promise<InventoryItem[]> {
       .filter((stock: any) => (stock.availableQty || 0) > 0) // Only show items with available quantity > 0
       .map((stock: any) => ({
         id: stock.itemId || stock.id,
+        name: stock.name || "",
         description: stock.description,
         qty: stock.availableQty || stock.available_qty || 0, // Use availableQty as the quantity
         unit: stock.unit,
