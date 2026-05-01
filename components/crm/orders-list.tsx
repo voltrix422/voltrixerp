@@ -519,6 +519,35 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             )}
           </div>
 
+          {/* Delivery Information */}
+          <div className="pt-4 border-t">
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Delivery Information</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Delivery Address</label>
+                <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)}
+                  placeholder="Enter delivery address"
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Delivery Date</label>
+                <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Information */}
+          <div className="pt-4 border-t">
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Additional Information</p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notes</label>
+              <input value={notes} onChange={e => setNotes(e.target.value)}
+                placeholder="Add any special instructions or notes"
+                className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+            </div>
+          </div>
+
           <div className="pt-4 border-t">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order Items *</p>
@@ -595,44 +624,6 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                         </td>
                       </tr>
                     ))}
-                    <tr className="bg-[hsl(var(--muted))]/30">
-                      <td colSpan={4} className="px-4 py-2 text-right font-medium">Subtotal</td>
-                      <td className="px-4 py-2 text-right font-medium">PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td></td>
-                    </tr>
-                    {taxAmount > 0 && (
-                      <tr className="bg-[hsl(var(--muted))]/30">
-                        <td colSpan={4} className="px-4 py-2 text-right font-medium">Tax ({taxPercent}%)</td>
-                        <td className="px-4 py-2 text-right font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td></td>
-                      </tr>
-                    )}
-                    {transportAmount > 0 && (
-                      <tr className="bg-[hsl(var(--muted))]/30">
-                        <td colSpan={4} className="px-4 py-2 text-right font-medium">{transportLabel}{transportIsPercentage && ` (${transportCost}%)`}</td>
-                        <td className="px-4 py-2 text-right font-medium">PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td></td>
-                      </tr>
-                    )}
-                    {otherAmount > 0 && (
-                      <tr className="bg-[hsl(var(--muted))]/30">
-                        <td colSpan={4} className="px-4 py-2 text-right font-medium">{otherCostLabel}{otherCostIsPercentage && ` (${otherCost}%)`}</td>
-                        <td className="px-4 py-2 text-right font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td></td>
-                      </tr>
-                    )}
-                    {discountAmount > 0 && (
-                      <tr className="bg-[hsl(var(--muted))]/30">
-                        <td colSpan={4} className="px-4 py-2 text-right font-medium text-green-600">Discount{discountIsPercentage && ` (${discount}%)`}</td>
-                        <td className="px-4 py-2 text-right font-medium text-green-600">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td></td>
-                      </tr>
-                    )}
-                    <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
-                      <td colSpan={4} className="px-4 py-3 text-right">Total</td>
-                      <td className="px-4 py-3 text-right">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td></td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -808,30 +799,46 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             )}
           </div>
 
+          {/* Order Summary */}
           <div className="pt-4 border-t">
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Delivery Information</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Delivery Address</label>
-                <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)}
-                  placeholder="Enter delivery address"
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Delivery Date</label>
-                <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)}
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t">
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Additional Information</p>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Notes</label>
-              <input value={notes} onChange={e => setNotes(e.target.value)}
-                placeholder="Add any special instructions or notes"
-                className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Order Summary</p>
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody className="divide-y">
+                  <tr className="bg-[hsl(var(--muted))]/30">
+                    <td className="px-4 py-3 text-right font-medium">Subtotal</td>
+                    <td className="px-4 py-3 text-right font-medium w-48">PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                  {taxAmount > 0 && (
+                    <tr className="bg-[hsl(var(--muted))]/30">
+                      <td className="px-4 py-3 text-right font-medium">Tax ({taxPercent}%)</td>
+                      <td className="px-4 py-3 text-right font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  )}
+                  {transportAmount > 0 && (
+                    <tr className="bg-[hsl(var(--muted))]/30">
+                      <td className="px-4 py-3 text-right font-medium">{transportLabel}{transportIsPercentage && ` (${transportCost}%)`}</td>
+                      <td className="px-4 py-3 text-right font-medium">PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  )}
+                  {otherAmount > 0 && (
+                    <tr className="bg-[hsl(var(--muted))]/30">
+                      <td className="px-4 py-3 text-right font-medium">{otherCostLabel}{otherCostIsPercentage && ` (${otherCost}%)`}</td>
+                      <td className="px-4 py-3 text-right font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  )}
+                  {discountAmount > 0 && (
+                    <tr className="bg-[hsl(var(--muted))]/30">
+                      <td className="px-4 py-3 text-right font-medium text-green-600">Discount{discountIsPercentage && ` (${discount}%)`}</td>
+                      <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  )}
+                  <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
+                    <td className="px-4 py-4 text-right text-base">Total</td>
+                    <td className="px-4 py-4 text-right text-base">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
