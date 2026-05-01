@@ -950,7 +950,6 @@ export function InventoryList() {
                 <thead>
                   <tr className="border-b bg-[hsl(var(--muted))]/40">
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Item Description</th>
-                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Specs</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Product ID</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">PO</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Supplier</th>
@@ -974,7 +973,6 @@ export function InventoryList() {
                     return (
                       <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer" onClick={() => setSelectedInventoryItem(item)}>
                         <td className="px-4 py-2.5 text-xs font-medium">{item.description}</td>
-                        <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{item.specs || "—"}</td>
                         <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{productId}</td>
                         <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{item.poNumber}</td>
                         <td className="px-4 py-2.5 text-xs">{item.supplier}</td>
