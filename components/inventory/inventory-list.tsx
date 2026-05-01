@@ -277,13 +277,15 @@ export function InventoryList() {
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editItemData, setEditItemData] = useState({
+    name: "",
     description: "",
     qty: "",
     unit: "pcs",
     unitPrice: "",
     supplierName: "",
     gst: "",
-    otherExpense: ""
+    gstIsPercentage: false,
+    otherExpenses: [] as Array<{ id: string; label: string; amount: string; isPercentage: boolean }>
   })
   const [savingEditItem, setSavingEditItem] = useState(false)
 
@@ -319,20 +321,27 @@ export function InventoryList() {
   function openEditModal(item: InventoryItem) {
     setEditingItem(item)
     setEditItemData({
+      name: item.name || "",
       description: item.description,
       qty: item.qty.toString(),
       unit: item.unit,
       unitPrice: item.unitPrice.toString(),
       supplierName: item.supplier || "",
-      gst: (item.gst || 0).toString(),
-      otherExpense: (item.otherExpense || 0).toString()
+      gst: (item.gstInput || item.gst || 0).toString(),
+      gstIsPercentage: item.gstIsPercentage || false,
+      otherExpenses: item.otherExpenses?.map((exp, idx) => ({
+        id: `exp-${idx}`,
+        label: exp.label || "",
+        amount: exp.inputAmount?.toString() || exp.amount?.toString() || "",
+        isPercentage: exp.isPercentage || false
+      })) || []
     })
     setShowEditModal(true)
   }
 
   async function saveEditItem() {
-    if (!editingItem || !editItemData.description || !editItemData.qty || !editItemData.unitPrice) {
-      alert("Please fill in all required fields")
+    if (!editingItem || !editItemData.name || !editItemData.qty || !editItemData.unitPrice) {
+      alert("Please fill in all required fields (Name, Quantity, Unit Price)")
       return
     }
 
@@ -340,13 +349,33 @@ export function InventoryList() {
 
     try {
       const qty = parseFloat(editItemData.qty)
-      const gstTotal = parseFloat(editItemData.gst || "0")
-      const otherExpenseTotal = parseFloat(editItemData.otherExpense || "0")
+      const basePrice = parseFloat(editItemData.unitPrice)
+      const subtotal = basePrice * qty
+      
+      // Calculate GST
+      const gstInput = parseFloat(editItemData.gst || "0")
+      const gstTotal = editItemData.gstIsPercentage ? subtotal * (gstInput / 100) : gstInput
+      
+      // Calculate other expenses
+      let otherExpenseTotal = 0
+      const otherExpensesData = editItemData.otherExpenses.map(exp => {
+        const amount = parseFloat(exp.amount || "0")
+        const calculatedAmount = exp.isPercentage ? subtotal * (amount / 100) : amount
+        otherExpenseTotal += calculatedAmount
+        return {
+          label: exp.label,
+          amount: calculatedAmount,
+          isPercentage: exp.isPercentage,
+          inputAmount: amount
+        }
+      })
+      
       const gstPerUnit = qty > 0 ? gstTotal / qty : 0
       const otherExpensePerUnit = qty > 0 ? otherExpenseTotal / qty : 0
-      const landedCostPerUnit = parseFloat(editItemData.unitPrice) + gstPerUnit + otherExpensePerUnit
+      const landedCostPerUnit = basePrice + gstPerUnit + otherExpensePerUnit
 
       const updateData = {
+        name: editItemData.name,
         description: editItemData.description,
         unit: editItemData.unit,
         receivedQty: qty,
@@ -354,7 +383,10 @@ export function InventoryList() {
         costPrice: landedCostPerUnit,
         supplierName: editItemData.supplierName || "Manual",
         gst: gstTotal,
+        gstIsPercentage: editItemData.gstIsPercentage,
+        gstInput: gstInput,
         otherExpense: otherExpenseTotal,
+        otherExpenses: otherExpensesData,
       }
 
       const res = await fetch("/api/db/inventory-stock", {
@@ -372,13 +404,15 @@ export function InventoryList() {
       setShowEditModal(false)
       setEditingItem(null)
       setEditItemData({
+        name: "",
         description: "",
         qty: "",
         unit: "pcs",
         unitPrice: "",
         supplierName: "",
         gst: "",
-        otherExpense: ""
+        gstIsPercentage: false,
+        otherExpenses: [],
       })
     } catch (error) {
       console.error("Error updating item:", error)
@@ -1588,96 +1622,232 @@ export function InventoryList() {
 
       {showEditModal && editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowEditModal(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-[hsl(var(--muted))]/40 to-transparent shrink-0">
+          <div className="w-full max-w-2xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-8 py-5 border-b bg-gradient-to-r from-[hsl(var(--muted))]/40 to-transparent shrink-0">
               <div>
-                <p className="text-sm font-bold text-[hsl(var(--primary))]">Edit Manual Item</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Edit inventory item details</p>
+                <p className="text-lg font-bold text-[hsl(var(--primary))]">Edit Manual Item</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">Edit inventory item details</p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={() => setShowEditModal(false)}>
-                <X className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-10 w-10 cursor-pointer" onClick={() => setShowEditModal(false)}>
+                <X className="h-5 w-5" />
               </Button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="space-y-3">
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Description *</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Name *</label>
+                  <input
+                    type="text"
+                    value={editItemData.name}
+                    onChange={e => setEditItemData({ ...editItemData, name: e.target.value })}
+                    placeholder="Item name"
+                    className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Description</label>
                   <input
                     type="text"
                     value={editItemData.description}
                     onChange={e => setEditItemData({ ...editItemData, description: e.target.value })}
-                    placeholder="Item description"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    placeholder="Item description (optional)"
+                    className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Quantity *</label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Quantity *</label>
                     <input
                       type="number"
                       value={editItemData.qty}
                       onChange={e => setEditItemData({ ...editItemData, qty: e.target.value })}
                       placeholder="0"
-                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                      className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Unit *</label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Unit *</label>
                     <input
                       type="text"
                       value={editItemData.unit}
                       onChange={e => setEditItemData({ ...editItemData, unit: e.target.value })}
                       placeholder="pcs"
-                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                      className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Unit Price (PKR) *</label>
+                    <input
+                      type="number"
+                      value={editItemData.unitPrice}
+                      onChange={e => setEditItemData({ ...editItemData, unitPrice: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Unit Price (PKR) *</label>
-                  <input
-                    type="number"
-                    value={editItemData.unitPrice}
-                    onChange={e => setEditItemData({ ...editItemData, unitPrice: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Supplier Name</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Supplier Name</label>
                   <input
                     type="text"
                     value={editItemData.supplierName}
                     onChange={e => setEditItemData({ ...editItemData, supplierName: e.target.value })}
                     placeholder="Optional supplier name"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                    className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">GST (PKR)</label>
-                    <input
-                      type="number"
-                      value={editItemData.gst}
-                      onChange={e => setEditItemData({ ...editItemData, gst: e.target.value })}
-                      placeholder="0.00"
-                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1 block">Other Expense (PKR)</label>
-                    <input
-                      type="number"
-                      value={editItemData.otherExpense}
-                      onChange={e => setEditItemData({ ...editItemData, otherExpense: e.target.value })}
-                      placeholder="0.00"
-                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                    />
+
+                {/* GST Section */}
+                <div className="pt-4 border-t">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-3 block">GST</label>
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="col-span-5">
+                      <label className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1 block">
+                        {editItemData.gstIsPercentage ? "GST Percentage" : "GST Amount (PKR)"}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={editItemData.gst}
+                          onChange={e => setEditItemData({ ...editItemData, gst: e.target.value })}
+                          placeholder={editItemData.gstIsPercentage ? "18" : "0.00"}
+                          className="w-full h-11 rounded-md border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                        />
+                        {editItemData.gstIsPercentage && <span className="text-sm font-medium">%</span>}
+                      </div>
+                    </div>
+                    <div className="col-span-4">
+                      <label className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Calculated Amount</label>
+                      <div className="h-11 flex items-center px-4 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
+                        PKR {(editItemData.gstIsPercentage 
+                          ? (parseFloat(editItemData.unitPrice || "0") * parseFloat(editItemData.qty || "0") * (parseFloat(editItemData.gst || "0") / 100))
+                          : parseFloat(editItemData.gst || "0")
+                        ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div className="col-span-3">
+                      <label className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Type</label>
+                      <div className="flex items-center gap-3 h-11">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={editItemData.gstIsPercentage}
+                            onChange={e => setEditItemData({ ...editItemData, gstIsPercentage: e.target.checked })}
+                            className="w-4 h-4 rounded border"
+                          />
+                          <span className="text-sm">Percentage (%)</span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* Other Expenses Section */}
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] block">Other Expenses</label>
+                    <Button 
+                      type="button" 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-8 text-xs cursor-pointer"
+                      onClick={() => setEditItemData({ 
+                        ...editItemData, 
+                        otherExpenses: [...editItemData.otherExpenses, { id: Date.now().toString(), label: "", amount: "", isPercentage: false }] 
+                      })}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add Expense
+                    </Button>
+                  </div>
+                  
+                  {editItemData.otherExpenses.length === 0 && (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))] py-2">No additional expenses. Click "Add Expense" to add costs like handling, packaging, etc.</p>
+                  )}
+                  
+                  {editItemData.otherExpenses.map((expense, index) => {
+                    const subtotal = parseFloat(editItemData.unitPrice || "0") * parseFloat(editItemData.qty || "0")
+                    const calculatedAmount = expense.isPercentage 
+                      ? subtotal * (parseFloat(expense.amount || "0") / 100)
+                      : parseFloat(expense.amount || "0")
+                    
+                    return (
+                      <div key={expense.id} className="grid grid-cols-12 gap-4 mb-4 p-3 rounded-lg border bg-[hsl(var(--muted))]/10">
+                        <div className="col-span-4">
+                          <label className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Label</label>
+                          <input
+                            type="text"
+                            value={expense.label}
+                            onChange={e => {
+                              const updated = [...editItemData.otherExpenses]
+                              updated[index].label = e.target.value
+                              setEditItemData({ ...editItemData, otherExpenses: updated })
+                            }}
+                            placeholder="e.g., Handling"
+                            className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                          />
+                        </div>
+                        <div className="col-span-4">
+                          <label className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1 block">
+                            {expense.isPercentage ? "Percentage" : "Amount (PKR)"}
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={expense.amount}
+                              onChange={e => {
+                                const updated = [...editItemData.otherExpenses]
+                                updated[index].amount = e.target.value
+                                setEditItemData({ ...editItemData, otherExpenses: updated })
+                              }}
+                              placeholder={expense.isPercentage ? "5" : "500"}
+                              className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                            />
+                            {expense.isPercentage && <span className="text-sm">%</span>}
+                          </div>
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Type</label>
+                          <div className="flex items-center gap-3 h-10">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={expense.isPercentage}
+                                onChange={e => {
+                                  const updated = [...editItemData.otherExpenses]
+                                  updated[index].isPercentage = e.target.checked
+                                  setEditItemData({ ...editItemData, otherExpenses: updated })
+                                }}
+                                className="w-4 h-4 rounded border"
+                              />
+                              <span className="text-sm">%</span>
+                            </label>
+                          </div>
+                        </div>
+                        <div className="col-span-1 flex items-end">
+                          <Button 
+                            type="button"
+                            variant="ghost" 
+                            size="sm"
+                            className="h-10 w-10 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                            onClick={() => {
+                              const updated = editItemData.otherExpenses.filter((_, i) => i !== index)
+                              setEditItemData({ ...editItemData, otherExpenses: updated })
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="col-span-12 text-xs text-[hsl(var(--muted-foreground))]">
+                          {expense.label && <span className="font-medium">{expense.label}:</span>} PKR {calculatedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              <div className="flex items-center gap-2 pt-2">
-                <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowEditModal(false)}>Cancel</Button>
-                <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={saveEditItem} disabled={savingEditItem}>
+              <div className="flex items-center gap-2 pt-4 border-t">
+                <Button size="sm" variant="outline" className="h-10 text-sm cursor-pointer" onClick={() => setShowEditModal(false)}>Cancel</Button>
+                <Button size="sm" className="h-10 text-sm cursor-pointer" onClick={saveEditItem} disabled={savingEditItem}>
                   {savingEditItem ? "Saving..." : "Update Item"}
                 </Button>
               </div>
