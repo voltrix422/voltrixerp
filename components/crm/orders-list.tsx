@@ -309,6 +309,9 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   const [otherCost, setOtherCost] = useState<number>(0)
   const [otherCostLabel, setOtherCostLabel] = useState<string>("Other")
   const [otherCostIsPercentage, setOtherCostIsPercentage] = useState<boolean>(false)
+  // Discount state
+  const [discount, setDiscount] = useState<number>(0)
+  const [discountIsPercentage, setDiscountIsPercentage] = useState<boolean>(true)
 
   useEffect(() => {
     // Load inventory items
@@ -339,8 +342,13 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
     ? subtotal * (otherCost / 100) 
     : otherCost
   
+  // Calculate discount
+  const discountAmount = discountIsPercentage
+    ? subtotal * (discount / 100)
+    : discount
+  
   // Total calculation
-  const total = subtotal + taxAmount + transportAmount + otherAmount
+  const total = subtotal + taxAmount + transportAmount + otherAmount - discountAmount
 
   function addCustomItem() {
     setItems(prev => [...prev, { id: Date.now().toString(), description: "", qty: 1, unit: "pcs", unitPrice: 0, isCustom: true }])
@@ -613,6 +621,13 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                         <td></td>
                       </tr>
                     )}
+                    {discountAmount > 0 && (
+                      <tr className="bg-[hsl(var(--muted))]/30">
+                        <td colSpan={4} className="px-4 py-2 text-right font-medium text-green-600">Discount{discountIsPercentage && ` (${discount}%)`}</td>
+                        <td className="px-4 py-2 text-right font-medium text-green-600">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td></td>
+                      </tr>
+                    )}
                     <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
                       <td colSpan={4} className="px-4 py-3 text-right">Total</td>
                       <td className="px-4 py-3 text-right">PKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -740,6 +755,55 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
               <div className="mb-2 text-sm text-[hsl(var(--muted-foreground))]">
                 {otherCostLabel}: PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 {otherCostIsPercentage && ` (${otherCost}% of subtotal)`}
+              </div>
+            )}
+          </div>
+
+          {/* Discount */}
+          <div className="pt-4 border-t">
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Discount</p>
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">
+                  {discountIsPercentage ? "Discount Percentage" : "Discount Amount (PKR)"}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    value={discount} 
+                    onChange={e => setDiscount(Number(e.target.value))}
+                    placeholder={discountIsPercentage ? "10" : "1000"}
+                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                  />
+                  {discountIsPercentage && <span className="text-sm font-medium">%</span>}
+                </div>
+              </div>
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Calculated Discount</label>
+                <div className="h-10 flex items-center px-4 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium text-green-600">
+                  - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Type</label>
+                <div className="flex items-center gap-3 h-10">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={discountIsPercentage}
+                      onChange={e => setDiscountIsPercentage(e.target.checked)}
+                      className="w-4 h-4 rounded border"
+                    />
+                    <span className="text-sm">Percentage (%)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            {discount > 0 && (
+              <div className="mt-2 text-sm text-green-600 font-medium">
+                Discount applied: - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {discountIsPercentage && ` (${discount}% of subtotal)`}
               </div>
             )}
           </div>
