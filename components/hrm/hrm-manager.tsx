@@ -440,24 +440,33 @@ export function HrmManager() {
     const updates = staff.filter(s => shouldResetPoints(s.last_reset))
     if (updates.length === 0) return
 
+    const now = new Date().toISOString()
+    const updatedStaff = [...staff]
+
     for (const member of updates) {
       try {
-        await fetch('/api/hrm/staff', {
+        const res = await fetch('/api/hrm/staff', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: member.id,
             points: 100,
             warnings: [], // Clear warnings on reset
-            lastReset: new Date().toISOString()
+            lastReset: now
           })
         })
+        if (res.ok) {
+          // Update local state instead of reloading
+          const idx = updatedStaff.findIndex(s => s.id === member.id)
+          if (idx !== -1) {
+            updatedStaff[idx] = { ...updatedStaff[idx], points: 100, warnings: [], last_reset: now }
+          }
+        }
       } catch (error) {
         console.error(`Failed to reset points for ${member.name}:`, error)
       }
     }
-    // Reload staff data
-    location.reload()
+    setStaff(updatedStaff)
   }
 
   // Check for monthly reset on load
