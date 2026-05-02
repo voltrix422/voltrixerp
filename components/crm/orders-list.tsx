@@ -423,12 +423,18 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
       subtotal,
       taxPercent,
       tax: taxAmount,
-      transportCost: transportAmount,
+      transportCost,
       transportLabel,
-      otherCost: otherAmount,
+      transportIsPercentage,
+      transportCostValue: transportAmount,
+      otherCost,
       otherCostLabel,
+      otherCostIsPercentage,
+      otherCostValue: otherAmount,
       shipping: 0,
-      discount: 0,
+      discount,
+      discountIsPercentage,
+      discountValue: discountAmount,
       total,
       status: "pending_approval", // Send to admin for approval
       notes: notes.trim(),
@@ -1259,83 +1265,97 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
               )}
 
           <div>
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] mb-3">Order items</p>
+            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] mb-3">Order Items</p>
             <div className="rounded-lg border overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[hsl(var(--muted))]/40 border-b">
                     <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-20">Qty</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))] w-20">Unit</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-32">Unit Price</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-16">Qty</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-16">Unit</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Cost Price</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Selling Price</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Profit</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-32">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {order.items.map(item => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-3">{item.description}</td>
-                      <td className="px-4 py-3 text-center">{item.qty}</td>
-                      <td className="px-4 py-3">{item.unit}</td>
-                      <td className="px-4 py-3 text-right">PKR {item.unitPrice.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-medium">PKR {(item.unitPrice * item.qty).toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {order.items.map(item => {
+                    const total = item.unitPrice * item.qty
+                    const costTotal = (item.costPrice || 0) * item.qty
+                    const profit = total - costTotal
+                    const profitPercent = costTotal > 0 ? ((profit / costTotal) * 100).toFixed(1) : "0.0"
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-4 py-3">{item.description}</td>
+                        <td className="px-4 py-3 text-center">{item.qty}</td>
+                        <td className="px-4 py-3 text-center">{item.unit}</td>
+                        <td className="px-4 py-3 text-right text-[hsl(var(--muted-foreground))]">
+                          {item.costPrice ? `PKR ${item.costPrice.toLocaleString()}` : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right">PKR {item.unitPrice.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right">
+                          {item.costPrice ? (
+                            <span className={profit >= 0 ? "text-green-600" : "text-red-600"}>
+                              PKR {profit.toLocaleString()} ({profitPercent}%)
+                            </span>
+                          ) : (
+                            <span className="text-[hsl(var(--muted-foreground))]">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium">PKR {total.toLocaleString()}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
 
-          <div className="flex flex-col items-end space-y-2">
-            {order.taxPercent > 0 && (
-              <div className="flex flex-col items-end">
-                <div className="flex items-center text-sm gap-24">
-                  <span>Tax ({order.taxPercent}%)</span>
-                  <span className="font-medium w-40 text-right">PKR {order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
-              </div>
-            )}
-            {order.transportCost > 0 && (
-              <div className="flex flex-col items-end">
-                <div className="flex items-center text-sm gap-24">
-                  <span>Transport cost</span>
-                  <span className="font-medium w-40 text-right">PKR {order.transportCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
-              </div>
-            )}
-            {order.otherCost > 0 && (
-              <div className="flex flex-col items-end">
-                <div className="flex items-center text-sm gap-24">
-                  <span>Other cost</span>
-                  <span className="font-medium w-40 text-right">PKR {order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
-              </div>
-            )}
-            {order.shipping > 0 && (
-              <div className="flex flex-col items-end">
-                <div className="flex items-center text-sm gap-24">
-                  <span>Shipping</span>
-                  <span className="font-medium w-40 text-right">PKR {order.shipping.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
-              </div>
-            )}
-            {order.discount > 0 && (
-              <div className="flex flex-col items-end">
-                <div className="flex items-center text-sm gap-24">
-                  <span>Discount</span>
-                  <span className="text-red-600 font-medium w-40 text-right">-PKR {order.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="w-full h-px bg-[hsl(var(--border))]/30 mt-2" />
-              </div>
-            )}
-            <div className="flex items-center text-base font-bold gap-24 pt-2">
-              <span>Total</span>
-              <span className="w-40 text-right">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
+          {/* Order Summary */}
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-sm">
+              <tbody className="divide-y">
+                <tr className="bg-[hsl(var(--muted))]/30">
+                  <td className="px-4 py-3 text-right font-medium">Subtotal</td>
+                  <td className="px-4 py-3 text-right font-medium w-48">PKR {order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+                {order.taxPercent > 0 && (
+                  <tr className="bg-[hsl(var(--muted))]/30">
+                    <td className="px-4 py-3 text-right font-medium">Tax ({order.taxPercent}%)</td>
+                    <td className="px-4 py-3 text-right font-medium">PKR {order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                )}
+                {order.transportCost > 0 && (
+                  <tr className="bg-[hsl(var(--muted))]/30">
+                    <td className="px-4 py-3 text-right font-medium">{order.transportLabel || "Transport"}{order.transportIsPercentage && ` (${order.transportCost}%)`}</td>
+                    <td className="px-4 py-3 text-right font-medium">PKR {(order.transportCostValue || order.transportCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                )}
+                {order.otherCost > 0 && (
+                  <tr className="bg-[hsl(var(--muted))]/30">
+                    <td className="px-4 py-3 text-right font-medium">{order.otherCostLabel || "Other"}{order.otherCostIsPercentage && ` (${order.otherCost}%)`}</td>
+                    <td className="px-4 py-3 text-right font-medium">PKR {(order.otherCostValue || order.otherCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                )}
+                {order.shipping > 0 && (
+                  <tr className="bg-[hsl(var(--muted))]/30">
+                    <td className="px-4 py-3 text-right font-medium">Shipping</td>
+                    <td className="px-4 py-3 text-right font-medium">PKR {order.shipping.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                )}
+                {order.discount > 0 && (
+                  <tr className="bg-[hsl(var(--muted))]/30">
+                    <td className="px-4 py-3 text-right font-medium text-green-600">Discount{order.discountIsPercentage && ` (${order.discount}%)`}</td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {(order.discountValue || order.discount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                )}
+                <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
+                  <td className="px-4 py-4 text-right text-base">Total</td>
+                  <td className="px-4 py-4 text-right text-base">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           {order.payments && order.payments.length > 0 && (

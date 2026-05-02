@@ -25,10 +25,16 @@ export interface Order {
   tax: number // Calculated tax amount
   transportCost: number
   transportLabel: string // Label for transport cost
+  transportIsPercentage?: boolean
+  transportCostValue?: number // Calculated transport amount
   otherCost: number
   otherCostLabel: string // Label for other cost
+  otherCostIsPercentage?: boolean
+  otherCostValue?: number // Calculated other cost amount
   shipping: number
   discount: number
+  discountIsPercentage?: boolean
+  discountValue?: number // Calculated discount amount
   total: number
   status: OrderStatus
   notes: string

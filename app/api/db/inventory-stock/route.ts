@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   // Parse otherExpenses JSON string back to array for frontend
   const parsedItems = items.map(item => ({
     ...item,
-    otherExpenses: item.otherExpenses ? JSON.parse(item.otherExpenses) : [],
+    otherExpenses: (item as any).otherExpenses ? JSON.parse((item as any).otherExpenses) : [],
   }))
   
   return NextResponse.json(parsedItems)
