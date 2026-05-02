@@ -469,8 +469,11 @@ export function HrmManager() {
     setStaff(updatedStaff)
   }
 
-  // Check for monthly reset on load
+  // Check for monthly reset on load (only once)
+  const hasCheckedReset = useRef(false)
   useEffect(() => {
+    if (hasCheckedReset.current || staff.length === 0) return
+    hasCheckedReset.current = true
     const hasExpired = staff.some(s => shouldResetPoints(s.last_reset))
     if (hasExpired) {
       resetMonthlyPoints()
