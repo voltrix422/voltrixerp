@@ -39,27 +39,26 @@ export default function Hero() {
   }, [])
 
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Colored Container */}
-      <div className="absolute inset-0 z-0 mx-4 lg:mx-8 my-4 rounded-2xl bg-[#1a9f9a] shadow-2xl" />
+    <section className="relative min-h-[85vh] flex items-center overflow-hidden pt-20 pb-8">
+      {/* Colored Container - smaller from bottom, more top margin */}
+      <div className="absolute inset-x-0 top-20 bottom-8 z-0 mx-4 lg:mx-8 rounded-2xl bg-[#1a9f9a] shadow-2xl" />
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-white">
-            Power your{" "}
-            <div className="inline-block">
-              <div className="flex flex-col">
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.1] text-white">
+            <span className="block">Power your</span>
+            <span className="block mt-2">
+              <span className="inline-flex flex-col text-6xl lg:text-7xl tracking-wider">
                 <span>H</span>
                 <span>o</span>
                 <span>u</span>
                 <span>s</span>
                 <span>e</span>
-              </div>
-            </div>
-            <br />
-            <span className="text-white">with Voltrix.</span>
+              </span>
+            </span>
+            <span className="block mt-4">with Voltrix.</span>
           </h1>
           <p className="text-base text-white/90 leading-relaxed max-w-md">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
@@ -119,7 +118,6 @@ export default function Hero() {
 
       </div>
 
-      <GradualBlur position="bottom" height="6rem" strength={2} divCount={6} curve="bezier" exponential opacity={1} zIndex={5} />
     </section>
   )
 }
