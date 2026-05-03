@@ -40,33 +40,28 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Gradient Background */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#1a9f9a]/20 via-white to-white" />
+      {/* Colored Container */}
+      <div className="absolute inset-0 z-0 mx-6 lg:mx-16 my-8 rounded-3xl bg-gradient-to-r from-[#1a9f9a] to-[#2a2a2a]" />
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-white">
             Power your{" "}
-            <span className="inline-block w-[100px]">
-              <RotatingText
-                texts={["Drive", "Solar", "EVs", "Car", "House"]}
-                mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
-                staggerDuration={0.03}
-                staggerFrom="last"
-                rotationInterval={2500}
-                transition={{ type: "spring", damping: 20, stiffness: 200 }}
-                initial={{ y: "100%", opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: "-100%", opacity: 0 }}
-                splitLevelClassName="overflow-hidden"
-              />
-            </span>
+            <div className="inline-block">
+              <div className="flex flex-col">
+                <span>H</span>
+                <span>o</span>
+                <span>u</span>
+                <span>s</span>
+                <span>e</span>
+              </div>
+            </div>
             <br />
-            <span className="text-[#1a9f9a]">with Voltrix.</span>
+            <span className="text-white">with Voltrix.</span>
           </h1>
-          <p className="text-base text-neutral-600 leading-relaxed max-w-md">
+          <p className="text-base text-white/90 leading-relaxed max-w-md">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
           </p>
           <a
