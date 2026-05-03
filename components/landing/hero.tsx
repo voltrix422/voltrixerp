@@ -48,30 +48,30 @@ export default function Hero() {
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.1] text-white">
-            <span className="block">Power your</span>
-            <span className="block mt-2">
-              <span className="inline-flex flex-col text-6xl lg:text-7xl tracking-wider">
-                <span>H</span>
-                <span>o</span>
-                <span>u</span>
-                <span>s</span>
-                <span>e</span>
+            <span className="block text-4xl lg:text-5xl font-medium mb-2">Power your</span>
+            <span className="block">
+              <span className="inline-flex flex-col text-7xl lg:text-8xl font-black tracking-wider leading-none">
+                <span className="block -mb-2">H</span>
+                <span className="block -mb-2">o</span>
+                <span className="block -mb-2">u</span>
+                <span className="block -mb-2">s</span>
+                <span className="block">e</span>
               </span>
             </span>
-            <span className="block mt-4">with Voltrix.</span>
+            <span className="block mt-6 text-3xl lg:text-4xl font-medium">with Voltrix.</span>
           </h1>
-          <p className="text-base text-white/90 leading-relaxed max-w-md">
+          <p className="text-lg text-white/95 leading-relaxed max-w-md font-light">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
           </p>
           <a
             href="#products"
-            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-[#1a9f9a] overflow-hidden transition-all duration-300 hover:shadow-lg hover:bg-[#158a85] w-fit"
+            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-semibold text-[#1a9f9a] bg-white overflow-hidden transition-all duration-300 hover:shadow-lg hover:bg-gray-50 w-fit"
           >
             <span className="transition-transform duration-300 group-hover:-translate-x-0.5">
               Explore products
             </span>
-            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20 transition-all duration-300 group-hover:translate-x-0.5">
-              <ArrowRight className="w-3.5 h-3.5" />
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#1a9f9a]/10 group-hover:bg-[#1a9f9a]/20 transition-all duration-300 group-hover:translate-x-0.5">
+              <ArrowRight className="w-3.5 h-3.5 text-[#1a9f9a]" />
             </span>
           </a>
         </div>

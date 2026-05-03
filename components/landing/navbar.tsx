@@ -47,11 +47,7 @@ export default function Navbar() {
       }}
     >
       <nav
-        className={`flex items-center justify-between px-8 py-2.5 rounded-xl border w-full max-w-6xl mx-4 transition-all duration-500 ${
-          scrolled
-            ? "bg-white border-neutral-200"
-            : "bg-white border-neutral-200"
-        }`}
+        className={`flex items-center justify-between px-8 py-2.5 rounded-xl w-full max-w-6xl mx-4 transition-all duration-500 bg-white`}
       >
         {/* Logo */}
         <a href="/">
@@ -90,7 +86,7 @@ export default function Navbar() {
       </nav>
 
       {open && (
-        <div className="absolute top-14 left-4 right-4 bg-white border border-neutral-200 rounded-2xl shadow-xl p-5 flex flex-col gap-4 md:hidden">
+        <div className="absolute top-14 left-4 right-4 bg-white rounded-2xl p-5 flex flex-col gap-4 md:hidden">
           {links.map((l) => (
             <a key={l.label} href={l.href || getHref(l.hash)} className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer">
               {l.label}
