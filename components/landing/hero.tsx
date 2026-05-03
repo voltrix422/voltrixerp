@@ -41,7 +41,7 @@ export default function Hero() {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       {/* Colored Container */}
-      <div className="absolute inset-0 z-0 mx-6 lg:mx-16 my-8 rounded-3xl bg-[#1a9f9a]" />
+      <div className="absolute inset-0 z-0 mx-4 lg:mx-8 my-4 rounded-2xl bg-[#1a9f9a] shadow-2xl" />
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
         
