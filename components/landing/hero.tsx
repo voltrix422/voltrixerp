@@ -39,45 +39,45 @@ export default function Hero() {
   }, [])
 
   return (
-    <section className="relative min-h-[85vh] flex items-center overflow-hidden pt-20 pb-8">
-      {/* Colored Container - larger from bottom, more top margin */}
-      <div className="absolute inset-x-0 top-20 bottom-8 z-0 mx-4 lg:mx-8 rounded-2xl bg-[#1a9f9a]" />
+    <section className="relative min-h-screen flex items-center overflow-hidden">
+      {/* Gradient Background */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#1a9f9a]/20 via-white to-white" />
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
-          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.1] text-white">
-            <span className="block text-4xl lg:text-5xl font-medium mb-2">Power your</span>
-            <span className="block h-[1.2em] overflow-hidden">
+          <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
+            Power your{" "}
+            <span className="inline-block w-[100px]">
               <RotatingText
-                texts={["House", "Solar", "EVs", "Car", "Drive"]}
-                mainClassName="text-7xl lg:text-8xl font-black tracking-wider block"
-                elementLevelClassName="inline-flex"
-                splitLevelClassName="inline-flex"
-                staggerDuration={0.02}
-                staggerFrom="first"
-                rotationInterval={3000}
-                transition={{ type: "tween", duration: 0.5, ease: "easeInOut" }}
-                initial={{ y: 40, opacity: 0 }}
+                texts={["Drive", "Solar", "EVs", "Car", "House"]}
+                mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
+                staggerDuration={0.03}
+                staggerFrom="last"
+                rotationInterval={2500}
+                transition={{ type: "spring", damping: 20, stiffness: 200 }}
+                initial={{ y: "100%", opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -40, opacity: 0 }}
+                exit={{ y: "-100%", opacity: 0 }}
+                splitLevelClassName="overflow-hidden"
               />
             </span>
-            <span className="block mt-6 text-3xl lg:text-4xl font-medium">with Voltrix.</span>
+            <br />
+            <span className="text-[#1a9f9a]">with Voltrix.</span>
           </h1>
-          <p className="text-lg text-white/95 leading-relaxed max-w-md font-light">
+          <p className="text-base text-neutral-600 leading-relaxed max-w-md">
             Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
           </p>
           <a
             href="#products"
-            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-semibold text-[#1a9f9a] bg-white overflow-hidden transition-all duration-300 hover:shadow-lg hover:bg-gray-50 w-fit"
+            className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-[#1a9f9a] overflow-hidden transition-all duration-300 hover:shadow-lg hover:bg-[#158a85] w-fit"
           >
             <span className="transition-transform duration-300 group-hover:-translate-x-0.5">
               Explore products
             </span>
-            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#1a9f9a]/10 group-hover:bg-[#1a9f9a]/20 transition-all duration-300 group-hover:translate-x-0.5">
-              <ArrowRight className="w-3.5 h-3.5 text-[#1a9f9a]" />
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20 transition-all duration-300 group-hover:translate-x-0.5">
+              <ArrowRight className="w-3.5 h-3.5" />
             </span>
           </a>
         </div>
@@ -124,6 +124,7 @@ export default function Hero() {
 
       </div>
 
+      <GradualBlur position="bottom" height="6rem" strength={2} divCount={6} curve="bezier" exponential opacity={1} zIndex={5} />
     </section>
   )
 }
