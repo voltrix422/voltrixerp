@@ -41,7 +41,7 @@ export default function Hero() {
   return (
     <section className="relative min-h-[85vh] flex items-center overflow-hidden pt-20 pb-8">
       {/* Colored Container - smaller from bottom, more top margin */}
-      <div className="absolute inset-x-0 top-20 bottom-8 z-0 mx-4 lg:mx-8 rounded-2xl bg-[#1a9f9a] shadow-2xl" />
+      <div className="absolute inset-x-0 top-20 bottom-16 z-0 mx-4 lg:mx-8 rounded-2xl bg-[#1a9f9a]" />
       
       <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 relative pl-32 lg:pl-48 z-10">
         
@@ -50,13 +50,18 @@ export default function Hero() {
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.1] text-white">
             <span className="block text-4xl lg:text-5xl font-medium mb-2">Power your</span>
             <span className="block">
-              <span className="inline-flex flex-col text-7xl lg:text-8xl font-black tracking-wider leading-none">
-                <span className="block -mb-2">H</span>
-                <span className="block -mb-2">o</span>
-                <span className="block -mb-2">u</span>
-                <span className="block -mb-2">s</span>
-                <span className="block">e</span>
-              </span>
+              <RotatingText
+                texts={["House", "Solar", "EV", "Car", "Drive"]}
+                mainClassName="text-7xl lg:text-8xl font-black tracking-wider"
+                elementLevelClassName="inline-flex"
+                staggerDuration={0.03}
+                staggerFrom="last"
+                rotationInterval={2500}
+                transition={{ type: "spring", damping: 20, stiffness: 200 }}
+                initial={{ y: "100%", opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: "-120%", opacity: 0 }}
+              />
             </span>
             <span className="block mt-6 text-3xl lg:text-4xl font-medium">with Voltrix.</span>
           </h1>
