@@ -154,7 +154,7 @@ export async function generateDispatchNotePDF(order: Order, dispatcherName?: str
   }
   
   // Add discount if applicable
-  if (order.discount > 0 || order.discountValue > 0) {
+  if (order.discount > 0 || (order.discountValue && order.discountValue > 0)) {
     yPos += 6
     doc.setTextColor(0, 128, 0) // Green for discount
     doc.text(`Discount (${order.discount || 2}%):`, 125, yPos)
