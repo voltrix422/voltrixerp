@@ -357,7 +357,7 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
               {markingDelivered ? "Moving..." : "Move to Inventory"}
             </Button>
           ) : (
-            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">Already delivered</span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">in inventory</span>
           )}
         </div>
       </div>
