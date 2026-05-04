@@ -415,11 +415,38 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <span>PKR {order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             )}
+            {(order.discount > 0 || (order.discountValue && order.discountValue > 0)) && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-green-600">Discount ({order.discount || 2}%)</span>
+                <span className="font-semibold text-green-600">- PKR {(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm font-bold border-t pt-2">
               <span>Total</span>
               <span>PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
+
+        {/* Payment Section */}
+        <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100 mb-3">Payment</p>
+          <div className="text-sm">
+            <p className="font-medium text-blue-900 dark:text-blue-100">
+              Total Amount: PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+            {order.payments && order.payments.length > 0 ? (
+              <div className="mt-2 space-y-1">
+                {order.payments.map(p => (
+                  <div key={p.id} className="text-xs text-blue-700 dark:text-blue-300">
+                    PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">No payments received yet</p>
+            )}
+          </div>
+        </div>
         </div>
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
