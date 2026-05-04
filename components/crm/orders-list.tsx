@@ -777,39 +777,52 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Discount</p>
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">
-                  {discountIsPercentage ? "Discount Percentage" : "Discount Amount (PKR)"}
-                </label>
+                <label className="text-sm font-medium">Discount Percentage</label>
                 <div className="flex items-center gap-2">
                   <input 
                     type="number" 
                     min="0" 
-                    value={discount} 
-                    onChange={e => setDiscount(Number(e.target.value))}
-                    placeholder={discountIsPercentage ? "10" : "1000"}
+                    max="100"
+                    value={discountIsPercentage ? discount : (discountAmount / subtotal * 100).toFixed(2)}
+                    onChange={e => {
+                      const value = Number(e.target.value)
+                      if (discountIsPercentage) {
+                        setDiscount(value)
+                      } else {
+                        setDiscount(value)
+                        setDiscountIsPercentage(true)
+                      }
+                    }}
+                    placeholder="10"
                     className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
                   />
-                  {discountIsPercentage && <span className="text-sm font-medium">%</span>}
+                  </div>
+              </div>
+              <div className="col-span-4 space-y-2">
+                <label className="text-sm font-medium">Discount Amount (PKR)</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    value={discountIsPercentage ? discountAmount : discount}
+                    onChange={e => {
+                      const value = Number(e.target.value)
+                      if (!discountIsPercentage) {
+                        setDiscount(value)
+                      } else {
+                        setDiscount(value)
+                        setDiscountIsPercentage(false)
+                      }
+                    }}
+                    placeholder="1000"
+                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                  />
                 </div>
               </div>
               <div className="col-span-4 space-y-2">
                 <label className="text-sm font-medium">Calculated Discount</label>
                 <div className="h-10 flex items-center px-4 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium text-green-600">
                   - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Type</label>
-                <div className="flex items-center gap-3 h-10">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={discountIsPercentage}
-                      onChange={e => setDiscountIsPercentage(e.target.checked)}
-                      className="w-4 h-4 rounded border"
-                    />
-                    <span className="text-sm">Percentage (%)</span>
-                  </label>
                 </div>
               </div>
             </div>
