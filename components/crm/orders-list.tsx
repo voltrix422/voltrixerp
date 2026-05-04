@@ -1060,6 +1060,9 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
       otherCost: Number(editOtherCost) || 0,
       otherCostLabel: "Other cost",
       dispatcher: editDispatcher,
+      discount: order.discount,
+      discountIsPercentage: order.discountIsPercentage,
+      discountValue: order.discountValue,
       total,
     }
     
