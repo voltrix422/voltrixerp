@@ -8,11 +8,26 @@ async function fixOrderDiscount() {
     console.log('Total orders found:', orders.length);
     console.log('Order numbers:', orders.map(o => o.orderNumber));
     
-    const order = orders.find(o => o.orderNumber === 'ORD-00005');
+    // Try to find by order number first
+    let order = orders.find(o => o.orderNumber === 'ORD-00005');
     
     if (!order) {
-      console.log('Order ORD-00005 not found');
-      return;
+      console.log('Order ORD-00005 not found, searching for order with 5kw item and PKR 560,000...');
+      // Find order with matching item description and price
+      order = orders.find(o => 
+        o.items && 
+        o.items.some(item => 
+          item.description.toLowerCase().includes('5kw') && 
+          item.unitPrice === 560000
+        )
+      );
+      
+      if (order) {
+        console.log('Found matching order:', order.orderNumber);
+      } else {
+        console.log('No matching order found');
+        return;
+      }
     }
 
     console.log('Current order data:', {
