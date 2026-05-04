@@ -1,7 +1,8 @@
 "use client"
 import { useState, useEffect } from "react"
-import { Users, Activity, Wifi, WifiOff } from "lucide-react"
+import { Users, Activity, Wifi, WifiOff, X, Globe, Clock, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
 
 interface ActiveUsersCounterProps {
   className?: string
@@ -9,15 +10,25 @@ interface ActiveUsersCounterProps {
   size?: "sm" | "md" | "lg"
 }
 
+interface Visitor {
+  sessionId: string
+  lastSeen: number
+  userAgent?: string
+  ip?: string
+}
+
 export function ActiveUsersCounter({ 
   className = "", 
   showLabel = true,
   size = "sm"
 }: ActiveUsersCounterProps) {
+  const router = useRouter()
   const [activeCount, setActiveCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isOnline, setIsOnline] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [showVisitorsModal, setShowVisitorsModal] = useState(false)
+  const [visitors, setVisitors] = useState<Visitor[]>([])
 
   // Size configurations
   const sizeConfig = {
@@ -67,13 +78,14 @@ export function ActiveUsersCounter({
     }
   }
 
-  // Fetch current active users count
+  // Fetch current active users count and visitor list
   const fetchActiveUsers = async () => {
     try {
       const response = await fetch('/api/active-users')
       if (response.ok) {
         const data = await response.json()
         setActiveCount(data.count)
+        setVisitors(data.visitors || [])
         setIsOnline(true)
       } else {
         setIsOnline(false)
@@ -84,6 +96,28 @@ export function ActiveUsersCounter({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Remove visitor
+  const removeVisitor = async (visitorSessionId: string) => {
+    try {
+      await fetch('/api/active-users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-id': visitorSessionId,
+        },
+      })
+      fetchActiveUsers()
+    } catch (error) {
+      console.error('Failed to remove visitor:', error)
+    }
+  }
+
+  // Open visitors modal
+  const openVisitorsModal = () => {
+    fetchActiveUsers()
+    setShowVisitorsModal(true)
   }
 
   // Remove user from active list on unmount
@@ -144,27 +178,122 @@ export function ActiveUsersCounter({
     )
   }
 
+  const formatTimeAgo = (timestamp: number) => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000)
+    if (seconds < 60) return `${seconds}s ago`
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    return `${hours}h ago`
+  }
+
+  const formatUserAgent = (ua?: string) => {
+    if (!ua) return "Unknown"
+    if (ua.includes("Chrome")) return "Chrome"
+    if (ua.includes("Firefox")) return "Firefox"
+    if (ua.includes("Safari")) return "Safari"
+    if (ua.includes("Edge")) return "Edge"
+    return "Other"
+  }
+
   return (
-    <div className={`inline-flex items-center rounded-full border bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 transition-colors min-w-[120px] ${config.containerClass} ${className}`}>
-      <div className="flex items-center gap-1.5">
-        {isOnline ? (
-          <Wifi className={`${config.iconClass} text-green-500`} />
-        ) : (
-          <WifiOff className={`${config.iconClass} text-red-500`} />
-        )}
-        <Users className={`${config.iconClass} text-[hsl(var(--foreground))]`} />
-        <Badge 
-          variant="outline" 
-          className={`${config.badgeClass} border-[hsl(var(--primary))] text-[hsl(var(--foreground))]`}
-        >
-          {activeCount}
-        </Badge>
-        {showLabel && (
-          <span className="text-[hsl(var(--foreground))] font-medium">
-            Active
-          </span>
-        )}
+    <>
+      <div 
+        className={`inline-flex items-center rounded-full border bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 transition-colors min-w-[120px] cursor-pointer ${config.containerClass} ${className}`}
+        onClick={openVisitorsModal}
+      >
+        <div className="flex items-center gap-1.5">
+          {isOnline ? (
+            <Wifi className={`${config.iconClass} text-green-500`} />
+          ) : (
+            <WifiOff className={`${config.iconClass} text-red-500`} />
+          )}
+          <Users className={`${config.iconClass} text-[hsl(var(--foreground))]`} />
+          <Badge 
+            variant="outline" 
+            className={`${config.badgeClass} border-[hsl(var(--primary))] text-[hsl(var(--foreground))]`}
+          >
+            {activeCount}
+          </Badge>
+          {showLabel && (
+            <span className="text-[hsl(var(--foreground))] font-medium">
+              Active
+            </span>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Visitors Modal */}
+      {showVisitorsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowVisitorsModal(false)}>
+          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
+              <div className="flex items-center gap-3">
+                <Users className="h-5 w-5 text-[hsl(var(--foreground))]" />
+                <p className="text-base font-semibold text-[hsl(var(--foreground))]">Active Visitors</p>
+                <Badge variant="outline" className="text-xs">{visitors.length}</Badge>
+              </div>
+              <button onClick={() => setShowVisitorsModal(false)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-6">
+              {visitors.length === 0 ? (
+                <div className="text-center py-8 border border-dashed rounded-lg">
+                  <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))] mb-2" />
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No active visitors</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-[hsl(var(--muted))]/40 border-b">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">IP Address</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Browser</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Last Seen</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))]">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {visitors.map((visitor) => (
+                        <tr key={visitor.sessionId} className="hover:bg-[hsl(var(--muted))]/10">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                              <span className="font-mono text-xs">{visitor.ip || 'Unknown'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-[hsl(var(--foreground))]">
+                            {formatUserAgent(visitor.userAgent)}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatTimeAgo(visitor.lastSeen)}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => removeVisitor(visitor.sessionId)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              title="Remove visitor"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-4">
+                Visitors are automatically removed after 5 minutes of inactivity.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
