@@ -448,7 +448,7 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
       otherCostIsPercentage,
       otherCostValue: otherAmount,
       shipping: 0,
-      discount,
+      discount: discountIsPercentage ? discountAmount : discount,
       discountIsPercentage,
       discountValue: discountAmount,
       total,
@@ -812,6 +812,8 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                       } else {
                         setDiscount(value)
                         setDiscountIsPercentage(false)
+                        // When switching to fixed amount, set discount to the actual amount value
+                        setDiscount(value)
                       }
                     }}
                     placeholder="1000"
