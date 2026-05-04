@@ -198,6 +198,7 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
                 <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
+                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Customer Relationship</th>
                 <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-16">Actions</th>
               </tr>
             </thead>
@@ -205,7 +206,12 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
               {filtered.map(order => (
                 <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
                   <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>{order.orderNumber || "—"}</td>
-                  <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>{order.clientName || "—"}</td>
+                  <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
+                    <div className="flex items-center gap-1">
+                      <ShoppingCart className="h-4 w-4 text-blue-600" />
+                      <span className="ml-2">{order.clientName || "—"}</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>{order.items?.length || 0}</td>
                   <td className="px-4 py-2.5 text-xs text-right font-semibold cursor-pointer" onClick={() => setSelected(order)}>PKR {(order.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
@@ -1373,7 +1379,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                 )}
                 {order.discount > 0 && (
                   <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium text-green-600">Discount{order.discountIsPercentage && ` (${order.discount}%)`}</td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">Discount ({order.discount}%)</td>
                     <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {(order.discountValue || (order.discountIsPercentage ? (order.subtotal * order.discount / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 )}
@@ -1383,6 +1389,27 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          {/* Payment Section */}
+          <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100 mb-3">Payment</p>
+            <div className="text-sm">
+              <p className="font-medium text-blue-900 dark:text-blue-100">
+                Total Amount: PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </p>
+              {order.payments && order.payments.length > 0 ? (
+                <div className="mt-2 space-y-1">
+                  {order.payments.map(p => (
+                    <div key={p.id} className="text-xs text-blue-700 dark:text-blue-300">
+                      PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">No payments received yet</p>
+              )}
+            </div>
           </div>
 
           {order.payments && order.payments.length > 0 && (
