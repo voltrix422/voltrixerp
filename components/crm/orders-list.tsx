@@ -1299,36 +1299,19 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-16">Qty</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-16">Unit</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Cost Price</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Selling Price</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Profit</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Unit Price</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-32">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {order.items.map(item => {
                     const total = item.unitPrice * item.qty
-                    const costTotal = (item.costPrice || 0) * item.qty
-                    const profit = total - costTotal
-                    const profitPercent = costTotal > 0 ? ((profit / costTotal) * 100).toFixed(1) : "0.0"
                     return (
                       <tr key={item.id}>
                         <td className="px-4 py-3">{item.description}</td>
                         <td className="px-4 py-3 text-center">{item.qty}</td>
                         <td className="px-4 py-3 text-center">{item.unit}</td>
-                        <td className="px-4 py-3 text-right text-[hsl(var(--muted-foreground))]">
-                          {item.costPrice ? `PKR ${item.costPrice.toLocaleString()}` : "—"}
-                        </td>
                         <td className="px-4 py-3 text-right">PKR {item.unitPrice.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right">
-                          {item.costPrice ? (
-                            <span className={profit >= 0 ? "text-green-600" : "text-red-600"}>
-                              PKR {profit.toLocaleString()} ({profitPercent}%)
-                            </span>
-                          ) : (
-                            <span className="text-[hsl(var(--muted-foreground))]">—</span>
-                          )}
-                        </td>
                         <td className="px-4 py-3 text-right font-medium">PKR {total.toLocaleString()}</td>
                       </tr>
                     )
