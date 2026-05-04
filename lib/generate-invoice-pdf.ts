@@ -6,24 +6,47 @@ import { STATUS_LABELS } from "./orders"
 export async function generateInvoicePDF(order: Order): Promise<Blob> {
   const doc = new jsPDF()
   
-  // Minimal colors - only black and gray
+  // Professional colors
   const black: [number, number, number] = [0, 0, 0]
   const gray: [number, number, number] = [100, 100, 100]
   const lightGray: [number, number, number] = [200, 200, 200]
+  const accentColor: [number, number, number] = [26, 159, 154] // Teal color matching your theme
   
-  let yPos = 20
+  let yPos = 15
 
-  // Header - Company Name and INVOICE
-  doc.setFontSize(20)
+  // Header with Logo and Company Info
+  doc.setFontSize(24)
+  doc.setTextColor(...accentColor)
+  doc.setFont("helvetica", "bold")
+  doc.text("INVOICE", 105, yPos, { align: "center" })
+  
+  yPos += 8
+  
+  // Company Name with styling
+  doc.setFontSize(12)
   doc.setTextColor(...black)
   doc.setFont("helvetica", "bold")
-  doc.text("INVOICE", 15, yPos)
+  doc.text("VOLTRIX PVT LIMITED", 105, yPos, { align: "center" })
   
+  yPos += 5
+  
+  // Company Address
   doc.setFontSize(9)
   doc.setTextColor(...gray)
-  doc.text("voltrix pvt limited", 200, yPos, { align: "right" })
-  doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 200, yPos + 5, { align: "right" })
-  doc.text("+92 303 4927779 phone number", 200, yPos + 15, { align: "right" })
+  doc.setFont("helvetica", "normal")
+  doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 105, yPos, { align: "center" })
+  
+  yPos += 4
+  doc.text("+92 303 4927779", 105, yPos, { align: "center" })
+  
+  yPos += 6
+  
+  // Decorative line
+  doc.setDrawColor(...accentColor)
+  doc.setLineWidth(1)
+  doc.line(30, yPos, 180, yPos)
+  
+  yPos += 8
 
   yPos = 45
 
@@ -239,20 +262,26 @@ export async function generateInvoicePDF(order: Order): Promise<Blob> {
     doc.text(notesLines, 15, yPos)
   }
 
-  // Footer
+  // Footer with professional styling
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
     
-    // Footer divider
-    doc.setLineWidth(0.5)
-    doc.setDrawColor(...lightGray)
+    // Footer divider with accent color
+    doc.setLineWidth(0.8)
+    doc.setDrawColor(...accentColor)
     doc.line(15, 275, 195, 275)
     
+    // Thank you message with accent color
+    doc.setFontSize(10)
+    doc.setTextColor(...accentColor)
+    doc.setFont("helvetica", "bold")
+    doc.text("Thank you for your business!", 105, 280, { align: "center" })
+    
+    // Page info
     doc.setFontSize(8)
     doc.setTextColor(...gray)
     doc.setFont("helvetica", "normal")
-    doc.text("Thank you for your business!", 105, 280, { align: "center" })
     doc.text(`Page ${i} of ${pageCount}`, 105, 285, { align: "center" })
     doc.text(`Created by ${order.createdBy} on ${new Date(order.createdAt).toLocaleString()}`, 105, 290, { align: "center" })
   }
