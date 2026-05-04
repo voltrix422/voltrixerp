@@ -16,7 +16,6 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [tab, setTab] = useState<"pending" | "paid">("pending")
 
   useEffect(() => {
     getOrders().then(o => {
@@ -42,7 +41,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
     return () => clearInterval(interval)
   }, [])
 
-  // Filter based on status: finalized = pending, all others = paid
+  // Filter all orders without tab filtering
   const filteredOrders = orders.filter(order => {
     const q = search.toLowerCase()
     const matchSearch = !search ||
@@ -53,18 +52,8 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
     const matchFrom = !dateFrom || orderDate >= new Date(dateFrom)
     const matchTo = !dateTo || orderDate <= new Date(dateTo + "T23:59:59")
     
-    const statusMatch = tab === "pending"
-      ? order.status === "finalized"
-      : order.status === "confirmed" || 
-        order.status === "processing" || 
-        order.status === "shipped" || 
-        order.status === "delivered"
-    
-    return statusMatch && matchSearch && matchFrom && matchTo
+    return matchSearch && matchFrom && matchTo
   })
-
-  const pendingCount = orders.filter(o => o.status === "finalized").length
-  const paidCount = orders.filter(o => o.status === "confirmed" || o.status === "processing" || o.status === "shipped" || o.status === "delivered").length
 
   // Calculate total payments for filtered orders
   const totalPayments = filteredOrders.reduce((sum, order) => {
@@ -76,43 +65,13 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
 
   return (
     <div className="space-y-3">
-      {/* Sub Tabs */}
-      <div className="flex items-center gap-1 border-b border-[hsl(var(--border))]">
-        <button
-          onClick={() => setTab("pending")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-            tab === "pending"
-              ? "text-[hsl(var(--foreground))]"
-              : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-          }`}
-        >
-          Pending Orders ({pendingCount})
-          {tab === "pending" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-          )}
-        </button>
-        <button
-          onClick={() => setTab("paid")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-            tab === "paid"
-              ? "text-[hsl(var(--foreground))]"
-              : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-          }`}
-        >
-          Paid Orders ({paidCount})
-          {tab === "paid" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-          )}
-        </button>
-      </div>
-
       {/* Stats */}
       {filteredOrders.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                {tab === "pending" ? "Pending" : "Paid"} Orders
+                Orders
               </p>
               <p className="text-xl font-bold tabular-nums leading-tight text-[hsl(var(--foreground))]">
                 {filteredOrders.length}
@@ -141,8 +100,8 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
         <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {hasFilters 
-              ? `No ${tab === "pending" ? "pending" : "paid"} orders match your filters`
-              : `No ${tab === "pending" ? "pending" : "paid"} orders`
+              ? "No orders match your filters"
+              : "No orders found"
             }
           </p>
         </div>
