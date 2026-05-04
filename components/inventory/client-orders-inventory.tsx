@@ -189,11 +189,66 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [updating, setUpdating] = useState(false)
   const [showDispatchDialog, setShowDispatchDialog] = useState(false)
   const [showDeliveryConfirm, setShowDeliveryConfirm] = useState(false)
+  const [showFulfillDialog, setShowFulfillDialog] = useState(false)
   const [stockItems, setStockItems] = useState<any[]>([])
   const [loadingStock, setLoadingStock] = useState(false)
   const [dispatcherName, setDispatcherName] = useState(order.dispatcher || "")
   const [dispatchDate, setDispatchDate] = useState(new Date().toISOString().split('T')[0])
   const [showDeliveryAnimation, setShowDeliveryAnimation] = useState(false)
+  
+  // Fulfillment form states
+  const [fulfillDispatcherName, setFulfillDispatcherName] = useState("")
+  const [receiverName, setReceiverName] = useState("")
+  const [receiverImage, setReceiverImage] = useState<File | null>(null)
+  const [receiverCnic, setReceiverCnic] = useState("")
+  const [receiverCnicImage, setReceiverCnicImage] = useState<File | null>(null)
+  const [vehicleNumber, setVehicleNumber] = useState("")
+  const [vehicleImage, setVehicleImage] = useState<File | null>(null)
+  const [productImages, setProductImages] = useState<File[]>([])
+
+  async function handleFulfillOrder() {
+    if (!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber || !receiverImage || !receiverCnicImage || !vehicleImage || productImages.length === 0) {
+      alert("Please fill in all required fields and upload all required images")
+      return
+    }
+
+    setUpdating(true)
+    
+    try {
+      // Update order with dispatcher and mark as fulfilled
+      const updatedOrder: Order = {
+        ...order,
+        dispatcher: fulfillDispatcherName,
+        status: "delivered" // Keep status as delivered for consistency
+      }
+      
+      // Save the updated order
+      await saveOrder(updatedOrder)
+      
+      // Show success message
+      alert(`Order ${order.orderNumber} has been fulfilled successfully!`)
+      
+      // Close dialog and update UI
+      setShowFulfillDialog(false)
+      onUpdate(updatedOrder)
+      
+      // Reset form
+      setFulfillDispatcherName("")
+      setReceiverName("")
+      setReceiverCnic("")
+      setVehicleNumber("")
+      setReceiverImage(null)
+      setReceiverCnicImage(null)
+      setVehicleImage(null)
+      setProductImages([])
+      
+    } catch (error) {
+      console.error("Error fulfilling order:", error)
+      alert("Failed to fulfill order. Please try again.")
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   async function downloadInvoice() {
     try {
@@ -354,11 +409,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           <div>
             <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-2">Order Status</p>
             <Badge variant={
-              order.status === "delivered" ? "success" :
-              order.status === "shipped" ? "info" :
-              order.status === "processing" ? "warning" : "default"
+              order.dispatcher ? "success" : "warning"
             } className="text-xs">
-              {order.status}
+              {order.dispatcher ? "fulfilled" : "ready to fulfill"}
             </Badge>
           </div>
 
@@ -417,7 +470,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             )}
             {(order.discount > 0 || (order.discountValue && order.discountValue > 0)) && (
               <div className="flex items-center justify-between text-xs">
-                <span className="text-green-600">Discount ({order.discount || 2}%)</span>
+                <span className="text-green-600">Discount ({order.discountIsPercentage ? (order.discount || 2) : Math.round((order.discountValue || 0) / order.subtotal * 100)}%)</span>
                 <span className="font-semibold text-green-600">- PKR {(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             )}
@@ -460,21 +513,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <FileText className="h-3 w-3 mr-1.5" /> Download Dispatch Note
           </Button>
           
-          {order.status === "confirmed" && (
-            <Button size="sm" className="h-8 text-xs bg-yellow-600 hover:bg-yellow-700" onClick={() => updateStatus("processing")} disabled={updating}>
-              <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Updating..." : "Start Processing"}
-            </Button>
-          )}
-          
-          {order.status === "processing" && (
-            <Button size="sm" className="h-8 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => updateStatus("shipped")} disabled={updating}>
-              <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Updating..." : "Mark as Shipped"}
-            </Button>
-          )}
-          
-          {order.status === "shipped" && (
-            <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={handleMarkAsDelivered} disabled={updating}>
-              <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Updating..." : "Mark as Delivered"}
+          {!order.dispatcher && (
+            <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowFulfillDialog(true)} disabled={updating}>
+              <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Fulfill Order"}
             </Button>
           )}
           
@@ -731,6 +772,165 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <p className="text-2xl font-bold text-white mb-2">Order Delivered!</p>
                 <p className="text-sm text-white/80">Inventory has been updated</p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fulfillment Dialog */}
+      {showFulfillDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowFulfillDialog(false)}>
+          <div className="w-full max-w-2xl max-h-[90vh] rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <p className="text-base font-bold">Fulfill Order</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Enter complete fulfillment information</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFulfillDialog(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Dispatcher Information */}
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Dispatcher Information</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                      Dispatcher Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={fulfillDispatcherName}
+                      onChange={e => setFulfillDispatcherName(e.target.value)}
+                      placeholder="Enter dispatcher name"
+                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Receiver Information */}
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Receiver Information</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                      Receiver Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={receiverName}
+                      onChange={e => setReceiverName(e.target.value)}
+                      placeholder="Enter receiver name"
+                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                      Receiver CNIC *
+                    </label>
+                    <input
+                      type="text"
+                      value={receiverCnic}
+                      onChange={e => setReceiverCnic(e.target.value)}
+                      placeholder="Enter CNIC number"
+                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                      Receiver Image *
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => setReceiverImage(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                      CNIC Image *
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => setReceiverCnicImage(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle Information */}
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Vehicle Information</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                      Vehicle Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={vehicleNumber}
+                      onChange={e => setVehicleNumber(e.target.value)}
+                      placeholder="Enter vehicle number"
+                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                      Vehicle Image *
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => setVehicleImage(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Images */}
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Product Images</p>
+                <div>
+                  <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
+                    Upload Product Images *
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={e => setProductImages(Array.from(e.target.files || []))}
+                    className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                  />
+                  {productImages.length > 0 && (
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                      {productImages.length} image(s) selected
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowFulfillDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                size="sm" 
+                className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto" 
+                onClick={handleFulfillOrder}
+                disabled={!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber || !receiverImage || !receiverCnicImage || !vehicleImage || productImages.length === 0}
+              >
+                Fulfill Order
+              </Button>
             </div>
           </div>
         </div>
