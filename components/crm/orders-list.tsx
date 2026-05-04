@@ -829,11 +829,10 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
               </div>
             </div>
             {discount > 0 && (
-              <div className="mt-2 text-sm text-green-600 font-medium">
-                Discount applied: - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} 
-                {discountIsPercentage ? `(${discount}% of subtotal)` : `(PKR ${discount.toLocaleString(undefined, { minimumFractionDigits: 2 })} fixed amount)`}
-                {discountIsPercentage && <span className="ml-1 text-xs text-gray-500">({discount}% discount)</span>}
-              </div>
+              <tr className="bg-[hsl(var(--muted))]/30">
+                <td className="px-4 py-3 text-right font-medium">Discount ({discount}%)</td>
+                <td className="px-4 py-3 text-right font-medium">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+              </tr>
             )}
           </div>
 
