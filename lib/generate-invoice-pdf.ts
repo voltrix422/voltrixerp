@@ -14,92 +14,74 @@ export async function generateInvoicePDF(order: Order): Promise<Blob> {
   
   let yPos = 15
 
-  // Header with Logo and Company Info
-  doc.setFontSize(24)
+  // Clean Header with Company Logo Area
+  doc.setFontSize(28)
   doc.setTextColor(...accentColor)
   doc.setFont("helvetica", "bold")
-  doc.text("INVOICE", 105, yPos, { align: "center" })
+  doc.text("INVOICE", 105, 25, { align: "center" })
   
-  yPos += 8
+  yPos = 40
   
-  // Company Name with styling
-  doc.setFontSize(12)
+  // Company Info Box with Logo Placeholder
+  doc.setDrawColor(...lightGray)
+  doc.setLineWidth(0.8)
+  doc.rect(15, yPos, 180, 40)
+  
+  // Logo placeholder area (left side)
+  doc.setDrawColor(...accentColor)
+  doc.setLineWidth(0.5)
+  doc.rect(20, yPos + 5, 30, 30)
+  doc.setFontSize(8)
+  doc.setTextColor(...gray)
+  doc.setFont("helvetica", "normal")
+  doc.text("LOGO", 35, yPos + 22, { align: "center" })
+  
+  // Company Name (right of logo)
+  doc.setFontSize(16)
   doc.setTextColor(...black)
   doc.setFont("helvetica", "bold")
-  doc.text("VOLTRIX PVT LIMITED", 105, yPos, { align: "center" })
+  doc.text("VOLTRIX PVT LIMITED", 60, yPos + 12)
   
-  yPos += 5
-  
-  // Company Address
+  // Company Details
   doc.setFontSize(9)
   doc.setTextColor(...gray)
   doc.setFont("helvetica", "normal")
-  doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 105, yPos, { align: "center" })
+  doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 60, yPos + 22)
+  doc.text("+92 303 4927779", 60, yPos + 30)
   
-  yPos += 4
-  doc.text("+92 303 4927779", 105, yPos, { align: "center" })
-  
-  yPos += 6
-  
-  // Decorative line
-  doc.setDrawColor(...accentColor)
-  doc.setLineWidth(1)
-  doc.line(30, yPos, 180, yPos)
-  
-  yPos += 8
-
-  yPos = 45
-
-  // Divider line
-  doc.setDrawColor(...lightGray)
-  doc.setLineWidth(0.5)
-  doc.line(15, yPos, 195, yPos)
-
-  yPos += 10
-
-  // Invoice Details - Clean layout
-  doc.setFontSize(9)
+  // Invoice Details on the right side of box
+  doc.setFontSize(10)
   doc.setTextColor(...black)
   doc.setFont("helvetica", "bold")
-  doc.text("Invoice Number:", 15, yPos)
+  doc.text("Invoice #:", 140, yPos + 12)
   doc.setFont("helvetica", "normal")
-  doc.text(order.orderNumber, 50, yPos)
+  doc.text(order.orderNumber, 140, yPos + 20)
   
   doc.setFont("helvetica", "bold")
-  doc.text("Date:", 100, yPos)
+  doc.text("Date:", 170, yPos + 12)
   doc.setFont("helvetica", "normal")
-  doc.text(new Date(order.createdAt).toLocaleDateString(), 115, yPos)
+  doc.text(new Date(order.createdAt).toLocaleDateString(), 170, yPos + 20)
   
   doc.setFont("helvetica", "bold")
-  doc.text("Status:", 155, yPos)
+  doc.text("Status:", 140, yPos + 30)
   doc.setFont("helvetica", "normal")
-  doc.text(STATUS_LABELS[order.status], 170, yPos)
+  doc.text(STATUS_LABELS[order.status], 140, yPos + 37)
   
-  yPos += 6
-  
+  yPos = 90
+
+  // Add delivery date if exists
   if (order.deliveryDate) {
+    yPos += 5
+    doc.setFontSize(9)
+    doc.setTextColor(...black)
     doc.setFont("helvetica", "bold")
     doc.text("Delivery Date:", 15, yPos)
     doc.setFont("helvetica", "normal")
     doc.text(new Date(order.deliveryDate).toLocaleDateString(), 50, yPos)
-  }
-  
-  if (order.dispatcher) {
-    doc.setFont("helvetica", "bold")
-    doc.text("Dispatcher:", 100, yPos)
-    doc.setFont("helvetica", "normal")
-    doc.text(order.dispatcher, 125, yPos)
-    yPos += 6
-  } else if (order.deliveryDate) {
-    yPos += 6
+    yPos += 8
   }
 
   yPos += 5
-
-  // Divider line
-  doc.line(15, yPos, 195, yPos)
-
-  yPos += 10
 
   // Bill To Section
   doc.setFontSize(8)
