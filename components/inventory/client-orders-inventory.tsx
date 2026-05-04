@@ -207,8 +207,8 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [productImages, setProductImages] = useState<File[]>([])
 
   async function handleFulfillOrder() {
-    if (!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber || !receiverImage || !receiverCnicImage || !vehicleImage || productImages.length === 0) {
-      alert("Please fill in all required fields and upload all required images")
+    if (!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber) {
+      alert("Please fill in all required fields")
       return
     }
 
@@ -225,8 +225,20 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       // Save the updated order
       await saveOrder(updatedOrder)
       
+      // Generate and download dispatch note automatically
+      const dispatchDate = new Date().toLocaleDateString()
+      const blob = await generateDispatchNotePDF(order, fulfillDispatcherName, dispatchDate)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Dispatch-Note-${order.orderNumber}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
       // Show success message
-      alert(`Order ${order.orderNumber} has been fulfilled successfully!`)
+      alert(`Order ${order.orderNumber} has been fulfilled successfully! Dispatch note downloaded.`)
       
       // Close dialog and update UI
       setShowFulfillDialog(false)
@@ -505,12 +517,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
             <Eye className="h-3 w-3 mr-1.5" /> View Invoice
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={downloadInvoice}>
-            <Download className="h-3 w-3 mr-1.5" /> Download Invoice
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs bg-purple-50 hover:bg-purple-100 dark:bg-purple-950 dark:hover:bg-purple-900" onClick={() => setShowDispatchDialog(true)}>
-            <FileText className="h-3 w-3 mr-1.5" /> Download Dispatch Note
           </Button>
           
           {!order.dispatcher && (
@@ -927,7 +933,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 size="sm" 
                 className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto" 
                 onClick={handleFulfillOrder}
-                disabled={!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber || !receiverImage || !receiverCnicImage || !vehicleImage || productImages.length === 0}
+                disabled={!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber}
               >
                 Fulfill Order
               </Button>
