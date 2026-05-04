@@ -349,8 +349,8 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   // Apply discount to get discounted subtotal
   const discountedSubtotal = subtotal - discountAmount
   
-  // Calculate tax on discounted subtotal
-  const taxAmount = discountedSubtotal * (taxPercent / 100)
+  // Calculate tax on ORIGINAL subtotal (before discount)
+  const taxAmount = subtotal * (taxPercent / 100)
   
   // Calculate transport cost on discounted subtotal
   const transportAmount = transportIsPercentage 
