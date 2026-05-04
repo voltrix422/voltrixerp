@@ -829,7 +829,7 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             {discount > 0 && (
               <div className="mt-2 text-sm text-green-600 font-medium">
                 Discount applied: - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} 
-                {discountIsPercentage ? `(${discount}% of subtotal)` : `(PKR ${discount.toLocaleString(undefined, { minimumFractionDigits: 2 }) fixed amount)`}
+                {discountIsPercentage ? `(${discount}% of subtotal)` : `(PKR ${discount.toLocaleString(undefined, { minimumFractionDigits: 2 })} fixed amount)`}
               </div>
             )}
           </div>
