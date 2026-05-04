@@ -5,6 +5,9 @@ async function fixOrderDiscount() {
     const response = await fetch('http://localhost:3000/api/db/orders');
     const orders = await response.json();
     
+    console.log('Total orders found:', orders.length);
+    console.log('Order numbers:', orders.map(o => o.orderNumber));
+    
     const order = orders.find(o => o.orderNumber === 'ORD-00005');
     
     if (!order) {
