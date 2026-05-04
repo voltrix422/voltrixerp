@@ -223,7 +223,8 @@ export async function POST(request: NextRequest) {
     // Discount
     if (order.discount > 0 || order.discountValue > 0) {
       doc.setTextColor(0, 128, 0) // Green for discount
-      doc.text(`Discount (${order.discount || 2}%):`, totalsX, yPos)
+      const discountPercent = order.discountIsPercentage ? (order.discount || 2) : Math.round((order.discountValue || 0) / order.subtotal * 100)
+      doc.text(`Discount (${discountPercent}%):`, totalsX, yPos)
       doc.text(`-PKR ${(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
       doc.setTextColor(...black) // Reset to black
       yPos += 5

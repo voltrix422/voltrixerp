@@ -157,7 +157,8 @@ export async function generateDispatchNotePDF(order: Order, dispatcherName?: str
   if (order.discount > 0 || (order.discountValue && order.discountValue > 0)) {
     yPos += 6
     doc.setTextColor(0, 128, 0) // Green for discount
-    doc.text(`Discount (${order.discount || 2}%):`, 125, yPos)
+    const discountPercent = order.discountIsPercentage ? (order.discount || 2) : Math.round((order.discountValue || 0) / order.subtotal * 100)
+    doc.text(`Discount (${discountPercent}%):`, 125, yPos)
     doc.text(`-PKR ${(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
     doc.setTextColor(0, 0, 0) // Reset to black
   }
@@ -235,6 +236,17 @@ export async function downloadDispatchNote(order: Order): Promise<void> {
     return
   }
   
+  // Update order with dispatcher and mark as delivered
+  const updatedOrder: Order = {
+    ...order,
+    dispatcher: dispatcherName,
+    status: "delivered"
+  }
+  
+  // Save the updated order
+  await import("@/lib/orders").then(m => m.saveOrder(updatedOrder))
+  
+  // Generate and download the dispatch note
   const blob = await generateDispatchNotePDF(order, dispatcherName, dispatchDate)
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
@@ -244,4 +256,7 @@ export async function downloadDispatchNote(order: Order): Promise<void> {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+  
+  // Show success message
+  alert(`Dispatch note generated and order ${order.orderNumber} marked as delivered!`)
 }
