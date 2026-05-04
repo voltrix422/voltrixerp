@@ -177,6 +177,14 @@ export function ClientOrdersApproval() {
                   <span>Subtotal</span>
                   <span className="font-semibold">PKR {selected.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span>Tax (18%)</span>
+                  <span className="font-semibold">PKR {(selected.tax || (selected.subtotal * 18 / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-green-600">Discount (2%)</span>
+                  <span className="font-semibold text-green-600">- PKR {(selected.discountValue || (selected.discountIsPercentage ? (selected.subtotal * 2 / 100) : selected.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
                 <div className="flex items-center justify-between text-sm font-bold border-t pt-1.5">
                   <span>Total</span>
                   <span>PKR {selected.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
