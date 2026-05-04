@@ -1,5 +1,5 @@
 "use client"
-import { LogOut } from "lucide-react"
+import { LogOut, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
@@ -44,7 +44,15 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
 
       <div className="flex items-center gap-1.5">
         {action && <>{action}</>}
-        <ActiveUsersCounter showLabel={false} size="sm" />
+        <div className="inline-flex items-center rounded-lg border-2 border-red-500 bg-red-100 hover:bg-red-200 transition-colors min-w-[120px] h-8 px-3 gap-2 text-sm">
+  <Users className="h-4 w-4 text-red-600" />
+  <Badge variant="destructive" className="text-xs px-1.5 py-0">
+    Test
+  </Badge>
+  <span className="text-red-800 font-bold">
+    Active
+  </span>
+</div>
         <DBStatusIndicator />
         <ThemeToggle />
         <Separator orientation="vertical" className="h-5 mx-1" />

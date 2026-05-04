@@ -369,6 +369,8 @@ export default function DashboardPage() {
       />
       <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
         <div className="p-8 max-w-7xl">
+          <h1 style={{color: 'red', fontSize: '24px', fontWeight: 'bold'}}>DEBUG TEST - CAN YOU SEE THIS?</h1>
+          
           {/* ERP Stats Overview */}
           <ERPStats />
 

@@ -43,6 +43,7 @@ export function ActiveUsersCounter({
   // Register/update user activity
   const updateActivity = async () => {
     try {
+      console.log('Updating activity...')
       const response = await fetch('/api/active-users', {
         method: 'POST',
         headers: {
@@ -144,7 +145,7 @@ export function ActiveUsersCounter({
   }
 
   return (
-    <div className={`inline-flex items-center rounded-full border bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/10 transition-colors ${config.containerClass} ${className}`}>
+    <div className={`inline-flex items-center rounded-full border bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 transition-colors min-w-[120px] ${config.containerClass} ${className}`}>
       <div className="flex items-center gap-1.5">
         {isOnline ? (
           <Wifi className={`${config.iconClass} text-green-500`} />
@@ -153,8 +154,8 @@ export function ActiveUsersCounter({
         )}
         <Users className={`${config.iconClass} text-[hsl(var(--foreground))]`} />
         <Badge 
-          variant={activeCount > 0 ? "default" : "secondary"} 
-          className={config.badgeClass}
+          variant="outline" 
+          className={`${config.badgeClass} border-[hsl(var(--primary))] text-[hsl(var(--foreground))]`}
         >
           {activeCount}
         </Badge>

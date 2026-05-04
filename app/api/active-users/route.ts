@@ -19,12 +19,20 @@ function cleanupInactiveUsers() {
   }
 }
 
-// GET: Retrieve current active user count
+// GET: Retrieve current active user count and list
 export async function GET() {
   cleanupInactiveUsers()
   
+  const visitors = Array.from(activeUsers.entries()).map(([sessionId, data]) => ({
+    sessionId,
+    lastSeen: data.lastSeen,
+    userAgent: data.userAgent,
+    ip: data.ip
+  }))
+  
   return NextResponse.json({
     count: activeUsers.size,
+    visitors,
     active: true
   })
 }
