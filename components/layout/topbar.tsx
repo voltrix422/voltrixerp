@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { DBStatusIndicator } from "@/components/db-status-indicator"
+import { ActiveUsersCounter } from "@/components/ui/active-users-counter"
 import { useAuth } from "@/components/auth-provider"
 import { useState, useRef, useEffect } from "react"
 
@@ -43,6 +44,7 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
 
       <div className="flex items-center gap-1.5">
         {action && <>{action}</>}
+        <ActiveUsersCounter showLabel={false} size="sm" />
         <DBStatusIndicator />
         <ThemeToggle />
         <Separator orientation="vertical" className="h-5 mx-1" />
