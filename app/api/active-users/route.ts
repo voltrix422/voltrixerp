@@ -23,15 +23,32 @@ function cleanupInactiveUsers() {
 export async function GET() {
   cleanupInactiveUsers()
   
-  const visitors = Array.from(activeUsers.entries()).map(([sessionId, data]) => ({
-    sessionId,
+  // Group by IP to avoid duplicates
+  const ipMap = new Map<string, { sessionId: string, lastSeen: number, userAgent?: string }>()
+  
+  for (const [sessionId, data] of activeUsers.entries()) {
+    const ip = data.ip || 'unknown'
+    const existing = ipMap.get(ip)
+    
+    // Keep the most recent session for each IP
+    if (!existing || data.lastSeen > existing.lastSeen) {
+      ipMap.set(ip, {
+        sessionId,
+        lastSeen: data.lastSeen,
+        userAgent: data.userAgent
+      })
+    }
+  }
+  
+  const visitors = Array.from(ipMap.entries()).map(([ip, data]) => ({
+    sessionId: data.sessionId,
     lastSeen: data.lastSeen,
     userAgent: data.userAgent,
-    ip: data.ip
+    ip
   }))
   
   return NextResponse.json({
-    count: activeUsers.size,
+    count: ipMap.size,
     visitors,
     active: true
   })
