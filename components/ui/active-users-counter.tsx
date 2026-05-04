@@ -199,7 +199,7 @@ export function ActiveUsersCounter({
   return (
     <>
       <div 
-        className={`inline-flex items-center rounded-full border bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 transition-colors min-w-[120px] cursor-pointer ${config.containerClass} ${className}`}
+        className={`inline-flex items-center rounded-full border bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 transition-colors cursor-pointer ${config.containerClass} ${className}`}
         onClick={openVisitorsModal}
       >
         <div className="flex items-center gap-1.5">
@@ -215,18 +215,13 @@ export function ActiveUsersCounter({
           >
             {activeCount}
           </Badge>
-          {showLabel && (
-            <span className="text-[hsl(var(--foreground))] font-medium">
-              Active
-            </span>
-          )}
         </div>
       </div>
 
       {/* Visitors Modal */}
       {showVisitorsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowVisitorsModal(false)}>
-          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 text-[hsl(var(--foreground))]" />
@@ -237,58 +232,42 @@ export function ActiveUsersCounter({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="overflow-y-auto p-6">
+            <div className="p-6">
               {visitors.length === 0 ? (
-                <div className="text-center py-8 border border-dashed rounded-lg">
+                <div className="text-center py-6">
                   <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))] mb-2" />
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">No active visitors</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Except you (admin)</p>
                 </div>
               ) : (
-                <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">IP Address</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Browser</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Last Seen</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))]">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {visitors.map((visitor) => (
-                        <tr key={visitor.sessionId} className="hover:bg-[hsl(var(--muted))]/10">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <Globe className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                              <span className="font-mono text-xs">{visitor.ip || 'Unknown'}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-[hsl(var(--foreground))]">
-                            {formatUserAgent(visitor.userAgent)}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatTimeAgo(visitor.lastSeen)}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => removeVisitor(visitor.sessionId)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                              title="Remove visitor"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-3">
+                  {visitors.map((visitor) => (
+                    <div key={visitor.sessionId} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                          <div>
+                            <p className="text-xs font-mono text-[hsl(var(--foreground))]">{visitor.ip || 'Unknown'}</p>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatUserAgent(visitor.userAgent)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimeAgo(visitor.lastSeen)}</span>
+                          <button
+                            onClick={() => removeVisitor(visitor.sessionId)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="Remove visitor"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-4">
-                Visitors are automatically removed after 5 minutes of inactivity.
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-4 text-center">
+                Auto-removed after 5 minutes of inactivity
               </p>
             </div>
           </div>
