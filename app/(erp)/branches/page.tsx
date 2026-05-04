@@ -3,6 +3,8 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { BranchesTab } from "@/components/branches/branches-tab"
 
+export const dynamic = 'force-dynamic'
+
 export default function BranchesPage() {
   return (
     <ModuleGuard module="branches">
