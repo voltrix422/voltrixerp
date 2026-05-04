@@ -19,16 +19,21 @@ export async function generateDispatchNotePDF(order: Order, dispatcherName?: str
     console.error("Failed to load logo:", e)
   }
 
-  // Company header
-  doc.setFontSize(20)
+  // Company header - Professional design
+  doc.setFontSize(24)
   doc.setFont("helvetica", "bold")
+  doc.setTextColor(26, 159, 154) // Accent color
   doc.text("DISPATCH NOTE", 105, 25, { align: "center" })
   
-  doc.setFontSize(10)
+  doc.setFontSize(12)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(0, 0, 0)
+  doc.text("VOLTRIX PVT LIMITED", 105, 32, { align: "center" })
+  
+  doc.setFontSize(9)
   doc.setFont("helvetica", "normal")
-  doc.text("Your Company Name", 105, 32, { align: "center" })
-  doc.text("Address Line 1, City, Country", 105, 37, { align: "center" })
-  doc.text("Phone: +92 XXX XXXXXXX | Email: info@company.com", 105, 42, { align: "center" })
+  doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 105, 37, { align: "center" })
+  doc.text("+92 303 4927779", 105, 42, { align: "center" })
 
   // Dispatch details box
   doc.setDrawColor(200, 200, 200)
@@ -146,6 +151,15 @@ export async function generateDispatchNotePDF(order: Order, dispatcherName?: str
     yPos += 6
     doc.text(`${order.otherCostLabel}:`, 125, yPos)
     doc.text(`PKR ${order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
+  }
+  
+  // Add discount if applicable
+  if (order.discount > 0 || order.discountValue > 0) {
+    yPos += 6
+    doc.setTextColor(0, 128, 0) // Green for discount
+    doc.text(`Discount (${order.discount || 2}%):`, 125, yPos)
+    doc.text(`-PKR ${(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
+    doc.setTextColor(0, 0, 0) // Reset to black
   }
   
   yPos += 8
