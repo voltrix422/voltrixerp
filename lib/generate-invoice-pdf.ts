@@ -2,6 +2,7 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Order } from "./orders"
 import { STATUS_LABELS } from "./orders"
+import { loadLogoAsBase64 } from "./invoice-logo-loader"
 
 export async function generateInvoicePDF(order: Order): Promise<Blob> {
   const doc = new jsPDF()
@@ -27,14 +28,36 @@ export async function generateInvoicePDF(order: Order): Promise<Blob> {
   doc.setLineWidth(0.8)
   doc.rect(15, yPos, 180, 40)
   
-  // Logo placeholder area (left side)
-  doc.setDrawColor(...accentColor)
-  doc.setLineWidth(0.5)
-  doc.rect(20, yPos + 5, 30, 30)
-  doc.setFontSize(8)
-  doc.setTextColor(...gray)
-  doc.setFont("helvetica", "normal")
-  doc.text("LOGO", 35, yPos + 22, { align: "center" })
+  // Add actual company logo
+  const logoBase64 = loadLogoAsBase64()
+  if (logoBase64) {
+    try {
+      // Add the actual logo image
+      doc.addImage(logoBase64, 'PNG', 20, yPos + 5, 30, 30)
+    } catch (error) {
+      // Fallback if image loading fails
+      doc.setDrawColor(...accentColor)
+      doc.setLineWidth(0.5)
+      doc.rect(20, yPos + 5, 30, 30)
+      doc.setFontSize(8)
+      doc.setTextColor(...gray)
+      doc.setFont("helvetica", "normal")
+      doc.text("LOGO", 35, yPos + 22, { align: "center" })
+    }
+  } else {
+    // Fallback if logo file doesn't exist
+    doc.setDrawColor(...accentColor)
+    doc.setLineWidth(0.5)
+    doc.rect(20, yPos + 5, 30, 30)
+    
+    // Simple logo representation - VOLTRIX text in a box
+    doc.setFontSize(10)
+    doc.setTextColor(...accentColor)
+    doc.setFont("helvetica", "bold")
+    doc.text("VOLTRIX", 35, yPos + 15, { align: "center" })
+    doc.setFontSize(6)
+    doc.text("PVT LTD", 35, yPos + 22, { align: "center" })
+  }
   
   // Company Name (right of logo)
   doc.setFontSize(16)
