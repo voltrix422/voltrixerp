@@ -1,6 +1,7 @@
 "use client"
 import { LogOut, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { DBStatusIndicator } from "@/components/db-status-indicator"
