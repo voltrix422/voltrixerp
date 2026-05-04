@@ -214,16 +214,28 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
                   </td>
                   <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer" onClick={() => setSelected(order)}>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-2.5 text-center">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteConfirmOrder(order)
-                      }}
-                      className="text-red-500 hover:text-red-700 cursor-pointer transition-colors"
-                      title="Delete order"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          downloadInvoicePDF(order)
+                        }}
+                        className="text-[#1a9f9a] hover:text-[#158a85] cursor-pointer transition-colors"
+                        title="Download PDF"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteConfirmOrder(order)
+                        }}
+                        className="text-red-500 hover:text-red-700 cursor-pointer transition-colors"
+                        title="Delete order"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
