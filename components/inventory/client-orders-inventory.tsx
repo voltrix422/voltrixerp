@@ -14,7 +14,6 @@ export function ClientOrdersInventory() {
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [search, setSearch] = useState("")
-  const [statusSubTab, setStatusSubTab] = useState<"confirmed" | "processing" | "shipped" | "delivered">("confirmed")
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const [showFilters, setShowFilters] = useState(false)
@@ -54,22 +53,13 @@ export function ClientOrdersInventory() {
       order.clientName.toLowerCase().includes(searchLower) ||
       (order.dispatcher || "").toLowerCase().includes(searchLower)
     
-    const matchesStatus = order.status === statusSubTab
-    
     const orderDate = order.deliveryDate ? new Date(order.deliveryDate) : new Date()
     const matchesDateRange = 
       (!fromDate || orderDate >= new Date(fromDate)) &&
       (!toDate || orderDate <= new Date(toDate))
     
-    return matchesSearch && matchesStatus && matchesDateRange
+    return matchesSearch && matchesDateRange
   })
-
-  const statusCounts = {
-    confirmed: orders.filter(o => o.status === "confirmed").length,
-    processing: orders.filter(o => o.status === "processing").length,
-    shipped: orders.filter(o => o.status === "shipped").length,
-    delivered: orders.filter(o => o.status === "delivered").length,
-  }
 
   return (
     <div className="space-y-4">
@@ -83,26 +73,7 @@ export function ClientOrdersInventory() {
         )}
       </div>
 
-      {/* Sub-tabs */}
-      {!loading && orders.length > 0 && (
-        <div className="flex gap-0 border-b">
-          {(["confirmed", "processing", "shipped", "delivered"] as const).map(status => (
-            <button key={status} onClick={() => setStatusSubTab(status)}
-              className={`px-4 py-2 text-sm font-medium transition-colors relative cursor-pointer ${
-                statusSubTab === status ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}>
-              {status === "confirmed" ? "Confirmed" : status === "processing" ? "Processing" : status === "shipped" ? "Shipped" : "Delivered"}
-              <span className="ml-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                ({statusCounts[status]})
-              </span>
-              {statusSubTab === status && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
+      
       {/* Filters */}
       {showFilters && !loading && orders.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-2">
@@ -183,11 +154,9 @@ export function ClientOrdersInventory() {
                   <td className="px-4 py-2.5 text-xs">{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-2.5">
                     <Badge variant={
-                      order.status === "delivered" ? "success" :
-                      order.status === "shipped" ? "info" :
-                      order.status === "processing" ? "warning" : "default"
+                      order.dispatcher ? "success" : "warning"
                     } className="text-[10px] px-1.5 py-0">
-                      {order.status}
+                      {order.dispatcher ? "delivered" : "ready to fulfill"}
                     </Badge>
                   </td>
                 </tr>
