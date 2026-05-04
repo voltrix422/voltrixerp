@@ -1369,7 +1369,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                 {order.discount > 0 && (
                   <tr className="bg-[hsl(var(--muted))]/30">
                     <td className="px-4 py-3 text-right font-medium text-green-600">Discount{order.discountIsPercentage && ` (${order.discount}%)`}</td>
-                    <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {(order.discountValue || order.discount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {(order.discountValue || (order.discountIsPercentage ? (order.subtotal * order.discount / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 )}
                 <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
