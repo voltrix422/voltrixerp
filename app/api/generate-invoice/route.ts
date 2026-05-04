@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     doc.setFont("helvetica", "normal")
     if (order.deliveryAddress) {
       const addressLines = order.deliveryAddress.split("\n")
-      addressLines.forEach((line, i) => {
+      addressLines.forEach((line: string, i: number) => {
         doc.text(line, 15, yPos + (i * 5))
       })
       yPos += (addressLines.length * 5) + 5
