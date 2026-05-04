@@ -341,26 +341,29 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   
-  // Calculate tax amount
-  const taxAmount = subtotal * (taxPercent / 100)
-  
-  // Calculate transport cost
-  const transportAmount = transportIsPercentage 
-    ? subtotal * (transportCost / 100) 
-    : transportCost
-  
-  // Calculate other cost
-  const otherAmount = otherCostIsPercentage 
-    ? subtotal * (otherCost / 100) 
-    : otherCost
-  
-  // Calculate discount
+  // Calculate discount first
   const discountAmount = discountIsPercentage
     ? subtotal * (discount / 100)
     : discount
   
+  // Apply discount to get discounted subtotal
+  const discountedSubtotal = subtotal - discountAmount
+  
+  // Calculate tax on discounted subtotal
+  const taxAmount = discountedSubtotal * (taxPercent / 100)
+  
+  // Calculate transport cost on discounted subtotal
+  const transportAmount = transportIsPercentage 
+    ? discountedSubtotal * (transportCost / 100) 
+    : transportCost
+  
+  // Calculate other cost on discounted subtotal
+  const otherAmount = otherCostIsPercentage 
+    ? discountedSubtotal * (otherCost / 100) 
+    : otherCost
+  
   // Total calculation
-  const total = subtotal + taxAmount + transportAmount + otherAmount - discountAmount
+  const total = discountedSubtotal + taxAmount + transportAmount + otherAmount
 
   function addCustomItem() {
     setItems(prev => [...prev, { id: Date.now().toString(), description: "", qty: 1, unit: "pcs", unitPrice: 0, isCustom: true }])
@@ -827,6 +830,18 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                     <td className="px-4 py-3 text-right font-medium">Subtotal</td>
                     <td className="px-4 py-3 text-right font-medium w-48">PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
+                  {discountAmount > 0 && (
+                    <tr className="bg-[hsl(var(--muted))]/30">
+                      <td className="px-4 py-3 text-right font-medium text-green-600">Discount{discountIsPercentage && ` (${discount}%)`}</td>
+                      <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  )}
+                  {discountAmount > 0 && (
+                    <tr className="bg-[hsl(var(--muted))]/20">
+                      <td className="px-4 py-3 text-right font-medium">Subtotal After Discount</td>
+                      <td className="px-4 py-3 text-right font-medium">PKR {discountedSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  )}
                   {taxAmount > 0 && (
                     <tr className="bg-[hsl(var(--muted))]/30">
                       <td className="px-4 py-3 text-right font-medium">Tax ({taxPercent}%)</td>
@@ -843,12 +858,6 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
                     <tr className="bg-[hsl(var(--muted))]/30">
                       <td className="px-4 py-3 text-right font-medium">{otherCostLabel}{otherCostIsPercentage && ` (${otherCost}%)`}</td>
                       <td className="px-4 py-3 text-right font-medium">PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  )}
-                  {discountAmount > 0 && (
-                    <tr className="bg-[hsl(var(--muted))]/30">
-                      <td className="px-4 py-3 text-right font-medium text-green-600">Discount{discountIsPercentage && ` (${discount}%)`}</td>
-                      <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
                   )}
                   <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
