@@ -5,6 +5,7 @@ import { getClients, type Client } from "@/lib/crm"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
+import { useAuth } from "@/components/auth-provider"
 // DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -994,6 +995,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   onDelete: (id: string) => void
   currentUser: string
 }) {
+  const { user } = useAuth()
   const [deleting, setDeleting] = useState(false)
   const [status, setStatus] = useState(order.status)
   const [showFinalize, setShowFinalize] = useState(false)
@@ -1002,6 +1004,9 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   const [showEdit, setShowEdit] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Check if current user is admin
+  const isAdmin = user?.role === "superadmin"
   
   // Editable fields
   const [editDeliveryDate, setEditDeliveryDate] = useState(order.deliveryDate || "")
@@ -1422,7 +1427,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
             </>
           ) : (
             <>
-              {order.status === "pending_approval" && (
+              {order.status === "pending_approval" && isAdmin && (
                 <>
                   <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => updateStatus("approved")}>
                     Approve Order
