@@ -1,3 +1,4 @@
+"use client"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
 import { useAuth } from "@/components/auth-provider"
