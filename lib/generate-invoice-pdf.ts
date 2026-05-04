@@ -20,12 +20,10 @@ export async function generateInvoicePDF(order: Order): Promise<Blob> {
   doc.text("INVOICE", 15, yPos)
   
   doc.setFontSize(9)
-  doc.setFont("helvetica", "normal")
   doc.setTextColor(...gray)
-  doc.text("Your Company Name", 200, yPos, { align: "right" })
-  doc.text("Address Line 1", 200, yPos + 5, { align: "right" })
-  doc.text("City, Country", 200, yPos + 10, { align: "right" })
-  doc.text("Phone: +92 XXX XXXXXXX", 200, yPos + 15, { align: "right" })
+  doc.text("voltrix pvt limited", 200, yPos, { align: "right" })
+  doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 200, yPos + 5, { align: "right" })
+  doc.text("+92 303 4927779 phone number", 200, yPos + 15, { align: "right" })
 
   yPos = 45
 
