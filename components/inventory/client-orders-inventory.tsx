@@ -408,11 +408,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
               <Eye className="h-3 w-3 mr-1.5" /> View Invoice
+            </Button>
           {!order.dispatcher && (
             <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowFulfillDialog(true)} disabled={updating}>
               <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Fulfill Order"}
             </Button>
-          )}
           )}
           
           <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
@@ -833,4 +833,5 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       )}
     </div>
   )
-}
+} 
+ 
