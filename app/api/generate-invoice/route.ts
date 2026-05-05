@@ -7,278 +7,267 @@ import path from 'path'
 export async function POST(request: NextRequest) {
   try {
     const order = await request.json()
-    
-    const doc = new jsPDF()
-    
-    // Professional colors
-    const black: [number, number, number] = [0, 0, 0]
-    const gray: [number, number, number] = [100, 100, 100]
-    const lightGray: [number, number, number] = [200, 200, 200]
-    const accentColor: [number, number, number] = [26, 159, 154]
-    
-    let yPos = 15
 
-    // Clean Header with Company Logo Area
-    doc.setFontSize(28)
-    doc.setTextColor(...accentColor)
-    doc.setFont("helvetica", "bold")
-    doc.text("QUOTATION", 105, 25, { align: "center" })
-    
-    yPos = 40
-    
-    // Company Info Box with Logo
-    doc.setDrawColor(...lightGray)
-    doc.setLineWidth(0.8)
-    doc.rect(15, yPos, 180, 40)
-    
-    // Add actual company logo
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+
+    // ── Palette ──────────────────────────────────────────────────────────────
+    const teal:      [number, number, number] = [26, 159, 154]
+    const tealDark:  [number, number, number] = [18, 120, 116]
+    const white:     [number, number, number] = [255, 255, 255]
+    const black:     [number, number, number] = [30, 30, 30]
+    const darkGray:  [number, number, number] = [80, 80, 80]
+    const midGray:   [number, number, number] = [140, 140, 140]
+    const lightGray: [number, number, number] = [230, 230, 230]
+    const rowAlt:    [number, number, number] = [245, 250, 250]
+    const green:     [number, number, number] = [34, 139, 34]
+
+    const pageW = 210
+    const marginL = 15
+    const marginR = 15
+    const contentW = pageW - marginL - marginR
+
+    // ── Header band ──────────────────────────────────────────────────────────
+    doc.setFillColor(...teal)
+    doc.rect(0, 0, pageW, 38, 'F')
+
+    // Logo
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png')
       if (fs.existsSync(logoPath)) {
-        const logoData = fs.readFileSync(logoPath)
-        const logoBase64 = `data:image/png;base64,${logoData.toString('base64')}`
-        doc.addImage(logoBase64, 'PNG', 20, yPos + 5, 30, 30)
-      } else {
-        // Fallback logo text
-        doc.setDrawColor(...accentColor)
-        doc.setLineWidth(0.5)
-        doc.rect(20, yPos + 5, 30, 30)
-        doc.setFontSize(10)
-        doc.setTextColor(...accentColor)
-        doc.setFont("helvetica", "bold")
-        doc.text("VOLTRIX", 35, yPos + 15, { align: "center" })
-        doc.setFontSize(6)
-        doc.text("PVT LTD", 35, yPos + 22, { align: "center" })
+        const logoBase64 = `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`
+        doc.addImage(logoBase64, 'PNG', marginL, 5, 28, 28)
       }
-    } catch (error) {
-      // Fallback logo text
-      doc.setDrawColor(...accentColor)
-      doc.setLineWidth(0.5)
-      doc.rect(20, yPos + 5, 30, 30)
-      doc.setFontSize(8)
-      doc.setTextColor(...gray)
-      doc.setFont("helvetica", "normal")
-      doc.text("LOGO", 35, yPos + 22, { align: "center" })
-    }
-    
-    // Company Name (right of logo)
-    doc.setFontSize(16)
-    doc.setTextColor(...black)
-    doc.setFont("helvetica", "bold")
-    doc.text("VOLTRIX PVT LIMITED", 60, yPos + 12)
-    
-    // Company Details
-    doc.setFontSize(9)
-    doc.setTextColor(...gray)
-    doc.setFont("helvetica", "normal")
-    doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 60, yPos + 22)
-    doc.text("+92 303 4927779", 60, yPos + 30)
-    
-    // Invoice Details on the right side of box
-    doc.setFontSize(10)
-    doc.setTextColor(...black)
-    doc.setFont("helvetica", "bold")
-    doc.text("Quotation #:", 140, yPos + 12)
-    doc.setFont("helvetica", "normal")
-    doc.text(order.orderNumber, 140, yPos + 20)
-    
-    doc.setFont("helvetica", "bold")
-    doc.text("Date:", 170, yPos + 12)
-    doc.setFont("helvetica", "normal")
-    doc.text(new Date(order.createdAt).toLocaleDateString(), 170, yPos + 20)
-    
-    doc.setFont("helvetica", "bold")
-    doc.text("Status:", 140, yPos + 30)
-    doc.setFont("helvetica", "normal")
-    doc.text(order.status || "Unknown", 140, yPos + 37)
-    
-    yPos = 90
+    } catch {}
 
-    // Add delivery date if exists
-    if (order.deliveryDate) {
-      yPos += 5
-      doc.setFontSize(9)
-      doc.setTextColor(...black)
-      doc.setFont("helvetica", "bold")
-      doc.text("Delivery Date:", 15, yPos)
-      doc.setFont("helvetica", "normal")
-      doc.text(new Date(order.deliveryDate).toLocaleDateString(), 50, yPos)
-      yPos += 8
-    }
+    // Company name + address (right of logo)
+    doc.setTextColor(...white)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.text('VOLTRIX PVT LIMITED', 50, 14)
 
-    yPos += 5
-
-    // Bill To Section
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(...gray)
-    doc.text("BILL TO:", 15, yPos)
-    
-    yPos += 5
-    
-    doc.setFontSize(10)
-    doc.setTextColor(...black)
-    doc.setFont("helvetica", "bold")
-    doc.text(order.clientName, 15, yPos)
-    
-    yPos += 5
-    
-    doc.setFontSize(9)
-    doc.setFont("helvetica", "normal")
-    if (order.deliveryAddress) {
-      const addressLines = order.deliveryAddress.split("\n")
-      addressLines.forEach((line: string, i: number) => {
-        doc.text(line, 15, yPos + (i * 5))
-      })
-      yPos += (addressLines.length * 5) + 5
-    } else {
-      yPos += 5
+    doc.text('Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 50, 21)
+    doc.text('+92 303 4927779', 50, 27)
+
+    // "QUOTATION" label — right side of header
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(22)
+    doc.text('QUOTATION', pageW - marginR, 22, { align: 'right' })
+
+    // ── Meta row (teal-dark band) ─────────────────────────────────────────────
+    doc.setFillColor(...tealDark)
+    doc.rect(0, 38, pageW, 14, 'F')
+
+    doc.setTextColor(...white)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+
+    // Quotation #
+    doc.text('QUOTATION #', marginL, 44)
+    doc.setFont('helvetica', 'normal')
+    doc.text(order.orderNumber, marginL, 49)
+
+    // Date
+    doc.setFont('helvetica', 'bold')
+    doc.text('DATE', 75, 44)
+    doc.setFont('helvetica', 'normal')
+    doc.text(new Date(order.createdAt).toLocaleDateString(), 75, 49)
+
+    // Delivery Date
+    if (order.deliveryDate) {
+      doc.setFont('helvetica', 'bold')
+      doc.text('DELIVERY DATE', 120, 44)
+      doc.setFont('helvetica', 'normal')
+      doc.text(new Date(order.deliveryDate).toLocaleDateString(), 120, 49)
     }
 
-    yPos += 5
+    // Created by
+    doc.setFont('helvetica', 'bold')
+    doc.text('PREPARED BY', pageW - marginR - 35, 44)
+    doc.setFont('helvetica', 'normal')
+    doc.text(order.createdBy || '—', pageW - marginR - 35, 49)
 
-    // Items Table
+    // ── TO section ───────────────────────────────────────────────────────────
+    let y = 62
+
+    doc.setTextColor(...teal)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.text('TO', marginL, y)
+
+    // Underline
+    doc.setDrawColor(...teal)
+    doc.setLineWidth(0.4)
+    doc.line(marginL, y + 1, marginL + 20, y + 1)
+
+    y += 6
+    doc.setTextColor(...black)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.text(order.clientName || '—', marginL, y)
+
+    if (order.deliveryAddress) {
+      y += 5
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(...darkGray)
+      const lines = doc.splitTextToSize(order.deliveryAddress, 90)
+      doc.text(lines, marginL, y)
+      y += lines.length * 4.5
+    }
+
+    // ── Items table ──────────────────────────────────────────────────────────
+    y = Math.max(y + 8, 90)
+
     const tableData = order.items.map((item: any) => [
       item.description,
       item.qty.toString(),
       item.unit,
-      `PKR ${item.unitPrice.toLocaleString()}`,
-      `PKR ${(item.unitPrice * item.qty).toLocaleString()}`
+      `PKR ${Number(item.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
     ])
 
     autoTable(doc, {
-      startY: yPos,
-      head: [["Description", "Qty", "Unit", "Unit Price", "Total"]],
+      startY: y,
+      head: [['Description', 'Qty', 'Unit', 'Unit Price', 'Total']],
       body: tableData,
-      theme: "plain",
+      theme: 'plain',
       headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: black,
-        fontStyle: "bold",
+        fillColor: teal,
+        textColor: white,
+        fontStyle: 'bold',
         fontSize: 9,
-        lineWidth: 0.5,
-        lineColor: lightGray
+        cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
       },
       bodyStyles: {
         fontSize: 9,
         textColor: black,
-        lineWidth: 0.5,
-        lineColor: lightGray
+        cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
       },
+      alternateRowStyles: { fillColor: rowAlt },
       columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 20, halign: "center" },
-        2: { cellWidth: 20 },
-        3: { cellWidth: 35, halign: "right" },
-        4: { cellWidth: 35, halign: "right" }
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 18, halign: 'center' },
+        2: { cellWidth: 18, halign: 'center' },
+        3: { cellWidth: 38, halign: 'right' },
+        4: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
       },
-      margin: { left: 15, right: 15 },
-      styles: {
-        cellPadding: 3
-      }
+      margin: { left: marginL, right: marginR },
+      tableLineColor: lightGray,
+      tableLineWidth: 0.3,
     })
 
-    // Get Y position after table
-    yPos = (doc as any).lastAutoTable.finalY + 10
+    y = (doc as any).lastAutoTable.finalY + 6
 
-    // Divider line before totals
-    doc.line(130, yPos, 195, yPos)
-    
-    yPos += 8
+    // ── Totals block ─────────────────────────────────────────────────────────
+    const totalsX = pageW - marginR - 75
+    const totalsW = 75
+    const labelX = totalsX + 2
+    const valueX = totalsX + totalsW - 2
 
-    // Totals Section - Right aligned
-    const totalsX = 130
-    const totalsWidth = 65
-    
-    doc.setFontSize(9)
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(...black)
-    
-    // Subtotal
-    doc.text("Subtotal:", totalsX, yPos)
-    doc.text(`PKR ${order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
-    yPos += 5
-    
-    // Tax
+    function totalsRow(label: string, value: string, bold = false, color: [number,number,number] = black) {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      doc.setFontSize(bold ? 10 : 9)
+      doc.setTextColor(...color)
+      doc.text(label, labelX, y)
+      doc.text(value, valueX, y, { align: 'right' })
+      y += bold ? 6 : 5
+    }
+
+    // Light separator line
+    doc.setDrawColor(...lightGray)
+    doc.setLineWidth(0.3)
+    doc.line(totalsX, y, totalsX + totalsW, y)
+    y += 5
+
+    totalsRow('Subtotal', `PKR ${Number(order.subtotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
+
     if (order.taxPercent > 0) {
-      doc.text(`Tax (${order.taxPercent}%):`, totalsX, yPos)
-      doc.text(`PKR ${order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
-      yPos += 5
+      totalsRow(`Tax (${order.taxPercent}%)`, `PKR ${Number(order.tax).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
     }
-    
-    // Transport
-    if (order.transportCost > 0) {
-      doc.text("Transport cost:", totalsX, yPos)
-      doc.text(`PKR ${order.transportCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
-      yPos += 5
-    }
-    
-    // Other Cost
-    if (order.otherCost > 0) {
-      doc.text("Other cost:", totalsX, yPos)
-      doc.text(`PKR ${order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
-      yPos += 5
-    }
-    
-    // Discount - only show if there is an actual discount
-    const discountValue = order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 0) / 100) : (order.discount || 0))
-    if (discountValue > 0) {
-      doc.setTextColor(0, 128, 0) // Green for discount
-      doc.text(`Discount:`, totalsX, yPos)
-      doc.text(`-PKR ${discountValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
-      doc.setTextColor(...black) // Reset to black
-      yPos += 5
-    }
-    
-    yPos += 2
-    
-    // Total line
-    doc.setLineWidth(0.5)
-    doc.setDrawColor(...black)
-    doc.line(totalsX, yPos, totalsX + totalsWidth, yPos)
-    yPos += 6
-    
-    // Total
-    doc.setFontSize(11)
-    doc.setFont("helvetica", "bold")
-    doc.text("TOTAL:", totalsX, yPos)
-    doc.text(`PKR ${order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
 
-    // Footer with professional styling
+    if (order.transportCost > 0) {
+      const tVal = order.transportCostValue ?? order.transportCost
+      totalsRow(order.transportLabel || 'Transport', `PKR ${Number(tVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
+    }
+
+    if (order.otherCost > 0) {
+      const oVal = order.otherCostValue ?? order.otherCost
+      totalsRow(order.otherCostLabel || 'Other cost', `PKR ${Number(oVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
+    }
+
+    const discountValue = order.discountValue ?? (order.discountIsPercentage
+      ? (order.subtotal * (order.discount || 0) / 100)
+      : (order.discount || 0))
+    if (discountValue > 0) {
+      totalsRow('Discount', `-PKR ${Number(discountValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, false, green)
+    }
+
+    // Total divider
+    doc.setDrawColor(...teal)
+    doc.setLineWidth(0.6)
+    doc.line(totalsX, y, totalsX + totalsW, y)
+    y += 5
+
+    // Total row with teal background pill
+    doc.setFillColor(...teal)
+    doc.roundedRect(totalsX, y - 4, totalsW, 9, 1.5, 1.5, 'F')
+    doc.setTextColor(...white)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('TOTAL', labelX, y + 2)
+    doc.text(`PKR ${Number(order.total).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, valueX, y + 2, { align: 'right' })
+    y += 12
+
+    // ── Notes (if any) ───────────────────────────────────────────────────────
+    if (order.notes) {
+      y += 4
+      doc.setTextColor(...teal)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.text('NOTES', marginL, y)
+      doc.setDrawColor(...teal)
+      doc.setLineWidth(0.4)
+      doc.line(marginL, y + 1, marginL + 18, y + 1)
+      y += 6
+      doc.setTextColor(...darkGray)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      const noteLines = doc.splitTextToSize(order.notes, contentW)
+      doc.text(noteLines, marginL, y)
+    }
+
+    // ── Footer ───────────────────────────────────────────────────────────────
     const pageCount = doc.getNumberOfPages()
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)
-      
-      // Footer divider with accent color
-      doc.setLineWidth(0.8)
-      doc.setDrawColor(...accentColor)
-      doc.line(15, 275, 195, 275)
-      
-      // Thank you message with accent color
-      doc.setFontSize(10)
-      doc.setTextColor(...accentColor)
-      doc.setFont("helvetica", "bold")
-      doc.text("Thank you for your business!", 105, 280, { align: "center" })
-      
-      // Page info
-      doc.setFontSize(8)
-      doc.setTextColor(...gray)
-      doc.setFont("helvetica", "normal")
-      doc.text(`Page ${i} of ${pageCount}`, 105, 285, { align: "center" })
-      doc.text(`Created by ${order.createdBy} on ${new Date(order.createdAt).toLocaleString()}`, 105, 290, { align: "center" })
+
+      // Footer band
+      doc.setFillColor(...teal)
+      doc.rect(0, 282, pageW, 15, 'F')
+
+      doc.setTextColor(...white)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text('Thank you for your business!', pageW / 2, 288, { align: 'center' })
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 293, { align: 'center' })
     }
 
     const pdfBuffer = doc.output('arraybuffer')
-    
+
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Invoice-${order.orderNumber}.pdf"`
-      }
+        'Content-Disposition': `attachment; filename="Quotation-${order.orderNumber}.pdf"`,
+      },
     })
-    
+
   } catch (error) {
-    console.error('Error generating invoice:', error)
-    return NextResponse.json({ error: 'Failed to generate invoice' }, { status: 500 })
+    console.error('Error generating quotation:', error)
+    return NextResponse.json({ error: 'Failed to generate quotation' }, { status: 500 })
   }
 }
