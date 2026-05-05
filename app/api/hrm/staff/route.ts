@@ -3,14 +3,13 @@ import { prisma } from '@/lib/db'
 
 export async function GET() {
   const staff = await prisma.erpStaff.findMany({ orderBy: { createdAt: 'desc' } })
-  // Map DB fields back to frontend-friendly keys
   return NextResponse.json(staff.map(mapToFrontend))
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const staff = await prisma.erpStaff.create({ data: mapToDB(body) })
+    const staff = await (prisma.erpStaff.create as any)({ data: mapToDB(body) })
     return NextResponse.json(mapToFrontend(staff))
   } catch (error) {
     console.error('Error creating staff:', error)
@@ -24,7 +23,7 @@ export async function PUT(req: NextRequest) {
     const { id, ...rest } = body
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
-    const staff = await prisma.erpStaff.update({
+    const staff = await (prisma.erpStaff.update as any)({
       where: { id },
       data: mapToDB(rest),
     })
@@ -50,29 +49,29 @@ function mapToDB(data: Record<string, any>) {
   if (data.name !== undefined)        mapped.name = data.name
   if (data.role !== undefined)        mapped.role = data.role
   if (data.department !== undefined)  mapped.department = data.department
-  if (data.email !== undefined)       mapped.email = data.email
-  if (data.phone !== undefined)       mapped.phone = data.phone
-  if (data.address !== undefined)     mapped.address = data.address
+  if (data.email !== undefined)       mapped.email = data.email ?? ''
+  if (data.phone !== undefined)       mapped.phone = data.phone ?? ''
+  if (data.address !== undefined)     mapped.address = data.address ?? ''
   if (data.salary !== undefined)      mapped.salary = parseFloat(data.salary) || 0
   if (data.currency !== undefined)    mapped.currency = data.currency
   if (data.status !== undefined)      mapped.status = data.status
-  if (data.notes !== undefined)       mapped.notes = data.notes
+  if (data.notes !== undefined)       mapped.notes = data.notes ?? ''
   if (data.points !== undefined)      mapped.points = data.points
   if (data.warnings !== undefined)    mapped.warnings = data.warnings
 
-  // Join date — handle both camelCase and snake_case from form
-  const joinDate = data.joinDate || data.join_date
-  if (joinDate !== undefined) mapped.joinDate = joinDate
+  // Join date — handle both camelCase and snake_case
+  const joinDate = data.joinDate ?? data.join_date
+  if (joinDate !== undefined) mapped.joinDate = joinDate ?? ''
 
   // Created by/at
-  const createdBy = data.createdBy || data.created_by
+  const createdBy = data.createdBy ?? data.created_by
   if (createdBy !== undefined) mapped.createdBy = createdBy
 
-  const createdAt = data.createdAt || data.created_at
+  const createdAt = data.createdAt ?? data.created_at
   if (createdAt !== undefined) mapped.createdAt = new Date(createdAt)
 
   // lastReset
-  const lastReset = data.lastReset || data.last_reset
+  const lastReset = data.lastReset ?? data.last_reset
   if (lastReset !== undefined) mapped.lastReset = new Date(lastReset)
 
   // Bank details — handle both snake_case (from form) and camelCase
@@ -88,7 +87,7 @@ function mapToDB(data: Record<string, any>) {
   return mapped
 }
 
-// Map Prisma model keys → frontend-friendly keys (snake_case for consistency with existing code)
+// Map Prisma model → frontend snake_case keys (consistent with existing code)
 function mapToFrontend(s: any) {
   return {
     id: s.id,
