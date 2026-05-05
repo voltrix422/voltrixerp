@@ -159,8 +159,8 @@ export async function POST(request: NextRequest) {
     // Calculate discount value
     const discountValue = order.discountValue ?? (
       order.discountIsPercentage
-        ? (order.subtotal * (order.discount || 0) / 100)
-        : (order.discount || 0)
+        ? (Number(order.subtotal) * (Number(order.discount) || 0) / 100)
+        : (Number(order.discount) || 0)
     )
     const transportVal = order.transportCostValue ?? order.transportCost ?? 0
     const otherVal = order.otherCostValue ?? order.otherCost ?? 0
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     const rows: TRow[] = []
     rows.push({ label: 'Subtotal', value: `PKR ${Number(order.subtotal).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (discountValue > 0)
-      rows.push({ label: `Discount${order.discountIsPercentage ? ` (${order.discount}%)` : ''}`, value: `-PKR ${Number(discountValue).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
+      rows.push({ label: `Discount${order.discountIsPercentage && order.discount ? ` (${order.discount}%)` : ""}`, value: `-PKR ${Number(discountValue).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
     if (order.taxPercent > 0)
       rows.push({ label: `Tax (${order.taxPercent}%)`, value: `PKR ${Number(order.tax).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (transportVal > 0)
