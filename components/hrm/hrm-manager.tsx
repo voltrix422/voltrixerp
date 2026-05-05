@@ -194,120 +194,212 @@ export function HrmManager() {
       
       // Set up colors
       const primaryColor = [31, 172, 166] // #1faca6
-      const textColor = [50, 50, 50]
-      const lightGray = [245, 245, 245]
+      const darkColor = [20, 143, 139] // Darker teal
+      const textColor = [40, 40, 40]
+      const lightGray = [248, 250, 252]
+      const borderColor = [226, 232, 240]
       
-      // Add header background
+      // Add elegant header background with gradient effect
       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.rect(0, 0, 210, 40, 'F')
+      doc.rect(0, 0, 210, 55, 'F')
       
-      // Add company name or title in header
+      // Add logo (if available)
+      try {
+        const logoImg = new Image()
+        logoImg.src = '/logo.png'
+        await new Promise((resolve) => {
+          logoImg.onload = resolve
+          logoImg.onerror = resolve
+        })
+        if (logoImg.complete && logoImg.naturalHeight !== 0) {
+          doc.addImage(logoImg, 'PNG', 15, 10, 35, 35)
+        }
+      } catch (e) {
+        console.log('Logo not loaded')
+      }
+      
+      // Company Information (Left side)
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(24)
+      doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
-      doc.text('SALARY SLIP', 105, 25, { align: 'center' })
+      doc.text('VOLTRIX BATTERIES', 55, 20)
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Office # 2, 2nd Floor, Anum Estate', 55, 27)
+      doc.text('Main Peshawar Road, Rawalpindi', 55, 32)
+      doc.text('Phone: +92 303 4927779', 55, 37)
+      doc.text('Email: info@voltrixbatteries.com', 55, 42)
+      
+      // SALARY SLIP title (Right side)
+      doc.setFontSize(22)
+      doc.setFont('helvetica', 'bold')
+      doc.text('SALARY SLIP', 205, 30, { align: 'right' })
+      
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.text(new Date(slip.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 205, 38, { align: 'right' })
       
       // Reset text color
       doc.setTextColor(textColor[0], textColor[1], textColor[2])
       
-      // Add decorative line
-      doc.setLineWidth(2)
-      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.line(20, 50, 190, 50)
+      // Decorative line under header
+      doc.setLineWidth(0.5)
+      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+      doc.line(15, 60, 195, 60)
       
-      // Employee Information Box
+      // Employee Information Section
       doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
-      doc.roundedRect(20, 60, 170, 50, 3, 3, 'F')
-      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.roundedRect(20, 60, 170, 50, 3, 3, 'S')
+      doc.roundedRect(15, 68, 180, 45, 2, 2, 'F')
+      
+      // Section header
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+      doc.rect(15, 68, 180, 8, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('EMPLOYEE INFORMATION', 20, 73)
+      
+      // Employee details
+      doc.setTextColor(textColor[0], textColor[1], textColor[2])
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      
+      // Left column
+      doc.text('Employee Name:', 20, 83)
+      doc.text('Role:', 20, 91)
+      doc.text('Department:', 20, 99)
+      doc.text('Employee Status:', 20, 107)
+      
+      // Left column values
+      doc.setFont('helvetica', 'normal')
+      doc.text(slip.staffName, 60, 83)
+      doc.text(slip.staffRole, 60, 91)
+      doc.text(slip.staffDepartment, 60, 99)
+      doc.text('Active', 60, 107)
+      
+      // Right column
+      doc.setFont('helvetica', 'bold')
+      doc.text('Pay Period:', 120, 83)
+      doc.text('Payment Date:', 120, 91)
+      doc.text('Generated On:', 120, 99)
+      doc.text('Currency:', 120, 107)
+      
+      // Right column values
+      doc.setFont('helvetica', 'normal')
+      doc.text(new Date(slip.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 155, 83)
+      doc.text(new Date(slip.month + '-01').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
+      doc.text(new Date(slip.generatedDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 99)
+      doc.text(slip.currency, 155, 107)
+      
+      // Salary Breakdown Section
+      let currentY = 125
+      
+      // Base Salary
+      doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
+      doc.roundedRect(15, currentY, 180, 12, 2, 2, 'F')
       
       doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
-      doc.text('EMPLOYEE INFORMATION', 30, 75)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(10)
-      doc.text(`Employee: ${slip.staffName}`, 30, 85)
-      doc.text(`Role: ${slip.staffRole}`, 30, 92)
-      doc.text(`Department: ${slip.staffDepartment}`, 30, 99)
+      doc.setTextColor(textColor[0], textColor[1], textColor[2])
+      doc.text('BASE SALARY', 20, currentY + 8)
+      doc.setFontSize(12)
+      doc.text(`${slip.currency} ${slip.baseSalary.toLocaleString()}`, 190, currentY + 8, { align: 'right' })
       
-      // Right side info
-      doc.text(`Month: ${new Date(slip.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, 120, 85)
-      doc.text(`Generated: ${new Date(slip.generatedDate).toLocaleDateString()}`, 120, 92)
-      doc.text(`Status: Active`, 120, 99)
-      
-      // Base Salary Section
-      doc.setLineWidth(1)
-      doc.setDrawColor(200, 200, 200)
-      doc.line(20, 125, 190, 125)
-      
-      doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
-      doc.text('BASE SALARY', 20, 140)
-      doc.setFontSize(16)
-      doc.text(`${slip.currency} ${slip.baseSalary.toLocaleString()}`, 190, 140, { align: 'right' })
+      currentY += 20
       
       // Adjustments Section
-      let currentY = 155
       if (slip.adjustments && slip.adjustments.length > 0) {
-        doc.setLineWidth(0.5)
-        doc.line(20, currentY - 5, 190, currentY - 5)
-        
-        doc.setFontSize(14)
+        // Adjustments header
+        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+        doc.rect(15, currentY, 180, 8, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text('ADJUSTMENTS', 20, currentY)
-        currentY += 10
+        doc.text('SALARY ADJUSTMENTS', 20, currentY + 5)
         
-        slip.adjustments.forEach((adj: any) => {
-          const amount = `${adj.type === 'add' ? '+' : '-'} ${slip.currency} ${parseFloat(adj.amount).toLocaleString()}`
+        currentY += 12
+        doc.setTextColor(textColor[0], textColor[1], textColor[2])
+        
+        slip.adjustments.forEach((adj: any, index: number) => {
+          const amount = parseFloat(adj.amount)
+          const isAddition = adj.type === 'add'
           
-          // Adjustment row background
-          if (adj.type === 'add') {
-            doc.setFillColor(240, 255, 240)
-          } else {
-            doc.setFillColor(255, 240, 240)
+          // Alternating row background
+          if (index % 2 === 0) {
+            doc.setFillColor(252, 252, 252)
+            doc.rect(15, currentY - 4, 180, 9, 'F')
           }
-          doc.rect(20, currentY - 5, 170, 8, 'F')
           
-          doc.setFontSize(10)
+          doc.setFontSize(9)
           doc.setFont('helvetica', 'normal')
-          doc.text(`${adj.label}:`, 25, currentY)
+          doc.text(adj.label, 20, currentY)
           
-          if (adj.type === 'add') {
-            doc.setTextColor(0, 150, 0)
+          // Amount with color coding
+          doc.setFont('helvetica', 'bold')
+          if (isAddition) {
+            doc.setTextColor(34, 197, 94) // Green
+            doc.text(`+ ${slip.currency} ${amount.toLocaleString()}`, 190, currentY, { align: 'right' })
           } else {
-            doc.setTextColor(200, 0, 0)
+            doc.setTextColor(239, 68, 68) // Red
+            doc.text(`- ${slip.currency} ${amount.toLocaleString()}`, 190, currentY, { align: 'right' })
           }
-          doc.text(amount, 190, currentY, { align: 'right' })
           doc.setTextColor(textColor[0], textColor[1], textColor[2])
           
-          currentY += 10
+          currentY += 9
         })
         
-        // Line before net salary
-        doc.setLineWidth(1)
-        doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
-        doc.line(20, currentY, 190, currentY)
-        currentY += 10
+        currentY += 5
       }
       
-      // Net Salary Section - Highlighted
+      // Divider line
+      doc.setLineWidth(0.5)
+      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+      doc.line(15, currentY, 195, currentY)
+      currentY += 10
+      
+      // Net Salary Section - Highlighted Box
       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.rect(20, currentY - 8, 170, 25, 'F')
+      doc.roundedRect(15, currentY, 180, 20, 2, 2, 'F')
+      
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(16)
+      doc.setFontSize(13)
       doc.setFont('helvetica', 'bold')
-      doc.text('NET SALARY', 25, currentY + 5)
-      doc.setFontSize(18)
-      doc.text(`${slip.currency} ${slip.netSalary.toLocaleString()}`, 190, currentY + 5, { align: 'right' })
+      doc.text('NET SALARY (TOTAL PAYABLE)', 20, currentY + 13)
+      doc.setFontSize(16)
+      doc.text(`${slip.currency} ${slip.netSalary.toLocaleString()}`, 190, currentY + 13, { align: 'right' })
       
       // Reset text color
       doc.setTextColor(textColor[0], textColor[1], textColor[2])
       
-      // Footer section
-      doc.setFontSize(9)
+      // Important Note Section
+      currentY += 35
+      doc.setFillColor(255, 251, 235) // Light yellow
+      doc.roundedRect(15, currentY, 180, 20, 2, 2, 'F')
+      doc.setDrawColor(251, 191, 36) // Yellow border
+      doc.setLineWidth(0.5)
+      doc.roundedRect(15, currentY, 180, 20, 2, 2, 'S')
+      
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(146, 64, 14) // Brown text
+      doc.text('IMPORTANT NOTE:', 20, currentY + 7)
+      doc.setFont('helvetica', 'normal')
+      doc.text('This salary slip is computer-generated and does not require a signature.', 20, currentY + 12)
+      doc.text('Please verify all details and contact HR for any discrepancies.', 20, currentY + 16)
+      
+      // Footer section with company info
+      doc.setTextColor(textColor[0], textColor[1], textColor[2])
+      doc.setLineWidth(0.3)
+      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+      doc.line(15, 270, 195, 270)
+      
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'italic')
-      doc.text('This is a computer generated salary slip', 105, 275, { align: 'center' })
-      doc.text('Voltrix ERP System - Human Resources Management', 105, 280, { align: 'center' })
+      doc.setTextColor(100, 100, 100)
+      doc.text('Voltrix Batteries - Human Resources Management System', 105, 276, { align: 'center' })
+      doc.text('Office # 2, 2nd Floor, Anum Estate, Main Peshawar Road, Rawalpindi', 105, 281, { align: 'center' })
+      doc.text('Phone: +92 303 4927779 | Email: info@voltrixbatteries.com', 105, 286, { align: 'center' })
       
       // Save and download
       const pdfBlob = doc.output('blob')
@@ -1838,120 +1930,212 @@ export function HrmManager() {
                       
                       // Set up colors
                       const primaryColor = [31, 172, 166] // #1faca6
-                      const textColor = [50, 50, 50]
-                      const lightGray = [245, 245, 245]
+                      const darkColor = [20, 143, 139] // Darker teal
+                      const textColor = [40, 40, 40]
+                      const lightGray = [248, 250, 252]
+                      const borderColor = [226, 232, 240]
                       
-                      // Add header background
+                      // Add elegant header background with gradient effect
                       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
-                      doc.rect(0, 0, 210, 40, 'F')
+                      doc.rect(0, 0, 210, 55, 'F')
                       
-                      // Add company name or title in header
+                      // Add logo (if available)
+                      try {
+                        const logoImg = new Image()
+                        logoImg.src = '/logo.png'
+                        await new Promise((resolve) => {
+                          logoImg.onload = resolve
+                          logoImg.onerror = resolve
+                        })
+                        if (logoImg.complete && logoImg.naturalHeight !== 0) {
+                          doc.addImage(logoImg, 'PNG', 15, 10, 35, 35)
+                        }
+                      } catch (e) {
+                        console.log('Logo not loaded')
+                      }
+                      
+                      // Company Information (Left side)
                       doc.setTextColor(255, 255, 255)
-                      doc.setFontSize(24)
+                      doc.setFontSize(16)
                       doc.setFont('helvetica', 'bold')
-                      doc.text('SALARY SLIP', 105, 25, { align: 'center' })
+                      doc.text('VOLTRIX BATTERIES', 55, 20)
+                      
+                      doc.setFontSize(8)
+                      doc.setFont('helvetica', 'normal')
+                      doc.text('Office # 2, 2nd Floor, Anum Estate', 55, 27)
+                      doc.text('Main Peshawar Road, Rawalpindi', 55, 32)
+                      doc.text('Phone: +92 303 4927779', 55, 37)
+                      doc.text('Email: info@voltrixbatteries.com', 55, 42)
+                      
+                      // SALARY SLIP title (Right side)
+                      doc.setFontSize(22)
+                      doc.setFont('helvetica', 'bold')
+                      doc.text('SALARY SLIP', 205, 30, { align: 'right' })
+                      
+                      doc.setFontSize(9)
+                      doc.setFont('helvetica', 'normal')
+                      doc.text(new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 205, 38, { align: 'right' })
                       
                       // Reset text color
                       doc.setTextColor(textColor[0], textColor[1], textColor[2])
                       
-                      // Add decorative line
-                      doc.setLineWidth(2)
-                      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
-                      doc.line(20, 50, 190, 50)
+                      // Decorative line under header
+                      doc.setLineWidth(0.5)
+                      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+                      doc.line(15, 60, 195, 60)
                       
-                      // Employee Information Box
+                      // Employee Information Section
                       doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
-                      doc.roundedRect(20, 60, 170, 50, 3, 3, 'F')
-                      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
-                      doc.roundedRect(20, 60, 170, 50, 3, 3, 'S')
+                      doc.roundedRect(15, 68, 180, 45, 2, 2, 'F')
+                      
+                      // Section header
+                      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+                      doc.rect(15, 68, 180, 8, 'F')
+                      doc.setTextColor(255, 255, 255)
+                      doc.setFontSize(10)
+                      doc.setFont('helvetica', 'bold')
+                      doc.text('EMPLOYEE INFORMATION', 20, 73)
+                      
+                      // Employee details
+                      doc.setTextColor(textColor[0], textColor[1], textColor[2])
+                      doc.setFontSize(9)
+                      doc.setFont('helvetica', 'bold')
+                      
+                      // Left column
+                      doc.text('Employee Name:', 20, 83)
+                      doc.text('Role:', 20, 91)
+                      doc.text('Department:', 20, 99)
+                      doc.text('Employee Status:', 20, 107)
+                      
+                      // Left column values
+                      doc.setFont('helvetica', 'normal')
+                      doc.text(viewMember.name, 60, 83)
+                      doc.text(viewMember.role, 60, 91)
+                      doc.text(viewMember.department, 60, 99)
+                      doc.text('Active', 60, 107)
+                      
+                      // Right column
+                      doc.setFont('helvetica', 'bold')
+                      doc.text('Pay Period:', 120, 83)
+                      doc.text('Payment Date:', 120, 91)
+                      doc.text('Generated On:', 120, 99)
+                      doc.text('Currency:', 120, 107)
+                      
+                      // Right column values
+                      doc.setFont('helvetica', 'normal')
+                      doc.text(new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 155, 83)
+                      doc.text(new Date(selectedMonth + '-01').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
+                      doc.text(new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 99)
+                      doc.text(viewMember.currency, 155, 107)
+                      
+                      // Salary Breakdown Section
+                      let currentY = 125
+                      
+                      // Base Salary
+                      doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
+                      doc.roundedRect(15, currentY, 180, 12, 2, 2, 'F')
                       
                       doc.setFontSize(11)
                       doc.setFont('helvetica', 'bold')
-                      doc.text('EMPLOYEE INFORMATION', 30, 75)
-                      doc.setFont('helvetica', 'normal')
-                      doc.setFontSize(10)
-                      doc.text(`Employee: ${viewMember.name}`, 30, 85)
-                      doc.text(`Role: ${viewMember.role}`, 30, 92)
-                      doc.text(`Department: ${viewMember.department}`, 30, 99)
+                      doc.setTextColor(textColor[0], textColor[1], textColor[2])
+                      doc.text('BASE SALARY', 20, currentY + 8)
+                      doc.setFontSize(12)
+                      doc.text(`${viewMember.currency} ${viewMember.salary.toLocaleString()}`, 190, currentY + 8, { align: 'right' })
                       
-                      // Right side info
-                      doc.text(`Month: ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, 120, 85)
-                      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 120, 92)
-                      doc.text(`Status: Active`, 120, 99)
-                      
-                      // Base Salary Section
-                      doc.setLineWidth(1)
-                      doc.setDrawColor(200, 200, 200)
-                      doc.line(20, 125, 190, 125)
-                      
-                      doc.setFontSize(14)
-                      doc.setFont('helvetica', 'bold')
-                      doc.text('BASE SALARY', 20, 140)
-                      doc.setFontSize(16)
-                      doc.text(`${viewMember.currency} ${viewMember.salary.toLocaleString()}`, 190, 140, { align: 'right' })
+                      currentY += 20
                       
                       // Adjustments Section
-                      let currentY = 155
                       if (salaryAdjustments.length > 0) {
-                        doc.setLineWidth(0.5)
-                        doc.line(20, currentY - 5, 190, currentY - 5)
-                        
-                        doc.setFontSize(14)
+                        // Adjustments header
+                        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+                        doc.rect(15, currentY, 180, 8, 'F')
+                        doc.setTextColor(255, 255, 255)
+                        doc.setFontSize(10)
                         doc.setFont('helvetica', 'bold')
-                        doc.text('ADJUSTMENTS', 20, currentY)
-                        currentY += 10
+                        doc.text('SALARY ADJUSTMENTS', 20, currentY + 5)
                         
-                        salaryAdjustments.forEach(adj => {
-                          const amount = `${adj.type === 'add' ? '+' : '-'} ${viewMember.currency} ${parseFloat(adj.amount).toLocaleString()}`
+                        currentY += 12
+                        doc.setTextColor(textColor[0], textColor[1], textColor[2])
+                        
+                        salaryAdjustments.forEach((adj, index) => {
+                          const amount = parseFloat(adj.amount)
+                          const isAddition = adj.type === 'add'
                           
-                          // Adjustment row background
-                          if (adj.type === 'add') {
-                            doc.setFillColor(240, 255, 240)
-                          } else {
-                            doc.setFillColor(255, 240, 240)
+                          // Alternating row background
+                          if (index % 2 === 0) {
+                            doc.setFillColor(252, 252, 252)
+                            doc.rect(15, currentY - 4, 180, 9, 'F')
                           }
-                          doc.rect(20, currentY - 5, 170, 8, 'F')
                           
-                          doc.setFontSize(10)
+                          doc.setFontSize(9)
                           doc.setFont('helvetica', 'normal')
-                          doc.text(`${adj.label}:`, 25, currentY)
+                          doc.text(adj.label, 20, currentY)
                           
-                          if (adj.type === 'add') {
-                            doc.setTextColor(0, 150, 0)
+                          // Amount with color coding
+                          doc.setFont('helvetica', 'bold')
+                          if (isAddition) {
+                            doc.setTextColor(34, 197, 94) // Green
+                            doc.text(`+ ${viewMember.currency} ${amount.toLocaleString()}`, 190, currentY, { align: 'right' })
                           } else {
-                            doc.setTextColor(200, 0, 0)
+                            doc.setTextColor(239, 68, 68) // Red
+                            doc.text(`- ${viewMember.currency} ${amount.toLocaleString()}`, 190, currentY, { align: 'right' })
                           }
-                          doc.text(amount, 190, currentY, { align: 'right' })
                           doc.setTextColor(textColor[0], textColor[1], textColor[2])
                           
-                          currentY += 10
+                          currentY += 9
                         })
                         
-                        // Line before net salary
-                        doc.setLineWidth(1)
-                        doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
-                        doc.line(20, currentY, 190, currentY)
-                        currentY += 10
+                        currentY += 5
                       }
                       
-                      // Net Salary Section - Highlighted
+                      // Divider line
+                      doc.setLineWidth(0.5)
+                      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+                      doc.line(15, currentY, 195, currentY)
+                      currentY += 10
+                      
+                      // Net Salary Section - Highlighted Box
                       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
-                      doc.rect(20, currentY - 8, 170, 25, 'F')
+                      doc.roundedRect(15, currentY, 180, 20, 2, 2, 'F')
+                      
                       doc.setTextColor(255, 255, 255)
-                      doc.setFontSize(16)
+                      doc.setFontSize(13)
                       doc.setFont('helvetica', 'bold')
-                      doc.text('NET SALARY', 25, currentY + 5)
-                      doc.setFontSize(18)
-                      doc.text(`${viewMember.currency} ${netSalary.toLocaleString()}`, 190, currentY + 5, { align: 'right' })
+                      doc.text('NET SALARY (TOTAL PAYABLE)', 20, currentY + 13)
+                      doc.setFontSize(16)
+                      doc.text(`${viewMember.currency} ${netSalary.toLocaleString()}`, 190, currentY + 13, { align: 'right' })
                       
                       // Reset text color
                       doc.setTextColor(textColor[0], textColor[1], textColor[2])
                       
-                      // Footer section
-                      doc.setFontSize(9)
+                      // Important Note Section
+                      currentY += 35
+                      doc.setFillColor(255, 251, 235) // Light yellow
+                      doc.roundedRect(15, currentY, 180, 20, 2, 2, 'F')
+                      doc.setDrawColor(251, 191, 36) // Yellow border
+                      doc.setLineWidth(0.5)
+                      doc.roundedRect(15, currentY, 180, 20, 2, 2, 'S')
+                      
+                      doc.setFontSize(8)
+                      doc.setFont('helvetica', 'bold')
+                      doc.setTextColor(146, 64, 14) // Brown text
+                      doc.text('IMPORTANT NOTE:', 20, currentY + 7)
+                      doc.setFont('helvetica', 'normal')
+                      doc.text('This salary slip is computer-generated and does not require a signature.', 20, currentY + 12)
+                      doc.text('Please verify all details and contact HR for any discrepancies.', 20, currentY + 16)
+                      
+                      // Footer section with company info
+                      doc.setTextColor(textColor[0], textColor[1], textColor[2])
+                      doc.setLineWidth(0.3)
+                      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+                      doc.line(15, 270, 195, 270)
+                      
+                      doc.setFontSize(8)
                       doc.setFont('helvetica', 'italic')
-                      doc.text('This is a computer generated salary slip', 105, 275, { align: 'center' })
-                      doc.text('Voltrix ERP System - Human Resources Management', 105, 280, { align: 'center' })
+                      doc.setTextColor(100, 100, 100)
+                      doc.text('Voltrix Batteries - Human Resources Management System', 105, 276, { align: 'center' })
+                      doc.text('Office # 2, 2nd Floor, Anum Estate, Main Peshawar Road, Rawalpindi', 105, 281, { align: 'center' })
+                      doc.text('Phone: +92 303 4927779 | Email: info@voltrixbatteries.com', 105, 286, { align: 'center' })
                       
                       // Save and download
                       const pdfBlob = doc.output('blob')
