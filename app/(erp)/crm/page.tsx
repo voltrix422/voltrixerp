@@ -4,8 +4,8 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { ClientsList } from "@/components/crm/clients-list"
 import { OrdersList } from "@/components/crm/orders-list"
+import { QuotationsList } from "@/components/crm/quotations-list"
 import { useAuth } from "@/components/auth-provider"
-import { FileText } from "lucide-react"
 
 export default function CRMPage() {
   const { user } = useAuth()
@@ -61,19 +61,7 @@ export default function CRMPage() {
           </div>
 
           {/* Tab Content */}
-          {tab === "quotations" && (
-            <div className="text-center py-20">
-              <FileText className="h-16 w-16 text-[hsl(var(--muted-foreground))] opacity-30 mx-auto mb-4" />
-              <p className="text-lg font-semibold mb-2">Quotations Feature</p>
-              <p className="text-sm text-[hsl(var(--muted-foreground))] max-w-md mx-auto">
-                Create professional quotations for your clients with product selection from inventory,
-                custom pricing, tax calculations, and PDF generation.
-              </p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-4">
-                Run <code className="px-2 py-1 bg-[hsl(var(--muted))] rounded">npx prisma db push</code> to create the database table.
-              </p>
-            </div>
-          )}
+          {tab === "quotations" && <QuotationsList currentUser={user?.name || "Unknown"} />}
           {tab === "clients" && <ClientsList currentUser={user?.name || "Unknown"} />}
           {tab === "orders" && <OrdersList currentUser={user?.name || "Unknown"} />}
         </div>
