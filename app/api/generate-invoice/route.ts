@@ -34,7 +34,7 @@ function registerGeist(doc: jsPDF) {
   }
 }
 
-const FONT = geistRegularB64 ? 'Geist' : FONT
+const FONT = geistRegularB64 ? 'Geist' : 'helvetica'
 
 export async function POST(request: NextRequest) {
   try {

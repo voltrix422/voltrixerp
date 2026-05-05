@@ -22,7 +22,7 @@ async function registerGeist(doc: jsPDF): Promise<string> {
   ])
   if (reg)  { doc.addFileToVFS("Geist-Regular.ttf", reg);  doc.addFont("Geist-Regular.ttf", "Geist", "normal") }
   if (bold) { doc.addFileToVFS("Geist-Bold.ttf",    bold); doc.addFont("Geist-Bold.ttf",    "Geist", "bold")   }
-  return reg ? "Geist" : FONT
+  return reg ? "Geist" : "helvetica"
 }
 
 export async function generateDispatchNotePDF(

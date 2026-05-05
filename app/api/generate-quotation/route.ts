@@ -19,7 +19,7 @@ function registerGeist(doc: jsPDF) {
   if (geistRegB64)  { doc.addFileToVFS("Geist-Regular.ttf", geistRegB64);  doc.addFont("Geist-Regular.ttf", "Geist", "normal") }
   if (geistBoldB64) { doc.addFileToVFS("Geist-Bold.ttf",    geistBoldB64); doc.addFont("Geist-Bold.ttf",    "Geist", "bold")   }
 }
-const FONT = geistRegB64 ? "Geist" : FONT
+const FONT = geistRegB64 ? "Geist" : "helvetica"
 
 export async function POST(req: NextRequest) {
   try {
