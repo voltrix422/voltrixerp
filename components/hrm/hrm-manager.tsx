@@ -656,9 +656,12 @@ export function HrmManager() {
 
   return (
     <div className="space-y-4">
-
       {/* Header */}
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Staff Management</h2>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">Manage staff profiles, performance, and HR information</p>
+        </div>
         <Button size="sm" className="h-8 text-sm gap-2 bg-black hover:bg-neutral-800 text-white cursor-pointer" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" /> New Staff
         </Button>
@@ -666,19 +669,19 @@ export function HrmManager() {
 
       {/* Stats */}
       {staff.length > 0 && (
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
-          <div className="grid grid-cols-3 divide-x divide-[hsl(var(--border))]">
-            <div className="p-3 text-center">
-              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Total</p>
-              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{staff.length}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Total Staff</h3>
+              <p className="text-2xl font-bold text-[hsl(var(--foreground))]">{staff.length}</p>
             </div>
-            <div className="p-3 text-center">
-              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Active</p>
-              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{activeCount}</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Active</h3>
+              <p className="text-2xl font-bold text-green-600">{activeCount}</p>
             </div>
-            <div className="p-3 text-center">
-              <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Inactive</p>
-              <p className="text-xl font-bold text-[hsl(var(--foreground))] mt-0.5">{staff.length - activeCount}</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Inactive</h3>
+              <p className="text-2xl font-bold text-red-600">{staff.length - activeCount}</p>
             </div>
           </div>
         </div>
@@ -691,7 +694,7 @@ export function HrmManager() {
           className="flex items-center gap-2 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
         >
           <svg className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7" />
           </svg>
           Filter staff
         </button>
@@ -743,59 +746,59 @@ export function HrmManager() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20">
-                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Staff</th>
-                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
-                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
-                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Points</th>
-                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Contact</th>
-                <th className="text-left px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Salary</th>
-                <th className="text-right px-2 py-1.5 text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Staff</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Points</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Contact</th>
+                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Salary</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(s => (
                 <tr key={s.id} onClick={() => setViewMember(s)}
                   className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/5 cursor-pointer transition-colors ${(s.points || 100) <= 20 ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
-                  <td className="px-2 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
                         {s.photo_url
                           ? <img src={s.photo_url} alt={s.name} className="h-full w-full object-cover" />
-                          : <span className="text-[8px] font-semibold text-[hsl(var(--muted-foreground))]">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
+                          : <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
                         }
                       </div>
                       <div>
-                        <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{s.name}</p>
-                        <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{s.role}</p>
+                        <p className="text-sm font-medium text-[hsl(var(--foreground))]">{s.name}</p>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">{s.role}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-2 py-1.5">
-                    <p className="text-[10px] text-[hsl(var(--foreground))]">{s.department}</p>
+                  <td className="px-4 py-3">
+                    <p className="text-sm text-[hsl(var(--foreground))]">{s.department}</p>
                   </td>
-                  <td className="px-2 py-1.5">
-                    <Badge variant={s.status === "active" ? "success" : "destructive"} className="text-[8px] px-1 py-0">{s.status}</Badge>
+                  <td className="px-4 py-3">
+                    <Badge variant={s.status === "active" ? "success" : "destructive"} className="text-xs px-2 py-1">{s.status}</Badge>
                   </td>
-                  <td className="px-2 py-1.5 w-32">
+                  <td className="px-4 py-3 w-40">
                     <PointsBar points={s.points || 100} />
                   </td>
-                  <td className="px-2 py-1.5">
-                    <p className="text-[10px] text-[hsl(var(--foreground))]">{s.email || "—"}</p>
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{s.phone || "—"}</p>
+                  <td className="px-4 py-3">
+                    <p className="text-sm text-[hsl(var(--foreground))]">{s.email || "—"}</p>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">{s.phone || "—"}</p>
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-4 py-3">
                     {s.salary > 0 ? (
-                      <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{s.currency} {s.salary.toLocaleString()}</p>
+                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{s.currency} {s.salary.toLocaleString()}</p>
                     ) : (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">—</p>
+                      <p className="text-sm text-[hsl(var(--muted-foreground))]">—</p>
                     )}
                   </td>
-                  <td className="px-2 py-1.5">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
                       <Button size="icon" variant="ghost"
-                        className="h-5 w-5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                         onClick={e => { e.stopPropagation(); handleDelete(s.id) }}>
-                        <Trash2 className="h-2.5 w-2.5" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </td>
