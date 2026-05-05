@@ -138,7 +138,7 @@ export function ClientOrdersInventory() {
           <table className="w-full">
             <thead>
               <tr className="border-b bg-[hsl(var(--muted))]/40">
-                {["Order #", "Client", "Items", "Total", "Dispatcher", "Delivery Date", "Status"].map(h => (
+                {["Order #", "Client", "Items", "Total", "Dispatcher", "Delivery Date", "Invoice"].map(h => (
                   <th key={h} className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{h}</th>
                 ))}
               </tr>
@@ -153,11 +153,17 @@ export function ClientOrdersInventory() {
                   <td className="px-4 py-2.5 text-xs">{order.dispatcher || "—"}</td>
                   <td className="px-4 py-2.5 text-xs">{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-2.5">
-                    <Badge variant={
-                      order.dispatcher ? "success" : "warning"
-                    } className="text-[10px] px-1.5 py-0">
-                      {order.dispatcher ? "delivered" : "ready to fulfill"}
-                    </Badge>
+                    {order.status === "pending_approval" ? (
+                      <div className="text-[10px] px-1.5 py-0 font-semibold text-blue-600 bg-blue-50 rounded">
+                        Invoice
+                      </div>
+                    ) : (
+                      <Badge variant={
+                        order.dispatcher ? "success" : "warning"
+                      } className="text-[10px] px-1.5 py-0">
+                        {order.dispatcher ? "delivered" : "ready to fulfill"}
+                      </Badge>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -265,6 +271,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   async function downloadInvoice() {
     try {
       await downloadInvoicePDF(order)
+      alert("Invoice downloaded successfully!")
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
@@ -392,137 +399,20 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{order.clientName}</p>
             </div>
             {(order.dispatcher || order.deliveryDate) && (
-              <>
-                <div className="h-8 w-px bg-[hsl(var(--border))]" />
-                <div className="flex items-center gap-3 text-xs">
-                  {order.dispatcher && (
-                    <div>
-                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Dispatcher</p>
-                      <p className="font-medium">{order.dispatcher}</p>
-                    </div>
-                  )}
-                  {order.deliveryDate && (
-                    <div>
-                      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Delivery Date</p>
-                      <p className="font-medium">{new Date(order.deliveryDate).toLocaleDateString()}</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Order Status */}
-          <div>
-            <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-2">Order Status</p>
-            <Badge variant={
-              order.dispatcher ? "success" : "warning"
-            } className="text-xs">
-              {order.dispatcher ? "fulfilled" : "ready to fulfill"}
-            </Badge>
-          </div>
-
-          {/* Order Items */}
-          <div>
-            <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                    <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                    <th className="px-3 py-2 text-center font-semibold text-[hsl(var(--muted-foreground))] w-16">Qty</th>
-                    <th className="px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))] w-16">Unit</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-24">Unit Price</th>
-                    <th className="px-3 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-24">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {order.items.map(item => (
-                    <tr key={item.id}>
-                      <td className="px-3 py-2">{item.description}</td>
-                      <td className="px-3 py-2 text-center">{item.qty}</td>
-                      <td className="px-3 py-2">{item.unit}</td>
-                      <td className="px-3 py-2 text-right">PKR {item.unitPrice.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right font-medium">PKR {(item.unitPrice * item.qty).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Costs */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span>Subtotal</span>
-              <span className="font-semibold">PKR {order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
-            {order.taxPercent > 0 && (
-              <div className="flex items-center justify-between text-xs">
-                <span>Tax ({order.taxPercent}%)</span>
-                <span>PKR {order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[hsl(var(--muted-foreground))] w-20">Delivery Date:</span>
+                <span className="text-sm font-medium">{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}</span>
               </div>
             )}
-            {order.transportCost > 0 && (
-              <div className="flex items-center justify-between text-xs">
-                <span>{order.transportLabel}</span>
-                <span>PKR {order.transportCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            {order.otherCost > 0 && (
-              <div className="flex items-center justify-between text-xs">
-                <span>{order.otherCostLabel}</span>
-                <span>PKR {order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            {(order.discount > 0 || (order.discountValue && order.discountValue > 0)) && (
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-green-600">Discount ({order.discountIsPercentage ? (order.discount || 2) : Math.round((order.discountValue || 0) / order.subtotal * 100)}%)</span>
-                <span className="font-semibold text-green-600">- PKR {(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between text-sm font-bold border-t pt-2">
-              <span>Total</span>
-              <span>PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
           </div>
-
-        {/* Payment Section */}
-        <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100 mb-3">Payment</p>
-          <div className="text-sm">
-            <p className="font-medium text-blue-900 dark:text-blue-100">
-              Total Amount: PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </p>
-            {order.payments && order.payments.length > 0 ? (
-              <div className="mt-2 space-y-1">
-                {order.payments.map(p => (
-                  <div key={p.id} className="text-xs text-blue-700 dark:text-blue-300">
-                    PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">No payments received yet</p>
-            )}
-          </div>
-        </div>
-        </div>
-
-        <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
-            <Eye className="h-3 w-3 mr-1.5" /> View Invoice
-          </Button>
-          
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
+              <Eye className="h-3 w-3 mr-1.5" /> View Invoice
           {!order.dispatcher && (
             <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowFulfillDialog(true)} disabled={updating}>
               <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Fulfill Order"}
             </Button>
+          )}
           )}
           
           <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
