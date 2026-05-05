@@ -1077,27 +1077,47 @@ export function HrmManager() {
                       onClick={() => {
                         if (confirm(`Are you sure you want to reset ${viewMember.name}'s performance points to 100 and clear all warnings? This action cannot be undone.`)) {
                           const updatedMember = { ...viewMember, points: 100, warnings: [], last_reset: new Date().toISOString() }
+                          const resetData = {
+                            id: viewMember.id,
+                            points: 100,
+                            warnings: [],
+                            last_reset: new Date().toISOString()
+                          }
+                          
+                          console.log('Resetting performance points with data:', resetData)
+                          
                           // Update in database
                           fetch('/api/hrm/staff', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              id: viewMember.id,
-                              points: 100,
-                              warnings: [],
-                              last_reset: new Date().toISOString()
-                            })
-                          }).then(res => {
+                            body: JSON.stringify(resetData)
+                          }).then(async res => {
+                            console.log('API response status:', res.status)
+                            const responseText = await res.text()
+                            console.log('API response text:', responseText)
+                            
                             if (res.ok) {
+                              try {
+                                const updatedStaff = JSON.parse(responseText)
+                                console.log('Successfully updated staff:', updatedStaff)
                               // Update local state
                               setStaff(prev => prev.map(s => s.id === viewMember.id ? updatedMember : s))
                               setViewMember(updatedMember)
+                              alert('Performance points reset successfully!')
+                            } catch (parseError) {
+                              console.error('Error parsing response:', parseError)
+                              alert('Performance points reset successfully!')
+                              // Update local state anyway
+                              setStaff(prev => prev.map(s => s.id === viewMember.id ? updatedMember : s))
+                              setViewMember(updatedMember)
+                            }
                             } else {
-                              alert('Failed to reset performance points. Please try again.')
+                              console.error('API error response:', responseText)
+                              alert(`Failed to reset performance points: ${responseText}`)
                             }
                           }).catch(error => {
                             console.error('Error resetting points:', error)
-                            alert('Failed to reset performance points. Please try again.')
+                            alert(`Failed to reset performance points: ${error.message}`)
                           })
                         }
                       }}
