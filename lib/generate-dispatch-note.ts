@@ -2,251 +2,359 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Order } from "@/lib/orders"
 
-export async function generateDispatchNotePDF(order: Order, dispatcherName?: string, dispatchDate?: string): Promise<Blob> {
-  const doc = new jsPDF()
-  
-  // Add logo
+export async function generateDispatchNotePDF(
+  order: Order,
+  dispatcherName?: string,
+  dispatchDate?: string
+): Promise<Blob> {
+  const doc = new jsPDF({ unit: "mm", format: "a4" })
+
+  // ── Palette ────────────────────────────────────────────────────────────────
+  const teal:     [number,number,number] = [26, 159, 154]
+  const tealDark: [number,number,number] = [18, 120, 116]
+  const white:    [number,number,number] = [255, 255, 255]
+  const black:    [number,number,number] = [30, 30, 30]
+  const darkGray: [number,number,number] = [80, 80, 80]
+  const lightGray:[number,number,number] = [230, 230, 230]
+  const lightBg:  [number,number,number] = [247, 250, 250]
+  const rowAlt:   [number,number,number] = [245, 250, 250]
+  const red:      [number,number,number] = [200, 50, 50]
+
+  const pageW = 210
+  const pageH = 297
+  const mL = 14
+  const mR = 14
+
+  // ── Header band ────────────────────────────────────────────────────────────
+  doc.setFillColor(...teal)
+  doc.rect(0, 0, pageW, 42, "F")
+
+  // Logo
   try {
-    const logoImg = await fetch("/logo.png").then(r => r.blob()).then(b => 
-      new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.readAsDataURL(b)
-      })
-    )
-    doc.addImage(logoImg, "PNG", 15, 10, 30, 30)
-  } catch (e) {
-    console.error("Failed to load logo:", e)
-  }
+    const logoBlob = await fetch("/logo.png").then(r => r.blob())
+    const logoBase64 = await new Promise<string>(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.readAsDataURL(logoBlob)
+    })
+    doc.addImage(logoBase64, "PNG", mL, 6, 28, 28)
+  } catch {}
 
-  // Company header - Professional design
-  doc.setFontSize(24)
+  // Company info
+  doc.setTextColor(...white)
   doc.setFont("helvetica", "bold")
-  doc.setTextColor(26, 159, 154) // Accent color
-  doc.text("DISPATCH NOTE", 105, 25, { align: "center" })
-  
+  doc.setFontSize(15)
+  doc.text("VOLTRIX BATTERIES", mL + 32, 14)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(7.5)
+  doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", mL + 32, 20)
+  doc.text("Phone: 051-8731661  |  Mobile: +92 303 4927779", mL + 32, 25)
+  doc.text("Email: info@voltrix-power.com  |  www.voltrixbatteries.com", mL + 32, 30)
+
+  // DISPATCH NOTE label (top-right)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(20)
+  doc.text("DISPATCH NOTE", pageW - mR, 19, { align: "right" })
+  doc.setFontSize(8.5)
+  doc.setFont("helvetica", "normal")
+  doc.text(`DN-${order.orderNumber}`, pageW - mR, 26, { align: "right" })
+
+  // ── Meta band ──────────────────────────────────────────────────────────────
+  doc.setFillColor(...tealDark)
+  doc.rect(0, 42, pageW, 16, "F")
+
+  const dispDate = dispatchDate || new Date().toLocaleDateString("en-PK")
+  const delDate  = order.deliveryDate
+    ? new Date(order.deliveryDate).toLocaleDateString("en-PK")
+    : "—"
+
+  const metaItems = [
+    { label: "ORDER #",       value: order.orderNumber },
+    { label: "DISPATCH DATE", value: dispDate },
+    { label: "DELIVERY DATE", value: delDate },
+    { label: "STATUS",        value: order.status.replace(/_/g, " ").toUpperCase() },
+    { label: "DISPATCHER",    value: dispatcherName || order.dispatcher || "—" },
+  ]
+  const colW = (pageW - mL - mR) / metaItems.length
+  metaItems.forEach((m, i) => {
+    const x = mL + i * colW
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(6.5)
+    doc.setTextColor(180, 230, 228)
+    doc.text(m.label, x, 48)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(...white)
+    doc.text(m.value, x, 54)
+  })
+
+  // ── Client + Delivery Address ──────────────────────────────────────────────
+  let y = 66
+  doc.setTextColor(...teal)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(8)
+  doc.text("DELIVER TO", mL, y)
+  doc.setDrawColor(...teal)
+  doc.setLineWidth(0.4)
+  doc.line(mL, y + 1, mL + 26, y + 1)
+
+  y += 6
+  doc.setTextColor(...black)
+  doc.setFont("helvetica", "bold")
   doc.setFontSize(12)
-  doc.setFont("helvetica", "bold")
-  doc.setTextColor(0, 0, 0)
-  doc.text("VOLTRIX PVT LIMITED", 105, 32, { align: "center" })
-  
-  doc.setFontSize(9)
-  doc.setFont("helvetica", "normal")
-  doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 105, 37, { align: "center" })
-  doc.text("+92 303 4927779", 105, 42, { align: "center" })
+  doc.text(order.clientName || "—", mL, y)
 
-  // Dispatch details box
-  doc.setDrawColor(200, 200, 200)
-  doc.setFillColor(245, 245, 245)
-  doc.rect(15, 50, 180, 30, "FD")
-  
-  doc.setFontSize(9)
-  doc.setFont("helvetica", "bold")
-  doc.text("Dispatch Note #:", 20, 57)
-  doc.text("Order #:", 20, 63)
-  doc.text("Dispatch Date:", 20, 69)
-  doc.text("Delivery Date:", 20, 75)
-  
-  doc.setFont("helvetica", "normal")
-  doc.text(`DN-${order.orderNumber}`, 55, 57)
-  doc.text(order.orderNumber, 55, 63)
-  doc.text(dispatchDate || new Date().toLocaleDateString(), 55, 69)
-  doc.text(order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—", 55, 75)
-  
-  doc.setFont("helvetica", "bold")
-  doc.text("Status:", 120, 57)
-  doc.text("Dispatcher:", 120, 63)
-  doc.text("Client:", 120, 69)
-  
-  doc.setFont("helvetica", "normal")
-  doc.text(order.status.toUpperCase(), 150, 57)
-  doc.text(dispatcherName || order.dispatcher || "—", 150, 63)
-  doc.text(order.clientName, 150, 69)
-
-  // Delivery Address
-  doc.setFontSize(10)
-  doc.setFont("helvetica", "bold")
-  doc.text("DELIVERY ADDRESS:", 15, 90)
-  
-  doc.setFontSize(9)
-  doc.setFont("helvetica", "normal")
   if (order.deliveryAddress) {
-    const addressLines = doc.splitTextToSize(order.deliveryAddress, 180)
-    doc.text(addressLines, 15, 96)
-  } else {
-    doc.text("No delivery address provided", 15, 96)
+    y += 5
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    doc.setTextColor(...darkGray)
+    const addrLines = doc.splitTextToSize(order.deliveryAddress, 90)
+    doc.text(addrLines, mL, y)
+    y += addrLines.length * 4.5
   }
 
-  // Items table with pricing
-  const tableStartY = 110
-  
+  // ── Items table ────────────────────────────────────────────────────────────
+  y = Math.max(y + 8, 92)
+
+  const tableData = order.items.map((item, idx) => [
+    `${idx + 1}`,
+    item.description,
+    item.qty.toString(),
+    item.unit,
+    `PKR ${Number(item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+    `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+  ])
+
   autoTable(doc, {
-    startY: tableStartY,
-    head: [["#", "Item Description", "Qty", "Unit", "Unit Price", "Total"]],
-    body: order.items.map((item, index) => [
-      (index + 1).toString(),
-      item.description,
-      item.qty.toString(),
-      item.unit,
-      `PKR ${item.unitPrice.toLocaleString()}`,
-      `PKR ${(item.unitPrice * item.qty).toLocaleString()}`
-    ]),
-    theme: "grid",
+    startY: y,
+    head: [["#", "ITEM DESCRIPTION", "QTY", "UNIT", "UNIT PRICE", "TOTAL"]],
+    body: tableData,
+    theme: "plain",
     headStyles: {
-      fillColor: [66, 66, 66],
-      textColor: [255, 255, 255],
-      fontSize: 9,
+      fillColor: teal,
+      textColor: white,
       fontStyle: "bold",
-      halign: "center"
+      fontSize: 8.5,
+      cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
     },
     bodyStyles: {
       fontSize: 9,
-      cellPadding: 3
+      textColor: black,
+      cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
     },
+    alternateRowStyles: { fillColor: rowAlt },
     columnStyles: {
-      0: { cellWidth: 10, halign: "center" },
-      1: { cellWidth: 70 },
-      2: { cellWidth: 15, halign: "center" },
-      3: { cellWidth: 15, halign: "center" },
-      4: { cellWidth: 35, halign: "right" },
-      5: { cellWidth: 35, halign: "right" }
+      0: { cellWidth: 8,  halign: "center" },
+      1: { cellWidth: "auto" },
+      2: { cellWidth: 14, halign: "center" },
+      3: { cellWidth: 16, halign: "center" },
+      4: { cellWidth: 36, halign: "right" },
+      5: { cellWidth: 36, halign: "right", fontStyle: "bold" },
     },
     foot: [[
-      { content: "SUBTOTAL", colSpan: 5, styles: { halign: "right", fontStyle: "bold" } },
-      { content: `PKR ${order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, styles: { halign: "right", fontStyle: "bold" } }
-    ]]
+      { content: "SUBTOTAL", colSpan: 5, styles: { halign: "right", fontStyle: "bold", fillColor: lightBg, textColor: black } },
+      { content: `PKR ${Number(order.subtotal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, styles: { halign: "right", fontStyle: "bold", fillColor: lightBg, textColor: black } },
+    ]],
+    margin: { left: mL, right: mR },
+    tableLineColor: lightGray,
+    tableLineWidth: 0.3,
   })
 
-  // Financial summary
-  const finalY = (doc as any).lastAutoTable.finalY + 10
-  
-  doc.setDrawColor(200, 200, 200)
-  doc.setFillColor(250, 250, 250)
-  doc.rect(120, finalY, 75, 50, "FD")
-  
-  doc.setFontSize(10)
-  doc.setFont("helvetica", "bold")
-  doc.text("PAYMENT SUMMARY", 157.5, finalY + 7, { align: "center" })
-  
-  doc.setFontSize(9)
-  doc.setFont("helvetica", "normal")
-  
-  let yPos = finalY + 15
-  doc.text("Subtotal:", 125, yPos)
-  doc.text(`PKR ${order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
-  
-  if (order.taxPercent > 0) {
-    yPos += 6
-    doc.text(`Tax (${order.taxPercent}%):`, 125, yPos)
-    doc.text(`PKR ${order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
-  }
-  
-  if (order.transportCost > 0) {
-    yPos += 6
-    doc.text(`${order.transportLabel}:`, 125, yPos)
-    doc.text(`PKR ${order.transportCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
-  }
-  
-  if (order.otherCost > 0) {
-    yPos += 6
-    doc.text(`${order.otherCostLabel}:`, 125, yPos)
-    doc.text(`PKR ${order.otherCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
-  }
-  
-  // Add discount if applicable
-  if (order.discount > 0 || (order.discountValue && order.discountValue > 0)) {
-    yPos += 6
-    doc.setTextColor(0, 128, 0) // Green for discount
-    const discountPercent = order.discountIsPercentage ? (order.discount || 2) : Math.round((order.discountValue || 0) / order.subtotal * 100)
-    doc.text(`Discount (${discountPercent}%):`, 125, yPos)
-    doc.text(`-PKR ${(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
-    doc.setTextColor(0, 0, 0) // Reset to black
-  }
-  
-  yPos += 8
-  doc.setDrawColor(100, 100, 100)
-  doc.line(125, yPos - 2, 190, yPos - 2)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
-  doc.text("TOTAL:", 125, yPos)
-  doc.text(`PKR ${order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 190, yPos, { align: "right" })
+  y = (doc as any).lastAutoTable.finalY + 8
 
-  // Order info box
-  const infoY = finalY
-  doc.setDrawColor(200, 200, 200)
-  doc.setFillColor(250, 250, 250)
-  doc.rect(15, infoY, 100, 50, "FD")
-  
-  doc.setFontSize(10)
-  doc.setFont("helvetica", "bold")
-  doc.text("ORDER INFORMATION", 65, infoY + 7, { align: "center" })
-  
-  doc.setFontSize(9)
-  doc.setFont("helvetica", "normal")
-  doc.text(`Total Items: ${order.items.length}`, 20, infoY + 17)
-  doc.text(`Total Quantity: ${order.items.reduce((sum, item) => sum + item.qty, 0)} units`, 20, infoY + 24)
-  
-  if (order.notes) {
-    doc.setFont("helvetica", "bold")
-    doc.text("Notes:", 20, infoY + 32)
-    doc.setFont("helvetica", "normal")
-    const notesLines = doc.splitTextToSize(order.notes, 90)
-    doc.text(notesLines.slice(0, 2), 20, infoY + 38)
-  }
+  // ── Two-column section: Order Info (left) + Payment Summary (right) ────────
+  const leftW  = 88
+  const rightW = 82
+  const rightX = pageW - mR - rightW
+  const boxH   = 52
 
-  // Signature section
-  const signatureY = finalY + 60
-  
-  doc.setDrawColor(100, 100, 100)
-  doc.line(15, signatureY, 70, signatureY)
-  doc.line(140, signatureY, 195, signatureY)
-  
-  doc.setFontSize(9)
+  // Left box — Order Information
+  doc.setFillColor(...lightBg)
+  doc.setDrawColor(...lightGray)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(mL, y, leftW, boxH, 2, 2, "FD")
+
+  doc.setFillColor(...teal)
+  doc.roundedRect(mL, y, leftW, 8, 2, 2, "F")
+  doc.rect(mL, y + 4, leftW, 4, "F") // flatten bottom corners of header
   doc.setFont("helvetica", "bold")
-  doc.text("DISPATCHER", 42.5, signatureY + 5, { align: "center" })
-  doc.text("RECEIVER", 167.5, signatureY + 5, { align: "center" })
-  
-  doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
-  doc.text(`Name: ${dispatcherName || "_________________"}`, 15, signatureY + 11)
-  doc.text(`Date: ${dispatchDate || "_________________"}`, 15, signatureY + 17)
-  doc.text("Name: _________________", 140, signatureY + 11)
-  doc.text("Date: _________________", 140, signatureY + 17)
+  doc.setTextColor(...white)
+  doc.text("ORDER INFORMATION", mL + leftW / 2, y + 5.5, { align: "center" })
 
-  // Footer
+  const totalQty = order.items.reduce((s, i) => s + i.qty, 0)
+  const infoRows = [
+    ["Total Items:",    `${order.items.length}`],
+    ["Total Quantity:", `${totalQty} units`],
+    ["Order Status:",   order.status.replace(/_/g, " ").toUpperCase()],
+    ["Created By:",     order.createdBy || "—"],
+  ]
+  doc.setFontSize(8.5)
+  infoRows.forEach(([label, val], i) => {
+    const ry = y + 14 + i * 8
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...darkGray)
+    doc.text(label, mL + 4, ry)
+    doc.setFont("helvetica", "normal")
+    doc.setTextColor(...black)
+    doc.text(val, mL + leftW - 4, ry, { align: "right" })
+  })
+
+  // Right box — Payment Summary
+  const discountValue = order.discountValue ?? (
+    order.discountIsPercentage
+      ? (order.subtotal * (order.discount || 0) / 100)
+      : (order.discount || 0)
+  )
+  const transportVal = order.transportCostValue ?? order.transportCost ?? 0
+  const otherVal     = order.otherCostValue ?? order.otherCost ?? 0
+
+  doc.setFillColor(...lightBg)
+  doc.setDrawColor(...lightGray)
+  doc.roundedRect(rightX, y, rightW, boxH, 2, 2, "FD")
+
+  doc.setFillColor(...teal)
+  doc.roundedRect(rightX, y, rightW, 8, 2, 2, "F")
+  doc.rect(rightX, y + 4, rightW, 4, "F")
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(8)
+  doc.setTextColor(...white)
+  doc.text("PAYMENT SUMMARY", rightX + rightW / 2, y + 5.5, { align: "center" })
+
+  type PRow = { label: string; value: string; color?: [number,number,number] }
+  const payRows: PRow[] = [
+    { label: "Subtotal:", value: `PKR ${Number(order.subtotal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` },
+  ]
+  if (discountValue > 0)
+    payRows.push({ label: `Discount${order.discountIsPercentage ? ` (${order.discount}%)` : ""}:`, value: `-PKR ${Number(discountValue).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, color: red })
+  if (order.taxPercent > 0)
+    payRows.push({ label: `Tax (${order.taxPercent}%):`, value: `PKR ${Number(order.tax).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+  if (transportVal > 0)
+    payRows.push({ label: `${order.transportLabel || "Transport"}:`, value: `PKR ${Number(transportVal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+  if (otherVal > 0)
+    payRows.push({ label: `${order.otherCostLabel || "Other"}:`, value: `PKR ${Number(otherVal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+
+  let ry2 = y + 14
+  payRows.forEach(row => {
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8.5)
+    doc.setTextColor(...(row.color || darkGray))
+    doc.text(row.label, rightX + 4, ry2)
+    doc.setTextColor(...(row.color || black))
+    doc.text(row.value, rightX + rightW - 4, ry2, { align: "right" })
+    ry2 += 7
+  })
+
+  // Total row inside right box
+  const totalY = y + boxH - 12
+  doc.setFillColor(...teal)
+  doc.roundedRect(rightX + 2, totalY - 3, rightW - 4, 10, 1.5, 1.5, "F")
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(10)
+  doc.setTextColor(...white)
+  doc.text("TOTAL", rightX + 6, totalY + 4)
+  doc.text(`PKR ${Number(order.total).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, rightX + rightW - 6, totalY + 4, { align: "right" })
+
+  // ── Notes ──────────────────────────────────────────────────────────────────
+  y += boxH + 8
+  if (order.notes) {
+    doc.setFillColor(...lightBg)
+    doc.setDrawColor(...lightGray)
+    doc.roundedRect(mL, y, pageW - mL - mR, 16, 2, 2, "FD")
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(7.5)
+    doc.setTextColor(...darkGray)
+    doc.text("NOTES", mL + 4, y + 5)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8.5)
+    doc.setTextColor(...black)
+    const noteLines = doc.splitTextToSize(order.notes, pageW - mL - mR - 8)
+    doc.text(noteLines.slice(0, 2), mL + 4, y + 11)
+    y += 22
+  }
+
+  // ── Signature section ──────────────────────────────────────────────────────
+  y += 4
+  const sigBoxW = (pageW - mL - mR - 10) / 2
+  const sigBoxH = 28
+
+  // Dispatcher box
+  doc.setFillColor(...lightBg)
+  doc.setDrawColor(...lightGray)
+  doc.roundedRect(mL, y, sigBoxW, sigBoxH, 2, 2, "FD")
+  doc.setFillColor(...teal)
+  doc.roundedRect(mL, y, sigBoxW, 7, 2, 2, "F")
+  doc.rect(mL, y + 3, sigBoxW, 4, "F")
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(8)
+  doc.setTextColor(...white)
+  doc.text("DISPATCHER", mL + sigBoxW / 2, y + 5, { align: "center" })
+
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8.5)
+  doc.setTextColor(...black)
+  doc.text(`Name: ${dispatcherName || order.dispatcher || "—"}`, mL + 4, y + 14)
+  doc.text(`Date: ${dispDate}`, mL + 4, y + 21)
+
+  // Receiver box
+  const rx = mL + sigBoxW + 10
+  doc.setFillColor(...lightBg)
+  doc.setDrawColor(...lightGray)
+  doc.roundedRect(rx, y, sigBoxW, sigBoxH, 2, 2, "FD")
+  doc.setFillColor(...teal)
+  doc.roundedRect(rx, y, sigBoxW, 7, 2, 2, "F")
+  doc.rect(rx, y + 3, sigBoxW, 4, "F")
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(8)
+  doc.setTextColor(...white)
+  doc.text("RECEIVER", rx + sigBoxW / 2, y + 5, { align: "center" })
+
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8.5)
+  doc.setTextColor(...darkGray)
+  doc.text("Name: _______________________", rx + 4, y + 14)
+  doc.text("Date: ________________________", rx + 4, y + 21)
+
+  // Signature lines
+  doc.setDrawColor(...lightGray)
+  doc.setLineWidth(0.4)
+  doc.line(mL + 4, y + sigBoxH - 2, mL + sigBoxW - 4, y + sigBoxH - 2)
+  doc.line(rx + 4, y + sigBoxH - 2, rx + sigBoxW - 4, y + sigBoxH - 2)
+
+  // ── Footer ─────────────────────────────────────────────────────────────────
+  doc.setFillColor(...teal)
+  doc.rect(0, pageH - 18, pageW, 18, "F")
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(8.5)
+  doc.setTextColor(...white)
+  doc.text("Please verify all items and amounts upon delivery.", pageW / 2, pageH - 11, { align: "center" })
+  doc.setFont("helvetica", "normal")
   doc.setFontSize(7)
-  doc.setTextColor(128, 128, 128)
-  doc.text("This is a computer-generated dispatch note. Please verify all items and amounts upon delivery.", 105, 280, { align: "center" })
-  doc.text(`Generated on ${new Date().toLocaleString()}`, 105, 285, { align: "center" })
+  doc.setTextColor(200, 235, 234)
+  doc.text(
+    `This is a computer-generated dispatch note.  |  Generated on ${new Date().toLocaleString()}`,
+    pageW / 2, pageH - 5, { align: "center" }
+  )
 
   return doc.output("blob")
 }
 
 export async function downloadDispatchNote(order: Order): Promise<void> {
-  // Prompt for dispatcher name and date
   const dispatcherName = prompt("Enter Dispatcher Name:", order.dispatcher || "")
   if (!dispatcherName) {
-    alert("Dispatcher name is required to generate dispatch note.")
+    alert("Dispatcher name is required.")
     return
   }
-  
-  const dispatchDate = prompt("Enter Dispatch Date (MM/DD/YYYY):", new Date().toLocaleDateString())
+  const dispatchDate = prompt("Enter Dispatch Date:", new Date().toLocaleDateString())
   if (!dispatchDate) {
-    alert("Dispatch date is required to generate dispatch note.")
+    alert("Dispatch date is required.")
     return
   }
-  
-  // Update order with dispatcher and mark as delivered
-  const updatedOrder: Order = {
-    ...order,
-    dispatcher: dispatcherName,
-    status: "delivered"
-  }
-  
-  // Save the updated order
+
+  const updatedOrder: Order = { ...order, dispatcher: dispatcherName, status: "delivered" }
   await import("@/lib/orders").then(m => m.saveOrder(updatedOrder))
-  
-  // Generate and download the dispatch note
+
   const blob = await generateDispatchNotePDF(order, dispatcherName, dispatchDate)
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
@@ -256,7 +364,4 @@ export async function downloadDispatchNote(order: Order): Promise<void> {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
-  
-  // Show success message
-  alert(`Dispatch note generated and order ${order.orderNumber} marked as delivered!`)
 }
