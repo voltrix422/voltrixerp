@@ -174,9 +174,15 @@ export function HrmManager() {
       if (response.ok) {
         const slips = await response.json()
         setSalarySlips(slips)
+      } else {
+        throw new Error('Database fetch failed')
       }
     } catch (error) {
-      console.error('Error fetching salary slips:', error)
+      console.warn('Database fetch failed, using localStorage fallback:', error)
+      // Fallback to localStorage
+      const allSlips = JSON.parse(localStorage.getItem('salary_slips') || '[]')
+      const staffSlips = allSlips.filter((slip: any) => slip.staffName === staffName)
+      setSalarySlips(staffSlips)
     }
   }
 
@@ -1850,12 +1856,26 @@ export function HrmManager() {
                       document.body.removeChild(a)
                       URL.revokeObjectURL(url)
                       
-                      // Save to system (you'll need to implement API call)
-                      await fetch('/api/hrm/salary-slips', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(salarySlipData)
-                      })
+                      // Save to system (with localStorage fallback)
+                      try {
+                        const response = await fetch('/api/hrm/salary-slips', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(salarySlipData)
+                        })
+                        if (!response.ok) throw new Error('Database save failed')
+                      } catch (dbError) {
+                        console.warn('Database save failed, using localStorage fallback:', dbError)
+                        // Fallback to localStorage
+                        const existingSlips = JSON.parse(localStorage.getItem('salary_slips') || '[]')
+                        const newSlip = {
+                          ...salarySlipData,
+                          id: Date.now().toString(),
+                          createdAt: new Date().toISOString()
+                        }
+                        existingSlips.push(newSlip)
+                        localStorage.setItem('salary_slips', JSON.stringify(existingSlips))
+                      }
                       
                       // Show success and close modal
                       setShowSalarySlip(false)
