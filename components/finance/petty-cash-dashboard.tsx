@@ -126,7 +126,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
     }
   }
 
-  const canManagePettyCash = userRole === 'admin' || userRole === 'finance'
+  const canManagePettyCash = userRole === 'admin' || userRole === 'superadmin' || userRole === 'finance'
   const userAllocations = allocations.filter(a => a.employeeName === currentUser)
   const userReceipts = receipts.filter(r => r.employeeName === currentUser)
 
