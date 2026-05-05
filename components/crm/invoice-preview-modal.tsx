@@ -41,7 +41,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
       >
         {/* Modal toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b bg-[hsl(var(--muted))]/30 shrink-0">
-          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Invoice Preview</p>
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Quotation Preview</p>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={handleDownload}>
               <Download className="h-3.5 w-3.5" /> Download PDF
@@ -69,9 +69,9 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                 </div>
               </div>
               <div className="text-right space-y-1">
-                <p className="text-2xl font-bold text-gray-800">INVOICE</p>
+                <p className="text-2xl font-bold text-gray-800">QUOTATION</p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-semibold">Invoice #:</span> {order.orderNumber}
+                  <span className="font-semibold">Quotation #:</span> {order.orderNumber}
                 </p>
                 <p className="text-sm text-gray-600">
                   <span className="font-semibold">Date:</span> {new Date(order.createdAt).toLocaleDateString()}
@@ -158,9 +158,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                 )}
                 {discount > 0 && (
                   <div className="flex justify-between text-sm text-green-600">
-                    <span>
-                      Discount{order.discountIsPercentage ? ` (${order.discount}%)` : ""}
-                    </span>
+                    <span>Discount</span>
                     <span>- PKR {discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}

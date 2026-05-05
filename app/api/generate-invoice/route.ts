@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     doc.setFontSize(28)
     doc.setTextColor(...accentColor)
     doc.setFont("helvetica", "bold")
-    doc.text("INVOICE", 105, 25, { align: "center" })
+    doc.text("QUOTATION", 105, 25, { align: "center" })
     
     yPos = 40
     
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     doc.setFontSize(10)
     doc.setTextColor(...black)
     doc.setFont("helvetica", "bold")
-    doc.text("Invoice #:", 140, yPos + 12)
+    doc.text("Quotation #:", 140, yPos + 12)
     doc.setFont("helvetica", "normal")
     doc.text(order.orderNumber, 140, yPos + 20)
     
@@ -220,12 +220,12 @@ export async function POST(request: NextRequest) {
       yPos += 5
     }
     
-    // Discount
-    if (order.discount > 0 || order.discountValue > 0) {
+    // Discount - only show if there is an actual discount
+    const discountValue = order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 0) / 100) : (order.discount || 0))
+    if (discountValue > 0) {
       doc.setTextColor(0, 128, 0) // Green for discount
-      const discountPercent = order.discountIsPercentage ? (order.discount || 2) : Math.round((order.discountValue || 0) / order.subtotal * 100)
-      doc.text(`Discount (${discountPercent}%):`, totalsX, yPos)
-      doc.text(`-PKR ${(order.discountValue || (order.discountIsPercentage ? (order.subtotal * (order.discount || 2) / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
+      doc.text(`Discount:`, totalsX, yPos)
+      doc.text(`-PKR ${discountValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, totalsX + totalsWidth, yPos, { align: "right" })
       doc.setTextColor(...black) // Reset to black
       yPos += 5
     }
