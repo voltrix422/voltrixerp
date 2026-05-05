@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const salarySlip = await prisma.erpSalarySlip.create({
+    const salarySlip = await (prisma.erpSalarySlip.create as any)({
       data: {
         staffName:        body.staffName,
         staffRole:        body.staffRole,
@@ -16,9 +16,9 @@ export async function POST(req: NextRequest) {
         adjustments:      body.adjustments || [],
         netSalary:        body.netSalary,
         generatedDate:    new Date(body.generatedDate),
-        bankName:         body.bankName || '',
-        bankAccountNumber: body.bankAccountNumber || '',
-        bankAccountTitle: body.bankAccountTitle || '',
+        ...(body.bankName !== undefined && { bankName: body.bankName || '' }),
+        ...(body.bankAccountNumber !== undefined && { bankAccountNumber: body.bankAccountNumber || '' }),
+        ...(body.bankAccountTitle !== undefined && { bankAccountTitle: body.bankAccountTitle || '' }),
       }
     })
 
