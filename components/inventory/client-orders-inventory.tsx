@@ -4,6 +4,7 @@ import { getOrders, saveOrder, type Order } from "@/lib/orders"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { SuccessNotification } from "@/components/ui/success-notification"
 import { Loader2, X, Eye, Download, Truck, FileText, Search } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
@@ -196,6 +197,8 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [showDispatchDialog, setShowDispatchDialog] = useState(false)
   const [showDeliveryConfirm, setShowDeliveryConfirm] = useState(false)
   const [showFulfillDialog, setShowFulfillDialog] = useState(false)
+  const [showFulfillSuccess, setShowFulfillSuccess] = useState(false)
+  const [fulfilledOrderNumber, setFulfilledOrderNumber] = useState("")
   const [stockItems, setStockItems] = useState<any[]>([])
   const [loadingStock, setLoadingStock] = useState(false)
   const [dispatcherName, setDispatcherName] = useState(order.dispatcher || "")
@@ -243,8 +246,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
       
-      // Show success message
-      alert(`Order ${order.orderNumber} has been fulfilled successfully! Dispatch note downloaded.`)
+      // Show success notification
+      setFulfilledOrderNumber(order.orderNumber)
+      setShowFulfillSuccess(true)
       
       // Close dialog and update UI
       setShowFulfillDialog(false)
@@ -833,6 +837,14 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         </div>
       )}
     </div>
+
+    <SuccessNotification
+      isOpen={showFulfillSuccess}
+      title={`Order ${fulfilledOrderNumber} Fulfilled!`}
+      message="The order has been fulfilled and the dispatch note has been downloaded."
+      onClose={() => setShowFulfillSuccess(false)}
+      autoCloseDelay={4000}
+    />
   )
 }
 
