@@ -906,16 +906,15 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           </div>
         </div>
       )}
-    </div>
 
-    <SuccessNotification
-      isOpen={showFulfillSuccess}
-      title={`Order ${fulfilledOrderNumber} Fulfilled!`}
-      message="The order has been fulfilled and the dispatch note has been downloaded."
-      onClose={() => setShowFulfillSuccess(false)}
-      autoCloseDelay={4000}
-    />
-    </>
+      <SuccessNotification
+        isOpen={showFulfillSuccess}
+        title={`Order ${fulfilledOrderNumber} Fulfilled!`}
+        message="The order has been fulfilled and the dispatch note has been downloaded."
+        onClose={() => setShowFulfillSuccess(false)}
+        autoCloseDelay={4000}
+      />
+    </div>
   )
 }
 
