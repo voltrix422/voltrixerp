@@ -15,7 +15,16 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const body = await req.json()
   const { id, ...data } = body
-  const staff = await prisma.erpStaff.update({ where: { id }, data })
+  const staff = await prisma.erpStaff.update({ 
+    where: { id }, 
+    data: {
+      ...data,
+      // Handle points, warnings, and lastReset fields properly
+      ...(data.points !== undefined && { points: data.points }),
+      ...(data.warnings !== undefined && { warnings: data.warnings }),
+      ...(data.lastReset !== undefined && { lastReset: data.lastReset ? new Date(data.lastReset) : null })
+    }
+  })
   return NextResponse.json(staff)
 }
 
