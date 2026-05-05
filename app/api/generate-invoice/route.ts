@@ -238,25 +238,6 @@ export async function POST(request: NextRequest) {
       doc.text(noteLines, marginL, y)
     }
 
-    // ── Footer ───────────────────────────────────────────────────────────────
-    const pageCount = doc.getNumberOfPages()
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-
-      // Footer band
-      doc.setFillColor(...teal)
-      doc.rect(0, 282, pageW, 15, 'F')
-
-      doc.setTextColor(...white)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(9)
-      doc.text('Thank you for your business!', pageW / 2, 288, { align: 'center' })
-
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7.5)
-      doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 293, { align: 'center' })
-    }
-
     const pdfBuffer = doc.output('arraybuffer')
 
     return new NextResponse(pdfBuffer, {

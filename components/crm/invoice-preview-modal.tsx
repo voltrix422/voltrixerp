@@ -202,8 +202,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
 
             {/* ── Footer band ── */}
             <div className="bg-[#1a9f9a] px-7 py-3 text-center">
-              <p className="text-white font-semibold text-xs">Thank you for your business!</p>
-              <p className="text-white/60 text-[10px] mt-0.5">
+              <p className="text-white/60 text-[10px]">
                 Prepared by {order.createdBy} · {new Date(order.createdAt).toLocaleDateString()}
               </p>
             </div>
