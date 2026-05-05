@@ -1076,12 +1076,12 @@ export function HrmManager() {
                     <button
                       onClick={() => {
                         if (confirm(`Are you sure you want to reset ${viewMember.name}'s performance points to 100 and clear all warnings? This action cannot be undone.`)) {
-                          const updatedMember = { ...viewMember, points: 100, warnings: [], last_reset: new Date().toISOString() }
+                          const updatedMember = { ...viewMember, points: 100, warnings: [], lastReset: new Date().toISOString() }
                           const resetData = {
                             id: viewMember.id,
                             points: 100,
                             warnings: [],
-                            last_reset: new Date().toISOString()
+                            lastReset: new Date().toISOString()
                           }
                           
                           console.log('Resetting performance points with data:', resetData)
