@@ -198,7 +198,7 @@ export function HrmManager() {
       const lightGray = [245, 245, 245]
       
       // Add header background
-      doc.setFillColor(...primaryColor)
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
       doc.rect(0, 0, 210, 40, 'F')
       
       // Add company name or title in header
@@ -208,17 +208,17 @@ export function HrmManager() {
       doc.text('SALARY SLIP', 105, 25, { align: 'center' })
       
       // Reset text color
-      doc.setTextColor(...textColor)
+      doc.setTextColor(textColor[0], textColor[1], textColor[2])
       
       // Add decorative line
       doc.setLineWidth(2)
-      doc.setDrawColor(...primaryColor)
+      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
       doc.line(20, 50, 190, 50)
       
       // Employee Information Box
-      doc.setFillColor(...lightGray)
+      doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
       doc.roundedRect(20, 60, 170, 50, 3, 3, 'F')
-      doc.setDrawColor(...primaryColor)
+      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
       doc.roundedRect(20, 60, 170, 50, 3, 3, 'S')
       
       doc.setFontSize(11)
@@ -278,20 +278,20 @@ export function HrmManager() {
             doc.setTextColor(200, 0, 0)
           }
           doc.text(amount, 190, currentY, { align: 'right' })
-          doc.setTextColor(...textColor)
+          doc.setTextColor(textColor[0], textColor[1], textColor[2])
           
           currentY += 10
         })
         
         // Line before net salary
         doc.setLineWidth(1)
-        doc.setDrawColor(...primaryColor)
+        doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
         doc.line(20, currentY, 190, currentY)
         currentY += 10
       }
       
       // Net Salary Section - Highlighted
-      doc.setFillColor(...primaryColor)
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
       doc.rect(20, currentY - 8, 170, 25, 'F')
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(16)
@@ -301,7 +301,7 @@ export function HrmManager() {
       doc.text(`${slip.currency} ${slip.netSalary.toLocaleString()}`, 190, currentY + 5, { align: 'right' })
       
       // Reset text color
-      doc.setTextColor(...textColor)
+      doc.setTextColor(textColor[0], textColor[1], textColor[2])
       
       // Footer section
       doc.setFontSize(9)
@@ -1842,7 +1842,7 @@ export function HrmManager() {
                       const lightGray = [245, 245, 245]
                       
                       // Add header background
-                      doc.setFillColor(...primaryColor)
+                      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
                       doc.rect(0, 0, 210, 40, 'F')
                       
                       // Add company name or title in header
@@ -1852,17 +1852,17 @@ export function HrmManager() {
                       doc.text('SALARY SLIP', 105, 25, { align: 'center' })
                       
                       // Reset text color
-                      doc.setTextColor(...textColor)
+                      doc.setTextColor(textColor[0], textColor[1], textColor[2])
                       
                       // Add decorative line
                       doc.setLineWidth(2)
-                      doc.setDrawColor(...primaryColor)
+                      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
                       doc.line(20, 50, 190, 50)
                       
                       // Employee Information Box
-                      doc.setFillColor(...lightGray)
+                      doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
                       doc.roundedRect(20, 60, 170, 50, 3, 3, 'F')
-                      doc.setDrawColor(...primaryColor)
+                      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
                       doc.roundedRect(20, 60, 170, 50, 3, 3, 'S')
                       
                       doc.setFontSize(11)
@@ -1922,20 +1922,20 @@ export function HrmManager() {
                             doc.setTextColor(200, 0, 0)
                           }
                           doc.text(amount, 190, currentY, { align: 'right' })
-                          doc.setTextColor(...textColor)
+                          doc.setTextColor(textColor[0], textColor[1], textColor[2])
                           
                           currentY += 10
                         })
                         
                         // Line before net salary
                         doc.setLineWidth(1)
-                        doc.setDrawColor(...primaryColor)
+                        doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
                         doc.line(20, currentY, 190, currentY)
                         currentY += 10
                       }
                       
                       // Net Salary Section - Highlighted
-                      doc.setFillColor(...primaryColor)
+                      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
                       doc.rect(20, currentY - 8, 170, 25, 'F')
                       doc.setTextColor(255, 255, 255)
                       doc.setFontSize(16)
@@ -1945,7 +1945,7 @@ export function HrmManager() {
                       doc.text(`${viewMember.currency} ${netSalary.toLocaleString()}`, 190, currentY + 5, { align: 'right' })
                       
                       // Reset text color
-                      doc.setTextColor(...textColor)
+                      doc.setTextColor(textColor[0], textColor[1], textColor[2])
                       
                       // Footer section
                       doc.setFontSize(9)
