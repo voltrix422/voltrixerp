@@ -359,3 +359,19 @@ model ErpDispatch {
 
   @@map("erp_dispatches")
 }
+
+model ErpSalarySlip {
+  id               String   @id @default(cuid())
+  staffName        String   @map("staff_name")
+  staffRole        String   @map("staff_role")
+  staffDepartment  String   @map("staff_department")
+  month            String
+  baseSalary       Float    @map("base_salary")
+  currency         String   @default("USD")
+  adjustments      Json     @default("[]")
+  netSalary        Float    @map("net_salary")
+  generatedDate    DateTime @map("generated_date")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("erp_salary_slips")
+}

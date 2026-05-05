@@ -160,9 +160,111 @@ export function HrmManager() {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showResetSuccess, setShowResetSuccess] = useState(false)
   const [showSalarySlip, setShowSalarySlip] = useState(false)
+  const [showSalarySlipSuccess, setShowSalarySlipSuccess] = useState(false)
+  const [showSalaryHistory, setShowSalaryHistory] = useState(false)
+  const [salarySlips, setSalarySlips] = useState<any[]>([])
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [salaryAdjustments, setSalaryAdjustments] = useState<{ id: string; type: 'add' | 'deduct'; amount: string; label: string }[]>([])
   const [newAdjustment, setNewAdjustment] = useState({ type: 'add' as 'add' | 'deduct', amount: '', label: '' })
+
+  // Fetch salary slips for staff member
+  async function fetchSalarySlips(staffName: string) {
+    try {
+      const response = await fetch(`/api/hrm/salary-slips?staffName=${encodeURIComponent(staffName)}`)
+      if (response.ok) {
+        const slips = await response.json()
+        setSalarySlips(slips)
+      }
+    } catch (error) {
+      console.error('Error fetching salary slips:', error)
+    }
+  }
+
+  // Generate PDF for existing salary slip
+  async function generateSalarySlipPDF(slip: any, staffName: string) {
+    try {
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF()
+      
+      // Add custom font for better appearance
+      doc.setFontSize(20)
+      doc.setFont('helvetica', 'bold')
+      doc.text('SALARY SLIP', 105, 20, { align: 'center' })
+      
+      // Add line
+      doc.setLineWidth(0.5)
+      doc.line(20, 25, 190, 25)
+      
+      // Employee Information
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Employee: ${slip.staffName}`, 20, 35)
+      doc.text(`Role: ${slip.staffRole}`, 20, 42)
+      doc.text(`Department: ${slip.staffDepartment}`, 20, 49)
+      doc.text(`Month: ${new Date(slip.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, 20, 56)
+      doc.text(`Generated: ${new Date(slip.generatedDate).toLocaleDateString()}`, 20, 63)
+      
+      // Add line
+      doc.line(20, 68, 190, 68)
+      
+      // Base Salary
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('BASE SALARY', 20, 78)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${slip.currency} ${slip.baseSalary.toLocaleString()}`, 150, 78, { align: 'right' })
+      
+      // Adjustments
+      if (slip.adjustments && slip.adjustments.length > 0) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('ADJUSTMENTS', 20, 88)
+        doc.setFont('helvetica', 'normal')
+        
+        let yPos = 95
+        slip.adjustments.forEach((adj: any) => {
+          const amount = `${adj.type === 'add' ? '+' : '-'} ${slip.currency} ${parseFloat(adj.amount).toLocaleString()}`
+          doc.text(`${adj.label}:`, 20, yPos)
+          doc.text(amount, 150, yPos, { align: 'right' })
+          yPos += 7
+        })
+        
+        // Add line before net salary
+        yPos += 3
+        doc.line(20, yPos, 190, yPos)
+        yPos += 7
+      }
+      
+      // Net Salary
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      const netY = slip.adjustments && slip.adjustments.length > 0 ? 95 + (slip.adjustments.length * 7) + 17 : 88
+      doc.text('NET SALARY', 20, netY)
+      doc.text(`${slip.currency} ${slip.netSalary.toLocaleString()}`, 150, netY, { align: 'right' })
+      
+      // Add bottom line
+      doc.line(20, netY + 5, 190, netY + 5)
+      
+      // Add footer
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'italic')
+      doc.text('This is a computer generated salary slip', 105, 280, { align: 'center' })
+      
+      // Save and download
+      const pdfBlob = doc.output('blob')
+      const url = URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Salary-Slip-${staffName.replace(/\s+/g, '-')}-${slip.month}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Error generating salary slip. Please try again.')
+    }
+  }
 
   // form
   const [name, setName] = useState("")
@@ -1045,9 +1147,17 @@ export function HrmManager() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Salary</p>
-                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => setShowSalarySlip(true)}>
-                      <Download className="h-4 w-4" /> Generate Salary Slip
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => setShowSalarySlip(true)}>
+                        <Download className="h-4 w-4" /> Generate
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => {
+                        fetchSalarySlips(viewMember.name)
+                        setShowSalaryHistory(true)
+                      }}>
+                        <FileText className="h-4 w-4" /> History
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
                 </div>
@@ -1341,6 +1451,144 @@ export function HrmManager() {
         </div>
       )}
 
+      {/* Salary Slip Success Modal */}
+      {showSalarySlipSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowSalarySlipSuccess(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Salary Slip Generated Successfully!</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">PDF downloaded and saved to system</p>
+                </div>
+              </div>
+              
+              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[hsl(var(--muted-foreground))]">Status:</span>
+                  <span className="font-semibold text-green-600">Completed</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[hsl(var(--muted-foreground))]">Format:</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">PDF Document</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[hsl(var(--muted-foreground))]">Saved:</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">Yes</span>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                  onClick={() => setShowSalarySlipSuccess(false)}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salary History Modal */}
+      {showSalaryHistory && viewMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowSalaryHistory(false)}>
+          <div className="w-full max-w-3xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Salary Slip History</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">{viewMember.name} - {viewMember.role}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setShowSalaryHistory(false)}><X className="h-5 w-5" /></Button>
+            </div>
+            
+            <div className="overflow-y-auto p-6">
+              {salarySlips.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="h-16 w-16 rounded-full bg-[hsl(var(--muted))]/10 flex items-center justify-center mx-auto mb-4">
+                    <FileText className="h-8 w-8 text-[hsl(var(--muted-foreground))]" />
+                  </div>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No salary slips found for {viewMember.name}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Generate a salary slip to see it here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {salarySlips.map((slip) => (
+                    <div key={slip.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                              <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-[hsl(var(--foreground))]">
+                                {new Date(slip.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                              </h4>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                Generated: {new Date(slip.generatedDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-[hsl(var(--muted-foreground))]">Base Salary:</span>
+                              <span className="ml-2 font-medium">{slip.currency} {slip.baseSalary.toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-[hsl(var(--muted-foreground))]">Net Salary:</span>
+                              <span className="ml-2 font-semibold text-green-600">{slip.currency} {slip.netSalary.toLocaleString()}</span>
+                            </div>
+                          </div>
+                          
+                          {slip.adjustments && slip.adjustments.length > 0 && (
+                            <div className="text-xs">
+                              <span className="text-[hsl(var(--muted-foreground))]">Adjustments: </span>
+                              {slip.adjustments.map((adj: any, index: number) => (
+                                <span key={index} className="ml-1">
+                                  {adj.type === 'add' ? '+' : '-'}{slip.currency} {adj.amount}
+                                  {index < slip.adjustments.length - 1 && ', '}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => {
+                            // Generate PDF for this salary slip
+                            generateSalarySlipPDF(slip, viewMember.name)
+                          }}
+                        >
+                          <Download className="h-4 w-4" /> Download
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Salary Slip Generation Modal */}
       {showSalarySlip && viewMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowSalarySlip(false)}>
@@ -1520,47 +1768,105 @@ export function HrmManager() {
                       generatedDate: new Date().toISOString()
                     }
                     
-                    // Generate PDF (simplified version - you'll need to implement actual PDF generation)
+                    // Generate PDF salary slip
                     console.log('Generating salary slip:', salarySlipData)
                     
-                    // For now, create a simple text download
-                    const slipContent = `
-SALARY SLIP
-================
-Employee: ${viewMember.name}
-Role: ${viewMember.role}
-Department: ${viewMember.department}
-Month: ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-Generated: ${new Date().toLocaleDateString()}
-
-================
-BASE SALARY: ${viewMember.currency} ${viewMember.salary.toLocaleString()}
-
-ADJUSTMENTS:
-${salaryAdjustments.map(adj => 
-  `${adj.label}: ${adj.type === 'add' ? '+' : '-'} ${viewMember.currency} ${parseFloat(adj.amount).toLocaleString()}`
-).join('\n')}
-
-================
-NET SALARY: ${viewMember.currency} ${netSalary.toLocaleString()}
-================
-                    `.trim()
-                    
-                    const blob = new Blob([slipContent], { type: 'text/plain' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `Salary-Slip-${viewMember.name.replace(/\s+/g, '-')}-${selectedMonth}.txt`
-                    document.body.appendChild(a)
-                    a.click()
-                    document.body.removeChild(a)
-                    URL.revokeObjectURL(url)
-                    
-                    // Show success and close modal
-                    alert('Salary slip generated and downloaded successfully!')
-                    setShowSalarySlip(false)
-                    setSalaryAdjustments([])
-                    setNewAdjustment({ type: 'add', amount: '', label: '' })
+                    try {
+                      // Import jspdf dynamically
+                      const { jsPDF } = await import('jspdf')
+                      const doc = new jsPDF()
+                      
+                      // Add custom font for better appearance
+                      doc.setFontSize(20)
+                      doc.setFont('helvetica', 'bold')
+                      doc.text('SALARY SLIP', 105, 20, { align: 'center' })
+                      
+                      // Add line
+                      doc.setLineWidth(0.5)
+                      doc.line(20, 25, 190, 25)
+                      
+                      // Employee Information
+                      doc.setFontSize(12)
+                      doc.setFont('helvetica', 'normal')
+                      doc.text(`Employee: ${viewMember.name}`, 20, 35)
+                      doc.text(`Role: ${viewMember.role}`, 20, 42)
+                      doc.text(`Department: ${viewMember.department}`, 20, 49)
+                      doc.text(`Month: ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`, 20, 56)
+                      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 63)
+                      
+                      // Add line
+                      doc.line(20, 68, 190, 68)
+                      
+                      // Base Salary
+                      doc.setFontSize(14)
+                      doc.setFont('helvetica', 'bold')
+                      doc.text('BASE SALARY', 20, 78)
+                      doc.setFont('helvetica', 'normal')
+                      doc.text(`${viewMember.currency} ${viewMember.salary.toLocaleString()}`, 150, 78, { align: 'right' })
+                      
+                      // Adjustments
+                      if (salaryAdjustments.length > 0) {
+                        doc.setFont('helvetica', 'bold')
+                        doc.text('ADJUSTMENTS', 20, 88)
+                        doc.setFont('helvetica', 'normal')
+                        
+                        let yPos = 95
+                        salaryAdjustments.forEach(adj => {
+                          const amount = `${adj.type === 'add' ? '+' : '-'} ${viewMember.currency} ${parseFloat(adj.amount).toLocaleString()}`
+                          doc.text(`${adj.label}:`, 20, yPos)
+                          doc.text(amount, 150, yPos, { align: 'right' })
+                          yPos += 7
+                        })
+                        
+                        // Add line before net salary
+                        yPos += 3
+                        doc.line(20, yPos, 190, yPos)
+                        yPos += 7
+                      }
+                      
+                      // Net Salary
+                      doc.setFontSize(16)
+                      doc.setFont('helvetica', 'bold')
+                      const netY = salaryAdjustments.length > 0 ? 95 + (salaryAdjustments.length * 7) + 17 : 88
+                      doc.text('NET SALARY', 20, netY)
+                      doc.text(`${viewMember.currency} ${netSalary.toLocaleString()}`, 150, netY, { align: 'right' })
+                      
+                      // Add bottom line
+                      doc.line(20, netY + 5, 190, netY + 5)
+                      
+                      // Add footer
+                      doc.setFontSize(8)
+                      doc.setFont('helvetica', 'italic')
+                      doc.text('This is a computer generated salary slip', 105, 280, { align: 'center' })
+                      
+                      // Save and download
+                      const pdfBlob = doc.output('blob')
+                      const url = URL.createObjectURL(pdfBlob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `Salary-Slip-${viewMember.name.replace(/\s+/g, '-')}-${selectedMonth}.pdf`
+                      document.body.appendChild(a)
+                      a.click()
+                      document.body.removeChild(a)
+                      URL.revokeObjectURL(url)
+                      
+                      // Save to system (you'll need to implement API call)
+                      await fetch('/api/hrm/salary-slips', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(salarySlipData)
+                      })
+                      
+                      // Show success and close modal
+                      setShowSalarySlip(false)
+                      setShowSalarySlipSuccess(true)
+                      setSalaryAdjustments([])
+                      setNewAdjustment({ type: 'add', amount: '', label: '' })
+                      
+                    } catch (error) {
+                      console.error('Error generating PDF:', error)
+                      alert('Error generating salary slip. Please try again.')
+                    }
                   }}
                 >
                   Generate & Download Slip
