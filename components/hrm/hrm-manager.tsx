@@ -159,6 +159,10 @@ export function HrmManager() {
   const [showFilters, setShowFilters] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showResetSuccess, setShowResetSuccess] = useState(false)
+  const [showSalarySlip, setShowSalarySlip] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [salaryAdjustments, setSalaryAdjustments] = useState<{ id: string; type: 'add' | 'deduct'; amount: string; label: string }[]>([])
+  const [newAdjustment, setNewAdjustment] = useState({ type: 'add' as 'add' | 'deduct', amount: '', label: '' })
 
   // form
   const [name, setName] = useState("")
@@ -1039,7 +1043,12 @@ export function HrmManager() {
               {/* Salary */}
               {viewMember.salary > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Salary</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Salary</p>
+                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => setShowSalarySlip(true)}>
+                      <Download className="h-4 w-4" /> Generate Salary Slip
+                    </Button>
+                  </div>
                   <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
                 </div>
               )}
@@ -1325,6 +1334,236 @@ export function HrmManager() {
                   onClick={() => setShowResetSuccess(false)}
                 >
                   Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salary Slip Generation Modal */}
+      {showSalarySlip && viewMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowSalarySlip(false)}>
+          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Generate Salary Slip</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">{viewMember.name} - {viewMember.role}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setShowSalarySlip(false)}><X className="h-5 w-5" /></Button>
+            </div>
+            
+            <div className="overflow-y-auto p-6 space-y-6">
+              {/* Month Selection */}
+              <div>
+                <label className="text-sm font-medium text-[hsl(var(--foreground))] mb-2 block">Select Month</label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                />
+              </div>
+
+              {/* Base Salary */}
+              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+                <h4 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Base Salary</h4>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[hsl(var(--muted-foreground))]">Monthly Salary</span>
+                  <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Adjustments */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-[hsl(var(--foreground))]">Adjustments</h4>
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">Add bonuses or deductions</span>
+                </div>
+                
+                {/* Add Adjustment Form */}
+                <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={newAdjustment.type}
+                      onChange={(e) => setNewAdjustment(prev => ({ ...prev, type: e.target.value as 'add' | 'deduct' }))}
+                      className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                    >
+                      <option value="add">+ Add</option>
+                      <option value="deduct">- Deduct</option>
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Amount"
+                      value={newAdjustment.amount}
+                      onChange={(e) => setNewAdjustment(prev => ({ ...prev, amount: e.target.value }))}
+                      className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Label (e.g., Overtime)"
+                      value={newAdjustment.label}
+                      onChange={(e) => setNewAdjustment(prev => ({ ...prev, label: e.target.value }))}
+                      className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      if (newAdjustment.amount && newAdjustment.label) {
+                        setSalaryAdjustments(prev => [...prev, {
+                          id: Date.now().toString(),
+                          type: newAdjustment.type,
+                          amount: newAdjustment.amount,
+                          label: newAdjustment.label
+                        }])
+                        setNewAdjustment({ type: 'add', amount: '', label: '' })
+                      }
+                    }}
+                    disabled={!newAdjustment.amount || !newAdjustment.label}
+                  >
+                    Add Adjustment
+                  </Button>
+                </div>
+
+                {/* Adjustments List */}
+                {salaryAdjustments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {salaryAdjustments.map(adj => (
+                      <div key={adj.id} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+                        <div className="flex items-center gap-3">
+                          <span className={`text-sm font-semibold ${adj.type === 'add' ? 'text-green-600' : 'text-red-600'}`}>
+                            {adj.type === 'add' ? '+' : '-'} {viewMember.currency} {parseFloat(adj.amount).toLocaleString()}
+                          </span>
+                          <span className="text-sm text-[hsl(var(--muted-foreground))]">{adj.label}</span>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-red-400 hover:text-red-600"
+                          onClick={() => setSalaryAdjustments(prev => prev.filter(a => a.id !== adj.id))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+                <h4 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Salary Summary</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))]">Base Salary</span>
+                    <span className="font-medium">{viewMember.currency} {viewMember.salary.toLocaleString()}</span>
+                  </div>
+                  {salaryAdjustments.map(adj => (
+                    <div key={adj.id} className="flex items-center justify-between text-sm">
+                      <span className="text-[hsl(var(--muted-foreground))]">{adj.label}</span>
+                      <span className={`font-medium ${adj.type === 'add' ? 'text-green-600' : 'text-red-600'}`}>
+                        {adj.type === 'add' ? '+' : '-'} {viewMember.currency} {parseFloat(adj.amount).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t border-[hsl(var(--border))]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-[hsl(var(--foreground))]">Net Salary</span>
+                      <span className="text-lg font-bold text-[hsl(var(--foreground))]">
+                        {viewMember.currency} {
+                          (viewMember.salary + salaryAdjustments.reduce((sum, adj) => {
+                            return sum + (adj.type === 'add' ? parseFloat(adj.amount) : -parseFloat(adj.amount))
+                          }, 0)).toLocaleString()
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => {
+                  setShowSalarySlip(false)
+                  setSalaryAdjustments([])
+                  setNewAdjustment({ type: 'add', amount: '', label: '' })
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                  onClick={async () => {
+                    // Generate salary slip PDF
+                    const netSalary = viewMember.salary + salaryAdjustments.reduce((sum, adj) => {
+                      return sum + (adj.type === 'add' ? parseFloat(adj.amount) : -parseFloat(adj.amount))
+                    }, 0)
+                    
+                    // Create salary slip data
+                    const salarySlipData = {
+                      staffName: viewMember.name,
+                      staffRole: viewMember.role,
+                      staffDepartment: viewMember.department,
+                      month: selectedMonth,
+                      baseSalary: viewMember.salary,
+                      currency: viewMember.currency,
+                      adjustments: salaryAdjustments,
+                      netSalary: netSalary,
+                      generatedDate: new Date().toISOString()
+                    }
+                    
+                    // Generate PDF (simplified version - you'll need to implement actual PDF generation)
+                    console.log('Generating salary slip:', salarySlipData)
+                    
+                    // For now, create a simple text download
+                    const slipContent = `
+SALARY SLIP
+================
+Employee: ${viewMember.name}
+Role: ${viewMember.role}
+Department: ${viewMember.department}
+Month: ${new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+Generated: ${new Date().toLocaleDateString()}
+
+================
+BASE SALARY: ${viewMember.currency} ${viewMember.salary.toLocaleString()}
+
+ADJUSTMENTS:
+${salaryAdjustments.map(adj => 
+  `${adj.label}: ${adj.type === 'add' ? '+' : '-'} ${viewMember.currency} ${parseFloat(adj.amount).toLocaleString()}`
+).join('\n')}
+
+================
+NET SALARY: ${viewMember.currency} ${netSalary.toLocaleString()}
+================
+                    `.trim()
+                    
+                    const blob = new Blob([slipContent], { type: 'text/plain' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `Salary-Slip-${viewMember.name.replace(/\s+/g, '-')}-${selectedMonth}.txt`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                    
+                    // Show success and close modal
+                    alert('Salary slip generated and downloaded successfully!')
+                    setShowSalarySlip(false)
+                    setSalaryAdjustments([])
+                    setNewAdjustment({ type: 'add', amount: '', label: '' })
+                  }}
+                >
+                  Generate & Download Slip
                 </Button>
               </div>
             </div>
