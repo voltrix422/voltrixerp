@@ -157,6 +157,8 @@ export function HrmManager() {
   const [filterDept, setFilterDept] = useState("All")
   const [filterStatus, setFilterStatus] = useState("All")
   const [showFilters, setShowFilters] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [showResetSuccess, setShowResetSuccess] = useState(false)
 
   // form
   const [name, setName] = useState("")
@@ -1074,53 +1076,7 @@ export function HrmManager() {
                       +5
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to reset ${viewMember.name}'s performance points to 100 and clear all warnings? This action cannot be undone.`)) {
-                          const updatedMember = { ...viewMember, points: 100, warnings: [], lastReset: new Date().toISOString() }
-                          const resetData = {
-                            id: viewMember.id,
-                            points: 100,
-                            warnings: [],
-                            lastReset: new Date().toISOString()
-                          }
-                          
-                          console.log('Resetting performance points with data:', resetData)
-                          
-                          // Update in database
-                          fetch('/api/hrm/staff', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(resetData)
-                          }).then(async res => {
-                            console.log('API response status:', res.status)
-                            const responseText = await res.text()
-                            console.log('API response text:', responseText)
-                            
-                            if (res.ok) {
-                              try {
-                                const updatedStaff = JSON.parse(responseText)
-                                console.log('Successfully updated staff:', updatedStaff)
-                              // Update local state
-                              setStaff(prev => prev.map(s => s.id === viewMember.id ? updatedMember : s))
-                              setViewMember(updatedMember)
-                              alert('Performance points reset successfully!')
-                            } catch (parseError) {
-                              console.error('Error parsing response:', parseError)
-                              alert('Performance points reset successfully!')
-                              // Update local state anyway
-                              setStaff(prev => prev.map(s => s.id === viewMember.id ? updatedMember : s))
-                              setViewMember(updatedMember)
-                            }
-                            } else {
-                              console.error('API error response:', responseText)
-                              alert(`Failed to reset performance points: ${responseText}`)
-                            }
-                          }).catch(error => {
-                            console.error('Error resetting points:', error)
-                            alert(`Failed to reset performance points: ${error.message}`)
-                          })
-                        }
-                      }}
+                      onClick={() => setShowResetConfirm(true)}
                       className="h-8 px-3 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors"
                     >
                       Reset Performance
@@ -1229,6 +1185,149 @@ export function HrmManager() {
             >
               <X className="h-6 w-6" />
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && viewMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowResetConfirm(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.502 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Reset Performance Points</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">This action cannot be undone</p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <p className="text-sm text-[hsl(var(--foreground))]">
+                  Are you sure you want to reset <span className="font-semibold">{viewMember.name}</span>'s performance points to 100 and clear all warnings?
+                </p>
+                <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))]">Current Points:</span>
+                    <span className="font-semibold text-[hsl(var(--foreground))]">{viewMember.points || 100}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))]">Current Warnings:</span>
+                    <span className="font-semibold text-[hsl(var(--foreground))]">{viewMember.warnings?.length || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm pt-2 border-t border-[hsl(var(--border))]">
+                    <span className="text-[hsl(var(--muted-foreground))]">After Reset:</span>
+                    <span className="font-semibold text-green-600">100 Points, 0 Warnings</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => setShowResetConfirm(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                  onClick={async () => {
+                    const updatedMember = { ...viewMember, points: 100, warnings: [], lastReset: new Date().toISOString() }
+                    const resetData = {
+                      id: viewMember.id,
+                      points: 100,
+                      warnings: [],
+                      lastReset: new Date().toISOString()
+                    }
+                    
+                    console.log('Resetting performance points with data:', resetData)
+                    
+                    // Update in database
+                    fetch('/api/hrm/staff', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(resetData)
+                    }).then(async res => {
+                      console.log('API response status:', res.status)
+                      const responseText = await res.text()
+                      console.log('API response text:', responseText)
+                      
+                      if (res.ok) {
+                        try {
+                          const updatedStaff = JSON.parse(responseText)
+                          console.log('Successfully updated staff:', updatedStaff)
+                          // Update local state
+                          setStaff(prev => prev.map(s => s.id === viewMember.id ? updatedMember : s))
+                          setViewMember(updatedMember)
+                        } catch (parseError) {
+                          console.error('Error parsing response:', parseError)
+                          // Update local state anyway
+                          setStaff(prev => prev.map(s => s.id === viewMember.id ? updatedMember : s))
+                          setViewMember(updatedMember)
+                        }
+                        // Show success modal
+                        setShowResetConfirm(false)
+                        setShowResetSuccess(true)
+                      } else {
+                        console.error('API error response:', responseText)
+                        alert(`Failed to reset performance points: ${responseText}`)
+                      }
+                    }).catch(error => {
+                      console.error('Error resetting points:', error)
+                      alert(`Failed to reset performance points: ${error.message}`)
+                    })
+                  }}
+                >
+                  Reset Performance
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Success Modal */}
+      {showResetSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowResetSuccess(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Performance Points Reset Successfully!</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">Staff member's performance has been restored</p>
+                </div>
+              </div>
+              
+              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[hsl(var(--muted-foreground))]">New Points:</span>
+                  <span className="font-semibold text-green-600">100</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[hsl(var(--muted-foreground))]">Warnings Cleared:</span>
+                  <span className="font-semibold text-green-600">0</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[hsl(var(--muted-foreground))]">Reset Date:</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">{new Date().toLocaleDateString()}</span>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                  onClick={() => setShowResetSuccess(false)}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}
