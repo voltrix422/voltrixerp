@@ -1073,6 +1073,38 @@ export function HrmManager() {
                     >
                       +5
                     </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to reset ${viewMember.name}'s performance points to 100 and clear all warnings? This action cannot be undone.`)) {
+                          const updatedMember = { ...viewMember, points: 100, warnings: [], last_reset: new Date().toISOString() }
+                          // Update in database
+                          fetch('/api/hrm/staff', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              id: viewMember.id,
+                              points: 100,
+                              warnings: [],
+                              last_reset: new Date().toISOString()
+                            })
+                          }).then(res => {
+                            if (res.ok) {
+                              // Update local state
+                              setStaff(prev => prev.map(s => s.id === viewMember.id ? updatedMember : s))
+                              setViewMember(updatedMember)
+                            } else {
+                              alert('Failed to reset performance points. Please try again.')
+                            }
+                          }).catch(error => {
+                            console.error('Error resetting points:', error)
+                            alert('Failed to reset performance points. Please try again.')
+                          })
+                        }
+                      }}
+                      className="h-8 px-3 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors"
+                    >
+                      Reset Performance
+                    </button>
                   </div>
                 </div>
               </div>
