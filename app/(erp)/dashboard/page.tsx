@@ -342,10 +342,6 @@ function ERPStats() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const [pendingCount, setPendingCount] = useState(0)
-  const [openFirstPending, setOpenFirstPending] = useState<(() => void) | null>(null)
-  const [activeTab, setActiveTab] = useState<"orders" | "pos">("orders")
-  const [showFilters, setShowFilters] = useState(false)
 
   if (!user) return null
 
@@ -364,8 +360,6 @@ export default function DashboardPage() {
         title="Dashboard"
         description={`Welcome, ${user.name}`}
         action={<UsersPanel />}
-        pendingCount={pendingCount}
-        onPendingClick={() => openFirstPending?.()}
       />
       <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
         <div className="p-8 max-w-7xl">
@@ -373,57 +367,9 @@ export default function DashboardPage() {
           {/* ERP Stats Overview */}
           <ERPStats />
 
-          {/* Tabs */}
-          <div className="flex items-center justify-between mb-2 px-6 border-b border-[hsl(var(--border))]/50">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setActiveTab("orders")}
-                className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
-                  activeTab === "orders"
-                    ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                }`}
-              >
-                Client Orders
-                {activeTab === "orders" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab("pos")}
-                className={`px-4 py-3 text-sm font-medium transition-colors relative cursor-pointer ${
-                  activeTab === "pos"
-                    ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                }`}
-              >
-                Purchase Orders
-                {activeTab === "pos" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />
-                )}
-              </button>
-            </div>
-            {activeTab === "pos" && (
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="p-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Tab Content */}
+          {/* Client Orders Section */}
           <div className="bg-[hsl(var(--card))] p-6 rounded-xl mt-2">
-            {activeTab === "orders" && <ClientOrdersApproval />}
-            {activeTab === "pos" && (
-              <POsWidget showFilters={showFilters} setShowFilters={setShowFilters} onPendingChange={(count, openFirst) => {
-                setPendingCount(count)
-                setOpenFirstPending(() => openFirst)
-              }} />
-            )}
+            <ClientOrdersApproval />
           </div>
         </div>
       </div>
