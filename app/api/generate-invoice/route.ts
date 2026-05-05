@@ -4,11 +4,45 @@ import autoTable from 'jspdf-autotable'
 import fs from 'fs'
 import path from 'path'
 
+// Load Geist font once at module level
+function loadFont(filename: string): string {
+  try {
+    const fontPath = path.join(process.cwd(), 'public', filename)
+    if (fs.existsSync(fontPath)) {
+      return fs.readFileSync(fontPath).toString('base64')
+    }
+  } catch {}
+  return ''
+}
+
+const geistRegularB64 = loadFont('Geist-Regular.ttf')
+const geistBoldB64    = loadFont('Geist-Bold.ttf')
+const geistMediumB64  = loadFont('Geist-Medium.ttf')
+
+function registerGeist(doc: jsPDF) {
+  if (geistRegularB64) {
+    doc.addFileToVFS('Geist-Regular.ttf', geistRegularB64)
+    doc.addFont('Geist-Regular.ttf', 'Geist', 'normal')
+  }
+  if (geistBoldB64) {
+    doc.addFileToVFS('Geist-Bold.ttf', geistBoldB64)
+    doc.addFont('Geist-Bold.ttf', 'Geist', 'bold')
+  }
+  if (geistMediumB64) {
+    doc.addFileToVFS('Geist-Medium.ttf', geistMediumB64)
+    doc.addFont('Geist-Medium.ttf', 'GeistMedium', 'normal')
+  }
+}
+
+const FONT = geistRegularB64 ? 'Geist' : FONT
+
 export async function POST(request: NextRequest) {
   try {
     const order = await request.json()
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    registerGeist(doc)
+    doc.setFont(FONT, 'normal')
 
     // ── Palette ──────────────────────────────────────────────────────────────
     const teal:      [number,number,number] = [26, 159, 154]
@@ -41,21 +75,21 @@ export async function POST(request: NextRequest) {
 
     // Company info
     doc.setTextColor(...white)
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(FONT, 'bold')
     doc.setFontSize(15)
     doc.text('VOLTRIX BATTERIES', mL + 32, 14)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(FONT, 'normal')
     doc.setFontSize(7.5)
     doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', mL + 32, 20)
     doc.text('Phone: 051-8731661  |  Mobile: +92 303 4927779', mL + 32, 25)
     doc.text('Email: info@voltrix-power.com  |  www.voltrixbatteries.com', mL + 32, 30)
 
     // INVOICE label (top-right)
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(FONT, 'bold')
     doc.setFontSize(24)
     doc.text('INVOICE', pageW - mR, 20, { align: 'right' })
     doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(FONT, 'normal')
     doc.text(order.orderNumber, pageW - mR, 27, { align: 'right' })
 
     // ── Meta band ────────────────────────────────────────────────────────────
@@ -71,11 +105,11 @@ export async function POST(request: NextRequest) {
     const colW = (pageW - mL - mR) / metaItems.length
     metaItems.forEach((m, i) => {
       const x = mL + i * colW
-      doc.setFont('helvetica', 'bold')
+      doc.setFont(FONT, 'bold')
       doc.setFontSize(7)
       doc.setTextColor(180, 230, 228)
       doc.text(m.label, x, 48)
-      doc.setFont('helvetica', 'normal')
+      doc.setFont(FONT, 'normal')
       doc.setFontSize(8.5)
       doc.setTextColor(...white)
       doc.text(m.value, x, 54)
@@ -84,7 +118,7 @@ export async function POST(request: NextRequest) {
     // ── Bill To section ──────────────────────────────────────────────────────
     let y = 66
     doc.setTextColor(...teal)
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(FONT, 'bold')
     doc.setFontSize(8)
     doc.text('BILL TO', mL, y)
     doc.setDrawColor(...teal)
@@ -93,13 +127,13 @@ export async function POST(request: NextRequest) {
 
     y += 6
     doc.setTextColor(...black)
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(FONT, 'bold')
     doc.setFontSize(12)
     doc.text(order.clientName || '—', mL, y)
 
     if (order.deliveryAddress) {
       y += 5
-      doc.setFont('helvetica', 'normal')
+      doc.setFont(FONT, 'normal')
       doc.setFontSize(9)
       doc.setTextColor(...darkGray)
       const addrLines = doc.splitTextToSize(order.deliveryAddress, 90)
@@ -129,11 +163,13 @@ export async function POST(request: NextRequest) {
         textColor: white,
         fontStyle: 'bold',
         fontSize: 8.5,
+        font: FONT,
         cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
       },
       bodyStyles: {
         fontSize: 9,
         textColor: black,
+        font: FONT,
         cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
       },
       alternateRowStyles: { fillColor: rowAlt },
@@ -156,12 +192,20 @@ export async function POST(request: NextRequest) {
     const totW = 82
     const totX = pageW - mR - totW
 
-    // Calculate discount value
-    const discountValue = order.discountValue ?? (
-      order.discountIsPercentage
-        ? (Number(order.subtotal) * (Number(order.discount) || 0) / 100)
-        : (Number(order.discount) || 0)
-    )
+    // Calculate discount value — handle legacy orders where discountIsPercentage may be missing
+    const rawDiscount = Number(order.discount) || 0
+    let discountValue: number
+    if (order.discountValue !== undefined && order.discountValue !== null && Number(order.discountValue) > 0) {
+      discountValue = Number(order.discountValue)
+    } else if (order.discountIsPercentage === true) {
+      discountValue = Number(order.subtotal) * rawDiscount / 100
+    } else if (order.discountIsPercentage === false) {
+      discountValue = rawDiscount
+    } else {
+      // Legacy order: if discount <= 100 treat as percentage, otherwise flat
+      discountValue = rawDiscount <= 100 ? Number(order.subtotal) * rawDiscount / 100 : rawDiscount
+    }
+    const discountLabel = `Discount${rawDiscount > 0 && rawDiscount <= 100 ? ` (${rawDiscount}%)` : ""}`
     const transportVal = order.transportCostValue ?? order.transportCost ?? 0
     const otherVal = order.otherCostValue ?? order.otherCost ?? 0
 
@@ -170,7 +214,7 @@ export async function POST(request: NextRequest) {
     const rows: TRow[] = []
     rows.push({ label: 'Subtotal', value: `PKR ${Number(order.subtotal).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (discountValue > 0)
-      rows.push({ label: `Discount${order.discountIsPercentage && order.discount ? ` (${order.discount}%)` : ""}`, value: `-PKR ${Number(discountValue).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
+      rows.push({ label: discountLabel, value: `-PKR ${Number(discountValue).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
     if (order.taxPercent > 0)
       rows.push({ label: `Tax (${order.taxPercent}%)`, value: `PKR ${Number(order.tax).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (transportVal > 0)
@@ -187,7 +231,7 @@ export async function POST(request: NextRequest) {
 
     let ry = y + 6
     rows.forEach(row => {
-      doc.setFont('helvetica', 'normal')
+      doc.setFont(FONT, 'normal')
       doc.setFontSize(8.5)
       doc.setTextColor(...(row.color || darkGray))
       doc.text(row.label, totX + 4, ry)
@@ -205,7 +249,7 @@ export async function POST(request: NextRequest) {
     // Total row
     doc.setFillColor(...teal)
     doc.roundedRect(totX, ry - 4, totW, 12, 2, 2, 'F')
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(FONT, 'bold')
     doc.setFontSize(11)
     doc.setTextColor(...white)
     doc.text('TOTAL', totX + 4, ry + 4)
@@ -215,7 +259,7 @@ export async function POST(request: NextRequest) {
     if (order.notes) {
       y = ry + 16
       doc.setTextColor(...teal)
-      doc.setFont('helvetica', 'bold')
+      doc.setFont(FONT, 'bold')
       doc.setFontSize(8)
       doc.text('NOTES', mL, y)
       doc.setDrawColor(...teal)
@@ -223,7 +267,7 @@ export async function POST(request: NextRequest) {
       doc.line(mL, y + 1, mL + 18, y + 1)
       y += 6
       doc.setTextColor(...darkGray)
-      doc.setFont('helvetica', 'normal')
+      doc.setFont(FONT, 'normal')
       doc.setFontSize(9)
       const noteLines = doc.splitTextToSize(order.notes, pageW - mL - mR - totW - 10)
       doc.text(noteLines, mL, y)
@@ -238,7 +282,7 @@ export async function POST(request: NextRequest) {
       const badgeY = ry + 16
       doc.setFillColor(balance <= 0 ? 34 : 255, balance <= 0 ? 139 : 165, balance <= 0 ? 34 : 0)
       doc.roundedRect(mL, badgeY - 4, 60, 10, 2, 2, 'F')
-      doc.setFont('helvetica', 'bold')
+      doc.setFont(FONT, 'bold')
       doc.setFontSize(9)
       doc.setTextColor(...white)
       doc.text(balance <= 0 ? '✓ PAID IN FULL' : `Balance: PKR ${balance.toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, mL + 4, badgeY + 2)
@@ -248,11 +292,11 @@ export async function POST(request: NextRequest) {
     const pageH = doc.internal.pageSize.getHeight()
     doc.setFillColor(...teal)
     doc.rect(0, pageH - 18, pageW, 18, 'F')
-    doc.setFont('helvetica', 'bold')
+    doc.setFont(FONT, 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...white)
     doc.text('Thank you for your business!', pageW / 2, pageH - 11, { align: 'center' })
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(FONT, 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(200, 235, 234)
     doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, pageH - 6, { align: 'center' })

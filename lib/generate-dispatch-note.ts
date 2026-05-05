@@ -2,12 +2,37 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Order } from "@/lib/orders"
 
+// ── Font helpers (client-side: fetch from /public) ─────────────────────────
+async function loadFontBase64(url: string): Promise<string> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return ""
+    const buf = await res.arrayBuffer()
+    let binary = ""
+    const bytes = new Uint8Array(buf)
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+    return btoa(binary)
+  } catch { return "" }
+}
+
+async function registerGeist(doc: jsPDF): Promise<string> {
+  const [reg, bold] = await Promise.all([
+    loadFontBase64("/Geist-Regular.ttf"),
+    loadFontBase64("/Geist-Bold.ttf"),
+  ])
+  if (reg)  { doc.addFileToVFS("Geist-Regular.ttf", reg);  doc.addFont("Geist-Regular.ttf", "Geist", "normal") }
+  if (bold) { doc.addFileToVFS("Geist-Bold.ttf",    bold); doc.addFont("Geist-Bold.ttf",    "Geist", "bold")   }
+  return reg ? "Geist" : FONT
+}
+
 export async function generateDispatchNotePDF(
   order: Order,
   dispatcherName?: string,
   dispatchDate?: string
 ): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
+  const FONT = await registerGeist(doc)
+  doc.setFont(FONT, "normal")
 
   // ── Palette ────────────────────────────────────────────────────────────────
   const teal:     [number,number,number] = [26, 159, 154]
@@ -42,21 +67,21 @@ export async function generateDispatchNotePDF(
 
   // Company info
   doc.setTextColor(...white)
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(15)
   doc.text("VOLTRIX BATTERIES", mL + 32, 14)
-  doc.setFont("helvetica", "normal")
+  doc.setFont(FONT, "normal")
   doc.setFontSize(7.5)
   doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", mL + 32, 20)
   doc.text("Phone: 051-8731661  |  Mobile: +92 303 4927779", mL + 32, 25)
   doc.text("Email: info@voltrix-power.com  |  www.voltrixbatteries.com", mL + 32, 30)
 
   // DISPATCH NOTE label (top-right)
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(20)
   doc.text("DISPATCH NOTE", pageW - mR, 19, { align: "right" })
   doc.setFontSize(8.5)
-  doc.setFont("helvetica", "normal")
+  doc.setFont(FONT, "normal")
   doc.text(`DN-${order.orderNumber}`, pageW - mR, 26, { align: "right" })
 
   // ── Meta band ──────────────────────────────────────────────────────────────
@@ -78,11 +103,11 @@ export async function generateDispatchNotePDF(
   const colW = (pageW - mL - mR) / metaItems.length
   metaItems.forEach((m, i) => {
     const x = mL + i * colW
-    doc.setFont("helvetica", "bold")
+    doc.setFont(FONT, "bold")
     doc.setFontSize(6.5)
     doc.setTextColor(180, 230, 228)
     doc.text(m.label, x, 48)
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.setFontSize(8)
     doc.setTextColor(...white)
     doc.text(m.value, x, 54)
@@ -91,7 +116,7 @@ export async function generateDispatchNotePDF(
   // ── Client + Delivery Address ──────────────────────────────────────────────
   let y = 66
   doc.setTextColor(...teal)
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(8)
   doc.text("DELIVER TO", mL, y)
   doc.setDrawColor(...teal)
@@ -100,13 +125,13 @@ export async function generateDispatchNotePDF(
 
   y += 6
   doc.setTextColor(...black)
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(12)
   doc.text(order.clientName || "—", mL, y)
 
   if (order.deliveryAddress) {
     y += 5
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.setFontSize(9)
     doc.setTextColor(...darkGray)
     const addrLines = doc.splitTextToSize(order.deliveryAddress, 90)
@@ -136,11 +161,13 @@ export async function generateDispatchNotePDF(
       textColor: white,
       fontStyle: "bold",
       fontSize: 8.5,
+      font: FONT,
       cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
     },
     bodyStyles: {
       fontSize: 9,
       textColor: black,
+      font: FONT,
       cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
     },
     alternateRowStyles: { fillColor: rowAlt },
@@ -178,7 +205,7 @@ export async function generateDispatchNotePDF(
   doc.setFillColor(...teal)
   doc.roundedRect(mL, y, leftW, 8, 2, 2, "F")
   doc.rect(mL, y + 4, leftW, 4, "F") // flatten bottom corners of header
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(8)
   doc.setTextColor(...white)
   doc.text("ORDER INFORMATION", mL + leftW / 2, y + 5.5, { align: "center" })
@@ -193,10 +220,10 @@ export async function generateDispatchNotePDF(
   doc.setFontSize(8.5)
   infoRows.forEach(([label, val], i) => {
     const ry = y + 14 + i * 8
-    doc.setFont("helvetica", "bold")
+    doc.setFont(FONT, "bold")
     doc.setTextColor(...darkGray)
     doc.text(label, mL + 4, ry)
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.setTextColor(...black)
     doc.text(val, mL + leftW - 4, ry, { align: "right" })
   })
@@ -217,7 +244,7 @@ export async function generateDispatchNotePDF(
   doc.setFillColor(...teal)
   doc.roundedRect(rightX, y, rightW, 8, 2, 2, "F")
   doc.rect(rightX, y + 4, rightW, 4, "F")
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(8)
   doc.setTextColor(...white)
   doc.text("PAYMENT SUMMARY", rightX + rightW / 2, y + 5.5, { align: "center" })
@@ -237,7 +264,7 @@ export async function generateDispatchNotePDF(
 
   let ry2 = y + 14
   payRows.forEach(row => {
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.setFontSize(8.5)
     doc.setTextColor(...(row.color || darkGray))
     doc.text(row.label, rightX + 4, ry2)
@@ -250,7 +277,7 @@ export async function generateDispatchNotePDF(
   const totalY = y + boxH - 12
   doc.setFillColor(...teal)
   doc.roundedRect(rightX + 2, totalY - 3, rightW - 4, 10, 1.5, 1.5, "F")
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(10)
   doc.setTextColor(...white)
   doc.text("TOTAL", rightX + 6, totalY + 4)
@@ -262,11 +289,11 @@ export async function generateDispatchNotePDF(
     doc.setFillColor(...lightBg)
     doc.setDrawColor(...lightGray)
     doc.roundedRect(mL, y, pageW - mL - mR, 16, 2, 2, "FD")
-    doc.setFont("helvetica", "bold")
+    doc.setFont(FONT, "bold")
     doc.setFontSize(7.5)
     doc.setTextColor(...darkGray)
     doc.text("NOTES", mL + 4, y + 5)
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.setFontSize(8.5)
     doc.setTextColor(...black)
     const noteLines = doc.splitTextToSize(order.notes, pageW - mL - mR - 8)
@@ -286,12 +313,12 @@ export async function generateDispatchNotePDF(
   doc.setFillColor(...teal)
   doc.roundedRect(mL, y, sigBoxW, 7, 2, 2, "F")
   doc.rect(mL, y + 3, sigBoxW, 4, "F")
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(8)
   doc.setTextColor(...white)
   doc.text("DISPATCHER", mL + sigBoxW / 2, y + 5, { align: "center" })
 
-  doc.setFont("helvetica", "normal")
+  doc.setFont(FONT, "normal")
   doc.setFontSize(8.5)
   doc.setTextColor(...black)
   doc.text(`Name: ${dispatcherName || order.dispatcher || "—"}`, mL + 4, y + 14)
@@ -305,12 +332,12 @@ export async function generateDispatchNotePDF(
   doc.setFillColor(...teal)
   doc.roundedRect(rx, y, sigBoxW, 7, 2, 2, "F")
   doc.rect(rx, y + 3, sigBoxW, 4, "F")
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(8)
   doc.setTextColor(...white)
   doc.text("RECEIVER", rx + sigBoxW / 2, y + 5, { align: "center" })
 
-  doc.setFont("helvetica", "normal")
+  doc.setFont(FONT, "normal")
   doc.setFontSize(8.5)
   doc.setTextColor(...darkGray)
   doc.text("Name: _______________________", rx + 4, y + 14)
@@ -325,11 +352,11 @@ export async function generateDispatchNotePDF(
   // ── Footer ─────────────────────────────────────────────────────────────────
   doc.setFillColor(...teal)
   doc.rect(0, pageH - 18, pageW, 18, "F")
-  doc.setFont("helvetica", "bold")
+  doc.setFont(FONT, "bold")
   doc.setFontSize(8.5)
   doc.setTextColor(...white)
   doc.text("Please verify all items and amounts upon delivery.", pageW / 2, pageH - 11, { align: "center" })
-  doc.setFont("helvetica", "normal")
+  doc.setFont(FONT, "normal")
   doc.setFontSize(7)
   doc.setTextColor(200, 235, 234)
   doc.text(

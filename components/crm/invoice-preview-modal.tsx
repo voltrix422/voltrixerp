@@ -16,11 +16,22 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
   const transport = order.transportCostValue ?? order.transportCost ?? 0
   const otherCost = order.otherCostValue ?? order.otherCost ?? 0
 
-  // Correct discount calculation
-  const discountValue = order.discountValue ??
-    (order.discountIsPercentage
-      ? (subtotal * (order.discount || 0)) / 100
-      : (order.discount || 0))
+  // Correct discount calculation:
+  // discountValue = already-calculated PKR amount (preferred)
+  // If missing, check discountIsPercentage flag
+  // If flag also missing (old orders), infer: if discount <= 100 AND tax matches percentage calc, treat as percentage
+  const rawDiscount = order.discount || 0
+  let discountValue: number
+  if (order.discountValue !== undefined && order.discountValue !== null) {
+    discountValue = order.discountValue
+  } else if (order.discountIsPercentage === true) {
+    discountValue = subtotal * rawDiscount / 100
+  } else if (order.discountIsPercentage === false) {
+    discountValue = rawDiscount
+  } else {
+    // Legacy order — infer from context: if discount ≤ 100 treat as percentage
+    discountValue = rawDiscount <= 100 ? subtotal * rawDiscount / 100 : rawDiscount
+  }
 
   const total      = order.total ?? 0
   const totalPaid  = (order.payments || []).reduce((s, p) => s + p.amount, 0)
@@ -139,7 +150,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                   </div>
                   {discountValue > 0 && (
                     <div className="flex justify-between text-xs text-red-600">
-                      <span>Discount{order.discountIsPercentage && order.discount ? ` (${order.discount}%)` : ""}</span>
+                      <span>Discount{order.discountIsPercentage && rawDiscount ? ` (${rawDiscount}%)` : rawDiscount <= 100 && rawDiscount > 0 ? ` (${rawDiscount}%)` : ""}</span>
                       <span className="font-medium">-{fmt(discountValue)}</span>
                     </div>
                   )}

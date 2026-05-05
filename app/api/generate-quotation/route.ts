@@ -5,11 +5,29 @@ import path from "path"
 import fs from "fs"
 import type { Quotation } from "@/lib/quotations"
 
+function loadFont(filename: string): string {
+  try {
+    const p = path.join(process.cwd(), "public", filename)
+    if (fs.existsSync(p)) return fs.readFileSync(p).toString("base64")
+  } catch {}
+  return ""
+}
+const geistRegB64  = loadFont("Geist-Regular.ttf")
+const geistBoldB64 = loadFont("Geist-Bold.ttf")
+
+function registerGeist(doc: jsPDF) {
+  if (geistRegB64)  { doc.addFileToVFS("Geist-Regular.ttf", geistRegB64);  doc.addFont("Geist-Regular.ttf", "Geist", "normal") }
+  if (geistBoldB64) { doc.addFileToVFS("Geist-Bold.ttf",    geistBoldB64); doc.addFont("Geist-Bold.ttf",    "Geist", "bold")   }
+}
+const FONT = geistRegB64 ? "Geist" : FONT
+
 export async function POST(req: NextRequest) {
   try {
     const quotation: Quotation = await req.json()
 
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+    registerGeist(doc)
+    doc.setFont(FONT, "normal")
     const pageW = doc.internal.pageSize.getWidth()   // 210
     const pageH = doc.internal.pageSize.getHeight()  // 297
     const mL = 14
@@ -40,23 +58,23 @@ export async function POST(req: NextRequest) {
 
     // Company name & address (right of logo)
     doc.setTextColor(...white)
-    doc.setFont("helvetica", "bold")
+    doc.setFont(FONT, "bold")
     doc.setFontSize(15)
     doc.text("VOLTRIX BATTERIES", mL + 32, 14)
 
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.setFontSize(7.5)
     doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", mL + 32, 20)
     doc.text("Phone: 051-8731661  |  Mobile: +92 303 4927779", mL + 32, 25)
     doc.text("Email: info@voltrix-power.com  |  www.voltrixbatteries.com", mL + 32, 30)
 
     // QUOTATION label (top-right)
-    doc.setFont("helvetica", "bold")
+    doc.setFont(FONT, "bold")
     doc.setFontSize(22)
     doc.setTextColor(...white)
     doc.text("QUOTATION", pageW - mR, 20, { align: "right" })
     doc.setFontSize(9)
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.text(quotation.quotationNumber, pageW - mR, 27, { align: "right" })
 
     // ── Meta info band ────────────────────────────────────────────
@@ -72,11 +90,11 @@ export async function POST(req: NextRequest) {
     const colW = (pageW - mL - mR) / metaItems.length
     metaItems.forEach((m, i) => {
       const x = mL + i * colW
-      doc.setFont("helvetica", "bold")
+      doc.setFont(FONT, "bold")
       doc.setFontSize(7)
       doc.setTextColor(180, 230, 228)
       doc.text(m.label, x, 48)
-      doc.setFont("helvetica", "normal")
+      doc.setFont(FONT, "normal")
       doc.setFontSize(8.5)
       doc.setTextColor(...white)
       doc.text(m.value, x, 54)
@@ -98,11 +116,11 @@ export async function POST(req: NextRequest) {
         doc.setDrawColor(...border)
         doc.setLineWidth(0.3)
         doc.roundedRect(mL, y, hasNotes ? 88 : pageW - mL - mR, boxH, 2, 2, "S")
-        doc.setFont("helvetica", "bold")
+        doc.setFont(FONT, "bold")
         doc.setFontSize(7)
         doc.setTextColor(...gray)
         doc.text("DELIVERY ADDRESS", mL + 3, y + 5)
-        doc.setFont("helvetica", "normal")
+        doc.setFont(FONT, "normal")
         doc.setFontSize(8.5)
         doc.setTextColor(...dark)
         const addrLines = doc.splitTextToSize(quotation.deliveryAddress, 82)
@@ -115,11 +133,11 @@ export async function POST(req: NextRequest) {
         doc.roundedRect(nx, y, nw, boxH, 2, 2, "F")
         doc.setDrawColor(...border)
         doc.roundedRect(nx, y, nw, boxH, 2, 2, "S")
-        doc.setFont("helvetica", "bold")
+        doc.setFont(FONT, "bold")
         doc.setFontSize(7)
         doc.setTextColor(...gray)
         doc.text("NOTES", nx + 3, y + 5)
-        doc.setFont("helvetica", "normal")
+        doc.setFont(FONT, "normal")
         doc.setFontSize(8)
         doc.setTextColor(...dark)
         const noteLines = doc.splitTextToSize(quotation.notes, nw - 6)
@@ -143,8 +161,8 @@ export async function POST(req: NextRequest) {
       head: [["#", "DESCRIPTION", "QTY", "UNIT", "UNIT PRICE", "TOTAL"]],
       body: tableBody,
       margin: { left: mL, right: mR },
-      styles: { fontSize: 8.5, cellPadding: 3, textColor: dark, lineColor: border, lineWidth: 0.2 },
-      headStyles: { fillColor: teal, textColor: white, fontStyle: "bold", fontSize: 8, halign: "left" },
+      styles: { fontSize: 8.5, cellPadding: 3, textColor: dark, lineColor: border, lineWidth: 0.2, font: FONT },
+      headStyles: { fillColor: teal, textColor: white, fontStyle: "bold", fontSize: 8, halign: "left", font: FONT },
       columnStyles: {
         0: { cellWidth: 8, halign: "center" },
         1: { cellWidth: "auto" },
@@ -186,7 +204,7 @@ export async function POST(req: NextRequest) {
 
     let ry = y + 6
     rows.forEach(row => {
-      doc.setFont("helvetica", "normal")
+      doc.setFont(FONT, "normal")
       doc.setFontSize(8.5)
       doc.setTextColor(...(row.color || gray))
       doc.text(row.label, totX + 4, ry)
@@ -204,7 +222,7 @@ export async function POST(req: NextRequest) {
     // Total row
     doc.setFillColor(...teal)
     doc.roundedRect(totX, ry - 4, totW, 12, 2, 2, "F")
-    doc.setFont("helvetica", "bold")
+    doc.setFont(FONT, "bold")
     doc.setFontSize(10)
     doc.setTextColor(...white)
     doc.text("TOTAL", totX + 4, ry + 4)
@@ -215,12 +233,12 @@ export async function POST(req: NextRequest) {
     doc.setFillColor(...teal)
     doc.rect(0, footerY, pageW, 18, "F")
 
-    doc.setFont("helvetica", "bold")
+    doc.setFont(FONT, "bold")
     doc.setFontSize(9)
     doc.setTextColor(...white)
     doc.text("Thank you for your business!", pageW / 2, footerY + 7, { align: "center" })
 
-    doc.setFont("helvetica", "normal")
+    doc.setFont(FONT, "normal")
     doc.setFontSize(7.5)
     doc.setTextColor(200, 235, 234)
     doc.text("This is a computer-generated quotation. No signature required.", pageW / 2, footerY + 13, { align: "center" })
