@@ -1352,7 +1352,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                 </tr>
                 <tr className="bg-[hsl(var(--muted))]/30">
                     <td className="px-4 py-3 text-right font-medium">Tax (18%)</td>
-                    <td className="px-4 py-3 text-right font-medium">PKR {(order.tax || (order.subtotal * 18 / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-medium">PKR {(order.tax || (order.subtotal * (order.taxPercent || 0) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 {order.transportCost > 0 && (
                   <tr className="bg-[hsl(var(--muted))]/30">
@@ -1373,8 +1373,22 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   </tr>
                 )}
                 <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium text-green-600">Discount (2%)</td>
-                    <td className="px-4 py-3 text-right font-medium text-green-600">- PKR {(order.discountValue || (order.discountIsPercentage ? (order.subtotal * 2 / 100) : order.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">
+                      Discount{order.discount > 0 ? ` (${order.discount}%)` : ""}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">
+                      - PKR {(
+                        order.discountValue !== undefined && order.discountValue !== null && order.discountValue > 0
+                          ? order.discountValue
+                          : order.discountIsPercentage === true
+                            ? order.subtotal * (order.discount || 0) / 100
+                            : order.discountIsPercentage === false
+                              ? order.discount
+                              : (order.discount || 0) <= 100
+                                ? order.subtotal * (order.discount || 0) / 100
+                                : (order.discount || 0)
+                      ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
                   </tr>
                 <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
                   <td className="px-4 py-4 text-right text-base">Total</td>

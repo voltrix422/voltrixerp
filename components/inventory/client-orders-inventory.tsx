@@ -967,17 +967,53 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             </div>
 
             <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowFulfillDialog(false)}>
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowFulfillDialog(false)} disabled={updating}>
                 Cancel
               </Button>
               <Button 
                 size="sm" 
-                className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto" 
+                className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto min-w-[140px]" 
                 onClick={handleFulfillOrder}
-                disabled={!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber}
+                disabled={updating || !fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber}
               >
-                Fulfill Order
+                {updating ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Fulfilling...
+                  </span>
+                ) : "Fulfill Order"}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fulfilling overlay */}
+      {updating && showFulfillDialog && (
+        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-[hsl(var(--card))] rounded-2xl p-10 flex flex-col items-center gap-5 shadow-2xl">
+            <div className="relative h-16 w-16">
+              <svg className="animate-spin h-16 w-16 text-[#1faca6]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg className="h-7 w-7 text-[#1faca6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
+                </svg>
+              </div>
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-base font-bold text-[hsl(var(--foreground))]">Fulfilling Order...</p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">Uploading images and saving records</p>
+            </div>
+            <div className="flex gap-1.5">
+              {[0,1,2].map(i => (
+                <div key={i} className="h-2 w-2 rounded-full bg-[#1faca6] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}/>
+              ))}
             </div>
           </div>
         </div>
