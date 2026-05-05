@@ -375,3 +375,35 @@ model ErpSalarySlip {
 
   @@map("erp_salary_slips")
 }
+
+model CrmQuotation {
+  id                      String   @id @default(cuid())
+  quotationNumber         String   @map("quotation_number")
+  clientId                String   @map("client_id")
+  clientName              String   @map("client_name")
+  items                   Json     @default("[]")
+  subtotal                Float    @default(0)
+  taxPercent              Float    @default(0) @map("tax_percent")
+  tax                     Float    @default(0)
+  transportCost           Float    @default(0) @map("transport_cost")
+  transportLabel          String   @default("Transport") @map("transport_label")
+  transportIsPercentage   Boolean  @default(false) @map("transport_is_percentage")
+  transportCostValue      Float    @default(0) @map("transport_cost_value")
+  otherCost               Float    @default(0) @map("other_cost")
+  otherCostLabel          String   @default("Other") @map("other_cost_label")
+  otherCostIsPercentage   Boolean  @default(false) @map("other_cost_is_percentage")
+  otherCostValue          Float    @default(0) @map("other_cost_value")
+  discount                Float    @default(0)
+  discountIsPercentage    Boolean  @default(true) @map("discount_is_percentage")
+  discountValue           Float    @default(0) @map("discount_value")
+  total                   Float    @default(0)
+  status                  String   @default("draft")
+  notes                   String   @default("")
+  deliveryAddress         String   @default("") @map("delivery_address")
+  validUntil              String   @default("") @map("valid_until")
+  createdAt               DateTime @default(now()) @map("created_at")
+  createdBy               String   @map("created_by")
+  convertedToOrderId      String?  @map("converted_to_order_id")
+
+  @@map("crm_quotations")
+}
