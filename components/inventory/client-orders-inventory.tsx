@@ -914,7 +914,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         onClose={() => setShowFulfillSuccess(false)}
         autoCloseDelay={4000}
       />
-    </div>
+    </>
   )
 }
 
