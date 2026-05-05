@@ -66,7 +66,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           )
         })}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href)
+          const active = pathname?.startsWith(href) || false
           return (
             <Link
               key={href}
