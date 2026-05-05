@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast"
 import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, ArrowLeft, Save } from "lucide-react"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
+import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 
 export function OrdersList({ currentUser }: { currentUser: string }) {
   const { toast } = useToast()
@@ -1020,6 +1021,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   const [deleting, setDeleting] = useState(false)
   const [status, setStatus] = useState(order.status)
   const [showFinalize, setShowFinalize] = useState(false)
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
@@ -1125,16 +1127,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   }
 
   async function viewInvoice() {
-    try {
-      const blob = await import("@/lib/generate-invoice-pdf").then(m => m.generateInvoicePDF(order))
-      const url = URL.createObjectURL(blob)
-      window.open(url, "_blank")
-      // Clean up after a delay
-      setTimeout(() => URL.revokeObjectURL(url), 100)
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
-    }
+    setShowInvoicePreview(true)
   }
 
   return (
@@ -1160,6 +1153,10 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
           }}
         />
       ) : (
+    <>
+    {showInvoicePreview && (
+      <InvoicePreviewModal order={order} onClose={() => setShowInvoicePreview(false)} />
+    )}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="w-full max-w-6xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-8 py-5 border-b shrink-0">
@@ -1488,6 +1485,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
         </div>
       </div>
     </div>
+    </>
       )}
       
       <ConfirmDialog
