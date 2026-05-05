@@ -374,6 +374,9 @@ model ErpSalarySlip {
   adjustments      Json     @default("[]")
   netSalary        Float    @map("net_salary")
   generatedDate    DateTime @map("generated_date")
+  bankName         String   @default("") @map("bank_name")
+  bankAccountNumber String  @default("") @map("bank_account_number")
+  bankAccountTitle String   @default("") @map("bank_account_title")
   createdAt        DateTime @default(now()) @map("created_at")
 
   @@map("erp_salary_slips")

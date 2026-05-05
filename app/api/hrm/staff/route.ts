@@ -3,47 +3,35 @@ import { prisma } from '@/lib/db'
 
 export async function GET() {
   const staff = await prisma.erpStaff.findMany({ orderBy: { createdAt: 'desc' } })
-  return NextResponse.json(staff)
+  // Map DB fields back to frontend-friendly keys
+  return NextResponse.json(staff.map(mapToFrontend))
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const staff = await prisma.erpStaff.create({ data: body })
-  return NextResponse.json(staff)
+  try {
+    const body = await req.json()
+    const staff = await prisma.erpStaff.create({ data: mapToDB(body) })
+    return NextResponse.json(mapToFrontend(staff))
+  } catch (error) {
+    console.error('Error creating staff:', error)
+    return NextResponse.json({ error: 'Failed to create staff', details: error instanceof Error ? error.message : 'Unknown' }, { status: 500 })
+  }
 }
 
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json()
-    console.log('HRM PUT request body:', body)
-    
-    const { id, ...data } = body
-    if (!id) {
-      console.error('Missing id in PUT request')
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    }
+    const { id, ...rest } = body
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
-    console.log('Updating staff with id:', id, 'data:', data)
-
-    const staff = await prisma.erpStaff.update({ 
-      where: { id }, 
-      data: {
-        ...data,
-        // Handle points, warnings, and lastReset fields properly
-        ...(data.points !== undefined && { points: data.points }),
-        ...(data.warnings !== undefined && { warnings: data.warnings }),
-        ...(data.lastReset !== undefined && { lastReset: data.lastReset ? new Date(data.lastReset) : null })
-      }
+    const staff = await prisma.erpStaff.update({
+      where: { id },
+      data: mapToDB(rest),
     })
-    
-    console.log('Successfully updated staff:', staff)
-    return NextResponse.json(staff)
+    return NextResponse.json(mapToFrontend(staff))
   } catch (error) {
     console.error('Error in HRM PUT endpoint:', error)
-    return NextResponse.json({ 
-      error: 'Failed to update staff member', 
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update staff member', details: error instanceof Error ? error.message : 'Unknown' }, { status: 500 })
   }
 }
 
@@ -53,4 +41,75 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
   await prisma.erpStaff.delete({ where: { id } })
   return NextResponse.json({ ok: true })
+}
+
+// Map frontend/form keys → Prisma model keys
+function mapToDB(data: Record<string, any>) {
+  const mapped: Record<string, any> = {}
+
+  if (data.name !== undefined)        mapped.name = data.name
+  if (data.role !== undefined)        mapped.role = data.role
+  if (data.department !== undefined)  mapped.department = data.department
+  if (data.email !== undefined)       mapped.email = data.email
+  if (data.phone !== undefined)       mapped.phone = data.phone
+  if (data.address !== undefined)     mapped.address = data.address
+  if (data.salary !== undefined)      mapped.salary = parseFloat(data.salary) || 0
+  if (data.currency !== undefined)    mapped.currency = data.currency
+  if (data.status !== undefined)      mapped.status = data.status
+  if (data.notes !== undefined)       mapped.notes = data.notes
+  if (data.points !== undefined)      mapped.points = data.points
+  if (data.warnings !== undefined)    mapped.warnings = data.warnings
+
+  // Join date — handle both camelCase and snake_case from form
+  const joinDate = data.joinDate || data.join_date
+  if (joinDate !== undefined) mapped.joinDate = joinDate
+
+  // Created by/at
+  const createdBy = data.createdBy || data.created_by
+  if (createdBy !== undefined) mapped.createdBy = createdBy
+
+  const createdAt = data.createdAt || data.created_at
+  if (createdAt !== undefined) mapped.createdAt = new Date(createdAt)
+
+  // lastReset
+  const lastReset = data.lastReset || data.last_reset
+  if (lastReset !== undefined) mapped.lastReset = new Date(lastReset)
+
+  // Bank details — handle both snake_case (from form) and camelCase
+  const bankName = data.bankName ?? data.bank_name
+  if (bankName !== undefined) mapped.bankName = bankName ?? ''
+
+  const bankAccountNumber = data.bankAccountNumber ?? data.bank_account_number
+  if (bankAccountNumber !== undefined) mapped.bankAccountNumber = bankAccountNumber ?? ''
+
+  const bankAccountTitle = data.bankAccountTitle ?? data.bank_account_title
+  if (bankAccountTitle !== undefined) mapped.bankAccountTitle = bankAccountTitle ?? ''
+
+  return mapped
+}
+
+// Map Prisma model keys → frontend-friendly keys (snake_case for consistency with existing code)
+function mapToFrontend(s: any) {
+  return {
+    id: s.id,
+    name: s.name,
+    role: s.role,
+    department: s.department,
+    email: s.email,
+    phone: s.phone,
+    address: s.address,
+    salary: s.salary,
+    currency: s.currency,
+    join_date: s.joinDate,
+    status: s.status,
+    notes: s.notes,
+    points: s.points,
+    warnings: s.warnings,
+    last_reset: s.lastReset,
+    created_by: s.createdBy,
+    created_at: s.createdAt,
+    bank_name: s.bankName ?? '',
+    bank_account_number: s.bankAccountNumber ?? '',
+    bank_account_title: s.bankAccountTitle ?? '',
+  }
 }
