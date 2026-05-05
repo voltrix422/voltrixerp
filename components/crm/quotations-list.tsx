@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { Plus, X, Trash2, FileText, Edit, ShoppingCart } from "lucide-react"
+import { saveOrder, generateOrderNumber } from "@/lib/orders"
+import type { Order } from "@/lib/orders"
 
 export function QuotationsList({ currentUser }: { currentUser: string }) {
   const { toast } = useToast()
@@ -471,10 +473,96 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete }: {
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => downloadQuotationPDF(quotation)}><FileText className="h-3.5 w-3.5 mr-1"/>Download PDF</Button>
+          <ConvertToOrderButton quotation={quotation} onConverted={id => { onDelete(quotation.id) }} />
           <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Close</Button>
         </div>
       </div>
     </div>
+  )
+}
+
+// ─── Convert to Order Button ──────────────────────────────────────────────────
+function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation; onConverted: (orderId: string) => void }) {
+  const [converting, setConverting] = useState(false)
+  const [done, setDone] = useState(false)
+  const [orderId, setOrderId] = useState("")
+
+  async function convert() {
+    if (quotation.status === "converted") return
+    setConverting(true)
+    try {
+      const orderNumber = await generateOrderNumber()
+      const order: Order = {
+        id: Date.now().toString(),
+        orderNumber,
+        clientId: quotation.clientId,
+        clientName: quotation.clientName,
+        items: quotation.items.map(i => ({
+          id: i.id,
+          description: i.description,
+          qty: i.qty,
+          unit: i.unit,
+          unitPrice: i.unitPrice,
+          isCustom: i.isCustom,
+          inventoryItemId: i.inventoryItemId,
+        })),
+        subtotal: quotation.subtotal,
+        taxPercent: quotation.taxPercent,
+        tax: quotation.tax,
+        transportCost: quotation.transportCost,
+        transportLabel: quotation.transportLabel,
+        transportIsPercentage: quotation.transportIsPercentage,
+        transportCostValue: quotation.transportCostValue,
+        otherCost: quotation.otherCost,
+        otherCostLabel: quotation.otherCostLabel,
+        otherCostIsPercentage: quotation.otherCostIsPercentage,
+        otherCostValue: quotation.otherCostValue,
+        shipping: 0,
+        discount: quotation.discount,
+        discountIsPercentage: quotation.discountIsPercentage,
+        discountValue: quotation.discountValue,
+        total: quotation.total,
+        status: "pending_approval",
+        notes: quotation.notes,
+        createdAt: new Date().toISOString(),
+        createdBy: quotation.createdBy,
+        deliveryAddress: quotation.deliveryAddress,
+        deliveryDate: quotation.validUntil || "",
+        payments: [],
+      }
+      await saveOrder(order)
+      // Mark quotation as converted
+      await fetch("/api/crm/quotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...quotation, status: "converted", convertedToOrderId: order.id }),
+      })
+      setOrderId(order.id)
+      setDone(true)
+      onConverted(order.id)
+    } catch (e) {
+      console.error("Convert failed", e)
+    }
+    setConverting(false)
+  }
+
+  if (done) return (
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
+      <ShoppingCart className="h-3 w-3"/> Converted to Order
+    </span>
+  )
+
+  if (quotation.status === "converted") return (
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
+      <ShoppingCart className="h-3 w-3"/> Already Converted
+    </span>
+  )
+
+  return (
+    <Button size="sm" className="h-8 text-xs cursor-pointer bg-green-600 hover:bg-green-700 text-white" onClick={convert} disabled={converting}>
+      <ShoppingCart className="h-3.5 w-3.5 mr-1"/>
+      {converting ? "Converting..." : "Convert to Order"}
+    </Button>
   )
 }

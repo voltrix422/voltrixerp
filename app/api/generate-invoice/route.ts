@@ -11,133 +11,124 @@ export async function POST(request: NextRequest) {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
 
     // ── Palette ──────────────────────────────────────────────────────────────
-    const teal:      [number, number, number] = [26, 159, 154]
-    const tealDark:  [number, number, number] = [18, 120, 116]
-    const white:     [number, number, number] = [255, 255, 255]
-    const black:     [number, number, number] = [30, 30, 30]
-    const darkGray:  [number, number, number] = [80, 80, 80]
-    const midGray:   [number, number, number] = [140, 140, 140]
-    const lightGray: [number, number, number] = [230, 230, 230]
-    const rowAlt:    [number, number, number] = [245, 250, 250]
-    const green:     [number, number, number] = [34, 139, 34]
+    const teal:      [number,number,number] = [26, 159, 154]
+    const tealDark:  [number,number,number] = [18, 120, 116]
+    const white:     [number,number,number] = [255, 255, 255]
+    const black:     [number,number,number] = [30, 30, 30]
+    const darkGray:  [number,number,number] = [80, 80, 80]
+    const lightGray: [number,number,number] = [230, 230, 230]
+    const rowAlt:    [number,number,number] = [245, 250, 250]
+    const lightBg:   [number,number,number] = [247, 250, 250]
+    const green:     [number,number,number] = [34, 139, 34]
+    const red:       [number,number,number] = [200, 50, 50]
 
     const pageW = 210
-    const marginL = 15
-    const marginR = 15
-    const contentW = pageW - marginL - marginR
+    const mL = 14
+    const mR = 14
 
     // ── Header band ──────────────────────────────────────────────────────────
     doc.setFillColor(...teal)
-    doc.rect(0, 0, pageW, 38, 'F')
+    doc.rect(0, 0, pageW, 42, 'F')
 
     // Logo
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png')
       if (fs.existsSync(logoPath)) {
         const logoBase64 = `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`
-        doc.addImage(logoBase64, 'PNG', marginL, 5, 28, 28)
+        doc.addImage(logoBase64, 'PNG', mL, 6, 28, 28)
       }
     } catch {}
 
-    // Company name + address (right of logo)
+    // Company info
     doc.setTextColor(...white)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
-    doc.text('VOLTRIX PVT LIMITED', 50, 14)
-
+    doc.setFontSize(15)
+    doc.text('VOLTRIX BATTERIES', mL + 32, 14)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text('Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 50, 21)
-    doc.text('+92 303 4927779', 50, 27)
+    doc.setFontSize(7.5)
+    doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', mL + 32, 20)
+    doc.text('Phone: 051-8731661  |  Mobile: +92 303 4927779', mL + 32, 25)
+    doc.text('Email: info@voltrix-power.com  |  www.voltrixbatteries.com', mL + 32, 30)
 
-    // "QUOTATION" label — right side of header
+    // INVOICE label (top-right)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(22)
-    doc.text('QUOTATION', pageW - marginR, 22, { align: 'right' })
+    doc.setFontSize(24)
+    doc.text('INVOICE', pageW - mR, 20, { align: 'right' })
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(order.orderNumber, pageW - mR, 27, { align: 'right' })
 
-    // ── Meta row (teal-dark band) ─────────────────────────────────────────────
+    // ── Meta band ────────────────────────────────────────────────────────────
     doc.setFillColor(...tealDark)
-    doc.rect(0, 38, pageW, 14, 'F')
+    doc.rect(0, 42, pageW, 16, 'F')
 
-    doc.setTextColor(...white)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-
-    // Quotation #
-    doc.text('QUOTATION #', marginL, 44)
-    doc.setFont('helvetica', 'normal')
-    doc.text(order.orderNumber, marginL, 49)
-
-    // Date
-    doc.setFont('helvetica', 'bold')
-    doc.text('DATE', 75, 44)
-    doc.setFont('helvetica', 'normal')
-    doc.text(new Date(order.createdAt).toLocaleDateString(), 75, 49)
-
-    // Delivery Date
-    if (order.deliveryDate) {
+    const metaItems = [
+      { label: 'CLIENT', value: order.clientName || '—' },
+      { label: 'INVOICE DATE', value: new Date(order.createdAt).toLocaleDateString('en-PK') },
+      ...(order.deliveryDate ? [{ label: 'DELIVERY DATE', value: new Date(order.deliveryDate).toLocaleDateString('en-PK') }] : []),
+      { label: 'PREPARED BY', value: order.createdBy || '—' },
+    ]
+    const colW = (pageW - mL - mR) / metaItems.length
+    metaItems.forEach((m, i) => {
+      const x = mL + i * colW
       doc.setFont('helvetica', 'bold')
-      doc.text('DELIVERY DATE', 120, 44)
+      doc.setFontSize(7)
+      doc.setTextColor(180, 230, 228)
+      doc.text(m.label, x, 48)
       doc.setFont('helvetica', 'normal')
-      doc.text(new Date(order.deliveryDate).toLocaleDateString(), 120, 49)
-    }
+      doc.setFontSize(8.5)
+      doc.setTextColor(...white)
+      doc.text(m.value, x, 54)
+    })
 
-    // Created by
-    doc.setFont('helvetica', 'bold')
-    doc.text('PREPARED BY', pageW - marginR - 35, 44)
-    doc.setFont('helvetica', 'normal')
-    doc.text(order.createdBy || '—', pageW - marginR - 35, 49)
-
-    // ── TO section ───────────────────────────────────────────────────────────
-    let y = 62
-
+    // ── Bill To section ──────────────────────────────────────────────────────
+    let y = 66
     doc.setTextColor(...teal)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
-    doc.text('TO', marginL, y)
-
-    // Underline
+    doc.text('BILL TO', mL, y)
     doc.setDrawColor(...teal)
     doc.setLineWidth(0.4)
-    doc.line(marginL, y + 1, marginL + 20, y + 1)
+    doc.line(mL, y + 1, mL + 22, y + 1)
 
     y += 6
     doc.setTextColor(...black)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.text(order.clientName || '—', marginL, y)
+    doc.setFontSize(12)
+    doc.text(order.clientName || '—', mL, y)
 
     if (order.deliveryAddress) {
       y += 5
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       doc.setTextColor(...darkGray)
-      const lines = doc.splitTextToSize(order.deliveryAddress, 90)
-      doc.text(lines, marginL, y)
-      y += lines.length * 4.5
+      const addrLines = doc.splitTextToSize(order.deliveryAddress, 90)
+      doc.text(addrLines, mL, y)
+      y += addrLines.length * 4.5
     }
 
     // ── Items table ──────────────────────────────────────────────────────────
-    y = Math.max(y + 8, 90)
+    y = Math.max(y + 8, 92)
 
-    const tableData = order.items.map((item: any) => [
+    const tableData = order.items.map((item: any, idx: number) => [
+      `${idx + 1}`,
       item.description,
       item.qty.toString(),
       item.unit,
-      `PKR ${Number(item.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-      `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      `PKR ${Number(item.unitPrice).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
+      `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
     ])
 
     autoTable(doc, {
       startY: y,
-      head: [['Description', 'Qty', 'Unit', 'Unit Price', 'Total']],
+      head: [['#', 'DESCRIPTION', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']],
       body: tableData,
       theme: 'plain',
       headStyles: {
         fillColor: teal,
         textColor: white,
         fontStyle: 'bold',
-        fontSize: 9,
+        fontSize: 8.5,
         cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
       },
       bodyStyles: {
@@ -147,13 +138,14 @@ export async function POST(request: NextRequest) {
       },
       alternateRowStyles: { fillColor: rowAlt },
       columnStyles: {
-        0: { cellWidth: 'auto' },
-        1: { cellWidth: 18, halign: 'center' },
-        2: { cellWidth: 18, halign: 'center' },
-        3: { cellWidth: 38, halign: 'right' },
-        4: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+        0: { cellWidth: 8, halign: 'center' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 14, halign: 'center' },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 36, halign: 'right' },
+        5: { cellWidth: 36, halign: 'right', fontStyle: 'bold' },
       },
-      margin: { left: marginL, right: marginR },
+      margin: { left: mL, right: mR },
       tableLineColor: lightGray,
       tableLineWidth: 0.3,
     })
@@ -161,94 +153,121 @@ export async function POST(request: NextRequest) {
     y = (doc as any).lastAutoTable.finalY + 6
 
     // ── Totals block ─────────────────────────────────────────────────────────
-    const totalsX = pageW - marginR - 75
-    const totalsW = 75
-    const labelX = totalsX + 2
-    const valueX = totalsX + totalsW - 2
+    const totW = 82
+    const totX = pageW - mR - totW
 
-    function totalsRow(label: string, value: string, bold = false, color: [number,number,number] = black) {
-      doc.setFont('helvetica', bold ? 'bold' : 'normal')
-      doc.setFontSize(bold ? 10 : 9)
-      doc.setTextColor(...color)
-      doc.text(label, labelX, y)
-      doc.text(value, valueX, y, { align: 'right' })
-      y += bold ? 6 : 5
-    }
+    // Calculate discount value
+    const discountValue = order.discountValue ?? (
+      order.discountIsPercentage
+        ? (order.subtotal * (order.discount || 0) / 100)
+        : (order.discount || 0)
+    )
+    const transportVal = order.transportCostValue ?? order.transportCost ?? 0
+    const otherVal = order.otherCostValue ?? order.otherCost ?? 0
 
-    // Light separator line
+    // Build rows
+    type TRow = { label: string; value: string; color?: [number,number,number]; bold?: boolean }
+    const rows: TRow[] = []
+    rows.push({ label: 'Subtotal', value: `PKR ${Number(order.subtotal).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
+    if (discountValue > 0)
+      rows.push({ label: `Discount${order.discountIsPercentage ? ` (${order.discount}%)` : ''}`, value: `-PKR ${Number(discountValue).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
+    if (order.taxPercent > 0)
+      rows.push({ label: `Tax (${order.taxPercent}%)`, value: `PKR ${Number(order.tax).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
+    if (transportVal > 0)
+      rows.push({ label: order.transportLabel || 'Transport', value: `PKR ${Number(transportVal).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
+    if (otherVal > 0)
+      rows.push({ label: order.otherCostLabel || 'Other', value: `PKR ${Number(otherVal).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
+
+    const rowH = 7
+    const boxH = rows.length * rowH + 16
+    doc.setFillColor(...lightBg)
     doc.setDrawColor(...lightGray)
     doc.setLineWidth(0.3)
-    doc.line(totalsX, y, totalsX + totalsW, y)
-    y += 5
+    doc.roundedRect(totX, y, totW, boxH, 2, 2, 'FD')
 
-    totalsRow('Subtotal', `PKR ${Number(order.subtotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
+    let ry = y + 6
+    rows.forEach(row => {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(...(row.color || darkGray))
+      doc.text(row.label, totX + 4, ry)
+      doc.setTextColor(...(row.color || black))
+      doc.text(row.value, totX + totW - 4, ry, { align: 'right' })
+      ry += rowH
+    })
 
-    if (order.taxPercent > 0) {
-      totalsRow(`Tax (${order.taxPercent}%)`, `PKR ${Number(order.tax).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
-    }
+    // Divider
+    doc.setDrawColor(...lightGray)
+    doc.setLineWidth(0.4)
+    doc.line(totX + 4, ry - 1, totX + totW - 4, ry - 1)
+    ry += 3
 
-    if (order.transportCost > 0) {
-      const tVal = order.transportCostValue ?? order.transportCost
-      totalsRow(order.transportLabel || 'Transport', `PKR ${Number(tVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
-    }
-
-    if (order.otherCost > 0) {
-      const oVal = order.otherCostValue ?? order.otherCost
-      totalsRow(order.otherCostLabel || 'Other cost', `PKR ${Number(oVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
-    }
-
-    const discountValue = order.discountValue ?? (order.discountIsPercentage
-      ? (order.subtotal * (order.discount || 0) / 100)
-      : (order.discount || 0))
-    if (discountValue > 0) {
-      totalsRow('Discount', `-PKR ${Number(discountValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, false, green)
-    }
-
-    // Total divider
-    doc.setDrawColor(...teal)
-    doc.setLineWidth(0.6)
-    doc.line(totalsX, y, totalsX + totalsW, y)
-    y += 5
-
-    // Total row with teal background pill
+    // Total row
     doc.setFillColor(...teal)
-    doc.roundedRect(totalsX, y - 4, totalsW, 9, 1.5, 1.5, 'F')
-    doc.setTextColor(...white)
+    doc.roundedRect(totX, ry - 4, totW, 12, 2, 2, 'F')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text('TOTAL', labelX, y + 2)
-    doc.text(`PKR ${Number(order.total).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, valueX, y + 2, { align: 'right' })
-    y += 12
+    doc.setFontSize(11)
+    doc.setTextColor(...white)
+    doc.text('TOTAL', totX + 4, ry + 4)
+    doc.text(`PKR ${Number(order.total).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, totX + totW - 4, ry + 4, { align: 'right' })
 
-    // ── Notes (if any) ───────────────────────────────────────────────────────
+    // ── Notes ────────────────────────────────────────────────────────────────
     if (order.notes) {
-      y += 4
+      y = ry + 16
       doc.setTextColor(...teal)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(8)
-      doc.text('NOTES', marginL, y)
+      doc.text('NOTES', mL, y)
       doc.setDrawColor(...teal)
       doc.setLineWidth(0.4)
-      doc.line(marginL, y + 1, marginL + 18, y + 1)
+      doc.line(mL, y + 1, mL + 18, y + 1)
       y += 6
       doc.setTextColor(...darkGray)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
-      const noteLines = doc.splitTextToSize(order.notes, contentW)
-      doc.text(noteLines, marginL, y)
+      const noteLines = doc.splitTextToSize(order.notes, pageW - mL - mR - totW - 10)
+      doc.text(noteLines, mL, y)
     }
+
+    // ── Payment status badge ─────────────────────────────────────────────────
+    const payments: any[] = order.payments || []
+    const totalPaid = payments.reduce((s: number, p: any) => s + (p.amount || 0), 0)
+    const balance = Number(order.total) - totalPaid
+
+    if (payments.length > 0) {
+      const badgeY = ry + 16
+      doc.setFillColor(balance <= 0 ? 34 : 255, balance <= 0 ? 139 : 165, balance <= 0 ? 34 : 0)
+      doc.roundedRect(mL, badgeY - 4, 60, 10, 2, 2, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(...white)
+      doc.text(balance <= 0 ? '✓ PAID IN FULL' : `Balance: PKR ${balance.toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, mL + 4, badgeY + 2)
+    }
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+    const pageH = doc.internal.pageSize.getHeight()
+    doc.setFillColor(...teal)
+    doc.rect(0, pageH - 18, pageW, 18, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(...white)
+    doc.text('Thank you for your business!', pageW / 2, pageH - 11, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(200, 235, 234)
+    doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, pageH - 6, { align: 'center' })
 
     const pdfBuffer = doc.output('arraybuffer')
 
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Quotation-${order.orderNumber}.pdf"`,
+        'Content-Disposition': `attachment; filename="Invoice-${order.orderNumber}.pdf"`,
       },
     })
 
   } catch (error) {
-    console.error('Error generating quotation:', error)
-    return NextResponse.json({ error: 'Failed to generate quotation' }, { status: 500 })
+    console.error('Error generating invoice:', error)
+    return NextResponse.json({ error: 'Failed to generate invoice' }, { status: 500 })
   }
 }
