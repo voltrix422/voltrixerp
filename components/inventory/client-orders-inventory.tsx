@@ -224,6 +224,28 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     try {
       const fulfillDate = new Date().toLocaleDateString()
 
+      // Upload images
+      let receiverImageUrl: string | undefined
+      let receiverCnicImageUrl: string | undefined
+      let vehicleImageUrl: string | undefined
+      let productImageUrls: string[] = []
+
+      const uploadImg = async (file: File): Promise<string> => {
+        const fd = new FormData()
+        fd.append("file", file)
+        fd.append("folder", "fulfillment")
+        const res = await fetch("/api/upload", { method: "POST", body: fd })
+        const data = await res.json()
+        return data.url || ""
+      }
+
+      if (receiverImage)     receiverImageUrl     = await uploadImg(receiverImage)
+      if (receiverCnicImage) receiverCnicImageUrl = await uploadImg(receiverCnicImage)
+      if (vehicleImage)      vehicleImageUrl      = await uploadImg(vehicleImage)
+      if (productImages.length > 0) {
+        productImageUrls = await Promise.all(productImages.map(uploadImg))
+      }
+
       // Update order with dispatcher, fulfillment details, and mark as delivered
       const updatedOrder: Order = {
         ...order,
@@ -234,6 +256,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         fulfillmentReceiverCnic: receiverCnic,
         fulfillmentVehicleNumber: vehicleNumber,
         fulfillmentDate: new Date().toISOString(),
+        fulfillmentReceiverImageUrl: receiverImageUrl,
+        fulfillmentReceiverCnicImageUrl: receiverCnicImageUrl,
+        fulfillmentVehicleImageUrl: vehicleImageUrl,
+        fulfillmentProductImageUrls: productImageUrls.length > 0 ? productImageUrls : undefined,
       }
       
       // Save the updated order
@@ -454,41 +480,91 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
         {/* Fulfillment details panel — shown for fulfilled orders */}
         {order.dispatcher && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Fulfillment Details</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-3">
+
+            {/* Info cards row */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Dispatcher */}
+              <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-1">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Dispatcher</p>
                 <p className="text-sm font-semibold">{order.fulfillmentDispatcher || order.dispatcher}</p>
                 {order.fulfillmentDate && (
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    Fulfilled on {new Date(order.fulfillmentDate).toLocaleDateString()}
+                    {new Date(order.fulfillmentDate).toLocaleString()}
                   </p>
                 )}
               </div>
+
+              {/* Status */}
+              <div className="rounded-lg border bg-green-50 dark:bg-green-950/30 p-4 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-green-700 dark:text-green-400">Status</p>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <p className="text-sm font-semibold text-green-700 dark:text-green-400">Delivered</p>
+                </div>
+              </div>
+
+              {/* Receiver */}
               {order.fulfillmentReceiverName && (
                 <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-1">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Receiver</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Receiver</p>
                   <p className="text-sm font-semibold">{order.fulfillmentReceiverName}</p>
                   {order.fulfillmentReceiverCnic && (
                     <p className="text-xs text-[hsl(var(--muted-foreground))]">CNIC: {order.fulfillmentReceiverCnic}</p>
                   )}
                 </div>
               )}
+
+              {/* Vehicle */}
               {order.fulfillmentVehicleNumber && (
                 <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-1">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Vehicle</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Vehicle</p>
                   <p className="text-sm font-semibold">{order.fulfillmentVehicleNumber}</p>
                 </div>
               )}
-              <div className="rounded-lg border bg-green-50 dark:bg-green-950/30 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-green-700 dark:text-green-400 mb-2">Status</p>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  <p className="text-sm font-semibold text-green-700 dark:text-green-400">Delivered</p>
+            </div>
+
+            {/* Images section */}
+            {(order.fulfillmentReceiverImageUrl || order.fulfillmentReceiverCnicImageUrl || order.fulfillmentVehicleImageUrl || (order.fulfillmentProductImageUrls && order.fulfillmentProductImageUrls.length > 0)) && (
+              <div className="space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Proof Images</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {order.fulfillmentReceiverImageUrl && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase">Receiver Photo</p>
+                      <a href={order.fulfillmentReceiverImageUrl} target="_blank" rel="noreferrer">
+                        <img src={order.fulfillmentReceiverImageUrl} alt="Receiver" className="w-full h-28 object-cover rounded-lg border hover:opacity-90 transition-opacity cursor-pointer"/>
+                      </a>
+                    </div>
+                  )}
+                  {order.fulfillmentReceiverCnicImageUrl && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase">Receiver CNIC</p>
+                      <a href={order.fulfillmentReceiverCnicImageUrl} target="_blank" rel="noreferrer">
+                        <img src={order.fulfillmentReceiverCnicImageUrl} alt="CNIC" className="w-full h-28 object-cover rounded-lg border hover:opacity-90 transition-opacity cursor-pointer"/>
+                      </a>
+                    </div>
+                  )}
+                  {order.fulfillmentVehicleImageUrl && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase">Vehicle Photo</p>
+                      <a href={order.fulfillmentVehicleImageUrl} target="_blank" rel="noreferrer">
+                        <img src={order.fulfillmentVehicleImageUrl} alt="Vehicle" className="w-full h-28 object-cover rounded-lg border hover:opacity-90 transition-opacity cursor-pointer"/>
+                      </a>
+                    </div>
+                  )}
+                  {order.fulfillmentProductImageUrls?.map((url, i) => (
+                    <div key={i} className="space-y-1">
+                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase">Product Photo {i + 1}</p>
+                      <a href={url} target="_blank" rel="noreferrer">
+                        <img src={url} alt={`Product ${i + 1}`} className="w-full h-28 object-cover rounded-lg border hover:opacity-90 transition-opacity cursor-pointer"/>
+                      </a>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>

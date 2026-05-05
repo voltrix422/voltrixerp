@@ -51,6 +51,10 @@ export interface Order {
   fulfillmentReceiverCnic?: string
   fulfillmentVehicleNumber?: string
   fulfillmentDate?: string
+  fulfillmentReceiverImageUrl?: string
+  fulfillmentReceiverCnicImageUrl?: string
+  fulfillmentVehicleImageUrl?: string
+  fulfillmentProductImageUrls?: string[]
 }
 
 export interface OrderPayment {
@@ -95,6 +99,10 @@ function rowToOrder(r: Record<string, unknown>): Order {
     fulfillmentReceiverCnic: (r.fulfillmentReceiverCnic as string) ?? undefined,
     fulfillmentVehicleNumber: (r.fulfillmentVehicleNumber as string) ?? undefined,
     fulfillmentDate: (r.fulfillmentDate as string) ?? undefined,
+    fulfillmentReceiverImageUrl: (r.fulfillmentReceiverImageUrl as string) ?? undefined,
+    fulfillmentReceiverCnicImageUrl: (r.fulfillmentReceiverCnicImageUrl as string) ?? undefined,
+    fulfillmentVehicleImageUrl: (r.fulfillmentVehicleImageUrl as string) ?? undefined,
+    fulfillmentProductImageUrls: (r.fulfillmentProductImageUrls as string[]) ?? undefined,
   }
 }
 
