@@ -416,6 +416,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           )}
           
           <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
+          </div>
         </div>
       </div>
 
