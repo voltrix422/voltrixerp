@@ -44,6 +44,9 @@ interface StaffMember {
   last_reset?: string
   created_by: string
   created_at: string
+  bank_name?: string
+  bank_account_number?: string
+  bank_account_title?: string
 }
 
 const DEPARTMENTS = ["Management", "Engineering", "Sales", "Finance", "HR", "Operations", "Marketing", "Support", "Other"]
@@ -250,7 +253,7 @@ export function HrmManager() {
       
       // Employee Information Section
       doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
-      doc.roundedRect(15, 68, 180, 45, 2, 2, 'F')
+      doc.roundedRect(15, 68, 180, 60, 2, 2, 'F')
       
       // Section header
       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
@@ -281,19 +284,33 @@ export function HrmManager() {
       // Right column
       doc.setFont('helvetica', 'bold')
       doc.text('Pay Period:', 120, 83)
-      doc.text('Payment Date:', 120, 91)
-      doc.text('Generated On:', 120, 99)
-      doc.text('Currency:', 120, 107)
+      doc.text('Generated On:', 120, 91)
+      doc.text('Currency:', 120, 99)
       
       // Right column values
       doc.setFont('helvetica', 'normal')
       doc.text(new Date(slip.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 155, 83)
-      doc.text(new Date(slip.month + '-01').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
-      doc.text(new Date(slip.generatedDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 99)
-      doc.text(slip.currency, 155, 107)
+      doc.text(new Date(slip.generatedDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
+      doc.text(slip.currency, 155, 99)
+      
+      // Bank Details (if available)
+      if (slip.bankName || slip.bankAccountNumber) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Bank Name:', 20, 115)
+        doc.text('Account Number:', 20, 123)
+        doc.setFont('helvetica', 'normal')
+        doc.text(slip.bankName || '—', 60, 115)
+        doc.text(slip.bankAccountNumber || '—', 60, 123)
+        if (slip.bankAccountTitle) {
+          doc.setFont('helvetica', 'bold')
+          doc.text('Account Title:', 120, 115)
+          doc.setFont('helvetica', 'normal')
+          doc.text(slip.bankAccountTitle, 155, 115)
+        }
+      }
       
       // Salary Breakdown Section
-      let currentY = 125
+      let currentY = (slip.bankName || slip.bankAccountNumber) ? 140 : 125
       
       // Base Salary
       doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
@@ -432,6 +449,9 @@ export function HrmManager() {
   const [notes, setNotes] = useState("")
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState("")
+  const [bankName, setBankName] = useState("")
+  const [bankAccountNumber, setBankAccountNumber] = useState("")
+  const [bankAccountTitle, setBankAccountTitle] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
   const docFileRef = useRef<HTMLInputElement>(null)
 
@@ -480,6 +500,9 @@ export function HrmManager() {
     setJoinDate(member.join_date)
     setStatus(member.status)
     setNotes(member.notes)
+    setBankName(member.bank_name || "")
+    setBankAccountNumber(member.bank_account_number || "")
+    setBankAccountTitle(member.bank_account_title || "")
     setPhotoPreview(member.photo_url)
     setDocuments([]) // Existing docs will be shown separately
     setShowForm(true)
@@ -578,6 +601,9 @@ export function HrmManager() {
         name, role, department, email, phone, address,
         salary: parseFloat(salary) || 0,
         currency, joinDate, status, notes,
+        bank_name: bankName,
+        bank_account_number: bankAccountNumber,
+        bank_account_title: bankAccountTitle,
         createdBy: editingMember?.created_by || user?.name || "Unknown",
         createdAt: editingMember?.created_at || new Date().toISOString(),
       }
@@ -607,6 +633,7 @@ export function HrmManager() {
     setName(""); setRole(""); setDepartment("Management"); setEmail("")
     setPhone(""); setAddress(""); setSalary(""); setCurrency("USD")
     setJoinDate(""); setStatus("active"); setNotes("")
+    setBankName(""); setBankAccountNumber(""); setBankAccountTitle("")
     setPhotoFile(null); setPhotoPreview(""); setShowForm(false)
     setDocuments([])
     setNewDocName("")
@@ -1152,6 +1179,29 @@ export function HrmManager() {
                   <input value={address} onChange={e => setAddress(e.target.value)} placeholder="City, Country"
                     className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
+                
+                {/* Bank Details Section */}
+                <div className="col-span-2 pt-2 border-t">
+                  <p className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Bank Details</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Bank Name</label>
+                      <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. Meezan Bank"
+                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Account Number</label>
+                      <input value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} placeholder="e.g. 1234567890"
+                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Account Title</label>
+                      <input value={bankAccountTitle} onChange={e => setBankAccountTitle(e.target.value)} placeholder="e.g. Muhammad Ahmed Khan"
+                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="space-y-2 col-span-2">
                   <label className="text-sm font-medium text-[hsl(var(--foreground))]">Notes</label>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional info..."
@@ -1404,6 +1454,27 @@ export function HrmManager() {
                 <div>
                   <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Address</p>
                   <p className="text-sm text-[hsl(var(--foreground))]">{viewMember.address}</p>
+                </div>
+              )}
+
+              {/* Bank Details */}
+              {(viewMember.bank_name || viewMember.bank_account_number) && (
+                <div>
+                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Bank Details</p>
+                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-4 grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Bank Name</p>
+                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{viewMember.bank_name || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Account Number</p>
+                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{viewMember.bank_account_number || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Account Title</p>
+                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{viewMember.bank_account_title || "—"}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1917,7 +1988,10 @@ export function HrmManager() {
                       currency: viewMember.currency,
                       adjustments: salaryAdjustments,
                       netSalary: netSalary,
-                      generatedDate: new Date().toISOString()
+                      generatedDate: new Date().toISOString(),
+                      bankName: viewMember.bank_name || "",
+                      bankAccountNumber: viewMember.bank_account_number || "",
+                      bankAccountTitle: viewMember.bank_account_title || "",
                     }
                     
                     // Generate PDF salary slip
@@ -1986,7 +2060,7 @@ export function HrmManager() {
                       
                       // Employee Information Section
                       doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
-                      doc.roundedRect(15, 68, 180, 45, 2, 2, 'F')
+                      doc.roundedRect(15, 68, 180, 60, 2, 2, 'F')
                       
                       // Section header
                       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
@@ -2026,8 +2100,26 @@ export function HrmManager() {
                       doc.text(new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
                       doc.text(viewMember.currency, 155, 99)
                       
+                      // Bank Details (if available)
+                      if (viewMember.bank_name || viewMember.bank_account_number) {
+                        doc.setFont('helvetica', 'bold')
+                        doc.text('Bank Name:', 20, 115)
+                        doc.text('Account Number:', 20, 123)
+                        
+                        doc.setFont('helvetica', 'normal')
+                        doc.text(viewMember.bank_name || '—', 60, 115)
+                        doc.text(viewMember.bank_account_number || '—', 60, 123)
+                        
+                        if (viewMember.bank_account_title) {
+                          doc.setFont('helvetica', 'bold')
+                          doc.text('Account Title:', 120, 115)
+                          doc.setFont('helvetica', 'normal')
+                          doc.text(viewMember.bank_account_title, 155, 115)
+                        }
+                      }
+                      
                       // Salary Breakdown Section
-                      let currentY = 125
+                      let currentY = (viewMember.bank_name || viewMember.bank_account_number) ? 140 : 125
                       
                       // Base Salary
                       doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])

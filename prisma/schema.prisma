@@ -214,6 +214,9 @@ model ErpStaff {
   lastReset     DateTime @default(now()) @map("last_reset")
   createdBy     String   @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
+  bankName          String?  @default("") @map("bank_name")
+  bankAccountNumber String?  @default("") @map("bank_account_number")
+  bankAccountTitle  String?  @default("") @map("bank_account_title")
 
   @@map("erp_staff")
 }
