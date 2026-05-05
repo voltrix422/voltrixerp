@@ -413,3 +413,39 @@ model CrmQuotation {
 
   @@map("crm_quotations")
 }
+
+model ErpPettyCashAllocation {
+  id            String   @id @default(cuid())
+  employeeId    String   @map("employee_id")
+  employeeName  String   @map("employee_name")
+  employeeRole  String   @map("employee_role")
+  amount        Float
+  purpose       String
+  paymentProof  String?  @map("payment_proof")
+  paymentProofName String? @map("payment_proof_name")
+  notes         String   @default("")
+  status        String   @default("active") // active, settled, cancelled
+  allocatedBy   String   @map("allocated_by")
+  allocatedAt   DateTime @default(now()) @map("allocated_at")
+  settledAt     DateTime? @map("settled_at")
+
+  @@map("erp_petty_cash_allocations")
+}
+
+model ErpPettyCashReceipt {
+  id                String   @id @default(cuid())
+  allocationId      String   @map("allocation_id")
+  employeeName      String   @map("employee_name")
+  description       String
+  amount            Float
+  receiptProof      String?  @map("receipt_proof")
+  receiptProofName  String?  @map("receipt_proof_name")
+  notes             String   @default("")
+  status            String   @default("pending") // pending, approved, rejected
+  submittedAt       DateTime @default(now()) @map("submitted_at")
+  reviewedBy        String?  @map("reviewed_by")
+  reviewedAt        DateTime? @map("reviewed_at")
+  reviewNotes       String?  @map("review_notes")
+
+  @@map("erp_petty_cash_receipts")
+}

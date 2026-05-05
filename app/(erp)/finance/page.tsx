@@ -5,12 +5,15 @@ import { ModuleGuard } from "@/components/layout/module-guard"
 import { ClientOrdersFinance } from "@/components/finance/client-orders-finance"
 import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
+import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
+import { useAuthWithRole } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { SlidersHorizontal, ChevronDown, ChevronUp, Search, Calendar } from "lucide-react"
 
-type Tab = "manage" | "client" | "purchase"
+type Tab = "manage" | "client" | "purchase" | "petty-cash"
 
 export default function FinancePage() {
+  const { user, userRole } = useAuthWithRole()
   const [activeTab, setActiveTab] = useState<Tab>("manage")
   const [showFilters, setShowFilters] = useState(false)
   const [search, setSearch] = useState("")
@@ -29,6 +32,7 @@ export default function FinancePage() {
     { id: "manage", label: "Manage" },
     { id: "client", label: "Client Orders" },
     { id: "purchase", label: "Purchase Orders" },
+    { id: "petty-cash", label: "Petty Cash" },
   ]
 
   return (
@@ -99,6 +103,7 @@ export default function FinancePage() {
           {activeTab === "manage" && <FinanceManager search={search} dateFrom={dateFrom} dateTo={dateTo} />}
           {activeTab === "client" && <ClientOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />}
           {activeTab === "purchase" && <PurchaseOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />}
+          {activeTab === "petty-cash" && <PettyCashDashboard currentUser={user?.name || ""} userRole={userRole || ""} />}
         </div>
       </div>
     </ModuleGuard>

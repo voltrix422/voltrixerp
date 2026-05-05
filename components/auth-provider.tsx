@@ -21,6 +21,11 @@ export function useAuth() {
   return useContext(AuthContext)
 }
 
+export function useAuthWithRole() {
+  const { user, ...rest } = useContext(AuthContext)
+  return { user, userRole: user?.role || 'user', ...rest }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [checked, setChecked] = useState(false)
