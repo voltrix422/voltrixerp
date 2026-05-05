@@ -834,5 +834,5 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       )}
     </div>
   )
-} 
- 
+}
+
