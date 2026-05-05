@@ -158,12 +158,10 @@ export function ClientOrdersInventory() {
                       <div className="text-[10px] px-1.5 py-0 font-semibold text-blue-600 bg-blue-50 rounded">
                         Invoice
                       </div>
+                    ) : order.dispatcher ? (
+                      <Badge variant="success" className="text-[10px] px-1.5 py-0">delivered</Badge>
                     ) : (
-                      <Badge variant={
-                        order.dispatcher ? "success" : "warning"
-                      } className="text-[10px] px-1.5 py-0">
-                        {order.dispatcher ? "delivered" : "ready to fulfill"}
-                      </Badge>
+                      <Badge variant="warning" className="text-[10px] px-1.5 py-0">ready to fulfill</Badge>
                     )}
                   </td>
                 </tr>
@@ -224,19 +222,25 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     setUpdating(true)
     
     try {
-      // Update order with dispatcher and mark as fulfilled
+      const fulfillDate = new Date().toLocaleDateString()
+
+      // Update order with dispatcher, fulfillment details, and mark as delivered
       const updatedOrder: Order = {
         ...order,
         dispatcher: fulfillDispatcherName,
-        status: "delivered" // Keep status as delivered for consistency
+        status: "delivered",
+        fulfillmentDispatcher: fulfillDispatcherName,
+        fulfillmentReceiverName: receiverName,
+        fulfillmentReceiverCnic: receiverCnic,
+        fulfillmentVehicleNumber: vehicleNumber,
+        fulfillmentDate: new Date().toISOString(),
       }
       
       // Save the updated order
       await saveOrder(updatedOrder)
       
       // Generate and download dispatch note automatically
-      const dispatchDate = new Date().toLocaleDateString()
-      const blob = await generateDispatchNotePDF(order, fulfillDispatcherName, dispatchDate)
+      const blob = await generateDispatchNotePDF(order, fulfillDispatcherName, fulfillDate)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -275,7 +279,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   async function downloadInvoice() {
     try {
       await downloadInvoicePDF(order)
-      alert("Invoice downloaded successfully!")
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
@@ -291,6 +294,27 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
+    }
+  }
+
+  async function redownloadDispatchNote() {
+    try {
+      const dispatcher = order.fulfillmentDispatcher || order.dispatcher || ""
+      const date = order.fulfillmentDate
+        ? new Date(order.fulfillmentDate).toLocaleDateString()
+        : new Date().toLocaleDateString()
+      const blob = await generateDispatchNotePDF(order, dispatcher, date)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Dispatch-Note-${order.orderNumber}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error generating dispatch note:", error)
+      alert("Failed to generate dispatch note. Please try again.")
     }
   }
 
@@ -414,16 +438,61 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
               <Eye className="h-3 w-3 mr-1.5" /> View Invoice
             </Button>
+          {order.dispatcher && (
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={redownloadDispatchNote}>
+              <Download className="h-3 w-3 mr-1.5" /> Dispatch Note
+            </Button>
+          )}
           {!order.dispatcher && (
             <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowFulfillDialog(true)} disabled={updating}>
               <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Fulfill Order"}
             </Button>
           )}
-          
           <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
           </div>
         </div>
+
+        {/* Fulfillment details panel — shown for fulfilled orders */}
+        {order.dispatcher && (
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Fulfillment Details</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Dispatcher</p>
+                <p className="text-sm font-semibold">{order.fulfillmentDispatcher || order.dispatcher}</p>
+                {order.fulfillmentDate && (
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                    Fulfilled on {new Date(order.fulfillmentDate).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              {order.fulfillmentReceiverName && (
+                <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Receiver</p>
+                  <p className="text-sm font-semibold">{order.fulfillmentReceiverName}</p>
+                  {order.fulfillmentReceiverCnic && (
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">CNIC: {order.fulfillmentReceiverCnic}</p>
+                  )}
+                </div>
+              )}
+              {order.fulfillmentVehicleNumber && (
+                <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Vehicle</p>
+                  <p className="text-sm font-semibold">{order.fulfillmentVehicleNumber}</p>
+                </div>
+              )}
+              <div className="rounded-lg border bg-green-50 dark:bg-green-950/30 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-green-700 dark:text-green-400 mb-2">Status</p>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <p className="text-sm font-semibold text-green-700 dark:text-green-400">Delivered</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+    </div>
 
       {showDispatchDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowDispatchDialog(false)}>

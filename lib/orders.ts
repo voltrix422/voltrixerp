@@ -45,6 +45,12 @@ export interface Order {
   dispatcher?: string // Assigned dispatcher
   pdfUrl?: string // URL to generated PDF
   payments?: OrderPayment[] // Payment records
+  // Fulfillment details (saved when order is fulfilled)
+  fulfillmentDispatcher?: string
+  fulfillmentReceiverName?: string
+  fulfillmentReceiverCnic?: string
+  fulfillmentVehicleNumber?: string
+  fulfillmentDate?: string
 }
 
 export interface OrderPayment {
@@ -84,6 +90,11 @@ function rowToOrder(r: Record<string, unknown>): Order {
     dispatcher: (r.dispatcher as string) ?? undefined,
     pdfUrl: (r.pdfUrl as string) ?? undefined,
     payments: (r.payments as OrderPayment[]) ?? [],
+    fulfillmentDispatcher: (r.fulfillmentDispatcher as string) ?? undefined,
+    fulfillmentReceiverName: (r.fulfillmentReceiverName as string) ?? undefined,
+    fulfillmentReceiverCnic: (r.fulfillmentReceiverCnic as string) ?? undefined,
+    fulfillmentVehicleNumber: (r.fulfillmentVehicleNumber as string) ?? undefined,
+    fulfillmentDate: (r.fulfillmentDate as string) ?? undefined,
   }
 }
 
