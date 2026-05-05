@@ -222,14 +222,14 @@ export function HrmManager() {
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
-      doc.text('VOLTRIX BATTERIES', 55, 20)
+      doc.text('VOLTRIX BATTERIES', 55, 18)
       
-      doc.setFontSize(8)
+      doc.setFontSize(7)
       doc.setFont('helvetica', 'normal')
-      doc.text('Office # 2, 2nd Floor, Anum Estate', 55, 27)
-      doc.text('Main Peshawar Road, Rawalpindi', 55, 32)
-      doc.text('Phone: +92 303 4927779', 55, 37)
-      doc.text('Email: info@voltrixbatteries.com', 55, 42)
+      doc.text('Head Office', 55, 24)
+      doc.text('Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 55, 29)
+      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779', 55, 34)
+      doc.text('Email: info@voltrix-power.com', 55, 39)
       
       // SALARY SLIP title (Right side)
       doc.setFontSize(22)
@@ -398,8 +398,8 @@ export function HrmManager() {
       doc.setFont('helvetica', 'italic')
       doc.setTextColor(100, 100, 100)
       doc.text('Voltrix Batteries - Human Resources Management System', 105, 276, { align: 'center' })
-      doc.text('Office # 2, 2nd Floor, Anum Estate, Main Peshawar Road, Rawalpindi', 105, 281, { align: 'center' })
-      doc.text('Phone: +92 303 4927779 | Email: info@voltrixbatteries.com', 105, 286, { align: 'center' })
+      doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 105, 281, { align: 'center' })
+      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779 | Email: info@voltrix-power.com', 105, 286, { align: 'center' })
       
       // Save and download
       const pdfBlob = doc.output('blob')
@@ -1958,14 +1958,14 @@ export function HrmManager() {
                       doc.setTextColor(255, 255, 255)
                       doc.setFontSize(16)
                       doc.setFont('helvetica', 'bold')
-                      doc.text('VOLTRIX BATTERIES', 55, 20)
+                      doc.text('VOLTRIX BATTERIES', 55, 18)
                       
-                      doc.setFontSize(8)
+                      doc.setFontSize(7)
                       doc.setFont('helvetica', 'normal')
-                      doc.text('Office # 2, 2nd Floor, Anum Estate', 55, 27)
-                      doc.text('Main Peshawar Road, Rawalpindi', 55, 32)
-                      doc.text('Phone: +92 303 4927779', 55, 37)
-                      doc.text('Email: info@voltrixbatteries.com', 55, 42)
+                      doc.text('Head Office', 55, 24)
+                      doc.text('Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 55, 29)
+                      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779', 55, 34)
+                      doc.text('Email: info@voltrix-power.com', 55, 39)
                       
                       // SALARY SLIP title (Right side)
                       doc.setFontSize(22)
@@ -2017,16 +2017,14 @@ export function HrmManager() {
                       // Right column
                       doc.setFont('helvetica', 'bold')
                       doc.text('Pay Period:', 120, 83)
-                      doc.text('Payment Date:', 120, 91)
-                      doc.text('Generated On:', 120, 99)
-                      doc.text('Currency:', 120, 107)
+                      doc.text('Generated On:', 120, 91)
+                      doc.text('Currency:', 120, 99)
                       
                       // Right column values
                       doc.setFont('helvetica', 'normal')
                       doc.text(new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 155, 83)
-                      doc.text(new Date(selectedMonth + '-01').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
-                      doc.text(new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 99)
-                      doc.text(viewMember.currency, 155, 107)
+                      doc.text(new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
+                      doc.text(viewMember.currency, 155, 99)
                       
                       // Salary Breakdown Section
                       let currentY = 125
@@ -2134,8 +2132,8 @@ export function HrmManager() {
                       doc.setFont('helvetica', 'italic')
                       doc.setTextColor(100, 100, 100)
                       doc.text('Voltrix Batteries - Human Resources Management System', 105, 276, { align: 'center' })
-                      doc.text('Office # 2, 2nd Floor, Anum Estate, Main Peshawar Road, Rawalpindi', 105, 281, { align: 'center' })
-                      doc.text('Phone: +92 303 4927779 | Email: info@voltrixbatteries.com', 105, 286, { align: 'center' })
+                      doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 105, 281, { align: 'center' })
+                      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779 | Email: info@voltrix-power.com', 105, 286, { align: 'center' })
                       
                       // Save and download
                       const pdfBlob = doc.output('blob')
