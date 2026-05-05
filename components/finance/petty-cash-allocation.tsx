@@ -38,30 +38,21 @@ export function PettyCashAllocation({ onClose, onSave }: PettyCashAllocationProp
   )
 
   async function handleFileUpload(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = async () => {
-        try {
-          const base64data = reader.result as string
-          const response = await fetch('/api/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ file: base64data })
-          })
-          
-          if (!response.ok) {
-            throw new Error('Failed to upload file')
-          }
-          
-          const data = await response.json()
-          resolve(data.url)
-        } catch (error) {
-          reject(error)
-        }
-      }
-      reader.onerror = () => reject(new Error('Failed to read file'))
-      reader.readAsDataURL(file)
+    const formData = new FormData()
+    formData.append('files', file)
+    formData.append('folder', 'petty-cash')
+    
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
     })
+    
+    if (!response.ok) {
+      throw new Error('Failed to upload file')
+    }
+    
+    const data = await response.json()
+    return data.urls[0]
   }
 
   async function submit() {
