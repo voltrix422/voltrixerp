@@ -58,7 +58,7 @@ export default function InventoryPage() {
           </div>
 
           {/* Tab Content */}
-          {tab === "orders" ? <ClientOrdersInventory /> : tab === "stock" ? <InventoryList /> : <BranchesTab />}
+                      {tab === "branches" && <div className="p-4 text-center text-lg font-semibold">Branches tab loading…</div>\n            {tab === "branches" ? <BranchesTab /> : null}
         </div>
       </div>
     </ModuleGuard>
