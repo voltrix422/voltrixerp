@@ -167,23 +167,33 @@ export async function PUT(req: NextRequest) {
       data: { quantity: { decrement: quantity } }
     })
 
-    if (existingDestination) {
-      await tx.erpBranchInventory.update({
-        where: { id: existingDestination.id },
-        data: { quantity: { increment: quantity } }
-      })
-    } else {
-      await tx.erpBranchInventory.create({
+    if (destinationBranch.type === "main_warehouse") {
+      await tx.erpInventoryStock.update({
+        where: { id: source.inventoryId },
         data: {
-          branchId: toBranchId,
-          inventoryId: source.inventoryId,
-          productDescription: source.productDescription,
-          quantity,
-          unit: source.unit,
-          assignedBy: transferredBy || "system",
-          notes: notes || ""
+          availableQty: { increment: quantity },
+          allocatedQty: { decrement: quantity }
         }
       })
+    } else {
+      if (existingDestination) {
+        await tx.erpBranchInventory.update({
+          where: { id: existingDestination.id },
+          data: { quantity: { increment: quantity } }
+        })
+      } else {
+        await tx.erpBranchInventory.create({
+          data: {
+            branchId: toBranchId,
+            inventoryId: source.inventoryId,
+            productDescription: source.productDescription,
+            quantity,
+            unit: source.unit,
+            assignedBy: transferredBy || "system",
+            notes: notes || ""
+          }
+        })
+      }
     }
 
     await tx.erpInventoryHistory.create({
