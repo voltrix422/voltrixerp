@@ -1,13 +1,13 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
+import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, deletePettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
 import { PettyCashAllocation as PettyCashAllocationForm } from "./petty-cash-allocation"
 import { PettyCashReceipt as PettyCashReceiptForm } from "./petty-cash-receipt"
 import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react"
+import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Trash2 } from "lucide-react"
 
 interface PettyCashDashboardProps {
   currentUser: string
@@ -24,6 +24,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
   const [selectedAllocation, setSelectedAllocation] = useState<PettyCashAllocation | null>(null)
   const [activeTab, setActiveTab] = useState<"allocations" | "receipts">("allocations")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
 
   useEffect(() => {
     loadData()
@@ -113,6 +114,25 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
     } catch (error) {
       console.error("Error reviewing receipt:", error)
       toast({ title: "Error", message: "Failed to review receipt", type: "error" })
+    }
+  }
+
+  async function handleDeleteAllocation(allocation: PettyCashAllocation) {
+    try {
+      await deletePettyCashAllocation(allocation.id)
+      setAllocations(prev => prev.filter(a => a.id !== allocation.id))
+      setReceipts(prev => prev.filter(r => r.allocationId !== allocation.id))
+      if (selectedAllocation?.id === allocation.id) {
+        setSelectedAllocation(null)
+      }
+      toast({ title: "Deleted", message: "Petty cash allocation removed", type: "success" })
+    } catch (error) {
+      console.error("Error deleting allocation:", error)
+      toast({
+        title: "Error",
+        message: error instanceof Error ? error.message : "Failed to delete allocation",
+        type: "error"
+      })
     }
   }
 
@@ -251,7 +271,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
                       <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Remaining</th>
                       <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
                       <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-                      <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-16">Actions</th>
+                      <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-24">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -286,14 +306,25 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
                             {new Date(allocation.allocatedAt).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-2.5 text-xs text-center" onClick={e => e.stopPropagation()}>
-                            {canManagePettyCash && allocation.status === "active" && (
-                              <button
-                                onClick={() => setSettleConfirm(allocation)}
-                                className="text-blue-500 hover:text-blue-700 text-[10px] font-medium transition-colors cursor-pointer"
-                                title="Settle allocation"
-                              >
-                                Settle
-                              </button>
+                            {canManagePettyCash && (
+                              <div className="flex items-center justify-center gap-2">
+                                {allocation.status === "active" && (
+                                  <button
+                                    onClick={() => setSettleConfirm(allocation)}
+                                    className="text-blue-500 hover:text-blue-700 text-[10px] font-medium transition-colors cursor-pointer"
+                                    title="Settle allocation"
+                                  >
+                                    Settle
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setDeleteConfirm(allocation)}
+                                  className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                                  title="Delete allocation"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -411,6 +442,20 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
           setSettleConfirm(null)
         }}
         onCancel={() => setSettleConfirm(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirm}
+        title="Delete Petty Cash Allocation"
+        message={`Are you sure you want to delete the allocation for ${deleteConfirm?.employeeName}? This will also delete linked settlements.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteConfirm) handleDeleteAllocation(deleteConfirm)
+          setDeleteConfirm(null)
+        }}
+        onCancel={() => setDeleteConfirm(null)}
       />
 
       {/* Allocation Detail Modal */}

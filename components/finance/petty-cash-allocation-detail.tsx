@@ -26,6 +26,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
   const [amount, setAmount] = useState("")
   const [notes, setNotes] = useState("")
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState("")
 
   useEffect(() => {
     loadReceipts()
@@ -134,6 +135,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
       setAmount("")
       setNotes("")
       setReceiptFile(null)
+      setReceiptPreviewUrl("")
       setShowReceiptForm(false)
       onUpdate()
     } catch (error) {
@@ -209,10 +211,12 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
 
   const canManagePettyCash = userRole === 'admin' || userRole === 'superadmin' || userRole === 'finance'
   const isOwnAllocation = allocation.employeeName === currentUser
+  const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
+  const isPdf = (value?: string) => !!value && (value.startsWith("data:application/pdf") || /\.pdf$/i.test(value))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl border bg-[hsl(var(--card))] shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl border bg-[hsl(var(--card))] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-3">
@@ -229,7 +233,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
           </Button>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-6 space-y-6">
             {/* Allocation Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -366,9 +370,20 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
                     <input
                       type="file"
                       accept="image/*,.pdf"
-                      onChange={e => setReceiptFile(e.target.files?.[0] || null)}
+                      onChange={e => {
+                        const file = e.target.files?.[0] || null
+                        setReceiptFile(file)
+                        setReceiptPreviewUrl(file && file.type.startsWith("image/") ? URL.createObjectURL(file) : "")
+                      }}
                       className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
+                    {receiptPreviewUrl && (
+                      <img
+                        src={receiptPreviewUrl}
+                        alt="Settlement proof preview"
+                        className="max-h-28 rounded border object-contain"
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Notes</label>
@@ -436,15 +451,35 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
                           </div>
                           {receipt.receiptProof && (
                             <div className="mt-2">
-                              <a
-                                href={receipt.receiptProof}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                              >
-                                <FileText className="h-3 w-3" />
-                                View Proof
-                              </a>
+                              {isImage(receipt.receiptProof) ? (
+                                <a href={receipt.receiptProof} target="_blank" rel="noopener noreferrer" className="inline-block">
+                                  <img
+                                    src={receipt.receiptProof}
+                                    alt="Settlement proof"
+                                    className="max-h-28 rounded border object-contain"
+                                  />
+                                </a>
+                              ) : isPdf(receipt.receiptProof) ? (
+                                <a
+                                  href={receipt.receiptProof}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                >
+                                  <FileText className="h-3 w-3" />
+                                  Open PDF Proof
+                                </a>
+                              ) : (
+                                <a
+                                  href={receipt.receiptProof}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                >
+                                  <FileText className="h-3 w-3" />
+                                  View Proof
+                                </a>
+                              )}
                             </div>
                           )}
                         </div>

@@ -82,6 +82,16 @@ export async function updatePettyCashAllocationStatus(
   return res.json()
 }
 
+export async function deletePettyCashAllocation(id: string): Promise<void> {
+  const res = await fetch(`/api/db/petty-cash-allocations?id=${id}`, {
+    method: "DELETE",
+  })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}))
+    throw new Error(payload?.error || "Failed to delete petty cash allocation")
+  }
+}
+
 export async function getPettyCashReceipts(allocationId?: string): Promise<PettyCashReceipt[]> {
   const url = allocationId 
     ? `/api/db/petty-cash-receipts?allocationId=${allocationId}`
