@@ -4,9 +4,10 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { InventoryList } from "@/components/inventory/inventory-list"
 import { ClientOrdersInventory } from "@/components/inventory/client-orders-inventory"
+import { BranchesTab } from "@/components/branches/branches-tab"
 
 export default function InventoryPage() {
-  const [tab, setTab] = useState<"orders" | "stock">("orders")
+  const [tab, setTab] = useState<"orders" | "stock" | "branches">("orders")
 
   return (
     <ModuleGuard module="inventory">
@@ -41,10 +42,23 @@ export default function InventoryPage() {
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
             </button>
+            <button
+              onClick={() => setTab("branches")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+                tab === "branches"
+                  ? "text-[hsl(var(--foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              Branches
+              {tab === "branches" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+              )}
+            </button>
           </div>
 
           {/* Tab Content */}
-          {tab === "orders" ? <ClientOrdersInventory /> : <InventoryList />}
+          {tab === "orders" ? <ClientOrdersInventory /> : tab === "stock" ? <InventoryList /> : <BranchesTab />}
         </div>
       </div>
     </ModuleGuard>
