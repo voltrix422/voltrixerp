@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { SlidersHorizontal, ChevronDown, ChevronUp, Search, Calendar } from "lucide-react"
 
 type Tab = "manage" | "client" | "purchase"
-type ManageSection = "finance" | "petty-cash"
+type ManageSection = "finance" | "petty-cash" | "records"
 
 export default function FinancePage() {
   const { user, userRole } = useAuthWithRole()
@@ -112,7 +112,7 @@ export default function FinancePage() {
                     onClick={() => setShowManageDropdown(!showManageDropdown)}
                     className="flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/50 transition-colors"
                   >
-                    {manageSection === "finance" ? "Finance Records" : "Petty Cash"}
+                    {manageSection === "finance" ? "Finance Records" : manageSection === "petty-cash" ? "Petty Cash" : "All Records"}
                     <ChevronDown className="h-3.5 w-3.5" />
                   </button>
                   {showManageDropdown && (
@@ -141,6 +141,17 @@ export default function FinancePage() {
                         >
                           Petty Cash
                         </button>
+                        <button
+                          onClick={() => {
+                            setManageSection("records")
+                            setShowManageDropdown(false)
+                          }}
+                          className={`w-full px-3 py-2 text-sm text-left hover:bg-[hsl(var(--muted))]/50 transition-colors ${
+                            manageSection === "records" ? "bg-[hsl(var(--muted))]/30" : ""
+                          }`}
+                        >
+                          All Records
+                        </button>
                       </div>
                     </>
                   )}
@@ -150,6 +161,20 @@ export default function FinancePage() {
               {/* Manage Section Content */}
               {manageSection === "finance" && <FinanceManager search={search} dateFrom={dateFrom} dateTo={dateTo} />}
               {manageSection === "petty-cash" && <PettyCashDashboard currentUser={user?.name || ""} userRole={userRole || ""} />}
+              {manageSection === "records" && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border bg-[hsl(var(--card))] p-6">
+                    <h3 className="text-lg font-semibold mb-4">All Financial Records</h3>
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                      Complete view of all financial transactions including petty cash and regular finance records.
+                    </p>
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FinanceManager search={search} dateFrom={dateFrom} dateTo={dateTo} />
+                      <PettyCashDashboard currentUser={user?.name || ""} userRole={userRole || ""} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {activeTab === "client" && <ClientOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />}

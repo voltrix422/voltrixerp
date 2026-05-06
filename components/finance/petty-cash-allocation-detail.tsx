@@ -149,11 +149,28 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
   async function handleReviewReceipt(receipt: PettyCashReceipt, status: 'approved' | 'rejected') {
     try {
       await updatePettyCashReceiptStatus(receipt.id, status, currentUser)
-      setReceipts(prev => prev.map(r => 
+      const updatedReceipts = receipts.map(r => 
         r.id === receipt.id 
           ? { ...r, status, reviewedBy: currentUser, reviewedAt: new Date().toISOString() }
           : r
-      ))
+      )
+      setReceipts(updatedReceipts)
+      
+      // Check if this approval completes the allocation
+      if (status === 'approved') {
+        const allocationReceipts = updatedReceipts.filter(r => r.allocationId === allocation.id && r.status === 'approved')
+        const totalSpent = allocationReceipts.reduce((sum, r) => sum + r.amount, 0)
+        
+        // Auto-settle if total receipts equal or exceed allocation amount
+        if (totalSpent >= allocation.amount) {
+          await updatePettyCashAllocationStatus(allocation.id, 'settled', new Date().toISOString())
+          toast({
+            title: "Auto-Settled",
+            message: `Petty cash allocation has been automatically settled! Total spent: PKR ${totalSpent.toLocaleString()}`,
+            type: "success"
+          })
+        }
+      }
       
       toast({
         title: "Success",
