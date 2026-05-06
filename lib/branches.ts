@@ -1,6 +1,6 @@
 // DB access via /api/db routes (Prisma)
 
-export type BranchType = "outlet" | "store" | "warehouse" | "main_warehouse" | "office"
+export type BranchType = "outlet" | "store" | "warehouse" | "branch_warehouse" | "main_warehouse" | "office"
 
 export interface Branch {
   id: string
