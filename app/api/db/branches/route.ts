@@ -8,6 +8,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const b = await req.json()
+  if (b.type === "main_warehouse") {
+    await prisma.erpBranch.updateMany({
+      where: {
+        type: "main_warehouse",
+        id: { not: b.id }
+      },
+      data: { type: "warehouse" }
+    })
+  }
   const branch = await prisma.erpBranch.upsert({
     where: { id: b.id ?? "__new__" },
     update: { 

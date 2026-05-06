@@ -1,6 +1,6 @@
 // DB access via /api/db routes (Prisma)
 
-export type BranchType = "outlet" | "store" | "warehouse" | "office"
+export type BranchType = "outlet" | "store" | "warehouse" | "main_warehouse" | "office"
 
 export interface Branch {
   id: string
@@ -122,5 +122,19 @@ export async function removeBranchInventory(id: string): Promise<void> {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
+  })
+}
+
+export async function transferBranchInventory(data: {
+  fromBranchInventoryId: string
+  toBranchId: string
+  quantity: number
+  transferredBy: string
+  notes?: string
+}): Promise<void> {
+  await fetch("/api/db/branch-inventory", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
   })
 }
