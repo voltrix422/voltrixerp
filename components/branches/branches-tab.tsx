@@ -348,6 +348,8 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
         id: `system-${item.id}`,
         branchId: branch.id,
         inventoryId: item.id,
+        itemName: item.name || "",
+        specs: item.specs || "",
         productDescription: item.description,
         quantity: item.availableQty,
         unit: item.unit,
@@ -359,7 +361,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-3xl rounded-2xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-start justify-between">
@@ -387,7 +389,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
         </div>
 
         {/* Details */}
-        <div className="px-6 pb-4 space-y-2.5">
+        <div className="px-6 pb-4 space-y-3 overflow-y-auto">
           {branch.manager && (
             <div className="flex items-center gap-3 p-2.5 rounded-lg bg-[hsl(var(--muted))]/30">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--background))]">
@@ -444,7 +446,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
           )}
 
           {/* Inventory Section */}
-          <div className="border-t pt-2.5 mt-1">
+          <div className="border-t pt-3 mt-1">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider font-medium">{isMainWarehouse ? "Main Warehouse Inventory" : "Branch Inventory"}</p>
               {isMainWarehouse ? (
@@ -464,15 +466,25 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
             ) : inventoryRows.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))] py-2">No inventory assigned to this branch.</p>
             ) : (
-              <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
                 {inventoryRows.map(inv => (
-                  <div key={inv.id} className="flex items-center justify-between p-2 rounded bg-[hsl(var(--muted))]/30">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{inv.productDescription || inv.inventoryId}</p>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{inv.quantity} {inv.unit}</p>
+                  <div key={inv.id} className="rounded-lg border bg-[hsl(var(--background))] p-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate">{inv.productDescription || inv.inventoryId}</p>
+                        {isMainWarehouse && (inv as any).itemName && (
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{(inv as any).itemName}</p>
+                        )}
+                        {isMainWarehouse && (inv as any).specs && (
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{(inv as any).specs}</p>
+                        )}
+                      </div>
+                      <Badge variant="secondary" className="text-[10px] px-2 py-0.5 shrink-0">
+                        {inv.quantity} {inv.unit}
+                      </Badge>
                     </div>
                     {!isMainWarehouse && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 mt-2 justify-end">
                         <Button
                           variant="ghost"
                           size="icon"
