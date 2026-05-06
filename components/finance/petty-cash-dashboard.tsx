@@ -22,7 +22,6 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
   const [showAllocationForm, setShowAllocationForm] = useState(false)
   const [showReceiptForm, setShowReceiptForm] = useState(false)
   const [selectedAllocation, setSelectedAllocation] = useState<PettyCashAllocation | null>(null)
-  const [selectedReceipt, setSelectedReceipt] = useState<PettyCashReceipt | null>(null)
   const [activeTab, setActiveTab] = useState<"allocations" | "receipts">("allocations")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
 
@@ -138,7 +137,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
           <div>
             <h2 className="text-xl font-bold">Petty Cash Management</h2>
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Track and manage petty cash allocations and receipts
+              Track allocations and submit multiple settlements until fully closed
             </p>
           </div>
         </div>
@@ -149,7 +148,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
             </Button>
           )}
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Submit Receipt
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Settlement
           </Button>
         </div>
       </div>
@@ -198,7 +197,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
               <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending Receipts</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending Settlements</p>
               <p className="text-lg font-bold">{receipts.filter(r => r.status === "pending").length}</p>
             </div>
           </div>
@@ -314,9 +313,9 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
           {displayReceipts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Receipt className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">No receipts found</p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">No settlements found</p>
               <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" /> Submit Receipt
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Settlement
               </Button>
             </div>
           ) : (
@@ -348,13 +347,6 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
                       </td>
                       <td className="px-4 py-2.5 text-xs text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => setSelectedReceipt(receipt)}
-                            className="text-blue-500 hover:text-blue-700 cursor-pointer transition-colors"
-                            title="View details"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
                           {canManagePettyCash && receipt.status === "pending" && (
                             <>
                               <button

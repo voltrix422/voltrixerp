@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getPettyCashAllocations, createPettyCashReceipt, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
+import { getPettyCashAllocations, getPettyCashReceipts, createPettyCashReceipt, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
@@ -56,10 +56,10 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
   }
 
   async function submit() {
-    if (!selectedAllocation || !description || !amount) {
+    if (!selectedAllocation || !description || !amount || !receiptProof) {
       toast({
         title: "Missing Information",
-        message: "Please fill in all required fields",
+        message: "Please fill all required fields and attach proof",
         type: "error"
       })
       return
@@ -104,7 +104,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
 
       toast({
         title: "Success",
-        message: "Receipt submitted successfully",
+        message: "Settlement submitted successfully",
         type: "success"
       })
 
@@ -129,7 +129,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-blue-600" />
-            <p className="text-lg font-bold">Submit Receipt</p>
+            <p className="text-lg font-bold">Add Settlement</p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -259,7 +259,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
               {/* Receipt Proof */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
-                  Receipt Proof *
+                  Proof Attachment *
                 </label>
                 <div className="border-2 border-dashed border-[hsl(var(--muted-foreground))] rounded-lg p-4">
                   <input
@@ -275,7 +275,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
                   >
                     <Upload className="h-8 w-8 text-[hsl(var(--muted-foreground))] mb-2" />
                     <span className="text-sm text-[hsl(var(--muted-foreground))]">
-                      {receiptProof ? receiptProof.name : "Click to upload receipt"}
+                      {receiptProof ? receiptProof.name : "Click to upload proof"}
                     </span>
                     <span className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                       Images or PDF files
@@ -297,7 +297,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
             onClick={submit}
             disabled={loading || uploading || allocations.length === 0}
           >
-            {loading || uploading ? "Processing..." : "Submit Receipt"}
+            {loading || uploading ? "Processing..." : "Submit Settlement"}
           </Button>
         </div>
       </div>

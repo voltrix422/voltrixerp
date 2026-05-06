@@ -1,10 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
-import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashReceiptStatus } from "@/lib/petty-cash"
+import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus } from "@/lib/petty-cash"
 import { useToast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Receipt, Upload, CheckCircle, XCircle, Clock, FileText, AlertCircle, DollarSign, Calendar, User, Target } from "lucide-react"
+import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target } from "lucide-react"
 
 interface PettyCashAllocationDetailProps {
   allocation: PettyCashAllocation
@@ -50,7 +50,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
 
   const totalSpent = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0)
   const remainingAmount = allocation.amount - totalSpent
-  const progressPercentage = (totalSpent / allocation.amount) * 100
+  const progressPercentage = allocation.amount > 0 ? (totalSpent / allocation.amount) * 100 : 0
 
   async function handleFileUpload(file: File): Promise<string> {
     const formData = new FormData()
@@ -74,7 +74,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
     if (!description || !amount || !receiptFile) {
       toast({
         title: "Missing Information",
-        message: "Please fill in all required fields and upload receipt proof",
+        message: "Please fill all required fields and attach settlement proof",
         type: "error"
       })
       return
@@ -101,7 +101,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
         receiptProofFileName = receiptFile.name
       }
 
-      const response = await fetch('/api/db/petty-cash-receipts', {
+      const response = await fetch("/api/db/petty-cash-receipts", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -115,14 +115,17 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
         })
       })
 
-      if (!response.ok) throw new Error('Failed to submit receipt')
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to submit settlement")
+      }
 
       const newReceipt = await response.json()
       setReceipts(prev => [newReceipt, ...prev])
 
       toast({
         title: "Success",
-        message: "Receipt submitted successfully",
+        message: "Settlement entry submitted successfully",
         type: "success"
       })
 
@@ -134,10 +137,10 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
       setShowReceiptForm(false)
       onUpdate()
     } catch (error) {
-      console.error('Error submitting receipt:', error)
+      console.error("Error submitting settlement:", error)
       toast({
         title: "Error",
-        message: "Failed to submit receipt",
+        message: error instanceof Error ? error.message : "Failed to submit settlement",
         type: "error"
       })
     } finally {
@@ -172,11 +175,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
         }
       }
       
-      toast({
-        title: "Success",
-        message: `Receipt ${status}`,
-        type: "success"
-      })
+      toast({ title: "Success", message: `Settlement ${status}`, type: "success" })
       
       onUpdate()
     } catch (error) {
@@ -322,21 +321,21 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
             {/* Actions */}
             {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && remainingAmount > 0 && (
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Receipt Management</h3>
+                <h3 className="text-sm font-semibold">Settlement Management</h3>
                 <Button
                   onClick={() => setShowReceiptForm(!showReceiptForm)}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Submit Receipt
+                  Add Settlement
                 </Button>
               </div>
             )}
 
-            {/* Receipt Form */}
+            {/* Settlement Form */}
             {showReceiptForm && (
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-                <h3 className="text-sm font-semibold mb-4">Submit New Receipt</h3>
+                <h3 className="text-sm font-semibold mb-4">Submit Settlement Entry</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Description *</label>
@@ -345,7 +344,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
                       value={description}
                       onChange={e => setDescription(e.target.value)}
                       className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/40"
-                      placeholder="Enter expense description"
+                      placeholder="e.g. Office supplies, transport, lunch"
                     />
                   </div>
                   <div className="space-y-2">
@@ -358,9 +357,12 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
                       placeholder="0.00"
                       max={remainingAmount}
                     />
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      Remaining: PKR {remainingAmount.toLocaleString()}
+                    </p>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Receipt Proof *</label>
+                    <label className="text-sm font-medium">Proof Attachment *</label>
                     <input
                       type="file"
                       accept="image/*,.pdf"
@@ -384,7 +386,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
                     disabled={loading || uploading}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    {uploading ? 'Uploading...' : 'Submit Receipt'}
+                    {uploading ? "Uploading..." : "Submit Settlement"}
                   </Button>
                   <Button variant="outline" onClick={() => setShowReceiptForm(false)}>
                     Cancel
@@ -393,16 +395,19 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
               </div>
             )}
 
-            {/* Receipts List */}
+            {/* Settlement History */}
             <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
               <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                 <Receipt className="h-4 w-4" />
-                Receipt History ({receipts.length})
+                Settlement History ({receipts.length})
               </h3>
+              {loading && (
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">Loading settlement history...</p>
+              )}
               {receipts.length === 0 ? (
                 <div className="text-center py-8">
                   <Receipt className="h-12 w-12 text-[hsl(var(--muted-foreground))] mx-auto mb-3" />
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No receipts submitted yet</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No settlements submitted yet</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -438,7 +443,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
                                 className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
                               >
                                 <FileText className="h-3 w-3" />
-                                View Receipt Proof
+                                View Proof
                               </a>
                             </div>
                           )}
