@@ -1,0 +1,459 @@
+"use client"
+import { useState, useEffect } from "react"
+import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashReceiptStatus } from "@/lib/petty-cash"
+import { useToast } from "@/components/ui/toast"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { X, Plus, Receipt, Upload, CheckCircle, XCircle, Clock, FileText, AlertCircle, DollarSign, Calendar, User, Target } from "lucide-react"
+
+interface PettyCashAllocationDetailProps {
+  allocation: PettyCashAllocation
+  currentUser: string
+  userRole: string
+  onClose: () => void
+  onUpdate: () => void
+}
+
+export function PettyCashAllocationDetail({ allocation, currentUser, userRole, onClose, onUpdate }: PettyCashAllocationDetailProps) {
+  const { toast } = useToast()
+  const [receipts, setReceipts] = useState<PettyCashReceipt[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showReceiptForm, setShowReceiptForm] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  
+  // Receipt form state
+  const [description, setDescription] = useState("")
+  const [amount, setAmount] = useState("")
+  const [notes, setNotes] = useState("")
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+
+  useEffect(() => {
+    loadReceipts()
+  }, [allocation.id])
+
+  async function loadReceipts() {
+    try {
+      const allReceipts = await getPettyCashReceipts()
+      const allocationReceipts = allReceipts.filter(r => r.allocationId === allocation.id)
+      setReceipts(allocationReceipts)
+    } catch (error) {
+      console.error('Error loading receipts:', error)
+      toast({
+        title: "Error",
+        message: "Failed to load receipts",
+        type: "error"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const totalSpent = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0)
+  const remainingAmount = allocation.amount - totalSpent
+  const progressPercentage = (totalSpent / allocation.amount) * 100
+
+  async function handleFileUpload(file: File): Promise<string> {
+    const formData = new FormData()
+    formData.append('files', file)
+    formData.append('folder', 'petty-cash')
+    
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to upload file')
+    }
+    
+    const data = await response.json()
+    return data.urls[0]
+  }
+
+  async function submitReceipt() {
+    if (!description || !amount || !receiptFile) {
+      toast({
+        title: "Missing Information",
+        message: "Please fill in all required fields and upload receipt proof",
+        type: "error"
+      })
+      return
+    }
+
+    if (parseFloat(amount) > remainingAmount) {
+      toast({
+        title: "Amount Exceeds Remaining Balance",
+        message: `Maximum amount available: PKR ${remainingAmount.toLocaleString()}`,
+        type: "error"
+      })
+      return
+    }
+
+    setLoading(true)
+    setUploading(true)
+    
+    try {
+      let receiptProofUrl = ""
+      let receiptProofFileName = ""
+      
+      if (receiptFile) {
+        receiptProofUrl = await handleFileUpload(receiptFile)
+        receiptProofFileName = receiptFile.name
+      }
+
+      const response = await fetch('/api/db/petty-cash-receipts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          allocationId: allocation.id,
+          employeeName: allocation.employeeName,
+          description,
+          amount: parseFloat(amount),
+          receiptProof: receiptProofUrl || undefined,
+          receiptProofName: receiptProofFileName || undefined,
+          notes: notes.trim()
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to submit receipt')
+
+      const newReceipt = await response.json()
+      setReceipts(prev => [newReceipt, ...prev])
+
+      toast({
+        title: "Success",
+        message: "Receipt submitted successfully",
+        type: "success"
+      })
+
+      // Reset form
+      setDescription("")
+      setAmount("")
+      setNotes("")
+      setReceiptFile(null)
+      setShowReceiptForm(false)
+      onUpdate()
+    } catch (error) {
+      console.error('Error submitting receipt:', error)
+      toast({
+        title: "Error",
+        message: "Failed to submit receipt",
+        type: "error"
+      })
+    } finally {
+      setLoading(false)
+      setUploading(false)
+    }
+  }
+
+  async function handleReviewReceipt(receipt: PettyCashReceipt, status: 'approved' | 'rejected') {
+    try {
+      await updatePettyCashReceiptStatus(receipt.id, status, currentUser)
+      setReceipts(prev => prev.map(r => 
+        r.id === receipt.id 
+          ? { ...r, status, reviewedBy: currentUser, reviewedAt: new Date().toISOString() }
+          : r
+      ))
+      
+      toast({
+        title: "Success",
+        message: `Receipt ${status}`,
+        type: "success"
+      })
+      
+      onUpdate()
+    } catch (error) {
+      console.error('Error reviewing receipt:', error)
+      toast({
+        title: "Error",
+        message: "Failed to review receipt",
+        type: "error"
+      })
+    }
+  }
+
+  function getStatusColor(status: string) {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+      case 'settled':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+      case 'approved':
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+      case 'rejected':
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+    }
+  }
+
+  const canManagePettyCash = userRole === 'admin' || userRole === 'superadmin' || userRole === 'finance'
+  const isOwnAllocation = allocation.employeeName === currentUser
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl border bg-[hsl(var(--card))] shadow-2xl" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div className="flex items-center gap-3">
+            <DollarSign className="h-6 w-6 text-blue-600" />
+            <div>
+              <p className="text-lg font-bold">Petty Cash Allocation Details</p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {allocation.employeeName} • {allocation.employeeRole}
+              </p>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-auto">
+          <div className="p-6 space-y-6">
+            {/* Allocation Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <DollarSign className="h-4 w-4 text-blue-600" />
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Total Amount</p>
+                </div>
+                <p className="text-xl font-bold text-blue-600">PKR {allocation.amount.toLocaleString()}</p>
+              </div>
+              
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Receipt className="h-4 w-4 text-green-600" />
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Total Spent</p>
+                </div>
+                <p className="text-xl font-bold text-green-600">PKR {totalSpent.toLocaleString()}</p>
+              </div>
+              
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Target className="h-4 w-4 text-orange-600" />
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Remaining</p>
+                </div>
+                <p className="text-xl font-bold text-orange-600">PKR {remainingAmount.toLocaleString()}</p>
+              </div>
+              
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="h-4 w-4 text-purple-600" />
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Status</p>
+                </div>
+                <Badge className={getStatusColor(allocation.status)}>
+                  {allocation.status}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">Settlement Progress</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">{progressPercentage.toFixed(1)}%</p>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                PKR {totalSpent.toLocaleString()} of PKR {allocation.amount.toLocaleString()} spent
+              </p>
+            </div>
+
+            {/* Allocation Info */}
+            <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Allocation Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-[hsl(var(--muted-foreground))]">Employee</p>
+                  <p className="font-medium">{allocation.employeeName}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
+                </div>
+                <div>
+                  <p className="text-[hsl(var(--muted-foreground))]">Purpose</p>
+                  <p className="font-medium">{allocation.purpose}</p>
+                </div>
+                <div>
+                  <p className="text-[hsl(var(--muted-foreground))]">Allocated By</p>
+                  <p className="font-medium">{allocation.allocatedBy}</p>
+                </div>
+                <div>
+                  <p className="text-[hsl(var(--muted-foreground))]">Allocated Date</p>
+                  <p className="font-medium">{new Date(allocation.allocatedAt).toLocaleDateString()}</p>
+                </div>
+                {allocation.notes && (
+                  <div className="md:col-span-2">
+                    <p className="text-[hsl(var(--muted-foreground))]">Notes</p>
+                    <p className="font-medium">{allocation.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && remainingAmount > 0 && (
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Receipt Management</h3>
+                <Button
+                  onClick={() => setShowReceiptForm(!showReceiptForm)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Submit Receipt
+                </Button>
+              </div>
+            )}
+
+            {/* Receipt Form */}
+            {showReceiptForm && (
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <h3 className="text-sm font-semibold mb-4">Submit New Receipt</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Description *</label>
+                    <input
+                      type="text"
+                      value={description}
+                      onChange={e => setDescription(e.target.value)}
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/40"
+                      placeholder="Enter expense description"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Amount (PKR) *</label>
+                    <input
+                      type="number"
+                      value={amount}
+                      onChange={e => setAmount(e.target.value)}
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/40"
+                      placeholder="0.00"
+                      max={remainingAmount}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Receipt Proof *</label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={e => setReceiptFile(e.target.files?.[0] || null)}
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Notes</label>
+                    <textarea
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      className="w-full h-20 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/40 resize-none"
+                      placeholder="Additional notes (optional)"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-4">
+                  <Button
+                    onClick={submitReceipt}
+                    disabled={loading || uploading}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {uploading ? 'Uploading...' : 'Submit Receipt'}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowReceiptForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Receipts List */}
+            <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+              <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                <Receipt className="h-4 w-4" />
+                Receipt History ({receipts.length})
+              </h3>
+              {receipts.length === 0 ? (
+                <div className="text-center py-8">
+                  <Receipt className="h-12 w-12 text-[hsl(var(--muted-foreground))] mx-auto mb-3" />
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No receipts submitted yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {receipts.map(receipt => (
+                    <div key={receipt.id} className="border rounded-lg p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium text-sm">{receipt.description}</p>
+                            <Badge className={getStatusColor(receipt.status)} variant="secondary">
+                              {receipt.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm font-semibold text-blue-600 mb-1">PKR {receipt.amount.toLocaleString()}</p>
+                          {receipt.notes && (
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">{receipt.notes}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-[hsl(var(--muted-foreground))]">
+                            <span>Submitted: {new Date(receipt.submittedAt).toLocaleDateString()}</span>
+                            {receipt.reviewedAt && (
+                              <span>Reviewed: {new Date(receipt.reviewedAt).toLocaleDateString()}</span>
+                            )}
+                            {receipt.reviewedBy && (
+                              <span>By: {receipt.reviewedBy}</span>
+                            )}
+                          </div>
+                          {receipt.receiptProof && (
+                            <div className="mt-2">
+                              <a
+                                href={receipt.receiptProof}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                              >
+                                <FileText className="h-3 w-3" />
+                                View Receipt Proof
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                        {canManagePettyCash && receipt.status === 'pending' && (
+                          <div className="flex items-center gap-1 ml-4">
+                            <Button
+                              size="sm"
+                              onClick={() => handleReviewReceipt(receipt, 'approved')}
+                              className="bg-green-600 hover:bg-green-700 h-7 px-2"
+                            >
+                              <CheckCircle className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleReviewReceipt(receipt, 'rejected')}
+                              className="h-7 px-2"
+                            >
+                              <XCircle className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

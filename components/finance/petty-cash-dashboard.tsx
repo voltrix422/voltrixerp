@@ -4,6 +4,7 @@ import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocatio
 import { useAuth } from "@/components/auth-provider"
 import { PettyCashAllocation as PettyCashAllocationForm } from "./petty-cash-allocation"
 import { PettyCashReceipt as PettyCashReceiptForm } from "./petty-cash-receipt"
+import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -312,7 +313,11 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
                     const remaining = calculateRemainingAmount(allocation)
                     
                     return (
-                      <tr key={allocation.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
+                      <tr 
+                        key={allocation.id} 
+                        className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                        onClick={() => setSelectedAllocation(allocation)}
+                      >
                         <td className="px-4 py-2.5 text-xs">
                           <div>
                             <p className="font-medium">{allocation.employeeName}</p>
@@ -327,35 +332,6 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(allocation.status)}`}>
                             {allocation.status}
                           </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">
-                          {new Date(allocation.allocatedAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => setSelectedAllocation(allocation)}
-                              className="text-blue-500 hover:text-blue-700 cursor-pointer transition-colors"
-                              title="View details"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
-                            {canManagePettyCash && allocation.status === 'active' && (
-                              <button
-                                onClick={() => setSettleConfirm(allocation)}
-                                className="text-green-500 hover:text-green-700 cursor-pointer transition-colors"
-                                title="Settle allocation"
-                              >
-                                <CheckCircle className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
             </div>
           )}
         </div>
@@ -474,6 +450,17 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
         }}
         onCancel={() => setSettleConfirm(null)}
       />
+
+      {/* Allocation Detail View */}
+      {selectedAllocation && (
+        <PettyCashAllocationDetail
+          allocation={selectedAllocation}
+          currentUser={currentUser}
+          userRole={userRole}
+          onClose={() => setSelectedAllocation(null)}
+          onUpdate={loadData}
+        />
+      )}
     </div>
   )
 }
