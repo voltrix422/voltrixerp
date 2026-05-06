@@ -1,10 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, assignInventoryToBranch, removeBranchInventory, transferBranchInventory, type Branch, type BranchInventory } from "@/lib/branches"
+import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, assignInventoryToBranch, type Branch, type BranchInventory } from "@/lib/branches"
 import { Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Trash2, X, Phone, Mail, MapPin, Building2, Loader2, User, ArrowRightLeft } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Phone, Mail, MapPin, Building2, Loader2, User, ArrowRightLeft, FileDown } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
@@ -128,17 +128,8 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
 }) {
   const [inventory, setInventory] = useState<BranchInventory[]>([])
   const [loadingInventory, setLoadingInventory] = useState(true)
-  const [showAddInventory, setShowAddInventory] = useState(false)
   const [systemInventory, setSystemInventory] = useState<any[]>([])
   const [loadingSystemInventory, setLoadingSystemInventory] = useState(false)
-  const [selectedInventoryId, setSelectedInventoryId] = useState("")
-  const [quantity, setQuantity] = useState("")
-  const [assigning, setAssigning] = useState(false)
-  const [showTransfer, setShowTransfer] = useState(false)
-  const [transferItem, setTransferItem] = useState<BranchInventory | null>(null)
-  const [transferQty, setTransferQty] = useState("")
-  const [toBranchId, setToBranchId] = useState("")
-  const [transferLoading, setTransferLoading] = useState(false)
   const [showMainDispatch, setShowMainDispatch] = useState(false)
   const [mainDispatchInventoryId, setMainDispatchInventoryId] = useState("")
   const [mainDispatchQty, setMainDispatchQty] = useState("")
@@ -170,128 +161,6 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
       setSystemInventory([])
     } finally {
       setLoadingSystemInventory(false)
-    }
-  }
-
-  async function handleShowAddInventory() {
-    setShowAddInventory(true)
-    await loadSystemInventory()
-  }
-
-  async function handleAssignInventory() {
-    if (!selectedInventoryId || !quantity) {
-      toast({
-        type: "error",
-        title: "Error",
-        message: "Please select an inventory item and enter a quantity.",
-        duration: 3000,
-      })
-      return
-    }
-
-    const qty = parseFloat(quantity)
-    if (isNaN(qty) || qty <= 0) {
-      toast({
-        type: "error",
-        title: "Error",
-        message: "Please enter a valid quantity.",
-        duration: 3000,
-      })
-      return
-    }
-
-    const selectedItem = systemInventory.find(i => i.id === selectedInventoryId)
-    if (!selectedItem) return
-
-    setAssigning(true)
-    try {
-      await assignInventoryToBranch({
-        branchId: branch.id,
-        inventoryId: selectedInventoryId,
-        quantity: qty,
-        unit: selectedItem.unit || "",
-        branchCode: branch.code,
-        assignedBy: user?.name || "system",
-        notes: ""
-      })
-
-      // Refresh branch inventory
-      const updatedInventory = await getBranchInventory(branch.id)
-      setInventory(updatedInventory)
-
-      setShowAddInventory(false)
-      setSelectedInventoryId("")
-      setQuantity("")
-      toast({
-        type: "success",
-        title: "Inventory Assigned",
-        message: `${qty} ${selectedItem.unit} of ${selectedItem.description} has been assigned to ${branch.name}.`,
-        duration: 3000,
-      })
-    } catch {
-      toast({
-        type: "error",
-        title: "Error",
-        message: "Failed to assign inventory. Please try again.",
-        duration: 3000,
-      })
-    } finally {
-      setAssigning(false)
-    }
-  }
-
-  async function handleRemoveInventory(id: string) {
-    await removeBranchInventory(id)
-    setInventory(prev => prev.filter(i => i.id !== id))
-    toast({
-      type: "success",
-      title: "Inventory Removed",
-      message: "Inventory has been removed from the branch.",
-      duration: 3000,
-    })
-  }
-
-  async function handleTransferInventory() {
-    if (!transferItem || !toBranchId || !transferQty) return
-    const qty = parseFloat(transferQty)
-    if (isNaN(qty) || qty <= 0 || qty > transferItem.quantity) {
-      toast({
-        type: "error",
-        title: "Invalid Quantity",
-        message: "Transfer quantity is invalid.",
-        duration: 3000,
-      })
-      return
-    }
-    setTransferLoading(true)
-    try {
-      await transferBranchInventory({
-        fromBranchInventoryId: transferItem.id,
-        toBranchId,
-        quantity: qty,
-        transferredBy: user?.name || "system",
-      })
-      const updatedInventory = await getBranchInventory(branch.id)
-      setInventory(updatedInventory)
-      setShowTransfer(false)
-      setTransferItem(null)
-      setTransferQty("")
-      setToBranchId("")
-      toast({
-        type: "success",
-        title: "Inventory Transferred",
-        message: "Inventory has been transferred successfully.",
-        duration: 3000,
-      })
-    } catch {
-      toast({
-        type: "error",
-        title: "Transfer Failed",
-        message: "Could not transfer inventory. Please try again.",
-        duration: 3000,
-      })
-    } finally {
-      setTransferLoading(false)
     }
   }
 
@@ -448,23 +317,23 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
           {/* Inventory Section */}
           <div className="border-t pt-3 mt-1">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider font-medium">{isMainWarehouse ? "Main Warehouse Inventory" : "Branch Inventory"}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider font-medium">
+                {isMainWarehouse ? "Main Warehouse Inventory" : "Transferred Inventory"}
+              </p>
               {isMainWarehouse ? (
                 <Button size="sm" variant="outline" className="h-6 text-[10px] cursor-pointer" onClick={() => setShowMainDispatch(true)}>
                   <ArrowRightLeft className="h-3 w-3" /> Send
                 </Button>
-              ) : (
-                <Button size="sm" variant="outline" className="h-6 text-[10px] cursor-pointer" onClick={handleShowAddInventory}>
-                  <Plus className="h-3 w-3" /> Add
-                </Button>
-              )}
+              ) : null}
             </div>
             {loadingInventory ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
               </div>
             ) : inventoryRows.length === 0 ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))] py-2">No inventory assigned to this branch.</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] py-2">
+                {isMainWarehouse ? "No inventory available in main warehouse." : "No transferred inventory yet."}
+              </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
                 {inventoryRows.map(inv => (
@@ -483,24 +352,10 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                         {inv.quantity} {inv.unit}
                       </Badge>
                     </div>
-                    {!isMainWarehouse && (
-                      <div className="flex items-center gap-1 mt-2 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-[hsl(var(--muted-foreground))] hover:text-blue-500"
-                          onClick={() => {
-                            setTransferItem(inv)
-                            setShowTransfer(true)
-                          }}
-                        >
-                          <ArrowRightLeft className="h-3 w-3" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 text-[hsl(var(--muted-foreground))] hover:text-red-500"
-                          onClick={() => handleRemoveInventory(inv.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+                    {!isMainWarehouse && inv.assignedAt && (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2">
+                        Transferred: {new Date(inv.assignedAt).toLocaleDateString()}
+                      </p>
                     )}
                   </div>
                 ))}
@@ -520,134 +375,6 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
           <Button size="sm" variant="ghost" className="h-9 text-xs ml-auto cursor-pointer" onClick={onClose}>Close</Button>
         </div>
       </div>
-
-      {/* Add Inventory Modal */}
-      {showAddInventory && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowAddInventory(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <p className="text-sm font-semibold">Assign Inventory</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowAddInventory(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="p-5 space-y-4">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Select inventory from the system to assign to this branch. The quantity will be deducted from the main inventory.</p>
-              
-              {loadingSystemInventory ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
-                </div>
-              ) : systemInventory.length === 0 ? (
-                <p className="text-xs text-[hsl(var(--muted-foreground))] py-4 text-center">No inventory available in the system.</p>
-              ) : (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Select Inventory Item</label>
-                    <select
-                      value={selectedInventoryId}
-                      onChange={e => setSelectedInventoryId(e.target.value)}
-                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                    >
-                      <option value="">-- Select an item --</option>
-                      {systemInventory.map(item => (
-                        <option key={item.id} value={item.id}>
-                          {item.description} (Available: {item.availableQty} {item.unit})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Quantity</label>
-                    <input
-                      type="number"
-                      value={quantity}
-                      onChange={e => setQuantity(e.target.value)}
-                      placeholder="Enter quantity"
-                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                    />
-                  </div>
-
-                  {selectedInventoryId && (
-                    <div className="flex items-start gap-2 p-2 rounded bg-[hsl(var(--muted))]/30">
-                      <Package className="h-4 w-4 text-[hsl(var(--muted-foreground))] mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{systemInventory.find(i => i.id === selectedInventoryId)?.description}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Available: {systemInventory.find(i => i.id === selectedInventoryId)?.availableQty} {systemInventory.find(i => i.id === selectedInventoryId)?.unit}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    size="sm"
-                    className="w-full cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
-                    onClick={handleAssignInventory}
-                    disabled={assigning || !selectedInventoryId || !quantity}
-                  >
-                    {assigning ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                        Assigning...
-                      </>
-                    ) : (
-                      "Assign Inventory"
-                    )}
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showTransfer && transferItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowTransfer(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <p className="text-sm font-semibold">Transfer Inventory</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowTransfer(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="p-5 space-y-3">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">{transferItem.productDescription}</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Available: {transferItem.quantity} {transferItem.unit}</p>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Destination Branch</label>
-                <select
-                  value={toBranchId}
-                  onChange={e => setToBranchId(e.target.value)}
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                >
-                  <option value="">-- Select Branch --</option>
-                  {branches.filter(b => b.id !== branch.id && b.status === "active").map(b => (
-                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Quantity</label>
-                <input
-                  type="number"
-                  value={transferQty}
-                  onChange={e => setTransferQty(e.target.value)}
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                  placeholder="Enter quantity"
-                />
-              </div>
-              <Button
-                size="sm"
-                className="w-full cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
-                onClick={handleTransferInventory}
-                disabled={transferLoading || !toBranchId || !transferQty}
-              >
-                {transferLoading ? "Transferring..." : "Transfer"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showMainDispatch && isMainWarehouse && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowMainDispatch(false)}>
@@ -724,6 +451,17 @@ export function BranchesTab() {
   const [viewBranch, setViewBranch] = useState<Branch | null>(null)
   const [saving, setSaving] = useState(false)
   const [autoCode, setAutoCode] = useState("")
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false)
+  const [exportLoading, setExportLoading] = useState(false)
+  const [exportRows, setExportRows] = useState<Array<{
+    branchName: string
+    branchCode: string
+    branchType: string
+    item: string
+    qty: number
+    unit: string
+    transferredAt: string
+  }>>([])
   const { confirm } = useDialog()
   const { toast } = useToast()
   const { user } = useAuth()
@@ -799,6 +537,60 @@ export function BranchesTab() {
     setViewBranch(null)
   }
 
+  async function buildInventoryExportRows() {
+    const targetBranches = branches.filter(b =>
+      ["main_warehouse", "branch_warehouse", "warehouse", "store"].includes(b.type)
+    )
+    const rows = await Promise.all(
+      targetBranches.map(async b => {
+        const items = await getBranchInventory(b.id)
+        return items.map(item => ({
+          branchName: b.name,
+          branchCode: b.code,
+          branchType: b.type,
+          item: item.productDescription || item.inventoryId,
+          qty: item.quantity,
+          unit: item.unit,
+          transferredAt: item.assignedAt ? new Date(item.assignedAt).toLocaleDateString() : "-",
+        }))
+      })
+    )
+    return rows.flat()
+  }
+
+  async function handleOpenExportPreview() {
+    setExportLoading(true)
+    try {
+      const rows = await buildInventoryExportRows()
+      setExportRows(rows)
+      setExportPreviewOpen(true)
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  async function handleExportPdf() {
+    const rows = exportRows.length ? exportRows : await buildInventoryExportRows()
+    const [{ default: jsPDF }, autoTableModule] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ])
+    const autoTable = (autoTableModule as any).default || autoTableModule
+    const doc = new jsPDF("p", "mm", "a4")
+    doc.setFontSize(14)
+    doc.text("Warehouse and Store Inventory Report", 14, 16)
+    doc.setFontSize(10)
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22)
+    autoTable(doc, {
+      startY: 26,
+      head: [["Branch", "Code", "Type", "Item", "Qty", "Unit", "Transferred/Added Date"]],
+      body: rows.map(r => [r.branchName, r.branchCode, r.branchType, r.item, String(r.qty), r.unit, r.transferredAt]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [31, 172, 166] },
+    })
+    doc.save(`branch-inventory-report-${new Date().toISOString().slice(0, 10)}.pdf`)
+  }
+
   const editingBranch = branches.find(b => b.id === editId)
 
   return (
@@ -812,7 +604,17 @@ export function BranchesTab() {
         <>
           <div className="space-y-0 my-4">
             {/* Action buttons */}
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs cursor-pointer"
+                onClick={handleOpenExportPreview}
+                disabled={exportLoading}
+              >
+                {exportLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                Export Inventory PDF
+              </Button>
               <Button size="sm" className="h-8 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={async () => {
                 const code = await generateBranchCode()
                 setAutoCode(code)
@@ -908,6 +710,58 @@ export function BranchesTab() {
               isLoading={saving}
               autoGenerated={false}
             />
+          </div>
+        </div>
+      )}
+
+      {exportPreviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setExportPreviewOpen(false)}>
+          <div className="w-full max-w-5xl rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <p className="text-sm font-semibold">Inventory Export Preview</p>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExportPreviewOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-5">
+              {exportRows.length === 0 ? (
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">No inventory rows found for warehouses/stores.</p>
+              ) : (
+                <div className="max-h-[55vh] overflow-auto rounded-md border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-[hsl(var(--muted))]/40 sticky top-0">
+                      <tr>
+                        {["Branch", "Code", "Type", "Item", "Qty", "Unit", "Transferred/Added Date"].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exportRows.map((row, index) => (
+                        <tr key={`${row.branchCode}-${row.item}-${index}`} className="border-t">
+                          <td className="px-3 py-2">{row.branchName}</td>
+                          <td className="px-3 py-2">{row.branchCode}</td>
+                          <td className="px-3 py-2">{row.branchType}</td>
+                          <td className="px-3 py-2">{row.item}</td>
+                          <td className="px-3 py-2">{row.qty}</td>
+                          <td className="px-3 py-2">{row.unit}</td>
+                          <td className="px-3 py-2">{row.transferredAt}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t flex justify-end gap-2 bg-[hsl(var(--muted))]/20">
+              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setExportPreviewOpen(false)}>
+                Close
+              </Button>
+              <Button size="sm" className="h-8 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={handleExportPdf}>
+                <FileDown className="h-3.5 w-3.5" />
+                Export PDF
+              </Button>
+            </div>
           </div>
         </div>
       )}
