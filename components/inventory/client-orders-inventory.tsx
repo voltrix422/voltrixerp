@@ -232,11 +232,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
       const uploadImg = async (file: File): Promise<string> => {
         const fd = new FormData()
-        fd.append("file", file)
+        fd.append("files", file)
         fd.append("folder", "fulfillment")
         const res = await fetch("/api/upload", { method: "POST", body: fd })
         const data = await res.json()
-        return data.url || ""
+        return data.urls?.[0] || ""
       }
 
       if (receiverImage)     receiverImageUrl     = await uploadImg(receiverImage)

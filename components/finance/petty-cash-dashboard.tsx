@@ -111,6 +111,12 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
           ? { ...r, status, reviewedBy: currentUser, reviewedAt: new Date().toISOString() }
           : r
       ))
+      
+      // Check if this approval completes the allocation
+      if (status === 'approved') {
+        await checkAndSettleAllocation(receipt.allocationId)
+      }
+      
       toast({
         title: "Success",
         message: `Receipt ${status}`,
@@ -123,6 +129,34 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
         message: "Failed to review receipt",
         type: "error"
       })
+    }
+  }
+
+  async function checkAndSettleAllocation(allocationId: string) {
+    try {
+      const allocationReceipts = receipts.filter(r => r.allocationId === allocationId && r.status === 'approved')
+      const allocation = allocations.find(a => a.id === allocationId)
+      
+      if (!allocation) return
+      
+      const totalSpent = allocationReceipts.reduce((sum, r) => sum + r.amount, 0)
+      
+      // Auto-settle if total receipts equal or exceed allocation amount
+      if (totalSpent >= allocation.amount) {
+        await updatePettyCashAllocationStatus(allocationId, 'settled', new Date().toISOString())
+        setAllocations(prev => prev.map(a => 
+          a.id === allocationId 
+            ? { ...a, status: 'settled', settledAt: new Date().toISOString() }
+            : a
+        ))
+        toast({
+          title: "Auto-Settled",
+          message: `Petty cash allocation for ${allocation.employeeName} has been automatically settled`,
+          type: "success"
+        })
+      }
+    } catch (error) {
+      console.error('Error checking settlement:', error)
     }
   }
 

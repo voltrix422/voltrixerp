@@ -10,12 +10,15 @@ import { useAuthWithRole } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { SlidersHorizontal, ChevronDown, ChevronUp, Search, Calendar } from "lucide-react"
 
-type Tab = "manage" | "client" | "purchase" | "petty-cash"
+type Tab = "manage" | "client" | "purchase"
+type ManageSection = "finance" | "petty-cash"
 
 export default function FinancePage() {
   const { user, userRole } = useAuthWithRole()
   const [activeTab, setActiveTab] = useState<Tab>("manage")
+  const [manageSection, setManageSection] = useState<ManageSection>("finance")
   const [showFilters, setShowFilters] = useState(false)
+  const [showManageDropdown, setShowManageDropdown] = useState(false)
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -32,7 +35,6 @@ export default function FinancePage() {
     { id: "manage", label: "Manage" },
     { id: "client", label: "Client Orders" },
     { id: "purchase", label: "Purchase Orders" },
-    { id: "petty-cash", label: "Petty Cash" },
   ]
 
   return (
@@ -100,10 +102,58 @@ export default function FinancePage() {
           )}
 
           {/* Tab Content */}
-          {activeTab === "manage" && <FinanceManager search={search} dateFrom={dateFrom} dateTo={dateTo} />}
+          {activeTab === "manage" && (
+            <div>
+              {/* Manage Section Dropdown */}
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-sm font-medium text-[hsl(var(--muted-foreground))]">Section:</span>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowManageDropdown(!showManageDropdown)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/50 transition-colors"
+                  >
+                    {manageSection === "finance" ? "Finance Records" : "Petty Cash"}
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  {showManageDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowManageDropdown(false)} />
+                      <div className="absolute top-full left-0 mt-1 w-48 rounded-md border bg-[hsl(var(--background))] shadow-lg z-20">
+                        <button
+                          onClick={() => {
+                            setManageSection("finance")
+                            setShowManageDropdown(false)
+                          }}
+                          className={`w-full px-3 py-2 text-sm text-left hover:bg-[hsl(var(--muted))]/50 transition-colors ${
+                            manageSection === "finance" ? "bg-[hsl(var(--muted))]/30" : ""
+                          }`}
+                        >
+                          Finance Records
+                        </button>
+                        <button
+                          onClick={() => {
+                            setManageSection("petty-cash")
+                            setShowManageDropdown(false)
+                          }}
+                          className={`w-full px-3 py-2 text-sm text-left hover:bg-[hsl(var(--muted))]/50 transition-colors ${
+                            manageSection === "petty-cash" ? "bg-[hsl(var(--muted))]/30" : ""
+                          }`}
+                        >
+                          Petty Cash
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {/* Manage Section Content */}
+              {manageSection === "finance" && <FinanceManager search={search} dateFrom={dateFrom} dateTo={dateTo} />}
+              {manageSection === "petty-cash" && <PettyCashDashboard currentUser={user?.name || ""} userRole={userRole || ""} />}
+            </div>
+          )}
           {activeTab === "client" && <ClientOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />}
           {activeTab === "purchase" && <PurchaseOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />}
-          {activeTab === "petty-cash" && <PettyCashDashboard currentUser={user?.name || ""} userRole={userRole || ""} />}
         </div>
       </div>
     </ModuleGuard>

@@ -12,6 +12,18 @@ export interface PettyCashAllocation {
   allocatedBy: string
   allocatedAt: string
   settledAt?: string
+  settlements?: PettyCashSettlement[]
+}
+
+export interface PettyCashSettlement {
+  id: string
+  allocationId: string
+  amount: number
+  description: string
+  proofUrl?: string
+  proofName?: string
+  submittedBy: string
+  submittedAt: string
 }
 
 export interface PettyCashReceipt {
@@ -109,5 +121,31 @@ export async function updatePettyCashReceiptStatus(
     body: JSON.stringify({ id, status, reviewedBy, reviewNotes })
   })
   if (!res.ok) throw new Error('Failed to update petty cash receipt')
+  return res.json()
+}
+
+export async function getPettyCashSettlements(allocationId?: string): Promise<PettyCashSettlement[]> {
+  const url = allocationId
+    ? `/api/db/petty-cash-settlements?allocationId=${allocationId}`
+    : '/api/db/petty-cash-settlements'
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Failed to fetch petty cash settlements')
+  return res.json()
+}
+
+export async function createPettyCashSettlement(data: {
+  allocationId: string
+  amount: number
+  description: string
+  proofUrl?: string
+  proofName?: string
+  submittedBy: string
+}): Promise<PettyCashSettlement> {
+  const res = await fetch('/api/db/petty-cash-settlements', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) throw new Error('Failed to create petty cash settlement')
   return res.json()
 }

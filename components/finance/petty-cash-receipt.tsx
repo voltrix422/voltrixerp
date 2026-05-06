@@ -65,12 +65,15 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
       return
     }
 
-    // Check if amount exceeds remaining allocation
-    const spentAmount = selectedAllocation.amount // You might want to calculate actual spent from receipts
-    if (parseFloat(amount) > spentAmount) {
+    // Calculate actual remaining amount from existing receipts
+    const existingReceipts = await getPettyCashReceipts(selectedAllocation.id)
+    const approvedAmount = existingReceipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0)
+    const remainingAmount = selectedAllocation.amount - approvedAmount
+
+    if (parseFloat(amount) > remainingAmount) {
       toast({
-        title: "Amount Exceeds Allocation",
-        message: `Maximum amount available: PKR ${spentAmount.toLocaleString()}`,
+        title: "Amount Exceeds Remaining Balance",
+        message: `Maximum amount available: PKR ${remainingAmount.toLocaleString()} (PKR ${selectedAllocation.amount.toLocaleString()} - PKR ${approvedAmount.toLocaleString()} spent)`,
         type: "error"
       })
       return
@@ -181,14 +184,26 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
                           }}
                           className="px-3.5 py-2.5 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 border-t"
                         >
-                          <div className="font-medium">PKR {allocation.amount.toLocaleString()}</div>
+                          <div className="font-medium">PKR {allocation.amount.toLocaleString()} - {allocation.purpose}</div>
                           <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                            {allocation.purpose} • {new Date(allocation.allocatedAt).toLocaleDateString()}
+                            Allocated: {new Date(allocation.allocatedAt).toLocaleDateString()}
                           </div>
                         </div>
                       ))}
                     </div>
                   </>
+                )}
+
+                {/* Show allocation details when selected */}
+                {selectedAllocation && (
+                  <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-3">
+                    <div className="text-xs text-blue-800 dark:text-blue-200">
+                      <p className="font-semibold mb-1">Allocation Details</p>
+                      <p>Total: PKR {selectedAllocation.amount.toLocaleString()}</p>
+                      <p>Purpose: {selectedAllocation.purpose}</p>
+                      <p>Allocated: {new Date(selectedAllocation.allocatedAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
                 )}
               </div>
 
