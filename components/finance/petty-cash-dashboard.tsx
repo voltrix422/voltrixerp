@@ -293,6 +293,10 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
               )}
             </div>
           ) : (
+            <div>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3 text-center">
+                💡 Click on any allocation row to view details and submit receipts
+              </p>
             <div className="rounded-lg border overflow-hidden">
               <table className="w-full">
                 <thead>
@@ -315,13 +319,19 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
                     return (
                       <tr 
                         key={allocation.id} 
-                        className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
-                        onClick={() => setSelectedAllocation(allocation)}
+                        className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer border-b border-[hsl(var(--border))]"
+                        onClick={() => {
+                          console.log('Allocation clicked:', allocation)
+                          setSelectedAllocation(allocation)
+                        }}
                       >
                         <td className="px-4 py-2.5 text-xs">
-                          <div>
-                            <p className="font-medium">{allocation.employeeName}</p>
-                            <p className="text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
+                          <div className="flex items-center gap-2">
+                            <Eye className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+                            <div>
+                              <p className="font-medium">{allocation.employeeName}</p>
+                              <p className="text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-2.5 text-xs font-semibold">PKR {allocation.amount.toLocaleString()}</td>
