@@ -1350,10 +1350,10 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   <td className="px-4 py-3 text-right font-medium">Subtotal</td>
                   <td className="px-4 py-3 text-right font-medium w-48">PKR {order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                 </tr>
-                {((order.tax || (order.subtotal * (order.taxPercent || 0) / 100)) > 0) && (
+                {((order.tax || 0) > 0) && (
                   <tr className="bg-[hsl(var(--muted))]/30">
                     <td className="px-4 py-3 text-right font-medium">Tax ({order.taxPercent || 18}%)</td>
-                    <td className="px-4 py-3 text-right font-medium">PKR {(order.tax || (order.subtotal * (order.taxPercent || 0) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-medium">PKR {(order.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 )}
                 {order.transportCost > 0 && (
