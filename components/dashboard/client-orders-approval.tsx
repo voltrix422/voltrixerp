@@ -157,15 +157,21 @@ export function ClientOrdersApproval() {
                 </div>
               </div>
 
-              <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 space-y-1.5">
+              {(() => {
+                const taxAmount = Number(selected.tax ?? (selected.subtotal * (selected.taxPercent || 18) / 100) ?? 0)
+                const hasTax = Math.abs(taxAmount) > 0.004
+                return (
+                  <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span>Subtotal</span>
                   <span className="font-semibold">PKR {selected.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span>Tax (18%)</span>
-                  <span className="font-semibold">PKR {(selected.tax || (selected.subtotal * 18 / 100)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
+                {hasTax && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span>Tax ({selected.taxPercent || 18}%)</span>
+                    <span className="font-semibold">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-green-600">Discount (2%)</span>
                   <span className="font-semibold text-green-600">- PKR {(selected.discountValue || (selected.discountIsPercentage ? (selected.subtotal * 2 / 100) : selected.discount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -174,7 +180,9 @@ export function ClientOrdersApproval() {
                   <span>Total</span>
                   <span>PKR {selected.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-              </div>
+                  </div>
+                )
+              })()}
 
               <div className="grid grid-cols-2 gap-3">
                 {selected.deliveryAddress && (

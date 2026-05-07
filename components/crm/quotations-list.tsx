@@ -128,6 +128,7 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
   const transportAmount = transportIsPercentage ? discountedSubtotal * (transportCost / 100) : transportCost
   const otherAmount = otherCostIsPercentage ? discountedSubtotal * (otherCost / 100) : otherCost
   const total = discountedSubtotal + taxAmount + transportAmount + otherAmount
+  const hasTax = Math.abs(taxAmount) > 0.004
 
   function addCustomItem() {
     setItems(prev => [...prev, { id: Date.now().toString(), description: "", qty: 1, unit: "pcs", unitPrice: 0, isCustom: true }])
@@ -314,7 +315,7 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
             <div className="ml-auto w-64 space-y-1.5 text-xs">
               <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Subtotal</span><span className="font-medium">PKR {subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
               {discount>0&&<div className="flex justify-between text-red-600"><span>Discount {discountIsPercentage?`(${discount}%)`:""}</span><span>-PKR {discountAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
-              {taxPercent>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Tax ({taxPercent}%)</span><span>PKR {taxAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
+              {hasTax&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Tax ({taxPercent}%)</span><span>PKR {taxAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               {transportCost>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">{transportLabel}</span><span>PKR {transportAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               {otherCost>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">{otherCostLabel}</span><span>PKR {otherAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               <div className="flex justify-between pt-1.5 border-t font-bold text-sm"><span>Total</span><span className="text-[#1faca6]">PKR {total.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
@@ -462,7 +463,7 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete }: {
             <div className="w-64 space-y-1.5 text-xs">
               <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Subtotal</span><span>PKR {quotation.subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
               {(quotation.discountValue||0)>0&&<div className="flex justify-between text-red-600"><span>Discount {quotation.discountIsPercentage?`(${quotation.discount}%)`:""}</span><span>-PKR {(quotation.discountValue||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
-              {quotation.taxPercent>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Tax ({quotation.taxPercent}%)</span><span>PKR {quotation.tax.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
+              {Math.abs(Number(quotation.tax || 0))>0.004&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Tax ({quotation.taxPercent}%)</span><span>PKR {Number(quotation.tax || 0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               {quotation.transportCost>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">{quotation.transportLabel}</span><span>PKR {(quotation.transportCostValue||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               {quotation.otherCost>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">{quotation.otherCostLabel}</span><span>PKR {(quotation.otherCostValue||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               <div className="flex justify-between pt-1.5 border-t font-bold text-sm"><span>Total</span><span className="text-[#1faca6]">PKR {quotation.total.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>

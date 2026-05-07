@@ -24,6 +24,8 @@ const FONT = geistRegB64 ? "Geist" : "helvetica"
 export async function POST(req: NextRequest) {
   try {
     const quotation: Quotation = await req.json()
+    const taxAmount = Number(quotation.tax || 0)
+    const hasTax = Math.abs(taxAmount) > 0.004
 
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
     registerGeist(doc)
@@ -191,8 +193,8 @@ export async function POST(req: NextRequest) {
     rows.push({ label: "Subtotal", value: `PKR ${quotation.subtotal.toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
     if ((quotation.discountValue || 0) > 0)
       rows.push({ label: `Discount${quotation.discountIsPercentage ? ` (${quotation.discount}%)` : ""}`, value: `-PKR ${(quotation.discountValue || 0).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, color: [200, 50, 50] })
-    if (quotation.taxPercent > 0)
-      rows.push({ label: `Tax (${quotation.taxPercent}%)`, value: `PKR ${quotation.tax.toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+    if (hasTax)
+      rows.push({ label: `Tax (${quotation.taxPercent}%)`, value: `PKR ${taxAmount.toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
     if (quotation.transportCost > 0)
       rows.push({ label: quotation.transportLabel, value: `PKR ${(quotation.transportCostValue || 0).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
     if (quotation.otherCost > 0)

@@ -25,6 +25,8 @@ const FONT = geistRegularB64 ? 'Geist' : 'helvetica'
 export async function POST(request: NextRequest) {
   try {
     const order = await request.json()
+    const taxAmount = Number(order.tax || 0)
+    const hasTax = Math.abs(taxAmount) > 0.004
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     registerGeist(doc)
@@ -224,8 +226,8 @@ export async function POST(request: NextRequest) {
     ]
     if (discountValue > 0)
       totRows.push({ label: discountLabel, value: `-PKR ${discountValue.toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
-    if (order.taxPercent > 0)
-      totRows.push({ label: `Tax (${order.taxPercent}%)`, value: `PKR ${Number(order.tax).toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
+    if (hasTax)
+      totRows.push({ label: `Tax (${order.taxPercent}%)`, value: `PKR ${taxAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (transportVal > 0)
       totRows.push({ label: order.transportLabel || 'Transport', value: `PKR ${transportVal.toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (otherVal > 0)

@@ -27,6 +27,9 @@ export function EnhancedOrderDetail({
 }: EnhancedOrderDetailProps) {
   if (!isOpen) return null
 
+  const taxAmount = Number(order.tax || 0)
+  const hasTax = Math.abs(taxAmount) > 0.004
+
   const handleDownloadPDF = async () => {
     if (onDownloadPDF) {
       onDownloadPDF()
@@ -214,10 +217,10 @@ export function EnhancedOrderDetail({
                 <span className="font-medium text-neutral-900">Rs. {order.subtotal.toLocaleString()}</span>
               </div>
               
-              {order.taxPercent > 0 && (
+              {hasTax && (
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-neutral-600">Tax ({order.taxPercent}%)</span>
-                  <span className="font-medium text-neutral-900">Rs. {order.tax.toLocaleString()}</span>
+                  <span className="font-medium text-neutral-900">Rs. {taxAmount.toLocaleString()}</span>
                 </div>
               )}
               

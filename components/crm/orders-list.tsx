@@ -1114,7 +1114,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   }
 
   // Show finalize option for approved orders that don't have invoice details yet
-  const hasInvoiceDetails = order.taxPercent > 0 || order.transportCost > 0 || order.otherCost > 0 || order.dispatcher
+  const hasInvoiceDetails = Math.abs(Number(order.tax || 0)) > 0.004 || order.transportCost > 0 || order.otherCost > 0 || order.dispatcher
   const canFinalize = order.status === "approved" && !hasInvoiceDetails
 
   async function downloadInvoice() {

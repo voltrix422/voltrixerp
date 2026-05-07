@@ -34,6 +34,7 @@ export function OrderFinalize({ order, currentUser, onClose, onUpdate }: {
   const subtotal = order.subtotal
   const tax = (subtotal * (Number(taxPercent) || 0)) / 100
   const total = subtotal + tax + (Number(transportCost) || 0) + (Number(otherCost) || 0)
+  const hasTax = Math.abs(tax) > 0.004
 
   async function handleSave() {
     setSaving(true)
@@ -319,7 +320,7 @@ export function OrderFinalize({ order, currentUser, onClose, onUpdate }: {
                 <span>Subtotal</span>
                 <span>PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-              {Number(taxPercent) > 0 && (
+              {hasTax && (
                 <div className="flex justify-between text-sm text-[hsl(var(--muted-foreground))]">
                   <span>Tax ({taxPercent}%)</span>
                   <span>PKR {tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>

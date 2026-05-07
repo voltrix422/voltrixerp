@@ -10,6 +10,8 @@ declare module 'jspdf' {
 
 export function generateOrderPDF(order: Order): Blob {
   const doc = new jsPDF()
+  const taxAmount = Number(order.tax || 0)
+  const hasTax = Math.abs(taxAmount) > 0.004
   
   // Colors matching website branding
   const primaryColor: [number, number, number] = [26, 159, 154] // #1a9f9a
@@ -160,9 +162,9 @@ export function generateOrderPDF(order: Order): Blob {
   yPos += 6
 
   // Tax
-  if (order.taxPercent > 0) {
+  if (hasTax) {
     doc.text(`Tax (${order.taxPercent}%):`, 120, yPos)
-    doc.text(`Rs. ${order.tax.toLocaleString()}`, 160, yPos)
+    doc.text(`Rs. ${taxAmount.toLocaleString()}`, 160, yPos)
     yPos += 6
   }
 

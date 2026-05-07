@@ -160,6 +160,8 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
   onUpdate: (order: Order) => void
 }) {
   const [markingDelivered, setMarkingDelivered] = useState(false)
+  const taxAmount = Number(order.tax || 0)
+  const hasTax = Math.abs(taxAmount) > 0.004
 
   async function markAsDelivered() {
     setMarkingDelivered(true)
@@ -263,10 +265,10 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
               <span>Subtotal</span>
               <span className="font-semibold">PKR {order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
-            {order.taxPercent > 0 && (
+            {hasTax && (
               <div className="flex items-center justify-between text-xs">
                 <span>Tax ({order.taxPercent}%)</span>
-                <span>PKR {order.tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span>PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             )}
             {order.transportCost > 0 && (

@@ -33,6 +33,8 @@ export async function generateDispatchNotePDF(
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const FONT = await registerGeist(doc)
   doc.setFont(FONT, "normal")
+  const taxAmount = Number(order.tax || 0)
+  const hasTax = Math.abs(taxAmount) > 0.004
 
   // ── Palette ────────────────────────────────────────────────────────────────
   const teal:     [number,number,number] = [26, 159, 154]
@@ -255,8 +257,8 @@ export async function generateDispatchNotePDF(
   ]
   if (discountValue > 0)
     payRows.push({ label: `Discount${order.discountIsPercentage ? ` (${order.discount}%)` : ""}:`, value: `-PKR ${Number(discountValue).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, color: red })
-  if (order.taxPercent > 0)
-    payRows.push({ label: `Tax (${order.taxPercent}%):`, value: `PKR ${Number(order.tax).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+  if (hasTax)
+    payRows.push({ label: `Tax (${order.taxPercent}%):`, value: `PKR ${taxAmount.toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
   if (transportVal > 0)
     payRows.push({ label: `${order.transportLabel || "Transport"}:`, value: `PKR ${Number(transportVal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
   if (otherVal > 0)
