@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, GitBranch, Ticket,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,6 @@ const ALL_NAV = [
   { href: "/website", label: "Website", icon: Globe, module: "website" as Module },
   { href: "/docs", label: "Documentation", icon: BookOpen, module: "docs" as Module },
   { href: "/hrm", label: "HRM", icon: UserCog, module: "hrm" as Module },
-  { href: "/branches", label: "Branches", icon: GitBranch, module: "branches" as Module },
   { href: "/tickets", label: "Tickets", icon: Ticket, module: "tickets" as Module },
 ]
 
