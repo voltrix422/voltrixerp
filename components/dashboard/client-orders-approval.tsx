@@ -158,7 +158,8 @@ export function ClientOrdersApproval() {
               </div>
 
               {(() => {
-                const taxAmount = Number(selected.tax ?? (selected.subtotal * (selected.taxPercent || 18) / 100) ?? 0)
+                const inferredTax = selected.subtotal * ((selected.taxPercent || 18) / 100)
+                const taxAmount = Number(selected.tax ?? inferredTax)
                 const hasTax = Math.abs(taxAmount) > 0.004
                 return (
                   <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 space-y-1.5">
