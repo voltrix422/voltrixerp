@@ -357,8 +357,8 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
   // Apply discount to get discounted subtotal
   const discountedSubtotal = subtotal - discountAmount
   
-  // Calculate tax on ORIGINAL subtotal (before discount)
-  const taxAmount = subtotal * (taxPercent / 100)
+  // Calculate tax on discounted subtotal (after discount)
+  const taxAmount = discountedSubtotal * (taxPercent / 100)
   
   // Calculate transport cost on discounted subtotal
   const transportAmount = transportIsPercentage 
@@ -455,7 +455,7 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
       otherCostIsPercentage,
       otherCostValue: otherAmount,
       shipping: 0,
-      discount: discountIsPercentage ? discountAmount : discount,
+      discount,
       discountIsPercentage,
       discountValue: discountAmount,
       total,
@@ -659,189 +659,189 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
             )}
           </div>
 
-          {/* Tax and Expenses */}
-          <div className="pt-4 border-t">
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Tax & Expenses</p>
-            
-            {/* Tax */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tax Percentage</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    min="0" 
-                    max="100" 
-                    value={taxPercent} 
-                    onChange={e => setTaxPercent(Number(e.target.value))}
-                    placeholder="18"
-                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                  />
-                  <span className="text-sm text-[hsl(var(--muted-foreground))]">%</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tax Amount</label>
-                <div className="h-10 flex items-center px-3.5 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
-                  PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-            </div>
-
-            {/* Transport Cost */}
-            <div className="grid grid-cols-12 gap-4 mb-4">
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Expense Label</label>
-                <input 
-                  value={transportLabel} 
-                  onChange={e => setTransportLabel(e.target.value)}
-                  placeholder="Transport"
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                />
-              </div>
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Amount</label>
-                <input 
-                  type="number" 
-                  min="0" 
-                  step={transportIsPercentage ? "0.01" : "1"}
-                  value={transportCost} 
-                  onChange={e => setTransportCost(Number(e.target.value))}
-                  placeholder={transportIsPercentage ? "18" : "1000"}
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                />
-              </div>
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Type</label>
-                <div className="flex items-center gap-3 h-10">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={transportIsPercentage}
-                      onChange={e => setTransportIsPercentage(e.target.checked)}
-                      className="w-4 h-4 rounded border"
-                    />
-                    <span className="text-sm">Percentage (%)</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            {transportCost > 0 && (
-              <div className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
-                {transportLabel}: PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                {transportIsPercentage && ` (${transportCost}% of subtotal)`}
-              </div>
-            )}
-
-            {/* Other Cost */}
-            <div className="grid grid-cols-12 gap-4 mb-4">
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Expense Label</label>
-                <input 
-                  value={otherCostLabel} 
-                  onChange={e => setOtherCostLabel(e.target.value)}
-                  placeholder="Other"
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                />
-              </div>
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Amount</label>
-                <input 
-                  type="number" 
-                  min="0" 
-                  step={otherCostIsPercentage ? "0.01" : "1"}
-                  value={otherCost} 
-                  onChange={e => setOtherCost(Number(e.target.value))}
-                  placeholder={otherCostIsPercentage ? "5" : "500"}
-                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                />
-              </div>
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Type</label>
-                <div className="flex items-center gap-3 h-10">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={otherCostIsPercentage}
-                      onChange={e => setOtherCostIsPercentage(e.target.checked)}
-                      className="w-4 h-4 rounded border"
-                    />
-                    <span className="text-sm">Percentage (%)</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            {otherCost > 0 && (
-              <div className="mb-2 text-sm text-[hsl(var(--muted-foreground))]">
-                {otherCostLabel}: PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                {otherCostIsPercentage && ` (${otherCost}% of subtotal)`}
-              </div>
-            )}
-          </div>
-
-          {/* Discount */}
-          <div className="pt-4 border-t">
-            <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Discount</p>
-            <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Discount Percentage</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    min="0" 
-                    max="100"
-                    value={discountIsPercentage ? discount : (discountAmount / subtotal * 100).toFixed(2)}
-                    onChange={e => {
-                      const value = Number(e.target.value)
-                      if (discountIsPercentage) {
-                        setDiscount(value)
-                      } else {
-                        setDiscount(value)
-                        setDiscountIsPercentage(true)
-                      }
-                    }}
-                    placeholder="10"
-                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                  />
+          {items.length > 0 && (
+            <>
+              {/* Discount */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Discount</p>
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Discount Percentage</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100"
+                        value={discountIsPercentage ? discount : subtotal > 0 ? (discountAmount / subtotal * 100).toFixed(2) : 0}
+                        onChange={e => {
+                          const value = Number(e.target.value)
+                          if (discountIsPercentage) {
+                            setDiscount(value)
+                          } else {
+                            setDiscount(value)
+                            setDiscountIsPercentage(true)
+                          }
+                        }}
+                        placeholder="10"
+                        className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                      />
+                    </div>
                   </div>
-              </div>
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Discount Amount (PKR)</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    min="0" 
-                    value={discountIsPercentage ? discountAmount : discount}
-                    onChange={e => {
-                      const value = Number(e.target.value)
-                      if (!discountIsPercentage) {
-                        setDiscount(value)
-                      } else {
-                        setDiscount(value)
-                        setDiscountIsPercentage(false)
-                        // When switching to fixed amount, set discount to the actual amount value
-                        setDiscount(value)
-                      }
-                    }}
-                    placeholder="1000"
-                    className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                  />
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Discount Amount (PKR)</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        value={discountIsPercentage ? discountAmount : discount}
+                        onChange={e => {
+                          const value = Number(e.target.value)
+                          if (!discountIsPercentage) {
+                            setDiscount(value)
+                          } else {
+                            setDiscount(value)
+                            setDiscountIsPercentage(false)
+                            setDiscount(value)
+                          }
+                        }}
+                        placeholder="1000"
+                        className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                      />
+                    </div>
+                  </div>
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Calculated Discount</label>
+                    <div className="h-10 flex items-center px-4 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium text-green-600">
+                      - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="col-span-4 space-y-2">
-                <label className="text-sm font-medium">Calculated Discount</label>
-                <div className="h-10 flex items-center px-4 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium text-green-600">
-                  - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+
+              {/* Tax and Expenses */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Tax & Expenses</p>
+                
+                {/* Tax */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Tax Percentage</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        value={taxPercent} 
+                        onChange={e => setTaxPercent(Number(e.target.value))}
+                        placeholder="18"
+                        className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                      />
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">%</span>
+                    </div>
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      Tax is applied on <span className="font-semibold">subtotal after discount</span>.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Tax Amount</label>
+                    <div className="h-10 flex items-center px-3.5 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
+                      PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Transport Cost */}
+                <div className="grid grid-cols-12 gap-4 mb-4">
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Expense Label</label>
+                    <input 
+                      value={transportLabel} 
+                      onChange={e => setTransportLabel(e.target.value)}
+                      placeholder="Transport"
+                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                    />
+                  </div>
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Amount</label>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step={transportIsPercentage ? "0.01" : "1"}
+                      value={transportCost} 
+                      onChange={e => setTransportCost(Number(e.target.value))}
+                      placeholder={transportIsPercentage ? "18" : "1000"}
+                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                    />
+                  </div>
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Type</label>
+                    <div className="flex items-center gap-3 h-10">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={transportIsPercentage}
+                          onChange={e => setTransportIsPercentage(e.target.checked)}
+                          className="w-4 h-4 rounded border"
+                        />
+                        <span className="text-sm">Percentage (%)</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                {transportCost > 0 && (
+                  <div className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
+                    {transportLabel}: PKR {transportAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {transportIsPercentage && ` (${transportCost}% of subtotal)`}
+                  </div>
+                )}
+
+                {/* Other Cost */}
+                <div className="grid grid-cols-12 gap-4 mb-4">
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Expense Label</label>
+                    <input 
+                      value={otherCostLabel} 
+                      onChange={e => setOtherCostLabel(e.target.value)}
+                      placeholder="Other"
+                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                    />
+                  </div>
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Amount</label>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step={otherCostIsPercentage ? "0.01" : "1"}
+                      value={otherCost} 
+                      onChange={e => setOtherCost(Number(e.target.value))}
+                      placeholder={otherCostIsPercentage ? "5" : "500"}
+                      className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
+                    />
+                  </div>
+                  <div className="col-span-4 space-y-2">
+                    <label className="text-sm font-medium">Type</label>
+                    <div className="flex items-center gap-3 h-10">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={otherCostIsPercentage}
+                          onChange={e => setOtherCostIsPercentage(e.target.checked)}
+                          className="w-4 h-4 rounded border"
+                        />
+                        <span className="text-sm">Percentage (%)</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                {otherCost > 0 && (
+                  <div className="mb-2 text-sm text-[hsl(var(--muted-foreground))]">
+                    {otherCostLabel}: PKR {otherAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {otherCostIsPercentage && ` (${otherCost}% of subtotal)`}
+                  </div>
+                )}
               </div>
-            </div>
-            {discount > 0 && (
-              <tr className="bg-[hsl(var(--muted))]/30">
-                <td className="px-4 py-3 text-right font-medium">Discount ({discount}%)</td>
-                <td className="px-4 py-3 text-right font-medium">- PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-              </tr>
-            )}
-          </div>
+            </>
+          )}
 
           {/* Order Summary */}
           <div className="pt-4 border-t">

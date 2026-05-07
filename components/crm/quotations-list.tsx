@@ -124,7 +124,7 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0)
   const discountAmount = discountIsPercentage ? subtotal * (discount / 100) : discount
   const discountedSubtotal = subtotal - discountAmount
-  const taxAmount = subtotal * (taxPercent / 100)
+  const taxAmount = discountedSubtotal * (taxPercent / 100)
   const transportAmount = transportIsPercentage ? discountedSubtotal * (transportCost / 100) : transportCost
   const otherAmount = otherCostIsPercentage ? discountedSubtotal * (otherCost / 100) : otherCost
   const total = discountedSubtotal + taxAmount + transportAmount + otherAmount
@@ -274,10 +274,6 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
           <div className="pt-3 border-t grid grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Tax (%)</label>
-                <input type="number" min="0" max="100" value={taxPercent} onChange={e => setTaxPercent(Number(e.target.value))} className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
-              </div>
-              <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Discount</label>
                 <div className="flex gap-2">
                   <input type="number" min="0" value={discount} onChange={e => setDiscount(Number(e.target.value))} className="flex-1 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
@@ -285,6 +281,11 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
                     <option value="pct">%</option><option value="flat">PKR</option>
                   </select>
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Tax (%)</label>
+                <input type="number" min="0" max="100" value={taxPercent} onChange={e => setTaxPercent(Number(e.target.value))} className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Tax is applied on subtotal after discount.</p>
               </div>
             </div>
             <div className="space-y-3">
