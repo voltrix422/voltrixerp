@@ -787,24 +787,26 @@ function FinanceAndOpsMiniCharts() {
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading petty cash...</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={pettyCashByEmployee}
-                dataKey="amount"
-                nameKey="name"
-                innerRadius={35}
-                outerRadius={65}
-                paddingAngle={3}
-              >
-                {pettyCashByEmployee.map((entry, idx) => (
-                  <Cell key={`${entry.name}-${idx}`} fill={chartPalette[idx % chartPalette.length]} />
-                ))}
-              </Pie>
+            <BarChart data={pettyCashByEmployee.slice(0, 6)} layout="vertical" margin={{ top: 2, right: 6, left: 12, bottom: 2 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
+              <XAxis type="number" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={72}
+                tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                tickFormatter={(v) => String(v).split(" ").slice(0, 2).join(" ")}
+              />
               <Tooltip
                 formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`}
                 labelFormatter={(label: any, payload: any) => `${label} (${payload?.[0]?.payload?.role || "—"})`}
               />
-            </PieChart>
+              <Bar dataKey="amount" radius={[4, 4, 4, 4]}>
+                {pettyCashByEmployee.slice(0, 6).map((entry, idx) => (
+                  <Cell key={`${entry.name}-${idx}`} fill={chartPalette[idx % chartPalette.length]} />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         )}
       </MiniChartCard>
