@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
-import { Users, Activity, Wifi, WifiOff, X, Globe, Clock, Trash2 } from "lucide-react"
+import { Users, Activity, X, Globe, Clock, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 interface ActiveUsersCounterProps {
@@ -204,11 +204,6 @@ export function ActiveUsersCounter({
         onClick={openVisitorsModal}
       >
         <div className="flex items-center gap-1.5">
-          {isOnline ? (
-            <Wifi className={`${config.iconClass} text-green-500`} />
-          ) : (
-            <WifiOff className={`${config.iconClass} text-red-500`} />
-          )}
           <Users className={`${config.iconClass} text-[hsl(var(--foreground))]`} />
           <Badge 
             variant="outline" 

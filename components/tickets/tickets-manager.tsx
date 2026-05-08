@@ -559,8 +559,8 @@ export function TicketsManager() {
       {/* View Ticket Modal */}
       {viewTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setViewTicket(null)}>
-          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
+          <div className="w-full max-w-6xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0 bg-[hsl(var(--muted))]/20">
               <div className="flex items-center gap-3">
                 <Ticket className="h-5 w-5 text-[#1a9f9a]" />
                 <p className="text-base font-semibold text-[hsl(var(--foreground))]">{viewTicket.ticketNumber}</p>
@@ -572,153 +572,160 @@ export function TicketsManager() {
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setViewTicket(null)}><X className="h-5 w-5" /></Button>
               </div>
             </div>
-            <div className="overflow-y-auto p-6 space-y-6">
-              {/* Subject */}
-              <div>
-                <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Subject</p>
-                <p className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewTicket.subject}</p>
-              </div>
+            <div className="overflow-y-auto p-6">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="xl:col-span-1 space-y-4">
+                  <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Ticket Overview</p>
+                    <p className="text-base font-bold text-[hsl(var(--foreground))]">{viewTicket.subject}</p>
+                    <p className="text-sm text-[hsl(var(--foreground))] mt-3 whitespace-pre-wrap">{viewTicket.description}</p>
+                  </div>
 
-              {/* Customer Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-4 py-3">
-                  <Mail className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                  <div>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Email</p>
-                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewTicket.customerEmail}</p>
+                  <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Customer</p>
+                    <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2">
+                      <Mail className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                      <div>
+                        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Email</p>
+                        <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewTicket.customerEmail}</p>
+                      </div>
+                    </div>
+                    {viewTicket.customerPhone && (
+                      <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2">
+                        <Phone className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                        <div>
+                          <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Phone</p>
+                          <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewTicket.customerPhone}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-4 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+                    <p>Created: {formatDate(viewTicket.createdAt)}</p>
+                    <p>Updated: {formatDate(viewTicket.updatedAt)}</p>
+                    {viewTicket.closedAt && <p>Closed: {formatDate(viewTicket.closedAt)}</p>}
                   </div>
                 </div>
-                {viewTicket.customerPhone && (
-                  <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-4 py-3">
-                    <Phone className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                    <div>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Phone</p>
-                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewTicket.customerPhone}</p>
+
+                <div className="xl:col-span-2 space-y-4">
+                  {/* Status Change */}
+                  <div className="rounded-xl border border-[hsl(var(--border))] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-3">Update Status</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(["open", "in_progress", "resolved", "closed"] as const).map(status => (
+                        <button
+                          key={status}
+                          onClick={() => handleStatusChange(viewTicket, status)}
+                          className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
+                            viewTicket.status === status
+                              ? "bg-[#1a9f9a] border-[#1a9f9a] text-white"
+                              : "bg-[hsl(var(--background))] border-[hsl(var(--border))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/10"
+                          }`}
+                        >
+                          {STATUS_LABELS[status]}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Description */}
-              <div>
-                <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Description</p>
-                <p className="text-sm text-[hsl(var(--foreground))] whitespace-pre-wrap bg-[hsl(var(--muted))]/10 rounded-lg border border-[hsl(var(--border))] p-4">{viewTicket.description}</p>
-              </div>
+                  {/* Resolution */}
+                  {viewTicket.status !== "open" && (
+                    <div className="rounded-xl border border-[hsl(var(--border))] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Resolution Notes</p>
+                      <textarea
+                        value={viewTicket.resolution || ""}
+                        onChange={e => handleResolutionChange(viewTicket, e.target.value)}
+                        rows={3}
+                        placeholder="Add resolution notes..."
+                        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent resize-none"
+                      />
+                    </div>
+                  )}
 
-              {/* Status Change */}
-              <div>
-                <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Update Status</p>
-                <div className="flex gap-2">
-                  {(["open", "in_progress", "resolved", "closed"] as const).map(status => (
-                    <button
-                      key={status}
-                      onClick={() => handleStatusChange(viewTicket, status)}
-                      className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
-                        viewTicket.status === status
-                          ? "bg-[#1a9f9a] border-[#1a9f9a] text-white"
-                          : "bg-[hsl(var(--background))] border-[hsl(var(--border))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/10"
-                      }`}
-                    >
-                      {STATUS_LABELS[status]}
-                    </button>
-                  ))}
+                  {/* Support Workflow */}
+                  {workflow && (
+                    <div className="rounded-xl border border-[hsl(var(--border))] p-4 space-y-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Support Diagnostic Checklist</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {DIAGNOSIS_STAGES.map((stage) => {
+                          const checked = workflow.diagnosisSteps.includes(stage)
+                          return (
+                            <label key={stage} className="flex items-start gap-2 text-sm rounded-md border border-[hsl(var(--border))] p-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const nextSteps = e.target.checked
+                                    ? [...workflow.diagnosisSteps, stage]
+                                    : workflow.diagnosisSteps.filter((s) => s !== stage)
+                                  const next = { ...workflow, diagnosisSteps: nextSteps }
+                                  setWorkflow(next)
+                                  saveWorkflowDraft(next)
+                                }}
+                              />
+                              <span>{stage}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs font-medium mb-1">Support Findings</p>
+                          <textarea
+                            value={workflow.supportFindings}
+                            onChange={(e) => setWorkflow({ ...workflow, supportFindings: e.target.value })}
+                            onBlur={() => saveWorkflowDraft(workflow)}
+                            rows={3}
+                            placeholder="What was diagnosed?"
+                            className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium mb-1">Support Fix</p>
+                          <textarea
+                            value={workflow.supportFix}
+                            onChange={(e) => setWorkflow({ ...workflow, supportFix: e.target.value })}
+                            onBlur={() => saveWorkflowDraft(workflow)}
+                            rows={3}
+                            placeholder="What fix was applied?"
+                            className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant={workflow.issueFound ? "default" : "outline"}
+                          onClick={() => {
+                            const next = { ...workflow, issueFound: !workflow.issueFound }
+                            setWorkflow(next)
+                            saveWorkflowDraft(next)
+                          }}
+                        >
+                          {workflow.issueFound ? "Issue Found" : "Mark Issue Found"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={workflow.diagnosisSteps.length < 5}
+                          onClick={async () => {
+                            const next = { ...workflow, escalatedToGround: true }
+                            await saveWorkflowDraft(next)
+                            await updateTicketStatus(viewTicket, "in_progress")
+                          }}
+                        >
+                          Escalate to Ground Staff
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Resolution */}
-              {viewTicket.status !== "open" && (
-                <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Resolution Notes</p>
-                  <textarea
-                    value={viewTicket.resolution || ""}
-                    onChange={e => handleResolutionChange(viewTicket, e.target.value)}
-                    rows={3}
-                    placeholder="Add resolution notes..."
-                    className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent resize-none"
-                  />
-                </div>
-              )}
-
-              {/* Support Workflow */}
               {workflow && (
-                <div className="space-y-4 pt-2 border-t border-[hsl(var(--border))]">
-                  <div>
-                    <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Support Diagnostic Checklist</p>
-                    <div className="space-y-2">
-                      {DIAGNOSIS_STAGES.map((stage) => {
-                        const checked = workflow.diagnosisSteps.includes(stage)
-                        return (
-                          <label key={stage} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                const nextSteps = e.target.checked
-                                  ? [...workflow.diagnosisSteps, stage]
-                                  : workflow.diagnosisSteps.filter((s) => s !== stage)
-                                const next = { ...workflow, diagnosisSteps: nextSteps }
-                                setWorkflow(next)
-                                saveWorkflowDraft(next)
-                              }}
-                            />
-                            <span>{stage}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs font-medium mb-1">Support Findings</p>
-                      <textarea
-                        value={workflow.supportFindings}
-                        onChange={(e) => setWorkflow({ ...workflow, supportFindings: e.target.value })}
-                        onBlur={() => saveWorkflowDraft(workflow)}
-                        rows={3}
-                        placeholder="What was diagnosed?"
-                        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium mb-1">Support Fix</p>
-                      <textarea
-                        value={workflow.supportFix}
-                        onChange={(e) => setWorkflow({ ...workflow, supportFix: e.target.value })}
-                        onBlur={() => saveWorkflowDraft(workflow)}
-                        rows={3}
-                        placeholder="What fix was applied?"
-                        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant={workflow.issueFound ? "default" : "outline"}
-                      onClick={() => {
-                        const next = { ...workflow, issueFound: !workflow.issueFound }
-                        setWorkflow(next)
-                        saveWorkflowDraft(next)
-                      }}
-                    >
-                      {workflow.issueFound ? "Issue Found" : "Mark Issue Found"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={workflow.diagnosisSteps.length < 5}
-                      onClick={async () => {
-                        const next = { ...workflow, escalatedToGround: true }
-                        await saveWorkflowDraft(next)
-                        await updateTicketStatus(viewTicket, "in_progress")
-                      }}
-                    >
-                      Escalate to Ground Staff
-                    </Button>
-                  </div>
-
+                <div className="mt-4 rounded-xl border border-[hsl(var(--border))] p-4 space-y-3">
                   {workflow.escalatedToGround && (
                     <div className="rounded-lg border p-3 space-y-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Ground Staff Section</p>
@@ -768,7 +775,7 @@ export function TicketsManager() {
                       Warranty claim (item returned and replacement issued)
                     </label>
                     {workflow.warrantyClaimed && (
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <input
                           value={workflow.returnedItem}
                           onChange={(e) => setWorkflow({ ...workflow, returnedItem: e.target.value })}
@@ -820,13 +827,6 @@ export function TicketsManager() {
                     </Button>
                   </div>
                 </div>
-              )}
-
-              {/* Metadata */}
-              <div className="text-xs text-[hsl(var(--muted-foreground))] space-y-1 pt-4 border-t border-[hsl(var(--border))]">
-                <p>Created: {formatDate(viewTicket.createdAt)}</p>
-                <p>Updated: {formatDate(viewTicket.updatedAt)}</p>
-                {viewTicket.closedAt && <p>Closed: {formatDate(viewTicket.closedAt)}</p>}
               </div>
             </div>
           </div>
