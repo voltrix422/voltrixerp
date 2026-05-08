@@ -325,7 +325,7 @@ export function InventoryList() {
     setEditItemData({
       name: item.name || "",
       description: item.description,
-      qty: item.qty.toString(),
+      qty: String(typeof item.availableQty === "number" ? item.availableQty : item.qty),
       unit: item.unit,
       unitPrice: item.unitPrice.toString(),
       supplierName: item.supplier || "",
@@ -380,7 +380,8 @@ export function InventoryList() {
         name: editItemData.name,
         description: editItemData.description,
         unit: editItemData.unit,
-        receivedQty: qty,
+        // Preserve historical received quantity; edit form controls live available quantity.
+        receivedQty: Number(editingItem.receivedQty ?? editingItem.qty ?? qty),
         availableQty: qty,
         costPrice: landedCostPerUnit,
         supplierName: editItemData.supplierName || "Manual",
@@ -1670,7 +1671,7 @@ export function InventoryList() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Quantity *</label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2 block">Available Quantity *</label>
                     <input
                       type="number"
                       value={editItemData.qty}
