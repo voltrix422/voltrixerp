@@ -1,13 +1,14 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getInventoryHistory, type InventoryTransaction } from "@/lib/inventory-history"
+import { getOrderFulfillmentHistory, type OrderFulfillmentHistoryEntry } from "@/lib/order-fulfillment-history"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Search, TrendingUp, TrendingDown, Package, ShoppingCart, X } from "lucide-react"
 
 export function InventoryHistory() {
   const [history, setHistory] = useState<InventoryTransaction[]>([])
+  const [fulfillmentHistory, setFulfillmentHistory] = useState<OrderFulfillmentHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [filterType, setFilterType] = useState<"all" | "in" | "out">("all")
@@ -19,8 +20,12 @@ export function InventoryHistory() {
   }, [])
 
   async function loadHistory() {
-    const data = await getInventoryHistory()
-    setHistory(data)
+    const [inventoryData, fulfillmentData] = await Promise.all([
+      getInventoryHistory(),
+      getOrderFulfillmentHistory(),
+    ])
+    setHistory(inventoryData)
+    setFulfillmentHistory(fulfillmentData)
     setLoading(false)
   }
 
@@ -167,6 +172,77 @@ export function InventoryHistory() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      <div className="pt-4">
+        <h4 className="text-sm font-semibold">Fulfillment History</h4>
+        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+          Dispatcher/receiver details and proof images for fulfilled orders
+        </p>
+      </div>
+
+      {loading ? null : fulfillmentHistory.length === 0 ? (
+        <div className="rounded-lg border p-6 text-center">
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">No fulfillment records found.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {fulfillmentHistory
+            .filter((entry) => {
+              const q = search.toLowerCase()
+              if (!q) return true
+              return (
+                entry.orderNumber.toLowerCase().includes(q) ||
+                entry.clientName.toLowerCase().includes(q) ||
+                entry.dispatcherName.toLowerCase().includes(q) ||
+                entry.receiverName.toLowerCase().includes(q) ||
+                entry.vehicleNumber.toLowerCase().includes(q)
+              )
+            })
+            .map((entry) => {
+              const imageUrls = [
+                entry.receiverImageUrl,
+                entry.receiverCnicImageUrl,
+                entry.vehicleImageUrl,
+                ...(entry.productImageUrls || []),
+              ].filter(Boolean) as string[]
+
+              return (
+                <div key={entry.id} className="rounded-lg border p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold text-[hsl(var(--primary))]">{entry.orderNumber}</p>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">{entry.clientName}</p>
+                    </div>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                      {new Date(entry.fulfilledAt).toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2 text-xs">
+                    <div><span className="text-[hsl(var(--muted-foreground))]">Dispatcher:</span> {entry.dispatcherName}</div>
+                    <div><span className="text-[hsl(var(--muted-foreground))]">Receiver:</span> {entry.receiverName}</div>
+                    <div><span className="text-[hsl(var(--muted-foreground))]">CNIC:</span> {entry.receiverCnic}</div>
+                    <div><span className="text-[hsl(var(--muted-foreground))]">Vehicle:</span> {entry.vehicleNumber}</div>
+                  </div>
+
+                  {imageUrls.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
+                      {imageUrls.map((url, i) => (
+                        <a key={`${entry.id}-${i}`} href={url} target="_blank" rel="noreferrer">
+                          <img
+                            src={url}
+                            alt={`Fulfillment ${i + 1}`}
+                            className="w-full h-20 rounded-md object-cover border hover:opacity-90 transition-opacity"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
         </div>
       )}
     </div>

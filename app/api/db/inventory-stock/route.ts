@@ -6,10 +6,26 @@ export async function GET(req: NextRequest) {
   const descriptions = searchParams.get("descriptions")
 
   if (descriptions) {
-    const list = descriptions.split(",")
+    const list = descriptions
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean)
+
+    // Case-insensitive matching so deduction works even if text casing differs.
+    const orConditions = list.map((description) => ({
+      description: { equals: description, mode: "insensitive" as const },
+    }))
+
     const items = await prisma.erpInventoryStock.findMany({
-      where: { description: { in: list } },
-      select: { description: true, availableQty: true },
+      where: orConditions.length > 0 ? { OR: orConditions } : undefined,
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        description: true,
+        availableQty: true,
+        poNumber: true,
+        createdAt: true,
+      },
     })
     return NextResponse.json(items)
   }
