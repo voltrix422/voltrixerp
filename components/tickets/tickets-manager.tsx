@@ -3,7 +3,9 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Search, Trash2, Ticket, Phone, Mail, Clock, CheckCircle, AlertCircle } from "lucide-react"
+import { Plus, X, Search, Trash2, Ticket, Phone, Mail, Download } from "lucide-react"
+import { getTicketWorkflow, saveTicketWorkflow, type TicketWorkflow } from "@/lib/ticket-workflow"
+import { generateTicketReportPDF } from "@/lib/generate-ticket-report"
 
 interface Ticket {
   id: string
@@ -51,6 +53,14 @@ const PRIORITY_VARIANT: Record<Ticket["priority"], "success" | "warning" | "info
   urgent: "destructive",
 }
 
+const DIAGNOSIS_STAGES = [
+  "Stage 1: Verify customer issue details and symptoms",
+  "Stage 2: Check power/battery connections and basic health",
+  "Stage 3: Run controller/BMS diagnostic checks",
+  "Stage 4: Validate charging/discharging cycle behavior",
+  "Stage 5: Perform final operational confirmation test",
+]
+
 export function TicketsManager() {
   const { user } = useAuth()
   const [tickets, setTickets] = useState<Ticket[]>([])
@@ -63,6 +73,8 @@ export function TicketsManager() {
   const [filterStatus, setFilterStatus] = useState("All")
   const [filterPriority, setFilterPriority] = useState("All")
   const [showFilters, setShowFilters] = useState(false)
+  const [workflow, setWorkflow] = useState<TicketWorkflow | null>(null)
+  const [savingWorkflow, setSavingWorkflow] = useState(false)
 
   // form
   const [customerName, setCustomerName] = useState("")
@@ -86,6 +98,18 @@ export function TicketsManager() {
     }
     init()
   }, [])
+
+  useEffect(() => {
+    async function loadWorkflow() {
+      if (!viewTicket) {
+        setWorkflow(null)
+        return
+      }
+      const w = await getTicketWorkflow(viewTicket.id)
+      setWorkflow(w)
+    }
+    loadWorkflow()
+  }, [viewTicket?.id])
 
   const filtered = tickets.filter(t => {
     const q = search.toLowerCase()
@@ -242,6 +266,77 @@ export function TicketsManager() {
     } catch (error) {
       console.error('Failed to update ticket resolution:', error)
     }
+  }
+
+  async function saveWorkflowDraft(next: TicketWorkflow) {
+    setSavingWorkflow(true)
+    try {
+      const ok = await saveTicketWorkflow(next)
+      if (!ok) throw new Error("Failed to save workflow")
+      setWorkflow(next)
+    } catch (error) {
+      console.error("Failed to save workflow:", error)
+      alert("Failed to save workflow.")
+    } finally {
+      setSavingWorkflow(false)
+    }
+  }
+
+  async function updateTicketStatus(ticket: Ticket, status: Ticket["status"]) {
+    const res = await fetch('/api/db/tickets', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: ticket.id,
+        customerName: ticket.customerName,
+        customerEmail: ticket.customerEmail,
+        customerPhone: ticket.customerPhone,
+        subject: ticket.subject,
+        description: ticket.description,
+        priority: ticket.priority,
+        status,
+        assignedTo: ticket.assignedTo,
+        resolution: ticket.resolution,
+      })
+    })
+    if (!res.ok) throw new Error("Failed to update ticket status")
+    const updated = await res.json()
+    setTickets(prev => prev.map(t => t.id === updated.id ? updated : t))
+    setViewTicket(updated)
+    return updated as Ticket
+  }
+
+  async function closeTicketAndDownloadReport(ticket: Ticket, finalResolution: string) {
+    const updated = await fetch('/api/db/tickets', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: ticket.id,
+        customerName: ticket.customerName,
+        customerEmail: ticket.customerEmail,
+        customerPhone: ticket.customerPhone,
+        subject: ticket.subject,
+        description: ticket.description,
+        priority: ticket.priority,
+        status: "closed",
+        assignedTo: ticket.assignedTo,
+        resolution: finalResolution,
+      })
+    }).then(r => r.json()) as Ticket
+
+    setTickets(prev => prev.map(t => t.id === updated.id ? updated : t))
+    setViewTicket(updated)
+
+    if (!workflow) return
+    const blob = generateTicketReportPDF(updated, workflow)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `Ticket-Report-${updated.ticketNumber}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const openCount = tickets.filter(t => t.status === "open").length
@@ -537,6 +632,189 @@ export function TicketsManager() {
                     placeholder="Add resolution notes..."
                     className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent resize-none"
                   />
+                </div>
+              )}
+
+              {/* Support Workflow */}
+              {workflow && (
+                <div className="space-y-4 pt-2 border-t border-[hsl(var(--border))]">
+                  <div>
+                    <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Support Diagnostic Checklist</p>
+                    <div className="space-y-2">
+                      {DIAGNOSIS_STAGES.map((stage) => {
+                        const checked = workflow.diagnosisSteps.includes(stage)
+                        return (
+                          <label key={stage} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const nextSteps = e.target.checked
+                                  ? [...workflow.diagnosisSteps, stage]
+                                  : workflow.diagnosisSteps.filter((s) => s !== stage)
+                                const next = { ...workflow, diagnosisSteps: nextSteps }
+                                setWorkflow(next)
+                                saveWorkflowDraft(next)
+                              }}
+                            />
+                            <span>{stage}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-medium mb-1">Support Findings</p>
+                      <textarea
+                        value={workflow.supportFindings}
+                        onChange={(e) => setWorkflow({ ...workflow, supportFindings: e.target.value })}
+                        onBlur={() => saveWorkflowDraft(workflow)}
+                        rows={3}
+                        placeholder="What was diagnosed?"
+                        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium mb-1">Support Fix</p>
+                      <textarea
+                        value={workflow.supportFix}
+                        onChange={(e) => setWorkflow({ ...workflow, supportFix: e.target.value })}
+                        onBlur={() => saveWorkflowDraft(workflow)}
+                        rows={3}
+                        placeholder="What fix was applied?"
+                        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={workflow.issueFound ? "default" : "outline"}
+                      onClick={() => {
+                        const next = { ...workflow, issueFound: !workflow.issueFound }
+                        setWorkflow(next)
+                        saveWorkflowDraft(next)
+                      }}
+                    >
+                      {workflow.issueFound ? "Issue Found" : "Mark Issue Found"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={workflow.diagnosisSteps.length < 5}
+                      onClick={async () => {
+                        const next = { ...workflow, escalatedToGround: true }
+                        await saveWorkflowDraft(next)
+                        await updateTicketStatus(viewTicket, "in_progress")
+                      }}
+                    >
+                      Escalate to Ground Staff
+                    </Button>
+                  </div>
+
+                  {workflow.escalatedToGround && (
+                    <div className="rounded-lg border p-3 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Ground Staff Section</p>
+                      <textarea
+                        value={workflow.groundStaffNotes}
+                        onChange={(e) => setWorkflow({ ...workflow, groundStaffNotes: e.target.value })}
+                        onBlur={() => saveWorkflowDraft(workflow)}
+                        rows={3}
+                        placeholder="Ground staff findings/fix details..."
+                        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant={workflow.groundStaffFixed ? "default" : "outline"}
+                          onClick={() => {
+                            const next = { ...workflow, groundStaffFixed: !workflow.groundStaffFixed }
+                            setWorkflow(next)
+                            saveWorkflowDraft(next)
+                          }}
+                        >
+                          {workflow.groundStaffFixed ? "Ground Staff Marked Fixed" : "Mark Fixed by Ground Staff"}
+                        </Button>
+                      </div>
+                      <textarea
+                        value={workflow.supportFinalNotes}
+                        onChange={(e) => setWorkflow({ ...workflow, supportFinalNotes: e.target.value })}
+                        onBlur={() => saveWorkflowDraft(workflow)}
+                        rows={2}
+                        placeholder="Support final notes after ground staff fix..."
+                        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border p-3 space-y-3">
+                    <label className="flex items-center gap-2 text-xs font-medium">
+                      <input
+                        type="checkbox"
+                        checked={workflow.warrantyClaimed}
+                        onChange={(e) => {
+                          const next = { ...workflow, warrantyClaimed: e.target.checked }
+                          setWorkflow(next)
+                          saveWorkflowDraft(next)
+                        }}
+                      />
+                      Warranty claim (item returned and replacement issued)
+                    </label>
+                    {workflow.warrantyClaimed && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={workflow.returnedItem}
+                          onChange={(e) => setWorkflow({ ...workflow, returnedItem: e.target.value })}
+                          onBlur={() => saveWorkflowDraft(workflow)}
+                          placeholder="Returned item"
+                          className="h-9 rounded border px-3 text-xs"
+                        />
+                        <input
+                          value={workflow.replacementItem}
+                          onChange={(e) => setWorkflow({ ...workflow, replacementItem: e.target.value })}
+                          onBlur={() => saveWorkflowDraft(workflow)}
+                          placeholder="Replacement item"
+                          className="h-9 rounded border px-3 text-xs"
+                        />
+                        <input
+                          value={workflow.replacementInvoiceNumber}
+                          onChange={(e) => setWorkflow({ ...workflow, replacementInvoiceNumber: e.target.value })}
+                          onBlur={() => saveWorkflowDraft(workflow)}
+                          placeholder="New invoice number"
+                          className="h-9 rounded border px-3 text-xs"
+                        />
+                        <input
+                          value={workflow.replacementDispatchNoteNumber}
+                          onChange={(e) => setWorkflow({ ...workflow, replacementDispatchNoteNumber: e.target.value })}
+                          onBlur={() => saveWorkflowDraft(workflow)}
+                          placeholder="New dispatch note number"
+                          className="h-9 rounded border px-3 text-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+                      disabled={!workflow.issueFound || !workflow.supportFix || savingWorkflow}
+                      onClick={() => closeTicketAndDownloadReport(viewTicket, workflow.supportFix)}
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1" /> Close Ticket & Download PDF
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!(workflow.escalatedToGround && workflow.groundStaffFixed && workflow.supportFinalNotes) || savingWorkflow}
+                      onClick={() => closeTicketAndDownloadReport(viewTicket, workflow.supportFinalNotes)}
+                    >
+                      Close After Ground Fix
+                    </Button>
+                  </div>
                 </div>
               )}
 
