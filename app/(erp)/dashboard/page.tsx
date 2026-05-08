@@ -425,7 +425,7 @@ function DeliveredOrdersAmountChart() {
   const deliveredCount = orders.filter(o => o.status === "delivered").length
 
   return (
-    <div className="mt-4 rounded-xl border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] p-4">
+    <div className="mt-3 rounded-xl border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">Delivered Order Amount</p>
@@ -461,7 +461,7 @@ function DeliveredOrdersAmountChart() {
         </div>
       </div>
 
-      <div className="mt-4 h-64 w-full">
+      <div className="mt-3 h-44 w-full">
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">
             Loading chart...
@@ -519,12 +519,12 @@ type MiniChartCardProps = {
 
 function MiniChartCard({ title, subtitle, children }: MiniChartCardProps) {
   return (
-    <div className="rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] p-4 shadow-sm">
-      <div className="mb-3">
+    <div className="rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] p-3 shadow-sm">
+      <div className="mb-2">
         <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{title}</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">{subtitle}</p>
       </div>
-      <div className="h-48">{children}</div>
+      <div className="h-36">{children}</div>
     </div>
   )
 }
@@ -631,34 +631,35 @@ function FinanceAndOpsMiniCharts() {
   }, [rangeDays])
 
   return (
-    <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="mt-3">
+      <div className="mb-2 flex items-center justify-end gap-1">
+        {([7, 14, 30] as const).map((days) => (
+          <button
+            key={days}
+            onClick={() => setRangeDays(days)}
+            className={`px-2 py-0.5 text-[10px] rounded border ${
+              rangeDays === days
+                ? "bg-[#1faca6] text-white border-[#1faca6]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            {days}D
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
       <MiniChartCard
         title="Petty Cash Allocations"
-        subtitle={`Current month by employee (hover for details)`}
+        subtitle={`By employee (hover details)`}
       >
-        <div className="mb-2 flex items-center justify-end gap-1">
-          {([7, 14, 30] as const).map((days) => (
-            <button
-              key={days}
-              onClick={() => setRangeDays(days)}
-              className={`px-2 py-0.5 text-[10px] rounded border ${
-                rangeDays === days
-                  ? "bg-[#1faca6] text-white border-[#1faca6]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              {days}D
-            </button>
-          ))}
-        </div>
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading petty cash...</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={pettyCashByEmployee} margin={{ top: 5, right: 15, left: 0, bottom: 30 }}>
+            <BarChart data={pettyCashByEmployee} margin={{ top: 5, right: 10, left: 0, bottom: 18 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} height={50} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis tickFormatter={(v) => `Rs ${Number(v).toLocaleString()}`} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+              <XAxis dataKey="name" interval={0} height={26} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => String(v).split(" ")[0]} />
+              <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
               <Tooltip
                 formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`}
                 labelFormatter={(label: any, payload: any) => `${label} (${payload?.[0]?.payload?.role || "—"})`}
@@ -671,31 +672,16 @@ function FinanceAndOpsMiniCharts() {
 
       <MiniChartCard
         title="Order Amount Trend"
-        subtitle={`Last ${rangeDays} days total order values`}
+        subtitle={`Last ${rangeDays} days`}
       >
-        <div className="mb-2 flex items-center justify-end gap-1">
-          {([7, 14, 30] as const).map((days) => (
-            <button
-              key={days}
-              onClick={() => setRangeDays(days)}
-              className={`px-2 py-0.5 text-[10px] rounded border ${
-                rangeDays === days
-                  ? "bg-[#1faca6] text-white border-[#1faca6]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              {days}D
-            </button>
-          ))}
-        </div>
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading order trend...</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={orderTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-              <YAxis tickFormatter={(v) => `Rs ${Number(v).toLocaleString()}`} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000000)}m`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
               <Tooltip formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`} />
               <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 2 }} onClick={() => { window.location.href = "/crm" }} />
             </LineChart>
@@ -705,7 +691,7 @@ function FinanceAndOpsMiniCharts() {
 
       <MiniChartCard
         title="PO Status Graph"
-        subtitle="Pending, approved, received, draft, rejected"
+        subtitle="Pending / approved / received / draft / rejected"
       >
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading PO status...</div>
@@ -713,8 +699,8 @@ function FinanceAndOpsMiniCharts() {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={poStatusData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
               <Tooltip />
               <Bar dataKey="count" fill="#f59e0b" radius={[6, 6, 0, 0]} onClick={() => { window.location.href = "/purchase" }} />
             </BarChart>
@@ -724,7 +710,7 @@ function FinanceAndOpsMiniCharts() {
 
       <MiniChartCard
         title="Tickets Overview"
-        subtitle="Open, closed and fulfilled tickets"
+        subtitle="Open / closed / fulfilled"
       >
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading tickets...</div>
@@ -750,6 +736,7 @@ function FinanceAndOpsMiniCharts() {
           </ResponsiveContainer>
         )}
       </MiniChartCard>
+      </div>
     </div>
   )
 }
@@ -758,6 +745,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [approvalTab, setApprovalTab] = useState<"po" | "orders">("po")
   const [showPOFilters, setShowPOFilters] = useState(false)
+  const [showApprovals, setShowApprovals] = useState(false)
 
   if (!user) return null
 
@@ -778,47 +766,66 @@ export default function DashboardPage() {
         action={<UsersPanel />}
       />
       <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
-        <div className="p-8 max-w-7xl">
+        <div className="p-4 w-full">
                     
           {/* ERP Stats Overview */}
           <ERPStats />
           <DeliveredOrdersAmountChart />
           <FinanceAndOpsMiniCharts />
 
-          {/* Approval Flow Section */}
-          <div className="bg-[hsl(var(--card))] p-6 rounded-xl mt-2">
-            <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] pb-2 mb-4">
-              <button
-                onClick={() => setApprovalTab("po")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                  approvalTab === "po"
-                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
-                }`}
+          <div className="mt-2 rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Approvals</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">PO and CRM order confirmations</p>
+              </div>
+              <Button
+                size="sm"
+                variant={showApprovals ? "secondary" : "default"}
+                className="h-8 px-3 text-xs"
+                onClick={() => setShowApprovals(prev => !prev)}
               >
-                PO Confirmation
-              </button>
-              <button
-                onClick={() => setApprovalTab("orders")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                  approvalTab === "orders"
-                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
-                }`}
-              >
-                Order CRM Confirmation
-              </button>
+                {showApprovals ? "Hide approvals" : "Show approvals"}
+              </Button>
             </div>
-
-            {approvalTab === "po" ? (
-              <POsWidget
-                showFilters={showPOFilters}
-                setShowFilters={setShowPOFilters}
-              />
-            ) : (
-              <ClientOrdersApproval />
-            )}
           </div>
+
+          {/* Approval Flow Section */}
+          {showApprovals && (
+            <div className="bg-[hsl(var(--card))] p-4 rounded-xl mt-2">
+              <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] pb-2 mb-4">
+                <button
+                  onClick={() => setApprovalTab("po")}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    approvalTab === "po"
+                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  PO Confirmation
+                </button>
+                <button
+                  onClick={() => setApprovalTab("orders")}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    approvalTab === "orders"
+                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  Order CRM Confirmation
+                </button>
+              </div>
+
+              {approvalTab === "po" ? (
+                <POsWidget
+                  showFilters={showPOFilters}
+                  setShowFilters={setShowPOFilters}
+                />
+              ) : (
+                <ClientOrdersApproval />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>
