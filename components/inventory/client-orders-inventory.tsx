@@ -264,6 +264,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       
       // Save the updated order
       await saveOrder(updatedOrder)
+
+      // Deduct inventory when order is fulfilled/delivered from this flow
+      if (order.status !== "delivered") {
+        await deductInventoryForOrder(updatedOrder)
+      }
       
       // Generate and download dispatch note automatically
       const blob = await generateDispatchNotePDF(order, fulfillDispatcherName, fulfillDate)
