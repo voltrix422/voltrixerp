@@ -17,12 +17,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -334,24 +330,24 @@ function ERPStats() {
   ]
 
   return (
-    <div className="space-y-4">
-      {/* Stats */}
-      <div className="rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] overflow-hidden">
-        <div className="grid grid-cols-9 divide-x divide-[hsl(var(--border))]/50">
-          {statCards.map((card) => {
-            const Icon = card.icon
-            return (
-              <Link key={card.label} href={card.href} className="block">
-                <div className="p-2 text-center hover:bg-[hsl(var(--muted))]/10 transition-colors cursor-pointer">
-                  <p className="text-[9px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">{card.label}</p>
-                  <p className="text-sm font-semibold text-[hsl(var(--foreground))] tabular-nums tracking-tight mt-0.5">
-                    {loading ? "—" : card.value}
-                  </p>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-2">
+        {statCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <Link key={card.label} href={card.href} className="block">
+              <div className="rounded-lg border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] p-2.5 hover:bg-[hsl(var(--muted))]/10 transition-colors cursor-pointer">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">{card.label}</p>
+                  <Icon className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                 </div>
-              </Link>
-            )
-          })}
-        </div>
+                <p className="text-sm font-semibold text-[hsl(var(--foreground))] tabular-nums">
+                  {loading ? "—" : card.value}
+                </p>
+              </div>
+            </Link>
+          )
+        })}
       </div>
     </div>
   )
@@ -533,23 +529,24 @@ function FinanceAndOpsMiniCharts() {
   const [loading, setLoading] = useState(true)
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
   const [pettyCashByEmployee, setPettyCashByEmployee] = useState<Array<{ name: string; amount: number; role: string }>>([])
-  const [orderTrend, setOrderTrend] = useState<Array<{ day: string; amount: number }>>([])
-  const [deliveredTrend, setDeliveredTrend] = useState<Array<{ day: string; amount: number }>>([])
+  const [deliveredTrend, setDeliveredTrend] = useState<Array<{ day: string; amount: number; orderIds: string[] }>>([])
   const [deliveredTotal, setDeliveredTotal] = useState(0)
   const [deliveredCount, setDeliveredCount] = useState(0)
+  const [inventoryTrend, setInventoryTrend] = useState<Array<{ day: string; quantity: number; names: string[] }>>([])
   const [poStatusData, setPOStatusData] = useState<Array<{ name: string; count: number }>>([])
-  const [ticketStatusData, setTicketStatusData] = useState<Array<{ name: string; value: number; color: string }>>([])
+  const [ticketTrend, setTicketTrend] = useState<Array<{ day: string; opened: number; closed: number }>>([])
 
   useEffect(() => {
     let mounted = true
 
     async function loadData() {
       try {
-        const [allocationsRes, ordersRes, ticketsRes, poList] = await Promise.all([
+        const [allocationsRes, ordersRes, ticketsRes, poList, inventoryRes] = await Promise.all([
           fetch("/api/db/petty-cash-allocations").then(r => r.json()).catch(() => []),
           fetch("/api/db/orders").then(r => r.json()).catch(() => []),
           fetch("/api/db/tickets").then(r => r.json()).catch(() => []),
           getPOs().catch(() => []),
+          fetch("/api/inventory/stock").then(r => r.json()).catch(() => []),
         ])
 
         if (!mounted) return
@@ -577,42 +574,64 @@ function FinanceAndOpsMiniCharts() {
 
         const dayStart = new Date(now)
         dayStart.setHours(0, 0, 0, 0)
-        const dayMap = new Map<string, number>()
-        const deliveredDayMap = new Map<string, number>()
+        const deliveredDayMap = new Map<string, { amount: number; orderIds: string[] }>()
+        const inventoryDayMap = new Map<string, { quantity: number; names: string[] }>()
+        const ticketDayMap = new Map<string, { opened: number; closed: number }>()
         for (let i = rangeDays - 1; i >= 0; i--) {
           const d = new Date(dayStart)
           d.setDate(dayStart.getDate() - i)
-          dayMap.set(d.toISOString().slice(0, 10), 0)
-          deliveredDayMap.set(d.toISOString().slice(0, 10), 0)
+          const key = d.toISOString().slice(0, 10)
+          deliveredDayMap.set(key, { amount: 0, orderIds: [] })
+          inventoryDayMap.set(key, { quantity: 0, names: [] })
+          ticketDayMap.set(key, { opened: 0, closed: 0 })
         }
 
         for (const order of Array.isArray(ordersRes) ? ordersRes : []) {
-          const dateRaw = order.createdAt || order.created_at
+          const dateRaw = order.fulfillmentDate || order.deliveryDate || order.createdAt || order.created_at
           if (!dateRaw) continue
           const d = new Date(dateRaw)
           if (Number.isNaN(d.getTime())) continue
           d.setHours(0, 0, 0, 0)
           const key = d.toISOString().slice(0, 10)
-          if (!dayMap.has(key)) continue
-          dayMap.set(key, (dayMap.get(key) || 0) + (Number(order.total) || 0))
+          if (!deliveredDayMap.has(key)) continue
           if (String(order.status || "").toLowerCase() === "delivered") {
-            deliveredDayMap.set(key, (deliveredDayMap.get(key) || 0) + (Number(order.total) || 0))
+            const prev = deliveredDayMap.get(key) || { amount: 0, orderIds: [] }
+            deliveredDayMap.set(key, {
+              amount: prev.amount + (Number(order.total) || 0),
+              orderIds: [...prev.orderIds, String(order.orderNumber || order.id || "—")],
+            })
           }
         }
 
-        setOrderTrend(
-          Array.from(dayMap.entries()).map(([key, amount]) => ({
-            day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-            amount,
-          }))
-        )
-        const deliveredSeries = Array.from(deliveredDayMap.entries()).map(([key, amount]) => ({
+        const deliveredSeries = Array.from(deliveredDayMap.entries()).map(([key, value]) => ({
           day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-          amount,
+          amount: value.amount,
+          orderIds: value.orderIds,
         }))
         setDeliveredTrend(deliveredSeries)
         setDeliveredTotal(deliveredSeries.reduce((sum, row) => sum + row.amount, 0))
         setDeliveredCount((Array.isArray(ordersRes) ? ordersRes : []).filter((o: any) => String(o.status || "").toLowerCase() === "delivered").length)
+
+        for (const item of Array.isArray(inventoryRes) ? inventoryRes : []) {
+          const createdRaw = item.createdAt || item.created_at
+          const d = new Date(createdRaw)
+          if (Number.isNaN(d.getTime())) continue
+          d.setHours(0, 0, 0, 0)
+          const key = d.toISOString().slice(0, 10)
+          if (!inventoryDayMap.has(key)) continue
+          const prev = inventoryDayMap.get(key) || { quantity: 0, names: [] }
+          inventoryDayMap.set(key, {
+            quantity: prev.quantity + (Number(item.availableQty || item.available_qty || 0)),
+            names: [...prev.names, String(item.description || item.name || "Inventory item")],
+          })
+        }
+        setInventoryTrend(
+          Array.from(inventoryDayMap.entries()).map(([key, value]) => ({
+            day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+            quantity: value.quantity,
+            names: value.names,
+          }))
+        )
 
         const poStatus = Array.isArray(poList) ? poList : []
         setPOStatusData([
@@ -623,15 +642,36 @@ function FinanceAndOpsMiniCharts() {
           { name: "Rejected", count: poStatus.filter((p: any) => p.status === "rejected" || p.status === "imp_rejected").length },
         ])
 
-        const tickets = Array.isArray(ticketsRes) ? ticketsRes : []
-        const open = tickets.filter((t: any) => t.status === "open").length
-        const closed = tickets.filter((t: any) => t.status === "closed").length
-        const fulfilled = tickets.filter((t: any) => ["fulfilled", "resolved", "done"].includes(String(t.status || "").toLowerCase())).length
-        setTicketStatusData([
-          { name: "Open", value: open, color: "#f59e0b" },
-          { name: "Closed", value: closed, color: "#10b981" },
-          { name: "Fulfilled", value: fulfilled, color: "#3b82f6" },
-        ])
+        for (const ticket of Array.isArray(ticketsRes) ? ticketsRes : []) {
+          const created = new Date(ticket.createdAt || ticket.created_at)
+          if (!Number.isNaN(created.getTime())) {
+            created.setHours(0, 0, 0, 0)
+            const key = created.toISOString().slice(0, 10)
+            if (ticketDayMap.has(key)) {
+              const prev = ticketDayMap.get(key)!
+              ticketDayMap.set(key, { ...prev, opened: prev.opened + 1 })
+            }
+          }
+          const closedAt = ticket.closedAt || ticket.closed_at
+          if (closedAt) {
+            const closed = new Date(closedAt)
+            if (!Number.isNaN(closed.getTime())) {
+              closed.setHours(0, 0, 0, 0)
+              const key = closed.toISOString().slice(0, 10)
+              if (ticketDayMap.has(key)) {
+                const prev = ticketDayMap.get(key)!
+                ticketDayMap.set(key, { ...prev, closed: prev.closed + 1 })
+              }
+            }
+          }
+        }
+        setTicketTrend(
+          Array.from(ticketDayMap.entries()).map(([key, value]) => ({
+            day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+            opened: value.opened,
+            closed: value.closed,
+          }))
+        )
       } finally {
         if (mounted) setLoading(false)
       }
@@ -681,7 +721,13 @@ function FinanceAndOpsMiniCharts() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                 <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000000)}m`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`} />
+                <Tooltip
+                  formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`}
+                  labelFormatter={(label: any, payload: any) => {
+                    const ids = (payload?.[0]?.payload?.orderIds || []).slice(0, 3).join(", ")
+                    return `${label} | Orders: ${ids || "—"}`
+                  }}
+                />
                 <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.2} fill="url(#miniDeliveredFill)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -693,19 +739,25 @@ function FinanceAndOpsMiniCharts() {
         </MiniChartCard>
 
         <MiniChartCard
-          title="Order Amount Trend"
-          subtitle={`Last ${rangeDays} days`}
+          title="Inventory Added Trend"
+          subtitle={`Items added in last ${rangeDays} days`}
         >
           {loading ? (
-            <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading order trend...</div>
+            <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading inventory trend...</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={orderTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <LineChart data={inventoryTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000000)}m`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`} />
-                <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 2 }} onClick={() => { window.location.href = "/crm" }} />
+                <YAxis tickFormatter={(v) => `${Math.round(Number(v))}`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                <Tooltip
+                  formatter={(value: any) => `${Number(value).toLocaleString()} qty`}
+                  labelFormatter={(label: any, payload: any) => {
+                    const names = (payload?.[0]?.payload?.names || []).slice(0, 2).join(", ")
+                    return `${label} | ${names || "No items"}`
+                  }}
+                />
+                <Line type="monotone" dataKey="quantity" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 2 }} onClick={() => { window.location.href = "/inventory" }} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -755,30 +807,21 @@ function FinanceAndOpsMiniCharts() {
       </MiniChartCard>
 
       <MiniChartCard
-        title="Tickets Overview"
-        subtitle="Open / closed / fulfilled"
+        title="Ticket Activity Trend"
+        subtitle={`Opened vs closed (last ${rangeDays} days)`}
       >
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading tickets...</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={ticketStatusData}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={45}
-                outerRadius={75}
-                paddingAngle={3}
-                onClick={() => { window.location.href = "/tickets" }}
-              >
-                {ticketStatusData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
+            <LineChart data={ticketTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
               <Tooltip />
-              <Legend iconSize={9} wrapperStyle={{ fontSize: "11px" }} />
-            </PieChart>
+              <Line type="monotone" dataKey="opened" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2 }} onClick={() => { window.location.href = "/tickets" }} />
+              <Line type="monotone" dataKey="closed" stroke="#10b981" strokeWidth={2.2} dot={{ r: 2 }} onClick={() => { window.location.href = "/tickets" }} />
+            </LineChart>
           </ResponsiveContainer>
         )}
       </MiniChartCard>
