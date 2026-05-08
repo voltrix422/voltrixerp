@@ -17,8 +17,11 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -541,6 +544,7 @@ function FinanceAndOpsMiniCharts() {
   const [inventoryTrend, setInventoryTrend] = useState<Array<{ day: string; quantity: number; names: string[] }>>([])
   const [poStatusData, setPOStatusData] = useState<Array<{ name: string; count: number }>>([])
   const [ticketTrend, setTicketTrend] = useState<Array<{ day: string; opened: number; closed: number }>>([])
+  const chartPalette = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#6366f1"]
 
   useEffect(() => {
     let mounted = true
@@ -618,7 +622,11 @@ function FinanceAndOpsMiniCharts() {
         setDeliveredTotal(deliveredSeries.reduce((sum, row) => sum + row.amount, 0))
         setDeliveredCount((Array.isArray(ordersRes) ? ordersRes : []).filter((o: any) => String(o.status || "").toLowerCase() === "delivered").length)
 
-        for (const item of Array.isArray(inventoryRes) ? inventoryRes : []) {
+        const inventoryItems = Array.isArray(inventoryRes)
+          ? inventoryRes
+          : (Array.isArray((inventoryRes as any)?.data) ? (inventoryRes as any).data : [])
+
+        for (const item of inventoryItems) {
           const createdRaw = item.createdAt || item.created_at
           const d = new Date(createdRaw)
           if (Number.isNaN(d.getTime())) continue
@@ -627,7 +635,7 @@ function FinanceAndOpsMiniCharts() {
           if (!inventoryDayMap.has(key)) continue
           const prev = inventoryDayMap.get(key) || { quantity: 0, names: [] }
           inventoryDayMap.set(key, {
-            quantity: prev.quantity + (Number(item.availableQty || item.available_qty || 0)),
+            quantity: prev.quantity + (Number(item.receivedQty || item.received_qty || item.availableQty || item.available_qty || 0)),
             names: [...prev.names, String(item.description || item.name || "Inventory item")],
           })
         }
@@ -773,41 +781,58 @@ function FinanceAndOpsMiniCharts() {
       <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
       <MiniChartCard
         title="Petty Cash Allocations"
-        subtitle={`By employee (hover details)`}
+        subtitle="Share by employee (this month)"
       >
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading petty cash...</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={pettyCashByEmployee} margin={{ top: 5, right: 10, left: 0, bottom: 18 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" interval={0} height={26} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => String(v).split(" ")[0]} />
-              <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+            <PieChart>
+              <Pie
+                data={pettyCashByEmployee}
+                dataKey="amount"
+                nameKey="name"
+                innerRadius={35}
+                outerRadius={65}
+                paddingAngle={3}
+              >
+                {pettyCashByEmployee.map((entry, idx) => (
+                  <Cell key={`${entry.name}-${idx}`} fill={chartPalette[idx % chartPalette.length]} />
+                ))}
+              </Pie>
               <Tooltip
                 formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`}
                 labelFormatter={(label: any, payload: any) => `${label} (${payload?.[0]?.payload?.role || "—"})`}
               />
-              <Bar dataKey="amount" fill="#1faca6" radius={[6, 6, 0, 0]} onClick={() => { window.location.href = "/finance" }} />
-            </BarChart>
+            </PieChart>
           </ResponsiveContainer>
         )}
       </MiniChartCard>
 
       <MiniChartCard
         title="PO Status Graph"
-        subtitle="Pending / approved / received / draft / rejected"
+        subtitle="PO distribution by status"
       >
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading PO status...</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={poStatusData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+            <PieChart>
+              <Pie
+                data={poStatusData}
+                dataKey="count"
+                nameKey="name"
+                innerRadius={30}
+                outerRadius={68}
+                paddingAngle={2}
+                onClick={() => { window.location.href = "/purchase" }}
+              >
+                {poStatusData.map((entry, idx) => (
+                  <Cell key={`${entry.name}-${idx}`} fill={chartPalette[idx % chartPalette.length]} />
+                ))}
+              </Pie>
               <Tooltip />
-              <Bar dataKey="count" fill="#f59e0b" radius={[6, 6, 0, 0]} onClick={() => { window.location.href = "/purchase" }} />
-            </BarChart>
+            </PieChart>
           </ResponsiveContainer>
         )}
       </MiniChartCard>
@@ -820,14 +845,14 @@ function FinanceAndOpsMiniCharts() {
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading tickets...</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={ticketTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <AreaChart data={ticketTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
               <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
               <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
               <Tooltip />
-              <Line type="monotone" dataKey="opened" stroke="#f59e0b" strokeWidth={2.2} dot={{ r: 2 }} onClick={() => { window.location.href = "/tickets" }} />
-              <Line type="monotone" dataKey="closed" stroke="#10b981" strokeWidth={2.2} dot={{ r: 2 }} onClick={() => { window.location.href = "/tickets" }} />
-            </LineChart>
+              <Area type="monotone" dataKey="opened" stroke="#f59e0b" fill="#f59e0b33" strokeWidth={2} onClick={() => { window.location.href = "/tickets" }} />
+              <Area type="monotone" dataKey="closed" stroke="#10b981" fill="#10b9812b" strokeWidth={2} onClick={() => { window.location.href = "/tickets" }} />
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </MiniChartCard>
