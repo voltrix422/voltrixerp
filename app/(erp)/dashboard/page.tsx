@@ -11,6 +11,15 @@ import { Button } from "@/components/ui/button"
 import { ComingSoon } from "@/components/layout/coming-soon"
 import { Users, Building2, Package, FileText, ShoppingCart, BarChart3, DollarSign } from "lucide-react"
 import Link from "next/link"
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 
 import { useToast } from "@/components/ui/toast"
 import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
@@ -340,6 +349,160 @@ function ERPStats() {
   )
 }
 
+type DeliveredChartPoint = {
+  label: string
+  amount: number
+}
+
+function DeliveredOrdersAmountChart() {
+  const [orders, setOrders] = useState<Array<{ status?: string; total?: number; createdAt?: string; deliveryDate?: string; fulfillmentDate?: string }>>([])
+  const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadOrders() {
+      try {
+        const data = await fetch("/api/db/orders").then(r => r.json()).catch(() => [])
+        if (!mounted) return
+        setOrders(Array.isArray(data) ? data : [])
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    loadOrders()
+    const interval = setInterval(loadOrders, 30000)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [])
+
+  const now = new Date()
+  const dayStart = new Date(now)
+  dayStart.setHours(0, 0, 0, 0)
+
+  const byDay = new Map<string, number>()
+  for (let i = rangeDays - 1; i >= 0; i--) {
+    const d = new Date(dayStart)
+    d.setDate(dayStart.getDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    byDay.set(key, 0)
+  }
+
+  for (const order of orders) {
+    if (order.status !== "delivered") continue
+    const sourceDate = order.fulfillmentDate || order.deliveryDate || order.createdAt
+    if (!sourceDate) continue
+
+    const d = new Date(sourceDate)
+    if (Number.isNaN(d.getTime())) continue
+    d.setHours(0, 0, 0, 0)
+    const key = d.toISOString().slice(0, 10)
+    if (!byDay.has(key)) continue
+    byDay.set(key, (byDay.get(key) || 0) + (Number(order.total) || 0))
+  }
+
+  const data: DeliveredChartPoint[] = Array.from(byDay.entries()).map(([dateKey, amount]) => {
+    const d = new Date(dateKey)
+    return {
+      label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      amount,
+    }
+  })
+
+  const totalAmount = data.reduce((sum, p) => sum + p.amount, 0)
+  const deliveredCount = orders.filter(o => o.status === "delivered").length
+
+  return (
+    <div className="mt-4 rounded-xl border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Delivered Order Amount</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+            Delivered value trend for the last {rangeDays} days
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg border bg-[hsl(var(--muted))]/20 p-1">
+          {([7, 14, 30] as const).map(days => (
+            <button
+              key={days}
+              onClick={() => setRangeDays(days)}
+              className={`px-2 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
+                rangeDays === days
+                  ? "bg-[#1faca6] text-white"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              {days}D
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-2.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Delivered Amount</p>
+          <p className="text-sm font-bold mt-0.5">Rs. {totalAmount.toLocaleString()}</p>
+        </div>
+        <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-2.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Delivered Orders</p>
+          <p className="text-sm font-bold mt-0.5">{deliveredCount}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 h-64 w-full">
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">
+            Loading chart...
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="deliveredAmountFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#1faca6" stopOpacity={0.45} />
+                  <stop offset="95%" stopColor="#1faca6" stopOpacity={0.04} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                tickFormatter={(value) => `Rs ${Number(value).toLocaleString()}`}
+              />
+              <Tooltip
+                formatter={(value: number) => [`Rs. ${Number(value).toLocaleString()}`, "Delivered Amount"]}
+                contentStyle={{
+                  borderRadius: "10px",
+                  border: "1px solid hsl(var(--border))",
+                  background: "hsl(var(--card))",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="amount"
+                stroke="#1faca6"
+                strokeWidth={2.5}
+                fill="url(#deliveredAmountFill)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
 
@@ -366,6 +529,7 @@ export default function DashboardPage() {
                     
           {/* ERP Stats Overview */}
           <ERPStats />
+          <DeliveredOrdersAmountChart />
 
           {/* Client Orders Section */}
           <div className="bg-[hsl(var(--card))] p-6 rounded-xl mt-2">
