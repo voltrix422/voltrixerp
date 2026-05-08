@@ -234,6 +234,8 @@ type InventoryItem = ImportedPOItem & {
   supplier: string
   pssid?: string
   receivedAt: string
+  receivedQty?: number
+  availableQty?: number
   name?: string
   gst?: number
   gstIsPercentage?: boolean
@@ -434,9 +436,11 @@ export function InventoryList() {
         const stockItems = await res.json()
         if (stockItems && stockItems.length > 0) {
           const dbItems: InventoryItem[] = stockItems.map((stock: Record<string, unknown>) => ({
-            id: (stock.itemId || stock.item_id) as string,
+            id: (stock.id || stock.itemId || stock.item_id) as string,
             description: stock.description as string,
-            qty: (stock.availableQty || stock.available_qty) as number,
+            qty: Number(stock.receivedQty || stock.received_qty || stock.availableQty || stock.available_qty || 0),
+            availableQty: Number(stock.availableQty || stock.available_qty || 0),
+            receivedQty: Number(stock.receivedQty || stock.received_qty || stock.availableQty || stock.available_qty || 0),
             unit: stock.unit as string,
             unitPrice: (stock.costPrice || stock.cost_price || 0) as number,
             poNumber: (stock.poNumber || stock.po_number || "") as string,
@@ -483,6 +487,8 @@ export function InventoryList() {
           return {
             ...item,
             qty: item.qty,
+            availableQty: item.qty,
+            receivedQty: item.qty,
             poNumber: po.poNumber,
             supplier: po.importedSupplierName || "—",
             pssid: po.pssid,
@@ -514,6 +520,8 @@ export function InventoryList() {
             id: item.id,
             description: item.description,
             qty: item.qty,
+            availableQty: item.qty,
+            receivedQty: item.qty,
             unit: item.unit,
             unitPrice: landedCostPerUnit,
             poNumber: po.poNumber,
@@ -615,7 +623,7 @@ export function InventoryList() {
   }, 0)
   
   const totalInventoryItems = allInventoryItems.length
-  const totalInventoryValue = allInventoryItems.reduce((s, i) => s + i.unitPrice * i.qty, 0)
+  const totalInventoryValue = allInventoryItems.reduce((s, i) => s + i.unitPrice * (typeof i.availableQty === "number" ? i.availableQty : i.qty), 0)
 
   const alreadyReceived = (po: PurchaseOrder) => po.flowHistory.some(h => h.step === "Items Received")
 
@@ -1003,6 +1011,7 @@ export function InventoryList() {
                     const idHash = item.id.replace(/[^0-9]/g, '').slice(-6)
                     const productId = `P-${idHash}`
                     const isManual = item.poNumber?.startsWith("MI-")
+                    const displayQty = typeof item.availableQty === "number" ? item.availableQty : item.qty
                     
                     return (
                       <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer" onClick={() => setSelectedInventoryItem(item)}>
@@ -1010,10 +1019,10 @@ export function InventoryList() {
                         <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{productId}</td>
                         <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{item.poNumber}</td>
                         <td className="px-4 py-2.5 text-xs">{item.supplier}</td>
-                        <td className="px-4 py-2.5 text-xs text-center">{item.qty}</td>
+                        <td className="px-4 py-2.5 text-xs text-center">{displayQty}</td>
                         <td className="px-4 py-2.5 text-xs">{item.unit}</td>
                         <td className="px-4 py-2.5 text-xs text-right">PKR {item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-2.5 text-xs text-right font-semibold">PKR {(item.unitPrice * item.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-2.5 text-xs text-right font-semibold">PKR {(item.unitPrice * displayQty).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{new Date(item.receivedAt).toLocaleDateString()}</td>
                         {inventorySubTab === "manual" && isManual && (
                           <td className="px-4 py-2.5 text-center">
@@ -1097,9 +1106,14 @@ export function InventoryList() {
               {/* Quantity and Entry Info */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Quantity</p>
-                  <p className="text-lg font-bold">{selectedInventoryItem.qty}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Available Qty</p>
+                  <p className="text-lg font-bold">{typeof selectedInventoryItem.availableQty === "number" ? selectedInventoryItem.availableQty : selectedInventoryItem.qty}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">{selectedInventoryItem.unit}</p>
+                  {typeof selectedInventoryItem.receivedQty === "number" && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                      Received: {selectedInventoryItem.receivedQty}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
                   <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">Supplier</p>
