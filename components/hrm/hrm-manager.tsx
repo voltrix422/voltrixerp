@@ -576,20 +576,44 @@ export function HrmManager() {
   })
 
   const activeStaff = staff.filter(s => s.status === "active")
-  const monthPaidSlips = allSalarySlips.filter((slip: any) => slip.month === payrollMonth)
+  const uniqueAllSalarySlips = Object.values(
+    allSalarySlips.reduce<Record<string, any>>((acc, slip: any) => {
+      const key = `${String(slip.staffName || "").trim().toLowerCase()}__${String(slip.month || "")}`
+      const prev = acc[key]
+      const prevDate = new Date(prev?.generatedDate || prev?.createdAt || 0).getTime()
+      const currDate = new Date(slip?.generatedDate || slip?.createdAt || 0).getTime()
+      if (!prev || currDate >= prevDate) acc[key] = slip
+      return acc
+    }, {})
+  )
+  const monthPaidSlips = uniqueAllSalarySlips.filter((slip: any) => slip.month === payrollMonth)
   const monthPaidTotal = monthPaidSlips.reduce((sum: number, slip: any) => sum + (Number(slip.netSalary) || 0), 0)
   const monthPaidStaffNames = new Set(monthPaidSlips.map((slip: any) => String(slip.staffName || "")))
   const monthPaidCount = monthPaidStaffNames.size
   const monthUnpaidCount = Math.max(0, activeStaff.filter(s => !monthPaidStaffNames.has(s.name)).length)
-  const payrollHistoryByMonth = allSalarySlips.reduce<Record<string, any[]>>((acc, slip) => {
+  const payrollHistoryByMonth = uniqueAllSalarySlips.reduce<Record<string, any[]>>((acc, slip: any) => {
     const key = String(slip.month || "")
     if (!acc[key]) acc[key] = []
     acc[key].push(slip)
     return acc
   }, {})
   const sortedPayrollMonths = Object.keys(payrollHistoryByMonth).sort((a, b) => b.localeCompare(a))
+  const uniqueStaffSalarySlips = Object.values(
+    salarySlips.reduce<Record<string, any>>((acc, slip: any) => {
+      const key = String(slip.month || "")
+      const prev = acc[key]
+      const prevDate = new Date(prev?.generatedDate || prev?.createdAt || 0).getTime()
+      const currDate = new Date(slip?.generatedDate || slip?.createdAt || 0).getTime()
+      if (!prev || currDate >= prevDate) acc[key] = slip
+      return acc
+    }, {})
+  ).sort((a: any, b: any) => String(b.month || "").localeCompare(String(a.month || "")))
 
   function openPayrollRun() {
+    if (monthPaidSlips.length > 0) {
+      alert(`Payroll already created for ${monthLabel(payrollMonth)}. Please select another month.`)
+      return
+    }
     const rows: PayrollRow[] = activeStaff.map((member) => ({
       staffId: member.id,
       staffName: member.name,
@@ -610,6 +634,10 @@ export function HrmManager() {
 
   async function runPayrollAndDownload() {
     if (payrollRows.length === 0) return
+    if (monthPaidSlips.length > 0) {
+      alert(`Payroll already created for ${monthLabel(payrollMonth)}. Please select another month.`)
+      return
+    }
     try {
       const slipsToSave = payrollRows.map((row) => {
         const adjustmentNum = Number(row.adjustmentAmount || 0)
@@ -633,52 +661,109 @@ export function HrmManager() {
           bankName: staff.find(s => s.id === row.staffId)?.bank_name || "",
           bankAccountNumber: staff.find(s => s.id === row.staffId)?.bank_account_number || "",
           bankAccountTitle: staff.find(s => s.id === row.staffId)?.bank_account_title || "",
+          bankIban: (staff.find(s => s.id === row.staffId) as any)?.bank_iban || "",
         }
       })
 
       for (const slip of slipsToSave) {
-        await fetch('/api/hrm/salary-slips', {
+        const response = await fetch('/api/hrm/salary-slips', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(slip)
         })
+        if (response.status === 409) {
+          throw new Error(`Payroll already created for ${monthLabel(payrollMonth)}.`)
+        }
+        if (!response.ok) {
+          throw new Error('Failed to save payroll record')
+        }
       }
 
       const { jsPDF } = await import('jspdf')
-      const doc = new jsPDF()
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" })
+      const primaryColor: [number, number, number] = [26, 159, 154]
+      const textColor: [number, number, number] = [30, 41, 59]
+      const borderColor: [number, number, number] = [203, 213, 225]
+
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+      doc.rect(0, 0, 297, 28, "F")
+      doc.setTextColor(255, 255, 255)
+      doc.setFont("helvetica", "bold")
       doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.text(`Monthly Payroll - ${monthLabel(payrollMonth)}`, 14, 18)
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 25)
-
-      let y = 35
-      doc.setFont('helvetica', 'bold')
-      doc.text('Employee', 14, y)
-      doc.text('Base', 90, y)
-      doc.text('Adjustment', 130, y)
-      doc.text('Net', 180, y, { align: 'right' })
-      y += 6
-
-      doc.setFont('helvetica', 'normal')
-      slipsToSave.forEach((slip) => {
-        if (y > 280) {
-          doc.addPage()
-          y = 20
-        }
-        const adjValue = (slip.adjustments?.[0]?.type === "deduct" ? "-" : "+") + " " + slip.currency + " " + (Number(slip.adjustments?.[0]?.amount || 0)).toLocaleString()
-        doc.text(slip.staffName, 14, y)
-        doc.text(`${slip.currency} ${Number(slip.baseSalary).toLocaleString()}`, 90, y)
-        doc.text(slip.adjustments.length > 0 ? adjValue : `${slip.currency} 0`, 130, y)
-        doc.text(`${slip.currency} ${Number(slip.netSalary).toLocaleString()}`, 180, y, { align: 'right' })
-        y += 6
-      })
+      doc.text(`Monthly Payroll - ${monthLabel(payrollMonth)}`, 12, 12)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(9)
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 12, 19)
 
       const total = slipsToSave.reduce((sum, s) => sum + Number(s.netSalary || 0), 0)
+      doc.setFont("helvetica", "bold")
+      doc.text(`Total Payroll: ${slipsToSave[0]?.currency || "PKR"} ${total.toLocaleString()}`, 285, 12, { align: "right" })
+      doc.setFont("helvetica", "normal")
+      doc.text(`Payment Status: Paid (${slipsToSave.length}/${slipsToSave.length})`, 285, 19, { align: "right" })
+
+      const cols = {
+        employee: 10,
+        role: 48,
+        bankName: 84,
+        accountTitle: 120,
+        ibanAccount: 164,
+        base: 208,
+        adjustment: 232,
+        net: 256,
+        status: 282,
+      }
+
+      let y = 36
+      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+      doc.setFillColor(241, 245, 249)
+      doc.rect(10, y - 6, 277, 8, "FD")
+      doc.setTextColor(textColor[0], textColor[1], textColor[2])
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(8)
+      doc.text("Employee", cols.employee, y - 1)
+      doc.text("Role", cols.role, y - 1)
+      doc.text("Bank Name", cols.bankName, y - 1)
+      doc.text("Account Title", cols.accountTitle, y - 1)
+      doc.text("IBAN / Account", cols.ibanAccount, y - 1)
+      doc.text("Base", cols.base, y - 1)
+      doc.text("Adjustment", cols.adjustment, y - 1)
+      doc.text("Net", cols.net, y - 1)
+      doc.text("Status", cols.status, y - 1)
       y += 4
-      doc.setFont('helvetica', 'bold')
-      doc.text(`Total Payroll: ${slipsToSave[0]?.currency || "PKR"} ${total.toLocaleString()}`, 14, y)
+
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(7.5)
+      slipsToSave.forEach((slip, index) => {
+        if (y > 195) {
+          doc.addPage("a4", "landscape")
+          y = 18
+        }
+
+        if (index % 2 === 0) {
+          doc.setFillColor(248, 250, 252)
+          doc.rect(10, y - 4.5, 277, 7.5, "F")
+        }
+
+        const adjustmentAmount = Number(slip.adjustments?.[0]?.amount || 0)
+        const adjustmentSign = slip.adjustments?.[0]?.type === "deduct" ? "-" : "+"
+        const adjustmentText = slip.adjustments?.length
+          ? `${adjustmentSign}${slip.currency} ${adjustmentAmount.toLocaleString()}`
+          : `${slip.currency} 0`
+
+        const ibanOrAccount = String(slip.bankIban || slip.bankAccountNumber || "—")
+        doc.setTextColor(textColor[0], textColor[1], textColor[2])
+        doc.text(String(slip.staffName || "—").slice(0, 24), cols.employee, y)
+        doc.text(String(slip.staffRole || "—").slice(0, 18), cols.role, y)
+        doc.text(String(slip.bankName || "—").slice(0, 18), cols.bankName, y)
+        doc.text(String(slip.bankAccountTitle || "—").slice(0, 22), cols.accountTitle, y)
+        doc.text(ibanOrAccount.slice(0, 24), cols.ibanAccount, y)
+        doc.text(`${slip.currency} ${Number(slip.baseSalary || 0).toLocaleString()}`, cols.base, y)
+        doc.text(adjustmentText, cols.adjustment, y)
+        doc.text(`${slip.currency} ${Number(slip.netSalary || 0).toLocaleString()}`, cols.net, y)
+        doc.setTextColor(22, 163, 74)
+        doc.text("Paid", cols.status, y)
+        y += 7
+      })
 
       doc.save(`Payroll-${payrollMonth}.pdf`)
       setShowPayrollRun(false)
@@ -1934,7 +2019,7 @@ export function HrmManager() {
             </div>
             
             <div className="overflow-y-auto p-6">
-              {salarySlips.length === 0 ? (
+              {uniqueStaffSalarySlips.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="h-16 w-16 rounded-full bg-[hsl(var(--muted))]/10 flex items-center justify-center mx-auto mb-4">
                     <FileText className="h-8 w-8 text-[hsl(var(--muted-foreground))]" />
@@ -1944,7 +2029,7 @@ export function HrmManager() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {salarySlips.map((slip) => (
+                  {uniqueStaffSalarySlips.map((slip: any) => (
                     <div key={slip.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-2">
@@ -2170,6 +2255,15 @@ export function HrmManager() {
                 <Button 
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white"
                   onClick={async () => {
+                    const existsForMonth = uniqueAllSalarySlips.some((slip: any) =>
+                      String(slip.month || "") === selectedMonth &&
+                      String(slip.staffName || "").trim().toLowerCase() === viewMember.name.trim().toLowerCase()
+                    )
+                    if (existsForMonth) {
+                      alert(`Salary slip already created for ${viewMember.name} in ${monthLabel(selectedMonth)}.`)
+                      return
+                    }
+
                     // Generate salary slip PDF
                     const netSalary = viewMember.salary + salaryAdjustments.reduce((sum, adj) => {
                       return sum + (adj.type === 'add' ? parseFloat(adj.amount) : -parseFloat(adj.amount))
@@ -2442,9 +2536,21 @@ export function HrmManager() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify(salarySlipData)
                         })
+                        if (response.status === 409) {
+                          alert(`Salary slip already created for ${viewMember.name} in ${monthLabel(selectedMonth)}.`)
+                          return
+                        }
                         if (!response.ok) throw new Error('Database save failed')
                       } catch (dbError) {
                         console.warn('Database save failed, using localStorage fallback:', dbError)
+                        const existsInLocal = (JSON.parse(localStorage.getItem('salary_slips') || '[]') as any[]).some((slip: any) =>
+                          String(slip.month || "") === selectedMonth &&
+                          String(slip.staffName || "").trim().toLowerCase() === viewMember.name.trim().toLowerCase()
+                        )
+                        if (existsInLocal) {
+                          alert(`Salary slip already created for ${viewMember.name} in ${monthLabel(selectedMonth)}.`)
+                          return
+                        }
                         // Fallback to localStorage
                         const existingSlips = JSON.parse(localStorage.getItem('salary_slips') || '[]')
                         const newSlip = {
@@ -2580,7 +2686,7 @@ export function HrmManager() {
             </div>
 
             <div className="overflow-auto p-6">
-              {allSalarySlips.length === 0 ? (
+              {uniqueAllSalarySlips.length === 0 ? (
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">No payroll records yet.</p>
               ) : (
                 <div className="space-y-3">

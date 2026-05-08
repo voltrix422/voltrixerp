@@ -5,6 +5,20 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
+    const existing = await prisma.erpSalarySlip.findFirst({
+      where: {
+        staffName: body.staffName,
+        month: body.month,
+      }
+    })
+
+    if (existing) {
+      return NextResponse.json({
+        error: 'Salary slip already exists for this staff and month',
+        existingId: existing.id,
+      }, { status: 409 })
+    }
+
     const salarySlip = await (prisma.erpSalarySlip.create as any)({
       data: {
         staffName:        body.staffName,
