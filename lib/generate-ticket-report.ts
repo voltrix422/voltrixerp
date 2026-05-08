@@ -10,6 +10,7 @@ type TicketInput = {
   status: string
   priority: string
   createdAt: string
+  supportEngineerName?: string
 }
 
 type WorkflowInput = {
@@ -28,14 +29,49 @@ type WorkflowInput = {
   replacementDispatchNoteNumber: string
 }
 
-export function generateTicketReportPDF(ticket: TicketInput, workflow: WorkflowInput): Blob {
+async function loadImageBase64(url: string): Promise<string> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return ""
+    const blob = await res.blob()
+    return await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(String(reader.result || ""))
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return ""
+  }
+}
+
+export async function generateTicketReportPDF(ticket: TicketInput, workflow: WorkflowInput): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const pageW = 210
   const margin = 14
-  let y = 16
+  let y = 14
+
+  // Header band with branding
+  doc.setFillColor(26, 159, 154)
+  doc.rect(0, 0, pageW, 32, "F")
+  const logo = await loadImageBase64("/logo.png")
+  if (logo) {
+    doc.addImage(logo, "PNG", margin, 5, 18, 18)
+  }
+  doc.setTextColor(255, 255, 255)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(13)
+  doc.text("VOLTRIX BATTERIES", margin + 22, 13)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8)
+  doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", margin + 22, 18)
+  doc.text("Phone: 051-8731661 | Email: info@voltrix-power.com", margin + 22, 22.5)
+  doc.text("www.voltrixbatteries.com", margin + 22, 27)
+
+  y = 40
+  doc.setTextColor(30, 30, 30)
 
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(16)
+  doc.setFontSize(15)
   doc.text("Ticket Resolution Report", margin, y)
   y += 8
 
@@ -52,6 +88,7 @@ export function generateTicketReportPDF(ticket: TicketInput, workflow: WorkflowI
     `Priority: ${ticket.priority}`,
     `Status: ${ticket.status}`,
     `Created: ${new Date(ticket.createdAt).toLocaleString()}`,
+    `Support Engineer: ${ticket.supportEngineerName || "N/A"}`,
     `Subject: ${ticket.subject}`,
     `Description: ${ticket.description}`,
   ]

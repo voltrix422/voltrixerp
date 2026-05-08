@@ -7,6 +7,14 @@ const activeUsers = new Map<string, {
   ip?: string
 }>()
 
+function getUniqueVisitorCount(): number {
+  const ipSet = new Set<string>()
+  for (const data of activeUsers.values()) {
+    ipSet.add(data.ip || "unknown")
+  }
+  return ipSet.size
+}
+
 // Cleanup inactive users (older than 5 minutes)
 function cleanupInactiveUsers() {
   const now = Date.now()
@@ -75,7 +83,7 @@ export async function POST(request: NextRequest) {
     cleanupInactiveUsers()
     
     return NextResponse.json({
-      count: activeUsers.size,
+      count: getUniqueVisitorCount(),
       sessionId,
       active: true
     })
@@ -99,7 +107,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     return NextResponse.json({
-      count: activeUsers.size,
+      count: getUniqueVisitorCount(),
       active: true
     })
   } catch (error) {

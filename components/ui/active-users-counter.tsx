@@ -1,8 +1,7 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Users, Activity, Wifi, WifiOff, X, Globe, Clock, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { useRouter } from "next/navigation"
 
 interface ActiveUsersCounterProps {
   className?: string
@@ -22,13 +21,13 @@ export function ActiveUsersCounter({
   showLabel = true,
   size = "sm"
 }: ActiveUsersCounterProps) {
-  const router = useRouter()
   const [activeCount, setActiveCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isOnline, setIsOnline] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [showVisitorsModal, setShowVisitorsModal] = useState(false)
   const [visitors, setVisitors] = useState<Visitor[]>([])
+  const sessionIdRef = useRef<string | null>(null)
 
   // Size configurations
   const sizeConfig = {
@@ -66,6 +65,7 @@ export function ActiveUsersCounter({
         const data = await response.json()
         setActiveCount(data.count)
         setSessionId(data.sessionId)
+        sessionIdRef.current = data.sessionId
         setIsOnline(true)
       } else {
         setIsOnline(false)
@@ -122,13 +122,14 @@ export function ActiveUsersCounter({
 
   // Remove user from active list on unmount
   const removeActivity = async () => {
-    if (sessionId) {
+    const sid = sessionIdRef.current
+    if (sid) {
       try {
         await fetch('/api/active-users', {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            'x-session-id': sessionId,
+            'x-session-id': sid,
           },
         })
       } catch (error) {
@@ -153,7 +154,7 @@ export function ActiveUsersCounter({
       clearInterval(countInterval)
       removeActivity()
     }
-  }, [sessionId])
+  }, [])
 
   // Handle page visibility changes
   useEffect(() => {
