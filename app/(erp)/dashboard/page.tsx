@@ -14,7 +14,15 @@ import Link from "next/link"
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -503,6 +511,249 @@ function DeliveredOrdersAmountChart() {
   )
 }
 
+type MiniChartCardProps = {
+  title: string
+  subtitle: string
+  children: React.ReactNode
+}
+
+function MiniChartCard({ title, subtitle, children }: MiniChartCardProps) {
+  return (
+    <div className="rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] p-4 shadow-sm">
+      <div className="mb-3">
+        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{title}</p>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">{subtitle}</p>
+      </div>
+      <div className="h-48">{children}</div>
+    </div>
+  )
+}
+
+function FinanceAndOpsMiniCharts() {
+  const [loading, setLoading] = useState(true)
+  const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
+  const [pettyCashByEmployee, setPettyCashByEmployee] = useState<Array<{ name: string; amount: number; role: string }>>([])
+  const [orderTrend, setOrderTrend] = useState<Array<{ day: string; amount: number }>>([])
+  const [poStatusData, setPOStatusData] = useState<Array<{ name: string; count: number }>>([])
+  const [ticketStatusData, setTicketStatusData] = useState<Array<{ name: string; value: number; color: string }>>([])
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadData() {
+      try {
+        const [allocationsRes, ordersRes, ticketsRes, poList] = await Promise.all([
+          fetch("/api/db/petty-cash-allocations").then(r => r.json()).catch(() => []),
+          fetch("/api/db/orders").then(r => r.json()).catch(() => []),
+          fetch("/api/db/tickets").then(r => r.json()).catch(() => []),
+          getPOs().catch(() => []),
+        ])
+
+        if (!mounted) return
+
+        const now = new Date()
+        const currentMonth = now.getMonth()
+        const currentYear = now.getFullYear()
+
+        const monthlyAllocations = (Array.isArray(allocationsRes) ? allocationsRes : []).filter((a: any) => {
+          const d = new Date(a.allocatedAt)
+          return !Number.isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear
+        })
+
+        const employeeMap = new Map<string, { amount: number; role: string }>()
+        for (const item of monthlyAllocations) {
+          const key = String(item.employeeName || "Unknown")
+          const existing = employeeMap.get(key) || { amount: 0, role: String(item.employeeRole || "—") }
+          employeeMap.set(key, { amount: existing.amount + (Number(item.amount) || 0), role: existing.role })
+        }
+        const pettyData = Array.from(employeeMap.entries())
+          .map(([name, val]) => ({ name, amount: val.amount, role: val.role }))
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 8)
+        setPettyCashByEmployee(pettyData)
+
+        const dayStart = new Date(now)
+        dayStart.setHours(0, 0, 0, 0)
+        const dayMap = new Map<string, number>()
+        for (let i = rangeDays - 1; i >= 0; i--) {
+          const d = new Date(dayStart)
+          d.setDate(dayStart.getDate() - i)
+          dayMap.set(d.toISOString().slice(0, 10), 0)
+        }
+
+        for (const order of Array.isArray(ordersRes) ? ordersRes : []) {
+          const dateRaw = order.createdAt || order.created_at
+          if (!dateRaw) continue
+          const d = new Date(dateRaw)
+          if (Number.isNaN(d.getTime())) continue
+          d.setHours(0, 0, 0, 0)
+          const key = d.toISOString().slice(0, 10)
+          if (!dayMap.has(key)) continue
+          dayMap.set(key, (dayMap.get(key) || 0) + (Number(order.total) || 0))
+        }
+
+        setOrderTrend(
+          Array.from(dayMap.entries()).map(([key, amount]) => ({
+            day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+            amount,
+          }))
+        )
+
+        const poStatus = Array.isArray(poList) ? poList : []
+        setPOStatusData([
+          { name: "Pending", count: poStatus.filter((p: any) => p.status === "sent_to_admin" || p.status === "imp_pending_approval").length },
+          { name: "Approved", count: poStatus.filter((p: any) => p.status === "approved" || p.status === "finalized" || p.status === "imp_approved").length },
+          { name: "Received", count: poStatus.filter((p: any) => p.status === "in_inventory" || p.status === "imp_inventory").length },
+          { name: "Draft", count: poStatus.filter((p: any) => p.status === "draft" || p.status === "imp_admin_draft").length },
+          { name: "Rejected", count: poStatus.filter((p: any) => p.status === "rejected" || p.status === "imp_rejected").length },
+        ])
+
+        const tickets = Array.isArray(ticketsRes) ? ticketsRes : []
+        const open = tickets.filter((t: any) => t.status === "open").length
+        const closed = tickets.filter((t: any) => t.status === "closed").length
+        const fulfilled = tickets.filter((t: any) => ["fulfilled", "resolved", "done"].includes(String(t.status || "").toLowerCase())).length
+        setTicketStatusData([
+          { name: "Open", value: open, color: "#f59e0b" },
+          { name: "Closed", value: closed, color: "#10b981" },
+          { name: "Fulfilled", value: fulfilled, color: "#3b82f6" },
+        ])
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    loadData()
+    const interval = setInterval(loadData, 30000)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [rangeDays])
+
+  return (
+    <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <MiniChartCard
+        title="Petty Cash Allocations"
+        subtitle={`Current month by employee (hover for details)`}
+      >
+        <div className="mb-2 flex items-center justify-end gap-1">
+          {([7, 14, 30] as const).map((days) => (
+            <button
+              key={days}
+              onClick={() => setRangeDays(days)}
+              className={`px-2 py-0.5 text-[10px] rounded border ${
+                rangeDays === days
+                  ? "bg-[#1faca6] text-white border-[#1faca6]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              {days}D
+            </button>
+          ))}
+        </div>
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading petty cash...</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={pettyCashByEmployee} margin={{ top: 5, right: 15, left: 0, bottom: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} height={50} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis tickFormatter={(v) => `Rs ${Number(v).toLocaleString()}`} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+              <Tooltip
+                formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`}
+                labelFormatter={(label: any, payload: any) => `${label} (${payload?.[0]?.payload?.role || "—"})`}
+              />
+              <Bar dataKey="amount" fill="#1faca6" radius={[6, 6, 0, 0]} onClick={() => { window.location.href = "/finance" }} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </MiniChartCard>
+
+      <MiniChartCard
+        title="Order Amount Trend"
+        subtitle={`Last ${rangeDays} days total order values`}
+      >
+        <div className="mb-2 flex items-center justify-end gap-1">
+          {([7, 14, 30] as const).map((days) => (
+            <button
+              key={days}
+              onClick={() => setRangeDays(days)}
+              className={`px-2 py-0.5 text-[10px] rounded border ${
+                rangeDays === days
+                  ? "bg-[#1faca6] text-white border-[#1faca6]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              {days}D
+            </button>
+          ))}
+        </div>
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading order trend...</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={orderTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <YAxis tickFormatter={(v) => `Rs ${Number(v).toLocaleString()}`} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`} />
+              <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 2 }} onClick={() => { window.location.href = "/crm" }} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </MiniChartCard>
+
+      <MiniChartCard
+        title="PO Status Graph"
+        subtitle="Pending, approved, received, draft, rejected"
+      >
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading PO status...</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={poStatusData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#f59e0b" radius={[6, 6, 0, 0]} onClick={() => { window.location.href = "/purchase" }} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </MiniChartCard>
+
+      <MiniChartCard
+        title="Tickets Overview"
+        subtitle="Open, closed and fulfilled tickets"
+      >
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading tickets...</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={ticketStatusData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={45}
+                outerRadius={75}
+                paddingAngle={3}
+                onClick={() => { window.location.href = "/tickets" }}
+              >
+                {ticketStatusData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend iconSize={9} wrapperStyle={{ fontSize: "11px" }} />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </MiniChartCard>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const [approvalTab, setApprovalTab] = useState<"po" | "orders">("po")
@@ -532,6 +783,7 @@ export default function DashboardPage() {
           {/* ERP Stats Overview */}
           <ERPStats />
           <DeliveredOrdersAmountChart />
+          <FinanceAndOpsMiniCharts />
 
           {/* Approval Flow Section */}
           <div className="bg-[hsl(var(--card))] p-6 rounded-xl mt-2">
