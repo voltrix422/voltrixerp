@@ -944,32 +944,30 @@ export function HrmManager() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 py-4">
         <div>
-          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Staff Management</h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Manage staff profiles, performance, and HR information</p>
+          <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--foreground))]">Staff Management</h2>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Manage staff profiles, performance, and HR information</p>
         </div>
-        <Button size="sm" className="h-8 text-sm gap-2 bg-black hover:bg-neutral-800 text-white cursor-pointer" onClick={() => setShowForm(true)}>
+        <Button size="sm" className="h-9 px-4 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer rounded-lg" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" /> New Staff
         </Button>
       </div>
 
       {/* Stats */}
       {staff.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Total Staff</h3>
-              <p className="text-2xl font-bold text-[hsl(var(--foreground))]">{staff.length}</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Active</h3>
-              <p className="text-2xl font-bold text-green-600">{activeCount}</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Inactive</h3>
-              <p className="text-2xl font-bold text-red-600">{staff.length - activeCount}</p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Total Staff</p>
+            <p className="text-2xl font-bold text-[hsl(var(--foreground))] mt-1">{staff.length}</p>
+          </div>
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Active</p>
+            <p className="text-2xl font-bold text-emerald-600 mt-1">{activeCount}</p>
+          </div>
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Inactive</p>
+            <p className="text-2xl font-bold text-rose-600 mt-1">{staff.length - activeCount}</p>
           </div>
         </div>
       )}
@@ -989,27 +987,27 @@ export function HrmManager() {
 
       {/* Filters */}
       {staff.length > 0 && showFilters && (
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 flex flex-wrap gap-2 items-center animate-in slide-in-from-top-2">
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 flex flex-wrap gap-2 items-center animate-in slide-in-from-top-2">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search by name, role, email..."
-              className="w-full h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent" />
+              className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent" />
           </div>
           <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
-            className="h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Departments</option>
             {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="h-8 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
+            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
             <option value="All">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
           {(search || filterDept !== "All" || filterStatus !== "All") && (
             <button onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All") }}
-              className="h-8 px-2 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded hover:bg-[hsl(var(--muted))]/10">Clear</button>
+              className="h-9 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-lg hover:bg-[hsl(var(--muted))]/10">Clear</button>
           )}
           <span className="text-[10px] text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {staff.length}</span>
         </div>
@@ -1029,10 +1027,10 @@ export function HrmManager() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]/30 rounded-lg bg-[hsl(var(--card))]">No staff match your filters.</div>
       ) : (
-        <div className="border border-[hsl(var(--border))] overflow-hidden">
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20">
+              <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30">
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Staff</th>
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
@@ -1045,17 +1043,17 @@ export function HrmManager() {
             <tbody>
               {filtered.map(s => (
                 <tr key={s.id} onClick={() => setViewMember(s)}
-                  className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/5 cursor-pointer transition-colors ${(s.points || 100) <= 20 ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
+                  className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-colors ${(s.points || 100) <= 20 ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center">
+                      <div className="h-9 w-9 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center ring-1 ring-[hsl(var(--border))]">
                         {s.photo_url
                           ? <img src={s.photo_url} alt={s.name} className="h-full w-full object-cover" />
                           : <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
                         }
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-[hsl(var(--foreground))]">{s.name}</p>
+                        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{s.name}</p>
                         <p className="text-xs text-[hsl(var(--muted-foreground))]">{s.role}</p>
                       </div>
                     </div>
