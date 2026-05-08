@@ -481,7 +481,7 @@ function DeliveredOrdersAmountChart() {
                 tickFormatter={(value) => `Rs ${Number(value).toLocaleString()}`}
               />
               <Tooltip
-                formatter={(value: number) => [`Rs. ${Number(value).toLocaleString()}`, "Delivered Amount"]}
+                formatter={(value) => `Rs. ${Number(value ?? 0).toLocaleString()}`}
                 contentStyle={{
                   borderRadius: "10px",
                   border: "1px solid hsl(var(--border))",
