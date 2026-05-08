@@ -14,12 +14,31 @@ export interface InventoryTransaction {
   created_by: string
 }
 
+type RawInventoryTransaction = Record<string, unknown>
+
+function normalizeTransaction(row: RawInventoryTransaction): InventoryTransaction {
+  return {
+    id: String(row.id || ""),
+    item_description: String(row.item_description ?? row.itemDescription ?? ""),
+    transaction_type: String(row.transaction_type ?? row.transactionType ?? "in") as "in" | "out",
+    quantity: Number(row.quantity ?? 0),
+    unit: String(row.unit ?? ""),
+    reference_type: String(row.reference_type ?? row.referenceType ?? "order") as "po" | "order",
+    reference_id: String(row.reference_id ?? row.referenceId ?? ""),
+    reference_number: String(row.reference_number ?? row.referenceNumber ?? ""),
+    notes: row.notes ? String(row.notes) : undefined,
+    created_at: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
+    created_by: String(row.created_by ?? row.createdBy ?? "System"),
+  }
+}
+
 export async function getInventoryHistory(): Promise<InventoryTransaction[]> {
   try {
     const res = await fetch("/api/db/inventory-history")
     if (!res.ok) return []
     const data = await res.json()
-    return data || []
+    if (!Array.isArray(data)) return []
+    return data.map(normalizeTransaction)
   } catch { return [] }
 }
 
@@ -28,7 +47,8 @@ export async function getInventoryHistoryByItem(itemDescription: string): Promis
     const res = await fetch(`/api/db/inventory-history?item=${encodeURIComponent(itemDescription)}`)
     if (!res.ok) return []
     const data = await res.json()
-    return data || []
+    if (!Array.isArray(data)) return []
+    return data.map(normalizeTransaction)
   } catch { return [] }
 }
 
