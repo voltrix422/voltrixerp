@@ -268,12 +268,16 @@ function ERPStats() {
           fetch('/api/db/client-orders').then(r => r.json()).catch(() => []),
         ])
 
+        const inventoryItems = Array.isArray(inventoryRes)
+          ? inventoryRes
+          : (Array.isArray((inventoryRes as any)?.data) ? (inventoryRes as any).data : [])
+
         // Calculate finance total for current month
         const now = new Date()
         const financeTotal = Array.isArray(financeRes)
           ? financeRes
               .filter((r: any) => {
-                const date = new Date(r.date)
+                const date = new Date(r.createdAt || r.created_at || r.date)
                 return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
               })
               .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0)
@@ -289,7 +293,9 @@ function ERPStats() {
 
         // Calculate total client orders value
         const totalOrdersValue = Array.isArray(clientOrdersRes)
-          ? clientOrdersRes.reduce((sum: number, order: any) => sum + (Number(order.totalAmount) || 0), 0)
+          ? clientOrdersRes.reduce((sum: number, order: any) => {
+              return sum + (Number(order.totalAmount) || Number(order.total) || 0)
+            }, 0)
           : 0
 
         setStats({
@@ -298,7 +304,7 @@ function ERPStats() {
           products: Array.isArray(productsRes) ? productsRes.length : 0,
           quotations: Array.isArray(quotationsRes) ? quotationsRes.length : 0,
           orders: Array.isArray(ordersRes) ? ordersRes.length : 0,
-          inventoryItems: Array.isArray(inventoryRes) ? inventoryRes.length : 0,
+          inventoryItems: inventoryItems.length,
           financeTotal,
           totalPOValue,
           totalOrdersValue,
