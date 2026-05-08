@@ -176,6 +176,27 @@ model ErpInventoryHistory {
   @@map("erp_inventory_history")
 }
 
+model ErpOrderFulfillmentHistory {
+  id                        String   @id @default(cuid())
+  orderId                   String   @map("order_id")
+  orderNumber               String   @map("order_number")
+  clientName                String   @map("client_name")
+  dispatcherName            String   @map("dispatcher_name")
+  receiverName              String   @map("receiver_name")
+  receiverCnic              String   @map("receiver_cnic")
+  vehicleNumber             String   @map("vehicle_number")
+  receiverImageUrl          String?  @map("receiver_image_url")
+  receiverCnicImageUrl      String?  @map("receiver_cnic_image_url")
+  vehicleImageUrl           String?  @map("vehicle_image_url")
+  productImageUrls          Json     @default("[]") @map("product_image_urls")
+  fulfilledAt               DateTime @default(now()) @map("fulfilled_at")
+  fulfilledBy               String   @map("fulfilled_by")
+  notes                     String?  @default("")
+  createdAt                 DateTime @default(now()) @map("created_at")
+
+  @@map("erp_order_fulfillment_history")
+}
+
 model ErpQuotation {
   id              String   @id @default(cuid())
   productType     String?  @map("product_type")

@@ -9,6 +9,7 @@ import { Loader2, X, Eye, Download, Truck, FileText, Search } from "lucide-react
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder } from "@/lib/inventory"
+import { logOrderFulfillmentHistory } from "@/lib/order-fulfillment-history"
 
 export function ClientOrdersInventory() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -269,6 +270,24 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       if (order.status !== "delivered") {
         await deductInventoryForOrder(updatedOrder)
       }
+
+      // Save full fulfillment record for future history/audit view
+      await logOrderFulfillmentHistory({
+        orderId: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        clientName: updatedOrder.clientName,
+        dispatcherName: fulfillDispatcherName,
+        receiverName,
+        receiverCnic,
+        vehicleNumber,
+        receiverImageUrl,
+        receiverCnicImageUrl,
+        vehicleImageUrl,
+        productImageUrls,
+        fulfilledAt: updatedOrder.fulfillmentDate || new Date().toISOString(),
+        fulfilledBy: updatedOrder.createdBy || "Inventory",
+        notes: `Order fulfilled and marked delivered by dispatcher ${fulfillDispatcherName}`,
+      })
       
       // Generate and download dispatch note automatically
       const blob = await generateDispatchNotePDF(order, fulfillDispatcherName, fulfillDate)

@@ -5,10 +5,11 @@ import { ModuleGuard } from "@/components/layout/module-guard"
 import { InventoryList } from "@/components/inventory/inventory-list"
 import { ClientOrdersInventory } from "@/components/inventory/client-orders-inventory"
 import { InventoryHistory } from "@/components/inventory/inventory-history"
+import { FulfillmentHistory } from "@/components/inventory/fulfillment-history"
 import { BranchesTab } from "@/components/branches/branches-tab"
 
 export default function InventoryPage() {
-  const [tab, setTab] = useState<"orders" | "stock" | "history" | "branches">("orders")
+  const [tab, setTab] = useState<"orders" | "stock" | "history" | "fulfillmentHistory" | "branches">("orders")
 
   return (
     <ModuleGuard module="inventory">
@@ -69,12 +70,26 @@ export default function InventoryPage() {
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
             </button>
+            <button
+              onClick={() => setTab("fulfillmentHistory")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+                tab === "fulfillmentHistory"
+                  ? "text-[hsl(var(--foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              Fulfillment History
+              {tab === "fulfillmentHistory" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+              )}
+            </button>
           </div>
 
           {/* Tab Content */}
           {tab === "orders" && <ClientOrdersInventory />}
           {tab === "stock" && <InventoryList />}
           {tab === "history" && <InventoryHistory />}
+          {tab === "fulfillmentHistory" && <FulfillmentHistory />}
           {tab === "branches" && <BranchesTab />}
         </div>
       </div>
