@@ -505,6 +505,8 @@ function DeliveredOrdersAmountChart() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const [approvalTab, setApprovalTab] = useState<"po" | "orders">("po")
+  const [showPOFilters, setShowPOFilters] = useState(false)
 
   if (!user) return null
 
@@ -531,9 +533,39 @@ export default function DashboardPage() {
           <ERPStats />
           <DeliveredOrdersAmountChart />
 
-          {/* Client Orders Section */}
+          {/* Approval Flow Section */}
           <div className="bg-[hsl(var(--card))] p-6 rounded-xl mt-2">
-            <ClientOrdersApproval />
+            <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] pb-2 mb-4">
+              <button
+                onClick={() => setApprovalTab("po")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  approvalTab === "po"
+                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                }`}
+              >
+                PO Confirmation
+              </button>
+              <button
+                onClick={() => setApprovalTab("orders")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  approvalTab === "orders"
+                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                }`}
+              >
+                Order CRM Confirmation
+              </button>
+            </div>
+
+            {approvalTab === "po" ? (
+              <POsWidget
+                showFilters={showPOFilters}
+                setShowFilters={setShowPOFilters}
+              />
+            ) : (
+              <ClientOrdersApproval />
+            )}
           </div>
         </div>
       </div>
