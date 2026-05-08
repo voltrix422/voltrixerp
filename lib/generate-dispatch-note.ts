@@ -2,6 +2,10 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Order } from "@/lib/orders"
 
+type DispatchNoteOptions = {
+  showPricing?: boolean
+}
+
 // ── Font helpers (client-side: fetch from /public) ─────────────────────────
 async function loadFontBase64(url: string): Promise<string> {
   try {
@@ -28,8 +32,10 @@ async function registerGeist(doc: jsPDF): Promise<string> {
 export async function generateDispatchNotePDF(
   order: Order,
   dispatcherName?: string,
-  dispatchDate?: string
+  dispatchDate?: string,
+  options: DispatchNoteOptions = {}
 ): Promise<Blob> {
+  const showPricing = options.showPricing ?? false
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const FONT = await registerGeist(doc)
   doc.setFont(FONT, "normal")
@@ -144,18 +150,24 @@ export async function generateDispatchNotePDF(
   // ── Items table ────────────────────────────────────────────────────────────
   y = Math.max(y + 8, 92)
 
-  const tableData = order.items.map((item, idx) => [
-    `${idx + 1}`,
-    item.description,
-    item.qty.toString(),
-    item.unit,
-    `PKR ${Number(item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
-    `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
-  ])
+  const tableData = order.items.map((item, idx) => {
+    const base = [
+      `${idx + 1}`,
+      item.description,
+      item.qty.toString(),
+      item.unit,
+    ]
+    if (!showPricing) return base
+    return [
+      ...base,
+      `PKR ${Number(item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+      `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+    ]
+  })
 
   autoTable(doc, {
     startY: y,
-    head: [["#", "ITEM DESCRIPTION", "QTY", "UNIT", "UNIT PRICE", "TOTAL"]],
+    head: [showPricing ? ["#", "ITEM DESCRIPTION", "QTY", "UNIT", "UNIT PRICE", "TOTAL"] : ["#", "ITEM DESCRIPTION", "QTY", "UNIT"]],
     body: tableData,
     theme: "plain",
     headStyles: {
@@ -178,13 +190,17 @@ export async function generateDispatchNotePDF(
       1: { cellWidth: "auto" },
       2: { cellWidth: 14, halign: "center" },
       3: { cellWidth: 16, halign: "center" },
-      4: { cellWidth: 36, halign: "right" },
-      5: { cellWidth: 36, halign: "right", fontStyle: "bold" },
+      ...(showPricing ? {
+        4: { cellWidth: 36, halign: "right" as const },
+        5: { cellWidth: 36, halign: "right" as const, fontStyle: "bold" as const },
+      } : {}),
     },
-    foot: [[
-      { content: "SUBTOTAL", colSpan: 5, styles: { halign: "right", fontStyle: "bold", fillColor: lightBg, textColor: black } },
-      { content: `PKR ${Number(order.subtotal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, styles: { halign: "right", fontStyle: "bold", fillColor: lightBg, textColor: black } },
-    ]],
+    ...(showPricing ? {
+      foot: [[
+        { content: "SUBTOTAL", colSpan: 5, styles: { halign: "right", fontStyle: "bold", fillColor: lightBg, textColor: black } },
+        { content: `PKR ${Number(order.subtotal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, styles: { halign: "right", fontStyle: "bold", fillColor: lightBg, textColor: black } },
+      ]],
+    } : {}),
     margin: { left: mL, right: mR },
     tableLineColor: lightGray,
     tableLineWidth: 0.3,
@@ -192,8 +208,8 @@ export async function generateDispatchNotePDF(
 
   y = (doc as any).lastAutoTable.finalY + 8
 
-  // ── Two-column section: Order Info (left) + Payment Summary (right) ────────
-  const leftW  = 88
+  // ── Info section ────────────────────────────────────────────────────────────
+  const leftW  = showPricing ? 88 : pageW - mL - mR
   const rightW = 82
   const rightX = pageW - mR - rightW
   const boxH   = 52
@@ -230,60 +246,69 @@ export async function generateDispatchNotePDF(
     doc.text(val, mL + leftW - 4, ry, { align: "right" })
   })
 
-  // Right box — Payment Summary
-  const discountValue = order.discountValue ?? (
-    order.discountIsPercentage
-      ? (order.subtotal * (order.discount || 0) / 100)
-      : (order.discount || 0)
-  )
-  const transportVal = order.transportCostValue ?? order.transportCost ?? 0
-  const otherVal     = order.otherCostValue ?? order.otherCost ?? 0
+  if (showPricing) {
+    // Right box — Payment Summary
+    const discountValue = order.discountValue ?? (
+      order.discountIsPercentage
+        ? (order.subtotal * (order.discount || 0) / 100)
+        : (order.discount || 0)
+    )
+    const transportVal = order.transportCostValue ?? order.transportCost ?? 0
+    const otherVal     = order.otherCostValue ?? order.otherCost ?? 0
 
-  doc.setFillColor(...lightBg)
-  doc.setDrawColor(...lightGray)
-  doc.roundedRect(rightX, y, rightW, boxH, 2, 2, "FD")
+    doc.setFillColor(...lightBg)
+    doc.setDrawColor(...lightGray)
+    doc.roundedRect(rightX, y, rightW, boxH, 2, 2, "FD")
 
-  doc.setFillColor(...teal)
-  doc.roundedRect(rightX, y, rightW, 8, 2, 2, "F")
-  doc.rect(rightX, y + 4, rightW, 4, "F")
-  doc.setFont(FONT, "bold")
-  doc.setFontSize(8)
-  doc.setTextColor(...white)
-  doc.text("PAYMENT SUMMARY", rightX + rightW / 2, y + 5.5, { align: "center" })
+    doc.setFillColor(...teal)
+    doc.roundedRect(rightX, y, rightW, 8, 2, 2, "F")
+    doc.rect(rightX, y + 4, rightW, 4, "F")
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(8)
+    doc.setTextColor(...white)
+    doc.text("PAYMENT SUMMARY", rightX + rightW / 2, y + 5.5, { align: "center" })
 
-  type PRow = { label: string; value: string; color?: [number,number,number] }
-  const payRows: PRow[] = [
-    { label: "Subtotal:", value: `PKR ${Number(order.subtotal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` },
-  ]
-  if (discountValue > 0)
-    payRows.push({ label: `Discount${order.discountIsPercentage ? ` (${order.discount}%)` : ""}:`, value: `-PKR ${Number(discountValue).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, color: red })
-  if (hasTax)
-    payRows.push({ label: `Tax (${order.taxPercent}%):`, value: `PKR ${taxAmount.toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
-  if (transportVal > 0)
-    payRows.push({ label: `${order.transportLabel || "Transport"}:`, value: `PKR ${Number(transportVal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
-  if (otherVal > 0)
-    payRows.push({ label: `${order.otherCostLabel || "Other"}:`, value: `PKR ${Number(otherVal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+    type PRow = { label: string; value: string; color?: [number, number, number] }
+    const payRows: PRow[] = [
+      { label: "Subtotal:", value: `PKR ${Number(order.subtotal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` },
+    ]
+    if (discountValue > 0) {
+      payRows.push({
+        label: `Discount${order.discountIsPercentage ? ` (${order.discount}%)` : ""}:`,
+        value: `-PKR ${Number(discountValue).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+        color: red,
+      })
+    }
+    if (hasTax) {
+      payRows.push({ label: `Tax (${order.taxPercent}%):`, value: `PKR ${taxAmount.toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+    }
+    if (transportVal > 0) {
+      payRows.push({ label: `${order.transportLabel || "Transport"}:`, value: `PKR ${Number(transportVal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+    }
+    if (otherVal > 0) {
+      payRows.push({ label: `${order.otherCostLabel || "Other"}:`, value: `PKR ${Number(otherVal).toLocaleString("en-PK", { minimumFractionDigits: 2 })}` })
+    }
 
-  let ry2 = y + 14
-  payRows.forEach(row => {
-    doc.setFont(FONT, "normal")
-    doc.setFontSize(8.5)
-    doc.setTextColor(...(row.color || darkGray))
-    doc.text(row.label, rightX + 4, ry2)
-    doc.setTextColor(...(row.color || black))
-    doc.text(row.value, rightX + rightW - 4, ry2, { align: "right" })
-    ry2 += 7
-  })
+    let ry2 = y + 14
+    payRows.forEach(row => {
+      doc.setFont(FONT, "normal")
+      doc.setFontSize(8.5)
+      doc.setTextColor(...(row.color || darkGray))
+      doc.text(row.label, rightX + 4, ry2)
+      doc.setTextColor(...(row.color || black))
+      doc.text(row.value, rightX + rightW - 4, ry2, { align: "right" })
+      ry2 += 7
+    })
 
-  // Total row inside right box
-  const totalY = y + boxH - 12
-  doc.setFillColor(...teal)
-  doc.roundedRect(rightX + 2, totalY - 3, rightW - 4, 10, 1.5, 1.5, "F")
-  doc.setFont(FONT, "bold")
-  doc.setFontSize(10)
-  doc.setTextColor(...white)
-  doc.text("TOTAL", rightX + 6, totalY + 4)
-  doc.text(`PKR ${Number(order.total).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, rightX + rightW - 6, totalY + 4, { align: "right" })
+    const totalY = y + boxH - 12
+    doc.setFillColor(...teal)
+    doc.roundedRect(rightX + 2, totalY - 3, rightW - 4, 10, 1.5, 1.5, "F")
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(10)
+    doc.setTextColor(...white)
+    doc.text("TOTAL", rightX + 6, totalY + 4)
+    doc.text(`PKR ${Number(order.total).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`, rightX + rightW - 6, totalY + 4, { align: "right" })
+  }
 
   // ── Notes ──────────────────────────────────────────────────────────────────
   y += boxH + 8
@@ -357,7 +382,7 @@ export async function generateDispatchNotePDF(
   doc.setFont(FONT, "bold")
   doc.setFontSize(8.5)
   doc.setTextColor(...white)
-  doc.text("Please verify all items and amounts upon delivery.", pageW / 2, pageH - 11, { align: "center" })
+  doc.text(showPricing ? "Please verify all items and amounts upon delivery." : "Please verify all delivered items upon delivery.", pageW / 2, pageH - 11, { align: "center" })
   doc.setFont(FONT, "normal")
   doc.setFontSize(7)
   doc.setTextColor(200, 235, 234)
