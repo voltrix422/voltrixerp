@@ -544,7 +544,7 @@ function FinanceAndOpsMiniCharts() {
   const [inventoryTrend, setInventoryTrend] = useState<Array<{ day: string; quantity: number; names: string[] }>>([])
   const [poStatusData, setPOStatusData] = useState<Array<{ name: string; count: number }>>([])
   const [ticketTrend, setTicketTrend] = useState<Array<{ day: string; opened: number; closed: number }>>([])
-  const chartPalette = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#6366f1"]
+  const chartPalette = ["#93c5fd", "#86efac", "#fde68a", "#c4b5fd", "#fbcfe8", "#99f6e4", "#bfdbfe"]
 
   useEffect(() => {
     let mounted = true
@@ -780,8 +780,8 @@ function FinanceAndOpsMiniCharts() {
 
       <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
       <MiniChartCard
-        title="Petty Cash Allocations"
-        subtitle="Share by employee (this month)"
+        title="Petty Cash Overview"
+        subtitle="Employee allocation split (this month)"
       >
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading petty cash...</div>
