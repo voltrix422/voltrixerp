@@ -534,6 +534,9 @@ function FinanceAndOpsMiniCharts() {
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
   const [pettyCashByEmployee, setPettyCashByEmployee] = useState<Array<{ name: string; amount: number; role: string }>>([])
   const [orderTrend, setOrderTrend] = useState<Array<{ day: string; amount: number }>>([])
+  const [deliveredTrend, setDeliveredTrend] = useState<Array<{ day: string; amount: number }>>([])
+  const [deliveredTotal, setDeliveredTotal] = useState(0)
+  const [deliveredCount, setDeliveredCount] = useState(0)
   const [poStatusData, setPOStatusData] = useState<Array<{ name: string; count: number }>>([])
   const [ticketStatusData, setTicketStatusData] = useState<Array<{ name: string; value: number; color: string }>>([])
 
@@ -575,10 +578,12 @@ function FinanceAndOpsMiniCharts() {
         const dayStart = new Date(now)
         dayStart.setHours(0, 0, 0, 0)
         const dayMap = new Map<string, number>()
+        const deliveredDayMap = new Map<string, number>()
         for (let i = rangeDays - 1; i >= 0; i--) {
           const d = new Date(dayStart)
           d.setDate(dayStart.getDate() - i)
           dayMap.set(d.toISOString().slice(0, 10), 0)
+          deliveredDayMap.set(d.toISOString().slice(0, 10), 0)
         }
 
         for (const order of Array.isArray(ordersRes) ? ordersRes : []) {
@@ -590,6 +595,9 @@ function FinanceAndOpsMiniCharts() {
           const key = d.toISOString().slice(0, 10)
           if (!dayMap.has(key)) continue
           dayMap.set(key, (dayMap.get(key) || 0) + (Number(order.total) || 0))
+          if (String(order.status || "").toLowerCase() === "delivered") {
+            deliveredDayMap.set(key, (deliveredDayMap.get(key) || 0) + (Number(order.total) || 0))
+          }
         }
 
         setOrderTrend(
@@ -598,6 +606,13 @@ function FinanceAndOpsMiniCharts() {
             amount,
           }))
         )
+        const deliveredSeries = Array.from(deliveredDayMap.entries()).map(([key, amount]) => ({
+          day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+          amount,
+        }))
+        setDeliveredTrend(deliveredSeries)
+        setDeliveredTotal(deliveredSeries.reduce((sum, row) => sum + row.amount, 0))
+        setDeliveredCount((Array.isArray(ordersRes) ? ordersRes : []).filter((o: any) => String(o.status || "").toLowerCase() === "delivered").length)
 
         const poStatus = Array.isArray(poList) ? poList : []
         setPOStatusData([
@@ -647,7 +662,57 @@ function FinanceAndOpsMiniCharts() {
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <MiniChartCard
+          title="Delivered Order Amount"
+          subtitle={`Delivered value trend for last ${rangeDays} days`}
+        >
+          {loading ? (
+            <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading delivered trend...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={deliveredTrend} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="miniDeliveredFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.06} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000000)}m`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`} />
+                <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.2} fill="url(#miniDeliveredFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+          <div className="mt-1 flex items-center justify-between text-[10px] text-[hsl(var(--muted-foreground))]">
+            <span>Amount: Rs. {deliveredTotal.toLocaleString()}</span>
+            <span>Orders: {deliveredCount}</span>
+          </div>
+        </MiniChartCard>
+
+        <MiniChartCard
+          title="Order Amount Trend"
+          subtitle={`Last ${rangeDays} days`}
+        >
+          {loading ? (
+            <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading order trend...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={orderTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000000)}m`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`} />
+                <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 2 }} onClick={() => { window.location.href = "/crm" }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </MiniChartCard>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
       <MiniChartCard
         title="Petty Cash Allocations"
         subtitle={`By employee (hover details)`}
@@ -666,25 +731,6 @@ function FinanceAndOpsMiniCharts() {
               />
               <Bar dataKey="amount" fill="#1faca6" radius={[6, 6, 0, 0]} onClick={() => { window.location.href = "/finance" }} />
             </BarChart>
-          </ResponsiveContainer>
-        )}
-      </MiniChartCard>
-
-      <MiniChartCard
-        title="Order Amount Trend"
-        subtitle={`Last ${rangeDays} days`}
-      >
-        {loading ? (
-          <div className="h-full flex items-center justify-center text-xs text-[hsl(var(--muted-foreground))]">Loading order trend...</div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={orderTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-              <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000000)}m`} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-              <Tooltip formatter={(value: any) => `Rs. ${Number(value).toLocaleString()}`} />
-              <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 2 }} onClick={() => { window.location.href = "/crm" }} />
-            </LineChart>
           </ResponsiveContainer>
         )}
       </MiniChartCard>
@@ -770,7 +816,6 @@ export default function DashboardPage() {
                     
           {/* ERP Stats Overview */}
           <ERPStats />
-          <DeliveredOrdersAmountChart />
           <FinanceAndOpsMiniCharts />
 
           <div className="mt-2 rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] p-3">
