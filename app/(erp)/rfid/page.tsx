@@ -47,6 +47,13 @@ type LiveScanRow = {
   protocol?: string
 }
 
+type DiscoveredReader = {
+  ip: string
+  port: number
+  reachable: boolean
+  latency_ms: number
+}
+
 export default function RfidPage() {
   const [tags, setTags] = useState<RfidTag[]>([])
   const [events, setEvents] = useState<GateEvent[]>([])
@@ -75,6 +82,9 @@ export default function RfidPage() {
   const [scannerPort, setScannerPort] = useState("9090")
   const [scannerConnection, setScannerConnection] = useState<ScannerConnection | null>(null)
   const [liveScans, setLiveScans] = useState<LiveScanRow[]>([])
+  const [discoveringReaders, setDiscoveringReaders] = useState(false)
+  const [discoveredReaders, setDiscoveredReaders] = useState<DiscoveredReader[]>([])
+  const [detectedSubnet, setDetectedSubnet] = useState("")
 
   async function loadData() {
     const [tagsRes, eventsRes] = await Promise.all([fetch("/api/rfid/tags"), fetch("/api/rfid/events")])
@@ -206,6 +216,23 @@ export default function RfidPage() {
     await loadScannerStatus()
   }
 
+  async function discoverReaders() {
+    setDiscoveringReaders(true)
+    try {
+      const res = await fetch(`/api/rfid/scanner/discover?port=${encodeURIComponent(scannerPort || "9090")}`)
+      const data = await res.json()
+      if (!res.ok) {
+        setMessage(data.error || "Reader discovery failed")
+        return
+      }
+      setDetectedSubnet(String(data.subnet || ""))
+      setDiscoveredReaders(Array.isArray(data.readers) ? data.readers : [])
+      setMessage(`Discovery complete: ${data.found_count || 0} reader(s) found`)
+    } finally {
+      setDiscoveringReaders(false)
+    }
+  }
+
   return (
     <ModuleGuard module="inventory">
       <Topbar title="RFID Control" description="Register tags, authorize dispatch, and verify gate exits" />
@@ -254,6 +281,38 @@ export default function RfidPage() {
                 Disconnect
               </Button>
             </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={discoverReaders} disabled={discoveringReaders}>
+                {discoveringReaders ? "Discovering..." : "Discover Readers on LAN"}
+              </Button>
+              {detectedSubnet && (
+                <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                  Subnet: {detectedSubnet}.x
+                </span>
+              )}
+            </div>
+
+            {discoveredReaders.length > 0 && (
+              <div className="rounded border bg-[hsl(var(--background))] p-2">
+                <p className="text-xs font-medium mb-1">Available Readers</p>
+                <div className="flex flex-wrap gap-2">
+                  {discoveredReaders.map((reader) => (
+                    <button
+                      key={`${reader.ip}:${reader.port}`}
+                      className="h-8 px-2 text-xs rounded border hover:bg-[hsl(var(--accent))]"
+                      onClick={() => {
+                        setScannerIp(reader.ip)
+                        setScannerPort(String(reader.port))
+                        setMessage(`Selected reader ${reader.ip}:${reader.port}`)
+                      }}
+                    >
+                      {reader.ip}:{reader.port} ({reader.latency_ms}ms)
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               <Button
