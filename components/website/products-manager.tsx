@@ -140,24 +140,25 @@ export default function ProductsManager() {
 
   // ── upload to storage ──────────────────────────────────
   const uploadToStorage = async (files: PendingImage[]): Promise<string[]> => {
-    try {
-      const formData = new FormData()
-      files.forEach(({ file }) => formData.append('files', file))
-      formData.append('folder', 'products')
-      
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      
-      if (!res.ok) throw new Error('Upload failed')
-      
-      const { urls } = await res.json()
-      return urls || []
-    } catch (error) {
-      console.error('Error uploading images:', error)
-      return []
+    const formData = new FormData()
+    files.forEach(({ file }) => formData.append('files', file))
+    formData.append('folder', 'products')
+
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data?.error || 'Upload failed')
     }
+
+    const urls = Array.isArray(data?.urls) ? data.urls : []
+    if (urls.length !== files.length) {
+      throw new Error("Some images were not uploaded. Please try again.")
+    }
+    return urls
   }
 
   // ── save ───────────────────────────────────────────────
@@ -170,6 +171,9 @@ export default function ProductsManager() {
       let newUrls: string[] = []
       if (pendingImgs.length > 0) {
         newUrls = await uploadToStorage(pendingImgs)
+        if (newUrls.length === 0) {
+          throw new Error("Image upload failed. Product was not saved.")
+        }
       }
 
       const allImages = [...form.images, ...newUrls]
