@@ -32,6 +32,16 @@ type DiscoveredReader = {
   latency_ms: number
 }
 
+function buildFallbackReaders(subnet: string, port: number): DiscoveredReader[] {
+  const hosts = [112, 104, 100, 101]
+  return hosts.map((host) => ({
+    ip: `${subnet}.${host}`,
+    port,
+    reachable: false,
+    latency_ms: -1,
+  }))
+}
+
 export default function RfidPage() {
   const [message, setMessage] = useState("")
   const [booting, setBooting] = useState(true)
@@ -163,7 +173,14 @@ export default function RfidPage() {
         if (scannerConnection?.connected) {
           setMessage("Reader discovery found none, but your connected reader is still active.")
         } else {
-          setMessage("No scanner found on local network.")
+          const fallbackSubnet = String(data.subnet || "")
+          if (fallbackSubnet) {
+            const fallbackReaders = buildFallbackReaders(fallbackSubnet, Number(scannerPort) || 9090)
+            setDiscoveredReaders(fallbackReaders)
+            setMessage("Auto discovery failed, showing quick-connect reader candidates.")
+          } else {
+            setMessage("No scanner found on local network.")
+          }
         }
       }
     } finally {
@@ -283,7 +300,8 @@ export default function RfidPage() {
                       className="h-8 px-2 text-xs rounded border hover:bg-[hsl(var(--accent))]"
                       onClick={() => connectAndStart(reader.ip, reader.port)}
                     >
-                      Connect {reader.ip}:{reader.port}{reader.latency_ms > 0 ? ` (${reader.latency_ms}ms)` : ""}
+                      Connect {reader.ip}:{reader.port}
+                      {reader.latency_ms > 0 ? ` (${reader.latency_ms}ms)` : reader.reachable ? "" : " (quick try)"}
                     </button>
                   ))}
                 </div>
