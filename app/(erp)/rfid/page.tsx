@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,11 @@ export default function RfidPage() {
   const [discoveringReaders, setDiscoveringReaders] = useState(false)
   const [discoveredReaders, setDiscoveredReaders] = useState<DiscoveredReader[]>([])
   const [detectedSubnet, setDetectedSubnet] = useState("")
+  const [readType, setReadType] = useState<"inventory" | "single">("inventory")
+  const [tagType, setTagType] = useState<"6c" | "6b" | "gb">("6c")
+  const [selectedAntennas, setSelectedAntennas] = useState<number[]>([1])
+  const [scanStartAt, setScanStartAt] = useState<number | null>(null)
+  const [tick, setTick] = useState(Date.now())
 
   async function loadScannerStatus() {
     const res = await fetch("/api/rfid/scanner")
@@ -49,6 +54,8 @@ export default function RfidPage() {
     const data = await res.json()
     setScannerConnection(data.connection || null)
     setLiveScans(Array.isArray(data.scans) ? data.scans : [])
+    if (data.connection?.scanning && !scanStartAt) setScanStartAt(Date.now())
+    if (!data.connection?.scanning) setScanStartAt(null)
     if (data.connection?.connected && data.connection?.readerIp) {
       const connectedReader: DiscoveredReader = {
         ip: String(data.connection.readerIp),
@@ -80,6 +87,8 @@ export default function RfidPage() {
       return false
     }
     await loadScannerStatus()
+    if (action === "start_scan") setScanStartAt(Date.now())
+    if (action === "stop_scan" || action === "disconnect") setScanStartAt(null)
     return true
   }
 
@@ -178,6 +187,27 @@ export default function RfidPage() {
     return () => clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    const timer = setInterval(() => setTick(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const tagCount = useMemo(() => new Set(liveScans.map((row) => row.epc)).size, [liveScans])
+  const readCount = liveScans.length
+  const speedPerSecond = useMemo(() => {
+    const threshold = Date.now() - 10000
+    const recent = liveScans.filter((row) => new Date(row.seenAt).getTime() >= threshold).length
+    return Math.round((recent / 10) * 10) / 10
+  }, [liveScans, tick])
+  const elapsedSeconds = scanStartAt ? Math.max(0, Math.floor((tick - scanStartAt) / 1000)) : 0
+  const elapsedLabel = `${Math.floor(elapsedSeconds / 60).toString().padStart(2, "0")}:${(elapsedSeconds % 60)
+    .toString()
+    .padStart(2, "0")}`
+
+  function toggleAntenna(ant: number) {
+    setSelectedAntennas((prev) => (prev.includes(ant) ? prev.filter((x) => x !== ant) : [...prev, ant].sort((a, b) => a - b)))
+  }
+
   return (
     <ModuleGuard module="inventory">
       <Topbar title="RFID Scanner" description="Auto discover, connect, and scan tags in realtime" />
@@ -260,74 +290,130 @@ export default function RfidPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                className="bg-[#1faca6] hover:bg-[#17857f] text-white"
-                onClick={() => scannerAction("start_scan")}
-                disabled={!scannerConnection?.connected || Boolean(scannerConnection?.scanning)}
-              >
-                Start Scan
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => scannerAction("stop_scan")}
-                disabled={!scannerConnection?.connected || !scannerConnection?.scanning}
-              >
-                Stop Scan
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => scannerAction("clear_scans")}>
-                Clear Live Tags
-              </Button>
-            </div>
-
             {scannerConnection?.connected && (
               <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                Connected to {scannerConnection.readerIp}:{scannerConnection.readerPort} | {scannerConnection.scanning ? "Reading tags now" : "Ready"}
+                Connected to {scannerConnection.readerIp}:{scannerConnection.readerPort} | {scannerConnection.scanning ? "Reading tags now" : "Connected"}
               </p>
             )}
           </div>
 
-          <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold">Live Tags</p>
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                {booting ? "Initializing..." : `${liveScans.length} tag(s) detected`}
-              </span>
-            </div>
-            {liveScans.length === 0 ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Waiting for tags...</p>
-            ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
+            <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold">Tag Grid</p>
+                <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                  {booting ? "Initializing..." : `${tagCount} unique / ${readCount} reads`}
+                </span>
+              </div>
               <div className="overflow-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-2">Time</th>
+                      <th className="text-left py-2">Type</th>
                       <th className="text-left py-2">EPC</th>
-                      <th className="text-left py-2">Reader</th>
-                      <th className="text-left py-2">Antenna</th>
+                      <th className="text-left py-2">TID</th>
+                      <th className="text-left py-2">UserData</th>
+                      <th className="text-left py-2">ReserveData</th>
+                      <th className="text-left py-2">TotalCount</th>
+                      <th className="text-left py-2">ANT1</th>
+                      <th className="text-left py-2">ANT2</th>
+                      <th className="text-left py-2">ANT3</th>
+                      <th className="text-left py-2">ANT4</th>
                       <th className="text-left py-2">RSSI</th>
-                      <th className="text-left py-2">Freq</th>
-                      <th className="text-left py-2">Protocol</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {liveScans.map((scan) => (
-                      <tr key={scan.id} className="border-b last:border-0">
-                        <td className="py-2">{new Date(scan.seenAt).toLocaleTimeString()}</td>
-                        <td className="py-2">{scan.epc}</td>
-                        <td className="py-2">{scan.readerIp}:{scan.readerPort}</td>
-                        <td className="py-2">{scan.antenna || "-"}</td>
-                        <td className="py-2">{scan.rssi ?? "-"}</td>
-                        <td className="py-2">{scan.frequency ?? "-"}</td>
-                        <td className="py-2">{scan.protocol || "-"}</td>
+                    {liveScans.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="py-8 text-center text-[hsl(var(--muted-foreground))]">
+                          Waiting for tags...
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      liveScans.map((scan, index) => (
+                        <tr key={scan.id} className="border-b last:border-0">
+                          <td className="py-1.5">6C</td>
+                          <td className="py-1.5">{scan.epc}</td>
+                          <td className="py-1.5">-</td>
+                          <td className="py-1.5">-</td>
+                          <td className="py-1.5">-</td>
+                          <td className="py-1.5">{readCount - index}</td>
+                          <td className="py-1.5">{scan.antenna === "1" ? 1 : 0}</td>
+                          <td className="py-1.5">{scan.antenna === "2" ? 1 : 0}</td>
+                          <td className="py-1.5">{scan.antenna === "3" ? 1 : 0}</td>
+                          <td className="py-1.5">{scan.antenna === "4" ? 1 : 0}</td>
+                          <td className="py-1.5">{scan.rssi ?? "-"}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
-            )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-3">
+                <p className="text-xs font-semibold mb-2">Control (Antenna)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2, 3, 4].map((ant) => (
+                    <label key={ant} className="flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={selectedAntennas.includes(ant)} onChange={() => toggleAntenna(ant)} />
+                      ANT{ant}
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedAntennas([1, 2, 3, 4])}>
+                    Check All
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedAntennas([])}>
+                    Uncheck All
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-3">
+                <p className="text-xs font-semibold mb-2">Read Type</p>
+                <div className="flex gap-4 text-xs">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" checked={readType === "inventory"} onChange={() => setReadType("inventory")} />
+                    Inventory
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" checked={readType === "single"} onChange={() => setReadType("single")} />
+                    Single
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-3">
+                <p className="text-xs font-semibold mb-2">Tag Type</p>
+                <div className="flex gap-3 text-xs">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" checked={tagType === "6c"} onChange={() => setTagType("6c")} />
+                    6C Tag
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" checked={tagType === "6b"} onChange={() => setTagType("6b")} />
+                    6B Tag
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" checked={tagType === "gb"} onChange={() => setTagType("gb")} />
+                    GB Tag
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-3">
+                <p className="text-xs font-semibold mb-2">Realtime</p>
+                <div className="space-y-1.5 text-sm">
+                  <p>TagCount: <span className="font-semibold">{tagCount}</span></p>
+                  <p>ReadCount: <span className="font-semibold">{readCount}</span></p>
+                  <p>Speed(T/S): <span className="font-semibold">{speedPerSecond}</span></p>
+                  <p>Time(S): <span className="font-semibold">{elapsedLabel}</span></p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
