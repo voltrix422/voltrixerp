@@ -384,6 +384,43 @@ model ErpDispatch {
   @@map("erp_dispatches")
 }
 
+model ErpRfidTag {
+  id              String   @id @default(cuid())
+  epc             String   @unique
+  itemId          String?  @map("item_id")
+  sku             String?  @default("")
+  itemDescription String   @default("") @map("item_description")
+  status          String   @default("IN_STOCK")
+  warehouse       String   @default("")
+  dispatchId      String?  @map("dispatch_id")
+  orderId         String?  @map("order_id")
+  invoiceNumber   String?  @map("invoice_number")
+  authorizedAt    DateTime? @map("authorized_at")
+  authorizedUntil DateTime? @map("authorized_until")
+  exitedAt        DateTime? @map("exited_at")
+  updatedBy       String?  @map("updated_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("erp_rfid_tags")
+}
+
+model ErpRfidGateEvent {
+  id             String   @id @default(cuid())
+  epc            String
+  gateName       String   @default("MAIN_GATE") @map("gate_name")
+  decision       String
+  triggerAlarm   Boolean  @default(false) @map("trigger_alarm")
+  reason         String   @default("")
+  dispatchId     String?  @map("dispatch_id")
+  orderId        String?  @map("order_id")
+  invoiceNumber  String?  @map("invoice_number")
+  scannedBy      String   @default("system") @map("scanned_by")
+  scannedAt      DateTime @default(now()) @map("scanned_at")
+
+  @@map("erp_rfid_gate_events")
+}
+
 model ErpSalarySlip {
   id               String   @id @default(cuid())
   staffName        String   @map("staff_name")
