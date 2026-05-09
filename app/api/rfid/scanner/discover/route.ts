@@ -85,35 +85,45 @@ async function runWithConcurrency<T, R>(
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const subnet = searchParams.get("subnet") || detectLocalSubnetPrefix()
+  const requestedSubnet = searchParams.get("subnet")
+  const detectedSubnet = detectLocalSubnetPrefix()
+  const fallbackSubnets = ["192.168.18", "192.168.1", "192.168.0", "10.0.0"]
+  const subnetsToScan = requestedSubnet
+    ? [requestedSubnet]
+    : detectedSubnet
+      ? [detectedSubnet]
+      : fallbackSubnets
   const port = Number(searchParams.get("port") || 9090)
   const fromHost = Number(searchParams.get("from") || 1)
   const toHost = Number(searchParams.get("to") || 254)
-  const timeoutMs = Number(searchParams.get("timeout_ms") || 250)
-  const concurrency = Number(searchParams.get("concurrency") || 60)
+  const timeoutMs = Number(searchParams.get("timeout_ms") || 180)
+  const concurrency = Number(searchParams.get("concurrency") || 90)
 
-  if (!subnet) {
-    return NextResponse.json({ error: "Unable to detect local subnet. Pass ?subnet=192.168.1" }, { status: 400 })
-  }
   if (Number.isNaN(port) || port <= 0) {
     return NextResponse.json({ error: "Invalid port" }, { status: 400 })
   }
 
   const start = Math.min(Math.max(1, fromHost), 254)
   const end = Math.min(Math.max(start, toHost), 254)
-  const ips: string[] = []
-  for (let i = start; i <= end; i += 1) {
-    ips.push(`${subnet}.${i}`)
+  const ipsWithSubnet: Array<{ ip: string; subnet: string }> = []
+  for (const subnet of subnetsToScan) {
+    for (let i = start; i <= end; i += 1) {
+      ipsWithSubnet.push({ ip: `${subnet}.${i}`, subnet })
+    }
   }
 
-  const probes = await runWithConcurrency(ips, concurrency, (ip) => probeHost(ip, port, timeoutMs))
+  const probes = await runWithConcurrency(ipsWithSubnet, concurrency, async (item) => {
+    const probe = await probeHost(item.ip, port, timeoutMs)
+    return { ...probe, subnet: item.subnet }
+  })
   const readers = probes.filter((row) => row.reachable).sort((a, b) => a.latency_ms - b.latency_ms)
+  const primarySubnet = readers[0]?.subnet || requestedSubnet || detectedSubnet || fallbackSubnets[0]
 
   return NextResponse.json({
-    subnet,
+    subnet: primarySubnet,
     port,
-    scanned_hosts: ips.length,
+    scanned_hosts: ipsWithSubnet.length,
     found_count: readers.length,
-    readers,
+    readers: readers.map(({ subnet: _subnet, ...reader }) => reader),
   })
 }
