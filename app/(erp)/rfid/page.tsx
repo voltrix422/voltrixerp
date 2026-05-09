@@ -46,7 +46,7 @@ export default function RfidPage() {
   const [message, setMessage] = useState("")
   const [booting, setBooting] = useState(true)
   const [scannerIp, setScannerIp] = useState("")
-  const [scannerPort, setScannerPort] = useState("9090")
+  const scannerPort = "9090"
   const [scannerConnection, setScannerConnection] = useState<ScannerConnection | null>(null)
   const [liveScans, setLiveScans] = useState<LiveScanRow[]>([])
   const [discoveringReaders, setDiscoveringReaders] = useState(false)
@@ -106,18 +106,8 @@ export default function RfidPage() {
     const connected = await scannerAction("connect", { ip, port })
     if (!connected) return
     setScannerIp(ip)
-    setScannerPort(String(port))
     await scannerAction("start_scan")
     setMessage(`Connected and scanning on ${ip}:${port}`)
-  }
-
-  async function connectFromDiscovered() {
-    if (discoveredReaders.length > 0) {
-      const first = discoveredReaders[0]
-      await connectAndStart(first.ip, first.port)
-      return
-    }
-    await discoverReaders(true)
   }
 
   function getSubnetHint(ipInput: string): string | null {
@@ -163,7 +153,6 @@ export default function RfidPage() {
       if (readers.length > 0) {
         const first = readers[0]
         setScannerIp(first.ip)
-        setScannerPort(String(first.port))
         if (autoConnect || !scannerConnection?.connected) {
           await connectAndStart(first.ip, first.port)
         } else {
@@ -203,6 +192,15 @@ export default function RfidPage() {
     }, 2000)
     return () => clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!scannerConnection?.connected || !scannerConnection?.scanning) {
+        discoverReaders(true).catch(() => null)
+      }
+    }, 10000)
+    return () => clearInterval(timer)
+  }, [scannerConnection?.connected, scannerConnection?.scanning, scannerIp])
 
   useEffect(() => {
     const timer = setInterval(() => setTick(Date.now()), 1000)
@@ -248,50 +246,15 @@ export default function RfidPage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <input
-                className="h-9 rounded border px-3 text-sm bg-[hsl(var(--background))]"
-                placeholder="Port"
-                value={scannerPort}
-                onChange={(e) => setScannerPort(e.target.value)}
-              />
-              <Button
-                size="sm"
-                className="h-9 bg-[#1faca6] hover:bg-[#17857f] text-white"
-                onClick={connectFromDiscovered}
-                disabled={Boolean(scannerConnection?.connected)}
-              >
-                Connect First Discovered Reader
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => discoverReaders(false)} disabled={discoveringReaders}>
-                {discoveringReaders ? "Discovering..." : "Auto Discover"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => scannerAction("disconnect")} disabled={!scannerConnection?.connected}>
-                Disconnect
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => scannerAction("start_scan")} disabled={!scannerConnection?.connected || !!scannerConnection?.scanning}>
-                Start Scan
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => scannerAction("stop_scan")} disabled={!scannerConnection?.connected || !scannerConnection?.scanning}>
-                Stop Scan
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => scannerAction("clear_scans")}>
-                Clear
-              </Button>
-              {detectedSubnet && (
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  Subnet: {detectedSubnet}.x
-                </span>
-              )}
+            <div className="text-xs text-[hsl(var(--muted-foreground))]">
+              Auto mode enabled: scanner discovery, connect and scan start run automatically.
+              {detectedSubnet ? ` Subnet: ${detectedSubnet}.x` : ""}
             </div>
 
             <div className="rounded border bg-[hsl(var(--background))] p-2">
               <p className="text-xs font-medium mb-1">Discovered Readers</p>
               {discoveredReaders.length === 0 ? (
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">No reader found yet. Click Auto Discover.</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Searching readers...</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {discoveredReaders.map((reader) => (
@@ -300,7 +263,7 @@ export default function RfidPage() {
                       className="h-8 px-2 text-xs rounded border hover:bg-[hsl(var(--accent))]"
                       onClick={() => connectAndStart(reader.ip, reader.port)}
                     >
-                      Connect {reader.ip}:{reader.port}
+                      {scannerConnection?.readerIp === reader.ip && scannerConnection?.readerPort === reader.port ? "Connected" : "Connect"} {reader.ip}:{reader.port}
                       {reader.latency_ms > 0 ? ` (${reader.latency_ms}ms)` : reader.reachable ? "" : " (quick try)"}
                     </button>
                   ))}
@@ -311,6 +274,11 @@ export default function RfidPage() {
             {scannerConnection?.connected && (
               <p className="text-xs text-[hsl(var(--muted-foreground))]">
                 Connected to {scannerConnection.readerIp}:{scannerConnection.readerPort} | {scannerConnection.scanning ? "Reading tags now" : "Connected"}
+              </p>
+            )}
+            {scannerConnection?.scanning && liveScans.length === 0 && (
+              <p className="text-xs text-amber-600">
+                Scanner is active. Waiting for incoming tag data packets.
               </p>
             )}
           </div>
