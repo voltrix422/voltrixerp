@@ -49,6 +49,18 @@ export default function RfidPage() {
     const data = await res.json()
     setScannerConnection(data.connection || null)
     setLiveScans(Array.isArray(data.scans) ? data.scans : [])
+    if (data.connection?.connected && data.connection?.readerIp) {
+      const connectedReader: DiscoveredReader = {
+        ip: String(data.connection.readerIp),
+        port: Number(data.connection.readerPort || 9090),
+        reachable: true,
+        latency_ms: 0,
+      }
+      setDiscoveredReaders((prev) => {
+        const exists = prev.some((r) => r.ip === connectedReader.ip && r.port === connectedReader.port)
+        return exists ? prev : [connectedReader, ...prev]
+      })
+    }
   }
 
   async function scannerAction(action: "connect" | "disconnect" | "start_scan" | "stop_scan" | "clear_scans", override?: { ip: string; port: number }) {
@@ -106,8 +118,22 @@ export default function RfidPage() {
       const res = await fetch(`/api/rfid/scanner/discover?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) {
-        setDiscoveredReaders([])
-        setMessage("No scanner discovered yet. Make sure reader and ERP server are on same network.")
+        setDiscoveredReaders((prev) => {
+          if (scannerConnection?.connected && scannerConnection.readerIp) {
+            const connectedReader: DiscoveredReader = {
+              ip: scannerConnection.readerIp,
+              port: scannerConnection.readerPort || 9090,
+              reachable: true,
+              latency_ms: 0,
+            }
+            const exists = prev.some((r) => r.ip === connectedReader.ip && r.port === connectedReader.port)
+            return exists ? prev : [connectedReader, ...prev]
+          }
+          return prev
+        })
+        if (!scannerConnection?.connected) {
+          setMessage("No scanner discovered yet. Click Auto Discover again or connect from known reader.")
+        }
         return
       }
 
@@ -125,7 +151,11 @@ export default function RfidPage() {
           setMessage(`Found ${readers.length} reader(s).`)
         }
       } else {
-        setMessage("No scanner found on local network.")
+        if (scannerConnection?.connected) {
+          setMessage("Reader discovery found none, but your connected reader is still active.")
+        } else {
+          setMessage("No scanner found on local network.")
+        }
       }
     } finally {
       setDiscoveringReaders(false)
@@ -223,7 +253,7 @@ export default function RfidPage() {
                       className="h-8 px-2 text-xs rounded border hover:bg-[hsl(var(--accent))]"
                       onClick={() => connectAndStart(reader.ip, reader.port)}
                     >
-                      Connect {reader.ip}:{reader.port} ({reader.latency_ms}ms)
+                      Connect {reader.ip}:{reader.port}{reader.latency_ms > 0 ? ` (${reader.latency_ms}ms)` : ""}
                     </button>
                   ))}
                 </div>
