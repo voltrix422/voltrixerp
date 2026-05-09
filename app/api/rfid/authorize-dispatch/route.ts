@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   const authorizedUntil = new Date(now.getTime() + validMinutes * 60 * 1000)
 
   const updates = await Promise.all(
-    epcs.map(async (epc) =>
+    epcs.map(async (epc: string) =>
       prisma.erpRfidTag.upsert({
         where: { epc },
         update: {
