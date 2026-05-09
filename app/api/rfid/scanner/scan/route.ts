@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { appendLiveScan, getScannerStore } from "@/lib/rfid-scanner-store"
+import { appendLiveScan, connectScanner, getScannerStore, startScanner } from "@/lib/rfid-scanner-store"
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -11,16 +11,18 @@ export async function POST(req: NextRequest) {
   }
 
   const store = getScannerStore()
-  if (!store.connection.connected) {
-    return NextResponse.json({ error: "Scanner is not connected" }, { status: 400 })
-  }
-  if (!store.connection.scanning) {
-    return NextResponse.json({ error: "Scanner is connected but not scanning" }, { status: 400 })
-  }
-
-  const readerIp = String(body.reader_ip || store.connection.readerIp || "")
+  const readerIp = String(body.reader_ip || store.connection.readerIp || "127.0.0.1")
   const readerPortRaw = Number(body.reader_port ?? store.connection.readerPort ?? 9090)
   const readerPort = Number.isFinite(readerPortRaw) ? readerPortRaw : 9090
+
+  // Auto-initialize scanner state when live packets arrive.
+  if (!store.connection.connected) {
+    connectScanner(readerIp, readerPort)
+  }
+  if (!store.connection.scanning) {
+    startScanner()
+  }
+
   const antenna = body.antenna ? String(body.antenna) : undefined
   const rssiRaw = Number(body.rssi)
   const rssi = Number.isFinite(rssiRaw) ? rssiRaw : undefined
