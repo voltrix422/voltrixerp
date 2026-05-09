@@ -80,6 +80,15 @@ export default function RfidPage() {
     setMessage(`Connected and scanning on ${ip}:${port}`)
   }
 
+  async function connectFromDiscovered() {
+    if (discoveredReaders.length > 0) {
+      const first = discoveredReaders[0]
+      await connectAndStart(first.ip, first.port)
+      return
+    }
+    await discoverReaders(true)
+  }
+
   function getSubnetHint(ipInput: string): string | null {
     const parts = ipInput.trim().split(".")
     if (parts.length !== 4) return null
@@ -162,13 +171,7 @@ export default function RfidPage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <input
-                className="h-9 rounded border px-3 text-sm bg-[hsl(var(--background))]"
-                placeholder="Scanner IP (e.g. 192.168.1.120)"
-                value={scannerIp}
-                onChange={(e) => setScannerIp(e.target.value)}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <input
                 className="h-9 rounded border px-3 text-sm bg-[hsl(var(--background))]"
                 placeholder="Port"
@@ -178,10 +181,10 @@ export default function RfidPage() {
               <Button
                 size="sm"
                 className="h-9 bg-[#1faca6] hover:bg-[#17857f] text-white"
-                onClick={() => connectAndStart(scannerIp, Number(scannerPort) || 9090)}
+                onClick={connectFromDiscovered}
                 disabled={Boolean(scannerConnection?.connected)}
               >
-                Connect & Start
+                Connect First Discovered Reader
               </Button>
             </div>
 
@@ -208,9 +211,11 @@ export default function RfidPage() {
               )}
             </div>
 
-            {discoveredReaders.length > 0 && (
-              <div className="rounded border bg-[hsl(var(--background))] p-2">
-                <p className="text-xs font-medium mb-1">Available Readers</p>
+            <div className="rounded border bg-[hsl(var(--background))] p-2">
+              <p className="text-xs font-medium mb-1">Discovered Readers</p>
+              {discoveredReaders.length === 0 ? (
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">No reader found yet. Click Auto Discover.</p>
+              ) : (
                 <div className="flex flex-wrap gap-2">
                   {discoveredReaders.map((reader) => (
                     <button
@@ -218,12 +223,12 @@ export default function RfidPage() {
                       className="h-8 px-2 text-xs rounded border hover:bg-[hsl(var(--accent))]"
                       onClick={() => connectAndStart(reader.ip, reader.port)}
                     >
-                      {reader.ip}:{reader.port} ({reader.latency_ms}ms)
+                      Connect {reader.ip}:{reader.port} ({reader.latency_ms}ms)
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             <div className="flex flex-wrap gap-2">
               <Button
