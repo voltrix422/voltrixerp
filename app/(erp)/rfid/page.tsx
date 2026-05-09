@@ -32,16 +32,6 @@ type DiscoveredReader = {
   latency_ms: number
 }
 
-function buildFallbackReaders(subnet: string, port: number): DiscoveredReader[] {
-  const hosts = [112, 104, 100, 101]
-  return hosts.map((host) => ({
-    ip: `${subnet}.${host}`,
-    port,
-    reachable: false,
-    latency_ms: -1,
-  }))
-}
-
 export default function RfidPage() {
   const [message, setMessage] = useState("")
   const [booting, setBooting] = useState(true)
@@ -127,21 +117,9 @@ export default function RfidPage() {
       const res = await fetch(`/api/rfid/scanner/discover?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) {
-        setDiscoveredReaders((prev) => {
-          if (scannerConnection?.connected && scannerConnection.readerIp) {
-            const connectedReader: DiscoveredReader = {
-              ip: scannerConnection.readerIp,
-              port: scannerConnection.readerPort || 9090,
-              reachable: true,
-              latency_ms: 0,
-            }
-            const exists = prev.some((r) => r.ip === connectedReader.ip && r.port === connectedReader.port)
-            return exists ? prev : [connectedReader, ...prev]
-          }
-          return prev
-        })
+        setDiscoveredReaders([])
         if (!scannerConnection?.connected) {
-          setMessage("No scanner discovered yet. Click Auto Discover again or connect from known reader.")
+          setMessage(data.error || "No scanner discovered from server network.")
         }
         return
       }
@@ -162,14 +140,7 @@ export default function RfidPage() {
         if (scannerConnection?.connected) {
           setMessage("Reader discovery found none, but your connected reader is still active.")
         } else {
-          const fallbackSubnet = String(data.subnet || "")
-          if (fallbackSubnet) {
-            const fallbackReaders = buildFallbackReaders(fallbackSubnet, Number(scannerPort) || 9090)
-            setDiscoveredReaders(fallbackReaders)
-            setMessage("Auto discovery failed, showing quick-connect reader candidates.")
-          } else {
-            setMessage("No scanner found on local network.")
-          }
+          setMessage("No scanner found on local network.")
         }
       }
     } finally {
@@ -254,7 +225,7 @@ export default function RfidPage() {
             <div className="rounded border bg-[hsl(var(--background))] p-2">
               <p className="text-xs font-medium mb-1">Discovered Readers</p>
               {discoveredReaders.length === 0 ? (
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">Searching readers...</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">No reachable reader found from server.</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {discoveredReaders.map((reader) => (
@@ -264,7 +235,7 @@ export default function RfidPage() {
                       onClick={() => connectAndStart(reader.ip, reader.port)}
                     >
                       {scannerConnection?.readerIp === reader.ip && scannerConnection?.readerPort === reader.port ? "Connected" : "Connect"} {reader.ip}:{reader.port}
-                      {reader.latency_ms > 0 ? ` (${reader.latency_ms}ms)` : reader.reachable ? "" : " (quick try)"}
+                      {reader.latency_ms > 0 ? ` (${reader.latency_ms}ms)` : ""}
                     </button>
                   ))}
                 </div>

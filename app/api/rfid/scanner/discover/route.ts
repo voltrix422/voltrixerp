@@ -87,12 +87,11 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const requestedSubnet = searchParams.get("subnet")
   const detectedSubnet = detectLocalSubnetPrefix()
-  const fallbackSubnets = ["192.168.18", "192.168.1", "192.168.0", "10.0.0"]
   const subnetsToScan = requestedSubnet
     ? [requestedSubnet]
     : detectedSubnet
       ? [detectedSubnet]
-      : fallbackSubnets
+      : []
   const port = Number(searchParams.get("port") || 9090)
   const fromHost = Number(searchParams.get("from") || 1)
   const toHost = Number(searchParams.get("to") || 254)
@@ -101,6 +100,9 @@ export async function GET(req: NextRequest) {
 
   if (Number.isNaN(port) || port <= 0) {
     return NextResponse.json({ error: "Invalid port" }, { status: 400 })
+  }
+  if (subnetsToScan.length === 0) {
+    return NextResponse.json({ error: "Unable to detect scanner subnet from server network" }, { status: 400 })
   }
 
   const start = Math.min(Math.max(1, fromHost), 254)
@@ -117,7 +119,7 @@ export async function GET(req: NextRequest) {
     return { ...probe, subnet: item.subnet }
   })
   const readers = probes.filter((row) => row.reachable).sort((a, b) => a.latency_ms - b.latency_ms)
-  const primarySubnet = readers[0]?.subnet || requestedSubnet || detectedSubnet || fallbackSubnets[0]
+  const primarySubnet = readers[0]?.subnet || requestedSubnet || detectedSubnet || ""
 
   return NextResponse.json({
     subnet: primarySubnet,
