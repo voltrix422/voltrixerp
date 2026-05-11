@@ -11,6 +11,20 @@ import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder } from "@/lib/inventory"
 import { logOrderFulfillmentHistory } from "@/lib/order-fulfillment-history"
 
+/** Full delivery proof: receiver + CNIC + vehicle + all proof images (matches Fulfill Order requirements). */
+function orderHasCompleteFulfillmentProof(o: Order): boolean {
+  const textOk =
+    !!(o.fulfillmentReceiverName || "").trim() &&
+    !!(o.fulfillmentReceiverCnic || "").trim() &&
+    !!(o.fulfillmentVehicleNumber || "").trim()
+  const imgOk =
+    !!(o.fulfillmentReceiverImageUrl || "").trim() &&
+    !!(o.fulfillmentReceiverCnicImageUrl || "").trim() &&
+    !!(o.fulfillmentVehicleImageUrl || "").trim()
+  const productsOk = Array.isArray(o.fulfillmentProductImageUrls) && o.fulfillmentProductImageUrls.length > 0
+  return textOk && imgOk && productsOk
+}
+
 export function ClientOrdersInventory() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -159,6 +173,8 @@ export function ClientOrdersInventory() {
                       <div className="text-[10px] px-1.5 py-0 font-semibold text-blue-600 bg-blue-50 rounded">
                         Invoice
                       </div>
+                    ) : order.dispatcher && !orderHasCompleteFulfillmentProof(order) ? (
+                      <Badge variant="warning" className="text-[10px] px-1.5 py-0">proof required</Badge>
                     ) : order.dispatcher ? (
                       <Badge variant="success" className="text-[10px] px-1.5 py-0">delivered</Badge>
                     ) : (
@@ -193,15 +209,12 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   onUpdate: (o: Order) => void
 }) {
   const [updating, setUpdating] = useState(false)
-  const [showDispatchDialog, setShowDispatchDialog] = useState(false)
   const [showDeliveryConfirm, setShowDeliveryConfirm] = useState(false)
   const [showFulfillDialog, setShowFulfillDialog] = useState(false)
   const [showFulfillSuccess, setShowFulfillSuccess] = useState(false)
   const [fulfilledOrderNumber, setFulfilledOrderNumber] = useState("")
   const [stockItems, setStockItems] = useState<any[]>([])
   const [loadingStock, setLoadingStock] = useState(false)
-  const [dispatcherName, setDispatcherName] = useState(order.dispatcher || "")
-  const [dispatchDate, setDispatchDate] = useState(new Date().toISOString().split('T')[0])
   const [showDeliveryAnimation, setShowDeliveryAnimation] = useState(false)
   
   // Fulfillment form states
@@ -214,22 +227,46 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [vehicleImage, setVehicleImage] = useState<File | null>(null)
   const [productImages, setProductImages] = useState<File[]>([])
 
+  function openFulfillPrefilled() {
+    setFulfillDispatcherName(order.fulfillmentDispatcher || order.dispatcher || "")
+    setReceiverName(order.fulfillmentReceiverName || "")
+    setReceiverCnic(order.fulfillmentReceiverCnic || "")
+    setVehicleNumber(order.fulfillmentVehicleNumber || "")
+    setReceiverImage(null)
+    setReceiverCnicImage(null)
+    setVehicleImage(null)
+    setProductImages([])
+    setShowFulfillDialog(true)
+  }
+
   async function handleFulfillOrder() {
     if (!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber) {
       alert("Please fill in all required fields")
       return
     }
 
+    if (!receiverImage && !(order.fulfillmentReceiverImageUrl || "").trim()) {
+      alert("Please upload the receiver photo (or it was missing from a previous save).")
+      return
+    }
+    if (!receiverCnicImage && !(order.fulfillmentReceiverCnicImageUrl || "").trim()) {
+      alert("Please upload the receiver CNIC photo.")
+      return
+    }
+    if (!vehicleImage && !(order.fulfillmentVehicleImageUrl || "").trim()) {
+      alert("Please upload the vehicle photo.")
+      return
+    }
+    const existingProductCount = order.fulfillmentProductImageUrls?.length ?? 0
+    if (productImages.length === 0 && existingProductCount === 0) {
+      alert("Please upload at least one product photo.")
+      return
+    }
+
     setUpdating(true)
-    
+
     try {
       const fulfillDate = new Date().toLocaleDateString()
-
-      // Upload images
-      let receiverImageUrl: string | undefined
-      let receiverCnicImageUrl: string | undefined
-      let vehicleImageUrl: string | undefined
-      let productImageUrls: string[] = []
 
       const uploadImg = async (file: File): Promise<string> => {
         const fd = new FormData()
@@ -240,14 +277,24 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         return data.urls?.[0] || ""
       }
 
-      if (receiverImage)     receiverImageUrl     = await uploadImg(receiverImage)
+      let receiverImageUrl = (order.fulfillmentReceiverImageUrl || "").trim() || undefined
+      let receiverCnicImageUrl = (order.fulfillmentReceiverCnicImageUrl || "").trim() || undefined
+      let vehicleImageUrl = (order.fulfillmentVehicleImageUrl || "").trim() || undefined
+      let productImageUrls: string[] = [...(order.fulfillmentProductImageUrls || [])]
+
+      if (receiverImage) receiverImageUrl = await uploadImg(receiverImage)
       if (receiverCnicImage) receiverCnicImageUrl = await uploadImg(receiverCnicImage)
-      if (vehicleImage)      vehicleImageUrl      = await uploadImg(vehicleImage)
+      if (vehicleImage) vehicleImageUrl = await uploadImg(vehicleImage)
       if (productImages.length > 0) {
-        productImageUrls = await Promise.all(productImages.map(uploadImg))
+        const newUrls = await Promise.all(productImages.map(uploadImg))
+        productImageUrls = [...productImageUrls, ...newUrls]
       }
 
-      // Update order with dispatcher, fulfillment details, and mark as delivered
+      if (!receiverImageUrl?.trim() || !receiverCnicImageUrl?.trim() || !vehicleImageUrl?.trim() || productImageUrls.length === 0) {
+        alert("Upload failed or proof images are incomplete. Please try again.")
+        return
+      }
+
       const updatedOrder: Order = {
         ...order,
         dispatcher: fulfillDispatcherName,
@@ -260,18 +307,15 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         fulfillmentReceiverImageUrl: receiverImageUrl,
         fulfillmentReceiverCnicImageUrl: receiverCnicImageUrl,
         fulfillmentVehicleImageUrl: vehicleImageUrl,
-        fulfillmentProductImageUrls: productImageUrls.length > 0 ? productImageUrls : undefined,
+        fulfillmentProductImageUrls: productImageUrls,
       }
-      
-      // Save the updated order
+
       await saveOrder(updatedOrder)
 
-      // Deduct inventory when order is fulfilled/delivered from this flow
       if (order.status !== "delivered") {
         await deductInventoryForOrder(updatedOrder)
       }
 
-      // Save full fulfillment record for future history/audit view
       await logOrderFulfillmentHistory({
         orderId: updatedOrder.id,
         orderNumber: updatedOrder.orderNumber,
@@ -288,9 +332,8 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         fulfilledBy: updatedOrder.createdBy || "Inventory",
         notes: `Order fulfilled and marked delivered by dispatcher ${fulfillDispatcherName}`,
       })
-      
-      // Generate and download dispatch note automatically
-      const blob = await generateDispatchNotePDF(order, fulfillDispatcherName, fulfillDate)
+
+      const blob = await generateDispatchNotePDF(updatedOrder, fulfillDispatcherName, fulfillDate)
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -299,16 +342,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      
-      // Show success notification
+
       setFulfilledOrderNumber(order.orderNumber)
       setShowFulfillSuccess(true)
-      
-      // Close dialog and update UI
+
       setShowFulfillDialog(false)
       onUpdate(updatedOrder)
-      
-      // Reset form
+
       setFulfillDispatcherName("")
       setReceiverName("")
       setReceiverCnic("")
@@ -317,7 +357,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       setReceiverCnicImage(null)
       setVehicleImage(null)
       setProductImages([])
-      
     } catch (error) {
       console.error("Error fulfilling order:", error)
       alert("Failed to fulfill order. Please try again.")
@@ -348,6 +387,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   }
 
   async function redownloadDispatchNote() {
+    if (!orderHasCompleteFulfillmentProof(order)) {
+      alert("Add full delivery proof (receiver, CNIC, vehicle, and all photos) before downloading the dispatch note.")
+      openFulfillPrefilled()
+      return
+    }
     try {
       const dispatcher = order.fulfillmentDispatcher || order.dispatcher || ""
       const date = order.fulfillmentDate
@@ -362,29 +406,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("Error generating dispatch note:", error)
-      alert("Failed to generate dispatch note. Please try again.")
-    }
-  }
-
-  async function handleDownloadDispatchNote() {
-    if (!dispatcherName.trim()) {
-      alert("Please enter dispatcher name")
-      return
-    }
-    
-    try {
-      const blob = await generateDispatchNotePDF(order, dispatcherName, new Date(dispatchDate).toLocaleDateString())
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `Dispatch-Note-${order.orderNumber}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      setShowDispatchDialog(false)
     } catch (error) {
       console.error("Error generating dispatch note:", error)
       alert("Failed to generate dispatch note. Please try again.")
@@ -466,6 +487,16 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   }
 
   const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0)
+  const proofComplete = orderHasCompleteFulfillmentProof(order)
+  const canSubmitFulfillment =
+    !!fulfillDispatcherName.trim() &&
+    !!receiverName.trim() &&
+    !!receiverCnic.trim() &&
+    !!vehicleNumber.trim() &&
+    (!!(receiverImage || (order.fulfillmentReceiverImageUrl || "").trim()) &&
+      !!(receiverCnicImage || (order.fulfillmentReceiverCnicImageUrl || "").trim()) &&
+      !!(vehicleImage || (order.fulfillmentVehicleImageUrl || "").trim()) &&
+      (productImages.length > 0 || (order.fulfillmentProductImageUrls?.length ?? 0) > 0))
 
   return (
     <>
@@ -488,13 +519,18 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
               <Eye className="h-3 w-3 mr-1.5" /> View Invoice
             </Button>
-          {order.dispatcher && (
+          {order.dispatcher && proofComplete && (
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={redownloadDispatchNote}>
               <Download className="h-3 w-3 mr-1.5" /> Dispatch Note
             </Button>
           )}
+          {order.dispatcher && !proofComplete && (
+            <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={openFulfillPrefilled} disabled={updating}>
+              <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Complete delivery proof"}
+            </Button>
+          )}
           {!order.dispatcher && (
-            <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowFulfillDialog(true)} disabled={updating}>
+            <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={openFulfillPrefilled} disabled={updating}>
               <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Fulfill Order"}
             </Button>
           )}
@@ -506,6 +542,15 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         {order.dispatcher && (
           <div className="flex-1 overflow-y-auto p-6 space-y-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Fulfillment Details</p>
+
+            {!proofComplete && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-xs text-amber-900 dark:text-amber-100">
+                <p className="font-semibold mb-1">Delivery proof incomplete</p>
+                <p className="text-amber-800 dark:text-amber-200/90">
+                  This order has a dispatcher but is missing receiver details or proof photos. Use &quot;Complete delivery proof&quot; above to add them. The dispatch note is available only after proof is complete.
+                </p>
+              </div>
+            )}
 
             {/* Info cards row */}
             <div className="grid grid-cols-2 gap-3">
@@ -521,11 +566,33 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </div>
 
               {/* Status */}
-              <div className="rounded-lg border bg-green-50 dark:bg-green-950/30 p-4 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-green-700 dark:text-green-400">Status</p>
+              <div
+                className={
+                  proofComplete
+                    ? "rounded-lg border bg-green-50 dark:bg-green-950/30 p-4 space-y-1"
+                    : "rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-1"
+                }
+              >
+                <p
+                  className={
+                    proofComplete
+                      ? "text-[10px] font-bold uppercase tracking-widest text-green-700 dark:text-green-400"
+                      : "text-[10px] font-bold uppercase tracking-widest text-amber-800 dark:text-amber-300"
+                  }
+                >
+                  Status
+                </p>
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  <p className="text-sm font-semibold text-green-700 dark:text-green-400">Delivered</p>
+                  <div className={`h-2 w-2 rounded-full ${proofComplete ? "bg-green-500" : "bg-amber-500"}`} />
+                  <p
+                    className={
+                      proofComplete
+                        ? "text-sm font-semibold text-green-700 dark:text-green-400"
+                        : "text-sm font-semibold text-amber-800 dark:text-amber-200"
+                    }
+                  >
+                    {proofComplete ? "Delivered" : "Delivered — proof pending"}
+                  </p>
                 </div>
               </div>
 
@@ -593,58 +660,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         )}
       </div>
     </div>
-
-      {showDispatchDialog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowDispatchDialog(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <div>
-                <p className="text-base font-bold">Dispatch Note Details</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Enter dispatcher information</p>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowDispatchDialog(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                  Dispatcher Name *
-                </label>
-                <input
-                  type="text"
-                  value={dispatcherName}
-                  onChange={e => setDispatcherName(e.target.value)}
-                  placeholder="Enter dispatcher name"
-                  className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                  Dispatch Date *
-                </label>
-                <input
-                  type="date"
-                  value={dispatchDate}
-                  onChange={e => setDispatchDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowDispatchDialog(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700 ml-auto" onClick={handleDownloadDispatchNote}>
-                <Download className="h-3 w-3 mr-1.5" /> Generate Dispatch Note
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showDeliveryConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowDeliveryConfirm(false)}>
@@ -922,6 +937,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                       onChange={e => setReceiverImage(e.target.files?.[0] || null)}
                       className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
                     />
+                    {(order.fulfillmentReceiverImageUrl || "").trim() && (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Already on file — upload only if replacing.</p>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
@@ -933,6 +951,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                       onChange={e => setReceiverCnicImage(e.target.files?.[0] || null)}
                       className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
                     />
+                    {(order.fulfillmentReceiverCnicImageUrl || "").trim() && (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Already on file — upload only if replacing.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -963,6 +984,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                       onChange={e => setVehicleImage(e.target.files?.[0] || null)}
                       className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
                     />
+                    {(order.fulfillmentVehicleImageUrl || "").trim() && (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Already on file — upload only if replacing.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -981,6 +1005,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                     onChange={e => setProductImages(Array.from(e.target.files || []))}
                     className="w-full px-3 py-2 text-sm border rounded-lg bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
                   />
+                  {(order.fulfillmentProductImageUrls?.length ?? 0) > 0 && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                      {order.fulfillmentProductImageUrls!.length} product photo(s) already on file. Add more here or leave unchanged.
+                    </p>
+                  )}
                   {productImages.length > 0 && (
                     <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                       {productImages.length} image(s) selected
@@ -998,7 +1027,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 size="sm" 
                 className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto min-w-[140px]" 
                 onClick={handleFulfillOrder}
-                disabled={updating || !fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber}
+                disabled={updating || !canSubmitFulfillment}
               >
                 {updating ? (
                   <span className="flex items-center gap-2">

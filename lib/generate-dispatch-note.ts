@@ -331,7 +331,13 @@ export async function generateDispatchNotePDF(
   // ── Signature section ──────────────────────────────────────────────────────
   y += 4
   const sigBoxW = (pageW - mL - mR - 10) / 2
-  const sigBoxH = 28
+  const recvName0 = order.fulfillmentReceiverName?.trim()
+  const recvCnic0 = order.fulfillmentReceiverCnic?.trim()
+  const recvVeh0 = order.fulfillmentVehicleNumber?.trim()
+  const sigBoxH = recvName0 || recvCnic0 || recvVeh0 ? 34 : 28
+  const recvDateStr = order.fulfillmentDate
+    ? new Date(order.fulfillmentDate).toLocaleDateString("en-PK")
+    : dispDate
 
   // Dispatcher box
   doc.setFillColor(...lightBg)
@@ -366,9 +372,19 @@ export async function generateDispatchNotePDF(
 
   doc.setFont(FONT, "normal")
   doc.setFontSize(8.5)
+  doc.setTextColor(...black)
+  doc.text(`Name: ${recvName0 || "_______________________"}`, rx + 4, y + 12)
+  if (recvCnic0) {
+    doc.setFontSize(7.5)
+    doc.text(`CNIC: ${recvCnic0}`, rx + 4, y + 17)
+  }
+  if (recvVeh0) {
+    doc.setFontSize(7.5)
+    doc.text(`Vehicle: ${recvVeh0}`, rx + 4, recvCnic0 ? y + 22 : y + 17)
+  }
+  doc.setFontSize(8)
   doc.setTextColor(...darkGray)
-  doc.text("Name: _______________________", rx + 4, y + 14)
-  doc.text("Date: ________________________", rx + 4, y + 21)
+  doc.text(`Date: ${recvDateStr}`, rx + 4, y + (recvCnic0 && recvVeh0 ? 27 : recvCnic0 || recvVeh0 ? 22 : 21))
 
   // Signature lines
   doc.setDrawColor(...lightGray)
