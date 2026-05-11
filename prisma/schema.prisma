@@ -485,8 +485,11 @@ model CrmLead {
   importedAt    DateTime @default(now()) @map("imported_at")
   createdBy     String   @map("created_by")
   createdById   String?  @map("created_by_id")
+  importBatchId      String?  @map("import_batch_id")
+  importUploaderName String?  @map("import_uploader_name")
   contacts      CrmLeadContact[]
 
+  @@index([importBatchId])
   @@map("crm_leads")
 }
 

@@ -22,6 +22,8 @@ export async function GET() {
       importedAt: l.importedAt.toISOString(),
       createdBy: l.createdBy,
       createdById: l.createdById,
+      importBatchId: l.importBatchId,
+      importUploaderName: l.importUploaderName,
       contactCount: l._count.contacts,
       lastContactedAt: l.contacts[0]?.contactedAt.toISOString() ?? null,
       lastResponseSnippet: l.contacts[0]?.leadResponse

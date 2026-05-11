@@ -45,6 +45,8 @@ export async function GET(
         importedAt: lead.importedAt.toISOString(),
         createdBy: lead.createdBy,
         createdById: lead.createdById,
+        importBatchId: lead.importBatchId,
+        importUploaderName: lead.importUploaderName,
         contactCount: lead._count.contacts,
         lastContactedAt: contacts[0]?.contactedAt ?? null,
         lastResponseSnippet: contacts[0]?.leadResponse?.slice(0, 160) ?? null,

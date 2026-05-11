@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
@@ -26,6 +26,8 @@ import {
   Trash2,
   X,
   ImageIcon,
+  ChevronDown,
+  ChevronRight,
   User,
 } from "lucide-react"
 
@@ -45,6 +47,82 @@ const SAMPLE_CSV = `name,company,email,phone,notes
 Jane Doe,Acme Industries,jane@example.com,+923001234567,Interested in UPS
 John Smith,,john@smith.com,,Follow up next week
 `
+
+function LeadTableRow({
+  lead,
+  onOpenDetail,
+  onStatusChange,
+  onLog,
+  onDelete,
+}: {
+  lead: CrmLeadRow
+  onOpenDetail: (id: string) => void
+  onStatusChange: (lead: CrmLeadRow, status: string) => void
+  onLog: (lead: CrmLeadRow) => void
+  onDelete: (id: string) => void
+}) {
+  return (
+    <tr
+      className="hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
+      onClick={() => onOpenDetail(lead.id)}
+    >
+      <td className="px-3 py-2 text-xs font-medium capitalize">{lead.name}</td>
+      <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
+      <td className="px-3 py-2 text-xs">
+        {lead.phone && (
+          <span className="flex items-center gap-1 text-[hsl(var(--muted-foreground))]">
+            <Phone className="h-3 w-3 shrink-0" />
+            {lead.phone}
+          </span>
+        )}
+        {lead.email && <div className="text-[hsl(var(--muted-foreground))] truncate max-w-[140px]">{lead.email}</div>}
+        {!lead.phone && !lead.email && "—"}
+      </td>
+      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+        <select
+          value={lead.status}
+          onChange={(e) => onStatusChange(lead, e.target.value)}
+          className="h-7 rounded border bg-[hsl(var(--background))] text-[11px] px-1.5 max-w-[120px]"
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="px-3 py-2 text-xs text-center tabular-nums">{lead.contactCount}</td>
+      <td className="px-3 py-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+        {lead.lastContactedAt
+          ? new Date(lead.lastContactedAt).toLocaleString(undefined, {
+              dateStyle: "short",
+              timeStyle: "short",
+            })
+          : "—"}
+      </td>
+      <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 text-[10px] px-2"
+            onClick={() => onLog(lead)}
+          >
+            Log outreach
+          </Button>
+          <button
+            type="button"
+            className="p-1.5 text-red-500 hover:bg-red-500/10 rounded cursor-pointer"
+            title="Delete lead"
+            onClick={() => onDelete(lead.id)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
 
 export function LeadsManager({
   currentUser,
@@ -71,6 +149,10 @@ export function LeadsManager({
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false)
+  const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
+  const csvInputRef = useRef<HTMLInputElement>(null)
+  const pendingCsvImportRef = useRef<{ importBatchId: string; importUploaderName: string } | null>(null)
 
   const refresh = useCallback(async () => {
     const list = await fetchLeads()
@@ -104,7 +186,7 @@ export function LeadsManager({
       .finally(() => setDetailLoading(false))
   }, [detailId])
 
-  const filtered = useMemo(() => {
+  const filteredAll = useMemo(() => {
     const q = search.toLowerCase().trim()
     if (!q) return leads
     return leads.filter(
@@ -115,6 +197,39 @@ export function LeadsManager({
         l.phone.toLowerCase().includes(q)
     )
   }, [leads, search])
+
+  const importBatchGroups = useMemo(() => {
+    const map = new Map<string, CrmLeadRow[]>()
+    for (const l of filteredAll) {
+      if (!l.importBatchId) continue
+      const arr = map.get(l.importBatchId) ?? []
+      arr.push(l)
+      map.set(l.importBatchId, arr)
+    }
+    const groups = [...map.entries()].map(([importBatchId, list]) => {
+      const sorted = [...list].sort(
+        (a, b) => new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime()
+      )
+      return {
+        importBatchId,
+        importUploaderName: sorted[0]?.importUploaderName?.trim() || "Unknown",
+        importedAt: sorted[0]?.importedAt ?? "",
+        leads: sorted,
+      }
+    })
+    return groups.sort((a, b) => new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime())
+  }, [filteredAll])
+
+  const tableLeads = useMemo(() => filteredAll.filter((l) => !l.importBatchId), [filteredAll])
+
+  function toggleBatch(id: string) {
+    setOpenBatchIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const myTodayCount = useMemo(() => {
     const byId = currentUserId
@@ -128,6 +243,15 @@ export function LeadsManager({
     const file = e.target.files?.[0]
     e.target.value = ""
     if (!file) return
+    const meta = pendingCsvImportRef.current
+    if (!meta?.importBatchId || !meta.importUploaderName?.trim()) {
+      toast({
+        type: "error",
+        title: "Missing importer",
+        message: "Use Import CSV and enter who is importing before choosing a file.",
+      })
+      return
+    }
     setImporting(true)
     try {
       const text = await file.text()
@@ -145,8 +269,12 @@ export function LeadsManager({
         createdBy: currentUser,
         createdById: currentUserId ?? null,
         source: "csv",
+        importBatchId: meta.importBatchId,
+        importUploaderName: meta.importUploaderName.trim(),
       })
       toast({ type: "success", title: "Import complete", message: `${created} lead(s) added.` })
+      setOpenBatchIds((prev) => new Set(prev).add(meta.importBatchId))
+      pendingCsvImportRef.current = null
       await refresh()
       await refreshStats()
     } catch (err) {
@@ -158,6 +286,19 @@ export function LeadsManager({
     } finally {
       setImporting(false)
     }
+  }
+
+  function beginCsvImportAfterName(uploaderName: string) {
+    const importBatchId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `batch-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    pendingCsvImportRef.current = {
+      importBatchId,
+      importUploaderName: uploaderName.trim(),
+    }
+    setShowCsvImportModal(false)
+    queueMicrotask(() => csvInputRef.current?.click())
   }
 
   async function onStatusChange(lead: CrmLeadRow, status: string) {
@@ -223,12 +364,22 @@ export function LeadsManager({
           chat or call screenshots and the lead&apos;s response.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="file" accept=".csv,text/csv" className="hidden" id="crm-lead-csv" onChange={onCsvFile} />
-          <Button size="sm" variant="outline" className="h-8 text-xs" disabled={importing} asChild>
-            <label htmlFor="crm-lead-csv" className="inline-flex items-center gap-1 cursor-pointer px-2">
-              <Upload className="h-3.5 w-3.5" />
-              {importing ? "Importing…" : "Import CSV"}
-            </label>
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={onCsvFile}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={importing}
+            onClick={() => setShowCsvImportModal(true)}
+          >
+            <Upload className="h-3.5 w-3.5 mr-1" />
+            {importing ? "Importing…" : "Import CSV"}
           </Button>
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`}
@@ -253,105 +404,154 @@ export function LeadsManager({
         <div className="flex justify-center py-20">
           <div className="h-8 w-8 rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filteredAll.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center text-sm text-[hsl(var(--muted-foreground))]">
           <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
           {leads.length === 0 ? "No leads yet. Import a CSV or add a lead manually." : "No leads match your search."}
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden overflow-x-auto">
-          <table className="w-full min-w-[800px]">
-            <thead>
-              <tr className="border-b bg-[hsl(var(--muted))]/40">
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                  Lead
-                </th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                  Company
-                </th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                  Contact
-                </th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                  Status
-                </th>
-                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                  Logs
-                </th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                  Last outreach
-                </th>
-                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map((lead) => (
-                <tr
-                  key={lead.id}
-                  className="hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
-                  onClick={() => setDetailId(lead.id)}
-                >
-                  <td className="px-3 py-2 text-xs font-medium capitalize">{lead.name}</td>
-                  <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
-                  <td className="px-3 py-2 text-xs">
-                    {lead.phone && (
-                      <span className="flex items-center gap-1 text-[hsl(var(--muted-foreground))]">
-                        <Phone className="h-3 w-3 shrink-0" />
-                        {lead.phone}
-                      </span>
-                    )}
-                    {lead.email && <div className="text-[hsl(var(--muted-foreground))] truncate max-w-[140px]">{lead.email}</div>}
-                    {!lead.phone && !lead.email && "—"}
-                  </td>
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <select
-                      value={lead.status}
-                      onChange={(e) => onStatusChange(lead, e.target.value)}
-                      className="h-7 rounded border bg-[hsl(var(--background))] text-[11px] px-1.5 max-w-[120px]"
-                    >
-                      {STATUS_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-center tabular-nums">{lead.contactCount}</td>
-                  <td className="px-3 py-2 text-[11px] text-[hsl(var(--muted-foreground))]">
-                    {lead.lastContactedAt
-                      ? new Date(lead.lastContactedAt).toLocaleString(undefined, {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })
-                      : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-7 text-[10px] px-2"
-                        onClick={() => setLogForLead(lead)}
-                      >
-                        Log outreach
-                      </Button>
+        <div className="space-y-6">
+          {importBatchGroups.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                CSV imports (by person and date)
+              </p>
+              <div className="space-y-2">
+                {importBatchGroups.map((group) => {
+                  const open = openBatchIds.has(group.importBatchId)
+                  const when = new Date(group.importedAt).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
+                  return (
+                    <div key={group.importBatchId} className="rounded-lg border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))]/30">
                       <button
                         type="button"
-                        className="p-1.5 text-red-500 hover:bg-red-500/10 rounded cursor-pointer"
-                        title="Delete lead"
-                        onClick={() => setDeleteId(lead.id)}
+                        onClick={() => toggleBatch(group.importBatchId)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        {open ? (
+                          <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                        )}
+                        <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{group.importUploaderName}</span>
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">{when}</span>
+                        <span className="ml-auto text-[11px] rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 tabular-nums">
+                          {group.leads.length} lead{group.leads.length === 1 ? "" : "s"}
+                        </span>
                       </button>
+                      {open && (
+                        <div className="border-t border-[hsl(var(--border))] overflow-x-auto">
+                          <table className="w-full min-w-[800px]">
+                            <thead>
+                              <tr className="border-b bg-[hsl(var(--muted))]/40">
+                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                                  Lead
+                                </th>
+                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                                  Company
+                                </th>
+                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                                  Contact
+                                </th>
+                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                                  Status
+                                </th>
+                                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                                  Logs
+                                </th>
+                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                                  Last outreach
+                                </th>
+                                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {group.leads.map((lead) => (
+                                <LeadTableRow
+                                  key={lead.id}
+                                  lead={lead}
+                                  onOpenDetail={setDetailId}
+                                  onStatusChange={onStatusChange}
+                                  onLog={setLogForLead}
+                                  onDelete={setDeleteId}
+                                />
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {(importBatchGroups.length === 0 ? filteredAll : tableLeads).length > 0 && (
+            <div>
+              {importBatchGroups.length > 0 && (
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
+                  Other leads (manual or older imports)
+                </p>
+              )}
+              <div className="rounded-lg border overflow-hidden overflow-x-auto">
+                <table className="w-full min-w-[800px]">
+                  <thead>
+                    <tr className="border-b bg-[hsl(var(--muted))]/40">
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                        Lead
+                      </th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                        Company
+                      </th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                        Contact
+                      </th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                        Status
+                      </th>
+                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                        Logs
+                      </th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                        Last outreach
+                      </th>
+                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {(importBatchGroups.length === 0 ? filteredAll : tableLeads).map((lead) => (
+                      <LeadTableRow
+                        key={lead.id}
+                        lead={lead}
+                        onOpenDetail={setDetailId}
+                        onStatusChange={onStatusChange}
+                        onLog={setLogForLead}
+                        onDelete={setDeleteId}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {showCsvImportModal && (
+        <CsvImportModal
+          onClose={() => setShowCsvImportModal(false)}
+          onContinue={(name) => {
+            if (!name.trim()) return
+            beginCsvImportAfterName(name)
+          }}
+        />
       )}
 
       {showAddLead && (
@@ -420,6 +620,59 @@ export function LeadsManager({
         }}
         onCancel={() => setDeleteId(null)}
       />
+    </div>
+  )
+}
+
+function CsvImportModal({
+  onClose,
+  onContinue,
+}: {
+  onClose: () => void
+  onContinue: (uploaderName: string) => void
+}) {
+  const [name, setName] = useState("")
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-md w-full p-4 space-y-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold">Import CSV</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          Who is importing these leads? This name and the import date are shown on the import record so your team can
+          see who uploaded each file.
+        </p>
+        <div>
+          <label className="text-xs font-medium">Importer name *</label>
+          <input
+            className="mt-1 w-full h-9 rounded border px-2 text-sm"
+            placeholder="e.g. Ali Khan"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="cursor-pointer"
+            disabled={!name.trim()}
+            onClick={() => onContinue(name.trim())}
+          >
+            Choose CSV file
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -672,6 +925,13 @@ function LeadDetailDrawer({
                   {lead.phone && <p>Phone: {lead.phone}</p>}
                   {lead.email && <p>Email: {lead.email}</p>}
                   {lead.notes && <p className="text-[hsl(var(--muted-foreground))] pt-1">Notes: {lead.notes}</p>}
+                  {lead.importUploaderName && (
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] pt-2 border-t border-[hsl(var(--border))] mt-2">
+                      CSV import: <span className="font-medium text-[hsl(var(--foreground))]">{lead.importUploaderName}</span>
+                      {" · "}
+                      {new Date(lead.importedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                    </p>
+                  )}
                 </div>
                 <Button size="sm" className="mt-3 h-8 text-xs cursor-pointer" onClick={onLog}>
                   Log outreach

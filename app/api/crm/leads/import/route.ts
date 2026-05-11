@@ -32,10 +32,24 @@ export async function POST(req: NextRequest) {
         source: String(source || "csv"),
         createdBy: String(createdBy),
         createdById: createdById ? String(createdById) : null,
+        importBatchId: body.importBatchId ? String(body.importBatchId) : null,
+        importUploaderName: body.importUploaderName ? String(body.importUploaderName).trim() : null,
       }))
 
     if (data.length === 0) {
       return NextResponse.json({ error: "No valid rows (each needs a name)" }, { status: 400 })
+    }
+
+    const isCsv = String(source || "csv") === "csv"
+    if (isCsv) {
+      const batchId = body.importBatchId as string | undefined
+      const uploader = body.importUploaderName as string | undefined
+      if (!batchId || !String(batchId).trim()) {
+        return NextResponse.json({ error: "importBatchId required for CSV import" }, { status: 400 })
+      }
+      if (!uploader || !String(uploader).trim()) {
+        return NextResponse.json({ error: "importUploaderName required (who is importing?)" }, { status: 400 })
+      }
     }
 
     const result = await prisma.crmLead.createMany({ data })

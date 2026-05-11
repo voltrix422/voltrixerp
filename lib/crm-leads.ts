@@ -10,6 +10,8 @@ export type CrmLeadRow = {
   importedAt: string
   createdBy: string
   createdById: string | null
+  importBatchId: string | null
+  importUploaderName: string | null
   contactCount: number
   lastContactedAt: string | null
   lastResponseSnippet: string | null
@@ -45,6 +47,8 @@ export async function importLeadsJson(body: {
   createdBy: string
   createdById?: string | null
   source?: string
+  importBatchId: string
+  importUploaderName: string
 }): Promise<{ created: number }> {
   const res = await fetch("/api/crm/leads/import", {
     method: "POST",
