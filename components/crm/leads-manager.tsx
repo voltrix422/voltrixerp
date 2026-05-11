@@ -395,7 +395,7 @@ export function LeadsManager({
             className="h-8 text-xs"
             disabled={leads.length === 0}
             onClick={() => {
-              downloadLeadsCsv(leads)
+              downloadLeadsCsv(leads, undefined, { exportedBy: currentUser })
               toast({ type: "success", title: "Download started", message: `${leads.length} lead(s) exported.` })
             }}
           >

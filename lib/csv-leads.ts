@@ -92,8 +92,20 @@ function escCsvCell(value: string): string {
   return s
 }
 
+export type LeadsExportMeta = {
+  /** Logged-in user (or chosen name) shown at the top of every export file. */
+  exportedBy: string
+}
+
 /** Build CSV matching import columns plus CRM fields (UTF-8 BOM added on download for Excel). */
-export function buildLeadsExportCsv(leads: CrmLeadRow[]): string {
+export function buildLeadsExportCsv(leads: CrmLeadRow[], meta?: LeadsExportMeta): string {
+  const lines: string[] = []
+  if (meta?.exportedBy?.trim()) {
+    const when = new Date().toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" })
+    lines.push(`${escCsvCell("Exported by")},${escCsvCell(meta.exportedBy.trim())}`)
+    lines.push(`${escCsvCell("Export time")},${escCsvCell(when)}`)
+    lines.push("")
+  }
   const headers = [
     "name",
     "company",
@@ -108,7 +120,7 @@ export function buildLeadsExportCsv(leads: CrmLeadRow[]): string {
     "import_batch_id",
     "created_by",
   ]
-  const lines = [headers.join(",")]
+  lines.push(headers.join(","))
   for (const l of leads) {
     lines.push(
       [
@@ -130,9 +142,9 @@ export function buildLeadsExportCsv(leads: CrmLeadRow[]): string {
   return lines.join("\r\n")
 }
 
-export function downloadLeadsCsv(leads: CrmLeadRow[], filename?: string) {
+export function downloadLeadsCsv(leads: CrmLeadRow[], filename?: string, meta?: LeadsExportMeta) {
   if (typeof document === "undefined") return
-  const csv = buildLeadsExportCsv(leads)
+  const csv = buildLeadsExportCsv(leads, meta)
   const name =
     filename ?? `leads-export-${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36).slice(-6)}.csv`
   const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" })
