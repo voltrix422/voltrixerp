@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { uploadFiles } from "@/lib/upload"
-import { parseLeadImportCsv } from "@/lib/csv-leads"
+import { parseLeadImportCsv, downloadLeadsCsv } from "@/lib/csv-leads"
 import {
   fetchLeads,
   fetchLeadDetail,
@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronRight,
   User,
+  Download,
 } from "lucide-react"
 
 const STATUS_OPTIONS = [
@@ -360,8 +361,8 @@ export function LeadsManager({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-          Import leads from CSV (columns: <strong>name</strong>, company, email, phone, notes). Log each outreach with
-          chat or call screenshots and the lead&apos;s response.
+          Import leads from CSV (columns: <strong>name</strong>, company, email, phone, notes). Export all leads as CSV
+          anytime. Log each outreach with chat or call screenshots and the lead&apos;s response.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -388,6 +389,19 @@ export function LeadsManager({
           >
             Sample CSV
           </a>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={leads.length === 0}
+            onClick={() => {
+              downloadLeadsCsv(leads)
+              toast({ type: "success", title: "Download started", message: `${leads.length} lead(s) exported.` })
+            }}
+          >
+            <Download className="h-3.5 w-3.5 mr-1" />
+            Export all leads
+          </Button>
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowAddLead(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Add lead
           </Button>

@@ -1,3 +1,5 @@
+import type { CrmLeadRow } from "./crm-leads"
+
 export type LeadCsvRow = {
   name: string
   company: string
@@ -82,4 +84,62 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
     })
   }
   return out
+}
+
+function escCsvCell(value: string): string {
+  const s = String(value ?? "").replace(/"/g, '""')
+  if (/[,"\r\n]/.test(s)) return `"${s}"`
+  return s
+}
+
+/** Build CSV matching import columns plus CRM fields (UTF-8 BOM added on download for Excel). */
+export function buildLeadsExportCsv(leads: CrmLeadRow[]): string {
+  const headers = [
+    "name",
+    "company",
+    "email",
+    "phone",
+    "notes",
+    "status",
+    "contact_logs",
+    "last_outreach",
+    "imported_at",
+    "csv_importer",
+    "import_batch_id",
+    "created_by",
+  ]
+  const lines = [headers.join(",")]
+  for (const l of leads) {
+    lines.push(
+      [
+        escCsvCell(l.name),
+        escCsvCell(l.company),
+        escCsvCell(l.email),
+        escCsvCell(l.phone),
+        escCsvCell(l.notes),
+        escCsvCell(l.status),
+        escCsvCell(String(l.contactCount)),
+        escCsvCell(l.lastContactedAt ? new Date(l.lastContactedAt).toISOString() : ""),
+        escCsvCell(l.importedAt ? new Date(l.importedAt).toISOString() : ""),
+        escCsvCell(l.importUploaderName ?? ""),
+        escCsvCell(l.importBatchId ?? ""),
+        escCsvCell(l.createdBy),
+      ].join(",")
+    )
+  }
+  return lines.join("\r\n")
+}
+
+export function downloadLeadsCsv(leads: CrmLeadRow[], filename?: string) {
+  if (typeof document === "undefined") return
+  const csv = buildLeadsExportCsv(leads)
+  const name =
+    filename ?? `leads-export-${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36).slice(-6)}.csv`
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
 }

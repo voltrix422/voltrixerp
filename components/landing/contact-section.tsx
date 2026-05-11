@@ -58,29 +58,6 @@ export default function ContactSection() {
               </div>
             </div>
 
-            {/* Lahore Office */}
-            <div className="rounded-2xl border border-neutral-100 p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#1a9f9a12" }}>
-                  <MapPin className="w-4 h-4" style={{ color: "#1a9f9a" }} />
-                </div>
-                <p className="font-semibold text-neutral-900 text-sm">Lahore Office</p>
-              </div>
-              <p className="text-sm text-neutral-500 leading-relaxed pl-11">
-                Centre Point Plaza, Block E2, Gulberg III, Lahore, 54000, Pakistan
-              </p>
-              <div className="pl-11 space-y-1">
-                <div className="flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                  <a href="tel:+923211365440" className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">+92 321 1365440</a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                  <a href="tel:+923212626092" className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">+92 321 2626092</a>
-                </div>
-              </div>
-            </div>
-
             {/* Email */}
             <div className="rounded-2xl border border-neutral-100 p-6">
               <div className="flex items-center gap-3">
