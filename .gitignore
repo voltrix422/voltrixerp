@@ -34,7 +34,6 @@ yarn-error.log*
 Thumbs.db
 
 # Prisma
-prisma/migrations/
 
 # Uploads (if you want to exclude uploaded files)
 public/uploads/

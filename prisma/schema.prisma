@@ -472,6 +472,42 @@ model CrmQuotation {
   @@map("crm_quotations")
 }
 
+/// Sales leads (CSV import + manual). Separate from ErpClient (order/customer records).
+model CrmLead {
+  id            String   @id @default(cuid())
+  name          String
+  company       String   @default("")
+  email         String   @default("")
+  phone         String   @default("")
+  notes         String   @default("")
+  source        String   @default("csv") // csv | manual
+  status        String   @default("new") // new | contacted | responded | closed
+  importedAt    DateTime @default(now()) @map("imported_at")
+  createdBy     String   @map("created_by")
+  createdById   String?  @map("created_by_id")
+  contacts      CrmLeadContact[]
+
+  @@map("crm_leads")
+}
+
+/// One outreach log per contact attempt (screenshots + lead response).
+model CrmLeadContact {
+  id             String   @id @default(cuid())
+  leadId         String   @map("lead_id")
+  lead           CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contactedAt    DateTime @default(now()) @map("contacted_at")
+  contactedBy    String   @map("contacted_by")
+  contactedById  String?  @map("contacted_by_id")
+  screenshotUrls Json     @default("[]") @map("screenshot_urls")
+  leadResponse   String   @default("") @map("lead_response")
+  notes          String   @default("")
+
+  @@index([leadId])
+  @@index([contactedAt])
+  @@index([contactedBy, contactedAt])
+  @@map("crm_lead_contacts")
+}
+
 model ErpPettyCashAllocation {
   id            String   @id @default(cuid())
   employeeId    String   @map("employee_id")

@@ -1,0 +1,107 @@
+export type CrmLeadRow = {
+  id: string
+  name: string
+  company: string
+  email: string
+  phone: string
+  notes: string
+  source: string
+  status: string
+  importedAt: string
+  createdBy: string
+  createdById: string | null
+  contactCount: number
+  lastContactedAt: string | null
+  lastResponseSnippet: string | null
+}
+
+export type CrmLeadContactRow = {
+  id: string
+  leadId: string
+  contactedAt: string
+  contactedBy: string
+  contactedById: string | null
+  screenshotUrls: string[]
+  leadResponse: string
+  notes: string
+}
+
+export async function fetchLeads(): Promise<CrmLeadRow[]> {
+  const res = await fetch("/api/crm/leads")
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function fetchLeadDetail(id: string): Promise<{
+  lead: CrmLeadRow & { contacts: CrmLeadContactRow[] }
+} | null> {
+  const res = await fetch(`/api/crm/leads/${id}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function importLeadsJson(body: {
+  leads: { name: string; company?: string; email?: string; phone?: string; notes?: string }[]
+  createdBy: string
+  createdById?: string | null
+  source?: string
+}): Promise<{ created: number }> {
+  const res = await fetch("/api/crm/leads/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error("Import failed")
+  return res.json()
+}
+
+export async function patchLeadStatus(id: string, status: string): Promise<void> {
+  const res = await fetch("/api/crm/leads", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, status }),
+  })
+  if (!res.ok) throw new Error("Update failed")
+}
+
+export async function deleteLead(id: string): Promise<void> {
+  const res = await fetch("/api/crm/leads", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) throw new Error("Delete failed")
+}
+
+export async function logLeadContact(body: {
+  leadId: string
+  contactedBy: string
+  contactedById?: string | null
+  contactedAt?: string
+  screenshotUrls: string[]
+  leadResponse: string
+  notes?: string
+}): Promise<CrmLeadContactRow> {
+  const res = await fetch("/api/crm/leads/contacts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || "Log failed")
+  }
+  return res.json()
+}
+
+export type DailyStatMember = { name: string; userId: string | null; count: number }
+
+export async function fetchDailyStats(date: string): Promise<{
+  date: string
+  total: number
+  byMember: DailyStatMember[]
+}> {
+  const res = await fetch(`/api/crm/leads/daily-stats?date=${encodeURIComponent(date)}`)
+  if (!res.ok) return { date, total: 0, byMember: [] }
+  return res.json()
+}

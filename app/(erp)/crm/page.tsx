@@ -3,13 +3,14 @@ import { useState } from "react"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { ClientsList } from "@/components/crm/clients-list"
+import { LeadsManager } from "@/components/crm/leads-manager"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
 import { useAuth } from "@/components/auth-provider"
 
 export default function CRMPage() {
   const { user } = useAuth()
-  const [tab, setTab] = useState<"quotations" | "orders" | "clients">("quotations")
+  const [tab, setTab] = useState<"quotations" | "orders" | "clients" | "leads">("quotations")
   
   return (
     <ModuleGuard module="crm">
@@ -58,11 +59,31 @@ export default function CRMPage() {
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
             </button>
+            <button
+              onClick={() => setTab("leads")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+                tab === "leads"
+                  ? "text-[hsl(var(--foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              Sales leads
+              {tab === "leads" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+              )}
+            </button>
           </div>
 
           {/* Tab Content */}
           {tab === "quotations" && <QuotationsList currentUser={user?.name || "Unknown"} />}
           {tab === "clients" && <ClientsList currentUser={user?.name || "Unknown"} />}
+          {tab === "leads" && (
+            <LeadsManager
+              currentUser={user?.name || "Unknown"}
+              currentUserId={user?.id}
+              userRole={user?.role}
+            />
+          )}
           {tab === "orders" && <OrdersList currentUser={user?.name || "Unknown"} />}
         </div>
       </div>

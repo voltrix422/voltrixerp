@@ -1,0 +1,719 @@
+"use client"
+
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useToast } from "@/components/ui/toast"
+import { uploadFiles } from "@/lib/upload"
+import { parseLeadImportCsv } from "@/lib/csv-leads"
+import {
+  fetchLeads,
+  fetchLeadDetail,
+  importLeadsJson,
+  patchLeadStatus,
+  deleteLead,
+  logLeadContact,
+  fetchDailyStats,
+  type CrmLeadRow,
+  type CrmLeadContactRow,
+} from "@/lib/crm-leads"
+import {
+  Upload,
+  Plus,
+  Phone,
+  MessageSquare,
+  Calendar,
+  Trash2,
+  X,
+  ImageIcon,
+  User,
+} from "lucide-react"
+
+const STATUS_OPTIONS = [
+  { value: "new", label: "New" },
+  { value: "contacted", label: "Contacted" },
+  { value: "responded", label: "Responded" },
+  { value: "closed", label: "Closed" },
+]
+
+function toDatetimeLocalValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const SAMPLE_CSV = `name,company,email,phone,notes
+Jane Doe,Acme Industries,jane@example.com,+923001234567,Interested in UPS
+John Smith,,john@smith.com,,Follow up next week
+`
+
+export function LeadsManager({
+  currentUser,
+  currentUserId,
+  userRole,
+}: {
+  currentUser: string
+  currentUserId?: string | null
+  userRole?: string
+}) {
+  const { toast } = useToast()
+  const [leads, setLeads] = useState<CrmLeadRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [statsDate, setStatsDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [stats, setStats] = useState<{ total: number; byMember: { name: string; userId: string | null; count: number }[] }>({
+    total: 0,
+    byMember: [],
+  })
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [detail, setDetail] = useState<(CrmLeadRow & { contacts: CrmLeadContactRow[] }) | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [logForLead, setLogForLead] = useState<CrmLeadRow | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [showAddLead, setShowAddLead] = useState(false)
+
+  const refresh = useCallback(async () => {
+    const list = await fetchLeads()
+    setLeads(list)
+  }, [])
+
+  const refreshStats = useCallback(async () => {
+    const s = await fetchDailyStats(statsDate)
+    setStats({ total: s.total, byMember: s.byMember })
+  }, [statsDate])
+
+  useEffect(() => {
+    refresh().finally(() => setLoading(false))
+  }, [refresh])
+
+  useEffect(() => {
+    refreshStats()
+  }, [refreshStats])
+
+  useEffect(() => {
+    if (!detailId) {
+      setDetail(null)
+      return
+    }
+    setDetailLoading(true)
+    fetchLeadDetail(detailId)
+      .then((r) => {
+        if (r?.lead) setDetail(r.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] })
+        else setDetail(null)
+      })
+      .finally(() => setDetailLoading(false))
+  }, [detailId])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    if (!q) return leads
+    return leads.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.company.toLowerCase().includes(q) ||
+        l.email.toLowerCase().includes(q) ||
+        l.phone.toLowerCase().includes(q)
+    )
+  }, [leads, search])
+
+  const myTodayCount = useMemo(() => {
+    const byId = currentUserId
+      ? stats.byMember.find((m) => m.userId === currentUserId)
+      : undefined
+    if (byId) return byId.count
+    return stats.byMember.find((m) => m.name === currentUser)?.count ?? 0
+  }, [stats, currentUserId, currentUser])
+
+  async function onCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const rows = parseLeadImportCsv(text)
+      if (rows.length === 0) {
+        toast({
+          type: "error",
+          title: "No rows imported",
+          message: "Add a header row with at least a name column, then data rows.",
+        })
+        return
+      }
+      const { created } = await importLeadsJson({
+        leads: rows,
+        createdBy: currentUser,
+        createdById: currentUserId ?? null,
+        source: "csv",
+      })
+      toast({ type: "success", title: "Import complete", message: `${created} lead(s) added.` })
+      await refresh()
+      await refreshStats()
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Import failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function onStatusChange(lead: CrmLeadRow, status: string) {
+    try {
+      await patchLeadStatus(lead.id, status)
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status } : l)))
+      if (detail?.id === lead.id) setDetail((d) => (d ? { ...d, status } : d))
+    } catch {
+      toast({ type: "error", title: "Could not update status" })
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4 space-y-3">
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">
+              Outreach stats (UTC day)
+            </p>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+              <input
+                type="date"
+                value={statsDate}
+                onChange={(e) => setStatsDate(e.target.value)}
+                className="h-8 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-6 text-sm">
+            <div>
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Your contacts</p>
+              <p className="text-xl font-bold tabular-nums text-[hsl(var(--foreground))]">{myTodayCount}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Team total</p>
+              <p className="text-xl font-bold tabular-nums text-[hsl(var(--foreground))]">{stats.total}</p>
+            </div>
+          </div>
+        </div>
+        {userRole === "superadmin" && stats.byMember.length > 0 && (
+          <div className="pt-2 border-t border-[hsl(var(--border))]">
+            <p className="text-xs font-semibold mb-2">By team member</p>
+            <div className="flex flex-wrap gap-2">
+              {stats.byMember.map((m) => (
+                <span
+                  key={`${m.name}-${m.userId ?? "x"}`}
+                  className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--background))] border px-2.5 py-1 text-[11px]"
+                >
+                  <User className="h-3 w-3 opacity-60" />
+                  {m.name}: <strong>{m.count}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
+          Import leads from CSV (columns: <strong>name</strong>, company, email, phone, notes). Log each outreach with
+          chat or call screenshots and the lead&apos;s response.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="file" accept=".csv,text/csv" className="hidden" id="crm-lead-csv" onChange={onCsvFile} />
+          <Button size="sm" variant="outline" className="h-8 text-xs" disabled={importing} asChild>
+            <label htmlFor="crm-lead-csv" className="inline-flex items-center gap-1 cursor-pointer px-2">
+              <Upload className="h-3.5 w-3.5" />
+              {importing ? "Importing…" : "Import CSV"}
+            </label>
+          </Button>
+          <a
+            href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`}
+            download="leads-sample.csv"
+            className="text-xs text-[hsl(var(--primary))] underline underline-offset-2"
+          >
+            Sample CSV
+          </a>
+          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowAddLead(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add lead
+          </Button>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search leads…"
+            className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs w-40 focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="h-8 w-8 rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center py-16 text-center text-sm text-[hsl(var(--muted-foreground))]">
+          <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
+          {leads.length === 0 ? "No leads yet. Import a CSV or add a lead manually." : "No leads match your search."}
+        </div>
+      ) : (
+        <div className="rounded-lg border overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[800px]">
+            <thead>
+              <tr className="border-b bg-[hsl(var(--muted))]/40">
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                  Lead
+                </th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                  Company
+                </th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                  Contact
+                </th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                  Status
+                </th>
+                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                  Logs
+                </th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                  Last outreach
+                </th>
+                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.map((lead) => (
+                <tr
+                  key={lead.id}
+                  className="hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
+                  onClick={() => setDetailId(lead.id)}
+                >
+                  <td className="px-3 py-2 text-xs font-medium capitalize">{lead.name}</td>
+                  <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
+                  <td className="px-3 py-2 text-xs">
+                    {lead.phone && (
+                      <span className="flex items-center gap-1 text-[hsl(var(--muted-foreground))]">
+                        <Phone className="h-3 w-3 shrink-0" />
+                        {lead.phone}
+                      </span>
+                    )}
+                    {lead.email && <div className="text-[hsl(var(--muted-foreground))] truncate max-w-[140px]">{lead.email}</div>}
+                    {!lead.phone && !lead.email && "—"}
+                  </td>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={lead.status}
+                      onChange={(e) => onStatusChange(lead, e.target.value)}
+                      className="h-7 rounded border bg-[hsl(var(--background))] text-[11px] px-1.5 max-w-[120px]"
+                    >
+                      {STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-center tabular-nums">{lead.contactCount}</td>
+                  <td className="px-3 py-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+                    {lead.lastContactedAt
+                      ? new Date(lead.lastContactedAt).toLocaleString(undefined, {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-[10px] px-2"
+                        onClick={() => setLogForLead(lead)}
+                      >
+                        Log outreach
+                      </Button>
+                      <button
+                        type="button"
+                        className="p-1.5 text-red-500 hover:bg-red-500/10 rounded cursor-pointer"
+                        title="Delete lead"
+                        onClick={() => setDeleteId(lead.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showAddLead && (
+        <AddLeadModal
+          currentUser={currentUser}
+          currentUserId={currentUserId}
+          onClose={() => setShowAddLead(false)}
+          onCreated={async () => {
+            await refresh()
+            setShowAddLead(false)
+          }}
+        />
+      )}
+
+      {logForLead && (
+        <LogOutreachModal
+          lead={logForLead}
+          currentUser={currentUser}
+          currentUserId={currentUserId}
+          onClose={() => setLogForLead(null)}
+          onSaved={async () => {
+            await refresh()
+            await refreshStats()
+            if (detailId === logForLead.id) {
+              const r = await fetchLeadDetail(logForLead.id)
+              if (r?.lead) setDetail(r.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] })
+            }
+            setLogForLead(null)
+          }}
+        />
+      )}
+
+      {detailId && (
+        <LeadDetailDrawer
+          loading={detailLoading}
+          lead={detail}
+          onClose={() => {
+            setDetailId(null)
+            setDetail(null)
+          }}
+          onLog={() => {
+            if (detail) setLogForLead(detail)
+          }}
+        />
+      )}
+
+      <ConfirmDialog
+        isOpen={!!deleteId}
+        title="Delete lead"
+        message="Remove this lead and all outreach logs? This cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteId) return
+          try {
+            await deleteLead(deleteId)
+            setLeads((prev) => prev.filter((l) => l.id !== deleteId))
+            if (detailId === deleteId) setDetailId(null)
+            toast({ type: "success", title: "Lead deleted" })
+            await refreshStats()
+          } catch {
+            toast({ type: "error", title: "Delete failed" })
+          }
+          setDeleteId(null)
+        }}
+        onCancel={() => setDeleteId(null)}
+      />
+    </div>
+  )
+}
+
+function AddLeadModal({
+  currentUser,
+  currentUserId,
+  onClose,
+  onCreated,
+}: {
+  currentUser: string
+  currentUserId?: string | null
+  onClose: () => void
+  onCreated: () => Promise<void>
+}) {
+  const { toast } = useToast()
+  const [name, setName] = useState("")
+  const [company, setCompany] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [notes, setNotes] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function submit() {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch("/api/crm/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          company,
+          email,
+          phone,
+          notes,
+          createdBy: currentUser,
+          createdById: currentUserId ?? null,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      await onCreated()
+    } catch {
+      toast({ type: "error", title: "Could not save lead" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-md w-full p-4 space-y-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold">Add lead</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <label className="block text-xs font-medium">Name *</label>
+        <input
+          className="w-full h-9 rounded border px-2 text-sm"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <label className="block text-xs font-medium">Company</label>
+        <input
+          className="w-full h-9 rounded border px-2 text-sm"
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+        />
+        <label className="block text-xs font-medium">Email</label>
+        <input
+          className="w-full h-9 rounded border px-2 text-sm"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <label className="block text-xs font-medium">Phone</label>
+        <input
+          className="w-full h-9 rounded border px-2 text-sm"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
+        <label className="block text-xs font-medium">Notes</label>
+        <textarea className="w-full rounded border px-2 py-1.5 text-sm min-h-[72px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" className="cursor-pointer" disabled={saving || !name.trim()} onClick={submit}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LogOutreachModal({
+  lead,
+  currentUser,
+  currentUserId,
+  onClose,
+  onSaved,
+}: {
+  lead: CrmLeadRow
+  currentUser: string
+  currentUserId?: string | null
+  onClose: () => void
+  onSaved: () => Promise<void>
+}) {
+  const { toast } = useToast()
+  const [when, setWhen] = useState(() => toDatetimeLocalValue(new Date()))
+  const [files, setFiles] = useState<File[]>([])
+  const [response, setResponse] = useState("")
+  const [notes, setNotes] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function submit() {
+    setSaving(true)
+    try {
+      let screenshotUrls: string[] = []
+      if (files.length > 0) {
+        screenshotUrls = await uploadFiles(files, "crm-leads")
+      }
+      await logLeadContact({
+        leadId: lead.id,
+        contactedBy: currentUser,
+        contactedById: currentUserId ?? null,
+        contactedAt: new Date(when).toISOString(),
+        screenshotUrls,
+        leadResponse: response,
+        notes,
+      })
+      toast({ type: "success", title: "Outreach logged" })
+      await onSaved()
+    } catch (e) {
+      toast({
+        type: "error",
+        title: "Could not save",
+        message: e instanceof Error ? e.message : undefined,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-lg w-full p-4 space-y-3 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-start gap-2">
+          <div>
+            <h3 className="text-sm font-semibold">Log outreach</h3>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] capitalize mt-0.5">{lead.name}</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer shrink-0">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div>
+          <label className="text-xs font-medium">When</label>
+          <input
+            type="datetime-local"
+            className="mt-1 w-full h-9 rounded border px-2 text-sm"
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium flex items-center gap-1">
+            <ImageIcon className="h-3.5 w-3.5" />
+            Screenshots (chat or call)
+          </label>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+            multiple
+            className="mt-1 text-xs w-full"
+            onChange={(e) => setFiles(Array.from(e.target.files || []))}
+          />
+          {files.length > 0 && (
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">{files.length} file(s) selected</p>
+          )}
+        </div>
+        <div>
+          <label className="text-xs font-medium">Lead response</label>
+          <textarea
+            className="mt-1 w-full rounded border px-2 py-1.5 text-sm min-h-[80px]"
+            placeholder="What did the lead say? Next steps, objections, etc."
+            value={response}
+            onChange={(e) => setResponse(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium">Internal notes (optional)</label>
+          <textarea className="mt-1 w-full rounded border px-2 py-1.5 text-sm min-h-[56px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" className="cursor-pointer" disabled={saving} onClick={submit}>
+            {saving ? "Saving…" : "Save log"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LeadDetailDrawer({
+  loading,
+  lead,
+  onClose,
+  onLog,
+}: {
+  loading: boolean
+  lead: (CrmLeadRow & { contacts: CrmLeadContactRow[] }) | null
+  onClose: () => void
+  onLog: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+      <div
+        className="h-full w-full max-w-md bg-[hsl(var(--background))] border-l shadow-xl flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-sm font-semibold">Lead detail</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading || !lead ? (
+            <div className="flex justify-center py-12">
+              <div className="h-7 w-7 rounded-full border-2 border-[hsl(var(--primary))] border-t-transparent animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-lg font-semibold capitalize">{lead.name}</p>
+                {lead.company && <p className="text-sm text-[hsl(var(--muted-foreground))]">{lead.company}</p>}
+                <div className="mt-2 text-xs space-y-1">
+                  {lead.phone && <p>Phone: {lead.phone}</p>}
+                  {lead.email && <p>Email: {lead.email}</p>}
+                  {lead.notes && <p className="text-[hsl(var(--muted-foreground))] pt-1">Notes: {lead.notes}</p>}
+                </div>
+                <Button size="sm" className="mt-3 h-8 text-xs cursor-pointer" onClick={onLog}>
+                  Log outreach
+                </Button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-[hsl(var(--muted-foreground))] mb-2">Outreach history</p>
+                {lead.contacts.length === 0 ? (
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">No logs yet.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {lead.contacts.map((c) => (
+                      <li key={c.id} className="rounded border p-3 text-xs space-y-2">
+                        <div className="flex justify-between text-[hsl(var(--muted-foreground))]">
+                          <span>{c.contactedBy}</span>
+                          <span>{new Date(c.contactedAt).toLocaleString()}</span>
+                        </div>
+                        {c.screenshotUrls.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {c.screenshotUrls.map((url) => (
+                              <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
+                                <img src={url} alt="" className="h-16 w-16 object-cover rounded border" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        {c.leadResponse && (
+                          <p>
+                            <span className="font-medium text-[hsl(var(--foreground))]">Response: </span>
+                            {c.leadResponse}
+                          </p>
+                        )}
+                        {c.notes && <p className="text-[hsl(var(--muted-foreground))]">Internal: {c.notes}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
