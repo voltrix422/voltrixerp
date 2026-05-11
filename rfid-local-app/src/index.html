@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voltrix RFID Local</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Voltrix RFID Local</h1>
+      <p>Clean standalone reader app (no browser TCP limitations). LISTEN-first: reader must push to this PC port, or use Reader IP to connect out to the reader.</p>
+    </header>
+
+    <section class="panel row">
+      <label>Subnet <input id="subnet" placeholder="192.168.18 or full IP" title="Three octets scans .1–.254; enter full reader IP to probe one host" /></label>
+      <label>Reader IP <input id="manualIp" placeholder="e.g. 192.168.18.104 if search empty" title="Connect directly without discovery (reader as TCP server)" /></label>
+      <label>Port <input id="port" placeholder="9090" /></label>
+      <button id="searchBtn">Search Readers</button>
+      <button id="connectBtn">Connect</button>
+      <button id="disconnectBtn">Disconnect</button>
+      <button id="startBtn">Start Scan</button>
+      <button id="stopBtn">Stop Scan</button>
+    </section>
+
+    <section class="panel row">
+      <label>Update Feed URL <input id="updateFeedUrl" placeholder="https://your-domain/updates" /></label>
+      <button id="checkUpdateBtn">Check Update</button>
+      <button id="downloadUpdateBtn">Download Update</button>
+      <button id="installUpdateBtn">Install Update</button>
+      <div>Version: <strong id="appVersion">-</strong></div>
+      <div>Update: <strong id="updateStatus">Idle</strong></div>
+    </section>
+
+    <section class="panel">
+      <h3>Discovered Readers</h3>
+      <div id="readers"></div>
+    </section>
+
+    <section class="panel row">
+      <div>Status: <strong id="statusText">Disconnected</strong></div>
+      <div>Connected Reader: <strong id="readerText">-</strong></div>
+      <div>Unique: <strong id="uniqueText">0</strong></div>
+      <div>Reads: <strong id="readsText">0</strong></div>
+    </section>
+
+    <section class="panel">
+      <h3>Live Tags</h3>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>EPC</th><th>Reader</th><th>ERP Sync</th></tr>
+        </thead>
+        <tbody id="tagsBody"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h3>Log</h3>
+      <pre id="log"></pre>
+    </section>
+
+    <script src="./renderer.js"></script>
+  </body>
+  </html>

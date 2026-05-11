@@ -1,0 +1,31 @@
+{
+  "name": "rfid-local-app",
+  "version": "0.1.7",
+  "private": true,
+  "description": "Local Windows RFID service and UI for ERP sync",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.voltrix.rfidlocalapp",
+    "productName": "Voltrix RFID Local",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
