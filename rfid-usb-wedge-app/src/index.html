@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voltrix RFID Link</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Voltrix RFID Link</h1>
+        <p class="subtitle">
+          SDK-style inventory for <strong>USB keyboard-wedge</strong> readers. Vendor <code>RFID_EPC_Project_x64.exe</code> uses the DLL directly; this app captures typed EPCs and links them to products (local + optional ERP).
+        </p>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="scan">Connection &amp; read EPC</button>
+      <button type="button" class="tab" role="tab" aria-selected="false" data-tab="saved">Saved links &amp; server</button>
+    </nav>
+
+    <main class="layout">
+      <div id="tabScan" class="tab-panel" role="tabpanel">
+        <section class="panel panel-hero" id="usbPanel">
+          <div class="hero-row">
+            <div class="hero-text">
+              <h2 class="panel-title">USB reader</h2>
+              <p id="usbHeadline" class="headline">Checking…</p>
+              <p id="usbSub" class="sub muted"></p>
+            </div>
+            <div class="hero-actions">
+              <span id="usbPill" class="pill pill-muted">…</span>
+              <button type="button" id="btnUsbRefresh" class="btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <details class="details-inline">
+            <summary>Technical device list</summary>
+            <pre id="usbProbeOut" class="probe-out"></pre>
+          </details>
+          <p id="webhidNote" class="muted tiny"></p>
+        </section>
+
+        <section class="panel" id="listenPanel">
+          <h2 class="panel-title">Inventory</h2>
+          <p id="hint" class="hint" role="status"></p>
+          <p class="muted tiny wedge-notice">
+            “USB Input Device (HIDClass)” is not proof of keyboard wedge: many UHF readers use HID for the vendor DLL only.
+            If nothing types into <strong>Notepad</strong> when you scan, use <strong>Paste EPC</strong> below (copy from the vendor app) or enable keyboard / wedge mode in the reader utility.
+          </p>
+          <div id="scanFocusSink" tabindex="-1" class="scan-focus-sink" aria-label="Scan focus"></div>
+
+          <div class="sdk-toolbar">
+            <button type="button" id="btnReadArm" class="btn-primary">Read single</button>
+            <button type="button" id="btnTestScan" class="btn-secondary" title="Verifies inventory + log without the hardware">
+              Test scan (demo EPC)
+            </button>
+            <button type="button" id="btnClearInventory" class="btn-secondary">Clear table</button>
+            <label class="checkbox tight">
+              <input type="checkbox" id="acceptAnyHex" />
+              Accept any 8–64 hex chars (not only E2… Gen2) for display &amp; link
+            </label>
+          </div>
+
+          <div class="manual-epc-panel">
+            <p class="manual-epc-title">Real tags (vendor DLL / no keyboard wedge)</p>
+            <p class="muted tiny manual-epc-copy">
+              Copy the EPC or hex line from <code>RFID_EPC_Project_x64.exe</code>, paste into the box, then <strong>Add</strong>. Wedge capture is paused while this field is focused so you can type.
+            </p>
+            <div class="manual-epc-row">
+              <label class="field manual-epc-label">
+                <span>Paste EPC or full line</span>
+                <input
+                  id="manualEpcInput"
+                  type="text"
+                  class="mono-input"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="E280… or hex from vendor Receive data"
+                />
+              </label>
+              <button type="button" id="btnPasteFromClipboard" class="btn-secondary">Paste from clipboard</button>
+              <button type="button" id="btnManualEpc" class="btn-primary">Add</button>
+            </div>
+          </div>
+
+          <div class="sdk-grid">
+            <div class="sdk-left">
+              <div class="table-wrap table-inventory-wrap">
+                <table class="registry inventory-table" id="inventoryTable">
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>PC</th>
+                      <th>EPC / payload</th>
+                      <th>CRC</th>
+                      <th>Cnt</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="inventoryBody"></tbody>
+                </table>
+                <p id="inventoryEmpty" class="muted small">
+                  No rows in the table yet. Each successful <strong>TagRead</strong> adds a row; details of the latest success also appear below.
+                </p>
+                <div id="lastReadDetail" class="last-read-detail hidden" aria-live="polite"></div>
+              </div>
+
+              <div id="tagPresent" class="tag-inline hidden">
+                <p class="kicker">Selected for linking</p>
+                <div id="epcDisplay" class="epc-mono"></div>
+                <dl class="tag-dl tag-dl-inline">
+                  <div><dt>Hex len</dt><dd id="tagHexLen">—</dd></div>
+                  <div><dt>Bits</dt><dd id="tagBits">—</dd></div>
+                  <div><dt>Type</dt><dd id="tagFamily">—</dd></div>
+                </dl>
+              </div>
+              <div id="tagEmpty" class="muted small listen-hint">Wedge keystrokes are captured in the background while this window is foreground.</div>
+
+              <input
+                id="capture"
+                type="text"
+                class="capture-hidden"
+                tabindex="-1"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+                inputmode="none"
+                aria-hidden="true"
+                aria-label="Hidden buffer"
+              />
+            </div>
+
+            <div class="sdk-right">
+              <h3 class="log-title">Receive data</h3>
+              <p class="muted tiny log-legend">
+                <strong>TagRead</strong> = one tag decoded (same as a table row). <strong>ArmListen</strong> = “Read single” armed; no row until a real wedge line or <strong>Test scan</strong>.
+              </p>
+              <pre id="receiveLog" class="receive-log" tabindex="-1"></pre>
+              <details class="details-inline">
+                <summary>Diagnostics</summary>
+                <p id="wedgeDiag" class="muted tiny wedge-diag"></p>
+              </details>
+            </div>
+          </div>
+        </section>
+
+        <section id="linkPanel" class="panel panel-link hidden">
+          <h2 class="panel-title">Link to product</h2>
+          <p id="editBanner" class="banner hidden">Reader paused — do not scan while typing. Save or cancel when done.</p>
+          <div class="form-grid">
+            <label class="field">
+              <span>Product name <span class="req">*</span></span>
+              <input id="fieldName" type="text" readonly placeholder="Click the button below to type" />
+            </label>
+            <label class="field">
+              <span>Product ID <span class="req">*</span></span>
+              <input id="fieldProductId" type="text" readonly />
+            </label>
+            <label class="field">
+              <span>SKU <span class="req">*</span></span>
+              <input id="fieldSku" type="text" readonly />
+            </label>
+            <label class="field full">
+              <span>Notes</span>
+              <input id="fieldNotes" type="text" readonly />
+            </label>
+            <label class="field full">
+              <span>Internal barcode</span>
+              <input id="fieldBarcode" type="text" readonly />
+            </label>
+          </div>
+          <div class="btn-row">
+            <button type="button" id="btnEditProduct" class="btn-secondary">Enter product details…</button>
+            <button type="button" id="btnResumeListen" class="btn-secondary hidden">Back to scanning</button>
+            <button type="button" id="btnSaveLink" class="btn-primary" disabled>Save link</button>
+            <button type="button" id="btnSkipLink" class="btn-secondary">Skip (EPC only)</button>
+            <button type="button" id="btnDiscardTag" class="btn-ghost">Discard selection</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="tabSaved" class="tab-panel hidden" role="tabpanel">
+        <section class="panel panel-compact">
+          <div class="row">
+            <label class="checkbox">
+              <input type="checkbox" id="syncErp" />
+              POST on Save
+            </label>
+            <input id="erpUrl" type="url" class="grow" placeholder="https://…/api/rfid/scanner/scan" />
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="toolbar">
+            <h2 class="panel-title tight">Saved on this PC</h2>
+            <div class="toolbar-actions">
+              <button type="button" id="btnExport">Export JSON</button>
+              <button type="button" id="btnClearRegistry" class="btn-danger">Clear all…</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="registry">
+              <thead>
+                <tr>
+                  <th>EPC</th>
+                  <th>Product</th>
+                  <th>ID</th>
+                  <th>SKU</th>
+                  <th>When</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="registryBody"></tbody>
+            </table>
+            <p id="registryEmpty" class="muted small">No saved links yet.</p>
+          </div>
+        </section>
+
+        <section class="panel panel-compact">
+          <div class="toolbar">
+            <span id="stats" class="muted">Session events: 0</span>
+            <button type="button" id="btnClear">Clear event log</button>
+          </div>
+          <ul id="list"></ul>
+        </section>
+      </div>
+    </main>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

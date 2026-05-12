@@ -1,8 +1,8 @@
 {
-  "name": "rfid-local-app",
-  "version": "0.2.11",
+  "name": "rfid-usb-wedge-app",
+  "version": "1.4.5",
   "private": true,
-  "description": "Local Windows RFID service and UI for ERP sync",
+  "description": "Voltrix RFID Link — SDK-style inventory + product linking (USB keyboard wedge)",
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
@@ -10,20 +10,14 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
-  "dependencies": {
-    "electron-updater": "^6.3.9"
-  },
   "devDependencies": {
     "electron": "^31.7.7",
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.voltrix.rfidlocalapp",
-    "productName": "Voltrix RFID Local",
-    "files": [
-      "src/**/*",
-      "package.json"
-    ],
+    "appId": "com.voltrix.rfidusbwedge",
+    "productName": "Voltrix RFID Link",
+    "files": ["src/**/*", "package.json"],
     "win": {
       "target": "nsis"
     }

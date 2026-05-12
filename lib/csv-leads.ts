@@ -40,7 +40,7 @@ export function parseCsv(text: string): string[][] {
 }
 
 function normHeader(h: string) {
-  return h.toLowerCase().replace(/[\s_-]/g, "")
+  return h.toLowerCase().replace(/[\s_-]/g, "").trim()
 }
 
 function colIndex(header: string[], ...candidates: string[]): number {
@@ -59,28 +59,139 @@ function colIndex(header: string[], ...candidates: string[]): number {
   return -1
 }
 
-/** Parse uploaded CSV into lead rows. First row must be headers; **name** column required. */
+function trimCell(row: string[], i: number): string {
+  if (i < 0 || i >= row.length) return ""
+  return (row[i] ?? "").trim()
+}
+
+/** Google Contacts / Outlook-style "Organizati" (truncated) or Organization * columns — preserve column order. */
+function orgColumnIndices(h: string[]): number[] {
+  const out: number[] = []
+  for (let i = 0; i < h.length; i++) {
+    const raw = (h[i] ?? "").trim()
+    const n = normHeader(raw)
+    if (!n) continue
+    if (n === "organizati" || n.startsWith("organizati")) {
+      out.push(i)
+      continue
+    }
+    if (n.includes("organization") || n.includes("organisation")) {
+      out.push(i)
+    }
+  }
+  return out
+}
+
+/**
+ * Display name: single **name** column, or First + Middle + Last, else File As / Nickname; optional Name Pre / Suf.
+ * Matches Google Contacts CSV exports (First Name, Last Name, Name Pre, Organizati, Phone 1 - Value, …).
+ */
+function buildLeadDisplayName(row: string[], h: string[]): string {
+  const iName = colIndex(h, "name", "fullname", "leadname", "displayname", "contactname")
+  const single = trimCell(row, iName)
+  if (single) return single
+
+  const iFirst = colIndex(h, "firstname", "first name", "givenname", "given name")
+  const iMid = colIndex(h, "middlename", "middle name")
+  const iLast = colIndex(h, "lastname", "last name", "surname", "familyname", "family name")
+  const iFileAs = colIndex(h, "fileas", "file as")
+  const iNick = colIndex(h, "nickname")
+
+  const parts = [trimCell(row, iFirst), trimCell(row, iMid), trimCell(row, iLast)].filter(Boolean)
+  let core = parts.join(" ")
+  if (!core) core = trimCell(row, iFileAs)
+  if (!core) core = trimCell(row, iNick)
+  if (!core) return ""
+
+  const iPre = colIndex(h, "namepre", "nameprefix", "honorificprefix", "prefix")
+  const iSuf = colIndex(h, "namesuf", "namesuffix", "honorificsuffix", "suffix")
+  const pre = trimCell(row, iPre)
+  const suf = trimCell(row, iSuf)
+  return [pre, core, suf].filter(Boolean).join(" ")
+}
+
+function headerSupportsLeadName(h: string[]): boolean {
+  if (colIndex(h, "name", "fullname", "leadname", "displayname", "contactname") >= 0) return true
+  if (colIndex(h, "firstname", "first name", "givenname", "given name") >= 0) return true
+  if (colIndex(h, "lastname", "last name", "surname", "familyname", "family name") >= 0) return true
+  if (colIndex(h, "fileas", "file as") >= 0) return true
+  if (colIndex(h, "nickname") >= 0) return true
+  return false
+}
+
+/**
+ * Parse uploaded CSV into lead rows. First row = headers.
+ * Supports:
+ * - Simple export: **name**, company, email, phone, notes
+ * - Google Contacts–style: First Name, Middle Name, Last Name, Name Pre, Name Suf, Nickname, File As,
+ *   Organizati (×3 truncated), Birthday, Notes, Labels, Phone 1 - Value, E-mail 1 - Value, …
+ */
 export function parseLeadImportCsv(text: string): LeadCsvRow[] {
   const rows = parseCsv(text)
   if (rows.length < 2) return []
   const h = rows[0]
-  const iName = colIndex(h, "name", "fullname", "leadname")
-  if (iName < 0) return []
-  const iCompany = colIndex(h, "company", "business", "organization", "organisation")
-  const iEmail = colIndex(h, "email", "e-mail")
-  const iPhone = colIndex(h, "phone", "mobile", "tel", "telephone")
+  if (!headerSupportsLeadName(h)) return []
+
+  const orgIdx = orgColumnIndices(h)
+  const iEmail = colIndex(
+    h,
+    "email1value",
+    "email1-value",
+    "e-mail1value",
+    "e-mail1-value",
+    "emailaddress",
+    "email",
+    "e-mail"
+  )
+  const iPhone = colIndex(
+    h,
+    "phone1value",
+    "phone1-value",
+    "phonework",
+    "phone2value",
+    "mobile",
+    "mobilephone",
+    "phonenumber",
+    "cellphone",
+    "telephone",
+    "tel"
+  )
   const iNotes = colIndex(h, "notes", "remarks", "comments", "description")
+  const iBirth = colIndex(h, "birthday", "birthdate")
+  const iLabels = colIndex(h, "labels", "groups", "categories")
+  const iCompany = colIndex(h, "company", "business", "employer")
+
   const out: LeadCsvRow[] = []
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r]
-    const name = (row[iName] || "").trim()
+    const name = buildLeadDisplayName(row, h)
     if (!name) continue
+
+    const orgVals = orgIdx.map((i) => trimCell(row, i)).filter(Boolean)
+    let company = orgVals[0] ?? ""
+    if (!company && iCompany >= 0) company = trimCell(row, iCompany)
+
+    const email = iEmail >= 0 ? trimCell(row, iEmail) : ""
+    const phone = iPhone >= 0 ? trimCell(row, iPhone) : ""
+
+    let notes = iNotes >= 0 ? trimCell(row, iNotes) : ""
+    const birth = trimCell(row, iBirth)
+    if (birth) notes = [notes, `Birthday: ${birth}`].filter(Boolean).join("\n")
+    const labels = trimCell(row, iLabels)
+    if (labels) notes = [notes, `Labels: ${labels}`].filter(Boolean).join("\n")
+
+    const orgRest = orgVals.slice(1)
+    if (orgRest.length) {
+      const orgLines = orgRest.map((v, j) => `Organization ${j + 2}: ${v}`).join("\n")
+      notes = [notes, orgLines].filter(Boolean).join("\n")
+    }
+
     out.push({
       name,
-      company: iCompany >= 0 ? (row[iCompany] || "").trim() : "",
-      email: iEmail >= 0 ? (row[iEmail] || "").trim() : "",
-      phone: iPhone >= 0 ? (row[iPhone] || "").trim() : "",
-      notes: iNotes >= 0 ? (row[iNotes] || "").trim() : "",
+      company,
+      email,
+      phone,
+      notes,
     })
   }
   return out

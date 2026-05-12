@@ -40,11 +40,50 @@ function saveConfig() {
 
 let win = null
 const state = {
-  tags: [],
+  /** @type {Map<string, { count: number, firstSeen: string, lastSeen: string, readerIp: string, readerPort: number, erpOk: boolean }>} */
+  aggregate: new Map(),
   counters: {
     unique: 0,
     reads: 0
   }
+}
+let aggregateFlushTimer = null
+
+function buildAggregatePayload() {
+  const entries = [...state.aggregate.entries()].map(([epc, v]) => ({
+    epc,
+    count: v.count,
+    firstSeen: v.firstSeen,
+    lastSeen: v.lastSeen,
+    readerIp: v.readerIp,
+    readerPort: v.readerPort,
+    erpOk: v.erpOk
+  }))
+  entries.sort((a, b) => b.count - a.count || a.epc.localeCompare(b.epc))
+  return entries
+}
+
+function scheduleAggregateBroadcast() {
+  if (aggregateFlushTimer) return
+  aggregateFlushTimer = setTimeout(() => {
+    aggregateFlushTimer = null
+    const entries = buildAggregatePayload()
+    state.counters.unique = entries.length
+    state.counters.reads = entries.reduce((s, e) => s + e.count, 0)
+    broadcast("reader:aggregate", { entries })
+    broadcast("reader:counters", state.counters)
+  }, 75)
+}
+
+function clearScanSession() {
+  if (aggregateFlushTimer) {
+    clearTimeout(aggregateFlushTimer)
+    aggregateFlushTimer = null
+  }
+  state.aggregate.clear()
+  state.counters = { unique: 0, reads: 0 }
+  broadcast("reader:aggregate", { entries: [] })
+  broadcast("reader:counters", state.counters)
 }
 let updaterState = {
   stage: "idle",
@@ -59,6 +98,11 @@ let updaterState = {
 function broadcast(channel, payload) {
   if (!win || win.isDestroyed()) return
   win.webContents.send(channel, payload)
+}
+
+function broadcastReaderStatus(status) {
+  broadcast("reader:status", status)
+  if (status.sessionLost) clearScanSession()
 }
 
 function setUpdaterState(patch) {
@@ -87,15 +131,36 @@ async function postTagToErp(tag) {
 }
 
 const reader = new ReaderService(
-  (status) => broadcast("reader:status", status),
+  broadcastReaderStatus,
   async (tag) => {
-    state.tags.unshift(tag)
-    if (state.tags.length > 300) state.tags = state.tags.slice(0, 300)
-    state.counters.reads += 1
-    state.counters.unique = new Set(state.tags.map((t) => t.epc)).size
-    const synced = await postTagToErp(tag)
-    broadcast("reader:tag", { ...tag, synced })
-    broadcast("reader:counters", state.counters)
+    const epc = String(tag.epc || "").toUpperCase()
+    if (!epc) return
+    let row = state.aggregate.get(epc)
+    if (!row) {
+      row = {
+        count: 0,
+        firstSeen: tag.seenAt,
+        lastSeen: tag.seenAt,
+        readerIp: tag.readerIp || "",
+        readerPort: tag.readerPort || 0,
+        erpOk: false
+      }
+      state.aggregate.set(epc, row)
+    }
+    row.count += 1
+    row.lastSeen = tag.seenAt
+    row.readerIp = tag.readerIp || row.readerIp
+    row.readerPort = tag.readerPort || row.readerPort
+
+    scheduleAggregateBroadcast()
+
+    if (tag.allowErp !== false) {
+      const synced = await postTagToErp(tag)
+      if (synced) {
+        row.erpOk = true
+        scheduleAggregateBroadcast()
+      }
+    }
   }
 )
 
@@ -110,6 +175,15 @@ function createWindow() {
     }
   })
   win.loadFile(path.join(__dirname, "index.html"))
+}
+
+/** Common reader TCP ports (Hopeland default 9090; others seen in the field). */
+const DISCOVERY_PORTS_EXTRA = [9090, 4001, 5084, 8160, 8888, 5000, 6000]
+
+function uniqueProbePorts(primaryPort) {
+  const p = Number(primaryPort)
+  const primary = Number.isFinite(p) && p > 0 ? p : 9090
+  return [...new Set([primary, ...DISCOVERY_PORTS_EXTRA])]
 }
 
 function probe(ip, port, timeoutMs) {
@@ -129,6 +203,11 @@ function probe(ip, port, timeoutMs) {
     socket.once("error", () => finish(false))
     socket.connect(port, ip)
   })
+}
+
+async function probeIpAnyPort(ip, ports, timeoutMs) {
+  const hits = await Promise.all(ports.map((port) => probe(ip, port, timeoutMs)))
+  return hits.filter((h) => h.reachable)
 }
 
 /** Subnet field: "192.168.18" scans .1–.254; "192.168.18.104" scans that host only. */
@@ -242,18 +321,21 @@ ipcMain.handle("reader:search", async (_event, payload) => {
   const timeoutMs = singleHost
     ? Math.max(800, Number(process.env.DISCOVERY_TIMEOUT_MS || 800))
     : quick
-      ? 220
+      ? 260
       : Number(process.env.DISCOVERY_TIMEOUT_MS || 450)
-  const concurrency = singleHost ? 1 : quick ? 40 : Math.max(1, Number(process.env.DISCOVERY_CONCURRENCY || 80))
+  const probesPorts =
+    singleHost || quick ? uniqueProbePorts(port) : uniqueProbePorts(port).slice(0, 4)
+
+  const concurrency = singleHost ? 1 : quick ? 28 : Math.max(1, Number(process.env.DISCOVERY_CONCURRENCY || 64))
 
   const results = []
   let index = 0
-  const workers = Array.from({ length: Math.min(concurrency, uniqIps.length) }).map(async () => {
+  const workers = Array.from({ length: Math.min(concurrency, Math.max(1, uniqIps.length)) }).map(async () => {
     while (index < uniqIps.length) {
-      const current = uniqIps[index]
+      const ip = uniqIps[index]
       index += 1
-      const r = await probe(current, port, timeoutMs)
-      if (r.reachable) results.push(r)
+      const hits = await probeIpAnyPort(ip, probesPorts, timeoutMs)
+      for (const h of hits) results.push(h)
     }
   })
   await Promise.all(workers)
@@ -264,6 +346,7 @@ ipcMain.handle("reader:connect", async (_event, payload) => {
   const ip = String(payload.ip || "").trim()
   if (!ip) throw new Error("Reader IP is required")
   const port = Number(payload.port || config.readerPort)
+  clearScanSession()
   const status = await reader.connect(ip, port)
   if (ip) {
     config.lastReaderIp = ip
@@ -274,29 +357,34 @@ ipcMain.handle("reader:connect", async (_event, payload) => {
 
 ipcMain.handle("reader:listen", async (_event, payload) => {
   const port = Number(payload?.port || config.readerPort)
+  clearScanSession()
   const status = await reader.listen(port)
   return status
 })
 
 ipcMain.handle("reader:disconnect", async () => {
   reader.disconnect()
+  clearScanSession()
   return reader.status()
 })
 
-ipcMain.handle("reader:start", async () => {
-  reader.startScan()
-  return reader.status()
-})
+ipcMain.handle("reader:start", async () => reader.startScan())
 
 ipcMain.handle("reader:stop", async () => {
   reader.stopScan()
   return reader.status()
 })
 
+ipcMain.handle("reader:clear-tags", async () => {
+  clearScanSession()
+  reader.resetScanPresentation()
+  return { ok: true }
+})
+
 ipcMain.handle("reader:state", async () => ({
   status: reader.status(),
   counters: state.counters,
-  tags: state.tags
+  aggregates: buildAggregatePayload()
 }))
 
 ipcMain.handle("updater:get-state", async () => updaterState)

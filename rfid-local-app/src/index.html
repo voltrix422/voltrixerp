@@ -12,27 +12,31 @@
   <body>
     <header>
       <h1>Voltrix RFID Local</h1>
-      <p>Clean standalone reader app (no browser TCP limitations). LISTEN-first: reader must push to this PC port, or use Reader IP to connect out to the reader.</p>
+      <p>Connect to your reader over the network, then scan tags and sync to Voltrix ERP.</p>
     </header>
 
-    <section class="panel row">
-      <label>Subnet <input id="subnet" placeholder="192.168.18 or full IP" title="Three octets scans .1–.254; enter full reader IP to probe one host" /></label>
-      <label>Reader IP <input id="manualIp" placeholder="e.g. 192.168.18.104 if search empty" title="Connect directly without discovery (reader as TCP server)" /></label>
-      <label>Port <input id="port" placeholder="9090" /></label>
-      <button id="searchBtn">Search Readers</button>
-      <button id="connectBtn">Connect</button>
-      <button id="disconnectBtn">Disconnect</button>
-      <button id="startBtn">Start Scan</button>
-      <button id="stopBtn">Stop Scan</button>
+    <section class="panel flow-panel">
+      <h3 class="flow-title">How to connect</h3>
+      <ol class="flow-steps">
+        <li>Set <strong>Subnet</strong> (e.g. <code>192.168.18</code>) or type the reader’s full <strong>Reader IP</strong>.</li>
+        <li>Click <strong>Search Readers</strong>, then click a reader in the list (port updates automatically).</li>
+        <li>Click <strong>Connect</strong>. When status shows <strong>Connected</strong> or <strong>Scanning</strong>, use <strong>Start Scan</strong> / <strong>Stop Scan</strong> if needed.</li>
+        <li>Use <strong>Disconnect</strong> when you want to stop (closes listen mode or the reader session).</li>
+      </ol>
     </section>
 
     <section class="panel row">
-      <label>Update Feed URL <input id="updateFeedUrl" placeholder="https://your-domain/updates" /></label>
-      <button id="checkUpdateBtn">Check Update</button>
-      <button id="downloadUpdateBtn">Download Update</button>
-      <button id="installUpdateBtn">Install Update</button>
-      <div>Version: <strong id="appVersion">-</strong></div>
-      <div>Update: <strong id="updateStatus">Idle</strong></div>
+      <label>Subnet <input id="subnet" placeholder="192.168.18 or full IP" title="Three octets scans .1–.254; enter full reader IP to probe one host" /></label>
+      <label>Reader IP <input id="manualIp" placeholder="e.g. 192.168.18.104" title="Optional: connect without using the list" /></label>
+      <label>Port <input id="port" placeholder="9090" /></label>
+      <button id="searchBtn">Search Readers</button>
+      <button id="connectBtn">Connect</button>
+      <button id="disconnectBtn" class="is-hidden">Disconnect</button>
+      <div id="scanControls" class="row is-hidden" style="margin:0; padding:0; border:none; gap:8px;">
+        <button id="startBtn" type="button">Start Scan</button>
+        <button id="stopBtn" type="button">Stop Scan</button>
+        <button id="clearTagsBtn" type="button" class="btn-secondary">Clear tags</button>
+      </div>
     </section>
 
     <section class="panel">
@@ -43,15 +47,17 @@
     <section class="panel row">
       <div>Status: <strong id="statusText">Disconnected</strong></div>
       <div>Connected Reader: <strong id="readerText">-</strong></div>
-      <div>Unique: <strong id="uniqueText">0</strong></div>
-      <div>Reads: <strong id="readsText">0</strong></div>
+      <div>Unique tags: <strong id="uniqueText">0</strong></div>
+      <div>Total reads: <strong id="readsText">0</strong></div>
+      <div>Scan time: <strong id="scanElapsedText">—</strong></div>
     </section>
 
     <section class="panel">
-      <h3>Live Tags</h3>
-      <table>
+      <h3>Live tags (deduplicated)</h3>
+      <p class="muted">Unique tags are mostly <strong>E2…</strong> (URI / 96-bit) EPCs. Non‑E2 <strong>96‑bit</strong> keys are only counted when the first byte is GS1 binary range <strong>0x30–0x3F</strong> (after Hopeland <code>AA12</code> / blob parse). ASCII user memory and TID windows are ignored.</p>
+      <table class="tags-table">
         <thead>
-          <tr><th>Time</th><th>EPC</th><th>Reader</th><th>ERP Sync</th></tr>
+          <tr><th>Reads</th><th>Last seen</th><th>EPC</th><th>Reader</th><th>ERP</th></tr>
         </thead>
         <tbody id="tagsBody"></tbody>
       </table>
@@ -64,4 +70,4 @@
 
     <script src="./renderer.js"></script>
   </body>
-  </html>
+</html>

@@ -41,6 +41,20 @@ npm run dist
 
 Output installer is created by `electron-builder` in `dist/`.
 
+## Hopeland readers (Hopeland RFID Manager)
+
+Hopeland fixed readers use a **binary `0xAA` protocol** (not Impinj `0xA0`). This app now:
+
+- Sends **STOP** (`MID 0xFF`) after TCP connect, then **inventory on antenna 1** (`MID 0x10`, continuous mode) per Hopeland’s *Data Communication Protocol* examples.
+- Parses **active uploads** that start with `AA 12…` and extracts **EPC** patterns (`E2…` / `30…`).
+
+**Hopeland Manager works but Voltrix does not?** Common causes:
+
+1. **Hopeland is on USB/serial** — Voltrix Local only speaks **Ethernet TCP**. Use RJ45 and the reader’s **IP**, or use **Reader IP** + **Connect** on port **9090** (or whatever port shows in Hopeland network settings).
+2. **Reader is TCP client** (reports to a host IP) — set the reader’s **server IP** to this PC and use **Listen** in the app, or run with the reader in **TCP server** mode and **Connect** from the PC.
+3. **Only one client** — close Hopeland Manager while testing Voltrix, or the reader may reject the second connection.
+4. **Wrong port** — discovery now tries several ports; picking a reader from the list **updates the Port field** to the port that answered.
+
 ## ERP Endpoint
 
 Set ERP scan API in `.env`:
@@ -49,22 +63,12 @@ Set ERP scan API in `.env`:
 
 This app posts scanned EPC data directly to ERP.
 
-## In-App Auto Update
+## In-app updates
 
-The app includes an update panel with:
-
-- `Check Update`
-- `Download Update`
-- `Install Update`
-
-Set your update feed URL in the app (for example a static directory that contains the generated `latest.yml` and installer files).
-
-You can also preconfigure it via environment variable:
-
-- `APP_UPDATE_URL=https://your-domain/rfid-updates`
+The desktop UI no longer shows an update feed (to keep the operator screen simple). App updates are done by installing a new build from your team (`npm run dist`).
 
 ## Troubleshooting
 
 - **No reader found**: Use **Reader IP** with the reader’s real address (e.g. `192.168.18.104`) and Connect — discovery only finds readers that accept **inbound** TCP on that port. Or put **three octets** in Subnet (`192.168.18`) so `.1`–`.254` are scanned, not a fourth octet alone.
-- **LISTEN … Packets: 0**: The reader must be configured to **push** to this PC’s IP and the same port (e.g. `9090`). Allow inbound **TCP** on that port in Windows Firewall.
-- **Tags not showing**: Ensure **Start Scan** is on (auto mode turns it on in listen mode when the reader connects). Update the app if you are on an older build; newer builds parse passive streams as soon as the reader opens the socket.
+- **LISTEN … (no reader yet)**: The app is only **accepting TCP** on that port. That is **not** a live scanner. **Connected** appears only after a reader opens a session (push mode) or you **Connect** to a reader IP that accepts TCP. Configure the reader to push to this PC’s IP and port; allow inbound **TCP** on that port in Windows Firewall.
+- **Tags not showing**: You need a **reader session** (connected) and **scanning**. In push/listen mode, scanning starts when the reader connects; in direct mode use **Start Scan** after **Connect**. Tags only reflect data from that live session.

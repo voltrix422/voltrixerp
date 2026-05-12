@@ -361,7 +361,9 @@ export function LeadsManager({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-          Import leads from CSV (columns: <strong>name</strong>, company, email, phone, notes). Export all leads as CSV
+          Import leads from CSV — <strong>simple</strong> columns (name, company, email, phone, notes) or a{" "}
+          <strong>Google Contacts</strong>–style export (First Name, Last Name, Name Pre, Name Suf, File As, three
+          Organizati columns, Phone 1 - Value, E-mail 1 - Value, Notes, Birthday, Labels). Export all leads as CSV
           anytime. Log each outreach with chat or call screenshots and the lead&apos;s response.
         </p>
         <div className="flex flex-wrap items-center gap-2">

@@ -4,13 +4,8 @@ const statusText = document.getElementById("statusText")
 const readerText = document.getElementById("readerText")
 const uniqueText = document.getElementById("uniqueText")
 const readsText = document.getElementById("readsText")
+const scanElapsedText = document.getElementById("scanElapsedText")
 const logEl = document.getElementById("log")
-const updateFeedUrlInput = document.getElementById("updateFeedUrl")
-const checkUpdateBtn = document.getElementById("checkUpdateBtn")
-const downloadUpdateBtn = document.getElementById("downloadUpdateBtn")
-const installUpdateBtn = document.getElementById("installUpdateBtn")
-const appVersionText = document.getElementById("appVersion")
-const updateStatusText = document.getElementById("updateStatus")
 
 const subnetInput = document.getElementById("subnet")
 const manualIpInput = document.getElementById("manualIp")
@@ -20,40 +15,97 @@ const connectBtn = document.getElementById("connectBtn")
 const disconnectBtn = document.getElementById("disconnectBtn")
 const startBtn = document.getElementById("startBtn")
 const stopBtn = document.getElementById("stopBtn")
+const clearTagsBtn = document.getElementById("clearTagsBtn")
+const scanControls = document.getElementById("scanControls")
 
 let selectedReader = null
-let autoModeBusy = false
-let connectFlapCount = 0
-let forceListenMode = true
-let lastAutoRunAt = 0
+let wasScanning = false
+let scanStartedAt = null
+let scanTimerId = null
 
 function log(message) {
   const ts = new Date().toLocaleTimeString()
   logEl.textContent = `[${ts}] ${message}\n${logEl.textContent}`.slice(0, 8000)
 }
 
+function formatElapsed(ms) {
+  if (ms < 0) ms = 0
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+}
+
+function updateScanElapsedDisplay() {
+  if (!scanElapsedText) return
+  if (!scanStartedAt) {
+    scanElapsedText.textContent = "—"
+    return
+  }
+  scanElapsedText.textContent = formatElapsed(Date.now() - scanStartedAt)
+}
+
+function applyScanningTimer(status) {
+  const nowScanning = Boolean(status?.scanning)
+  if (nowScanning && !wasScanning) {
+    scanStartedAt = Date.now()
+    if (scanTimerId) clearInterval(scanTimerId)
+    scanTimerId = setInterval(updateScanElapsedDisplay, 500)
+    updateScanElapsedDisplay()
+  } else if (!nowScanning && wasScanning) {
+    if (scanTimerId) {
+      clearInterval(scanTimerId)
+      scanTimerId = null
+    }
+    if (scanStartedAt) scanElapsedText.textContent = formatElapsed(Date.now() - scanStartedAt)
+    else scanElapsedText.textContent = "—"
+    scanStartedAt = null
+  }
+  wasScanning = nowScanning
+}
+
+function applyToolbarVisibility(status) {
+  if (!status) return
+  const canDisconnect = Boolean(status.listening || status.connected)
+  disconnectBtn.classList.toggle("is-hidden", !canDisconnect)
+  connectBtn.classList.toggle("is-hidden", Boolean(status.connected))
+  scanControls.classList.toggle("is-hidden", !status.connected)
+}
+
 function setStatus(status) {
-  if (status.listenMode && status.scanning) {
-    statusText.textContent = "Listening"
+  const waitingForDevice = Boolean(status.listenMode && status.listening && !status.connected)
+  if (waitingForDevice) {
+    statusText.textContent = "Waiting for reader"
+  } else if (status.listenMode && status.connected) {
+    statusText.textContent = status.scanning ? "Scanning (reader connected)" : "Reader connected"
   } else {
     statusText.textContent = status.connected ? (status.scanning ? "Scanning" : "Connected") : "Disconnected"
   }
   if (status.listenMode) {
-    readerText.textContent = status.readerIp
-      ? `LISTEN 0.0.0.0:${status.readerPort} <- ${status.readerIp}`
-      : `LISTEN 0.0.0.0:${status.readerPort} (waiting)`
+    readerText.textContent = status.connected
+      ? `LISTEN 0.0.0.0:${status.readerPort} ← ${status.readerIp || "reader"}`
+      : `LISTEN 0.0.0.0:${status.readerPort} (no reader yet)`
   } else {
-    readerText.textContent = status.readerIp ? `${status.readerIp}:${status.readerPort}` : "-"
+    readerText.textContent = status.connected && status.readerIp ? `${status.readerIp}:${status.readerPort}` : "-"
   }
-  if (typeof status.rawPacketCount === "number") {
+  if (typeof status.rawPacketCount === "number" && status.connected) {
     const base = statusText.textContent || ""
     statusText.textContent = `${base} | Packets: ${status.rawPacketCount}`
   }
-}
+  applyToolbarVisibility(status)
+  applyScanningTimer(status)
 
-function setUpdaterStatus(status) {
-  appVersionText.textContent = status.currentVersion || "-"
-  updateStatusText.textContent = status.message || status.stage || "Idle"
+  if (!status.connected && !status.listening) {
+    if (scanTimerId) {
+      clearInterval(scanTimerId)
+      scanTimerId = null
+    }
+    wasScanning = false
+    scanStartedAt = null
+    if (scanElapsedText) scanElapsedText.textContent = "—"
+  }
 }
 
 function renderReaders(items) {
@@ -68,19 +120,37 @@ function renderReaders(items) {
     btn.textContent = `${item.ip}:${item.port} (${item.latency}ms)`
     btn.onclick = () => {
       selectedReader = item
+      portInput.value = String(item.port)
       log(`Selected ${item.ip}:${item.port}`)
     }
-    if (idx === 0 && !selectedReader) selectedReader = item
+    if (idx === 0 && !selectedReader) {
+      selectedReader = item
+      portInput.value = String(item.port)
+    }
     readersEl.appendChild(btn)
   })
 }
 
-function appendTag(tag) {
-  const tr = document.createElement("tr")
-  const at = new Date(tag.seenAt || Date.now()).toLocaleTimeString()
-  tr.innerHTML = `<td>${at}</td><td>${tag.epc}</td><td>${tag.readerIp}:${tag.readerPort}</td><td>${tag.synced ? "OK" : "FAILED"}</td>`
-  tagsBody.prepend(tr)
-  while (tagsBody.children.length > 150) tagsBody.removeChild(tagsBody.lastChild)
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function renderAggregateTable(entries) {
+  const list = Array.isArray(entries) ? entries : []
+  tagsBody.innerHTML = ""
+  for (const row of list) {
+    const tr = document.createElement("tr")
+    const last = new Date(row.lastSeen || Date.now()).toLocaleTimeString()
+    const epc = escapeHtml(row.epc || "")
+    const rip = escapeHtml(String(row.readerIp || ""))
+    const erp = row.erpOk ? "OK" : "—"
+    tr.innerHTML = `<td><strong>${Number(row.count) || 0}</strong></td><td>${last}</td><td class="epc-cell" title="${epc}">${epc}</td><td>${rip}:${row.readerPort || 0}</td><td>${erp}</td>`
+    tagsBody.appendChild(tr)
+  }
 }
 
 async function bootstrap() {
@@ -88,7 +158,6 @@ async function bootstrap() {
   subnetInput.value = cfg.subnet || "192.168.18"
   manualIpInput.value = cfg.lastReaderIp || ""
   portInput.value = String(cfg.readerPort || 9090)
-  updateFeedUrlInput.value = cfg.updateFeedUrl || ""
   if (cfg.localSubnet && cfg.subnet && String(cfg.localSubnet) !== String(cfg.subnet)) {
     log(`Tip: this PC is on ${cfg.localSubnet}.x — if search finds nothing, align Subnet or set Reader IP.`)
   }
@@ -97,27 +166,17 @@ async function bootstrap() {
   setStatus(state.status)
   uniqueText.textContent = String(state.counters.unique || 0)
   readsText.textContent = String(state.counters.reads || 0)
-  ;(state.tags || []).forEach(appendTag)
-
-  // Auto mode: discover -> connect -> start scan.
-  if (!state.status?.connected || !state.status?.scanning) {
-    await autoDiscoverAndStart()
-  }
-  const updaterState = await window.rfidApp.getUpdaterState()
-  setUpdaterStatus(updaterState)
-  setInterval(() => {
-    autoDiscoverAndStart().catch((err) => log(`Auto mode error: ${err.message}`))
-  }, 5000)
+  renderAggregateTable(state.aggregates || [])
 }
 
 searchBtn.onclick = async () => {
   const subnet = subnetInput.value.trim()
   const port = Number(portInput.value || 9090)
   await window.rfidApp.setConfig({ subnet, readerPort: port })
-  log(`Searching ${subnet}.x:${port}...`)
+  log(`Searching ${subnet}…`)
   const readers = await window.rfidApp.searchReaders({ subnet, port })
   renderReaders(readers)
-  log(`Found ${readers.length} reachable reader(s)`)
+  log(`Found ${readers.length} reader(s). Pick one, then Connect.`)
 }
 
 manualIpInput.addEventListener("blur", async () => {
@@ -126,134 +185,81 @@ manualIpInput.addEventListener("blur", async () => {
 })
 
 connectBtn.onclick = async () => {
-  const port = Number(portInput.value || 9090)
+  const fromList = selectedReader?.port
+  const port = Number.isFinite(Number(fromList)) ? Number(fromList) : Number(portInput.value || 9090)
   const manual = (manualIpInput.value || "").trim()
   const ip = manual || selectedReader?.ip
   if (!ip) {
-    log("Enter Reader IP, or Search Readers and select one, then Connect.")
+    log("Pick a reader from the list after Search, or type Reader IP, then Connect.")
     return
   }
-  const status = await window.rfidApp.connectReader({ ip, port })
-  setStatus(status)
-  log(`Connected ${ip}:${port}`)
-  const started = await window.rfidApp.startScan()
-  setStatus(started)
-  log("Auto started scanning after connect")
+  try {
+    await window.rfidApp.disconnectReader()
+    const status = await window.rfidApp.connectReader({ ip, port })
+    setStatus(status)
+    log(`TCP connected to ${ip}:${port}`)
+    const started = await window.rfidApp.startScan()
+    setStatus(started)
+    if (started.connected && started.scanning) log("Scanning — tags will appear when tags are in range.")
+    else if (started.connected) log("Connected. Use Start Scan if tags do not appear.")
+    else log("Unexpected state after connect.")
+  } catch (err) {
+    log(`Connect failed: ${err?.message || err}`)
+    const st = await window.rfidApp.getState()
+    setStatus(st.status)
+  }
 }
 
 disconnectBtn.onclick = async () => {
   const status = await window.rfidApp.disconnectReader()
   setStatus(status)
-  log("Disconnected")
+  renderAggregateTable([])
+  log("Disconnected.")
 }
 
 startBtn.onclick = async () => {
-  const status = await window.rfidApp.startScan()
-  setStatus(status)
-  log("Scanning started")
+  try {
+    const status = await window.rfidApp.startScan()
+    setStatus(status)
+    if (!status.connected) log("No reader session. Connect first.")
+    else if (!status.scanning) log("Start scan did not enable scanning.")
+    else log("Scanning.")
+  } catch (err) {
+    log(String(err?.message || err))
+  }
 }
 
 stopBtn.onclick = async () => {
   const status = await window.rfidApp.stopScan()
   setStatus(status)
-  log("Scanning stopped")
+  log("Scan stopped.")
 }
 
-checkUpdateBtn.onclick = async () => {
-  const updateFeedUrl = updateFeedUrlInput.value.trim()
-  await window.rfidApp.setConfig({ updateFeedUrl })
-  const res = await window.rfidApp.checkForUpdates()
-  if (!res.ok) log("Update check failed: set update feed URL first")
-  else log("Checking for updates...")
-}
-
-downloadUpdateBtn.onclick = async () => {
-  const res = await window.rfidApp.downloadUpdate()
-  if (!res.ok) log("No update available to download")
-}
-
-installUpdateBtn.onclick = async () => {
-  const res = await window.rfidApp.installUpdate()
-  if (!res.ok) log("Update is not downloaded yet")
-  else log("Installing update and restarting app...")
-}
-
-async function autoDiscoverAndStart() {
-  if (autoModeBusy) return
-  const now = Date.now()
-  if (now - lastAutoRunAt < 3000) return
-  lastAutoRunAt = now
-  autoModeBusy = true
+clearTagsBtn.onclick = async () => {
   try {
-    const current = await window.rfidApp.getState()
-    if (current.status?.listenMode) {
-      if (current.status?.scanning) return
-      const started = await window.rfidApp.startScan()
-      setStatus(started)
-      log("Listen mode: scanning resumed (ready for reader TCP data)")
-      return
-    }
-    if (current.status?.connected && current.status?.scanning && !current.status?.listenMode) return
-
-    const subnet = subnetInput.value.trim()
-    const port = Number(portInput.value || 9090)
-    if (forceListenMode) {
-      const listening = await window.rfidApp.listenReader({ port })
-      setStatus(listening)
-      await window.rfidApp.startScan()
-      log(`Auto mode: LISTEN-first enabled on port ${port}`)
-      return
-    }
-    const readers = await window.rfidApp.searchReaders({ subnet, port, quick: true })
-    renderReaders(readers)
-    if (!readers.length) {
-      const listening = await window.rfidApp.listenReader({ port })
-      setStatus(listening)
-      await window.rfidApp.startScan()
-      log(`Auto mode: no direct reader found, listening for push on port ${port}`)
-      return
-    }
-
-    selectedReader = readers[0]
-    const connected = await window.rfidApp.connectReader({ ip: selectedReader.ip, port })
-    setStatus(connected)
-    const started = await window.rfidApp.startScan()
-    setStatus(started)
-    log(`Auto mode: connected and scanning on ${selectedReader.ip}:${port}`)
-  } finally {
-    autoModeBusy = false
+    await window.rfidApp.clearTags()
+    const st = await window.rfidApp.getState()
+    uniqueText.textContent = String(st.counters.unique || 0)
+    readsText.textContent = String(st.counters.reads || 0)
+    renderAggregateTable(st.aggregates || [])
+    setStatus(st.status)
+    log("Tags and scan counters cleared (reader session unchanged).")
+  } catch (err) {
+    log(`Clear tags failed: ${err?.message || err}`)
   }
 }
 
 window.rfidApp.onStatus((status) => {
   setStatus(status)
-  if (status.listenMode) {
-    connectFlapCount = 0
-    forceListenMode = true
-    if (status.connected && !status.scanning) {
-      window.rfidApp.startScan().catch((err) => log(`Auto start failed: ${err.message}`))
-    }
-    return
-  }
-  if (status.connected && !status.scanning) {
-    window.rfidApp.startScan().catch((err) => log(`Auto start failed: ${err.message}`))
-  }
-  if (String(status.message || "").toLowerCase().includes("disconnected")) {
-    connectFlapCount += 1
-    if (connectFlapCount >= 2) {
-      forceListenMode = true
-      log("Auto mode: switching to LISTEN mode due to unstable direct connection")
-    }
-  }
 })
+
 window.rfidApp.onCounters((counters) => {
   uniqueText.textContent = String(counters.unique || 0)
   readsText.textContent = String(counters.reads || 0)
 })
-window.rfidApp.onTag((tag) => appendTag(tag))
-window.rfidApp.onUpdaterStatus((status) => {
-  setUpdaterStatus(status)
-  log(status.message || `Updater: ${status.stage}`)
+
+window.rfidApp.onAggregate(({ entries }) => {
+  renderAggregateTable(entries)
 })
 
 bootstrap().catch((err) => log(`Init error: ${err.message}`))
