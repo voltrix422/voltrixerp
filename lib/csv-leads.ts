@@ -40,9 +40,18 @@ export function parseCsv(text: string): string[][] {
 }
 
 function normHeader(h: string) {
-  return h.toLowerCase().replace(/[\s_-]/g, "").trim()
+  return h.toLowerCase().replace(/[\s_-]/g, "").replace(/^\ufeff/g, "").trim()
 }
 
+function stripBom(text: string) {
+  return text.replace(/^\ufeff/, "")
+}
+
+/**
+ * Resolve column index for known export aliases. Uses exact header match first, then
+ * prefix match only (never substring-in-the-middle): e.g. "firstname" must not match
+ * "phoneticfirstname" (Google Contacts), which caused bogus 3-letter "lead" names.
+ */
 function colIndex(header: string[], ...candidates: string[]): number {
   const cells = header.map(normHeader)
   for (const cand of candidates) {
@@ -53,7 +62,11 @@ function colIndex(header: string[], ...candidates: string[]): number {
   for (const cand of candidates) {
     const c = normHeader(cand)
     if (c.length < 4) continue
-    const i = cells.findIndex((n) => n.includes(c))
+    const i = cells.findIndex((n) => {
+      if (!n || n === c) return false
+      if (n.startsWith("phonetic")) return false
+      return n.startsWith(c)
+    })
     if (i >= 0) return i
   }
   return -1
@@ -127,7 +140,7 @@ function headerSupportsLeadName(h: string[]): boolean {
  *   Organizati (×3 truncated), Birthday, Notes, Labels, Phone 1 - Value, E-mail 1 - Value, …
  */
 export function parseLeadImportCsv(text: string): LeadCsvRow[] {
-  const rows = parseCsv(text)
+  const rows = parseCsv(stripBom(text))
   if (rows.length < 2) return []
   const h = rows[0]
   if (!headerSupportsLeadName(h)) return []
