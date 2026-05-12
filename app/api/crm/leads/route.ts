@@ -82,8 +82,16 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { id } = await req.json()
-    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
+    const body = await req.json()
+    const batch = body?.importBatchId != null ? String(body.importBatchId).trim() : ""
+    if (batch) {
+      const result = await prisma.crmLead.deleteMany({
+        where: { importBatchId: batch },
+      })
+      return NextResponse.json({ ok: true, deleted: result.count })
+    }
+    const id = body?.id
+    if (!id) return NextResponse.json({ error: "id or importBatchId required" }, { status: 400 })
     await prisma.crmLead.delete({ where: { id: String(id) } })
     return NextResponse.json({ ok: true })
   } catch (e) {

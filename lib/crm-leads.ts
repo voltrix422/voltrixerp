@@ -77,6 +77,17 @@ export async function deleteLead(id: string): Promise<void> {
   if (!res.ok) throw new Error("Delete failed")
 }
 
+/** Delete every lead that belongs to one CSV import batch (contacts cascade on the server). */
+export async function deleteLeadsByImportBatch(importBatchId: string): Promise<{ deleted: number }> {
+  const res = await fetch("/api/crm/leads", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ importBatchId }),
+  })
+  if (!res.ok) throw new Error("Delete batch failed")
+  return res.json() as Promise<{ deleted: number }>
+}
+
 export async function logLeadContact(body: {
   leadId: string
   contactedBy: string

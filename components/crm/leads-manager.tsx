@@ -12,6 +12,7 @@ import {
   importLeadsJson,
   patchLeadStatus,
   deleteLead,
+  deleteLeadsByImportBatch,
   logLeadContact,
   fetchDailyStats,
   type CrmLeadRow,
@@ -148,6 +149,11 @@ export function LeadsManager({
   const [detailLoading, setDetailLoading] = useState(false)
   const [logForLead, setLogForLead] = useState<CrmLeadRow | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteImportBatch, setDeleteImportBatch] = useState<{
+    importBatchId: string
+    importUploaderName: string
+    count: number
+  } | null>(null)
   const [importing, setImporting] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
@@ -239,6 +245,11 @@ export function LeadsManager({
     if (byId) return byId.count
     return stats.byMember.find((m) => m.name === currentUser)?.count ?? 0
   }, [stats, currentUserId, currentUser])
+
+  const requestDeleteLead = useCallback((id: string) => {
+    setDeleteImportBatch(null)
+    setDeleteId(id)
+  }, [])
 
   async function onCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -441,22 +452,42 @@ export function LeadsManager({
                   })
                   return (
                     <div key={group.importBatchId} className="rounded-lg border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))]/30">
-                      <button
-                        type="button"
-                        onClick={() => toggleBatch(group.importBatchId)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
-                      >
-                        {open ? (
-                          <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-                        )}
-                        <span className="font-semibold text-sm text-[hsl(var(--foreground))]">{group.importUploaderName}</span>
-                        <span className="text-xs text-[hsl(var(--muted-foreground))]">{when}</span>
-                        <span className="ml-auto text-[11px] rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 tabular-nums">
-                          {group.leads.length} lead{group.leads.length === 1 ? "" : "s"}
-                        </span>
-                      </button>
+                      <div className="flex items-stretch border-b border-transparent">
+                        <button
+                          type="button"
+                          onClick={() => toggleBatch(group.importBatchId)}
+                          className="flex-1 min-w-0 flex items-center gap-3 px-4 py-3 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                        >
+                          {open ? (
+                            <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+                          )}
+                          <span className="font-semibold text-sm text-[hsl(var(--foreground))] truncate">
+                            {group.importUploaderName}
+                          </span>
+                          <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">{when}</span>
+                          <span className="ml-auto shrink-0 text-[11px] rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 tabular-nums">
+                            {group.leads.length} lead{group.leads.length === 1 ? "" : "s"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="shrink-0 px-3 flex items-center justify-center text-red-500 hover:bg-red-500/10 border-l border-[hsl(var(--border))] cursor-pointer"
+                          title="Delete this import and all leads in it"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteId(null)
+                            setDeleteImportBatch({
+                              importBatchId: group.importBatchId,
+                              importUploaderName: group.importUploaderName,
+                              count: group.leads.length,
+                            })
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                       {open && (
                         <div className="border-t border-[hsl(var(--border))] overflow-x-auto">
                           <table className="w-full min-w-[800px]">
@@ -493,7 +524,7 @@ export function LeadsManager({
                                   onOpenDetail={setDetailId}
                                   onStatusChange={onStatusChange}
                                   onLog={setLogForLead}
-                                  onDelete={setDeleteId}
+                                  onDelete={requestDeleteLead}
                                 />
                               ))}
                             </tbody>
@@ -549,7 +580,7 @@ export function LeadsManager({
                         onOpenDetail={setDetailId}
                         onStatusChange={onStatusChange}
                         onLog={setLogForLead}
-                        onDelete={setDeleteId}
+                        onDelete={requestDeleteLead}
                       />
                     ))}
                   </tbody>
@@ -635,6 +666,45 @@ export function LeadsManager({
           setDeleteId(null)
         }}
         onCancel={() => setDeleteId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteImportBatch}
+        title="Delete whole import"
+        message={
+          deleteImportBatch
+            ? `Remove all ${deleteImportBatch.count} lead(s) from the import by ${deleteImportBatch.importUploaderName}, including every outreach log for those leads? This cannot be undone.`
+            : ""
+        }
+        confirmText="Delete import"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteImportBatch) return
+          const { importBatchId } = deleteImportBatch
+          try {
+            const { deleted } = await deleteLeadsByImportBatch(importBatchId)
+            setLeads((prev) => prev.filter((l) => l.importBatchId !== importBatchId))
+            setOpenBatchIds((prev) => {
+              const next = new Set(prev)
+              next.delete(importBatchId)
+              return next
+            })
+            if (detailId && leads.some((l) => l.id === detailId && l.importBatchId === importBatchId)) {
+              setDetailId(null)
+            }
+            toast({
+              type: "success",
+              title: "Import removed",
+              message: `${deleted} lead(s) deleted.`,
+            })
+            await refreshStats()
+          } catch {
+            toast({ type: "error", title: "Could not delete import" })
+          }
+          setDeleteImportBatch(null)
+        }}
+        onCancel={() => setDeleteImportBatch(null)}
       />
     </div>
   )
