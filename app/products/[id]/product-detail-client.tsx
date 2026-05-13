@@ -6,7 +6,7 @@ import Link from "next/link"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight, FileText } from "lucide-react"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
-type TabType = 'description' | 'specifications'
+type TabType = 'description' | 'specifications' | 'terms'
 
 function StockBadge({ stock }: { stock: any }) {
   const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
@@ -293,11 +293,13 @@ function ProductImages({ images, productName }: { images: string[], productName:
 export default function ProductDetailClient({ 
   product, 
   related, 
-  categoryColors 
+  categoryColors,
+  termsDisplay,
 }: { 
   product: any
   related: any[]
   categoryColors: Record<string, string>
+  termsDisplay: { content: string; fileUrl?: string | null }
 }) {
   const images = Array.isArray(product.images) ? product.images : []
   const [activeTab, setActiveTab] = useState<TabType>('description')
@@ -383,6 +385,16 @@ export default function ProductDetailClient({
                     Specifications
                   </button>
                 )}
+                <button
+                  onClick={() => setActiveTab('terms')}
+                  className={`px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+                    activeTab === 'terms'
+                      ? 'border-[#1a9f9a] text-[#1a9f9a]'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  }`}
+                >
+                  Terms & Conditions
+                </button>
               </div>
 
               <div className="py-5">
@@ -402,6 +414,25 @@ export default function ProductDetailClient({
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'terms' && (
+                  <div className="space-y-4">
+                    <div className="text-neutral-600 text-base leading-relaxed whitespace-pre-line">
+                      {termsDisplay.content}
+                    </div>
+                    {termsDisplay.fileUrl && (
+                      <a
+                        href={termsDisplay.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-semibold text-[#1a9f9a] hover:underline"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Download terms document
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

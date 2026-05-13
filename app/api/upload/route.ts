@@ -13,6 +13,8 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/webp": "webp",
   "image/gif": "gif",
   "image/avif": "avif",
+  "application/pdf": "pdf",
+  "text/plain": "txt",
 }
 
 export async function POST(request: NextRequest) {
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
       if (!file || typeof file.arrayBuffer !== "function") continue
       if (!file.type || !MIME_TO_EXT[file.type]) {
         return NextResponse.json(
-          { error: `Unsupported file type: ${file.type || "unknown"}. Use JPG, PNG, WEBP, GIF, or AVIF.` },
+          { error: `Unsupported file type: ${file.type || "unknown"}. Use JPG, PNG, WEBP, GIF, AVIF, PDF, or TXT.` },
           { status: 400 }
         )
       }

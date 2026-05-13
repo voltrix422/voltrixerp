@@ -5,6 +5,8 @@ import {
   Loader2, Plus, Trash2, Upload, X, ImageIcon,
   Globe, EyeOff, RefreshCw, Star, Check, GripVertical
 } from "lucide-react"
+import ProductTermsEditor from "@/components/website/product-terms-editor"
+import { DEFAULT_PRODUCT_TERMS_CONTENT } from "@/lib/default-product-terms"
 
 type Spec = { label: string; value: string }
 type StockVal = "in" | "low" | "out"
@@ -25,6 +27,9 @@ type Product = {
   published: boolean
   unit: string
   quoteMode: boolean
+  terms?: string
+  termsTemplateId?: string
+  termsFile?: string
   order?: number
 }
 
@@ -41,6 +46,7 @@ const EMPTY = {
   name: "", category: "Residential", description: "", full_desc: "",
   specification: "", price: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
+  terms: DEFAULT_PRODUCT_TERMS_CONTENT, termsTemplateId: "default-product-terms", termsFile: "",
 }
 
 export default function ProductsManager() {
@@ -94,6 +100,9 @@ export default function ProductsManager() {
       specs: Array.isArray(p.specs) ? p.specs : [],
       images: Array.isArray(p.images) ? p.images : [],
       published: p.published || false, unit: p.unit || "pcs", quoteMode: p.quoteMode || false,
+      terms: p.terms || DEFAULT_PRODUCT_TERMS_CONTENT,
+      termsTemplateId: p.termsTemplateId || "default-product-terms",
+      termsFile: p.termsFile || "",
     })
     setPendingImgs([])
     setIsNew(false)
@@ -185,6 +194,7 @@ export default function ProductsManager() {
         price: form.price || 0, warranty: form.warranty,
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
+        terms: form.terms, termsTemplateId: form.termsTemplateId, termsFile: form.termsFile,
       }
 
       if (isNew) {
@@ -553,6 +563,15 @@ export default function ProductsManager() {
                   className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-[#1a9f9a] resize-none" placeholder="Detailed description for product page" />
               </div>
             </div>
+
+            <ProductTermsEditor
+              value={{
+                terms: form.terms,
+                termsTemplateId: form.termsTemplateId,
+                termsFile: form.termsFile,
+              }}
+              onChange={(termsValue) => setForm((current) => ({ ...current, ...termsValue }))}
+            />
 
             {/* Specs */}
             <div className="rounded-xl border p-5 space-y-4">
