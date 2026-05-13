@@ -615,7 +615,16 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
             onClick={() => generateSingleBranchPdf(branch, inventoryRows)}
             disabled={inventoryRows.length === 0}
           >
-            <FileDown className="h-3.5 w-3.5" /> Export PDF
+            <FileDown className="h-3.5 w-3.5" /> Inventory PDF
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 text-xs cursor-pointer text-[#1faca6] border-[#1faca6] hover:bg-[#1faca6] hover:text-white"
+            onClick={() => generateBranchTransferHistoryPdf(branch, transferHistory)}
+            disabled={transferHistory.length === 0}
+          >
+            <FileDown className="h-3.5 w-3.5" /> Transfer PDF
           </Button>
           <Button size="sm" variant="ghost" className="h-9 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 cursor-pointer" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5" /> Delete
