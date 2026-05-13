@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, getBranchTransferHistory, assignInventoryToBranch, transferBranchInventory, type Branch, type BranchInventory, type BranchInventoryTransfer } from "@/lib/branches"
+import { downloadBranchTransferHistoryPDF } from "@/lib/generate-branch-transfer-history-pdf"
 import { Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,69 +46,6 @@ async function generateSingleBranchPdf(branch: Branch, inventoryRows: any[]) {
   })
   
   doc.save(`${branch.code}-inventory-${new Date().toISOString().slice(0, 10)}.pdf`)
-}
-
-async function generateBranchTransferHistoryPdf(
-  branch: Branch,
-  transferHistory: BranchInventoryTransfer[],
-) {
-  const [{ default: jsPDF }, autoTableModule] = await Promise.all([
-    import("jspdf"),
-    import("jspdf-autotable"),
-  ])
-  const autoTable = (autoTableModule as any).default || autoTableModule
-  const doc = new jsPDF("p", "mm", "a4")
-
-  doc.setFontSize(14)
-  doc.text(`Transfer History: ${branch.name}`, 14, 16)
-
-  doc.setFontSize(10)
-  doc.text(`Branch Code: ${branch.code}`, 14, 22)
-  doc.text(`Type: ${branch.type.replace("_", " ")}`, 14, 27)
-  if (branch.manager) {
-    doc.text(`Manager: ${branch.manager}`, 14, 32)
-  }
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, branch.manager ? 37 : 32)
-
-  const body = transferHistory.map((entry) => {
-    const isOutgoing = entry.fromBranchId === branch.id
-    const isIncoming = entry.toBranchId === branch.id
-    const direction = isOutgoing ? "Outgoing" : isIncoming ? "Incoming" : "Transfer"
-    const route = isOutgoing
-      ? `To ${entry.toBranchName} (${entry.toBranchCode})`
-      : isIncoming
-        ? `From ${entry.fromBranchName} (${entry.fromBranchCode})`
-        : `${entry.fromBranchName} (${entry.fromBranchCode}) -> ${entry.toBranchName} (${entry.toBranchCode})`
-
-    return [
-      new Date(entry.transferredAt).toLocaleString(),
-      direction,
-      entry.productDescription,
-      `${entry.quantity} ${entry.unit}`,
-      route,
-      entry.transferredBy,
-      entry.note,
-    ]
-  })
-
-  autoTable(doc, {
-    startY: branch.manager ? 42 : 37,
-    head: [["Date", "Direction", "Item", "Qty", "Route", "By", "Note"]],
-    body,
-    styles: { fontSize: 7, cellPadding: 2, overflow: "linebreak" },
-    headStyles: { fillColor: [31, 172, 166] },
-    columnStyles: {
-      0: { cellWidth: 28 },
-      1: { cellWidth: 18 },
-      2: { cellWidth: 34 },
-      3: { cellWidth: 16 },
-      4: { cellWidth: 30 },
-      5: { cellWidth: 18 },
-      6: { cellWidth: 46 },
-    },
-  })
-
-  doc.save(`${branch.code}-transfer-history-${new Date().toISOString().slice(0, 10)}.pdf`)
 }
 
 // ── Branch Form ────────────────────────────────────────────────
@@ -548,7 +486,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                   variant="outline"
                   className="h-7 text-[10px] cursor-pointer text-[#1faca6] border-[#1faca6] hover:bg-[#1faca6] hover:text-white"
                   disabled={transferHistory.length === 0}
-                  onClick={() => generateBranchTransferHistoryPdf(branch, transferHistory)}
+                  onClick={() => downloadBranchTransferHistoryPDF(branch, transferHistory)}
                 >
                   <FileDown className="h-3 w-3 mr-1" />
                   Download PDF
@@ -621,7 +559,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
             size="sm"
             variant="outline"
             className="h-9 text-xs cursor-pointer text-[#1faca6] border-[#1faca6] hover:bg-[#1faca6] hover:text-white"
-            onClick={() => generateBranchTransferHistoryPdf(branch, transferHistory)}
+            onClick={() => downloadBranchTransferHistoryPDF(branch, transferHistory)}
             disabled={transferHistory.length === 0}
           >
             <FileDown className="h-3.5 w-3.5" /> Transfer PDF
