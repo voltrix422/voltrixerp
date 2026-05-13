@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { ArrowRight, CheckCircle2, XCircle, AlertCircle, FileText, Box } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
 const categoryColors: Record<string, string> = {
   Residential: "bg-blue-50 text-blue-600 border-blue-200",
@@ -106,13 +107,13 @@ export default function Products() {
 
                     <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
                       <div>
-                        {p.quoteMode ? (
+                        {shouldRequestQuote(p) ? (
                           <div className="flex items-center gap-2">
                             <FileText className="w-4 h-4 text-[#1a9f9a]" />
-                            <span className="text-sm font-semibold text-[#1a9f9a]">Request Quote</span>
+                            <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
                           </div>
                         ) : (
-                          <p className="text-lg font-bold text-neutral-900">{p.price ? `Rs. ${Number(p.price).toLocaleString()}` : "—"}</p>
+                          <p className="text-lg font-bold text-neutral-900">{formatProductPrice(p.price) ?? "—"}</p>
                         )}
                         <p className="text-xs text-neutral-400 mt-0.5">Warranty: {p.warranty || "—"}</p>
                       </div>

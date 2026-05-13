@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import Image from "next/image"
 import Link from "next/link"
-import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight, FileText } from "lucide-react"
+import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
 type TabType = 'description' | 'specifications'
 
@@ -300,6 +301,7 @@ export default function ProductDetailClient({
 }) {
   const images = Array.isArray(product.images) ? product.images : []
   const [activeTab, setActiveTab] = useState<TabType>('description')
+  const requestQuote = shouldRequestQuote(product)
 
   return (
     <section className="pt-24 pb-16 px-4 bg-white min-h-screen">
@@ -329,14 +331,14 @@ export default function ProductDetailClient({
             )}
 
             <div className="space-y-4 pt-2">
-              {product.quoteMode ? (
+              {requestQuote ? (
                 <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105 w-full">
                   Request a Quote <ArrowRight className="w-4 h-4" />
                 </Link>
               ) : (
                 <div className="space-y-2">
                   <p className="text-xs text-neutral-400 uppercase tracking-wider font-semibold">Price</p>
-                  <p className="text-2xl font-bold text-neutral-900">{product.price ? `Rs. ${Number(product.price).toLocaleString()}` : "—"}</p>
+                  <p className="text-2xl font-bold text-neutral-900">{formatProductPrice(product.price) ?? "—"}</p>
                 </div>
               )}
               <div className="space-y-2">
@@ -346,7 +348,7 @@ export default function ProductDetailClient({
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              {!product.quoteMode && (
+              {!requestQuote && (
                 <Link href="/quote" className="inline-flex items-center justify-center gap-2 px-8 h-12 rounded-full text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all duration-300 shadow-lg shadow-[#1a9f9a]/20 hover:shadow-xl hover:shadow-[#1a9f9a]/30 hover:scale-105">
                   Request a quote <ArrowRight className="w-4 h-4" />
                 </Link>
@@ -425,7 +427,14 @@ export default function ProductDetailClient({
                     </div>
                     <p className="font-bold text-neutral-900 text-base">{r.name}</p>
                     <p className="text-sm text-neutral-500 leading-relaxed line-clamp-2">{r.description}</p>
-                    <p className="text-base font-bold text-neutral-900 mt-auto">{r.price ? `Rs. ${Number(r.price).toLocaleString()}` : "—"}</p>
+                    {shouldRequestQuote(r) ? (
+                      <div className="flex items-center gap-2 mt-auto">
+                        <FileText className="w-4 h-4 text-[#1a9f9a]" />
+                        <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
+                      </div>
+                    ) : (
+                      <p className="text-base font-bold text-neutral-900 mt-auto">{formatProductPrice(r.price) ?? "—"}</p>
+                    )}
                   </Link>
                 )
               })}

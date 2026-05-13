@@ -3,10 +3,11 @@ import Image from "next/image"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
-import { CheckCircle2, XCircle, AlertCircle, ArrowRight } from "lucide-react"
+import { CheckCircle2, XCircle, AlertCircle, ArrowRight, FileText } from "lucide-react"
 import Link from "next/link"
 import { promises as fs } from 'fs'
 import path from 'path'
+import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 
@@ -76,7 +77,14 @@ export default async function ProductsPage() {
                     </div>
                     <div className="flex items-end justify-between pt-2 border-t border-neutral-50">
                       <div>
-                        <p className="text-lg font-bold text-neutral-900">{p.price ? `Rs. ${Number(p.price).toLocaleString()}` : "—"}</p>
+                        {shouldRequestQuote(p) ? (
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-[#1a9f9a]" />
+                            <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
+                          </div>
+                        ) : (
+                          <p className="text-lg font-bold text-neutral-900">{formatProductPrice(p.price) ?? "—"}</p>
+                        )}
                         <p className="text-xs text-neutral-400">Warranty: {p.warranty || "—"}</p>
                       </div>
                       <span className="flex items-center gap-1 text-xs text-neutral-400 group-hover:text-[#1a9f9a] transition-colors">
