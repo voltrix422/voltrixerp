@@ -1,10 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, assignInventoryToBranch, transferBranchInventory, type Branch, type BranchInventory } from "@/lib/branches"
+import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, getBranchTransferHistory, assignInventoryToBranch, transferBranchInventory, type Branch, type BranchInventory, type BranchInventoryTransfer } from "@/lib/branches"
 import { Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Trash2, X, Phone, Mail, MapPin, Building2, Loader2, User, ArrowRightLeft, FileDown } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Phone, Mail, MapPin, Building2, Loader2, User, ArrowRightLeft, FileDown, History, ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
@@ -173,6 +173,10 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
   const [transferToId, setTransferToId] = useState("")
   const [transferQty, setTransferQty] = useState("")
   const [transferLoading, setTransferLoading] = useState(false)
+  const [transferNote, setTransferNote] = useState("")
+  const [mainDispatchNote, setMainDispatchNote] = useState("")
+  const [transferHistory, setTransferHistory] = useState<BranchInventoryTransfer[]>([])
+  const [loadingTransferHistory, setLoadingTransferHistory] = useState(true)
   const { toast } = useToast()
   const { user } = useAuth()
   const isMainWarehouse = branch.type === "main_warehouse"
@@ -182,10 +186,23 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
       setInventory(data)
       setLoadingInventory(false)
     })
+    loadTransferHistory()
     if (isMainWarehouse) {
       loadSystemInventory()
     }
   }, [branch.id, isMainWarehouse])
+
+  async function loadTransferHistory() {
+    setLoadingTransferHistory(true)
+    try {
+      const history = await getBranchTransferHistory(branch.id)
+      setTransferHistory(history)
+    } catch {
+      setTransferHistory([])
+    } finally {
+      setLoadingTransferHistory(false)
+    }
+  }
 
   async function loadSystemInventory() {
     setLoadingSystemInventory(true)
@@ -226,12 +243,18 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
         branchCode: destination.code,
         assignedBy: user?.name || "system",
         notes: `Dispatched from main warehouse ${branch.code}`,
+        fromBranchId: branch.id,
+        fromBranchName: branch.name,
+        fromBranchCode: branch.code,
+        userNote: mainDispatchNote.trim(),
       })
       await loadSystemInventory()
+      await loadTransferHistory()
       setShowMainDispatch(false)
       setMainDispatchInventoryId("")
       setMainDispatchQty("")
       setMainDispatchToBranchId("")
+      setMainDispatchNote("")
       toast({
         type: "success",
         title: "Inventory Sent",
@@ -265,13 +288,15 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
         toBranchId: transferToId,
         quantity: qty,
         transferredBy: user?.name || "system",
-        notes: `Transferred from ${branch.name} (${branch.code}) to ${destination?.name}`,
+        notes: transferNote.trim() || `Transferred from ${branch.name} (${branch.code}) to ${destination?.name}`,
       })
       const updatedInventory = await getBranchInventory(branch.id)
       setInventory(updatedInventory)
+      await loadTransferHistory()
       setTransferItem(null)
       setTransferToId("")
       setTransferQty("")
+      setTransferNote("")
       toast({ type: "success", title: "Transfer Successful", message: `${qty} ${transferItem.unit} sent to ${destination?.name}.`, duration: 3000 })
     } catch {
       toast({ type: "error", title: "Transfer Failed", message: "Could not complete the inventory transfer.", duration: 3000 })
@@ -446,6 +471,61 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
               </div>
             )}
           </div>
+
+          <div className="border-t pt-3 mt-1">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider font-medium flex items-center gap-1.5">
+                <History className="h-3 w-3" />
+                Transfer History
+              </p>
+              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{transferHistory.length} record{transferHistory.length === 1 ? "" : "s"}</span>
+            </div>
+            {loadingTransferHistory ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
+              </div>
+            ) : transferHistory.length === 0 ? (
+              <p className="text-xs text-[hsl(var(--muted-foreground))] py-2">No inventory transfers recorded for this branch yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {transferHistory.map(entry => {
+                  const isOutgoing = entry.fromBranchId === branch.id
+                  const isIncoming = entry.toBranchId === branch.id
+                  return (
+                    <div key={entry.id} className="rounded-lg border bg-[hsl(var(--background))] p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {isOutgoing ? (
+                              <ArrowUpRight className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                            ) : isIncoming ? (
+                              <ArrowDownLeft className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                            ) : (
+                              <ArrowRightLeft className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
+                            )}
+                            <p className="text-xs font-semibold truncate">{entry.productDescription}</p>
+                          </div>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                            {isOutgoing ? `To ${entry.toBranchName} (${entry.toBranchCode})` : isIncoming ? `From ${entry.fromBranchName} (${entry.fromBranchCode})` : `${entry.fromBranchName} → ${entry.toBranchName}`}
+                          </p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">{entry.note}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+                            {entry.quantity} {entry.unit}
+                          </Badge>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                            {new Date(entry.transferredAt).toLocaleString()}
+                          </p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{entry.transferredBy}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
@@ -519,6 +599,16 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                   className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
                 />
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Transfer note (optional)</label>
+                <textarea
+                  value={mainDispatchNote}
+                  onChange={e => setMainDispatchNote(e.target.value)}
+                  rows={3}
+                  placeholder="Add a note for this transfer"
+                  className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none"
+                />
+              </div>
               <Button
                 size="sm"
                 className="w-full cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
@@ -586,6 +676,17 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                     Max
                   </Button>
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Transfer note (optional)</label>
+                <textarea
+                  value={transferNote}
+                  onChange={e => setTransferNote(e.target.value)}
+                  rows={3}
+                  placeholder="Add a note for this transfer"
+                  className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none"
+                />
               </div>
               
               <Button

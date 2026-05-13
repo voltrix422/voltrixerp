@@ -292,6 +292,27 @@ model ErpBranchInventory {
   @@map("erp_branch_inventory")
 }
 
+model ErpBranchInventoryTransfer {
+  id                 String   @id @default(cuid())
+  fromBranchId       String?  @map("from_branch_id")
+  fromBranchName     String   @map("from_branch_name")
+  fromBranchCode     String   @default("") @map("from_branch_code")
+  toBranchId         String   @map("to_branch_id")
+  toBranchName       String   @map("to_branch_name")
+  toBranchCode       String   @default("") @map("to_branch_code")
+  inventoryId        String   @map("inventory_id")
+  productDescription String   @map("product_description")
+  quantity           Float
+  unit               String
+  note               String   @default("")
+  transferredBy      String   @map("transferred_by")
+  transferredAt      DateTime @default(now()) @map("transferred_at")
+
+  @@index([fromBranchId])
+  @@index([toBranchId])
+  @@map("erp_branch_inventory_transfers")
+}
+
 model ErpTicket {
   id          String   @id @default(cuid())
   ticketNumber String  @unique @map("ticket_number")

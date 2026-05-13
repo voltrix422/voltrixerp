@@ -1,6 +1,54 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 
+function buildBranchTransferNote(params: {
+  quantity: number
+  unit: string
+  productDescription: string
+  fromBranchName: string
+  fromBranchCode: string
+  toBranchName: string
+  toBranchCode: string
+  transferredBy: string
+  userNote?: string
+}) {
+  const base = `Sent ${params.quantity} ${params.unit} of "${params.productDescription}" from ${params.fromBranchName} (${params.fromBranchCode}) to ${params.toBranchName} (${params.toBranchCode}) by ${params.transferredBy}.`
+  const trimmed = params.userNote?.trim()
+  return trimmed ? `${base} Note: ${trimmed}` : base
+}
+
+async function saveBranchTransferRecord(data: {
+  fromBranchId?: string | null
+  fromBranchName: string
+  fromBranchCode: string
+  toBranchId: string
+  toBranchName: string
+  toBranchCode: string
+  inventoryId: string
+  productDescription: string
+  quantity: number
+  unit: string
+  note: string
+  transferredBy: string
+}) {
+  await prisma.erpBranchInventoryTransfer.create({
+    data: {
+      fromBranchId: data.fromBranchId || null,
+      fromBranchName: data.fromBranchName,
+      fromBranchCode: data.fromBranchCode,
+      toBranchId: data.toBranchId,
+      toBranchName: data.toBranchName,
+      toBranchCode: data.toBranchCode,
+      inventoryId: data.inventoryId,
+      productDescription: data.productDescription,
+      quantity: data.quantity,
+      unit: data.unit,
+      note: data.note,
+      transferredBy: data.transferredBy,
+    },
+  })
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const branchId = searchParams.get("branchId")
@@ -42,7 +90,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const data = await req.json()
-  const { branchId, inventoryId, quantity, unit, assignedBy, notes } = data
+  const {
+    branchId,
+    inventoryId,
+    quantity,
+    unit,
+    assignedBy,
+    notes,
+    fromBranchId,
+    fromBranchName,
+    fromBranchCode,
+    userNote,
+  } = data
   
   // Check if inventory exists and has enough quantity
   const inventory = await prisma.erpInventoryStock.findUnique({
@@ -56,6 +115,30 @@ export async function POST(req: NextRequest) {
   if (inventory.availableQty < quantity) {
     return NextResponse.json({ error: "Insufficient inventory quantity" }, { status: 400 })
   }
+
+  const destinationBranch = await prisma.erpBranch.findUnique({
+    where: { id: branchId },
+  })
+  if (!destinationBranch) {
+    return NextResponse.json({ error: "Destination branch not found" }, { status: 404 })
+  }
+
+  const sourceBranch = fromBranchId
+    ? await prisma.erpBranch.findUnique({ where: { id: fromBranchId } })
+    : null
+  const sourceName = sourceBranch?.name || fromBranchName || "Main warehouse"
+  const sourceCode = sourceBranch?.code || fromBranchCode || "MAIN"
+  const transferNote = buildBranchTransferNote({
+    quantity,
+    unit: unit || inventory.unit,
+    productDescription: inventory.description,
+    fromBranchName: sourceName,
+    fromBranchCode: sourceCode,
+    toBranchName: destinationBranch.name,
+    toBranchCode: destinationBranch.code,
+    transferredBy: assignedBy || "system",
+    userNote: userNote || notes,
+  })
   
   // Create branch inventory assignment
   const branchInventory = await prisma.erpBranchInventory.create({
@@ -88,10 +171,25 @@ export async function POST(req: NextRequest) {
       unit: unit || inventory.unit,
       referenceType: "branch",
       referenceId: branchId,
-      referenceNumber: data.branchCode || "N/A",
-      notes: `Assigned to branch (${notes || ""})`,
+      referenceNumber: data.branchCode || destinationBranch.code,
+      notes: transferNote,
       createdBy: assignedBy || "system"
     }
+  })
+
+  await saveBranchTransferRecord({
+    fromBranchId: fromBranchId || sourceBranch?.id || null,
+    fromBranchName: sourceName,
+    fromBranchCode: sourceCode,
+    toBranchId: destinationBranch.id,
+    toBranchName: destinationBranch.name,
+    toBranchCode: destinationBranch.code,
+    inventoryId,
+    productDescription: inventory.description,
+    quantity,
+    unit: unit || inventory.unit,
+    note: transferNote,
+    transferredBy: assignedBy || "system",
   })
   
   return NextResponse.json(branchInventory)
@@ -154,6 +252,21 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Destination branch not found" }, { status: 404 })
   }
 
+  const sourceBranch = await prisma.erpBranch.findUnique({
+    where: { id: source.branchId },
+  })
+  const transferNote = buildBranchTransferNote({
+    quantity,
+    unit: source.unit,
+    productDescription: source.productDescription,
+    fromBranchName: sourceBranch?.name || "Branch warehouse",
+    fromBranchCode: sourceBranch?.code || "N/A",
+    toBranchName: destinationBranch.name,
+    toBranchCode: destinationBranch.code,
+    transferredBy: transferredBy || "system",
+    userNote: notes,
+  })
+
   const existingDestination = await prisma.erpBranchInventory.findFirst({
     where: {
       branchId: toBranchId,
@@ -205,9 +318,26 @@ export async function PUT(req: NextRequest) {
         referenceType: "branch",
         referenceId: source.branchId,
         referenceNumber: destinationBranch.code,
-        notes: `Transferred to ${destinationBranch.name}${notes ? ` (${notes})` : ""}`,
+        notes: transferNote,
         createdBy: transferredBy || "system"
       }
+    })
+
+    await tx.erpBranchInventoryTransfer.create({
+      data: {
+        fromBranchId: source.branchId,
+        fromBranchName: sourceBranch?.name || "Branch warehouse",
+        fromBranchCode: sourceBranch?.code || "N/A",
+        toBranchId: destinationBranch.id,
+        toBranchName: destinationBranch.name,
+        toBranchCode: destinationBranch.code,
+        inventoryId: source.inventoryId,
+        productDescription: source.productDescription,
+        quantity,
+        unit: source.unit,
+        note: transferNote,
+        transferredBy: transferredBy || "system",
+      },
     })
   })
 

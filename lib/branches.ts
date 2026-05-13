@@ -101,6 +101,47 @@ export async function getBranchInventory(branchId: string): Promise<BranchInvent
   } catch { return [] }
 }
 
+export interface BranchInventoryTransfer {
+  id: string
+  fromBranchId?: string | null
+  fromBranchName: string
+  fromBranchCode: string
+  toBranchId: string
+  toBranchName: string
+  toBranchCode: string
+  inventoryId: string
+  productDescription: string
+  quantity: number
+  unit: string
+  note: string
+  transferredBy: string
+  transferredAt: string
+}
+
+export async function getBranchTransferHistory(branchId: string): Promise<BranchInventoryTransfer[]> {
+  try {
+    const res = await fetch(`/api/db/branch-transfer-history?branchId=${encodeURIComponent(branchId)}`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      fromBranchId: (r.fromBranchId as string | null | undefined) ?? null,
+      fromBranchName: r.fromBranchName as string,
+      fromBranchCode: r.fromBranchCode as string,
+      toBranchId: r.toBranchId as string,
+      toBranchName: r.toBranchName as string,
+      toBranchCode: r.toBranchCode as string,
+      inventoryId: r.inventoryId as string,
+      productDescription: r.productDescription as string,
+      quantity: r.quantity as number,
+      unit: r.unit as string,
+      note: r.note as string,
+      transferredBy: r.transferredBy as string,
+      transferredAt: r.transferredAt as string,
+    }))
+  } catch { return [] }
+}
+
 export async function assignInventoryToBranch(data: {
   branchId: string
   inventoryId: string
@@ -109,6 +150,10 @@ export async function assignInventoryToBranch(data: {
   branchCode: string
   assignedBy: string
   notes: string
+  fromBranchId?: string
+  fromBranchName?: string
+  fromBranchCode?: string
+  userNote?: string
 }): Promise<void> {
   await fetch("/api/db/branch-inventory", {
     method: "POST",
