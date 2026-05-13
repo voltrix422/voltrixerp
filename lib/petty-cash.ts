@@ -8,10 +8,13 @@ export interface PettyCashAllocation {
   paymentProof?: string
   paymentProofName?: string
   notes: string
-  status: 'active' | 'settled' | 'cancelled'
+  status: 'pending' | 'active' | 'settled' | 'cancelled' | 'rejected'
   allocatedBy: string
   allocatedAt: string
   settledAt?: string
+  reviewedBy?: string
+  reviewedAt?: string
+  reviewNotes?: string
   settlements?: PettyCashSettlement[]
 }
 
@@ -58,6 +61,7 @@ export async function createPettyCashAllocation(data: {
   paymentProofName?: string
   notes?: string
   allocatedBy: string
+  status?: 'pending' | 'active'
 }): Promise<PettyCashAllocation> {
   const res = await fetch('/api/db/petty-cash-allocations', {
     method: 'POST',
@@ -68,9 +72,65 @@ export async function createPettyCashAllocation(data: {
   return res.json()
 }
 
+export async function createPettyCashRequest(data: {
+  employeeId: string
+  employeeName: string
+  employeeRole: string
+  amount: number
+  purpose: string
+  notes?: string
+}): Promise<PettyCashAllocation> {
+  return createPettyCashAllocation({
+    ...data,
+    allocatedBy: data.employeeName,
+    status: 'pending',
+  })
+}
+
+export async function approvePettyCashAllocation(data: {
+  id: string
+  amount: number
+  paymentProof?: string
+  paymentProofName?: string
+  notes?: string
+  reviewedBy: string
+}): Promise<PettyCashAllocation> {
+  const res = await fetch('/api/db/petty-cash-allocations', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...data,
+      status: 'active',
+      reviewedAt: new Date().toISOString(),
+    }),
+  })
+  if (!res.ok) throw new Error('Failed to approve petty cash request')
+  return res.json()
+}
+
+export async function rejectPettyCashAllocation(
+  id: string,
+  reviewedBy: string,
+  reviewNotes?: string
+): Promise<PettyCashAllocation> {
+  const res = await fetch('/api/db/petty-cash-allocations', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id,
+      status: 'rejected',
+      reviewedBy,
+      reviewNotes,
+      reviewedAt: new Date().toISOString(),
+    }),
+  })
+  if (!res.ok) throw new Error('Failed to reject petty cash request')
+  return res.json()
+}
+
 export async function updatePettyCashAllocationStatus(
   id: string, 
-  status: 'active' | 'settled' | 'cancelled',
+  status: 'pending' | 'active' | 'settled' | 'cancelled' | 'rejected',
   settledAt?: string
 ): Promise<PettyCashAllocation> {
   const res = await fetch('/api/db/petty-cash-allocations', {

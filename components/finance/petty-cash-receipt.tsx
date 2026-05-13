@@ -10,9 +10,10 @@ interface PettyCashReceiptProps {
   onClose: () => void
   onSave: (receipt: PettyCashReceipt) => void
   employeeName?: string
+  employeeId?: string
 }
 
-export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashReceiptProps) {
+export function PettyCashReceipt({ onClose, onSave, employeeName, employeeId }: PettyCashReceiptProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [allocations, setAllocations] = useState<PettyCashAllocation[]>([])
@@ -29,13 +30,14 @@ export function PettyCashReceipt({ onClose, onSave, employeeName }: PettyCashRec
   useEffect(() => {
     // Load active allocations for the current employee
     getPettyCashAllocations().then(data => {
-      const activeAllocations = data.filter(a => 
-        a.status === 'active' && 
+      const activeAllocations = data.filter(a =>
+        a.status === "active" &&
+        (!employeeId || a.employeeId === employeeId || a.employeeName === employeeName) &&
         (!employeeName || a.employeeName === employeeName)
       )
       setAllocations(activeAllocations)
     })
-  }, [employeeName])
+  }, [employeeName, employeeId])
 
   async function handleFileUpload(file: File): Promise<string> {
     const formData = new FormData()

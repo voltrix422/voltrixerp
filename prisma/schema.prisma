@@ -521,10 +521,13 @@ model ErpPettyCashAllocation {
   paymentProof  String?  @map("payment_proof")
   paymentProofName String? @map("payment_proof_name")
   notes         String   @default("")
-  status        String   @default("active") // active, settled, cancelled
+  status        String   @default("active") // pending, active, settled, cancelled, rejected
   allocatedBy   String   @map("allocated_by")
   allocatedAt   DateTime @default(now()) @map("allocated_at")
   settledAt     DateTime? @map("settled_at")
+  reviewedBy    String?  @map("reviewed_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  reviewNotes   String?  @map("review_notes")
 
   @@map("erp_petty_cash_allocations")
 }

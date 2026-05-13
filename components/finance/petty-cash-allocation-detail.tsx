@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus } from "@/lib/petty-cash"
 import { useToast } from "@/components/ui/toast"
+import { useAuthWithRole } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target } from "lucide-react"
@@ -9,12 +10,14 @@ import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar,
 interface PettyCashAllocationDetailProps {
   allocation: PettyCashAllocation
   currentUser: string
+  currentUserId?: string
   userRole: string
   onClose: () => void
   onUpdate: () => void
 }
 
-export function PettyCashAllocationDetail({ allocation, currentUser, userRole, onClose, onUpdate }: PettyCashAllocationDetailProps) {
+export function PettyCashAllocationDetail({ allocation, currentUser, currentUserId, userRole, onClose, onUpdate }: PettyCashAllocationDetailProps) {
+  const { user } = useAuthWithRole()
   const { toast } = useToast()
   const [receipts, setReceipts] = useState<PettyCashReceipt[]>([])
   const [loading, setLoading] = useState(true)
@@ -209,8 +212,8 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
     }
   }
 
-  const canManagePettyCash = userRole === 'admin' || userRole === 'superadmin' || userRole === 'finance'
-  const isOwnAllocation = allocation.employeeName === currentUser
+  const canManagePettyCash = userRole === "superadmin" || Boolean(user?.modules.includes("finance"))
+  const isOwnAllocation = allocation.employeeId === currentUserId || allocation.employeeName === currentUser
   const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
   const isPdf = (value?: string) => !!value && (value.startsWith("data:application/pdf") || /\.pdf$/i.test(value))
 
@@ -321,6 +324,27 @@ export function PettyCashAllocationDetail({ allocation, currentUser, userRole, o
                 )}
               </div>
             </div>
+
+            {allocation.paymentProof && (
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Payment proof
+                </h3>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+                  {allocation.status === "active" || allocation.status === "settled"
+                    ? "Cash was released with this proof."
+                    : "Payment proof attached by approver."}
+                </p>
+                {isImage(allocation.paymentProof) ? (
+                  <img src={allocation.paymentProof} alt={allocation.paymentProofName || "Payment proof"} className="max-h-64 rounded-md border object-contain" />
+                ) : (
+                  <a href={allocation.paymentProof} target="_blank" rel="noreferrer" className="text-sm font-medium text-[#1faca6] hover:underline">
+                    {allocation.paymentProofName || "View payment proof"}
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && remainingAmount > 0 && (

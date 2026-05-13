@@ -5,12 +5,16 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import type { Module } from "@/lib/auth"
+
+const PERSONAL_NAV = [
+  { href: "/petty-cash", label: "Petty Cash", icon: Wallet },
+]
 
 const ALL_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" as Module },
@@ -46,6 +50,25 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+        {PERSONAL_NAV.map(({ href, label, icon: Icon }) => {
+          const active = pathname?.startsWith(href) || false
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+                active
+                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">{label}</span>
+            </Link>
+          )
+        })}
         {visibleNav.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href) || false
           return (

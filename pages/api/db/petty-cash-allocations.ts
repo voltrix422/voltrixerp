@@ -22,7 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentProof,
         paymentProofName,
         notes,
-        allocatedBy
+        allocatedBy,
+        status,
       } = req.body
 
       if (!employeeId || !employeeName || !employeeRole || !amount || !purpose || !allocatedBy) {
@@ -39,7 +40,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentProof,
           paymentProofName,
           notes: notes || '',
-          allocatedBy
+          allocatedBy,
+          status: status || 'active',
         }
       })
 
@@ -47,7 +49,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'PUT') {
-      const { id, status, settledAt } = req.body
+      const {
+        id,
+        status,
+        settledAt,
+        amount,
+        paymentProof,
+        paymentProofName,
+        notes,
+        reviewedBy,
+        reviewedAt,
+        reviewNotes,
+      } = req.body
 
       if (!id) {
         return res.status(400).json({ error: 'Missing allocation ID' })
@@ -57,7 +70,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { id },
         data: {
           status,
-          settledAt: settledAt ? new Date(settledAt) : null
+          settledAt: settledAt ? new Date(settledAt) : undefined,
+          amount: amount !== undefined ? parseFloat(amount) : undefined,
+          paymentProof,
+          paymentProofName,
+          notes,
+          reviewedBy,
+          reviewedAt: reviewedAt ? new Date(reviewedAt) : undefined,
+          reviewNotes,
         }
       })
 

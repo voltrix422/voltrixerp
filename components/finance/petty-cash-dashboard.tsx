@@ -1,26 +1,30 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, deletePettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
+import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, deletePettyCashAllocation, rejectPettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
 import { PettyCashAllocation as PettyCashAllocationForm } from "./petty-cash-allocation"
 import { PettyCashReceipt as PettyCashReceiptForm } from "./petty-cash-receipt"
 import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
+import { PettyCashRequestForm } from "./petty-cash-request"
+import { PettyCashApprovalForm } from "./petty-cash-approval"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
+import { useAuthWithRole } from "@/components/auth-provider"
+import { MODULE_LABELS } from "@/lib/auth"
 import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Trash2 } from "lucide-react"
 
-interface PettyCashDashboardProps {
-  currentUser: string
-  userRole: string
-}
-
-export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboardProps) {
+export function PettyCashDashboard() {
+  const { user, userRole } = useAuthWithRole()
+  const currentUser = user?.name || ""
+  const currentUserId = user?.id || ""
   const { toast } = useToast()
   const [allocations, setAllocations] = useState<PettyCashAllocation[]>([])
   const [receipts, setReceipts] = useState<PettyCashReceipt[]>([])
   const [loading, setLoading] = useState(true)
   const [showAllocationForm, setShowAllocationForm] = useState(false)
   const [showReceiptForm, setShowReceiptForm] = useState(false)
+  const [showRequestForm, setShowRequestForm] = useState(false)
+  const [approvalAllocation, setApprovalAllocation] = useState<PettyCashAllocation | null>(null)
   const [selectedAllocation, setSelectedAllocation] = useState<PettyCashAllocation | null>(null)
   const [activeTab, setActiveTab] = useState<"allocations" | "receipts">("allocations")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
@@ -52,8 +56,8 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
       case "settled":   return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
       case "cancelled": return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
       case "pending":   return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-      case "approved":  return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
       case "rejected":  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+      case "approved":  return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
       default:          return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
     }
   }
@@ -136,9 +140,17 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
     }
   }
 
-  const canManagePettyCash = userRole === "admin" || userRole === "superadmin" || userRole === "finance"
-  const displayAllocations = canManagePettyCash ? allocations : allocations.filter(a => a.employeeName === currentUser)
-  const displayReceipts = canManagePettyCash ? receipts : receipts.filter(r => r.employeeName === currentUser)
+  const canManagePettyCash = userRole === "superadmin" || Boolean(user?.modules.includes("finance"))
+  const belongsToCurrentUser = (allocation: PettyCashAllocation) =>
+    allocation.employeeId === currentUserId || allocation.employeeName === currentUser
+  const displayAllocations = canManagePettyCash ? allocations : allocations.filter(belongsToCurrentUser)
+  const displayReceipts = canManagePettyCash ? receipts : receipts.filter((r) => r.employeeName === currentUser)
+  const pendingRequests = allocations.filter((allocation) => allocation.status === "pending")
+  const employeeRole = userRole === "superadmin"
+    ? "Super Admin"
+    : user?.modules[0]
+      ? MODULE_LABELS[user.modules[0]]
+      : "Employee"
 
   if (loading) {
     return (
@@ -157,11 +169,14 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
           <div>
             <h2 className="text-xl font-bold">Petty Cash Management</h2>
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Track allocations and submit multiple settlements until fully closed
+              Request cash, submit settlements, and track your own petty cash balance
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowRequestForm(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Request Cash
+          </Button>
           {canManagePettyCash && (
             <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setShowAllocationForm(true)}>
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate Cash
@@ -173,6 +188,51 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
         </div>
       </div>
 
+      {canManagePettyCash && pendingRequests.length > 0 && (
+        <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">Pending requests</h3>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Approve requests and attach payment proof before settlement starts.</p>
+            </div>
+            <span className="text-xs font-medium text-yellow-700 bg-yellow-100 px-2.5 py-1 rounded-full">{pendingRequests.length} waiting</span>
+          </div>
+          <div className="space-y-2">
+            {pendingRequests.map((allocation) => (
+              <div key={allocation.id} className="flex flex-col gap-3 rounded-lg border px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-medium">{allocation.employeeName}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{allocation.purpose}</p>
+                  <p className="text-xs font-semibold mt-1">Requested: PKR {allocation.amount.toLocaleString()}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setApprovalAllocation(allocation)}>
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={async () => {
+                      try {
+                        const updated = await rejectPettyCashAllocation(allocation.id, currentUser, "Rejected by approver")
+                        setAllocations((prev) => prev.map((item) => item.id === updated.id ? updated : item))
+                        toast({ title: "Rejected", message: "Petty cash request rejected.", type: "success" })
+                      } catch (error) {
+                        console.error(error)
+                        toast({ title: "Error", message: "Failed to reject request.", type: "error" })
+                      }
+                    }}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
@@ -182,7 +242,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
             </div>
             <div>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Allocated</p>
-              <p className="text-lg font-bold">PKR {allocations.reduce((sum, a) => sum + a.amount, 0).toLocaleString()}</p>
+              <p className="text-lg font-bold">PKR {displayAllocations.reduce((sum, a) => sum + a.amount, 0).toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -194,7 +254,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
             </div>
             <div>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Spent</p>
-              <p className="text-lg font-bold">PKR {receipts.filter(r => r.status === "approved").reduce((sum, r) => sum + r.amount, 0).toLocaleString()}</p>
+              <p className="text-lg font-bold">PKR {displayReceipts.filter(r => r.status === "approved").reduce((sum, r) => sum + r.amount, 0).toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -206,7 +266,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
             </div>
             <div>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Active Allocations</p>
-              <p className="text-lg font-bold">{allocations.filter(a => a.status === "active").length}</p>
+              <p className="text-lg font-bold">{displayAllocations.filter(a => a.status === "active").length}</p>
             </div>
           </div>
         </div>
@@ -218,7 +278,7 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
             </div>
             <div>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending Settlements</p>
-              <p className="text-lg font-bold">{receipts.filter(r => r.status === "pending").length}</p>
+              <p className="text-lg font-bold">{displayReceipts.filter(r => r.status === "pending").length}</p>
             </div>
           </div>
         </div>
@@ -249,8 +309,11 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <DollarSign className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
               <p className="text-sm text-[hsl(var(--muted-foreground))]">No petty cash allocations found</p>
+              <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowRequestForm(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Request Cash
+              </Button>
               {canManagePettyCash && (
-                <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowAllocationForm(true)}>
+                <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" onClick={() => setShowAllocationForm(true)}>
                   <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate Cash
                 </Button>
               )}
@@ -426,6 +489,32 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
             setShowReceiptForm(false)
           }}
           employeeName={currentUser}
+          employeeId={currentUserId}
+        />
+      )}
+
+      {showRequestForm && currentUserId && (
+        <PettyCashRequestForm
+          employeeId={currentUserId}
+          employeeName={currentUser}
+          employeeRole={employeeRole}
+          onClose={() => setShowRequestForm(false)}
+          onSave={(allocation) => {
+            setAllocations(prev => [allocation, ...prev])
+            setShowRequestForm(false)
+          }}
+        />
+      )}
+
+      {approvalAllocation && (
+        <PettyCashApprovalForm
+          allocation={approvalAllocation}
+          reviewedBy={currentUser}
+          onClose={() => setApprovalAllocation(null)}
+          onSave={(allocation) => {
+            setAllocations(prev => prev.map(item => item.id === allocation.id ? allocation : item))
+            setApprovalAllocation(null)
+          }}
         />
       )}
 
@@ -463,7 +552,8 @@ export function PettyCashDashboard({ currentUser, userRole }: PettyCashDashboard
         <PettyCashAllocationDetail
           allocation={selectedAllocation}
           currentUser={currentUser}
-          userRole={userRole}
+          currentUserId={currentUserId}
+          userRole={userRole || "user"}
           onClose={() => setSelectedAllocation(null)}
           onUpdate={loadData}
         />

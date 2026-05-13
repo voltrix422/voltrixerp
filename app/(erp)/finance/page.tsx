@@ -124,7 +124,7 @@ export default function FinancePage() {
 
               {/* Manage Section Content */}
               {manageSection === "finance" && <FinanceManager search={search} dateFrom={dateFrom} dateTo={dateTo} />}
-              {manageSection === "petty-cash" && <PettyCashDashboard currentUser={user?.name || ""} userRole={userRole || ""} />}
+              {manageSection === "petty-cash" && <PettyCashDashboard />}
             </div>
           )}
           {activeTab === "client" && <ClientOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />}
