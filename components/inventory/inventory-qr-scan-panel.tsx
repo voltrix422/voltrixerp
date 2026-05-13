@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { Html5Qrcode } from "html5-qrcode"
-import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import { parseProductQrPayload, matchManualStockItem } from "@/lib/parse-product-qr"
 import {
   createWarrantyClaim,
   getInventorySerialUnits,
@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
-import { Camera, QrCode, Save, ShieldAlert, Loader2 } from "lucide-react"
+import { Camera, QrCode, Save, ShieldAlert, Loader2, ImageUp } from "lucide-react"
 
 type ManualStockOption = {
   id: string
@@ -29,7 +29,9 @@ type Props = {
 export function InventoryQrScanPanel({ manualStockItems }: Props) {
   const { user } = useAuth()
   const scannerRef = useRef<Html5Qrcode | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [scanMessage, setScanMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [units, setUnits] = useState<InventorySerialUnit[]>([])
@@ -81,45 +83,105 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
     setSpecs(parsed.specs)
     if (!notes && parsed.notes) setNotes(parsed.notes)
     if (!assignedName && parsed.productName) setAssignedName(parsed.productName)
+
+    const matchedStockId = matchManualStockItem(parsed, manualStockItems)
+    if (matchedStockId) {
+      setInventoryStockId(matchedStockId)
+      const matchedItem = manualStockItems.find((item) => item.id === matchedStockId)
+      setScanMessage(
+        matchedItem
+          ? `QR linked to manual stock: ${matchedItem.description}`
+          : "QR linked to a manual stock item.",
+      )
+    } else if (parsed.inventoryStockId) {
+      setScanMessage("QR included a stock link, but no matching manual stock item was found.")
+    } else {
+      setScanMessage("QR details loaded. Choose a manual stock item if needed.")
+    }
+
     setError("")
   }
 
-  async function startScanner() {
-    setError("")
+  async function waitForScannerMount() {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    })
+  }
+
+  async function resolveCameraId() {
     try {
-      const scanner = new Html5Qrcode("inventory-qr-reader")
+      const cameras = await Html5Qrcode.getCameras()
+      if (cameras.length === 0) return { facingMode: "environment" as const }
+      const preferred = cameras.find((camera) => /back|rear|environment/i.test(camera.label))
+      return preferred?.id || cameras[0].id
+    } catch {
+      return { facingMode: "environment" as const }
+    }
+  }
+
+  async function startScanner() {
+    if (scanning) return
+    setError("")
+    setScanMessage("")
+    setScanning(true)
+    await waitForScannerMount()
+
+    try {
+      const scanner = new Html5Qrcode("inventory-qr-reader", { verbose: false })
       scannerRef.current = scanner
+      const cameraId = await resolveCameraId()
       await scanner.start(
-        { facingMode: "environment" },
-        { fps: 8, qrbox: { width: 240, height: 240 } },
+        cameraId,
+        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
         (decodedText) => {
           applyPayload(decodedText)
-          stopScanner()
+          void stopScanner()
         },
-        () => undefined
+        () => undefined,
       )
-      setScanning(true)
     } catch (scanError) {
       console.error(scanError)
-      setError("Could not open the camera. Paste the QR text below instead.")
+      setError("Could not open the camera. Upload a QR image or paste the QR text below.")
+      setScanning(false)
+      scannerRef.current = null
     }
   }
 
   async function stopScanner() {
-    if (!scannerRef.current) {
-      setScanning(false)
-      return
-    }
+    const scanner = scannerRef.current
+    scannerRef.current = null
+    setScanning(false)
+    if (!scanner) return
     try {
-      if (scannerRef.current.isScanning) {
-        await scannerRef.current.stop()
+      if (scanner.isScanning) {
+        await scanner.stop()
       }
-      await scannerRef.current.clear()
+      scanner.clear()
     } catch {
       // Ignore cleanup errors.
     }
-    scannerRef.current = null
-    setScanning(false)
+  }
+
+  async function handleImageFile(file: File) {
+    setError("")
+    setScanMessage("")
+    await stopScanner()
+    try {
+      const scanner = new Html5Qrcode("inventory-qr-reader", { verbose: false })
+      const decodedText = await scanner.scanFile(file, false)
+      applyPayload(decodedText)
+    } catch (scanError) {
+      console.error(scanError)
+      setError("No QR code was detected in that image. Try another photo or paste the QR text.")
+    }
+  }
+
+  function handleImageInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (file) {
+      void handleImageFile(file)
+    }
   }
 
   async function handleSave() {
@@ -151,6 +213,7 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
       setAssignedName("")
       setInventoryStockId("")
       setNotes("")
+      setScanMessage("")
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save scanned unit.")
     } finally {
@@ -191,16 +254,53 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
               Scan product QR
             </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-              Each scan registers one unit with serial number, product details, and warranty.
+              Scan with the camera, upload a QR photo, or paste the QR text. Fields auto-fill and link to manual stock when possible.
             </p>
           </div>
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={scanning ? stopScanner : startScanner}>
-            <Camera className="h-3.5 w-3.5 mr-1.5" />
-            {scanning ? "Stop camera" : "Open camera"}
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleImageInputChange}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImageUp className="h-3.5 w-3.5 mr-1.5" />
+              Upload QR image
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={scanning ? stopScanner : startScanner}>
+              <Camera className="h-3.5 w-3.5 mr-1.5" />
+              {scanning ? "Stop camera" : "Open camera"}
+            </Button>
+          </div>
         </div>
 
-        <div id="inventory-qr-reader" className={`overflow-hidden rounded-lg border bg-black/5 ${scanning ? "min-h-[260px]" : "hidden"}`} />
+        <div
+          id="inventory-qr-reader"
+          className={`overflow-hidden rounded-lg border bg-black/5 ${scanning ? "min-h-[280px]" : "h-0 border-0"}`}
+        />
+        {!scanning && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full rounded-lg border border-dashed px-4 py-6 text-center transition-colors hover:bg-[hsl(var(--muted))]/30"
+          >
+            <ImageUp className="mx-auto h-5 w-5 text-[#1faca6]" />
+            <p className="mt-2 text-sm font-medium">Upload a QR image</p>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              Tap to choose a photo or screenshot containing the product QR code.
+            </p>
+          </button>
+        )}
+
+        {scanMessage && <p className="text-xs text-[#17857f]">{scanMessage}</p>}
 
         <div className="space-y-2">
           <label className="text-xs font-medium">QR payload</label>
@@ -282,6 +382,9 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
                     Scanned {new Date(unit.scannedAt).toLocaleString()} by {unit.scannedBy}
                     {unit.warrantyId ? ` · Warranty ${unit.warrantyId}` : ""}
+                    {unit.inventoryStockId
+                      ? ` · Stock ${manualStockItems.find((item) => item.id === unit.inventoryStockId)?.description || unit.inventoryStockId}`
+                      : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
