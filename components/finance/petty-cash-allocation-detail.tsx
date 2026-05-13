@@ -213,7 +213,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
     }
   }
 
-  const canManagePettyCash = userRole === "superadmin" || Boolean(user?.modules.includes("finance"))
+  const canManagePettyCash = userRole === "superadmin"
   const isOwnAllocation = allocation.employeeId === currentUserId || allocation.employeeName === currentUser
   const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
   const isPdf = (value?: string) => !!value && (value.startsWith("data:application/pdf") || /\.pdf$/i.test(value))

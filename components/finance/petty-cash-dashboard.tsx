@@ -142,11 +142,16 @@ export function PettyCashDashboard() {
     }
   }
 
-  const canManagePettyCash = userRole === "superadmin" || Boolean(user?.modules.includes("finance"))
+  const canManagePettyCash = userRole === "superadmin"
   const belongsToCurrentUser = (allocation: PettyCashAllocation) =>
     allocation.employeeId === currentUserId || allocation.employeeName === currentUser
+  const receiptBelongsToCurrentUser = (receipt: PettyCashReceipt) => {
+    const allocation = allocations.find((item) => item.id === receipt.allocationId)
+    if (allocation) return belongsToCurrentUser(allocation)
+    return receipt.employeeName === currentUser
+  }
   const displayAllocations = canManagePettyCash ? allocations : allocations.filter(belongsToCurrentUser)
-  const displayReceipts = canManagePettyCash ? receipts : receipts.filter((r) => r.employeeName === currentUser)
+  const displayReceipts = canManagePettyCash ? receipts : receipts.filter(receiptBelongsToCurrentUser)
   const pendingRequests = allocations.filter((allocation) => allocation.status === "pending")
   const employeeRole = userRole === "superadmin"
     ? "Super Admin"
