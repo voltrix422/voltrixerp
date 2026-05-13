@@ -138,7 +138,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     const queryValues = parseQueryString(trimmed)
     Object.assign(extra, queryValues)
     return {
-      serialNumber: pickString(queryValues, ["serialNumber", "serial_number", "sn", "serial", "barcode"]),
+      serialNumber: pickString(queryValues, ["serialNumber", "serial_number", "sn", "serial", "barcode", "c"]),
       productName: pickString(queryValues, ["productName", "product_name", "product", "name", "item", "description"]),
       model: pickString(queryValues, ["model", "sku", "productId", "product_id"]),
       specs: pickString(queryValues, ["specs", "specification", "specifications", "capacity", "voltage"]),

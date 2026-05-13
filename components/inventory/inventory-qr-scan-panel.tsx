@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react"
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 import { parseProductQrPayload, matchManualStockItem } from "@/lib/parse-product-qr"
 import {
@@ -75,14 +75,16 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
     }
   }
 
-  function applyPayload(payload: string) {
+  function applyPayload(payload: string, options?: { preserveAssignedName?: boolean }) {
     const parsed = parseProductQrPayload(payload)
     setRawPayload(payload)
     setSerialNumber(parsed.serialNumber)
     setModel(parsed.model)
     setSpecs(parsed.specs)
     setNotes(parsed.notes || "")
-    setAssignedName("")
+    if (!options?.preserveAssignedName) {
+      setAssignedName("")
+    }
 
     const matchedStockId = matchManualStockItem(parsed, manualStockItems)
     const matchedItem = matchedStockId
@@ -96,6 +98,8 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
       setScanMessage(`Detected SN ${parsed.serialNumber} · Model ${parsed.model || "—"} · Linked to ${matchedItem.description}`)
     } else if (parsed.serialNumber && parsed.model) {
       setScanMessage(`Detected SN ${parsed.serialNumber} · Model ${parsed.model}. Add an assigned name and save.`)
+    } else if (parsed.serialNumber) {
+      setScanMessage(`Detected SN ${parsed.serialNumber}. Add an assigned name and save.`)
     } else if (parsed.inventoryStockId) {
       setScanMessage("QR included a stock link, but no matching manual stock item was found.")
     } else {
@@ -104,6 +108,28 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
 
     setError("")
     requestAnimationFrame(() => assignedNameRef.current?.focus())
+  }
+
+  function handlePayloadInput(value: string) {
+    setRawPayload(value)
+    if (!value.trim()) {
+      setSerialNumber("")
+      setModel("")
+      setSpecs("")
+      setNotes("")
+      setProductName("")
+      setInventoryStockId("")
+      setScanMessage("")
+      return
+    }
+    applyPayload(value, { preserveAssignedName: true })
+  }
+
+  function handlePayloadPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const pasted = event.clipboardData.getData("text").trim()
+    if (!pasted) return
+    event.preventDefault()
+    applyPayload(pasted)
   }
 
   async function waitForScannerMount() {
@@ -293,7 +319,7 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
 
         <div
           id="inventory-qr-reader"
-          className={`overflow-hidden rounded-lg border bg-black/5 ${scanning ? "min-h-[280px]" : "h-0 border-0"}`}
+          className={scanning ? "min-h-[280px] overflow-hidden rounded-lg border bg-black/5" : "sr-only"}
         />
         {!scanning && (
           <button
@@ -315,11 +341,36 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
           <label className="text-xs font-medium">QR payload</label>
           <textarea
             value={rawPayload}
-            onChange={(e) => applyPayload(e.target.value)}
+            onChange={(e) => handlePayloadInput(e.target.value)}
+            onPaste={handlePayloadPaste}
+            onBlur={(e) => {
+              if (e.target.value.trim()) applyPayload(e.target.value, { preserveAssignedName: true })
+            }}
             rows={2}
             placeholder="Scan a QR code or paste its text here"
             className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm resize-none"
           />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Serial number *</label>
+            <input
+              value={serialNumber}
+              onChange={(e) => setSerialNumber(e.target.value)}
+              readOnly={Boolean(rawPayload.trim() && serialNumber)}
+              className="w-full h-9 rounded-md border px-3 text-sm bg-[hsl(var(--background))]"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Model</label>
+            <input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              readOnly={Boolean(rawPayload.trim() && model)}
+              className="w-full h-9 rounded-md border px-3 text-sm bg-[hsl(var(--background))]"
+            />
+          </div>
         </div>
 
         {serialNumber && (
