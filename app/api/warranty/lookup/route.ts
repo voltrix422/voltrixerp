@@ -10,8 +10,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const warranty = await prisma.erpWarranty.findUnique({
-      where: { warrantyId }
+    const warranty = await prisma.erpWarranty.findFirst({
+      where: {
+        OR: [
+          { warrantyId },
+          { serialNumber: warrantyId },
+        ],
+      },
     })
 
     if (!warranty) {
