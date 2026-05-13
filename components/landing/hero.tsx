@@ -67,7 +67,7 @@ export default function Hero() {
             <span className="text-[#1a9f9a]">with Voltrix.</span>
           </h1>
           <p className="text-base text-neutral-600 leading-relaxed max-w-md">
-            Premium automotive electrical solutions engineered for performance, reliability, and the road ahead.
+            Let's go off grid.
           </p>
           <a
             href="#products"
