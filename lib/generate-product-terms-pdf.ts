@@ -37,6 +37,10 @@ function ensureSpace(doc: jsPDF, y: number, needed: number, margin: number): num
   return y
 }
 
+function wrapLines(doc: jsPDF, text: string, maxWidth: number): string[] {
+  return doc.splitTextToSize(text, maxWidth) as string[]
+}
+
 export async function generateProductTermsPDF(productName: string, content: string): Promise<Blob> {
   const parsed = parseProductTermsContent(content)
   const doc = new jsPDF({ unit: "mm", format: "a4" })
@@ -73,8 +77,8 @@ export async function generateProductTermsPDF(productName: string, content: stri
   doc.setTextColor(INK.r, INK.g, INK.b)
   doc.setFont("helvetica", "bold")
   doc.setFontSize(16)
-  const titleLines = doc.splitTextToSize(parsed.title, contentW)
-  titleLines.forEach((line) => {
+  const titleLines = wrapLines(doc, parsed.title, contentW)
+  titleLines.forEach((line: string) => {
     y = ensureSpace(doc, y, 8, margin)
     doc.text(line, margin, y)
     y += 8
@@ -90,8 +94,8 @@ export async function generateProductTermsPDF(productName: string, content: stri
   doc.setFontSize(10.5)
   doc.setTextColor(INK.r, INK.g, INK.b)
   parsed.intro.forEach((paragraph) => {
-    const lines = doc.splitTextToSize(paragraph, contentW)
-    lines.forEach((line) => {
+    const lines = wrapLines(doc, paragraph, contentW)
+    lines.forEach((line: string) => {
       y = ensureSpace(doc, y, 6, margin)
       doc.text(line, margin, y)
       y += 5.5
@@ -114,12 +118,12 @@ export async function generateProductTermsPDF(productName: string, content: stri
   doc.setFontSize(10)
   doc.setTextColor(INK.r, INK.g, INK.b)
   parsed.bullets.forEach((bullet, index) => {
-    const lines = doc.splitTextToSize(bullet, contentW - 8)
+    const lines = wrapLines(doc, bullet, contentW - 8)
     y = ensureSpace(doc, y, lines.length * 5.5 + 4, margin)
     doc.setFillColor(BRAND.r, BRAND.g, BRAND.b)
     doc.circle(margin + 2, y - 1.5, 1.2, "F")
     doc.setTextColor(INK.r, INK.g, INK.b)
-    lines.forEach((line, lineIndex) => {
+    lines.forEach((line: string, lineIndex: number) => {
       doc.text(line, margin + 7, y + lineIndex * 5.5)
     })
     y += lines.length * 5.5 + 3
