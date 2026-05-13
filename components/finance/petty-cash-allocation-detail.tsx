@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus } from "@/lib/petty-cash"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
+import { PettyCashActivityTimeline } from "./petty-cash-history-panel"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target } from "lucide-react"
@@ -345,6 +346,8 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 )}
               </div>
             )}
+
+            <PettyCashActivityTimeline allocation={allocation} receipts={receipts} />
 
             {/* Actions */}
             {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && remainingAmount > 0 && (

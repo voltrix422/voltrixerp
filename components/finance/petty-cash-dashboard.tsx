@@ -6,12 +6,14 @@ import { PettyCashReceipt as PettyCashReceiptForm } from "./petty-cash-receipt"
 import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
 import { PettyCashRequestForm } from "./petty-cash-request"
 import { PettyCashApprovalForm } from "./petty-cash-approval"
+import { PettyCashHistoryPanel } from "./petty-cash-history-panel"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS } from "@/lib/auth"
 import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Trash2 } from "lucide-react"
+import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 
 export function PettyCashDashboard() {
   const { user, userRole } = useAuthWithRole()
@@ -26,7 +28,7 @@ export function PettyCashDashboard() {
   const [showRequestForm, setShowRequestForm] = useState(false)
   const [approvalAllocation, setApprovalAllocation] = useState<PettyCashAllocation | null>(null)
   const [selectedAllocation, setSelectedAllocation] = useState<PettyCashAllocation | null>(null)
-  const [activeTab, setActiveTab] = useState<"allocations" | "receipts">("allocations")
+  const [activeTab, setActiveTab] = useState<"allocations" | "receipts" | "history">("allocations")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
 
@@ -286,7 +288,7 @@ export function PettyCashDashboard() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b">
-        {(["allocations", "receipts"] as const).map(tab => (
+        {(["allocations", "receipts", "history"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -296,7 +298,7 @@ export function PettyCashDashboard() {
                 : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
             }`}
           >
-            {tab}
+            {tab === "history" ? "History" : tab}
             {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
           </button>
         ))}
@@ -369,17 +371,26 @@ export function PettyCashDashboard() {
                             {new Date(allocation.allocatedAt).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-2.5 text-xs text-center" onClick={e => e.stopPropagation()}>
-                            {canManagePettyCash && (
-                              <div className="flex items-center justify-center gap-2">
-                                {allocation.status === "active" && (
-                                  <button
-                                    onClick={() => setSettleConfirm(allocation)}
-                                    className="text-blue-500 hover:text-blue-700 text-[10px] font-medium transition-colors cursor-pointer"
-                                    title="Settle allocation"
-                                  >
-                                    Settle
-                                  </button>
-                                )}
+                            <div className="flex items-center justify-center gap-2">
+                              {isPettyCashHistoryAllocation(allocation) && (
+                                <button
+                                  onClick={() => setSelectedAllocation(allocation)}
+                                  className="text-[#1faca6] hover:text-[#17857f] text-[10px] font-medium transition-colors cursor-pointer"
+                                  title="View history"
+                                >
+                                  History
+                                </button>
+                              )}
+                              {canManagePettyCash && allocation.status === "active" && (
+                                <button
+                                  onClick={() => setSettleConfirm(allocation)}
+                                  className="text-blue-500 hover:text-blue-700 text-[10px] font-medium transition-colors cursor-pointer"
+                                  title="Settle allocation"
+                                >
+                                  Settle
+                                </button>
+                              )}
+                              {canManagePettyCash && (
                                 <button
                                   onClick={() => setDeleteConfirm(allocation)}
                                   className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
@@ -387,8 +398,8 @@ export function PettyCashDashboard() {
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </td>
                         </tr>
                       )
@@ -468,6 +479,14 @@ export function PettyCashDashboard() {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === "history" && (
+        <PettyCashHistoryPanel
+          allocations={displayAllocations}
+          receipts={displayReceipts}
+          onViewHistory={setSelectedAllocation}
+        />
       )}
 
       {/* Forms */}
