@@ -71,7 +71,8 @@ export default function Hero() {
             <span className="text-[#1a9f9a]">with Voltrix.</span>
           </h1>
           <p className="text-base text-neutral-600 leading-relaxed max-w-2xl">
-            Empowering Sustainable Living with Innovative Batteries, Smart Inverters, and Next-Generation Energy Solutions
+            Empowering Sustainable Living with Innovative Batteries, Smart Inverters, and{" "}
+            <span className="whitespace-nowrap">Next-Generation Energy Solutions</span>
           </p>
           <a
             href="#products"
