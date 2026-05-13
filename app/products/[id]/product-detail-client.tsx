@@ -5,9 +5,10 @@ import Image from "next/image"
 import Link from "next/link"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight, FileText } from "lucide-react"
 import ProductTermsPanel from "@/components/products/product-terms-panel"
+import ProductBrochurePanel from "@/components/products/product-brochure-panel"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
-type TabType = 'description' | 'specifications' | 'terms'
+type TabType = 'description' | 'specifications' | 'terms' | 'brochure'
 
 function StockBadge({ stock }: { stock: any }) {
   const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
@@ -305,6 +306,7 @@ export default function ProductDetailClient({
   const images = Array.isArray(product.images) ? product.images : []
   const [activeTab, setActiveTab] = useState<TabType>('description')
   const requestQuote = shouldRequestQuote(product)
+  const hasBrochure = Boolean(product.brochureUrl)
 
   return (
     <section className="pt-24 pb-16 px-4 bg-white min-h-screen">
@@ -396,6 +398,18 @@ export default function ProductDetailClient({
                 >
                   Terms & Conditions
                 </button>
+                {hasBrochure && (
+                  <button
+                    onClick={() => setActiveTab('brochure')}
+                    className={`px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+                      activeTab === 'brochure'
+                        ? 'border-[#1a9f9a] text-[#1a9f9a]'
+                        : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                    }`}
+                  >
+                    Brochure
+                  </button>
+                )}
               </div>
 
               <div className="py-5">
@@ -420,6 +434,14 @@ export default function ProductDetailClient({
 
                 {activeTab === 'terms' && (
                   <ProductTermsPanel productName={product.name} termsDisplay={termsDisplay} />
+                )}
+
+                {activeTab === 'brochure' && hasBrochure && (
+                  <ProductBrochurePanel
+                    brochureUrl={product.brochureUrl}
+                    brochureName={product.brochureName}
+                    productName={product.name}
+                  />
                 )}
               </div>
             </div>

@@ -6,6 +6,7 @@ import {
   Globe, EyeOff, RefreshCw, Star, Check, GripVertical
 } from "lucide-react"
 import ProductTermsEditor from "@/components/website/product-terms-editor"
+import ProductBrochureField from "@/components/website/product-brochure-field"
 import { DEFAULT_PRODUCT_TERMS_CONTENT } from "@/lib/default-product-terms"
 
 type Spec = { label: string; value: string }
@@ -30,6 +31,8 @@ type Product = {
   terms?: string
   termsTemplateId?: string
   termsFile?: string
+  brochureUrl?: string
+  brochureName?: string
   order?: number
 }
 
@@ -47,6 +50,7 @@ const EMPTY = {
   specification: "", price: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
   terms: DEFAULT_PRODUCT_TERMS_CONTENT, termsTemplateId: "default-product-terms", termsFile: "",
+  brochureUrl: "", brochureName: "",
 }
 
 export default function ProductsManager() {
@@ -103,6 +107,8 @@ export default function ProductsManager() {
       terms: p.terms || DEFAULT_PRODUCT_TERMS_CONTENT,
       termsTemplateId: p.termsTemplateId || "default-product-terms",
       termsFile: p.termsFile || "",
+      brochureUrl: p.brochureUrl || "",
+      brochureName: p.brochureName || "",
     })
     setPendingImgs([])
     setIsNew(false)
@@ -195,6 +201,7 @@ export default function ProductsManager() {
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
         terms: form.terms, termsTemplateId: form.termsTemplateId, termsFile: form.termsFile,
+        brochureUrl: form.brochureUrl, brochureName: form.brochureName,
       }
 
       if (isNew) {
@@ -571,6 +578,14 @@ export default function ProductsManager() {
                 termsFile: form.termsFile,
               }}
               onChange={(termsValue) => setForm((current) => ({ ...current, ...termsValue }))}
+            />
+
+            <ProductBrochureField
+              value={{
+                brochureUrl: form.brochureUrl,
+                brochureName: form.brochureName,
+              }}
+              onChange={(brochureValue) => setForm((current) => ({ ...current, ...brochureValue }))}
             />
 
             {/* Specs */}
