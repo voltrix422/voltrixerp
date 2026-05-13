@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client"
 import { useState, useEffect } from "react"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Sparkles } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
 
@@ -47,6 +47,10 @@ export default function Hero() {
         
         {/* Left - Text Content */}
         <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#1a9f9a]" />
+            <span className="text-xs font-medium text-[#1a9f9a] tracking-widest uppercase">Let&apos;s go off grid.</span>
+          </div>
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
             Power your{" "}
             <span className="inline-block w-[100px]">
@@ -66,8 +70,8 @@ export default function Hero() {
             <br />
             <span className="text-[#1a9f9a]">with Voltrix.</span>
           </h1>
-          <p className="text-base text-neutral-600 leading-relaxed max-w-md">
-            Let's go off grid.
+          <p className="text-base text-neutral-600 leading-relaxed max-w-2xl">
+            Empowering Sustainable Living with Innovative Batteries, Smart Inverters, and Next-Generation Energy Solutions
           </p>
           <a
             href="#products"
