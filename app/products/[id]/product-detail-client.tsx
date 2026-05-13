@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from "next/image"
 import Link from "next/link"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight, FileText } from "lucide-react"
+import ProductTermsPanel from "@/components/products/product-terms-panel"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
 type TabType = 'description' | 'specifications' | 'terms'
@@ -418,22 +419,7 @@ export default function ProductDetailClient({
                 )}
 
                 {activeTab === 'terms' && (
-                  <div className="space-y-4">
-                    <div className="text-neutral-600 text-base leading-relaxed whitespace-pre-line">
-                      {termsDisplay.content}
-                    </div>
-                    {termsDisplay.fileUrl && (
-                      <a
-                        href={termsDisplay.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-semibold text-[#1a9f9a] hover:underline"
-                      >
-                        <FileText className="w-4 h-4" />
-                        Download terms document
-                      </a>
-                    )}
-                  </div>
+                  <ProductTermsPanel productName={product.name} termsDisplay={termsDisplay} />
                 )}
               </div>
             </div>
