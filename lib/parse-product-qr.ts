@@ -30,6 +30,63 @@ function parseQueryString(raw: string) {
   return extra
 }
 
+function parseEuropeanDate(value: string): string | undefined {
+  const match = value.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/)
+  if (!match) return undefined
+  const [, day, month, year] = match
+  return `${year}-${month}-${day}`
+}
+
+function parseVoltrixSlashPayload(raw: string): ParsedProductQr | null {
+  const trimmed = raw.trim()
+  const basePath = trimmed.split(/[?#]/)[0] ?? trimmed
+  const segments = basePath.split("/").map((part) => part.trim()).filter(Boolean)
+  if (segments.length < 4) return null
+  if (!/^[A-Z0-9-]{6,}$/i.test(segments[0])) return null
+
+  const queryValues = trimmed.includes("?") ? parseQueryString(trimmed) : {}
+  const serialNumber = segments[0] || pickString(queryValues, ["c", "serial", "sn", "serialNumber"])
+  const manufacturedDate = segments[1] || ""
+  const batchRef = segments[2] || ""
+  const internalRef = segments[3] || ""
+
+  let model = ""
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index]
+    if (/\.php$/i.test(segment)) continue
+    if (/^(AEP|HS|LD)-/i.test(segment) || /^[A-Z]{2,}[A-Z0-9-]*$/i.test(segment)) {
+      model = segment
+      break
+    }
+  }
+  if (!model && segments[4]) model = segments[4]
+
+  const extra: Record<string, string> = { ...queryValues }
+  if (manufacturedDate) extra.manufacturedDate = manufacturedDate
+  if (batchRef) extra.batchRef = batchRef
+  if (internalRef) extra.internalRef = internalRef
+
+  const notes = [
+    manufacturedDate ? `Manufactured ${manufacturedDate}` : "",
+    batchRef ? `Batch ${batchRef}` : "",
+    internalRef ? `Internal ref ${internalRef}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  return {
+    serialNumber,
+    productName: "",
+    model,
+    specs: internalRef,
+    notes,
+    inventoryStockId: "",
+    productId: "",
+    warrantyStartDate: parseEuropeanDate(manufacturedDate),
+    extra,
+  }
+}
+
 export function parseProductQrPayload(raw: string): ParsedProductQr {
   const trimmed = raw.trim()
   const extra: Record<string, string> = {}
@@ -70,6 +127,11 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     } catch {
       // Fall through to other parsers.
     }
+  }
+
+  if (trimmed.includes("/")) {
+    const slashParsed = parseVoltrixSlashPayload(trimmed)
+    if (slashParsed) return slashParsed
   }
 
   if (trimmed.includes("http://") || trimmed.includes("https://") || trimmed.includes("?")) {
@@ -132,7 +194,7 @@ export function matchManualStockItem(parsed: ParsedProductQr, items: ManualStock
     if (exact) return exact.id
   }
 
-  const searchTerms = [parsed.productName, parsed.model, parsed.specs]
+  const searchTerms = [parsed.model, parsed.productName, parsed.specs]
     .map((value) => value.trim().toLowerCase())
     .filter((value) => value.length > 2)
 

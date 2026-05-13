@@ -30,6 +30,7 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
   const { user } = useAuth()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const assignedNameRef = useRef<HTMLInputElement | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanMessage, setScanMessage] = useState("")
   const [loading, setLoading] = useState(true)
@@ -78,28 +79,31 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
     const parsed = parseProductQrPayload(payload)
     setRawPayload(payload)
     setSerialNumber(parsed.serialNumber)
-    setProductName(parsed.productName)
     setModel(parsed.model)
     setSpecs(parsed.specs)
-    if (!notes && parsed.notes) setNotes(parsed.notes)
-    if (!assignedName && parsed.productName) setAssignedName(parsed.productName)
+    setNotes(parsed.notes || "")
+    setAssignedName("")
 
     const matchedStockId = matchManualStockItem(parsed, manualStockItems)
-    if (matchedStockId) {
-      setInventoryStockId(matchedStockId)
-      const matchedItem = manualStockItems.find((item) => item.id === matchedStockId)
-      setScanMessage(
-        matchedItem
-          ? `QR linked to manual stock: ${matchedItem.description}`
-          : "QR linked to a manual stock item.",
-      )
+    const matchedItem = matchedStockId
+      ? manualStockItems.find((item) => item.id === matchedStockId)
+      : undefined
+
+    setInventoryStockId(matchedStockId)
+    setProductName(matchedItem?.description || parsed.productName || parsed.model)
+
+    if (matchedItem) {
+      setScanMessage(`Detected SN ${parsed.serialNumber} · Model ${parsed.model || "—"} · Linked to ${matchedItem.description}`)
+    } else if (parsed.serialNumber && parsed.model) {
+      setScanMessage(`Detected SN ${parsed.serialNumber} · Model ${parsed.model}. Add an assigned name and save.`)
     } else if (parsed.inventoryStockId) {
       setScanMessage("QR included a stock link, but no matching manual stock item was found.")
     } else {
-      setScanMessage("QR details loaded. Choose a manual stock item if needed.")
+      setScanMessage("QR details loaded. Add an assigned name and save.")
     }
 
     setError("")
+    requestAnimationFrame(() => assignedNameRef.current?.focus())
   }
 
   async function waitForScannerMount() {
@@ -186,7 +190,12 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
 
   async function handleSave() {
     if (!serialNumber.trim()) {
-      setError("Serial number is required.")
+      setError("Scan a QR code first so the serial number is captured.")
+      return
+    }
+    if (!assignedName.trim()) {
+      setError("Assigned name is required.")
+      assignedNameRef.current?.focus()
       return
     }
     setSaving(true)
@@ -307,49 +316,75 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
           <textarea
             value={rawPayload}
             onChange={(e) => applyPayload(e.target.value)}
-            rows={3}
-            placeholder="Scan a QR code or paste its text / JSON here"
+            rows={2}
+            placeholder="Scan a QR code or paste its text here"
             className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm resize-none"
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Serial number *</label>
-            <input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
+        {serialNumber && (
+          <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Serial number</p>
+              <p className="text-sm font-medium mt-1 break-all">{serialNumber}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Model</p>
+              <p className="text-sm font-medium mt-1 break-all">{model || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Manual stock</p>
+              <p className="text-sm font-medium mt-1">
+                {inventoryStockId
+                  ? manualStockItems.find((item) => item.id === inventoryStockId)?.description || "Linked"
+                  : "No stock link"}
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Assigned name</label>
-            <input value={assignedName} onChange={(e) => setAssignedName(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Product name</label>
-            <input value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Model</label>
-            <input value={model} onChange={(e) => setModel(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
-          </div>
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs font-medium">Specifications</label>
-            <input value={specs} onChange={(e) => setSpecs(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
-          </div>
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs font-medium">Link to manual stock item</label>
-            <select value={inventoryStockId} onChange={(e) => setInventoryStockId(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm">
-              <option value="">No stock link</option>
-              {manualStockItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.description} {item.poNumber ? `(${item.poNumber})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs font-medium">Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm resize-none" />
-          </div>
+        )}
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Assigned name *</label>
+          <input
+            ref={assignedNameRef}
+            value={assignedName}
+            onChange={(e) => setAssignedName(e.target.value)}
+            placeholder="e.g. Unit for office install, display sample, customer reserve"
+            className="w-full h-10 rounded-md border px-3 text-sm"
+          />
+          <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+            Serial number, model, and stock link are taken from the QR. You only need to name this unit before saving.
+          </p>
         </div>
+
+        <details className="rounded-lg border px-3 py-2">
+          <summary className="text-xs font-medium cursor-pointer">Edit extra details</summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Product name</label>
+              <input value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Specifications</label>
+              <input value={specs} onChange={(e) => setSpecs(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs font-medium">Link to manual stock item</label>
+              <select value={inventoryStockId} onChange={(e) => setInventoryStockId(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm">
+                <option value="">No stock link</option>
+                {manualStockItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.description} {item.poNumber ? `(${item.poNumber})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs font-medium">Notes</label>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm resize-none" />
+            </div>
+          </div>
+        </details>
 
         {error && <p className="text-xs text-red-600">{error}</p>}
 
