@@ -246,6 +246,17 @@ type InventoryItem = ImportedPOItem & {
   specs?: string
 }
 
+function getInventoryItemLabel(item: { name?: string; description?: string }) {
+  return item.name?.trim() || item.description?.trim() || "—"
+}
+
+function getInventoryItemSecondary(item: { name?: string; description?: string }) {
+  const name = item.name?.trim() || ""
+  const description = item.description?.trim() || ""
+  if (name && description && name !== description) return description
+  return ""
+}
+
 export function InventoryList() {
   const [pos, setPos] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -588,6 +599,7 @@ export function InventoryList() {
 
   const filteredInventory = allInventoryItems.filter(item => {
     const matchesSearch = 
+      (item.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (item.description ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (item.poNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (item.supplier ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -989,7 +1001,7 @@ export function InventoryList() {
             .filter((item) => item.poNumber?.startsWith("MI-"))
             .map((item) => ({
               id: item.id,
-              description: item.description,
+              description: getInventoryItemLabel(item),
               poNumber: item.poNumber,
             }))}
         />
@@ -1031,7 +1043,12 @@ export function InventoryList() {
                     
                     return (
                       <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer" onClick={() => setSelectedInventoryItem(item)}>
-                        <td className="px-4 py-2.5 text-xs font-medium">{item.description}</td>
+                        <td className="px-4 py-2.5 text-xs font-medium">
+                          <p>{getInventoryItemLabel(item)}</p>
+                          {getInventoryItemSecondary(item) && (
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{getInventoryItemSecondary(item)}</p>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{productId}</td>
                         <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{item.poNumber}</td>
                         <td className="px-4 py-2.5 text-xs">{item.supplier}</td>
