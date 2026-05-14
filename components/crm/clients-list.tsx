@@ -1,7 +1,11 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getClients, saveClient, deleteClient, type Client } from "@/lib/crm"
-import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { getClients, saveClient, deleteClient, type Client, CLIENT_STATUS_COLORS, CLIENT_STATUS_LABELS } from "@/lib/crm"
+import { initialClientStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { matchesOwnerRecord, resolveOwnerUserId } from "@/lib/crm-workspace"
+import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
+import { useAuth } from "@/components/auth-provider"
+import { useToast } from "@/components/ui/toast"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -90,6 +94,16 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
               <p className="text-xs font-semibold truncate w-full px-1 capitalize">
                 {client.name}
               </p>
+              <div className="flex flex-col items-center gap-1 w-full px-1">
+                {client.ownerUserId && (
+                  <SalesAgentSourceBadge agentName={client.createdBy} className="max-w-full" />
+                )}
+                {client.status !== "active" && (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${CLIENT_STATUS_COLORS[client.status]}`}>
+                    {CLIENT_STATUS_LABELS[client.status]}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -111,6 +125,7 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
       {selected && (
         <ClientDetail
           client={selected}
+          workspace={workspace}
           onClose={() => setSelected(null)}
           onUpdate={c => {
             setClients(prev => prev.map(x => x.id === c.id ? c : x))
@@ -154,6 +169,7 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
   onClose: () => void
   onSave: (c: Client) => void
 }) {
+  const { toast } = useToast()
   const [name, setName] = useState(existing?.name || "")
   const [company, setCompany] = useState(existing?.company || "")
   const [email, setEmail] = useState(existing?.email || "")
@@ -206,9 +222,13 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
       createdAt: existing?.createdAt || new Date().toISOString(),
       createdBy: existing?.createdBy || currentUser,
       ownerUserId: existing?.ownerUserId || resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
+      status: existing?.status || initialClientStatus(workspace),
     }
 
     await saveClient(client)
+    if (!existing && workspace?.mode === "sales_agent") {
+      toast({ title: "Client submitted", message: "This client was sent to admin for approval.", type: "success" })
+    }
     onSave(client)
     setSaving(false)
   }
@@ -350,15 +370,36 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
   )
 }
 
-function ClientDetail({ client, onClose, onUpdate, onDelete, onRequestDelete }: {
+function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onRequestDelete }: {
   client: Client
+  workspace?: CrmWorkspaceScope
   onClose: () => void
   onUpdate: (c: Client) => void
   onDelete: (id: string) => void
   onRequestDelete?: () => void
 }) {
+  const { user } = useAuth()
+  const { toast } = useToast()
   const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
+  const readOnly = !!workspace?.readOnly
+  const isAdmin = user?.role === "superadmin"
+  const canReview = isAdmin && client.status === "pending_approval" && !!client.ownerUserId
+
+  async function reviewClient(nextStatus: "active" | "rejected") {
+    setReviewing(true)
+    const updated = { ...client, status: nextStatus }
+    await saveClient(updated)
+    onUpdate(updated)
+    toast({
+      title: nextStatus === "active" ? "Client approved" : "Client rejected",
+      message: `${client.name} was ${nextStatus === "active" ? "approved" : "rejected"}.`,
+      type: "success",
+    })
+    setReviewing(false)
+    onClose()
+  }
 
   async function handleDelete() {
     if (onRequestDelete) {
@@ -375,6 +416,7 @@ function ClientDetail({ client, onClose, onUpdate, onDelete, onRequestDelete }: 
       {editing ? (
         <ClientForm
           currentUser={client.createdBy}
+          workspace={workspace}
           existing={client}
           onClose={() => setEditing(false)}
           onSave={c => {
@@ -403,7 +445,15 @@ function ClientDetail({ client, onClose, onUpdate, onDelete, onRequestDelete }: 
                   </div>
                 )}
                 <div className="flex-1">
-                  <p className="text-lg font-bold">{client.name}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-lg font-bold">{client.name}</p>
+                    {client.ownerUserId && <SalesAgentSourceBadge agentName={client.createdBy} />}
+                    {client.status !== "active" && (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${CLIENT_STATUS_COLORS[client.status]}`}>
+                        {CLIENT_STATUS_LABELS[client.status]}
+                      </span>
+                    )}
+                  </div>
                   {client.company && <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">{client.company}</p>}
                   {client.industry && (
                     <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-[hsl(var(--muted))]/40 text-[10px] font-medium">
@@ -487,12 +537,26 @@ function ClientDetail({ client, onClose, onUpdate, onDelete, onRequestDelete }: 
             </div>
 
             <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-              <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setEditing(true)}>
-                Edit
-              </Button>
-              <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" onClick={handleDelete} disabled={deleting}>
-                <Trash2 className="h-3 w-3 mr-1.5" /> {deleting ? "Deleting..." : "Delete"}
-              </Button>
+              {canReview && (
+                <>
+                  <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => reviewClient("active")} disabled={reviewing}>
+                    Approve Client
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => reviewClient("rejected")} disabled={reviewing}>
+                    Reject Client
+                  </Button>
+                </>
+              )}
+              {!readOnly && (
+                <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setEditing(true)}>
+                  Edit
+                </Button>
+              )}
+              {!readOnly && (
+                <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" onClick={handleDelete} disabled={deleting}>
+                  <Trash2 className="h-3 w-3 mr-1.5" /> {deleting ? "Deleting..." : "Delete"}
+                </Button>
+              )}
               <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>Close</Button>
             </div>
           </div>

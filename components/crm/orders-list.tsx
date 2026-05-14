@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react"
 import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
-import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
@@ -237,9 +238,12 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
                   <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>{order.orderNumber || "—"}</td>
                   <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
-                    <div className="flex items-center gap-1">
-                      <ShoppingCart className="h-4 w-4 text-blue-600" />
-                      <span className="ml-2">{order.clientName || "—"}</span>
+                    <div className="flex flex-col items-start gap-1">
+                      <div className="flex items-center gap-1">
+                        <ShoppingCart className="h-4 w-4 text-blue-600" />
+                        <span className="ml-2">{order.clientName || "—"}</span>
+                      </div>
+                      {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} />}
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>{order.items?.length || 0}</td>
@@ -492,7 +496,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
       discountIsPercentage,
       discountValue: discountAmount,
       total,
-      status: "pending_approval", // Send to admin for approval
+      status: initialOrderStatus(workspace),
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       createdBy: currentUser,
@@ -503,6 +507,9 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
     }
 
     await saveOrder(order)
+    if (workspace?.mode === "sales_agent") {
+      toast({ title: "Order submitted", message: "This order was sent to admin for approval.", type: "success" })
+    }
     onSave(order)
     setSaving(false)
   }
@@ -1210,6 +1217,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                 </span>
               </div>
               <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize">{order.clientName}</p>
+              {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} className="mt-2" />}
             </div>
             {!isEditing && order.deliveryDate && (
               <div className="border-l pl-6">

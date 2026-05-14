@@ -1,4 +1,5 @@
 import type { User } from "@/lib/auth"
+import type { ClientStatus } from "@/lib/crm"
 
 export type CrmWorkspaceMode = "main" | "sales_agent"
 
@@ -27,4 +28,20 @@ export function matchesOwnerRecord(ownerUserId: string | undefined, scopeUserId?
 
 export function resolveOwnerUserId(scopeUserId: string | undefined, currentUserId?: string) {
   return scopeUserId || currentUserId
+}
+
+export function isSalesAgentSubmission(ownerUserId?: string) {
+  return !!ownerUserId
+}
+
+export function initialClientStatus(workspace?: CrmWorkspaceScope): ClientStatus {
+  return workspace?.mode === "sales_agent" ? "pending_approval" : "active"
+}
+
+export function initialOrderStatus(workspace?: CrmWorkspaceScope): "pending_approval" | "approved" {
+  return workspace?.mode === "sales_agent" ? "pending_approval" : "approved"
+}
+
+export function initialQuotationStatus(workspace?: CrmWorkspaceScope): "pending_approval" | "draft" {
+  return workspace?.mode === "sales_agent" ? "pending_approval" : "draft"
 }

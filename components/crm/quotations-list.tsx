@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react"
 import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
 import { getClients, type Client } from "@/lib/crm"
-import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
@@ -76,7 +77,12 @@ export function QuotationsList({ currentUser, currentUserId, workspace }: { curr
         {filtered.map(q=>(
           <tr key={q.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer" onClick={()=>setSelected(q)}>
             <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{q.quotationNumber}</td>
-            <td className="px-4 py-2.5 text-xs font-medium">{q.clientName}</td>
+            <td className="px-4 py-2.5 text-xs font-medium">
+              <div className="flex flex-col items-start gap-1">
+                <span>{q.clientName}</span>
+                {q.ownerUserId && <SalesAgentSourceBadge agentName={q.createdBy} />}
+              </div>
+            </td>
             <td className="px-4 py-2.5 text-xs text-center">{q.items?.length||0}</td>
             <td className="px-4 py-2.5 text-xs text-right font-semibold">PKR {(q.total||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
             <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[q.status]}`}>{STATUS_LABELS[q.status]}</span></td>
@@ -107,6 +113,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope; clients: Client[]; existing?: Quotation
   onClose: () => void; onSave: (q: Quotation) => void
 }) {
+  const { toast } = useToast()
   const [clientId, setClientId] = useState(existing?.clientId || "")
   const [clientSearch, setClientSearch] = useState("")
   const [showClientDrop, setShowClientDrop] = useState(false)
@@ -123,7 +130,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   const [otherCost, setOtherCost] = useState(existing?.otherCost || 0)
   const [otherCostLabel, setOtherCostLabel] = useState(existing?.otherCostLabel || "Other")
   const [otherCostIsPercentage, setOtherCostIsPercentage] = useState(existing?.otherCostIsPercentage ?? false)
-  const [status, setStatus] = useState<Quotation["status"]>(existing?.status || (workspace?.mode === "sales_agent" ? "pending_approval" : "draft"))
+  const [status, setStatus] = useState<Quotation["status"]>(existing?.status || initialQuotationStatus(workspace))
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [showInventory, setShowInventory] = useState(false)
   const [invSearch, setInvSearch] = useState("")
@@ -183,6 +190,9 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
       ownerUserId: existing?.ownerUserId || resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
     }
     await saveQuotation(q)
+    if (!existing && workspace?.mode === "sales_agent") {
+      toast({ title: "Quotation submitted", message: "This quotation was sent to admin for approval.", type: "success" })
+    }
     onSave(q)
     setSaving(false)
   }
@@ -410,6 +420,7 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, allowAdminRevie
           <div>
             <p className="text-base font-bold text-[hsl(var(--primary))]">{quotation.quotationNumber}</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{quotation.clientName}</p>
+            {quotation.ownerUserId && <SalesAgentSourceBadge agentName={quotation.createdBy} className="mt-2" />}
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[quotation.status]}`}>{STATUS_LABELS[quotation.status]}</span>
@@ -561,7 +572,7 @@ function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation
         discountIsPercentage: quotation.discountIsPercentage,
         discountValue: quotation.discountValue,
         total: quotation.total,
-        status: "pending_approval",
+        status: quotation.ownerUserId ? "pending_approval" : "approved",
         notes: quotation.notes,
         createdAt: new Date().toISOString(),
         createdBy: quotation.createdBy,

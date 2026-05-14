@@ -1,3 +1,5 @@
+export type ClientStatus = "active" | "pending_approval" | "rejected"
+
 export interface Client {
   id: string
   name: string
@@ -16,6 +18,19 @@ export interface Client {
   createdAt: string
   createdBy: string
   ownerUserId?: string
+  status: ClientStatus
+}
+
+export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
+  active: "Active",
+  pending_approval: "Pending Approval",
+  rejected: "Rejected",
+}
+
+export const CLIENT_STATUS_COLORS: Record<ClientStatus, string> = {
+  active: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  pending_approval: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+  rejected: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
 }
 
 function mapRow(r: Record<string, unknown>): Client {
@@ -37,6 +52,7 @@ function mapRow(r: Record<string, unknown>): Client {
     createdAt: r.createdAt as string,
     createdBy: r.createdBy as string,
     ownerUserId: (r.ownerUserId as string) ?? undefined,
+    status: ((r.status as ClientStatus) || "active"),
   }
 }
 
