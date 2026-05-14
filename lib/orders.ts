@@ -40,6 +40,7 @@ export interface Order {
   notes: string
   createdAt: string
   createdBy: string
+  ownerUserId?: string
   deliveryAddress: string
   deliveryDate: string
   dispatcher?: string // Assigned dispatcher
@@ -96,6 +97,7 @@ function rowToOrder(r: Record<string, unknown>): Order {
     notes: r.notes as string,
     createdAt: r.createdAt as string,
     createdBy: r.createdBy as string,
+    ownerUserId: (r.ownerUserId as string) ?? undefined,
     deliveryAddress: (r.deliveryAddress as string) ?? "",
     deliveryDate: (r.deliveryDate as string) ?? "",
     dispatcher: (r.dispatcher as string) ?? undefined,

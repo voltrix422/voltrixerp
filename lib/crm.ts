@@ -15,6 +15,7 @@ export interface Client {
   notes: string
   createdAt: string
   createdBy: string
+  ownerUserId?: string
 }
 
 function mapRow(r: Record<string, unknown>): Client {
@@ -35,6 +36,7 @@ function mapRow(r: Record<string, unknown>): Client {
     notes: (r.notes as string) ?? "",
     createdAt: r.createdAt as string,
     createdBy: r.createdBy as string,
+    ownerUserId: (r.ownerUserId as string) ?? undefined,
   }
 }
 

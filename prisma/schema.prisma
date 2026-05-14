@@ -95,6 +95,7 @@ model ErpOrder {
   dispatcher       String?
   pdfUrl           String?  @map("pdf_url")
   payments         Json     @default("[]")
+  ownerUserId      String?  @map("owner_user_id")
   fulfillmentDispatcher          String? @map("fulfillment_dispatcher")
   fulfillmentReceiverName        String? @map("fulfillment_receiver_name")
   fulfillmentReceiverCnic        String? @map("fulfillment_receiver_cnic")
@@ -125,6 +126,7 @@ model ErpClient {
   notes         String   @default("")
   createdAt     DateTime @default(now()) @map("created_at")
   createdBy     String   @map("created_by")
+  ownerUserId   String?  @map("owner_user_id")
 
   @@map("erp_clients")
 }
@@ -538,6 +540,7 @@ model CrmQuotation {
   validUntil              String   @default("") @map("valid_until")
   createdAt               DateTime @default(now()) @map("created_at")
   createdBy               String   @map("created_by")
+  ownerUserId             String?  @map("owner_user_id")
   convertedToOrderId      String?  @map("converted_to_order_id")
 
   @@map("crm_quotations")

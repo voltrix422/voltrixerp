@@ -1,12 +1,13 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getClients, saveClient, deleteClient, type Client } from "@/lib/crm"
+import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Plus, Search, X, Upload, Trash2, User, ShoppingCart } from "lucide-react"
 
-export function ClientsList({ currentUser }: { currentUser: string }) {
+export function ClientsList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -16,7 +17,10 @@ export function ClientsList({ currentUser }: { currentUser: string }) {
 
   useEffect(() => {
     getClients().then(c => {
-      setClients(c)
+      const scoped = workspace?.ownerUserId
+        ? c.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
+        : c
+      setClients(scoped)
       setLoading(false)
     })
   }, [])
@@ -38,9 +42,11 @@ export function ClientsList({ currentUser }: { currentUser: string }) {
             className="w-full h-9 px-3 border-b-2 border-t-0 border-x-0 border-[hsl(var(--border))] bg-transparent text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors cursor-pointer"
           />
         </div>
+        {!workspace?.readOnly && (
         <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Clients
         </Button>
+        )}
       </div>
 
       {loading ? (
@@ -92,6 +98,8 @@ export function ClientsList({ currentUser }: { currentUser: string }) {
       {showForm && (
         <ClientForm
           currentUser={currentUser}
+          currentUserId={currentUserId}
+          workspace={workspace}
           onClose={() => setShowForm(false)}
           onSave={c => {
             setClients(prev => [c, ...prev.filter(x => x.id !== c.id)])
@@ -138,8 +146,10 @@ export function ClientsList({ currentUser }: { currentUser: string }) {
   )
 }
 
-function ClientForm({ currentUser, existing, onClose, onSave }: {
+function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, onSave }: {
   currentUser: string
+  currentUserId?: string
+  workspace?: CrmWorkspaceScope
   existing?: Client
   onClose: () => void
   onSave: (c: Client) => void
@@ -195,6 +205,7 @@ function ClientForm({ currentUser, existing, onClose, onSave }: {
       notes: notes.trim(),
       createdAt: existing?.createdAt || new Date().toISOString(),
       createdBy: existing?.createdBy || currentUser,
+      ownerUserId: existing?.ownerUserId || resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
     }
 
     await saveClient(client)

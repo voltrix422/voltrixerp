@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
 import { getClients, type Client } from "@/lib/crm"
+import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,7 @@ import { Plus, X, Trash2, FileText, Edit, ShoppingCart } from "lucide-react"
 import { saveOrder, generateOrderNumber } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 
-export function QuotationsList({ currentUser }: { currentUser: string }) {
+export function QuotationsList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
   const { toast } = useToast()
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -25,7 +26,15 @@ export function QuotationsList({ currentUser }: { currentUser: string }) {
 
   useEffect(() => {
     Promise.all([getQuotations(), getClients()]).then(([q, c]) => {
-      setQuotations(q); setClients(c); setLoading(false)
+      const scopedQuotations = workspace?.ownerUserId
+        ? q.filter(quotation => matchesOwnerRecord(quotation.ownerUserId, workspace.ownerUserId))
+        : q
+      const scopedClients = workspace?.ownerUserId
+        ? c.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
+        : c
+      setQuotations(scopedQuotations)
+      setClients(scopedClients)
+      setLoading(false)
     })
   }, [])
 
@@ -38,7 +47,7 @@ export function QuotationsList({ currentUser }: { currentUser: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1 border-b">
-          {["all","draft","sent","accepted","rejected","expired","converted"].map(s => (
+          {["all","draft","pending_approval","sent","accepted","rejected","expired","converted"].map(s => (
             <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${statusFilter===s?"text-[hsl(var(--foreground))]":"text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"}`}>
               {s==="all"?"All":STATUS_LABELS[s as keyof typeof STATUS_LABELS]||s}
               {statusFilter===s&&<div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]"/>}
@@ -47,7 +56,9 @@ export function QuotationsList({ currentUser }: { currentUser: string }) {
         </div>
         <div className="flex items-center gap-2">
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-40"/>
+          {!workspace?.readOnly && (
           <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={()=>setShowForm(true)}><Plus className="h-3.5 w-3.5 mr-1"/>Create Quotation</Button>
+          )}
         </div>
       </div>
       {loading?(<div className="flex items-center justify-center py-20"><div className="h-8 w-8 rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent animate-spin"/></div>
@@ -81,9 +92,9 @@ export function QuotationsList({ currentUser }: { currentUser: string }) {
           </tr>
         ))}
       </tbody></table></div>)}
-      {showForm&&<QuotationForm currentUser={currentUser} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}
-      {editingQuotation&&<QuotationForm currentUser={currentUser} clients={clients} existing={editingQuotation} onClose={()=>setEditingQuotation(null)} onSave={q=>{setQuotations(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQuotation(null)}}/>}
-      {selected&&!editingQuotation&&<QuotationDetail quotation={selected} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}}/>}
+      {showForm&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}
+      {editingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} existing={editingQuotation} onClose={()=>setEditingQuotation(null)} onSave={q=>{setQuotations(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQuotation(null)}}/>}
+      {selected&&!editingQuotation&&<QuotationDetail quotation={selected} allowAdminReview={!!workspace?.readOnly} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}} onUpdate={updated=>{setQuotations(prev=>prev.map(x=>x.id===updated.id?updated:x));setSelected(updated)}}/>}
       <ConfirmDialog isOpen={!!deleteConfirm} title="Delete Quotation" message={`Delete ${deleteConfirm?.quotationNumber}?`} confirmText="Delete" cancelText="Cancel" variant="danger"
         onConfirm={()=>{if(deleteConfirm){deleteQuotation(deleteConfirm.id);setQuotations(prev=>prev.filter(x=>x.id!==deleteConfirm.id))}setDeleteConfirm(null)}}
         onCancel={()=>setDeleteConfirm(null)}/>
@@ -92,8 +103,8 @@ export function QuotationsList({ currentUser }: { currentUser: string }) {
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
-function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
-  currentUser: string; clients: Client[]; existing?: Quotation
+function QuotationForm({ currentUser, currentUserId, workspace, clients, existing, onClose, onSave }: {
+  currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope; clients: Client[]; existing?: Quotation
   onClose: () => void; onSave: (q: Quotation) => void
 }) {
   const [clientId, setClientId] = useState(existing?.clientId || "")
@@ -112,7 +123,7 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
   const [otherCost, setOtherCost] = useState(existing?.otherCost || 0)
   const [otherCostLabel, setOtherCostLabel] = useState(existing?.otherCostLabel || "Other")
   const [otherCostIsPercentage, setOtherCostIsPercentage] = useState(existing?.otherCostIsPercentage ?? false)
-  const [status, setStatus] = useState<Quotation["status"]>(existing?.status || "draft")
+  const [status, setStatus] = useState<Quotation["status"]>(existing?.status || (workspace?.mode === "sales_agent" ? "pending_approval" : "draft"))
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [showInventory, setShowInventory] = useState(false)
   const [invSearch, setInvSearch] = useState("")
@@ -169,6 +180,7 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
       discount, discountIsPercentage, discountValue: discountAmount,
       total, status, notes: notes.trim(), deliveryAddress: deliveryAddress.trim(),
       validUntil, createdAt: existing?.createdAt || new Date().toISOString(), createdBy: existing?.createdBy || currentUser,
+      ownerUserId: existing?.ownerUserId || resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
     }
     await saveQuotation(q)
     onSave(q)
@@ -370,10 +382,20 @@ function QuotationForm({ currentUser, clients, existing, onClose, onSave }: {
 }
 
 // ─── Detail View ──────────────────────────────────────────────────────────────
-function QuotationDetail({ quotation, onClose, onEdit, onDelete }: {
-  quotation: Quotation; onClose: () => void; onEdit: () => void; onDelete: (id: string) => void
+function QuotationDetail({ quotation, onClose, onEdit, onDelete, allowAdminReview, readOnly, onUpdate }: {
+  quotation: Quotation; onClose: () => void; onEdit: () => void; onDelete: (id: string) => void; allowAdminReview?: boolean; readOnly?: boolean; onUpdate?: (q: Quotation) => void
 }) {
   const [deleting, setDeleting] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
+
+  async function reviewQuotation(nextStatus: "draft" | "rejected") {
+    setReviewing(true)
+    const updated = { ...quotation, status: nextStatus }
+    await saveQuotation(updated)
+    onUpdate?.(updated)
+    setReviewing(false)
+    onClose()
+  }
 
   async function handleDelete() {
     setDeleting(true)
@@ -473,11 +495,25 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete }: {
         </div>
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
+          {allowAdminReview && quotation.status === "pending_approval" && (
+            <>
+              <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => reviewQuotation("draft")} disabled={reviewing}>
+                Approve quotation
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => reviewQuotation("rejected")} disabled={reviewing}>
+                Reject
+              </Button>
+            </>
+          )}
+          {!readOnly && (
+            <>
+              <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
+              <ConvertToOrderButton quotation={quotation} onConverted={id => { onDelete(quotation.id) }} />
+              <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
+            </>
+          )}
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => downloadQuotationPDF(quotation)}><FileText className="h-3.5 w-3.5 mr-1"/>Download PDF</Button>
-          <ConvertToOrderButton quotation={quotation} onConverted={id => { onDelete(quotation.id) }} />
-          <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Close</Button>
+          <Button size="sm" variant="outline" className={`h-8 text-xs cursor-pointer ${readOnly ? "ml-auto" : ""}`} onClick={onClose}>Close</Button>
         </div>
       </div>
     </div>
@@ -532,6 +568,7 @@ function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation
         deliveryAddress: quotation.deliveryAddress,
         deliveryDate: quotation.validUntil || "",
         payments: [],
+        ownerUserId: quotation.ownerUserId,
       }
       await saveOrder(order)
       // Mark quotation as converted

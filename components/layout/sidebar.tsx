@@ -5,8 +5,9 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet, ChevronDown,
 } from "lucide-react"
+import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
@@ -40,12 +41,17 @@ const navSecondary = [
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
 
   const visibleNav = user?.role === "superadmin"
     ? ALL_NAV
     : ALL_NAV.filter(n => user?.modules.includes(n.module))
 
   const visibleAdminNav = user?.role === "superadmin" ? ADMIN_ONLY_NAV : []
+  const showCrmMain = canAccessCrmMain(user)
+  const showSalesAgents = canAccessSalesAgentsArea(user)
+  const showCrmSection = visibleNav.some(item => item.href === "/crm") && (showCrmMain || showSalesAgents)
+  const primaryNav = visibleNav.filter(item => item.href !== "/crm")
 
   return (
     <>
@@ -69,7 +75,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             </Link>
           )
         })}
-        {visibleNav.map(({ href, label, icon: Icon }) => {
+        {primaryNav.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href) || false
           return (
             <Link
@@ -88,6 +94,56 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             </Link>
           )
         })}
+        {showCrmSection && (
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => setCrmOpen(open => !open)}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors cursor-pointer",
+                pathname?.startsWith("/crm")
+                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+              )}
+            >
+              <Users2 className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate text-left">CRM</span>
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", crmOpen && "rotate-180")} />
+            </button>
+            {crmOpen && (
+              <div className="ml-6 space-y-1">
+                {showCrmMain && (
+                  <Link
+                    href="/crm"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                      pathname === "/crm"
+                        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                        : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+                    )}
+                  >
+                    Main
+                  </Link>
+                )}
+                {showSalesAgents && (
+                  <Link
+                    href="/crm/sales-agents"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                      pathname?.startsWith("/crm/sales-agents")
+                        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                        : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+                    )}
+                  >
+                    Sales agents
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href) || false
           return (

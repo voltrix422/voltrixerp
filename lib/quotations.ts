@@ -1,6 +1,6 @@
 // Quotations library for CRM module
 
-export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired" | "converted"
+export type QuotationStatus = "draft" | "pending_approval" | "sent" | "accepted" | "rejected" | "expired" | "converted"
 
 export interface QuotationItem {
   id: string
@@ -41,6 +41,7 @@ export interface Quotation {
   validUntil: string // Expiry date for quotation
   createdAt: string
   createdBy: string
+  ownerUserId?: string
   convertedToOrderId?: string // If converted to order, store order ID
 }
 
@@ -72,6 +73,7 @@ function rowToQuotation(r: Record<string, unknown>): Quotation {
     validUntil: (r.validUntil as string) ?? "",
     createdAt: r.createdAt as string,
     createdBy: r.createdBy as string,
+    ownerUserId: (r.ownerUserId as string) ?? undefined,
     convertedToOrderId: (r.convertedToOrderId as string) ?? undefined,
   }
 }
@@ -113,6 +115,7 @@ export async function generateQuotationNumber(): Promise<string> {
 
 export const STATUS_LABELS: Record<QuotationStatus, string> = {
   draft: "Draft",
+  pending_approval: "Pending Approval",
   sent: "Sent",
   accepted: "Accepted",
   rejected: "Rejected",
@@ -122,6 +125,7 @@ export const STATUS_LABELS: Record<QuotationStatus, string> = {
 
 export const STATUS_COLORS: Record<QuotationStatus, string> = {
   draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  pending_approval: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
   sent: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   accepted: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
   rejected: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",

@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { ClientsList } from "@/components/crm/clients-list"
@@ -7,10 +8,18 @@ import { LeadsManager } from "@/components/crm/leads-manager"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
 import { useAuth } from "@/components/auth-provider"
+import { isSalesAgentUser } from "@/lib/crm-workspace"
 
 export default function CRMPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [tab, setTab] = useState<"quotations" | "orders" | "clients" | "leads">("quotations")
+
+  useEffect(() => {
+    if (user && isSalesAgentUser(user)) {
+      router.replace("/crm/sales-agents")
+    }
+  }, [user, router])
   
   return (
     <ModuleGuard module="crm">

@@ -5,7 +5,7 @@ export interface User {
   name: string
   email: string
   password: string
-  role: "superadmin" | "user"
+  role: "superadmin" | "user" | "sales_agent"
   modules: Module[]
 }
 

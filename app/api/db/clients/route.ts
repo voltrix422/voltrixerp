@@ -14,13 +14,13 @@ export async function POST(req: NextRequest) {
       name: c.name, company: c.company, email: c.email, phone: c.phone,
       address: c.address, city: c.city, country: c.country, website: c.website,
       taxId: c.taxId, industry: c.industry, contactPerson: c.contactPerson,
-      imageUrl: c.imageUrl, notes: c.notes, createdBy: c.createdBy,
+      imageUrl: c.imageUrl, notes: c.notes, createdBy: c.createdBy, ownerUserId: c.ownerUserId,
     },
     create: {
       id: c.id, name: c.name, company: c.company, email: c.email, phone: c.phone,
       address: c.address, city: c.city, country: c.country, website: c.website,
       taxId: c.taxId, industry: c.industry, contactPerson: c.contactPerson,
-      imageUrl: c.imageUrl, notes: c.notes, createdBy: c.createdBy,
+      imageUrl: c.imageUrl, notes: c.notes, createdBy: c.createdBy, ownerUserId: c.ownerUserId,
       createdAt: c.createdAt ? new Date(c.createdAt) : undefined,
     },
   })

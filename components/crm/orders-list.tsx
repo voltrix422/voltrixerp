@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
+import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
@@ -16,7 +17,7 @@ import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 
-export function OrdersList({ currentUser }: { currentUser: string }) {
+export function OrdersList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
   const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -32,11 +33,24 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
 
   useEffect(() => {
     Promise.all([getOrders(), getClients()]).then(([o, c]) => {
-      setOrders(o)
-      setClients(c)
+      const scopedOrders = workspace?.ownerUserId
+        ? o.filter(order => matchesOwnerRecord(order.ownerUserId, workspace.ownerUserId))
+        : o
+      const scopedClients = workspace?.ownerUserId
+        ? c.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
+        : c
+      setOrders(scopedOrders)
+      setClients(scopedClients)
       setLoading(false)
     })
-    const interval = setInterval(() => getOrders().then(setOrders), 30000)
+    const interval = setInterval(() => {
+      getOrders().then(o => {
+        const scopedOrders = workspace?.ownerUserId
+          ? o.filter(order => matchesOwnerRecord(order.ownerUserId, workspace.ownerUserId))
+          : o
+        setOrders(scopedOrders)
+      })
+    }, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -184,9 +198,11 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
             {showFilters ? "Hide Filters" : "Filters"}
           </Button>
+          {!workspace?.readOnly && (
           <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Order
           </Button>
+          )}
         </div>
       </div>
 
@@ -268,6 +284,8 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
       {showForm && (
         <OrderForm
           currentUser={currentUser}
+          currentUserId={currentUserId}
+          workspace={workspace}
           clients={clients}
           onClose={() => setShowForm(false)}
           onSave={o => {
@@ -314,8 +332,10 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
   )
 }
 
-function OrderForm({ currentUser, clients, onClose, onSave }: {
+function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, onSave }: {
   currentUser: string
+  currentUserId?: string
+  workspace?: CrmWorkspaceScope
   clients: Client[]
   onClose: () => void
   onSave: (o: Order) => void
@@ -476,6 +496,7 @@ function OrderForm({ currentUser, clients, onClose, onSave }: {
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       createdBy: currentUser,
+      ownerUserId: resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
       deliveryAddress: deliveryAddress.trim(),
       deliveryDate: deliveryDate || "",
       payments: [],
