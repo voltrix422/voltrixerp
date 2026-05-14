@@ -64,8 +64,15 @@ export interface OrderPayment {
   date: string
   notes: string
   proofUrl?: string
+  proofUrls?: string[]
   createdAt: string
   createdBy: string
+}
+
+export function getOrderPaymentProofUrls(payment: OrderPayment): string[] {
+  if (payment.proofUrls && payment.proofUrls.length > 0) return payment.proofUrls
+  if (payment.proofUrl) return [payment.proofUrl]
+  return []
 }
 
 function rowToOrder(r: Record<string, unknown>): Order {

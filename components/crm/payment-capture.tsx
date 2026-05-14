@@ -1,6 +1,6 @@
 "use client"
-import { useState } from "react"
-import { saveOrder, type Order, type OrderPayment } from "@/lib/orders"
+import { useState, type ChangeEvent } from "react"
+import { saveOrder, type Order, type OrderPayment, getOrderPaymentProofUrls } from "@/lib/orders"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -16,7 +16,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer")
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
   const [paymentNotes, setPaymentNotes] = useState("")
-  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null)
+  const [paymentProofFiles, setPaymentProofFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [uploadingProof, setUploadingProof] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,20 +38,26 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
       return
     }
 
-    if (!paymentProofFile) {
-      setError("Payment proof (receipt/screenshot) is required")
+    if (paymentProofFiles.length === 0) {
+      setError("At least one payment proof image or document is required")
       return
     }
 
     setSaving(true)
 
-    // Upload proof if provided
-    let proofUrl: string | undefined
-    if (paymentProofFile) {
-      setUploadingProof(true)
-      try { proofUrl = await uploadFile(paymentProofFile, "payment-proofs") } catch {}
+    let proofUrls: string[] = []
+    setUploadingProof(true)
+    try {
+      proofUrls = await Promise.all(
+        paymentProofFiles.map((file) => uploadFile(file, "payment-proofs")),
+      )
+    } catch {
       setUploadingProof(false)
+      setSaving(false)
+      setError("Failed to upload one or more payment proof files")
+      return
     }
+    setUploadingProof(false)
 
     const payment: OrderPayment = {
       id: Date.now().toString(),
@@ -59,7 +65,8 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
       method: paymentMethod,
       date: paymentDate,
       notes: paymentNotes,
-      proofUrl,
+      proofUrls,
+      proofUrl: proofUrls[0],
       createdAt: new Date().toISOString(),
       createdBy: currentUser,
     }
@@ -87,6 +94,18 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     await saveOrder(updated)
     onUpdate(updated)
     setDeletePaymentId(null)
+  }
+
+  function handleProofFilesChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || [])
+    if (files.length > 0) {
+      setPaymentProofFiles((prev) => [...prev, ...files])
+    }
+    event.target.value = ""
+  }
+
+  function removeProofFile(index: number) {
+    setPaymentProofFiles((prev) => prev.filter((_, fileIndex) => fileIndex !== index))
   }
 
   const totalPaid = (order.payments || []).reduce((sum, p) => sum + p.amount, 0)
@@ -127,10 +146,18 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                         <p className="font-medium">PKR {p.amount.toLocaleString()}</p>
                         <p className="text-[hsl(var(--muted-foreground))]">{p.method} · {new Date(p.date).toLocaleDateString()}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {p.proofUrl && (
-                          <a href={p.proofUrl} target="_blank" rel="noreferrer" className="text-[hsl(var(--primary))] underline cursor-pointer">View Proof</a>
-                        )}
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {getOrderPaymentProofUrls(p).map((proofUrl, proofIndex) => (
+                          <a
+                            key={`${p.id}-${proofIndex}`}
+                            href={proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[hsl(var(--primary))] underline cursor-pointer"
+                          >
+                            Proof {proofIndex + 1}
+                          </a>
+                        ))}
                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => setDeletePaymentId(p.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -197,18 +224,39 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-2">
               <label className="text-xs font-medium">Payment Proof (Receipt/Screenshot) *</label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={e => setPaymentProofFile(e.target.files?.[0] || null)}
-                className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-[hsl(var(--muted))] file:text-[hsl(var(--foreground))] hover:file:bg-[hsl(var(--muted))]/80"
-              />
-              {paymentProofFile && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                  ✓ {paymentProofFile.name}
-                </p>
+              <label className="flex items-center justify-center gap-2 h-10 rounded-md border border-dashed bg-[hsl(var(--background))] px-3.5 text-sm cursor-pointer hover:bg-[hsl(var(--muted))]/30">
+                <Upload className="h-4 w-4" />
+                <span>Upload proof files</span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  onChange={handleProofFilesChange}
+                  className="hidden"
+                />
+              </label>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                You can upload multiple receipts, screenshots, or PDF files for one payment.
+              </p>
+              {paymentProofFiles.length > 0 && (
+                <div className="space-y-2">
+                  {paymentProofFiles.map((file, index) => (
+                    <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-md border px-3 py-2 text-xs">
+                      <span className="truncate pr-3">{file.name}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        onClick={() => removeProofFile(index)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
