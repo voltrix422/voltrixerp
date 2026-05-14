@@ -24,6 +24,7 @@ export function ClientOrdersApproval() {
   const approvedOrders = orders.filter(o => 
     o.status === "approved" || 
     o.status === "finalized" || 
+    o.status === "payment_added" ||
     o.status === "confirmed" || 
     o.status === "processing" || 
     o.status === "shipped" || 

@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, type Order } from "@/lib/orders"
+import { getOrders, saveOrder, getOrderPaymentProofUrls, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,17 @@ interface ClientOrdersFinanceProps {
   dateTo: string
 }
 
+function isFinanceOrderStatus(status: Order["status"]) {
+  return (
+    status === "finalized" ||
+    status === "payment_added" ||
+    status === "confirmed" ||
+    status === "processing" ||
+    status === "shipped" ||
+    status === "delivered"
+  )
+}
+
 export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFinanceProps) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,24 +30,11 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
 
   useEffect(() => {
     getOrders().then(o => {
-      // Show all orders from finalized onwards (finalized, confirmed, processing, shipped, delivered)
-      setOrders(o.filter(order => 
-        order.status === "finalized" || 
-        order.status === "confirmed" || 
-        order.status === "processing" || 
-        order.status === "shipped" || 
-        order.status === "delivered"
-      ))
+      setOrders(o.filter(order => isFinanceOrderStatus(order.status)))
       setLoading(false)
     })
     const interval = setInterval(() => {
-      getOrders().then(o => setOrders(o.filter(order => 
-        order.status === "finalized" || 
-        order.status === "confirmed" || 
-        order.status === "processing" || 
-        order.status === "shipped" || 
-        order.status === "delivered"
-      )))
+      getOrders().then(o => setOrders(o.filter(order => isFinanceOrderStatus(order.status))))
     }, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -112,7 +110,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-[hsl(var(--muted))]/40">
-                {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Date"].map(h => (
+                {["Order #", "Client", "Items", "Total", "Paid", "Remaining", "Status", "Date"].map(h => (
                   <th key={h} className="h-8 px-4 text-left text-xs font-medium text-[hsl(var(--muted-foreground))]">{h}</th>
                 ))}
               </tr>
@@ -130,6 +128,11 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
                     <td className="px-4 py-2.5 text-xs">PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="px-4 py-2.5 text-xs font-medium">
                       {remaining <= 0 ? <span className="text-emerald-600">Paid</span> : `PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}>
+                        {STATUS_LABELS[order.status] || order.status}
+                      </span>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{new Date(order.createdAt).toLocaleDateString()}</td>
                   </tr>
@@ -159,24 +162,21 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
   onClose: () => void
   onUpdate: (order: Order) => void
 }) {
-  const [markingDelivered, setMarkingDelivered] = useState(false)
+  const [approvingPayment, setApprovingPayment] = useState(false)
   const taxAmount = Number(order.tax || 0)
   const hasTax = Math.abs(taxAmount) > 0.004
 
-  async function markAsDelivered() {
-    setMarkingDelivered(true)
-    
+  async function approvePaymentForInventory() {
+    setApprovingPayment(true)
+
     const updated: Order = {
       ...order,
-      status: "delivered"
+      status: "confirmed",
     }
-    
-    await import("@/lib/orders").then(m => m.saveOrder(updated))
-    
-    // Deduct inventory when order is delivered
-    await import("@/lib/inventory").then(m => m.deductInventoryForOrder(updated))
-    
-    setMarkingDelivered(false)
+
+    await saveOrder(updated)
+
+    setApprovingPayment(false)
     onUpdate(updated)
     onClose()
   }
@@ -193,12 +193,20 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-lg font-bold text-[hsl(var(--primary))]">{order.orderNumber}</p>
-                {(order.status === "confirmed" || order.status === "processing" || order.status === "shipped" || order.status === "delivered") && (
-                  <Badge variant="success" className="text-[10px]">
-                    {order.status === "confirmed" ? "Confirmed - Sent to Inventory" : 
-                     order.status === "processing" ? "Processing" :
-                     order.status === "shipped" ? "Shipped" :
-                     "Delivered"}
+                {(order.status === "payment_added" || order.status === "confirmed" || order.status === "processing" || order.status === "shipped" || order.status === "delivered") && (
+                  <Badge
+                    variant={order.status === "payment_added" ? "warning" : "success"}
+                    className="text-[10px]"
+                  >
+                    {order.status === "payment_added"
+                      ? "Payment Added - Pending Approval"
+                      : order.status === "confirmed"
+                        ? "Confirmed - Sent to Inventory"
+                        : order.status === "processing"
+                          ? "Processing"
+                          : order.status === "shipped"
+                            ? "Shipped"
+                            : "Delivered"}
                   </Badge>
                 )}
               </div>
@@ -328,9 +336,19 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
                       <p className="text-[hsl(var(--muted-foreground))]">{p.method} · {new Date(p.date).toLocaleDateString()}</p>
                       {p.notes && <p className="text-[hsl(var(--muted-foreground))] text-[10px] mt-0.5">{p.notes}</p>}
                     </div>
-                    {p.proofUrl && (
-                      <a href={p.proofUrl} target="_blank" rel="noreferrer" className="text-[hsl(var(--primary))] underline text-[10px]">View Proof</a>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {getOrderPaymentProofUrls(p).map((proofUrl, proofIndex) => (
+                        <a
+                          key={`${p.id}-${proofIndex}`}
+                          href={proofUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[hsl(var(--primary))] underline text-[10px]"
+                        >
+                          {getOrderPaymentProofUrls(p).length > 1 ? `Proof ${proofIndex + 1}` : "View Proof"}
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 ))}
                 <div className="flex items-center justify-between text-xs font-bold pt-2">
@@ -349,17 +367,21 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
         </div>
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          {order.status !== "delivered" ? (
-            <Button 
-              size="sm" 
-              className="h-8 text-xs bg-green-600 hover:bg-green-700 cursor-pointer ml-auto" 
-              onClick={markAsDelivered} 
-              disabled={markingDelivered}
+          {order.status === "payment_added" ? (
+            <Button
+              size="sm"
+              className="h-8 text-xs bg-green-600 hover:bg-green-700 cursor-pointer ml-auto"
+              onClick={approvePaymentForInventory}
+              disabled={approvingPayment || !isFullyPaid}
             >
-              {markingDelivered ? "Moving..." : "Move to Inventory"}
+              {approvingPayment ? "Approving..." : "Approve Payment & Send to Inventory"}
             </Button>
+          ) : order.status === "confirmed" || order.status === "processing" || order.status === "shipped" ? (
+            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">Sent to inventory</span>
+          ) : order.status === "delivered" ? (
+            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">Delivered</span>
           ) : (
-            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">in inventory</span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-auto">Awaiting payment</span>
           )}
         </div>
       </div>

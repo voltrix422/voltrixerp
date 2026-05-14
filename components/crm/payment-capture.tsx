@@ -74,7 +74,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     const updated: Order = {
       ...order,
       payments: [...(order.payments || []), payment],
-      status: "confirmed", // Move to confirmed (not delivered yet)
+      status: "payment_added",
     }
 
     await saveOrder(updated)
@@ -170,7 +170,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
             <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
               <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                Add new payment details from the client
+                Add new payment details from the client. Finance will review the payment before the order is sent to inventory.
               </p>
             </div>
 
@@ -263,7 +263,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
           <div className="flex items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
             <Button size="sm" className="h-10 text-sm bg-green-600 hover:bg-green-700 cursor-pointer" onClick={handleAddPayment} disabled={saving || uploadingProof}>
-              {saving ? "Processing..." : uploadingProof ? "Uploading..." : "Add Payment & Confirm Order"}
+              {saving ? "Processing..." : uploadingProof ? "Uploading..." : "Submit Payment for Approval"}
             </Button>
             <Button size="sm" variant="outline" className="h-10 text-sm ml-auto cursor-pointer" onClick={onClose}>Cancel</Button>
           </div>

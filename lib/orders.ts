@@ -1,6 +1,6 @@
 // DB access via /api/db routes (Prisma)
 
-export type OrderStatus = "draft" | "pending_approval" | "approved" | "rejected" | "finalized" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
+export type OrderStatus = "draft" | "pending_approval" | "approved" | "rejected" | "finalized" | "payment_added" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
 
 export interface OrderItem {
   id: string
@@ -154,6 +154,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   approved: "Approved",
   rejected: "Rejected",
   finalized: "Finalized",
+  payment_added: "Payment Added - Pending Approval",
   confirmed: "Confirmed",
   processing: "Processing",
   shipped: "Shipped",
@@ -167,6 +168,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   approved: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
   rejected: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
   finalized: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  payment_added: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   processing: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
   shipped: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",

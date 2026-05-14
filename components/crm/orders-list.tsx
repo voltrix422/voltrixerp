@@ -141,6 +141,19 @@ export function OrdersList({ currentUser }: { currentUser: string }) {
             )}
           </button>
           <button
+            onClick={() => setStatusFilter("payment_added")}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              statusFilter === "payment_added"
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            Payment Pending
+            {statusFilter === "payment_added" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+            )}
+          </button>
+          <button
             onClick={() => setStatusFilter("finalized")}
             className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
               statusFilter === "finalized"
@@ -1482,7 +1495,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   <FileText className="h-4 w-4 mr-2" /> Finalize Order
                 </Button>
               )}
-              {hasInvoiceDetails && (
+              {hasInvoiceDetails && !["payment_added", "confirmed", "processing", "shipped", "delivered"].includes(order.status) && (
                 <>
                   <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={viewInvoice} title="View Invoice">
                     <Eye className="h-4 w-4" />
