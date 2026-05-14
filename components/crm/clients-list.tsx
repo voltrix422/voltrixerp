@@ -96,7 +96,7 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
               </p>
               <div className="flex flex-col items-center gap-1 w-full px-1">
                 {client.ownerUserId && (
-                  <SalesAgentSourceBadge agentName={client.createdBy} className="max-w-full" />
+                  <SalesAgentSourceBadge agentName={client.createdBy} kind="client" className="max-w-full" />
                 )}
                 {client.status !== "active" && (
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${CLIENT_STATUS_COLORS[client.status]}`}>
@@ -361,7 +361,7 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={submit} disabled={saving || !name.trim()}>
-            {saving ? "Saving..." : existing ? "Update Client" : "Add Client"}
+            {saving ? "Saving..." : existing ? "Update Client" : workspace?.mode === "sales_agent" ? "Submit for approval" : "Add Client"}
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
@@ -447,7 +447,7 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-lg font-bold">{client.name}</p>
-                    {client.ownerUserId && <SalesAgentSourceBadge agentName={client.createdBy} />}
+                    {client.ownerUserId && <SalesAgentSourceBadge agentName={client.createdBy} kind="client" />}
                     {client.status !== "active" && (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${CLIENT_STATUS_COLORS[client.status]}`}>
                         {CLIENT_STATUS_LABELS[client.status]}
@@ -468,6 +468,14 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
 
               {/* Contact Information Grid */}
               <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                {client.ownerUserId && (
+                  <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40 col-span-2">
+                    <div className="flex-1">
+                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Added by</p>
+                      <p className="text-sm font-medium">{client.createdBy}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40">
                   <div className="flex-1">
                     <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Email</p>

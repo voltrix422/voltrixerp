@@ -76,13 +76,13 @@ export function QuotationsList({ currentUser, currentUserId, workspace }: { curr
       </tr></thead><tbody className="divide-y">
         {filtered.map(q=>(
           <tr key={q.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer" onClick={()=>setSelected(q)}>
-            <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{q.quotationNumber}</td>
-            <td className="px-4 py-2.5 text-xs font-medium">
+            <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">
               <div className="flex flex-col items-start gap-1">
-                <span>{q.clientName}</span>
-                {q.ownerUserId && <SalesAgentSourceBadge agentName={q.createdBy} />}
+                {q.ownerUserId && <SalesAgentSourceBadge agentName={q.createdBy} kind="quotation" />}
+                <span>{q.quotationNumber}</span>
               </div>
             </td>
+            <td className="px-4 py-2.5 text-xs font-medium">{q.clientName}</td>
             <td className="px-4 py-2.5 text-xs text-center">{q.items?.length||0}</td>
             <td className="px-4 py-2.5 text-xs text-right font-semibold">PKR {(q.total||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
             <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[q.status]}`}>{STATUS_LABELS[q.status]}</span></td>
@@ -354,7 +354,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
         </div>
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={submit} disabled={saving||!clientId||items.length===0}>
-            {saving?"Saving...":existing?"Update Quotation":"Create Quotation"}
+            {saving?"Saving...":existing?"Update Quotation":workspace?.mode==="sales_agent"?"Submit for approval":"Create Quotation"}
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
@@ -418,9 +418,11 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, allowAdminRevie
       <div className="w-full max-w-3xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
           <div>
-            <p className="text-base font-bold text-[hsl(var(--primary))]">{quotation.quotationNumber}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {quotation.ownerUserId && <SalesAgentSourceBadge agentName={quotation.createdBy} kind="quotation" />}
+              <p className="text-base font-bold text-[hsl(var(--primary))]">{quotation.quotationNumber}</p>
+            </div>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{quotation.clientName}</p>
-            {quotation.ownerUserId && <SalesAgentSourceBadge agentName={quotation.createdBy} className="mt-2" />}
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[quotation.status]}`}>{STATUS_LABELS[quotation.status]}</span>

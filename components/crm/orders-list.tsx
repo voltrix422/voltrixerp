@@ -236,14 +236,16 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             <tbody className="divide-y">
               {filtered.map(order => (
                 <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                  <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>{order.orderNumber || "—"}</td>
-                  <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
+                  <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>
                     <div className="flex flex-col items-start gap-1">
-                      <div className="flex items-center gap-1">
-                        <ShoppingCart className="h-4 w-4 text-blue-600" />
-                        <span className="ml-2">{order.clientName || "—"}</span>
-                      </div>
-                      {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} />}
+                      {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} kind="order" />}
+                      <span>{order.orderNumber || "—"}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
+                    <div className="flex items-center gap-1">
+                      <ShoppingCart className="h-4 w-4 text-blue-600" />
+                      <span className="ml-2">{order.clientName || "—"}</span>
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>{order.items?.length || 0}</td>
@@ -936,7 +938,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
 
         <div className="flex items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
           <Button size="sm" className="h-10 text-sm px-6 cursor-pointer" onClick={submit} disabled={saving || !clientId || items.length === 0}>
-            {saving ? "Creating..." : "Create Order"}
+            {saving ? "Creating..." : workspace?.mode === "sales_agent" ? "Submit for approval" : "Create Order"}
           </Button>
           <Button size="sm" variant="outline" className="h-10 text-sm px-6 cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
@@ -1211,13 +1213,13 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
             </button>
             <div>
               <div className="flex items-center gap-3">
+                {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} kind="order" />}
                 <p className="text-xl font-bold text-[hsl(var(--primary))]">{order.orderNumber}</p>
                 <span className={`inline-flex items-center px-3 py-1 rounded text-xs font-medium ${STATUS_COLORS[order.status]}`}>
                   {STATUS_LABELS[order.status]}
                 </span>
               </div>
               <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize">{order.clientName}</p>
-              {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} className="mt-2" />}
             </div>
             {!isEditing && order.deliveryDate && (
               <div className="border-l pl-6">

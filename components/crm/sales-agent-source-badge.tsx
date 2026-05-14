@@ -1,11 +1,21 @@
 import { cn } from "@/lib/utils"
 
+type SalesAgentSourceKind = "client" | "order" | "quotation" | "default"
+
 type Props = {
   agentName: string
   className?: string
+  kind?: SalesAgentSourceKind
 }
 
-export function SalesAgentSourceBadge({ agentName, className }: Props) {
+const KIND_LABELS: Record<SalesAgentSourceKind, string> = {
+  client: "Sales agent client",
+  order: "Sales agent order",
+  quotation: "Sales agent quotation",
+  default: "From sales agent",
+}
+
+export function SalesAgentSourceBadge({ agentName, className, kind = "default" }: Props) {
   return (
     <span
       className={cn(
@@ -13,7 +23,7 @@ export function SalesAgentSourceBadge({ agentName, className }: Props) {
         className
       )}
     >
-      <span className="shrink-0">From sales agent</span>
+      <span className="shrink-0">{KIND_LABELS[kind]}</span>
       <span className="shrink-0 text-[#1faca6]/70">·</span>
       <span className="truncate">{agentName}</span>
     </span>
