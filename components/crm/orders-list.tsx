@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
@@ -1441,18 +1441,33 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
             <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-green-900 dark:text-green-100 mb-2">Payments Received</p>
               <div className="space-y-2">
-                {order.payments.map(p => (
+                {order.payments.map(p => {
+                  const proofUrls = getOrderPaymentProofUrls(p)
+                  return (
                   <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0">
                     <div>
                       <p className="font-medium text-green-900 dark:text-green-100">PKR {p.amount.toLocaleString()}</p>
                       <p className="text-green-700 dark:text-green-300">{p.method} · {new Date(p.date).toLocaleDateString()}</p>
                       {p.notes && <p className="text-green-600 dark:text-green-400 text-[10px] mt-0.5">{p.notes}</p>}
                     </div>
-                    {p.proofUrl && (
-                      <a href={p.proofUrl} target="_blank" rel="noreferrer" className="text-green-700 dark:text-green-300 underline text-[10px]">View Proof</a>
+                    {proofUrls.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {proofUrls.map((proofUrl, proofIndex) => (
+                          <a
+                            key={`${p.id}-${proofIndex}`}
+                            href={proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-green-700 dark:text-green-300 underline text-[10px]"
+                          >
+                            {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "View Proof"}
+                          </a>
+                        ))}
+                      </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
                 <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-green-200 dark:border-green-800">
                   <span className="text-green-900 dark:text-green-100">Total Paid</span>
                   <span className="text-green-900 dark:text-green-100">PKR {order.payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}</span>

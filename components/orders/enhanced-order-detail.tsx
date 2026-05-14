@@ -5,7 +5,7 @@ import { X, Download, Edit, Trash2, Eye, Calendar, MapPin, User, Phone, Truck, F
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
-import { type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { type Order, STATUS_LABELS, STATUS_COLORS, getOrderPaymentProofUrls } from "@/lib/orders"
 import { downloadOrderPDF } from "@/lib/generate-order-pdf-enhanced"
 
 interface EnhancedOrderDetailProps {
@@ -282,7 +282,9 @@ export function EnhancedOrderDetail({
                 Payments Received
               </h3>
               <div className="bg-green-50 rounded-lg p-4 space-y-3">
-                {order.payments.map((payment) => (
+                {order.payments.map((payment) => {
+                  const proofUrls = getOrderPaymentProofUrls(payment)
+                  return (
                   <div key={payment.id} className="flex justify-between items-center py-2 border-b border-green-200 last:border-0">
                     <div>
                       <p className="text-sm font-medium text-green-900">Rs. {payment.amount.toLocaleString()}</p>
@@ -293,18 +295,24 @@ export function EnhancedOrderDetail({
                         <p className="text-xs text-green-600 mt-1">{payment.notes}</p>
                       )}
                     </div>
-                    {payment.proofUrl && (
-                      <a 
-                        href={payment.proofUrl} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="text-xs text-green-700 underline hover:text-green-900"
-                      >
-                        View Proof
-                      </a>
+                    {proofUrls.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {proofUrls.map((proofUrl, proofIndex) => (
+                          <a
+                            key={`${payment.id}-${proofIndex}`}
+                            href={proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-green-700 underline hover:text-green-900"
+                          >
+                            {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "View Proof"}
+                          </a>
+                        ))}
+                      </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
                 <div className="flex justify-between items-center pt-2 border-t border-green-300">
                   <span className="text-sm font-bold text-green-900">Total Paid</span>
                   <span className="text-sm font-bold text-green-900">
