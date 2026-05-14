@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 
+function fulfillmentData(o: Record<string, unknown>) {
+  return {
+    fulfillmentDispatcher: (o.fulfillmentDispatcher as string | undefined) ?? null,
+    fulfillmentReceiverName: (o.fulfillmentReceiverName as string | undefined) ?? null,
+    fulfillmentReceiverCnic: (o.fulfillmentReceiverCnic as string | undefined) ?? null,
+    fulfillmentVehicleNumber: (o.fulfillmentVehicleNumber as string | undefined) ?? null,
+    fulfillmentDate: (o.fulfillmentDate as string | undefined) ?? null,
+    fulfillmentReceiverImageUrl: (o.fulfillmentReceiverImageUrl as string | undefined) ?? null,
+    fulfillmentReceiverCnicImageUrl: (o.fulfillmentReceiverCnicImageUrl as string | undefined) ?? null,
+    fulfillmentVehicleImageUrl: (o.fulfillmentVehicleImageUrl as string | undefined) ?? null,
+    fulfillmentProductImageUrls: (o.fulfillmentProductImageUrls as string[] | undefined) ?? [],
+  }
+}
+
 export async function GET() {
   const orders = await prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } })
   return NextResponse.json(orders)
@@ -8,6 +22,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const o = await req.json()
+  const fulfillment = fulfillmentData(o)
   const record = await prisma.erpOrder.upsert({
     where: { id: o.id ?? "__new__" },
     update: {
@@ -19,8 +34,7 @@ export async function POST(req: NextRequest) {
       status: o.status, notes: o.notes, createdBy: o.createdBy,
       deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
       dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments,
-      // Extended fields stored in payments JSON as metadata workaround
-      // We store extra fields as part of items JSON since schema is fixed
+      ...fulfillment,
     },
     create: {
       id: o.id, orderNumber: o.orderNumber, clientId: o.clientId, clientName: o.clientName,
@@ -32,10 +46,10 @@ export async function POST(req: NextRequest) {
       createdAt: o.createdAt ? new Date(o.createdAt) : undefined,
       deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
       dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments,
+      ...fulfillment,
     },
   })
 
-  // Return with all extended fields merged back
   return NextResponse.json({
     ...record,
     discountIsPercentage: o.discountIsPercentage,
@@ -44,15 +58,6 @@ export async function POST(req: NextRequest) {
     transportCostValue: o.transportCostValue,
     otherCostIsPercentage: o.otherCostIsPercentage,
     otherCostValue: o.otherCostValue,
-    fulfillmentDispatcher: o.fulfillmentDispatcher,
-    fulfillmentReceiverName: o.fulfillmentReceiverName,
-    fulfillmentReceiverCnic: o.fulfillmentReceiverCnic,
-    fulfillmentVehicleNumber: o.fulfillmentVehicleNumber,
-    fulfillmentDate: o.fulfillmentDate,
-    fulfillmentReceiverImageUrl: o.fulfillmentReceiverImageUrl,
-    fulfillmentReceiverCnicImageUrl: o.fulfillmentReceiverCnicImageUrl,
-    fulfillmentVehicleImageUrl: o.fulfillmentVehicleImageUrl,
-    fulfillmentProductImageUrls: o.fulfillmentProductImageUrls,
   })
 }
 

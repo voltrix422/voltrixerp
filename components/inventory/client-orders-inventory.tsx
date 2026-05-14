@@ -43,8 +43,8 @@ export function ClientOrdersInventory() {
         order.status === "shipped" || 
         order.status === "delivered"
       )
-      console.log("Inventory orders loaded:", filtered.length, filtered)
       setOrders(filtered)
+      setSelectedOrder(prev => (prev ? filtered.find(order => order.id === prev.id) ?? prev : null))
       setLoading(false)
     })
     const interval = setInterval(() => {
@@ -55,8 +55,8 @@ export function ClientOrdersInventory() {
           order.status === "shipped" || 
           order.status === "delivered"
         )
-        console.log("Inventory orders updated:", filtered.length, filtered)
         setOrders(filtered)
+        setSelectedOrder(prev => (prev ? filtered.find(order => order.id === prev.id) ?? prev : null))
       })
     }, 30000)
     return () => clearInterval(interval)

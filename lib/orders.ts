@@ -109,7 +109,9 @@ function rowToOrder(r: Record<string, unknown>): Order {
     fulfillmentReceiverImageUrl: (r.fulfillmentReceiverImageUrl as string) ?? undefined,
     fulfillmentReceiverCnicImageUrl: (r.fulfillmentReceiverCnicImageUrl as string) ?? undefined,
     fulfillmentVehicleImageUrl: (r.fulfillmentVehicleImageUrl as string) ?? undefined,
-    fulfillmentProductImageUrls: (r.fulfillmentProductImageUrls as string[]) ?? undefined,
+    fulfillmentProductImageUrls: Array.isArray(r.fulfillmentProductImageUrls)
+      ? (r.fulfillmentProductImageUrls as string[])
+      : undefined,
   }
 }
 

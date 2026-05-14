@@ -95,6 +95,15 @@ model ErpOrder {
   dispatcher       String?
   pdfUrl           String?  @map("pdf_url")
   payments         Json     @default("[]")
+  fulfillmentDispatcher          String? @map("fulfillment_dispatcher")
+  fulfillmentReceiverName        String? @map("fulfillment_receiver_name")
+  fulfillmentReceiverCnic        String? @map("fulfillment_receiver_cnic")
+  fulfillmentVehicleNumber       String? @map("fulfillment_vehicle_number")
+  fulfillmentDate                String? @map("fulfillment_date")
+  fulfillmentReceiverImageUrl      String? @map("fulfillment_receiver_image_url")
+  fulfillmentReceiverCnicImageUrl  String? @map("fulfillment_receiver_cnic_image_url")
+  fulfillmentVehicleImageUrl       String? @map("fulfillment_vehicle_image_url")
+  fulfillmentProductImageUrls      Json    @default("[]") @map("fulfillment_product_image_urls")
 
   @@map("erp_orders")
 }
