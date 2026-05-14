@@ -24,12 +24,17 @@ export default function Navbar() {
   const isHome = pathname === "/"
 
   const getHref = (hash?: string) => hash ? (isHome ? `#${hash}` : `/#${hash}`) : ""
+  const closeMenu = () => setOpen(false)
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20)
     window.addEventListener("scroll", handler)
     return () => window.removeEventListener("scroll", handler)
   }, [])
+
+  useEffect(() => {
+    closeMenu()
+  }, [pathname])
 
   // Show navbar immediately
   useEffect(() => {
@@ -54,7 +59,7 @@ export default function Navbar() {
         }`}
       >
         {/* Logo */}
-        <a href="/">
+        <a href="/" onClick={closeMenu}>
           <Image
             src="/logo.png"
             alt="Voltrix"
@@ -92,12 +97,21 @@ export default function Navbar() {
       {open && (
         <div className="absolute top-14 left-4 right-4 bg-white border border-neutral-200 rounded-2xl shadow-xl p-5 flex flex-col gap-4 md:hidden">
           {links.map((l) => (
-            <a key={l.label} href={l.href || getHref(l.hash)} className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer">
+            <a
+              key={l.label}
+              href={l.href || getHref(l.hash)}
+              onClick={closeMenu}
+              className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer"
+            >
               {l.label}
             </a>
           ))}
           <div className="pt-3 border-t border-neutral-100">
-            <a href="#" className="flex items-center justify-center gap-2 h-10 rounded-full text-base font-medium text-black bg-white border border-neutral-200">
+            <a
+              href="/quote"
+              onClick={closeMenu}
+              className="flex items-center justify-center gap-2 h-10 rounded-full text-base font-medium text-black bg-white border border-neutral-200"
+            >
               Get started
             </a>
           </div>
