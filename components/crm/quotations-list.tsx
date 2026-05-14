@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
 import { getClients, type Client } from "@/lib/crm"
-import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, orderStatusForQuotationConversion, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
@@ -14,7 +14,6 @@ import { saveOrder, generateOrderNumber } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 
 export function QuotationsList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
-  const { toast } = useToast()
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -100,7 +99,7 @@ export function QuotationsList({ currentUser, currentUserId, workspace }: { curr
       </tbody></table></div>)}
       {showForm&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}
       {editingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} existing={editingQuotation} onClose={()=>setEditingQuotation(null)} onSave={q=>{setQuotations(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQuotation(null)}}/>}
-      {selected&&!editingQuotation&&<QuotationDetail quotation={selected} allowAdminReview={!!workspace?.readOnly} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}} onUpdate={updated=>{setQuotations(prev=>prev.map(x=>x.id===updated.id?updated:x));setSelected(updated)}}/>}
+      {selected&&!editingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}} onUpdate={updated=>{setQuotations(prev=>prev.map(x=>x.id===updated.id?updated:x));setSelected(updated)}}/>}
       <ConfirmDialog isOpen={!!deleteConfirm} title="Delete Quotation" message={`Delete ${deleteConfirm?.quotationNumber}?`} confirmText="Delete" cancelText="Cancel" variant="danger"
         onConfirm={()=>{if(deleteConfirm){deleteQuotation(deleteConfirm.id);setQuotations(prev=>prev.filter(x=>x.id!==deleteConfirm.id))}setDeleteConfirm(null)}}
         onCancel={()=>setDeleteConfirm(null)}/>
@@ -113,7 +112,6 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope; clients: Client[]; existing?: Quotation
   onClose: () => void; onSave: (q: Quotation) => void
 }) {
-  const { toast } = useToast()
   const [clientId, setClientId] = useState(existing?.clientId || "")
   const [clientSearch, setClientSearch] = useState("")
   const [showClientDrop, setShowClientDrop] = useState(false)
@@ -190,9 +188,6 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
       ownerUserId: existing?.ownerUserId || resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
     }
     await saveQuotation(q)
-    if (!existing && workspace?.mode === "sales_agent") {
-      toast({ title: "Quotation submitted", message: "This quotation was sent to admin for approval.", type: "success" })
-    }
     onSave(q)
     setSaving(false)
   }
@@ -354,7 +349,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
         </div>
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={submit} disabled={saving||!clientId||items.length===0}>
-            {saving?"Saving...":existing?"Update Quotation":workspace?.mode==="sales_agent"?"Submit for approval":"Create Quotation"}
+            {saving?"Saving...":existing?"Update Quotation":"Create Quotation"}
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
@@ -392,20 +387,11 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
 }
 
 // ─── Detail View ──────────────────────────────────────────────────────────────
-function QuotationDetail({ quotation, onClose, onEdit, onDelete, allowAdminReview, readOnly, onUpdate }: {
-  quotation: Quotation; onClose: () => void; onEdit: () => void; onDelete: (id: string) => void; allowAdminReview?: boolean; readOnly?: boolean; onUpdate?: (q: Quotation) => void
+function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly, onUpdate }: {
+  quotation: Quotation; onClose: () => void; onEdit: () => void; onDelete: (id: string) => void; readOnly?: boolean; onUpdate?: (q: Quotation) => void
 }) {
+  const { toast } = useToast()
   const [deleting, setDeleting] = useState(false)
-  const [reviewing, setReviewing] = useState(false)
-
-  async function reviewQuotation(nextStatus: "draft" | "rejected") {
-    setReviewing(true)
-    const updated = { ...quotation, status: nextStatus }
-    await saveQuotation(updated)
-    onUpdate?.(updated)
-    setReviewing(false)
-    onClose()
-  }
 
   async function handleDelete() {
     setDeleting(true)
@@ -508,20 +494,16 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, allowAdminRevie
         </div>
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          {allowAdminReview && quotation.status === "pending_approval" && (
-            <>
-              <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => reviewQuotation("draft")} disabled={reviewing}>
-                Approve quotation
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => reviewQuotation("rejected")} disabled={reviewing}>
-                Reject
-              </Button>
-            </>
-          )}
           {!readOnly && (
             <>
               <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
-              <ConvertToOrderButton quotation={quotation} onConverted={id => { onDelete(quotation.id) }} />
+              <ConvertToOrderButton
+                quotation={quotation}
+                onConverted={updated => {
+                  onUpdate?.(updated)
+                  toast({ title: "Order submitted", message: "The converted order was sent to admin for approval.", type: "success" })
+                }}
+              />
               <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
             </>
           )}
@@ -534,10 +516,9 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, allowAdminRevie
 }
 
 // ─── Convert to Order Button ──────────────────────────────────────────────────
-function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation; onConverted: (orderId: string) => void }) {
+function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation; onConverted: (updated: Quotation) => void }) {
   const [converting, setConverting] = useState(false)
   const [done, setDone] = useState(false)
-  const [orderId, setOrderId] = useState("")
 
   async function convert() {
     if (quotation.status === "converted") return
@@ -574,7 +555,7 @@ function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation
         discountIsPercentage: quotation.discountIsPercentage,
         discountValue: quotation.discountValue,
         total: quotation.total,
-        status: quotation.ownerUserId ? "pending_approval" : "approved",
+        status: orderStatusForQuotationConversion(),
         notes: quotation.notes,
         createdAt: new Date().toISOString(),
         createdBy: quotation.createdBy,
@@ -584,15 +565,14 @@ function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation
         ownerUserId: quotation.ownerUserId,
       }
       await saveOrder(order)
-      // Mark quotation as converted
-      await fetch("/api/crm/quotations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...quotation, status: "converted", convertedToOrderId: order.id }),
-      })
-      setOrderId(order.id)
+      const updatedQuotation: Quotation = {
+        ...quotation,
+        status: "converted",
+        convertedToOrderId: order.id,
+      }
+      await saveQuotation(updatedQuotation)
       setDone(true)
-      onConverted(order.id)
+      onConverted(updatedQuotation)
     } catch (e) {
       console.error("Convert failed", e)
     }

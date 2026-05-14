@@ -42,6 +42,10 @@ export function initialOrderStatus(workspace?: CrmWorkspaceScope): "pending_appr
   return workspace?.mode === "sales_agent" ? "pending_approval" : "approved"
 }
 
-export function initialQuotationStatus(workspace?: CrmWorkspaceScope): "pending_approval" | "draft" {
-  return workspace?.mode === "sales_agent" ? "pending_approval" : "draft"
+export function initialQuotationStatus(_workspace?: CrmWorkspaceScope): "draft" {
+  return "draft"
+}
+
+export function orderStatusForQuotationConversion(): "pending_approval" {
+  return "pending_approval"
 }
