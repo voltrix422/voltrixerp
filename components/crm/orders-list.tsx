@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
-import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
+import { OrderSourceBadge } from "@/components/crm/order-source-badge"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
@@ -224,6 +224,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             <thead>
               <tr className="border-b bg-[hsl(var(--muted))]/40">
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order #</th>
+                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Source</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
                 <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Items</th>
                 <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
@@ -237,10 +238,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               {filtered.map(order => (
                 <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
                   <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>
-                    <div className="flex flex-col items-start gap-1">
-                      {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} kind="order" />}
-                      <span>{order.orderNumber || "—"}</span>
-                    </div>
+                    <span>{order.orderNumber || "—"}</span>
+                  </td>
+                  <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
+                    <OrderSourceBadge order={order} />
                   </td>
                   <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
                     <div className="flex items-center gap-1">
@@ -1213,7 +1214,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
             </button>
             <div>
               <div className="flex items-center gap-3">
-                {order.ownerUserId && <SalesAgentSourceBadge agentName={order.createdBy} kind="order" />}
+                <OrderSourceBadge order={order} />
                 <p className="text-xl font-bold text-[hsl(var(--primary))]">{order.orderNumber}</p>
                 <span className={`inline-flex items-center px-3 py-1 rounded text-xs font-medium ${STATUS_COLORS[order.status]}`}>
                   {STATUS_LABELS[order.status]}
@@ -1225,6 +1226,12 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
               <div className="border-l pl-6">
                 <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Delivery date</p>
                 <p className="text-sm mt-1">{new Date(order.deliveryDate).toLocaleDateString()}</p>
+              </div>
+            )}
+            {!isEditing && (
+              <div className="border-l pl-6">
+                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Source</p>
+                <p className="text-sm mt-1">{order.ownerUserId ? `Sales agent · ${order.createdBy}` : "CRM"}</p>
               </div>
             )}
             {!isEditing && (

@@ -152,6 +152,15 @@ export async function generateOrderNumber(): Promise<string> {
   } catch { return `ORD-${Date.now()}` }
 }
 
+export function isSalesAgentOrder(order: Pick<Order, "ownerUserId">) {
+  return !!order.ownerUserId
+}
+
+export function getOrderSourcePdfLabel(order: Pick<Order, "ownerUserId" | "createdBy">) {
+  if (order.ownerUserId) return `Sales agent · ${order.createdBy || "—"}`
+  return "CRM"
+}
+
 export const STATUS_LABELS: Record<OrderStatus, string> = {
   draft: "Draft",
   pending_approval: "Pending Approval",

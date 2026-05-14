@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getOrders, saveOrder, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { OrderSourceBadge } from "@/components/crm/order-source-badge"
 // DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -84,6 +85,7 @@ export function ClientOrdersApproval() {
               <thead>
                 <tr className="border-b bg-[hsl(var(--muted))]/40">
                   <th className="h-8 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order #</th>
+                  <th className="h-8 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Source</th>
                   <th className="h-8 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
                   <th className="h-8 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Items</th>
                   <th className="h-8 px-3 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
@@ -95,6 +97,9 @@ export function ClientOrdersApproval() {
                 {displayOrders.map(order => (
                   <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer" onClick={() => setSelected(order)}>
                     <td className="px-3 py-2 text-xs font-semibold text-[hsl(var(--primary))]">{order.orderNumber}</td>
+                    <td className="px-3 py-2">
+                      <OrderSourceBadge order={order} />
+                    </td>
                     <td className="px-3 py-2 text-xs font-medium capitalize">{order.clientName}</td>
                     <td className="px-3 py-2 text-xs text-center">{order.items.length}</td>
                     <td className="px-3 py-2 text-xs text-right font-semibold">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -119,6 +124,9 @@ export function ClientOrdersApproval() {
               <div>
                 <p className="text-base font-bold text-[hsl(var(--primary))]">{selected.orderNumber}</p>
                 <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 capitalize">{selected.clientName}</p>
+                <div className="mt-2">
+                  <OrderSourceBadge order={selected} />
+                </div>
               </div>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(null)}>
                 <X className="h-3.5 w-3.5" />
@@ -209,8 +217,9 @@ export function ClientOrdersApproval() {
                 </div>
               )}
 
-              <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                Created {new Date(selected.createdAt).toLocaleString()} by {selected.createdBy}
+              <div className="text-[10px] text-[hsl(var(--muted-foreground))] space-y-1">
+                <p>Source: {selected.ownerUserId ? `Sales agent · ${selected.createdBy}` : "CRM"}</p>
+                <p>Created {new Date(selected.createdAt).toLocaleString()} by {selected.createdBy}</p>
               </div>
             </div>
 

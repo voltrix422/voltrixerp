@@ -3,6 +3,7 @@ import { X, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import type { Order } from "@/lib/orders"
+import { getOrderSourcePdfLabel } from "@/lib/orders"
 import Image from "next/image"
 
 interface InvoicePreviewModalProps {
@@ -85,11 +86,12 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
             </div>
 
             {/* Meta band */}
-            <div className="bg-[#148f8b] px-7 py-3 grid grid-cols-4 gap-4">
+            <div className="bg-[#148f8b] px-7 py-3 grid grid-cols-2 md:grid-cols-5 gap-4">
               {[
                 { label: "CLIENT",        value: order.clientName },
                 { label: "INVOICE DATE",  value: new Date(order.createdAt).toLocaleDateString("en-PK") },
                 ...(order.deliveryDate ? [{ label: "DELIVERY DATE", value: new Date(order.deliveryDate).toLocaleDateString("en-PK") }] : []),
+                { label: "ORDER SOURCE",  value: getOrderSourcePdfLabel(order) },
                 { label: "PREPARED BY",   value: order.createdBy || "—" },
               ].map(({ label, value }) => (
                 <div key={label}>

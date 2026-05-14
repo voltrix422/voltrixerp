@@ -865,7 +865,7 @@ function FinanceAndOpsMiniCharts() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const [approvalTab, setApprovalTab] = useState<"po" | "orders">("po")
+  const [approvalTab, setApprovalTab] = useState<"po" | "orders">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
   const [showApprovals, setShowApprovals] = useState(false)
 
@@ -916,16 +916,6 @@ export default function DashboardPage() {
             <div className="bg-[hsl(var(--card))] p-4 rounded-xl mt-2">
               <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] pb-2 mb-4">
                 <button
-                  onClick={() => setApprovalTab("po")}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                    approvalTab === "po"
-                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  PO Confirmation
-                </button>
-                <button
                   onClick={() => setApprovalTab("orders")}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                     approvalTab === "orders"
@@ -935,15 +925,25 @@ export default function DashboardPage() {
                 >
                   Order CRM Confirmation
                 </button>
+                <button
+                  onClick={() => setApprovalTab("po")}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    approvalTab === "po"
+                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  PO Confirmation
+                </button>
               </div>
 
-              {approvalTab === "po" ? (
+              {approvalTab === "orders" ? (
+                <ClientOrdersApproval />
+              ) : (
                 <POsWidget
                   showFilters={showPOFilters}
                   setShowFilters={setShowPOFilters}
                 />
-              ) : (
-                <ClientOrdersApproval />
               )}
             </div>
           )}

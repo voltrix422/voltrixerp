@@ -3,6 +3,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import fs from 'fs'
 import path from 'path'
+import { getOrderSourcePdfLabel } from '@/lib/orders'
 
 function loadFont(filename: string): string {
   try {
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
       { label: 'CLIENT',        value: (order.clientName || '—').substring(0, 22) },
       { label: 'INVOICE DATE',  value: new Date(order.createdAt).toLocaleDateString('en-PK') },
       ...(order.deliveryDate ? [{ label: 'DELIVERY DATE', value: new Date(order.deliveryDate).toLocaleDateString('en-PK') }] : []),
+      { label: 'ORDER SOURCE',  value: getOrderSourcePdfLabel(order).substring(0, 24) },
       { label: 'PREPARED BY',   value: order.createdBy || '—' },
     ]
     const colW = (pageW - mL - mR) / metaItems.length
