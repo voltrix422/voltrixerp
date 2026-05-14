@@ -5,6 +5,7 @@ export interface PettyCashAllocation {
   employeeRole: string
   amount: number
   purpose: string
+  payoutMethod?: "cash" | "bank_transfer"
   paymentProof?: string
   paymentProofName?: string
   notes: string
@@ -90,8 +91,9 @@ export async function createPettyCashRequest(data: {
 export async function approvePettyCashAllocation(data: {
   id: string
   amount: number
-  paymentProof?: string
-  paymentProofName?: string
+  payoutMethod?: "cash" | "bank_transfer"
+  paymentProof?: string | null
+  paymentProofName?: string | null
   notes?: string
   reviewedBy: string
 }): Promise<PettyCashAllocation> {

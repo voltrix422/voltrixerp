@@ -200,7 +200,7 @@ export function PettyCashDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold">Pending requests</h3>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Approve requests and attach payment proof before settlement starts.</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Approve requests with bank proof or record a cash payout before settlement starts.</p>
             </div>
             <span className="text-xs font-medium text-yellow-700 bg-yellow-100 px-2.5 py-1 rounded-full">{pendingRequests.length} waiting</span>
           </div>

@@ -589,6 +589,7 @@ model ErpPettyCashAllocation {
   employeeRole  String   @map("employee_role")
   amount        Float
   purpose       String
+  payoutMethod  String?  @map("payout_method")
   paymentProof  String?  @map("payment_proof")
   paymentProofName String? @map("payment_proof_name")
   notes         String   @default("")

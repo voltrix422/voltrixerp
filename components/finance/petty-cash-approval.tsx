@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { DollarSign, Upload, X } from "lucide-react"
 
+type PayoutMethod = "cash" | "bank_transfer"
+
 type Props = {
   allocation: PettyCashAllocation
   reviewedBy: string
@@ -17,6 +19,7 @@ export function PettyCashApprovalForm({ allocation, reviewedBy, onClose, onSave 
   const { toast } = useToast()
   const [amount, setAmount] = useState(String(allocation.amount))
   const [notes, setNotes] = useState(allocation.notes || "")
+  const [payoutMethod, setPayoutMethod] = useState<PayoutMethod>("bank_transfer")
   const [paymentProof, setPaymentProof] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -37,30 +40,38 @@ export function PettyCashApprovalForm({ allocation, reviewedBy, onClose, onSave 
       return
     }
 
-    if (!paymentProof) {
+    if (payoutMethod === "bank_transfer" && !paymentProof) {
       toast({ title: "Payment proof required", message: "Upload proof that cash was paid out.", type: "error" })
       return
     }
 
     setLoading(true)
     try {
-      let paymentProofUrl: string | undefined
-      let paymentProofName: string | undefined
-      setUploading(true)
-      paymentProofUrl = await uploadFile(paymentProof)
-      paymentProofName = paymentProof.name
-      setUploading(false)
+      let paymentProofUrl: string | null = null
+      let paymentProofName: string | null = null
+
+      if (payoutMethod === "bank_transfer" && paymentProof) {
+        setUploading(true)
+        paymentProofUrl = await uploadFile(paymentProof)
+        paymentProofName = paymentProof.name
+        setUploading(false)
+      }
 
       const updated = await approvePettyCashAllocation({
         id: allocation.id,
         amount: parseFloat(amount),
-        paymentProof: paymentProofUrl,
-        paymentProofName,
+        payoutMethod,
+        paymentProof: payoutMethod === "cash" ? null : paymentProofUrl,
+        paymentProofName: payoutMethod === "cash" ? null : paymentProofName,
         notes: notes.trim(),
         reviewedBy,
       })
 
-      toast({ title: "Approved", message: `${allocation.employeeName} can now settle this petty cash.`, type: "success" })
+      toast({
+        title: "Approved",
+        message: `${allocation.employeeName} can now settle this petty cash.`,
+        type: "success",
+      })
       onSave(updated)
       onClose()
     } catch (error) {
@@ -105,23 +116,46 @@ export function PettyCashApprovalForm({ allocation, reviewedBy, onClose, onSave 
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Payment proof</label>
-            <div className="border-2 border-dashed rounded-lg p-4">
-              <input
-                type="file"
-                id="approval-proof"
-                accept="image/*,.pdf"
-                onChange={(e) => setPaymentProof(e.target.files?.[0] || null)}
-                className="hidden"
-              />
-              <label htmlFor="approval-proof" className="flex flex-col items-center justify-center cursor-pointer text-center">
-                <Upload className="h-8 w-8 text-[hsl(var(--muted-foreground))] mb-2" />
-                <span className="text-sm text-[hsl(var(--muted-foreground))]">
-                  {paymentProof ? paymentProof.name : "Upload payment proof"}
-                </span>
-              </label>
-            </div>
+            <label className="text-sm font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Payout method *</label>
+            <select
+              value={payoutMethod}
+              onChange={(e) => {
+                const method = e.target.value as PayoutMethod
+                setPayoutMethod(method)
+                if (method === "cash") setPaymentProof(null)
+              }}
+              className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] cursor-pointer"
+            >
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cash">Cash</option>
+            </select>
+            {payoutMethod === "cash" && (
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Cash payouts do not require a payment proof upload.
+              </p>
+            )}
           </div>
+
+          {payoutMethod === "bank_transfer" && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Payment proof *</label>
+              <div className="border-2 border-dashed rounded-lg p-4">
+                <input
+                  type="file"
+                  id="approval-proof"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setPaymentProof(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+                <label htmlFor="approval-proof" className="flex flex-col items-center justify-center cursor-pointer text-center">
+                  <Upload className="h-8 w-8 text-[hsl(var(--muted-foreground))] mb-2" />
+                  <span className="text-sm text-[hsl(var(--muted-foreground))]">
+                    {paymentProof ? paymentProof.name : "Upload payment proof"}
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Notes</label>

@@ -52,13 +52,16 @@ export function buildPettyCashHistory(
       events.push({
         id: `${allocation.id}-approval`,
         type: "approval",
-        title: "Cash approved and released",
-        description: allocation.notes || undefined,
+        title: allocation.payoutMethod === "cash" ? "Cash approved and released" : "Cash approved and released",
+        description:
+          allocation.payoutMethod === "cash"
+            ? [allocation.notes, "Paid in cash."].filter(Boolean).join(" ")
+            : allocation.notes || undefined,
         amount: allocation.amount,
         occurredAt: allocation.reviewedAt,
         actor: allocation.reviewedBy,
-        proofUrl: allocation.paymentProof,
-        proofName: allocation.paymentProofName,
+        proofUrl: allocation.payoutMethod === "cash" ? undefined : allocation.paymentProof,
+        proofName: allocation.payoutMethod === "cash" ? undefined : allocation.paymentProofName,
         status: "active",
       })
     }

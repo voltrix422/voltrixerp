@@ -326,7 +326,18 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
               </div>
             </div>
 
-            {allocation.paymentProof && (
+            {allocation.payoutMethod === "cash" ? (
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Payout method
+                </h3>
+                <p className="text-sm font-medium">Cash</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  Cash was released without a bank transfer proof.
+                </p>
+              </div>
+            ) : allocation.paymentProof ? (
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <FileText className="h-4 w-4" />
@@ -345,7 +356,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                   </a>
                 )}
               </div>
-            )}
+            ) : null}
 
             <PettyCashActivityTimeline allocation={allocation} receipts={receipts} />
 
