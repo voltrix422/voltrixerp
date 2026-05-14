@@ -34,8 +34,8 @@ export function isSalesAgentSubmission(ownerUserId?: string) {
   return !!ownerUserId
 }
 
-export function initialClientStatus(workspace?: CrmWorkspaceScope): ClientStatus {
-  return workspace?.mode === "sales_agent" ? "pending_approval" : "active"
+export function initialClientStatus(_workspace?: CrmWorkspaceScope): ClientStatus {
+  return "active"
 }
 
 export function initialOrderStatus(workspace?: CrmWorkspaceScope): "pending_approval" | "approved" {

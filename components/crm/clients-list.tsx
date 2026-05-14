@@ -169,7 +169,6 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
   onClose: () => void
   onSave: (c: Client) => void
 }) {
-  const { toast } = useToast()
   const [name, setName] = useState(existing?.name || "")
   const [company, setCompany] = useState(existing?.company || "")
   const [email, setEmail] = useState(existing?.email || "")
@@ -226,9 +225,6 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
     }
 
     await saveClient(client)
-    if (!existing && workspace?.mode === "sales_agent") {
-      toast({ title: "Client submitted", message: "This client was sent to admin for approval.", type: "success" })
-    }
     onSave(client)
     setSaving(false)
   }
@@ -361,7 +357,7 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={submit} disabled={saving || !name.trim()}>
-            {saving ? "Saving..." : existing ? "Update Client" : workspace?.mode === "sales_agent" ? "Submit for approval" : "Add Client"}
+            {saving ? "Saving..." : existing ? "Update Client" : "Add Client"}
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
