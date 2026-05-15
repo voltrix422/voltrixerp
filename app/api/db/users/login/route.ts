@@ -20,8 +20,13 @@ function mapRow(row: Record<string, unknown>): any {
     name: row.name as string,
     email: row.email as string,
     password: row.password as string,
-    role: row.role as "superadmin" | "user",
+    role: row.role as string,
     modules,
+    managerId: row.managerId ?? null,
+    location: row.location ?? "",
+    jobTitle: row.jobTitle ?? "",
+    baseSalary: row.baseSalary ?? 0,
+    commissionPercent: row.commissionPercent ?? 0,
   }
 }
 

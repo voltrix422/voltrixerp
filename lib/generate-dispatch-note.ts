@@ -422,7 +422,9 @@ export async function downloadDispatchNote(order: Order): Promise<void> {
     return
   }
 
-  const updatedOrder: Order = { ...order, dispatcher: dispatcherName, status: "delivered" }
+  let updatedOrder: Order = { ...order, dispatcher: dispatcherName, status: "delivered" }
+  const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
+  updatedOrder = await applySalesCommissionOnDelivery(updatedOrder)
   await import("@/lib/orders").then(m => m.saveOrder(updatedOrder))
 
   const blob = await generateDispatchNotePDF(order, dispatcherName, dispatchDate)

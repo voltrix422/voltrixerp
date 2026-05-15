@@ -295,7 +295,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         return
       }
 
-      const updatedOrder: Order = {
+      let updatedOrder: Order = {
         ...order,
         dispatcher: fulfillDispatcherName,
         status: "delivered",
@@ -309,6 +309,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         fulfillmentVehicleImageUrl: vehicleImageUrl,
         fulfillmentProductImageUrls: productImageUrls,
       }
+
+      const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
+      updatedOrder = await applySalesCommissionOnDelivery(updatedOrder)
 
       await saveOrder(updatedOrder)
 

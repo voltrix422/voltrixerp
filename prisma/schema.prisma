@@ -8,15 +8,36 @@ datasource db {
 }
 
 model ErpUser {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("user")
-  modules   Json     @default("[]")
-  createdAt DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(cuid())
+  name               String
+  email              String   @unique
+  password           String
+  role               String   @default("user")
+  modules            Json     @default("[]")
+  managerId          String?  @map("manager_id")
+  location           String   @default("")
+  jobTitle           String   @default("field_sales_officer") @map("job_title")
+  baseSalary         Float    @default(25000) @map("base_salary")
+  commissionPercent  Float    @default(0.5) @map("commission_percent")
+  createdAt          DateTime @default(now()) @map("created_at")
 
+  @@index([role])
+  @@index([managerId])
   @@map("erp_users")
+}
+
+model ErpSalesAgentCompensationHistory {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  baseSalary        Float    @map("base_salary")
+  commissionPercent Float    @map("commission_percent")
+  effectiveFrom     DateTime @default(now()) @map("effective_from")
+  note              String   @default("")
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId, effectiveFrom])
+  @@map("erp_sales_agent_compensation_history")
 }
 
 model ErpSupplier {
@@ -95,7 +116,9 @@ model ErpOrder {
   dispatcher       String?
   pdfUrl           String?  @map("pdf_url")
   payments         Json     @default("[]")
-  ownerUserId      String?  @map("owner_user_id")
+  ownerUserId                    String?  @map("owner_user_id")
+  salesAgentCommissionPercent    Float?   @map("sales_agent_commission_percent")
+  salesAgentCommissionAmount     Float?   @map("sales_agent_commission_amount")
   fulfillmentDispatcher          String? @map("fulfillment_dispatcher")
   fulfillmentReceiverName        String? @map("fulfillment_receiver_name")
   fulfillmentReceiverCnic        String? @map("fulfillment_receiver_cnic")

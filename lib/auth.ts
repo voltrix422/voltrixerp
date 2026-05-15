@@ -5,8 +5,13 @@ export interface User {
   name: string
   email: string
   password: string
-  role: "superadmin" | "user" | "sales_agent"
+  role: "superadmin" | "user" | "sales_agent" | "sales_manager"
   modules: Module[]
+  managerId?: string | null
+  location?: string
+  jobTitle?: string
+  baseSalary?: number
+  commissionPercent?: number
 }
 
 export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty"]
@@ -62,8 +67,13 @@ function mapRow(row: Record<string, unknown>): User {
     name: row.name as string,
     email: row.email as string,
     password: row.password as string,
-    role: row.role as "superadmin" | "user",
+    role: row.role as User["role"],
     modules,
+    managerId: (row.managerId as string | null) ?? undefined,
+    location: (row.location as string) ?? undefined,
+    jobTitle: (row.jobTitle as string) ?? undefined,
+    baseSalary: (row.baseSalary as number) ?? undefined,
+    commissionPercent: (row.commissionPercent as number) ?? undefined,
   }
 }
 

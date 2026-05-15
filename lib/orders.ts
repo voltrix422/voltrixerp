@@ -41,6 +41,8 @@ export interface Order {
   createdAt: string
   createdBy: string
   ownerUserId?: string
+  salesAgentCommissionPercent?: number
+  salesAgentCommissionAmount?: number
   deliveryAddress: string
   deliveryDate: string
   dispatcher?: string // Assigned dispatcher
@@ -149,6 +151,8 @@ function rowToOrder(r: Record<string, unknown>): Order {
     createdAt: r.createdAt as string,
     createdBy: r.createdBy as string,
     ownerUserId: (r.ownerUserId as string) ?? undefined,
+    salesAgentCommissionPercent: (r.salesAgentCommissionPercent as number) ?? undefined,
+    salesAgentCommissionAmount: (r.salesAgentCommissionAmount as number) ?? undefined,
     deliveryAddress: (r.deliveryAddress as string) ?? "",
     deliveryDate: (r.deliveryDate as string) ?? "",
     dispatcher: (r.dispatcher as string) ?? undefined,

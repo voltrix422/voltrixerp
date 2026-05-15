@@ -1155,9 +1155,15 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
         // Don't fail the status update if inventory deduction fails
       }
     }
-    
-    await saveOrder(updated)
-    onUpdate(updated)
+
+    let toSave = updated
+    if (newStatus === "delivered") {
+      const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
+      toSave = await applySalesCommissionOnDelivery(updated)
+    }
+
+    await saveOrder(toSave)
+    onUpdate(toSave)
   }
 
   const hasInvoiceDetails = Math.abs(Number(detailOrder.tax || 0)) > 0.004 || detailOrder.transportCost > 0 || detailOrder.otherCost > 0 || detailOrder.dispatcher

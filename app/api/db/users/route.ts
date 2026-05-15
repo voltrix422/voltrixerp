@@ -10,8 +10,31 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const user = await prisma.erpUser.upsert({
     where: { id: body.id ?? "__new__" },
-    update: { name: body.name, email: body.email, password: body.password, role: body.role, modules: body.modules },
-    create: { id: body.id, name: body.name, email: body.email, password: body.password, role: body.role, modules: body.modules },
+    update: {
+      name: body.name,
+      email: body.email,
+      password: body.password,
+      role: body.role,
+      modules: body.modules,
+      managerId: body.managerId ?? null,
+      location: body.location ?? "",
+      jobTitle: body.jobTitle ?? "field_sales_officer",
+      baseSalary: body.baseSalary ?? 25000,
+      commissionPercent: body.commissionPercent ?? 0.5,
+    },
+    create: {
+      id: body.id,
+      name: body.name,
+      email: body.email,
+      password: body.password,
+      role: body.role,
+      modules: body.modules,
+      managerId: body.managerId ?? null,
+      location: body.location ?? "",
+      jobTitle: body.jobTitle ?? "field_sales_officer",
+      baseSalary: body.baseSalary ?? 25000,
+      commissionPercent: body.commissionPercent ?? 0.5,
+    },
   })
   return NextResponse.json(user)
 }

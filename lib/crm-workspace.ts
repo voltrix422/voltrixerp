@@ -13,12 +13,24 @@ export function isSalesAgentUser(user?: User | null) {
   return user?.role === "sales_agent"
 }
 
+export function isSalesManagerUser(user?: User | null) {
+  return user?.role === "sales_manager"
+}
+
+export function canManageAllSalesAgents(user?: User | null) {
+  return user?.role === "superadmin"
+}
+
 export function canAccessCrmMain(user?: User | null) {
   return !!user && user.role !== "sales_agent"
 }
 
 export function canAccessSalesAgentsArea(user?: User | null) {
-  return !!user && (user.role === "superadmin" || user.role === "sales_agent")
+  return !!user && (user.role === "superadmin" || user.role === "sales_manager" || user.role === "sales_agent")
+}
+
+export function isSalesAgentsAdminView(user?: User | null) {
+  return user?.role === "superadmin" || user?.role === "sales_manager"
 }
 
 export function matchesOwnerRecord(ownerUserId: string | undefined, scopeUserId?: string) {

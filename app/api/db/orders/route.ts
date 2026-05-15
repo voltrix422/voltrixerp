@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
       status: o.status, notes: o.notes, createdBy: o.createdBy,
       deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
       dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
+      salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
+      salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
       ...fulfillment,
     },
     create: {
@@ -46,6 +48,8 @@ export async function POST(req: NextRequest) {
       createdAt: o.createdAt ? new Date(o.createdAt) : undefined,
       deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
       dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
+      salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
+      salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
       ...fulfillment,
     },
   })

@@ -41,7 +41,7 @@ export default function LoginPage() {
     if (loggedInUser.role === "superadmin") {
       console.log("Redirecting to /dashboard (superadmin)")
       router.replace("/dashboard")
-    } else if (loggedInUser.role === "sales_agent") {
+    } else if (loggedInUser.role === "sales_agent" || loggedInUser.role === "sales_manager") {
       router.replace("/crm/sales-agents")
     } else if (loggedInUser.modules && loggedInUser.modules.length > 0) {
       // Redirect to first assigned module
