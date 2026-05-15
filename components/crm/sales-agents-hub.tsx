@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   fetchSalesAgents,
+  fetchSalesManagers,
   fetchCompensationHistory,
   fetchCommissionSummary,
-  createSalesAgent,
-  updateSalesAgent,
   JOB_TITLE_LABELS,
   type SalesAgentProfile,
   type CompensationHistoryRow,
   type CommissionSummary,
-  type SalesJobTitle,
+  type SalesManagerOption,
 } from "@/lib/sales-agents"
+import { SalesAgentFormModal } from "@/components/crm/sales-agent-form-modal"
 import { canManageAllSalesAgents } from "@/lib/crm-workspace"
 import type { User } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -53,25 +53,13 @@ export function SalesAgentsHub({ user }: Props) {
 
   const [hubTab, setHubTab] = useState<HubTab>("dashboard")
   const [agents, setAgents] = useState<SalesAgentProfile[]>([])
-  const [managers, setManagers] = useState<Array<{ id: string; name: string }>>([])
+  const [managers, setManagers] = useState<SalesManagerOption[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<SalesAgentProfile | null>(null)
   const [workspaceTab, setWorkspaceTab] = useState<AgentWorkspaceTab>("clients")
 
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<SalesAgentProfile | null>(null)
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    managerId: "",
-    location: "",
-    jobTitle: "field_sales_officer" as SalesJobTitle,
-    baseSalary: "25000",
-    commissionPercent: "0.5",
-    compensationNote: "",
-  })
-  const [saving, setSaving] = useState(false)
 
   const [historyAgent, setHistoryAgent] = useState<SalesAgentProfile | null>(null)
   const [history, setHistory] = useState<CompensationHistoryRow[]>([])
@@ -86,17 +74,12 @@ export function SalesAgentsHub({ user }: Props) {
   const loadAgents = useCallback(async () => {
     setLoading(true)
     try {
-      const list = await fetchSalesAgents({ managerId: managerFilter, withStats: true })
+      const [list, mgrList] = await Promise.all([
+        fetchSalesAgents({ managerId: managerFilter, withStats: true }),
+        fetchSalesManagers(),
+      ])
       setAgents(list)
-      const mgrRes = await fetch("/api/db/users")
-      if (mgrRes.ok) {
-        const users = await mgrRes.json()
-        setManagers(
-          users
-            .filter((u: { role: string }) => u.role === "sales_manager" || u.role === "superadmin")
-            .map((u: { id: string; name: string }) => ({ id: u.id, name: u.name }))
-        )
-      }
+      setManagers(mgrList)
     } catch {
       toast({ title: "Error", message: "Failed to load sales agents.", type: "error" })
     } finally {
@@ -108,87 +91,26 @@ export function SalesAgentsHub({ user }: Props) {
     loadAgents()
   }, [loadAgents])
 
-  function resetForm() {
-    setForm({
-      name: "",
-      email: "",
-      password: "",
-      managerId: "",
-      location: "",
-      jobTitle: "field_sales_officer",
-      baseSalary: "25000",
-      commissionPercent: "0.5",
-      compensationNote: "",
-    })
+  function closeForm() {
     setEditing(null)
     setShowForm(false)
   }
 
-  function openEdit(agent: SalesAgentProfile) {
-    setEditing(agent)
-    setForm({
-      name: agent.name,
-      email: agent.email,
-      password: "",
-      managerId: agent.managerId || "",
-      location: agent.location || "",
-      jobTitle: agent.jobTitle,
-      baseSalary: String(agent.baseSalary),
-      commissionPercent: String(agent.commissionPercent),
-      compensationNote: "",
-    })
+  function openNewAgent() {
+    setEditing(null)
     setShowForm(true)
   }
 
-  async function submitForm() {
-    if (!form.name.trim() || !form.email.trim()) {
-      toast({ title: "Missing details", message: "Name and email are required.", type: "error" })
-      return
-    }
-    if (!editing && !form.password.trim()) {
-      toast({ title: "Missing password", message: "Set a password for the new agent.", type: "error" })
-      return
-    }
+  function openEdit(agent: SalesAgentProfile) {
+    setEditing(agent)
+    setShowForm(true)
+  }
 
-    setSaving(true)
+  async function reloadManagers() {
     try {
-      if (editing) {
-        await updateSalesAgent(editing.id, {
-          name: form.name.trim(),
-          email: form.email.trim(),
-          ...(form.password ? { password: form.password } : {}),
-          managerId: form.managerId || null,
-          location: form.location.trim(),
-          jobTitle: form.jobTitle,
-          baseSalary: Number(form.baseSalary),
-          commissionPercent: Number(form.commissionPercent),
-          compensationNote: form.compensationNote || "Rate updated",
-          updatedBy: user.name,
-        })
-        toast({ title: "Updated", message: `${form.name} saved.`, type: "success" })
-      } else {
-        await createSalesAgent({
-          name: form.name.trim(),
-          email: form.email.trim(),
-          password: form.password,
-          managerId: form.managerId || undefined,
-          location: form.location.trim(),
-          jobTitle: form.jobTitle,
-          baseSalary: Number(form.baseSalary),
-          commissionPercent: Number(form.commissionPercent),
-        })
-        toast({ title: "Agent created", message: `${form.name} can sign in now.`, type: "success" })
-      }
-      resetForm()
-      await loadAgents()
-    } catch (e) {
-      toast({
-        title: "Error",
-        message: e instanceof Error ? e.message : "Save failed.",
-        type: "error",
-      })
-    } finally {
-      setSaving(false)
+      setManagers(await fetchSalesManagers())
+    } catch {
+      /* ignore */
     }
   }
 
@@ -295,14 +217,11 @@ export function SalesAgentsHub({ user }: Props) {
             Manage agents, compensation, and commission reports.
           </p>
         </div>
-        {isSuperAdmin && hubTab === "agents" && (
+        {isSuperAdmin && (
           <Button
             size="sm"
             className="h-8 text-xs cursor-pointer"
-            onClick={() => {
-              resetForm()
-              setShowForm(true)
-            }}
+            onClick={openNewAgent}
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
             New agent
@@ -340,92 +259,17 @@ export function SalesAgentsHub({ user }: Props) {
         />
       )}
 
-      {showForm && isSuperAdmin && hubTab === "agents" && (
-        <div className="rounded-lg border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">{editing ? "Edit agent" : "New sales agent"}</p>
-            <button type="button" onClick={resetForm} className="cursor-pointer text-[hsl(var(--muted-foreground))]">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <input
-              className="h-9 rounded-md border px-3 text-sm"
-              placeholder="Full name"
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            />
-            <input
-              className="h-9 rounded-md border px-3 text-sm"
-              placeholder="Email"
-              type="email"
-              value={form.email}
-              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-            />
-            <input
-              className="h-9 rounded-md border px-3 text-sm"
-              placeholder={editing ? "New password (optional)" : "Password"}
-              type="password"
-              value={form.password}
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-            />
-            <select
-              className="h-9 rounded-md border px-3 text-sm bg-transparent"
-              value={form.managerId}
-              onChange={e => setForm(f => ({ ...f, managerId: e.target.value }))}
-            >
-              <option value="">No manager</option>
-              {managers.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <input
-              className="h-9 rounded-md border px-3 text-sm"
-              placeholder="Location / territory"
-              value={form.location}
-              onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-            />
-            <select
-              className="h-9 rounded-md border px-3 text-sm bg-transparent"
-              value={form.jobTitle}
-              onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value as SalesJobTitle }))}
-            >
-              {Object.entries(JOB_TITLE_LABELS).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <input
-              className="h-9 rounded-md border px-3 text-sm"
-              placeholder="Base salary (Rs)"
-              type="number"
-              value={form.baseSalary}
-              onChange={e => setForm(f => ({ ...f, baseSalary: e.target.value }))}
-            />
-            <input
-              className="h-9 rounded-md border px-3 text-sm"
-              placeholder="Commission % per order"
-              type="number"
-              step="0.01"
-              value={form.commissionPercent}
-              onChange={e => setForm(f => ({ ...f, commissionPercent: e.target.value }))}
-            />
-            {editing && (
-              <input
-                className="h-9 rounded-md border px-3 text-sm sm:col-span-2"
-                placeholder="Note for compensation change"
-                value={form.compensationNote}
-                onChange={e => setForm(f => ({ ...f, compensationNote: e.target.value }))}
-              />
-            )}
-          </div>
-          <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving} onClick={submitForm}>
-            {saving ? "Saving..." : editing ? "Save changes" : "Create agent"}
-          </Button>
-        </div>
+      {isSuperAdmin && (
+        <SalesAgentFormModal
+          open={showForm}
+          editing={editing}
+          managers={managers}
+          otherAgents={agents}
+          updatedBy={user.name}
+          onClose={closeForm}
+          onSaved={loadAgents}
+          onManagersChange={reloadManagers}
+        />
       )}
 
       {hubTab === "agents" && (

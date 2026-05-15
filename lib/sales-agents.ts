@@ -128,6 +128,45 @@ export async function fetchCompensationHistory(userId: string): Promise<Compensa
   return res.json()
 }
 
+export type SalesManagerOption = {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+export async function fetchSalesManagers(): Promise<SalesManagerOption[]> {
+  const res = await fetch("/api/sales/managers")
+  if (!res.ok) throw new Error("Failed to load managers")
+  return res.json()
+}
+
+export async function createSalesManager(data: {
+  name: string
+  email: string
+  password: string
+}): Promise<SalesManagerOption> {
+  const res = await fetch("/api/sales/managers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+  const payload = await res.json()
+  if (!res.ok) throw new Error(payload?.error || "Failed to create manager")
+  return payload
+}
+
+export async function promoteToSalesManager(userId: string): Promise<SalesManagerOption> {
+  const res = await fetch("/api/sales/managers", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  })
+  const payload = await res.json()
+  if (!res.ok) throw new Error(payload?.error || "Failed to promote user")
+  return payload
+}
+
 export async function fetchCommissionSummary(params: {
   agentId?: string
   from?: string
