@@ -44,14 +44,21 @@ async function buildAgentStats(agentId: string) {
     (s, o) => s + (o.salesAgentCommissionAmount ?? 0),
     0
   )
-  const commissionPending = orders
-    .filter(o => o.status !== "delivered" && o.status !== "cancelled" && o.status !== "rejected")
+  const activeOrders = orders.filter(
+    o => o.status !== "cancelled" && o.status !== "rejected"
+  )
+  const commissionPending = activeOrders
+    .filter(o => o.status !== "delivered")
     .reduce((s, o) => s + o.total, 0)
+  const quotationsValue = quotations.reduce((s, q) => s + q.total, 0)
+  const ordersValue = activeOrders.reduce((s, o) => s + o.total, 0)
 
   return {
     clients: clients.length,
     quotations: quotations.length,
+    quotationsValue,
     orders: orders.length,
+    ordersValue,
     pendingOrders: pending.length,
     deliveredOrders: delivered.length,
     totalSales,

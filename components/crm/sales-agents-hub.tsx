@@ -21,18 +21,20 @@ import { ClientsList } from "@/components/crm/clients-list"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
 import type { CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { SalesAgentsDashboard } from "@/components/crm/sales-agents-dashboard"
 import {
   ArrowLeft,
   Calculator,
   ChevronRight,
   History,
+  LayoutDashboard,
   MapPin,
   Plus,
   Users,
   X,
 } from "lucide-react"
 
-type HubTab = "agents" | "commissions"
+type HubTab = "dashboard" | "agents" | "commissions"
 type AgentWorkspaceTab = "clients" | "quotations" | "orders"
 
 type Props = {
@@ -49,7 +51,7 @@ export function SalesAgentsHub({ user }: Props) {
   const isSuperAdmin = canManageAllSalesAgents(user)
   const managerFilter = user.role === "sales_manager" ? user.id : undefined
 
-  const [hubTab, setHubTab] = useState<HubTab>("agents")
+  const [hubTab, setHubTab] = useState<HubTab>("dashboard")
   const [agents, setAgents] = useState<SalesAgentProfile[]>([])
   const [managers, setManagers] = useState<Array<{ id: string; name: string }>>([])
   const [loading, setLoading] = useState(true)
@@ -310,25 +312,35 @@ export function SalesAgentsHub({ user }: Props) {
 
       <div className="flex items-center gap-1 border-b">
         {([
+          ["dashboard", "Dashboard"],
           ["agents", "Agents"],
           ["commissions", "Commission calculator"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setHubTab(key)}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer flex items-center gap-1 ${
               hubTab === key
                 ? "text-[hsl(var(--foreground))]"
                 : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
             }`}
           >
+            {key === "dashboard" && <LayoutDashboard className="h-3 w-3" />}
             {label}
             {hubTab === key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
           </button>
         ))}
       </div>
 
-      {showForm && isSuperAdmin && (
+      {hubTab === "dashboard" && (
+        <SalesAgentsDashboard
+          agents={agents}
+          loading={loading}
+          onSelectAgent={setSelected}
+        />
+      )}
+
+      {showForm && isSuperAdmin && hubTab === "agents" && (
         <div className="rounded-lg border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">{editing ? "Edit agent" : "New sales agent"}</p>
@@ -432,8 +444,11 @@ export function SalesAgentsHub({ user }: Props) {
                     <th className="px-4 py-2 font-medium">Location</th>
                     <th className="px-4 py-2 font-medium">Salary</th>
                     <th className="px-4 py-2 font-medium">Commission</th>
-                    <th className="px-4 py-2 font-medium">Delivered</th>
-                    <th className="px-4 py-2 font-medium">Earned</th>
+                    <th className="px-4 py-2 font-medium">Clients</th>
+                    <th className="px-4 py-2 font-medium">Quotes</th>
+                    <th className="px-4 py-2 font-medium">Orders</th>
+                    <th className="px-4 py-2 font-medium">Sold</th>
+                    <th className="px-4 py-2 font-medium">Commission</th>
                     <th className="px-4 py-2 font-medium" />
                   </tr>
                 </thead>
@@ -457,7 +472,25 @@ export function SalesAgentsHub({ user }: Props) {
                       </td>
                       <td className="px-4 py-3 text-xs">{formatMoney(agent.baseSalary)}</td>
                       <td className="px-4 py-3 text-xs">{agent.commissionPercent}%</td>
-                      <td className="px-4 py-3 text-xs">{agent.stats?.deliveredOrders ?? 0}</td>
+                      <td className="px-4 py-3 text-xs">{agent.stats?.clients ?? 0}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {agent.stats?.quotations ?? 0}
+                        <span className="block text-[10px] text-[hsl(var(--muted-foreground))]">
+                          {formatMoney(agent.stats?.quotationsValue ?? 0)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {agent.stats?.orders ?? 0}
+                        <span className="block text-[10px] text-[hsl(var(--muted-foreground))]">
+                          {agent.stats?.pendingOrders ?? 0} pending
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-medium">
+                        {formatMoney(agent.stats?.totalSales ?? 0)}
+                        <span className="block text-[10px] font-normal text-[hsl(var(--muted-foreground))]">
+                          {agent.stats?.deliveredOrders ?? 0} delivered
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-xs text-[#1faca6] font-medium">
                         {formatMoney(agent.stats?.commissionEarned ?? 0)}
                       </td>

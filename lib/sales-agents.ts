@@ -16,7 +16,9 @@ export interface SalesAgentProfile {
   stats?: {
     clients: number
     quotations: number
+    quotationsValue: number
     orders: number
+    ordersValue: number
     pendingOrders: number
     deliveredOrders: number
     totalSales: number

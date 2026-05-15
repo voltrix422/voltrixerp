@@ -104,10 +104,16 @@ export function SalesAgentPortal({ user }: Props) {
             <div className="rounded-lg border p-3">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Quotations</p>
               <p className="text-lg font-semibold mt-1">{profile?.stats?.quotations ?? 0}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                {formatMoney(profile?.stats?.quotationsValue ?? 0)}
+              </p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Orders</p>
               <p className="text-lg font-semibold mt-1">{profile?.stats?.orders ?? 0}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                {formatMoney(profile?.stats?.ordersValue ?? 0)} pipeline
+              </p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending approval</p>
@@ -184,4 +190,3 @@ export function SalesAgentPortal({ user }: Props) {
     </div>
   )
 }
-
