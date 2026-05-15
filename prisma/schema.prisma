@@ -255,18 +255,20 @@ model ErpStaff {
 }
 
 model ErpFinanceRecord {
-  id          String   @id @default(cuid())
-  title       String
-  amount      Float
-  currency    String
-  purpose     String
-  category    String
-  tag         String
-  proof_url   String   @map("proof_url")
-  proof_name  String   @map("proof_name")
-  notes       String
-  created_by  String   @map("created_by")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(cuid())
+  title               String
+  amount              Float
+  currency            String
+  purpose             String
+  category            String
+  tag                 String
+  supplier_name       String   @default("") @map("supplier_name")
+  receipt_person_name String   @default("") @map("receipt_person_name")
+  proof_url           String   @map("proof_url")
+  proof_name          String   @map("proof_name")
+  notes               String
+  created_by          String   @map("created_by")
+  createdAt           DateTime @default(now()) @map("created_at")
 
   @@map("erp_finance_records")
 }

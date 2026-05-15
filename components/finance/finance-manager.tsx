@@ -12,6 +12,8 @@ interface FinanceRecord {
   purpose: string
   category: string
   tag: string
+  supplier_name: string
+  receipt_person_name: string
   proof_url: string
   proof_name: string
   notes: string
@@ -67,6 +69,8 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
   const [purpose, setPurpose] = useState("")
   const [category, setCategory] = useState("Payment")
   const [tag, setTag] = useState("")
+  const [supplierName, setSupplierName] = useState("")
+  const [receiptPersonName, setReceiptPersonName] = useState("")
   const [notes, setNotes] = useState("")
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState("")
@@ -95,7 +99,9 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
       r.title.toLowerCase().includes(q) ||
       r.purpose.toLowerCase().includes(q) ||
       r.notes.toLowerCase().includes(q) ||
-      r.tag.toLowerCase().includes(q)
+      r.tag.toLowerCase().includes(q) ||
+      (r.supplier_name || "").toLowerCase().includes(q) ||
+      (r.receipt_person_name || "").toLowerCase().includes(q)
     const matchCat = filterCategory === "All" || r.category === filterCategory
     const matchTag = filterTag === "All" || r.tag === filterTag
     const recDate = new Date(r.createdAt)
@@ -128,7 +134,10 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
     }
     const record = {
       title, amount: parseFloat(amount), currency, purpose,
-      category, tag, proof_url, proof_name, notes,
+      category, tag,
+      supplier_name: supplierName.trim(),
+      receipt_person_name: receiptPersonName.trim(),
+      proof_url, proof_name, notes,
       created_by: user?.name ?? "Unknown",
     }
     try {
@@ -149,7 +158,7 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
 
   function resetForm() {
     setTitle(""); setAmount(""); setCurrency("PKR"); setPurpose("")
-    setCategory("Payment"); setTag(""); setNotes("")
+    setCategory("Payment"); setTag(""); setSupplierName(""); setReceiptPersonName(""); setNotes("")
     setProofFile(null); setProofPreview(""); setSaveError(""); setShowForm(false)
   }
 
@@ -341,6 +350,14 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
                   <input value={tag} onChange={e => setTag(e.target.value)} placeholder="e.g. Q1, Ahmed" className={inputCls} />
                 </Field>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Supplier name">
+                  <input value={supplierName} onChange={e => setSupplierName(e.target.value)} placeholder="e.g. ABC Traders" className={inputCls} />
+                </Field>
+                <Field label="Receipt brought by">
+                  <input value={receiptPersonName} onChange={e => setReceiptPersonName(e.target.value)} placeholder="Person who brought receipt" className={inputCls} />
+                </Field>
+              </div>
               <Field label="Purpose">
                 <input value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="What was this for?" className={inputCls} />
               </Field>
@@ -422,6 +439,18 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
 
               {/* Details grid */}
               <div className="grid grid-cols-2 gap-2 text-xs">
+                {viewRecord.supplier_name && (
+                  <div className="rounded-md border bg-[hsl(var(--background))] px-3 py-2.5">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium mb-0.5">Supplier</p>
+                    <p className="font-medium">{viewRecord.supplier_name}</p>
+                  </div>
+                )}
+                {viewRecord.receipt_person_name && (
+                  <div className="rounded-md border bg-[hsl(var(--background))] px-3 py-2.5">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium mb-0.5">Receipt brought by</p>
+                    <p className="font-medium">{viewRecord.receipt_person_name}</p>
+                  </div>
+                )}
                 {viewRecord.purpose && (
                   <div className="col-span-2 rounded-md border bg-[hsl(var(--background))] px-3 py-2.5">
                     <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium mb-0.5">Purpose</p>
@@ -475,5 +504,8 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
     </div>
   )
 }
+
+
+
 
 
