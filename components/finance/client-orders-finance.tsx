@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, getOrderPaymentProofUrls, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -55,7 +55,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
 
   // Calculate total payments for filtered orders
   const totalPayments = filteredOrders.reduce((sum, order) => {
-    return sum + (order.payments || []).reduce((s, p) => s + p.amount, 0)
+    return sum + getSubmittedPayments(order.payments, order.status).reduce((s, p) => s + p.amount, 0)
   }, 0)
 
   const totalOrdersValue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
@@ -117,7 +117,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
             </thead>
             <tbody className="divide-y">
               {filteredOrders.map(order => {
-                const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0)
+                const totalPaid = getSubmittedPayments(order.payments, order.status).reduce((s, p) => s + p.amount, 0)
                 const remaining = order.total - totalPaid
                 return (
                   <tr key={order.id} onClick={() => setSelectedOrder(order)} className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer">
@@ -172,6 +172,10 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
     const updated: Order = {
       ...order,
       status: "confirmed",
+      payments: (order.payments || []).map(p => ({
+        ...p,
+        submissionStatus: getPaymentSubmissionStatus(p, order.status) === "pending_approval" ? "approved" as const : p.submissionStatus,
+      })),
     }
 
     await saveOrder(updated)
@@ -181,9 +185,11 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
     onClose()
   }
 
-  const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0)
+  const submittedPayments = getSubmittedPayments(order.payments, order.status)
+  const totalPaid = submittedPayments.reduce((s, p) => s + p.amount, 0)
   const remaining = order.total - totalPaid
   const isFullyPaid = remaining <= 0
+  const hasPendingSubmission = submittedPayments.some(p => getPaymentSubmissionStatus(p, order.status) === "pending_approval")
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
@@ -315,6 +321,8 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
                   {order.payments.map(p => (
                     <div key={p.id} className="text-xs text-blue-700 dark:text-blue-300">
                       PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
+                      {getPaymentSubmissionStatus(p, order.status) === "pending_approval" && " · Pending approval"}
+                      {getPaymentSubmissionStatus(p, order.status) === "draft" && " · Draft"}
                     </div>
                   ))}
                 </div>
@@ -329,11 +337,18 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
             <div>
               <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-2">Payments Received</p>
               <div className="rounded-lg border overflow-hidden p-3 space-y-2 bg-green-50 dark:bg-green-950/20">
-                {order.payments.map(p => (
+                {order.payments.map(p => {
+                  const pStatus = getPaymentSubmissionStatus(p, order.status)
+                  return (
                   <div key={p.id} className="flex items-center justify-between text-xs border-b pb-2 last:border-0">
                     <div>
                       <p className="font-medium">PKR {p.amount.toLocaleString()}</p>
-                      <p className="text-[hsl(var(--muted-foreground))]">{p.method} · {new Date(p.date).toLocaleDateString()}</p>
+                      <p className="text-[hsl(var(--muted-foreground))]">
+                        {p.method} · {new Date(p.date).toLocaleDateString()}
+                        {pStatus === "draft" && " · Draft"}
+                        {pStatus === "pending_approval" && " · Pending approval"}
+                        {pStatus === "approved" && " · Approved"}
+                      </p>
                       {p.notes && <p className="text-[hsl(var(--muted-foreground))] text-[10px] mt-0.5">{p.notes}</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -350,7 +365,8 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
                       ))}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 <div className="flex items-center justify-between text-xs font-bold pt-2">
                   <span>Total Paid</span>
                   <span>PKR {totalPaid.toLocaleString()}</span>

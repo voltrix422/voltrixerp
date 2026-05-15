@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
@@ -1461,11 +1461,15 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
               </p>
               {order.payments && order.payments.length > 0 ? (
                 <div className="mt-2 space-y-1">
-                  {order.payments.map(p => (
+                  {order.payments.map(p => {
+                    const pStatus = getPaymentSubmissionStatus(p, order.status)
+                    return (
                     <div key={p.id} className="text-xs text-blue-700 dark:text-blue-300">
                       PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
+                      {pStatus === "draft" && " · Draft"}
+                      {pStatus === "pending_approval" && " · Pending finance"}
                     </div>
-                  ))}
+                  )})}
                 </div>
               ) : (
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">No payments received yet</p>
@@ -1479,11 +1483,17 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
               <div className="space-y-2">
                 {order.payments.map(p => {
                   const proofUrls = getOrderPaymentProofUrls(p)
+                  const pStatus = getPaymentSubmissionStatus(p, order.status)
                   return (
                   <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0">
                     <div>
                       <p className="font-medium text-green-900 dark:text-green-100">PKR {p.amount.toLocaleString()}</p>
-                      <p className="text-green-700 dark:text-green-300">{p.method} · {new Date(p.date).toLocaleDateString()}</p>
+                      <p className="text-green-700 dark:text-green-300">
+                        {p.method} · {new Date(p.date).toLocaleDateString()}
+                        {pStatus === "draft" && " · Draft"}
+                        {pStatus === "pending_approval" && " · Pending finance"}
+                        {pStatus === "approved" && " · Approved"}
+                      </p>
                       {p.notes && <p className="text-green-600 dark:text-green-400 text-[10px] mt-0.5">{p.notes}</p>}
                     </div>
                     {proofUrls.length > 0 && (
@@ -1504,16 +1514,23 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   </div>
                   )
                 })}
+                {(() => {
+                  const submittedTotal = getSubmittedPayments(order.payments, order.status).reduce((sum, p) => sum + p.amount, 0)
+                  return (
+                    <>
                 <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-green-200 dark:border-green-800">
-                  <span className="text-green-900 dark:text-green-100">Total Paid</span>
-                  <span className="text-green-900 dark:text-green-100">PKR {order.payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}</span>
+                  <span className="text-green-900 dark:text-green-100">Total Paid (submitted)</span>
+                  <span className="text-green-900 dark:text-green-100">PKR {submittedTotal.toLocaleString()}</span>
                 </div>
-                {order.payments.reduce((sum, p) => sum + p.amount, 0) < order.total && (
+                {submittedTotal < order.total && (
                   <div className="flex items-center justify-between text-xs font-bold text-orange-700 dark:text-orange-300">
                     <span>Remaining</span>
-                    <span>PKR {(order.total - order.payments.reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}</span>
+                    <span>PKR {(order.total - submittedTotal).toLocaleString()}</span>
                   </div>
                 )}
+                    </>
+                  )
+                })()}
               </div>
             </div>
           )}
@@ -1546,7 +1563,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   <FileText className="h-4 w-4 mr-2" /> Finalize Order
                 </Button>
               )}
-              {hasInvoiceDetails && !["payment_added", "confirmed", "processing", "shipped", "delivered"].includes(order.status) && (
+              {hasInvoiceDetails && (order.status === "finalized" || order.status === "payment_added") && (
                 <>
                   <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={viewInvoice} title="View Invoice">
                     <Eye className="h-4 w-4" />

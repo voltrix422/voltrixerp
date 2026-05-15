@@ -58,6 +58,8 @@ export interface Order {
   fulfillmentProductImageUrls?: string[]
 }
 
+export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"
+
 export interface OrderPayment {
   id: string
   amount: number
@@ -68,6 +70,36 @@ export interface OrderPayment {
   proofUrls?: string[]
   createdAt: string
   createdBy: string
+  submissionStatus?: PaymentSubmissionStatus
+}
+
+export function getPaymentSubmissionStatus(payment: OrderPayment, orderStatus?: Order["status"]): PaymentSubmissionStatus {
+  if (payment.submissionStatus) return payment.submissionStatus
+  if (orderStatus === "confirmed" || orderStatus === "processing" || orderStatus === "shipped" || orderStatus === "delivered") {
+    return "approved"
+  }
+  if (orderStatus === "payment_added") return "pending_approval"
+  return "approved"
+}
+
+export function isPaymentEditable(payment: OrderPayment, orderStatus?: Order["status"]) {
+  const status = getPaymentSubmissionStatus(payment, orderStatus)
+  return status === "draft" || status === "pending_approval"
+}
+
+export function canCapturePaymentsForOrder(order: Pick<Order, "status">) {
+  return order.status === "finalized" || order.status === "payment_added"
+}
+
+export function getSubmittedPayments(payments: OrderPayment[] = [], orderStatus?: Order["status"]) {
+  return payments.filter(p => {
+    const s = getPaymentSubmissionStatus(p, orderStatus)
+    return s === "pending_approval" || s === "approved"
+  })
+}
+
+export function getDraftPayments(payments: OrderPayment[] = [], orderStatus?: Order["status"]) {
+  return payments.filter(p => getPaymentSubmissionStatus(p, orderStatus) === "draft")
 }
 
 export function getOrderPaymentProofUrls(payment: OrderPayment): string[] {
