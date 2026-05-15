@@ -173,7 +173,7 @@ export function SalesAgentsDashboard({ agents, loading, onSelectAgent }: Props) 
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-[hsl(var(--muted))]/20 text-[10px] font-medium">
+              <tr className="border-t-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 text-[10px] font-medium">
                 <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">Total</td>
                 <td className="px-2 py-2 text-center tabular-nums">{totals.clients}</td>
                 <td className="px-2 py-2 text-center tabular-nums">
