@@ -262,8 +262,11 @@ model ErpFinanceRecord {
   purpose             String
   category            String
   tag                 String
-  supplier_name       String   @default("") @map("supplier_name")
-  receipt_person_name String   @default("") @map("receipt_person_name")
+  supplier_name              String   @default("") @map("supplier_name")
+  receipt_person_name        String   @default("") @map("receipt_person_name")
+  petty_cash_allocation_id   String   @default("") @map("petty_cash_allocation_id")
+  petty_cash_receipt_id      String   @default("") @map("petty_cash_receipt_id")
+  petty_cash_label           String   @default("") @map("petty_cash_label")
   proof_url           String   @map("proof_url")
   proof_name          String   @map("proof_name")
   notes               String

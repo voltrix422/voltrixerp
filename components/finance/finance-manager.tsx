@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { Plus, Upload, X, FileText, Trash2, Search, Calendar, TrendingUp, DollarSign, Eye, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Upload, X, FileText, Trash2, TrendingUp, DollarSign, Eye, Wallet } from "lucide-react"
+import { getPettyCashAllocations, getPettyCashReceipts, type PettyCashAllocation } from "@/lib/petty-cash"
 
 interface FinanceRecord {
   id: string
@@ -14,6 +15,9 @@ interface FinanceRecord {
   tag: string
   supplier_name: string
   receipt_person_name: string
+  petty_cash_allocation_id?: string
+  petty_cash_receipt_id?: string
+  petty_cash_label?: string
   proof_url: string
   proof_name: string
   notes: string
@@ -74,7 +78,39 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
   const [notes, setNotes] = useState("")
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState("")
+  const [pettyCashAllocationId, setPettyCashAllocationId] = useState("")
+  const [activePettyCash, setActivePettyCash] = useState<Array<PettyCashAllocation & { remaining: number }>>([])
+  const [loadingPettyCash, setLoadingPettyCash] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  async function loadActivePettyCash() {
+    setLoadingPettyCash(true)
+    try {
+      const [allocations, receipts] = await Promise.all([
+        getPettyCashAllocations(),
+        getPettyCashReceipts(),
+      ])
+      const active = allocations
+        .filter(a => a.status === "active")
+        .map(a => {
+          const used = receipts
+            .filter(r => r.allocationId === a.id && (r.status === "pending" || r.status === "approved"))
+            .reduce((sum, r) => sum + r.amount, 0)
+          return { ...a, remaining: Math.max(0, a.amount - used) }
+        })
+        .filter(a => a.remaining > 0)
+      setActivePettyCash(active)
+    } catch (error) {
+      console.error("Failed to load petty cash:", error)
+      setActivePettyCash([])
+    } finally {
+      setLoadingPettyCash(false)
+    }
+  }
+
+  useEffect(() => {
+    if (showForm) loadActivePettyCash()
+  }, [showForm])
 
   useEffect(() => {
     async function fetchRecords() {
@@ -101,7 +137,8 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
       r.notes.toLowerCase().includes(q) ||
       r.tag.toLowerCase().includes(q) ||
       (r.supplier_name || "").toLowerCase().includes(q) ||
-      (r.receipt_person_name || "").toLowerCase().includes(q)
+      (r.receipt_person_name || "").toLowerCase().includes(q) ||
+      (r.petty_cash_label || "").toLowerCase().includes(q)
     const matchCat = filterCategory === "All" || r.category === filterCategory
     const matchTag = filterTag === "All" || r.tag === filterTag
     const recDate = new Date(r.createdAt)
@@ -125,6 +162,20 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title || !amount) return
+
+    const parsedAmount = parseFloat(amount)
+    if (pettyCashAllocationId) {
+      const linked = activePettyCash.find(a => a.id === pettyCashAllocationId)
+      if (!linked) {
+        setSaveError("Selected petty cash is no longer active")
+        return
+      }
+      if (parsedAmount > linked.remaining + 0.004) {
+        setSaveError(`Amount exceeds petty cash remaining (PKR ${linked.remaining.toLocaleString()})`)
+        return
+      }
+    }
+
     setSaving(true); setSaveError("")
     let proof_url = "", proof_name = ""
     if (proofFile) {
@@ -137,6 +188,7 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
       category, tag,
       supplier_name: supplierName.trim(),
       receipt_person_name: receiptPersonName.trim(),
+      petty_cash_allocation_id: pettyCashAllocationId,
       proof_url, proof_name, notes,
       created_by: user?.name ?? "Unknown",
     }
@@ -147,6 +199,11 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
         body: JSON.stringify(record)
       })
       const newRecord = await res.json()
+      if (!res.ok) {
+        setSaveError(newRecord?.error || "Failed to save record")
+        setSaving(false)
+        return
+      }
       setRecords([newRecord, ...records])
       resetForm(); setSaving(false)
     } catch (error) {
@@ -158,7 +215,7 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
 
   function resetForm() {
     setTitle(""); setAmount(""); setCurrency("PKR"); setPurpose("")
-    setCategory("Payment"); setTag(""); setSupplierName(""); setReceiptPersonName(""); setNotes("")
+    setCategory("Payment"); setTag(""); setSupplierName(""); setReceiptPersonName(""); setPettyCashAllocationId(""); setNotes("")
     setProofFile(null); setProofPreview(""); setSaveError(""); setShowForm(false)
   }
 
@@ -273,9 +330,9 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
                   className="group hover:bg-[hsl(var(--muted))]/30 cursor-pointer transition-colors">
                   <td className="px-4 py-3">
                     <p className="text-xs font-medium">{r.title}</p>
-                    {(r.purpose || r.notes) && (
+                    {(r.purpose || r.notes || r.petty_cash_label) && (
                       <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate max-w-[200px]">
-                        {r.purpose || r.notes}
+                        {r.petty_cash_label ? `Petty cash: ${r.petty_cash_label}` : (r.purpose || r.notes)}
                       </p>
                     )}
                   </td>
@@ -358,6 +415,40 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
                   <input value={receiptPersonName} onChange={e => setReceiptPersonName(e.target.value)} placeholder="Person who brought receipt" className={inputCls} />
                 </Field>
               </div>
+              <Field label="Link to petty cash (optional)">
+                <select
+                  value={pettyCashAllocationId}
+                  onChange={e => setPettyCashAllocationId(e.target.value)}
+                  className={inputCls}
+                  disabled={loadingPettyCash}
+                >
+                  <option value="">None — not linked to petty cash</option>
+                  {activePettyCash.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.employeeName} — PKR {a.remaining.toLocaleString()} left · {a.purpose.slice(0, 50)}
+                    </option>
+                  ))}
+                </select>
+                {loadingPettyCash && (
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Loading active petty cash...</p>
+                )}
+                {!loadingPettyCash && activePettyCash.length === 0 && (
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">No active petty cash with balance available.</p>
+                )}
+                {pettyCashAllocationId && (() => {
+                  const linked = activePettyCash.find(a => a.id === pettyCashAllocationId)
+                  if (!linked) return null
+                  return (
+                    <p className="text-[10px] text-[#1faca6] mt-1 flex items-center gap-1">
+                      <Wallet className="h-3 w-3" />
+                      Saving will post PKR {amount || "0"} to this petty cash and approve the receipt.
+                      {parseFloat(amount || "0") > linked.remaining && (
+                        <span className="text-red-500 block">Exceeds remaining PKR {linked.remaining.toLocaleString()}</span>
+                      )}
+                    </p>
+                  )
+                })()}
+              </Field>
               <Field label="Purpose">
                 <input value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="What was this for?" className={inputCls} />
               </Field>
@@ -451,6 +542,14 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
                     <p className="font-medium">{viewRecord.receipt_person_name}</p>
                   </div>
                 )}
+                {viewRecord.petty_cash_label && (
+                  <div className="col-span-2 rounded-md border bg-[#1faca6]/10 border-[#1faca6]/20 px-3 py-2.5">
+                    <p className="text-[10px] text-[#17857f] font-medium mb-0.5 flex items-center gap-1">
+                      <Wallet className="h-3 w-3" /> Linked petty cash
+                    </p>
+                    <p className="font-medium text-[#17857f]">{viewRecord.petty_cash_label}</p>
+                  </div>
+                )}
                 {viewRecord.purpose && (
                   <div className="col-span-2 rounded-md border bg-[hsl(var(--background))] px-3 py-2.5">
                     <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium mb-0.5">Purpose</p>
@@ -504,6 +603,7 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
     </div>
   )
 }
+
 
 
 
