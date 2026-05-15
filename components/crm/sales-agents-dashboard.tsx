@@ -2,24 +2,7 @@
 
 import type { SalesAgentProfile } from "@/lib/sales-agents"
 import { JOB_TITLE_LABELS } from "@/lib/sales-agents"
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
-import {
-  DollarSign,
-  FileText,
-  MapPin,
-  Package,
-  ShoppingCart,
-  TrendingUp,
-  Users,
-} from "lucide-react"
+import { ChevronRight, MapPin } from "lucide-react"
 
 type Props = {
   agents: SalesAgentProfile[]
@@ -28,11 +11,36 @@ type Props = {
 }
 
 function formatMoney(n: number) {
+  if (!n) return "Rs 0"
   return `Rs ${n.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
 }
 
 function sumAgents(agents: SalesAgentProfile[], pick: (s: NonNullable<SalesAgentProfile["stats"]>) => number) {
   return agents.reduce((acc, a) => acc + pick(a.stats ?? ({} as NonNullable<SalesAgentProfile["stats"]>)), 0)
+}
+
+function StatCell({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string
+  value: string | number
+  sub?: string
+  highlight?: boolean
+}) {
+  return (
+    <div className={`text-center px-2 py-1 min-w-0 ${highlight ? "text-[#1faca6]" : ""}`}>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{label}</p>
+      <p className={`text-sm font-semibold tabular-nums leading-tight ${highlight ? "text-[#1faca6]" : ""}`}>
+        {value}
+      </p>
+      {sub ? (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{sub}</p>
+      ) : null}
+    </div>
+  )
 }
 
 export function SalesAgentsDashboard({ agents, loading, onSelectAgent }: Props) {
@@ -49,186 +57,119 @@ export function SalesAgentsDashboard({ agents, loading, onSelectAgent }: Props) 
     pendingOrders: sumAgents(agents, s => s.pendingOrders ?? 0),
   }
 
-  const chartData = agents.map(a => ({
-    name: a.name.split(" ")[0] || a.name,
-    fullName: a.name,
-    clients: a.stats?.clients ?? 0,
-    quotations: a.stats?.quotations ?? 0,
-    orders: a.stats?.orders ?? 0,
-    sales: Math.round((a.stats?.totalSales ?? 0) / 1000),
-  }))
-
-  const salesChartData = agents
-    .map(a => ({
-      name: a.name.split(" ")[0] || a.name,
-      sales: a.stats?.totalSales ?? 0,
-    }))
-    .sort((a, b) => b.sales - a.sales)
-
   if (loading) {
-    return <p className="text-sm text-[hsl(var(--muted-foreground))] p-6">Loading dashboard...</p>
+    return <p className="text-xs text-[hsl(var(--muted-foreground))] py-4">Loading dashboard…</p>
   }
 
   if (agents.length === 0) {
     return (
-      <p className="text-sm text-[hsl(var(--muted-foreground))] p-6 rounded-lg border">
-        No sales agents yet. Add agents to see team performance here.
+      <p className="text-xs text-[hsl(var(--muted-foreground))] py-4 rounded-md border px-3">
+        No sales agents yet.
       </p>
     )
   }
 
-  const kpiCards = [
-    { label: "Sales agents", value: String(totals.agents), icon: Users, accent: "text-[#1faca6]" },
-    { label: "Clients added", value: String(totals.clients), icon: Users, accent: "text-blue-500" },
-    { label: "Quotations", value: String(totals.quotations), sub: formatMoney(totals.quotationsValue), icon: FileText, accent: "text-violet-500" },
-    { label: "Total orders", value: String(totals.orders), sub: formatMoney(totals.ordersValue), icon: ShoppingCart, accent: "text-amber-500" },
-    { label: "Delivered orders", value: String(totals.delivered), icon: Package, accent: "text-emerald-500" },
-    { label: "Sales (delivered)", value: formatMoney(totals.totalSales), icon: TrendingUp, accent: "text-[#1faca6]" },
-    { label: "Commission earned", value: formatMoney(totals.commission), icon: DollarSign, accent: "text-[#1faca6]" },
-    { label: "Pending approval", value: String(totals.pendingOrders), icon: Package, accent: "text-orange-500" },
+  const teamStats = [
+    { label: "Agents", value: totals.agents },
+    { label: "Clients", value: totals.clients },
+    { label: "Quotations", value: totals.quotations, sub: formatMoney(totals.quotationsValue) },
+    { label: "Orders", value: totals.orders, sub: formatMoney(totals.ordersValue) },
+    { label: "Delivered", value: totals.delivered },
+    { label: "Sales", value: formatMoney(totals.totalSales), highlight: true },
+    { label: "Commission", value: formatMoney(totals.commission), highlight: true },
+    { label: "Pending", value: totals.pendingOrders },
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
-        {kpiCards.map(({ label, value, sub, icon: Icon, accent }) => (
-          <div
-            key={label}
-            className="rounded-lg border bg-[hsl(var(--card))] p-3 sm:p-4 shadow-sm"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] sm:text-xs text-[hsl(var(--muted-foreground))] font-medium uppercase tracking-wide">
-                {label}
-              </p>
-              <Icon className={`h-4 w-4 shrink-0 ${accent}`} />
-            </div>
-            <p className="text-lg sm:text-xl font-bold mt-2 tabular-nums">{value}</p>
-            {sub && (
-              <p className="text-[10px] sm:text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{sub}</p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-lg border p-4">
-          <p className="text-sm font-semibold mb-1">Activity by agent</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mb-4">
-            Clients, quotations, and orders per agent
-          </p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-[hsl(var(--border))]" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--background))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  formatter={(value, name) => [value, String(name)]}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
-                />
-                <Bar dataKey="clients" name="Clients" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="quotations" name="Quotations" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="orders" name="Orders" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-lg border p-4">
-          <p className="text-sm font-semibold mb-1">Delivered sales by agent</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mb-4">
-            Revenue from delivered orders only
-          </p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={salesChartData} layout="vertical" margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-[hsl(var(--border))]" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `${(Number(v) / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={56} />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--background))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  formatter={(value) => [formatMoney(Number(value)), "Sales"]}
-                />
-                <Bar dataKey="sales" name="Sales" fill="#1faca6" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-[hsl(var(--muted))]/15 overflow-hidden">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] px-3 pt-2 pb-1">
+          Team summary
+        </p>
+        <div className="grid grid-cols-4 sm:grid-cols-8 divide-x divide-[hsl(var(--border))] border-t border-[hsl(var(--border))]">
+          {teamStats.map(s => (
+            <StatCell
+              key={s.label}
+              label={s.label}
+              value={s.value}
+              sub={s.sub}
+              highlight={s.highlight}
+            />
+          ))}
         </div>
       </div>
 
       <div>
-        <p className="text-sm font-semibold mb-3">Agent performance</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {agents.map(agent => (
-            <button
-              key={agent.id}
-              type="button"
-              onClick={() => onSelectAgent?.(agent)}
-              className={`text-left rounded-lg border p-4 transition-colors hover:border-[#1faca6]/50 hover:bg-[#1faca6]/5 ${
-                onSelectAgent ? "cursor-pointer" : ""
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">{agent.name}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    {JOB_TITLE_LABELS[agent.jobTitle]}
-                  </p>
-                </div>
-                {agent.location && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                    <MapPin className="h-3 w-3" />
-                    {agent.location}
-                  </span>
-                )}
-              </div>
+        <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2 px-0.5">
+          Agent performance
+        </p>
+        <div className="rounded-lg border overflow-hidden divide-y">
+          <div className="hidden sm:grid sm:grid-cols-[minmax(140px,1.2fr)_repeat(6,1fr)_28px] gap-0 bg-[hsl(var(--muted))]/25 text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
+            <p className="px-3 py-2">Agent</p>
+            <p className="py-2 text-center">Clients</p>
+            <p className="py-2 text-center">Quotes</p>
+            <p className="py-2 text-center">Orders</p>
+            <p className="py-2 text-center">Pending</p>
+            <p className="py-2 text-center">Delivered</p>
+            <p className="py-2 text-center">Sales</p>
+            <p className="py-2 text-center">Commission</p>
+            <span />
+          </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                <div className="rounded-md bg-[hsl(var(--muted))]/30 px-2 py-1.5">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Clients</p>
-                  <p className="text-base font-semibold">{agent.stats?.clients ?? 0}</p>
-                </div>
-                <div className="rounded-md bg-[hsl(var(--muted))]/30 px-2 py-1.5">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Quotations</p>
-                  <p className="text-base font-semibold">{agent.stats?.quotations ?? 0}</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    {formatMoney(agent.stats?.quotationsValue ?? 0)}
-                  </p>
-                </div>
-                <div className="rounded-md bg-[hsl(var(--muted))]/30 px-2 py-1.5">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Orders</p>
-                  <p className="text-base font-semibold">{agent.stats?.orders ?? 0}</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    {agent.stats?.pendingOrders ?? 0} pending
-                  </p>
-                </div>
-                <div className="rounded-md bg-[#1faca6]/10 px-2 py-1.5 border border-[#1faca6]/20">
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Sold (delivered)</p>
-                  <p className="text-base font-semibold text-[#1faca6]">
-                    {formatMoney(agent.stats?.totalSales ?? 0)}
-                  </p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    {agent.stats?.deliveredOrders ?? 0} delivered
-                  </p>
-                </div>
-              </div>
+          {agents.map(agent => {
+            const s = agent.stats
+            return (
+              <button
+                key={agent.id}
+                type="button"
+                onClick={() => onSelectAgent?.(agent)}
+                className={`w-full text-left transition-colors hover:bg-[#1faca6]/5 ${
+                  onSelectAgent ? "cursor-pointer" : ""
+                }`}
+              >
+                <div className="sm:grid sm:grid-cols-[minmax(140px,1.2fr)_repeat(6,1fr)_28px] sm:items-center gap-2 sm:gap-0 p-3 sm:py-2.5 sm:px-0">
+                  <div className="flex items-center gap-2 sm:px-3 min-w-0">
+                    <div className="h-8 w-8 shrink-0 rounded-full bg-[#1faca6]/15 text-[#1faca6] flex items-center justify-center text-xs font-bold">
+                      {agent.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{agent.name}</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                        {JOB_TITLE_LABELS[agent.jobTitle]}
+                        {agent.location ? (
+                          <span className="inline-flex items-center gap-0.5 ml-1">
+                            · <MapPin className="h-2.5 w-2.5 inline" /> {agent.location}
+                          </span>
+                        ) : null}
+                      </p>
+                    </div>
+                  </div>
 
-              {onSelectAgent && (
-                <p className="text-[10px] text-[#1faca6] mt-3 font-medium">View details →</p>
-              )}
-            </button>
-          ))}
+                  <div className="grid grid-cols-3 gap-2 mt-2 sm:mt-0 sm:contents">
+                    <StatCell label="Clients" value={s?.clients ?? 0} />
+                    <StatCell
+                      label="Quotes"
+                      value={s?.quotations ?? 0}
+                      sub={formatMoney(s?.quotationsValue ?? 0)}
+                    />
+                    <StatCell label="Orders" value={s?.orders ?? 0} />
+                    <StatCell label="Pending" value={s?.pendingOrders ?? 0} />
+                    <StatCell label="Delivered" value={s?.deliveredOrders ?? 0} />
+                    <StatCell label="Sales" value={formatMoney(s?.totalSales ?? 0)} highlight />
+                    <StatCell
+                      label="Commission"
+                      value={formatMoney(s?.commissionEarned ?? 0)}
+                      highlight
+                    />
+                  </div>
+
+                  {onSelectAgent && (
+                    <ChevronRight className="hidden sm:block h-4 w-4 text-[hsl(var(--muted-foreground))] mx-auto" />
+                  )}
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>
