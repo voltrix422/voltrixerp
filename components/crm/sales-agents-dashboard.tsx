@@ -2,7 +2,7 @@
 
 import type { SalesAgentProfile } from "@/lib/sales-agents"
 import { JOB_TITLE_LABELS } from "@/lib/sales-agents"
-import { ChevronRight, MapPin } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 
 type Props = {
   agents: SalesAgentProfile[]
@@ -11,37 +11,22 @@ type Props = {
 }
 
 function formatMoney(n: number) {
-  if (!n) return "Rs 0"
-  return `Rs ${n.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+  return (n ?? 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })
 }
 
 function sumAgents(agents: SalesAgentProfile[], pick: (s: NonNullable<SalesAgentProfile["stats"]>) => number) {
   return agents.reduce((acc, a) => acc + pick(a.stats ?? ({} as NonNullable<SalesAgentProfile["stats"]>)), 0)
 }
 
-function StatCell({
-  label,
-  value,
-  sub,
-  highlight,
-}: {
-  label: string
-  value: string | number
-  sub?: string
-  highlight?: boolean
-}) {
-  return (
-    <div className={`text-center px-2 py-1 min-w-0 ${highlight ? "text-[#1faca6]" : ""}`}>
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{label}</p>
-      <p className={`text-sm font-semibold tabular-nums leading-tight ${highlight ? "text-[#1faca6]" : ""}`}>
-        {value}
-      </p>
-      {sub ? (
-        <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{sub}</p>
-      ) : null}
-    </div>
-  )
-}
+const COLS = [
+  { key: "clients", label: "Clients", align: "center" as const },
+  { key: "quotes", label: "Quotes", align: "center" as const },
+  { key: "orders", label: "Orders", align: "center" as const },
+  { key: "pending", label: "Pending", align: "center" as const },
+  { key: "delivered", label: "Done", align: "center" as const },
+  { key: "sales", label: "Sales (Rs)", align: "right" as const, accent: true },
+  { key: "commission", label: "Comm. (Rs)", align: "right" as const, accent: true },
+]
 
 export function SalesAgentsDashboard({ agents, loading, onSelectAgent }: Props) {
   const totals = {
@@ -58,118 +43,154 @@ export function SalesAgentsDashboard({ agents, loading, onSelectAgent }: Props) 
   }
 
   if (loading) {
-    return <p className="text-xs text-[hsl(var(--muted-foreground))] py-4">Loading dashboard…</p>
+    return <p className="text-xs text-[hsl(var(--muted-foreground))] py-3">Loading…</p>
   }
 
   if (agents.length === 0) {
     return (
-      <p className="text-xs text-[hsl(var(--muted-foreground))] py-4 rounded-md border px-3">
+      <p className="text-xs text-[hsl(var(--muted-foreground))] py-3 px-3 rounded-md border">
         No sales agents yet.
       </p>
     )
   }
 
-  const teamStats = [
-    { label: "Agents", value: totals.agents },
-    { label: "Clients", value: totals.clients },
-    { label: "Quotations", value: totals.quotations, sub: formatMoney(totals.quotationsValue) },
-    { label: "Orders", value: totals.orders, sub: formatMoney(totals.ordersValue) },
-    { label: "Delivered", value: totals.delivered },
-    { label: "Sales", value: formatMoney(totals.totalSales), highlight: true },
-    { label: "Commission", value: formatMoney(totals.commission), highlight: true },
-    { label: "Pending", value: totals.pendingOrders },
-  ]
-
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border bg-[hsl(var(--muted))]/15 overflow-hidden">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] px-3 pt-2 pb-1">
-          Team summary
-        </p>
-        <div className="grid grid-cols-4 sm:grid-cols-8 divide-x divide-[hsl(var(--border))] border-t border-[hsl(var(--border))]">
-          {teamStats.map(s => (
-            <StatCell
-              key={s.label}
-              label={s.label}
-              value={s.value}
-              sub={s.sub}
-              highlight={s.highlight}
-            />
+    <div className="space-y-3">
+      <div className="rounded-md border overflow-hidden text-xs">
+        <div className="px-3 py-1.5 bg-[hsl(var(--muted))]/30 border-b">
+          <span className="font-medium text-[hsl(var(--foreground))]">Team summary</span>
+        </div>
+        <div className="flex flex-wrap divide-x divide-[hsl(var(--border))]">
+          {[
+            { l: "Agents", v: totals.agents },
+            { l: "Clients", v: totals.clients },
+            { l: "Quotes", v: `${totals.quotations} · ${formatMoney(totals.quotationsValue)}` },
+            { l: "Orders", v: `${totals.orders} · ${formatMoney(totals.ordersValue)}` },
+            { l: "Delivered", v: totals.delivered },
+            { l: "Sales", v: formatMoney(totals.totalSales), accent: true },
+            { l: "Commission", v: formatMoney(totals.commission), accent: true },
+            { l: "Pending", v: totals.pendingOrders },
+          ].map(item => (
+            <div key={item.l} className="flex-1 min-w-[72px] px-2.5 py-2 text-center">
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{item.l}</p>
+              <p
+                className={`font-semibold tabular-nums mt-0.5 ${
+                  item.accent ? "text-[#1faca6]" : ""
+                }`}
+              >
+                {item.v}
+              </p>
+            </div>
           ))}
         </div>
       </div>
 
-      <div>
-        <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2 px-0.5">
-          Agent performance
-        </p>
-        <div className="rounded-lg border overflow-hidden divide-y">
-          <div className="hidden sm:grid sm:grid-cols-[minmax(140px,1.2fr)_repeat(6,1fr)_28px] gap-0 bg-[hsl(var(--muted))]/25 text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
-            <p className="px-3 py-2">Agent</p>
-            <p className="py-2 text-center">Clients</p>
-            <p className="py-2 text-center">Quotes</p>
-            <p className="py-2 text-center">Orders</p>
-            <p className="py-2 text-center">Pending</p>
-            <p className="py-2 text-center">Delivered</p>
-            <p className="py-2 text-center">Sales</p>
-            <p className="py-2 text-center">Commission</p>
-            <span />
-          </div>
+      <div className="rounded-md border overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-[hsl(var(--muted))]/30 border-b">
+          <span className="text-xs font-medium">Agent performance</span>
+          {onSelectAgent && (
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Tap row to open</span>
+          )}
+        </div>
 
-          {agents.map(agent => {
-            const s = agent.stats
-            return (
-              <button
-                key={agent.id}
-                type="button"
-                onClick={() => onSelectAgent?.(agent)}
-                className={`w-full text-left transition-colors hover:bg-[#1faca6]/5 ${
-                  onSelectAgent ? "cursor-pointer" : ""
-                }`}
-              >
-                <div className="sm:grid sm:grid-cols-[minmax(140px,1.2fr)_repeat(6,1fr)_28px] sm:items-center gap-2 sm:gap-0 p-3 sm:py-2.5 sm:px-0">
-                  <div className="flex items-center gap-2 sm:px-3 min-w-0">
-                    <div className="h-8 w-8 shrink-0 rounded-full bg-[#1faca6]/15 text-[#1faca6] flex items-center justify-center text-xs font-bold">
-                      {agent.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{agent.name}</p>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                        {JOB_TITLE_LABELS[agent.jobTitle]}
-                        {agent.location ? (
-                          <span className="inline-flex items-center gap-0.5 ml-1">
-                            · <MapPin className="h-2.5 w-2.5 inline" /> {agent.location}
-                          </span>
-                        ) : null}
-                      </p>
-                    </div>
-                  </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-xs border-collapse">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/15">
+                <th className="text-left font-medium px-3 py-2 w-[148px]">Agent</th>
+                {COLS.map(c => (
+                  <th
+                    key={c.key}
+                    className={`font-medium py-2 px-2 whitespace-nowrap ${
+                      c.align === "right" ? "text-right" : "text-center"
+                    } ${c.accent ? "text-[#1faca6]/80" : ""}`}
+                  >
+                    {c.label}
+                  </th>
+                ))}
+                {onSelectAgent && <th className="w-7" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[hsl(var(--border))]">
+              {agents.map(agent => {
+                const s = agent.stats
+                const row = (
+                  <>
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1faca6]/12 text-[11px] font-bold text-[#1faca6]">
+                          {agent.name.charAt(0).toUpperCase()}
+                        </span>
+                        <div className="min-w-0 leading-tight">
+                          <p className="font-semibold truncate max-w-[120px]">{agent.name}</p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate max-w-[120px]">
+                            {JOB_TITLE_LABELS[agent.jobTitle]}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 text-center tabular-nums font-medium">{s?.clients ?? 0}</td>
+                    <td className="px-2 py-2 text-center">
+                      <span className="font-medium tabular-nums">{s?.quotations ?? 0}</span>
+                      {(s?.quotationsValue ?? 0) > 0 && (
+                        <span className="block text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">
+                          {formatMoney(s?.quotationsValue ?? 0)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-center tabular-nums font-medium">{s?.orders ?? 0}</td>
+                    <td className="px-2 py-2 text-center tabular-nums text-amber-600 dark:text-amber-400">
+                      {s?.pendingOrders ?? 0}
+                    </td>
+                    <td className="px-2 py-2 text-center tabular-nums">{s?.deliveredOrders ?? 0}</td>
+                    <td className="px-2 py-2 text-right tabular-nums font-medium text-[#1faca6]">
+                      {formatMoney(s?.totalSales ?? 0)}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums font-medium text-[#1faca6]">
+                      {formatMoney(s?.commissionEarned ?? 0)}
+                    </td>
+                    {onSelectAgent && (
+                      <td className="pr-2 py-2 text-[hsl(var(--muted-foreground))]">
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </td>
+                    )}
+                  </>
+                )
 
-                  <div className="grid grid-cols-3 gap-2 mt-2 sm:mt-0 sm:contents">
-                    <StatCell label="Clients" value={s?.clients ?? 0} />
-                    <StatCell
-                      label="Quotes"
-                      value={s?.quotations ?? 0}
-                      sub={formatMoney(s?.quotationsValue ?? 0)}
-                    />
-                    <StatCell label="Orders" value={s?.orders ?? 0} />
-                    <StatCell label="Pending" value={s?.pendingOrders ?? 0} />
-                    <StatCell label="Delivered" value={s?.deliveredOrders ?? 0} />
-                    <StatCell label="Sales" value={formatMoney(s?.totalSales ?? 0)} highlight />
-                    <StatCell
-                      label="Commission"
-                      value={formatMoney(s?.commissionEarned ?? 0)}
-                      highlight
-                    />
-                  </div>
+                if (onSelectAgent) {
+                  return (
+                    <tr
+                      key={agent.id}
+                      onClick={() => onSelectAgent(agent)}
+                      className="cursor-pointer transition-colors hover:bg-[#1faca6]/[0.06] group"
+                    >
+                      {row}
+                    </tr>
+                  )
+                }
 
-                  {onSelectAgent && (
-                    <ChevronRight className="hidden sm:block h-4 w-4 text-[hsl(var(--muted-foreground))] mx-auto" />
+                return <tr key={agent.id}>{row}</tr>
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-[hsl(var(--muted))]/20 text-[10px] font-medium">
+                <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">Total</td>
+                <td className="px-2 py-2 text-center tabular-nums">{totals.clients}</td>
+                <td className="px-2 py-2 text-center tabular-nums">
+                  {totals.quotations}
+                  {totals.quotationsValue > 0 && (
+                    <span className="block text-[hsl(var(--muted-foreground))]">{formatMoney(totals.quotationsValue)}</span>
                   )}
-                </div>
-              </button>
-            )
-          })}
+                </td>
+                <td className="px-2 py-2 text-center tabular-nums">{totals.orders}</td>
+                <td className="px-2 py-2 text-center tabular-nums">{totals.pendingOrders}</td>
+                <td className="px-2 py-2 text-center tabular-nums">{totals.delivered}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-[#1faca6]">{formatMoney(totals.totalSales)}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-[#1faca6]">{formatMoney(totals.commission)}</td>
+                {onSelectAgent && <td />}
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
