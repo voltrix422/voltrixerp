@@ -510,9 +510,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
     }
 
     await saveOrder(order)
-    if (workspace?.mode === "sales_agent") {
-      toast({ title: "Order submitted", message: "This order was sent to admin for approval.", type: "success" })
-    }
+    toast({ title: "Order submitted", message: "This order was sent to the dashboard for admin approval.", type: "success" })
     onSave(order)
     setSaving(false)
   }

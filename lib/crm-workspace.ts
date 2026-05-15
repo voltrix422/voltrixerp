@@ -38,8 +38,8 @@ export function initialClientStatus(_workspace?: CrmWorkspaceScope): ClientStatu
   return "active"
 }
 
-export function initialOrderStatus(workspace?: CrmWorkspaceScope): "pending_approval" | "approved" {
-  return workspace?.mode === "sales_agent" ? "pending_approval" : "approved"
+export function initialOrderStatus(_workspace?: CrmWorkspaceScope): "pending_approval" {
+  return "pending_approval"
 }
 
 export function initialQuotationStatus(_workspace?: CrmWorkspaceScope): "draft" {
