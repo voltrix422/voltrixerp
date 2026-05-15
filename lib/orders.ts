@@ -79,6 +79,7 @@ export function getPaymentSubmissionStatus(payment: OrderPayment, orderStatus?: 
     return "approved"
   }
   if (orderStatus === "payment_added") return "pending_approval"
+  if (orderStatus === "approved" || orderStatus === "finalized") return "draft"
   return "approved"
 }
 
@@ -88,7 +89,25 @@ export function isPaymentEditable(payment: OrderPayment, orderStatus?: Order["st
 }
 
 export function canCapturePaymentsForOrder(order: Pick<Order, "status">) {
-  return order.status === "finalized" || order.status === "payment_added"
+  return order.status === "approved" || order.status === "finalized" || order.status === "payment_added"
+}
+
+export function orderHasPendingFinancePayments(order: Pick<Order, "payments" | "status">) {
+  return (order.payments || []).some(
+    p => getPaymentSubmissionStatus(p, order.status) === "pending_approval"
+  )
+}
+
+export function shouldShowOrderInFinance(order: Pick<Order, "status" | "payments">) {
+  return (
+    order.status === "finalized" ||
+    order.status === "payment_added" ||
+    order.status === "confirmed" ||
+    order.status === "processing" ||
+    order.status === "shipped" ||
+    order.status === "delivered" ||
+    (order.status === "approved" && orderHasPendingFinancePayments(order))
+  )
 }
 
 export function getSubmittedPayments(payments: OrderPayment[] = [], orderStatus?: Order["status"]) {

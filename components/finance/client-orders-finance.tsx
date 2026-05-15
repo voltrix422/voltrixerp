@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, shouldShowOrderInFinance, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,17 +12,6 @@ interface ClientOrdersFinanceProps {
   dateTo: string
 }
 
-function isFinanceOrderStatus(status: Order["status"]) {
-  return (
-    status === "finalized" ||
-    status === "payment_added" ||
-    status === "confirmed" ||
-    status === "processing" ||
-    status === "shipped" ||
-    status === "delivered"
-  )
-}
-
 export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFinanceProps) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,11 +19,11 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
 
   useEffect(() => {
     getOrders().then(o => {
-      setOrders(o.filter(order => isFinanceOrderStatus(order.status)))
+      setOrders(o.filter(order => shouldShowOrderInFinance(order)))
       setLoading(false)
     })
     const interval = setInterval(() => {
-      getOrders().then(o => setOrders(o.filter(order => isFinanceOrderStatus(order.status))))
+      getOrders().then(o => setOrders(o.filter(order => shouldShowOrderInFinance(order))))
     }, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -337,12 +326,12 @@ function ClientOrderDetail({ order, onClose, onUpdate }: {
             <div>
               <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-2">Payments Received</p>
               <div className="rounded-lg border overflow-hidden p-3 space-y-2 bg-green-50 dark:bg-green-950/20">
-                {order.payments.map(p => {
+                {order.payments.map((p, paymentIndex) => {
                   const pStatus = getPaymentSubmissionStatus(p, order.status)
                   return (
                   <div key={p.id} className="flex items-center justify-between text-xs border-b pb-2 last:border-0">
                     <div>
-                      <p className="font-medium">PKR {p.amount.toLocaleString()}</p>
+                      <p className="font-medium">Payment {paymentIndex + 1} — PKR {p.amount.toLocaleString()}</p>
                       <p className="text-[hsl(var(--muted-foreground))]">
                         {p.method} · {new Date(p.date).toLocaleDateString()}
                         {pStatus === "draft" && " · Draft"}

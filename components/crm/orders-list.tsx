@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, canCapturePaymentsForOrder, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
@@ -1069,6 +1069,11 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   const [showEdit, setShowEdit] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [detailOrder, setDetailOrder] = useState(order)
+
+  useEffect(() => {
+    setDetailOrder(order)
+  }, [order])
 
   // Check if current user is admin
   const isAdmin = user?.role === "superadmin"
@@ -1155,9 +1160,10 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
     onUpdate(updated)
   }
 
-  // Show finalize option for approved orders that don't have invoice details yet
-  const hasInvoiceDetails = Math.abs(Number(order.tax || 0)) > 0.004 || order.transportCost > 0 || order.otherCost > 0 || order.dispatcher
-  const canFinalize = order.status === "approved" && !hasInvoiceDetails
+  const hasInvoiceDetails = Math.abs(Number(detailOrder.tax || 0)) > 0.004 || detailOrder.transportCost > 0 || detailOrder.otherCost > 0 || detailOrder.dispatcher
+  const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
+  const canManagePayments = canCapturePaymentsForOrder(detailOrder) &&
+    !["confirmed", "processing", "shipped", "delivered", "cancelled", "rejected", "draft", "pending_approval"].includes(detailOrder.status)
 
   async function downloadInvoice() {
     try {
@@ -1186,12 +1192,13 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
         />
       ) : showPayment ? (
         <PaymentCapture
-          order={order}
+          order={detailOrder}
           currentUser={currentUser}
           onClose={() => setShowPayment(false)}
           onUpdate={o => {
+            setDetailOrder(o)
+            setStatus(o.status)
             onUpdate(o)
-            setShowPayment(false)
           }}
         />
       ) : (
@@ -1454,25 +1461,35 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
 
           {/* Payment Section */}
           <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100 mb-3">Payment</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100">Payment</p>
+              {canManagePayments && (
+                <Button size="sm" className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
+                </Button>
+              )}
+            </div>
             <div className="text-sm">
               <p className="font-medium text-blue-900 dark:text-blue-100">
-                Total Amount: PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                Total Amount: PKR {detailOrder.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
-              {order.payments && order.payments.length > 0 ? (
+              {detailOrder.payments && detailOrder.payments.length > 0 ? (
                 <div className="mt-2 space-y-1">
-                  {order.payments.map(p => {
-                    const pStatus = getPaymentSubmissionStatus(p, order.status)
+                  {detailOrder.payments.map((p, i) => {
+                    const pStatus = getPaymentSubmissionStatus(p, detailOrder.status)
                     return (
                     <div key={p.id} className="text-xs text-blue-700 dark:text-blue-300">
-                      PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
+                      Payment {i + 1}: PKR {p.amount.toLocaleString()} · {p.method} · {new Date(p.date).toLocaleDateString()}
                       {pStatus === "draft" && " · Draft"}
-                      {pStatus === "pending_approval" && " · Pending finance"}
+                      {pStatus === "pending_approval" && " · Sent to finance"}
                     </div>
                   )})}
                 </div>
               ) : (
-                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">No payments received yet</p>
+                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                  {canManagePayments ? "No payments yet — add payments with proof; each submit goes to Finance." : "No payments received yet"}
+                </p>
               )}
             </div>
           </div>
@@ -1563,16 +1580,18 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   <FileText className="h-4 w-4 mr-2" /> Finalize Order
                 </Button>
               )}
-              {hasInvoiceDetails && (order.status === "finalized" || order.status === "payment_added") && (
+              {canManagePayments && (
+                <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
+                </Button>
+              )}
+              {hasInvoiceDetails && (detailOrder.status === "finalized" || detailOrder.status === "payment_added" || detailOrder.status === "approved") && (
                 <>
                   <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={viewInvoice} title="View Invoice">
                     <Eye className="h-4 w-4" />
                   </Button>
                   <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={downloadInvoice} title="Download PDF">
                     <Download className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
-                    <Plus className="h-4 w-4 mr-2" /> Payment
                   </Button>
                 </>
               )}

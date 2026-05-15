@@ -28,6 +28,19 @@ const PAYMENT_STATUS_COLORS = {
   approved: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
 } as const
 
+function orderStatusAfterPaymentsRemoved(order: Order, remaining: OrderPayment[]) {
+  const hasPending = remaining.some(p => getPaymentSubmissionStatus(p, order.status) === "pending_approval")
+  const hasSubmitted = remaining.some(p => {
+    const s = getPaymentSubmissionStatus(p, order.status)
+    return s === "pending_approval" || s === "approved"
+  })
+  if (hasPending || hasSubmitted) return "payment_added" as const
+  if (order.status === "payment_added") {
+    return (Math.abs(Number(order.tax || 0)) > 0.004 || order.transportCost > 0) ? "finalized" as const : "approved" as const
+  }
+  return order.status
+}
+
 export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
   order: Order
   currentUser: string
@@ -216,8 +229,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     if (!payment || !isPaymentEditable(payment, order.status)) return
 
     const next = payments.filter(p => p.id !== paymentId)
-    const hasPending = next.some(p => getPaymentSubmissionStatus(p, order.status) === "pending_approval")
-    const nextStatus = hasPending ? "payment_added" : order.status === "payment_added" ? "finalized" : order.status
+    const nextStatus = orderStatusAfterPaymentsRemoved(order, next)
     await persistOrder(next, nextStatus)
     setDeletePaymentId(null)
   }
@@ -300,7 +312,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     setPaymentProofFiles(prev => prev.filter((_, fileIndex) => fileIndex !== index))
   }
 
-  function renderPaymentRow(payment: OrderPayment) {
+  function renderPaymentRow(payment: OrderPayment, paymentNumber: number) {
     const status = getPaymentSubmissionStatus(payment, order.status)
     const editable = isPaymentEditable(payment, order.status) && !financeLocked
     const isEditing = editingPaymentId === payment.id
@@ -309,7 +321,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
       <div key={payment.id} className="rounded-lg border p-3 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">PKR {payment.amount.toLocaleString()}</p>
+            <p className="text-sm font-semibold">Payment {paymentNumber} — PKR {payment.amount.toLocaleString()}</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
               {payment.method} · {new Date(payment.date).toLocaleDateString()}
             </p>
@@ -424,7 +436,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             ) : (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
                 <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Save as draft to keep working, or submit for finance approval. You can add more proof files anytime before finance approves.
+                  Add multiple payments (Payment 1, Payment 2, …). Each payment you submit is sent to Finance with its proofs. You can edit or add proofs until Finance approves the order.
                 </p>
               </div>
             )}
@@ -432,7 +444,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             {payments.length > 0 && (
               <div className="space-y-3">
                 <p className="text-sm font-semibold">Recorded payments</p>
-                {payments.map(renderPaymentRow)}
+                {payments.map((payment, index) => renderPaymentRow(payment, index + 1))}
               </div>
             )}
 
