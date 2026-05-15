@@ -94,7 +94,7 @@ export function SalesAgentsDashboard({ agents, loading, onSelectAgent }: Props) 
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-xs border-collapse">
+          <table className="w-full min-w-[640px] text-xs border-separate border-spacing-0">
             <thead>
               <tr className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/15">
                 <th className="text-left font-medium px-3 py-2 w-[148px]">Agent</th>
@@ -173,21 +173,39 @@ export function SalesAgentsDashboard({ agents, loading, onSelectAgent }: Props) 
               })}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 text-[10px] font-medium">
-                <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">Total</td>
-                <td className="px-2 py-2 text-center tabular-nums">{totals.clients}</td>
-                <td className="px-2 py-2 text-center tabular-nums">
+              <tr className="bg-[hsl(var(--muted))]/30 text-[10px] font-semibold">
+                <td className="px-3 py-2.5 border-t-2 border-[#1faca6]/50 text-[hsl(var(--muted-foreground))]">
+                  Total
+                </td>
+                <td className="px-2 py-2.5 border-t-2 border-[#1faca6]/50 text-center tabular-nums">
+                  {totals.clients}
+                </td>
+                <td className="px-2 py-2.5 border-t-2 border-[#1faca6]/50 text-center tabular-nums">
                   {totals.quotations}
                   {totals.quotationsValue > 0 && (
-                    <span className="block text-[hsl(var(--muted-foreground))]">{formatMoney(totals.quotationsValue)}</span>
+                    <span className="block font-normal text-[hsl(var(--muted-foreground))]">
+                      {formatMoney(totals.quotationsValue)}
+                    </span>
                   )}
                 </td>
-                <td className="px-2 py-2 text-center tabular-nums">{totals.orders}</td>
-                <td className="px-2 py-2 text-center tabular-nums">{totals.pendingOrders}</td>
-                <td className="px-2 py-2 text-center tabular-nums">{totals.delivered}</td>
-                <td className="px-2 py-2 text-right tabular-nums text-[#1faca6]">{formatMoney(totals.totalSales)}</td>
-                <td className="px-2 py-2 text-right tabular-nums text-[#1faca6]">{formatMoney(totals.commission)}</td>
-                {onSelectAgent && <td />}
+                <td className="px-2 py-2.5 border-t-2 border-[#1faca6]/50 text-center tabular-nums">
+                  {totals.orders}
+                </td>
+                <td className="px-2 py-2.5 border-t-2 border-[#1faca6]/50 text-center tabular-nums">
+                  {totals.pendingOrders}
+                </td>
+                <td className="px-2 py-2.5 border-t-2 border-[#1faca6]/50 text-center tabular-nums">
+                  {totals.delivered}
+                </td>
+                <td className="px-2 py-2.5 border-t-2 border-[#1faca6]/50 text-right tabular-nums text-[#1faca6]">
+                  {formatMoney(totals.totalSales)}
+                </td>
+                <td className="px-2 py-2.5 border-t-2 border-[#1faca6]/50 text-right tabular-nums text-[#1faca6]">
+                  {formatMoney(totals.commission)}
+                </td>
+                {onSelectAgent && (
+                  <td className="border-t-2 border-[#1faca6]/50" />
+                )}
               </tr>
             </tfoot>
           </table>
