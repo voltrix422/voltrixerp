@@ -167,6 +167,47 @@ export async function promoteToSalesManager(userId: string): Promise<SalesManage
   return payload
 }
 
+export interface PortalSummary {
+  agentId: string
+  agentName: string
+  location: string
+  commissionPercent: number
+  dateFrom: string | null
+  dateTo: string | null
+  clients: number
+  quotations: number
+  quotationsValue: number
+  orderCount: number
+  ordersValue: number
+  pendingOrders: number
+  deliveredOrders: number
+  totalSales: number
+  commissionEarned: number
+  orderRows: Array<{
+    id: string
+    orderNumber: string
+    clientName: string
+    total: number
+    status: string
+    createdAt: string
+    commissionPercent?: number
+    commissionAmount?: number
+  }>
+}
+
+export async function fetchPortalSummary(params: {
+  agentId: string
+  from?: string
+  to?: string
+}): Promise<PortalSummary> {
+  const sp = new URLSearchParams({ agentId: params.agentId })
+  if (params.from) sp.set("from", params.from)
+  if (params.to) sp.set("to", params.to)
+  const res = await fetch(`/api/sales/portal-summary?${sp}`)
+  if (!res.ok) throw new Error("Failed to load summary")
+  return res.json()
+}
+
 export async function fetchCommissionSummary(params: {
   agentId?: string
   from?: string

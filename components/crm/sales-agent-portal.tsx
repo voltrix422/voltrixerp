@@ -1,14 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { fetchSalesAgents, fetchCommissionSummary, type SalesAgentProfile, type CommissionSummary } from "@/lib/sales-agents"
+import { fetchSalesAgents, fetchPortalSummary, type PortalSummary } from "@/lib/sales-agents"
 import type { User } from "@/lib/auth"
 import type { CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { ClientsList } from "@/components/crm/clients-list"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
 import { useToast } from "@/components/ui/toast"
-import { DollarSign, FileText, Package, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Calendar, DollarSign, Download, FileText, Package, Users } from "lucide-react"
 
 type PortalTab = "home" | "clients" | "quotations" | "orders" | "commission"
 
@@ -17,15 +18,114 @@ type Props = {
 }
 
 function formatMoney(n: number) {
-  return `Rs ${n.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+  return `Rs ${(n ?? 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+}
+
+function defaultFromDate() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
+}
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function DateRangeBar({
+  dateFrom,
+  dateTo,
+  onFromChange,
+  onToChange,
+  onApply,
+  onClear,
+  onExport,
+  loading,
+  exporting,
+  showExport,
+}: {
+  dateFrom: string
+  dateTo: string
+  onFromChange: (v: string) => void
+  onToChange: (v: string) => void
+  onApply: () => void
+  onClear: () => void
+  onExport: () => void
+  loading?: boolean
+  exporting?: boolean
+  showExport?: boolean
+}) {
+  return (
+    <div className="rounded-lg border bg-[hsl(var(--muted))]/15 p-2.5 space-y-2 mx-1">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
+        <Calendar className="h-3 w-3 text-[#1faca6]" />
+        Date range
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">From</label>
+          <input
+            type="date"
+            className="mt-0.5 w-full h-8 rounded-md border px-2 text-xs bg-[hsl(var(--background))]"
+            value={dateFrom}
+            onChange={e => onFromChange(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">To</label>
+          <input
+            type="date"
+            className="mt-0.5 w-full h-8 rounded-md border px-2 text-xs bg-[hsl(var(--background))]"
+            value={dateTo}
+            onChange={e => onToChange(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <Button
+          size="sm"
+          className="h-7 text-[11px] flex-1 bg-[#1faca6] hover:bg-[#1a9b96] text-white cursor-pointer"
+          disabled={loading}
+          onClick={onApply}
+        >
+          {loading ? "Loading…" : "Apply"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px] cursor-pointer"
+          onClick={onClear}
+        >
+          All time
+        </Button>
+        {showExport && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] gap-1 cursor-pointer"
+            disabled={exporting || loading}
+            onClick={onExport}
+          >
+            <Download className="h-3 w-3" />
+            {exporting ? "PDF…" : "PDF"}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function SalesAgentPortal({ user }: Props) {
   const { toast } = useToast()
   const [tab, setTab] = useState<PortalTab>("home")
-  const [profile, setProfile] = useState<SalesAgentProfile | null>(null)
-  const [commission, setCommission] = useState<CommissionSummary | null>(null)
+  const [summary, setSummary] = useState<PortalSummary | null>(null)
+  const [commissionPercent, setCommissionPercent] = useState(0)
+  const [location, setLocation] = useState("")
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
+
+  const [dateFrom, setDateFrom] = useState(defaultFromDate)
+  const [dateTo, setDateTo] = useState(todayDate)
+  const [appliedFrom, setAppliedFrom] = useState(defaultFromDate)
+  const [appliedTo, setAppliedTo] = useState(todayDate)
 
   const workspace: CrmWorkspaceScope = {
     mode: "sales_agent",
@@ -35,21 +135,54 @@ export function SalesAgentPortal({ user }: Props) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const agents = await fetchSalesAgents({ withStats: true })
-      const me = agents.find(a => a.id === user.id) ?? null
-      setProfile(me)
-      const summaries = await fetchCommissionSummary({ agentId: user.id })
-      setCommission(summaries[0] ?? null)
+      const [agents, portal] = await Promise.all([
+        fetchSalesAgents({ withStats: false }),
+        fetchPortalSummary({
+          agentId: user.id,
+          from: appliedFrom || undefined,
+          to: appliedTo || undefined,
+        }),
+      ])
+      const me = agents.find(a => a.id === user.id)
+      setCommissionPercent(me?.commissionPercent ?? portal.commissionPercent ?? 0)
+      setLocation(me?.location || portal.location || "")
+      setSummary(portal)
     } catch {
-      toast({ title: "Error", message: "Failed to load your profile.", type: "error" })
+      toast({ title: "Error", message: "Failed to load your data.", type: "error" })
     } finally {
       setLoading(false)
     }
-  }, [user.id, toast])
+  }, [user.id, appliedFrom, appliedTo, toast])
 
   useEffect(() => {
     load()
   }, [load])
+
+  function applyDates() {
+    setAppliedFrom(dateFrom)
+    setAppliedTo(dateTo)
+  }
+
+  function clearDates() {
+    setDateFrom("")
+    setDateTo("")
+    setAppliedFrom("")
+    setAppliedTo("")
+  }
+
+  async function exportPdf() {
+    if (!summary) return
+    setExporting(true)
+    try {
+      const { downloadSalesAgentReportPDF } = await import("@/lib/generate-sales-agent-report-pdf")
+      await downloadSalesAgentReportPDF(summary)
+      toast({ title: "Downloaded", message: "Performance report saved as PDF.", type: "success" })
+    } catch {
+      toast({ title: "Error", message: "Could not generate PDF.", type: "error" })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const tabs: Array<{ key: PortalTab; label: string; icon: typeof Users }> = [
     { key: "home", label: "Home", icon: DollarSign },
@@ -59,12 +192,15 @@ export function SalesAgentPortal({ user }: Props) {
     { key: "commission", label: "Commission", icon: DollarSign },
   ]
 
+  const showDateBar = tab === "home" || tab === "commission"
+  const s = summary
+
   return (
     <div className="flex flex-col min-h-0 -mx-2 sm:mx-0">
       <div className="sticky top-0 z-10 bg-[hsl(var(--background))] border-b px-2 pb-2">
         <p className="text-sm font-semibold px-1 pt-1">Hi, {user.name}</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] px-1 pb-2">
-          {profile?.location || "Sales agent"} · {profile?.commissionPercent ?? 0}% per delivered order
+          {location || "Sales agent"} · {commissionPercent}% per delivered order
         </p>
         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
           {tabs.map(({ key, label, icon: Icon }) => (
@@ -84,49 +220,66 @@ export function SalesAgentPortal({ user }: Props) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto px-2 py-4 space-y-4">
-        {loading && tab === "home" && (
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading...</p>
+      <div className="flex-1 overflow-auto px-2 py-3 space-y-3">
+        {showDateBar && (
+          <DateRangeBar
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onFromChange={setDateFrom}
+            onToChange={setDateTo}
+            onApply={applyDates}
+            onClear={clearDates}
+            onExport={exportPdf}
+            loading={loading}
+            exporting={exporting}
+            showExport
+          />
         )}
 
-        {tab === "home" && !loading && (
+        {loading && (tab === "home" || tab === "commission") && (
+          <p className="text-sm text-[hsl(var(--muted-foreground))] px-1">Loading…</p>
+        )}
+
+        {tab === "home" && !loading && s && (
           <div className="grid grid-cols-2 gap-3">
+            {(appliedFrom || appliedTo) && (
+              <p className="col-span-2 text-[10px] text-center text-[hsl(var(--muted-foreground))] -mb-1">
+                {appliedFrom && appliedTo
+                  ? `${appliedFrom} → ${appliedTo}`
+                  : appliedFrom
+                    ? `From ${appliedFrom}`
+                    : `Until ${appliedTo}`}
+              </p>
+            )}
             <div className="rounded-lg border p-3 col-span-2 bg-[#1faca6]/10 border-[#1faca6]/30">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Commission earned (delivered)</p>
-              <p className="text-xl font-bold text-[#1faca6] mt-1">
-                {formatMoney(profile?.stats?.commissionEarned ?? 0)}
-              </p>
+              <p className="text-xl font-bold text-[#1faca6] mt-1">{formatMoney(s.commissionEarned)}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Clients</p>
-              <p className="text-lg font-semibold mt-1">{profile?.stats?.clients ?? 0}</p>
+              <p className="text-lg font-semibold mt-1">{s.clients}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Quotations</p>
-              <p className="text-lg font-semibold mt-1">{profile?.stats?.quotations ?? 0}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                {formatMoney(profile?.stats?.quotationsValue ?? 0)}
-              </p>
+              <p className="text-lg font-semibold mt-1">{s.quotations}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{formatMoney(s.quotationsValue)}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Orders</p>
-              <p className="text-lg font-semibold mt-1">{profile?.stats?.orders ?? 0}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                {formatMoney(profile?.stats?.ordersValue ?? 0)} pipeline
-              </p>
+              <p className="text-lg font-semibold mt-1">{s.orderCount}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{formatMoney(s.ordersValue)} pipeline</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending approval</p>
-              <p className="text-lg font-semibold mt-1">{profile?.stats?.pendingOrders ?? 0}</p>
+              <p className="text-lg font-semibold mt-1">{s.pendingOrders}</p>
             </div>
             <div className="rounded-lg border p-3 col-span-2">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Delivered sales</p>
-              <p className="text-lg font-semibold mt-1">{formatMoney(profile?.stats?.totalSales ?? 0)}</p>
+              <p className="text-lg font-semibold mt-1">{formatMoney(s.totalSales)}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{s.deliveredOrders} delivered orders</p>
             </div>
             <p className="col-span-2 text-xs text-[hsl(var(--muted-foreground))]">
-              Clients are active immediately. Quotations stay as draft until you send them. Orders and
-              quotation conversions need admin approval. Commission is calculated when an order is marked
-              delivered.
+              Stats respect the date range above. Commission is counted on delivered orders only.
             </p>
           </div>
         )}
@@ -141,26 +294,22 @@ export function SalesAgentPortal({ user }: Props) {
           <OrdersList currentUser={user.name} currentUserId={user.id} workspace={workspace} />
         )}
 
-        {tab === "commission" && (
+        {tab === "commission" && !loading && s && (
           <div className="space-y-3">
-            <div className="rounded-lg border p-4">
+            <div className="rounded-lg border p-4 bg-[#1faca6]/5">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Total commission (delivered)</p>
-              <p className="text-2xl font-bold text-[#1faca6] mt-1">
-                {formatMoney(commission?.commissionEarned ?? profile?.stats?.commissionEarned ?? 0)}
-              </p>
+              <p className="text-2xl font-bold text-[#1faca6] mt-1">{formatMoney(s.commissionEarned)}</p>
               <p className="text-xs mt-2 text-[hsl(var(--muted-foreground))]">
-                {commission?.deliveredOrderCount ?? profile?.stats?.deliveredOrders ?? 0} delivered orders
+                {s.deliveredOrders} delivered · {formatMoney(s.totalSales)} sales
               </p>
             </div>
             <div className="rounded-lg border overflow-hidden">
-              <p className="px-3 py-2 text-xs font-medium border-b bg-[hsl(var(--muted))]/20">
-                Your orders
-              </p>
-              {!commission?.orders?.length ? (
-                <p className="p-4 text-xs text-[hsl(var(--muted-foreground))]">No orders yet.</p>
+              <p className="px-3 py-2 text-xs font-medium border-b bg-[hsl(var(--muted))]/20">Your orders</p>
+              {!s.orderRows.length ? (
+                <p className="p-4 text-xs text-[hsl(var(--muted-foreground))]">No orders in this period.</p>
               ) : (
                 <ul className="divide-y max-h-[50vh] overflow-y-auto">
-                  {commission.orders.map(o => (
+                  {s.orderRows.map(o => (
                     <li key={o.id} className="px-3 py-2.5 text-xs">
                       <div className="flex justify-between gap-2">
                         <span className="font-medium">{o.orderNumber}</span>
@@ -168,13 +317,13 @@ export function SalesAgentPortal({ user }: Props) {
                           {o.status.replace(/_/g, " ")}
                         </span>
                       </div>
-                      <p className="text-[hsl(var(--muted-foreground))] mt-0.5">{o.clientName}</p>
+                      <p className="text-[hsl(var(--muted-foreground))] mt-0.5">
+                        {o.clientName} · {new Date(o.createdAt).toLocaleDateString("en-PK")}
+                      </p>
                       <div className="flex justify-between mt-1">
                         <span>{formatMoney(o.total)}</span>
                         {o.status === "delivered" && o.commissionAmount != null ? (
-                          <span className="text-[#1faca6] font-medium">
-                            +{formatMoney(o.commissionAmount)}
-                          </span>
+                          <span className="text-[#1faca6] font-medium">+{formatMoney(o.commissionAmount)}</span>
                         ) : (
                           <span className="text-[hsl(var(--muted-foreground))]">Pending delivery</span>
                         )}
