@@ -1,12 +1,13 @@
 "use client"
 import { useState, useEffect } from "react"
-import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus } from "@/lib/petty-cash"
+import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, deletePettyCashReceipt } from "@/lib/petty-cash"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { PettyCashActivityTimeline } from "./petty-cash-history-panel"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target } from "lucide-react"
+import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target, Trash2 } from "lucide-react"
 
 interface PettyCashAllocationDetailProps {
   allocation: PettyCashAllocation
@@ -31,6 +32,8 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   const [notes, setNotes] = useState("")
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState("")
+  const [deleteReceiptConfirm, setDeleteReceiptConfirm] = useState<PettyCashReceipt | null>(null)
+  const [deletingReceipt, setDeletingReceipt] = useState(false)
 
   useEffect(() => {
     loadReceipts()
@@ -152,6 +155,32 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
     } finally {
       setLoading(false)
       setUploading(false)
+    }
+  }
+
+  async function handleDeleteReceipt(receipt: PettyCashReceipt) {
+    setDeletingReceipt(true)
+    try {
+      const result = await deletePettyCashReceipt(receipt.id)
+      setReceipts(prev => prev.filter(r => r.id !== receipt.id))
+      setDeleteReceiptConfirm(null)
+      toast({
+        title: "Settlement deleted",
+        message: result.restoredAmount > 0
+          ? `PKR ${result.restoredAmount.toLocaleString()} restored to allocation balance.`
+          : "Settlement removed from history.",
+        type: "success",
+      })
+      onUpdate()
+    } catch (error) {
+      console.error("Error deleting settlement:", error)
+      toast({
+        title: "Error",
+        message: error instanceof Error ? error.message : "Failed to delete settlement",
+        type: "error",
+      })
+    } finally {
+      setDeletingReceipt(false)
     }
   }
 
@@ -521,25 +550,38 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                             </div>
                           )}
                         </div>
-                        {canManagePettyCash && receipt.status === 'pending' && (
-                          <div className="flex items-center gap-1 ml-4">
+                        <div className="flex items-center gap-1 ml-4 shrink-0">
+                          {canManagePettyCash && receipt.status === 'pending' && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => handleReviewReceipt(receipt, 'approved')}
+                                className="bg-green-600 hover:bg-green-700 h-7 px-2 cursor-pointer"
+                              >
+                                <CheckCircle className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleReviewReceipt(receipt, 'rejected')}
+                                className="h-7 px-2 cursor-pointer"
+                              >
+                                <XCircle className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                          {canManagePettyCash && (
                             <Button
                               size="sm"
-                              onClick={() => handleReviewReceipt(receipt, 'approved')}
-                              className="bg-green-600 hover:bg-green-700 h-7 px-2"
+                              variant="outline"
+                              onClick={() => setDeleteReceiptConfirm(receipt)}
+                              className="h-7 px-2 text-red-600 border-red-200 hover:bg-red-50 cursor-pointer"
+                              title="Delete settlement"
                             >
-                              <CheckCircle className="h-3 w-3" />
+                              <Trash2 className="h-3 w-3" />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleReviewReceipt(receipt, 'rejected')}
-                              className="h-7 px-2"
-                            >
-                              <XCircle className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -549,6 +591,25 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteReceiptConfirm !== null}
+        title="Delete settlement?"
+        message={
+          deleteReceiptConfirm
+            ? `Remove "${deleteReceiptConfirm.description}" (PKR ${deleteReceiptConfirm.amount.toLocaleString()})?${
+                deleteReceiptConfirm.status === "approved"
+                  ? " The amount will be restored to the allocation balance."
+                  : ""
+              }`
+            : ""
+        }
+        confirmText={deletingReceipt ? "Deleting..." : "Delete"}
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => deleteReceiptConfirm && handleDeleteReceipt(deleteReceiptConfirm)}
+        onCancel={() => !deletingReceipt && setDeleteReceiptConfirm(null)}
+      />
     </div>
   )
 }

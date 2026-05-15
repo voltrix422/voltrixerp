@@ -196,6 +196,22 @@ export async function updatePettyCashReceiptStatus(
   return res.json()
 }
 
+export async function deletePettyCashReceipt(id: string): Promise<{
+  ok: boolean
+  allocationId: string
+  restoredAmount: number
+  allocationStatus: string
+}> {
+  const res = await fetch(`/api/db/petty-cash-receipts?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(payload?.error || 'Failed to delete settlement')
+  }
+  return payload
+}
+
 export async function getPettyCashSettlements(allocationId?: string): Promise<PettyCashSettlement[]> {
   const url = allocationId
     ? `/api/db/petty-cash-settlements?allocationId=${allocationId}`

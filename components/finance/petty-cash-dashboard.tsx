@@ -44,6 +44,10 @@ export function PettyCashDashboard() {
       ])
       setAllocations(allocationsData)
       setReceipts(receiptsData)
+      setSelectedAllocation(prev => {
+        if (!prev) return prev
+        return allocationsData.find(a => a.id === prev.id) ?? prev
+      })
     } catch (error) {
       console.error("Error loading petty cash data:", error)
       toast({ title: "Error", message: "Failed to load petty cash data", type: "error" })
