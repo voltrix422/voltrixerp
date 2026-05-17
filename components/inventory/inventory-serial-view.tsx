@@ -1,12 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import {
   deleteInventorySerialUnit,
   getInventorySerialUnits,
   serialNumberKey,
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
+import { getInventoryModelLabels, saveInventoryModelLabel } from "@/lib/inventory-model-labels"
 import { downloadSerialUnitsExcel } from "@/lib/inventory-excel-export"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
@@ -22,7 +23,17 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Pencil,
+  Check,
 } from "lucide-react"
+
+function LabelTag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[hsl(var(--muted))]/50 text-[hsl(var(--muted-foreground))] shrink-0">
+      {children}
+    </span>
+  )
+}
 
 function formatDate(iso?: string) {
   if (!iso) return "—"
@@ -42,12 +53,30 @@ export function InventorySerialView() {
   const [showQrModal, setShowQrModal] = useState(false)
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({})
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [modelLabels, setModelLabels] = useState<Record<string, string>>({})
+  const [editingModel, setEditingModel] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState("")
+  const [savingModelLabel, setSavingModelLabel] = useState(false)
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
     try {
-      const rows = await getInventorySerialUnits()
+      const [rows, labels] = await Promise.all([
+        getInventorySerialUnits(),
+        getInventoryModelLabels().catch(() => []),
+      ])
       setUnits(rows)
+      const map: Record<string, string> = {}
+      for (const label of labels) {
+        if (label.model && label.displayName) map[label.model] = label.displayName
+      }
+      for (const unit of rows) {
+        const m = unit.model?.trim()
+        if (!m || map[m]) continue
+        const name = unit.productName?.trim()
+        if (name && name !== m) map[m] = name
+      }
+      setModelLabels(map)
     } catch {
       toast({ title: "Error", message: "Could not load inventory.", type: "error" })
     } finally {
@@ -58,6 +87,49 @@ export function InventorySerialView() {
   useEffect(() => {
     void loadUnits()
   }, [loadUnits])
+
+  function getDisplayName(modelKey: string) {
+    return modelLabels[modelKey]?.trim() || ""
+  }
+
+  function startEditModelName(modelKey: string, e: MouseEvent) {
+    e.stopPropagation()
+    setEditingModel(modelKey)
+    setEditingName(getDisplayName(modelKey))
+  }
+
+  async function saveModelName(modelKey: string) {
+    setSavingModelLabel(true)
+    try {
+      const name = editingName.trim()
+      await saveInventoryModelLabel(modelKey, name)
+      setModelLabels((prev) => {
+        const next = { ...prev }
+        if (name) next[modelKey] = name
+        else delete next[modelKey]
+        return next
+      })
+      if (name) {
+        setUnits((prev) =>
+          prev.map((u) => (u.model === modelKey ? { ...u, productName: name } : u)),
+        )
+      }
+      setEditingModel(null)
+      toast({
+        title: "Saved",
+        message: name ? `Name set for ${modelKey}` : `Name cleared for ${modelKey}`,
+        type: "success",
+      })
+    } catch (err) {
+      toast({
+        title: "Error",
+        message: err instanceof Error ? err.message : "Could not save name.",
+        type: "error",
+      })
+    } finally {
+      setSavingModelLabel(false)
+    }
+  }
 
   const uniqueUnits = useMemo(() => {
     const byKey = new Map<string, InventorySerialUnit>()
@@ -212,26 +284,84 @@ export function InventorySerialView() {
         <div className="space-y-2">
           {groupedByModel.map(([modelKey, modelUnits]) => {
             const expanded = expandedModels[modelKey] !== false
+            const customName = getDisplayName(modelKey)
+            const isEditing = editingModel === modelKey
             return (
               <div key={modelKey} className="rounded-lg border overflow-hidden">
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-[hsl(var(--muted))]/30 hover:bg-[hsl(var(--muted))]/50 text-left"
-                  onClick={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !expanded }))}
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{modelKey}</p>
-                    {modelUnits[0]?.productName && modelUnits[0].productName !== modelKey && (
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate mt-0.5">
-                        {modelUnits[0].productName}
-                      </p>
-                    )}
-                  </div>
+                <div className="flex items-center justify-between gap-2 px-4 py-3 bg-[hsl(var(--muted))]/30">
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-left hover:opacity-90"
+                    onClick={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !expanded }))}
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <LabelTag>Model</LabelTag>
+                      <span className="text-sm font-semibold break-all">{modelKey}</span>
+                    </div>
+                    <div
+                      className="flex flex-wrap items-center gap-1.5 min-w-0 w-full sm:w-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <LabelTag>Name</LabelTag>
+                      {isEditing ? (
+                        <>
+                          <input
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            placeholder="Your custom name"
+                            className="h-7 min-w-[140px] flex-1 max-w-xs rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void saveModelName(modelKey)
+                              if (e.key === "Escape") setEditingModel(null)
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-7 p-0 shrink-0"
+                            disabled={savingModelLabel}
+                            onClick={() => void saveModelName(modelKey)}
+                          >
+                            {savingModelLabel ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Check className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            className={`text-sm break-words ${customName ? "font-medium text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] italic"}`}
+                          >
+                            {customName || "Add custom name"}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 shrink-0"
+                            onClick={(e) => startEditModelName(modelKey, e)}
+                            title="Edit custom name"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </button>
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge className="bg-[#1faca6] text-white text-[10px]">{modelUnits.length} pcs</Badge>
-                    {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    <button
+                      type="button"
+                      className="p-1 rounded hover:bg-[hsl(var(--muted))]/50"
+                      onClick={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !expanded }))}
+                    >
+                      {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
                   </div>
-                </button>
+                </div>
                 {expanded && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">

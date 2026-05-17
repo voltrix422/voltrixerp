@@ -74,6 +74,7 @@ import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 export function downloadSerialUnitsExcel(units: InventorySerialUnit[], exportedBy?: string) {
   const headers = [
     "Model",
+    "Custom Name",
     "Serial Number (SN)",
     "Product Name",
     "Specs",
@@ -84,6 +85,7 @@ export function downloadSerialUnitsExcel(units: InventorySerialUnit[], exportedB
   ]
   const rows = units.map((u) => [
     u.model || "",
+    u.productName && u.productName !== u.model ? u.productName : "",
     u.serialNumber,
     u.productName || "",
     u.specs || "",
