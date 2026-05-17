@@ -12,7 +12,6 @@ import { downloadSerialUnitsExcel } from "@/lib/inventory-excel-export"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import {
   Package,
@@ -27,14 +26,6 @@ import {
   Check,
 } from "lucide-react"
 
-function LabelTag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[hsl(var(--muted))]/50 text-[hsl(var(--muted-foreground))] shrink-0">
-      {children}
-    </span>
-  )
-}
-
 function formatDate(iso?: string) {
   if (!iso) return "—"
   try {
@@ -42,6 +33,231 @@ function formatDate(iso?: string) {
   } catch {
     return iso
   }
+}
+
+function statusBadgeClass(status: string) {
+  switch (status) {
+    case "in_stock":
+      return "bg-emerald-500/15 text-emerald-700 border-emerald-500/25 dark:text-emerald-400"
+    case "reserved":
+      return "bg-amber-500/15 text-amber-800 border-amber-500/25 dark:text-amber-400"
+    case "dispatched":
+      return "bg-sky-500/15 text-sky-800 border-sky-500/25 dark:text-sky-400"
+    default:
+      return "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] border-transparent"
+  }
+}
+
+function InventoryModelGroup({
+  modelKey,
+  modelUnits,
+  expanded,
+  onToggle,
+  customName,
+  isEditing,
+  editingName,
+  savingModelLabel,
+  deletingId,
+  onEditingNameChange,
+  onStartEdit,
+  onSaveName,
+  onCancelEdit,
+  onDeleteUnit,
+}: {
+  modelKey: string
+  modelUnits: InventorySerialUnit[]
+  expanded: boolean
+  onToggle: () => void
+  customName: string
+  isEditing: boolean
+  editingName: string
+  savingModelLabel: boolean
+  deletingId: string | null
+  onEditingNameChange: (value: string) => void
+  onStartEdit: (e: MouseEvent) => void
+  onSaveName: () => void
+  onCancelEdit: () => void
+  onDeleteUnit: (unit: InventorySerialUnit) => void
+}) {
+  const count = modelUnits.length
+  const inStock = modelUnits.filter((u) => u.status === "in_stock").length
+
+  return (
+    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm overflow-hidden">
+      <div className="flex items-stretch border-b border-[hsl(var(--border))]/80">
+        <button
+          type="button"
+          className="flex-1 min-w-0 flex items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[hsl(var(--muted))]/25"
+          onClick={onToggle}
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1faca6]/12 text-[#1faca6]">
+            <Package className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            {isEditing ? (
+              <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <input
+                  value={editingName}
+                  onChange={(e) => onEditingNameChange(e.target.value)}
+                  placeholder="e.g. 12 KWH Battery"
+                  autoFocus
+                  className="h-8 min-w-[160px] flex-1 max-w-md rounded-lg border bg-[hsl(var(--background))] px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onSaveName()
+                    if (e.key === "Escape") onCancelEdit()
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1 bg-[#1faca6] hover:bg-[#17857f] text-white text-xs"
+                  disabled={savingModelLabel}
+                  onClick={onSaveName}
+                >
+                  {savingModelLabel ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      Save
+                    </>
+                  )}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={onCancelEdit}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-start gap-1.5 min-w-0">
+                <p className="text-base font-semibold text-[hsl(var(--foreground))] leading-snug break-words">
+                  {customName || modelKey}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
+                  onClick={onStartEdit}
+                  title="Edit display name"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-medium uppercase tracking-wider text-[10px] opacity-80">Model</span>
+              <code className="font-mono text-xs text-[hsl(var(--foreground))]/90 break-all">{modelKey}</code>
+              {customName ? (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span className="text-[10px] tabular-nums">
+                    {inStock}/{count} in stock
+                  </span>
+                </>
+              ) : null}
+            </p>
+            {!customName && !isEditing ? (
+              <button type="button" className="text-[11px] text-[#1faca6] hover:underline" onClick={onStartEdit}>
+                Add a friendly name
+              </button>
+            ) : null}
+          </div>
+        </button>
+        <div className="flex flex-col items-end justify-center gap-1.5 px-3 py-3 border-l border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/15 shrink-0">
+          <span className="inline-flex rounded-full bg-[#1faca6] px-2.5 py-0.5 text-[11px] font-semibold text-white tabular-nums">
+            {count} {count === 1 ? "pc" : "pcs"}
+          </span>
+          <button
+            type="button"
+            className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/60 hover:text-[hsl(var(--foreground))]"
+            onClick={onToggle}
+            aria-expanded={expanded}
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[hsl(var(--muted))]/25 border-b border-[hsl(var(--border))]/60">
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Serial number
+                </th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Item ref
+                </th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                  Received
+                </th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Status
+                </th>
+                <th className="px-4 py-2.5 w-14" />
+              </tr>
+            </thead>
+            <tbody>
+              {modelUnits.map((unit, idx) => (
+                <tr
+                  key={unit.id}
+                  className={`border-b border-[hsl(var(--border))]/40 last:border-0 transition-colors hover:bg-[#1faca6]/[0.04] ${
+                    idx % 2 === 1 ? "bg-[hsl(var(--muted))]/[0.12]" : ""
+                  }`}
+                >
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-[13px] font-medium tracking-tight break-all">
+                      {unit.serialNumber}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-[12px] text-[hsl(var(--muted-foreground))]">
+                    {unit.specs || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-[hsl(var(--muted-foreground))] whitespace-nowrap tabular-nums">
+                    {formatDate(unit.scannedAt)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${statusBadgeClass(unit.status)}`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          unit.status === "in_stock"
+                            ? "bg-emerald-500"
+                            : unit.status === "reserved"
+                              ? "bg-amber-500"
+                              : "bg-[hsl(var(--muted-foreground))]"
+                        }`}
+                      />
+                      {unit.status.replace(/_/g, " ")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
+                      disabled={deletingId === unit.id}
+                      onClick={() => onDeleteUnit(unit)}
+                      title="Remove from inventory"
+                    >
+                      {deletingId === unit.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function InventorySerialView() {
@@ -281,136 +497,26 @@ export function InventorySerialView() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {groupedByModel.map(([modelKey, modelUnits]) => {
-            const expanded = expandedModels[modelKey] !== false
-            const customName = getDisplayName(modelKey)
-            const isEditing = editingModel === modelKey
-            return (
-              <div key={modelKey} className="rounded-lg border overflow-hidden">
-                <div className="flex items-center justify-between gap-2 px-4 py-3 bg-[hsl(var(--muted))]/30">
-                  <button
-                    type="button"
-                    className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-left hover:opacity-90"
-                    onClick={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !expanded }))}
-                  >
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                      <LabelTag>Model</LabelTag>
-                      <span className="text-sm font-semibold break-all">{modelKey}</span>
-                    </div>
-                    <div
-                      className="flex flex-wrap items-center gap-1.5 min-w-0 w-full sm:w-auto"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <LabelTag>Name</LabelTag>
-                      {isEditing ? (
-                        <>
-                          <input
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            placeholder="Your custom name"
-                            className="h-7 min-w-[140px] flex-1 max-w-xs rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") void saveModelName(modelKey)
-                              if (e.key === "Escape") setEditingModel(null)
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 w-7 p-0 shrink-0"
-                            disabled={savingModelLabel}
-                            onClick={() => void saveModelName(modelKey)}
-                          >
-                            {savingModelLabel ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Check className="h-3 w-3" />
-                            )}
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <span
-                            className={`text-sm break-words ${customName ? "font-medium text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] italic"}`}
-                          >
-                            {customName || "Add custom name"}
-                          </span>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 shrink-0"
-                            onClick={(e) => startEditModelName(modelKey, e)}
-                            title="Edit custom name"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge className="bg-[#1faca6] text-white text-[10px]">{modelUnits.length} pcs</Badge>
-                    <button
-                      type="button"
-                      className="p-1 rounded hover:bg-[hsl(var(--muted))]/50"
-                      onClick={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !expanded }))}
-                    >
-                      {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                {expanded && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-t bg-[hsl(var(--muted))]/20">
-                          <th className="px-4 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">SN</th>
-                          <th className="px-4 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Item ref</th>
-                          <th className="px-4 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Received</th>
-                          <th className="px-4 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Status</th>
-                          <th className="px-4 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-16">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {modelUnits.map((unit) => (
-                          <tr key={unit.id} className="hover:bg-[hsl(var(--muted))]/20">
-                            <td className="px-4 py-2 font-medium break-all">{unit.serialNumber}</td>
-                            <td className="px-4 py-2 text-[hsl(var(--muted-foreground))]">{unit.specs || "—"}</td>
-                            <td className="px-4 py-2 text-[hsl(var(--muted-foreground))]">{formatDate(unit.scannedAt)}</td>
-                            <td className="px-4 py-2">
-                              <Badge variant="secondary" className="text-[10px] capitalize">
-                                {unit.status.replace(/_/g, " ")}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                disabled={deletingId === unit.id}
-                                onClick={() => void handleDeleteUnit(unit)}
-                                title="Delete from inventory"
-                              >
-                                {deletingId === unit.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        <div className="space-y-3">
+          {groupedByModel.map(([modelKey, modelUnits]) => (
+            <InventoryModelGroup
+              key={modelKey}
+              modelKey={modelKey}
+              modelUnits={modelUnits}
+              expanded={expandedModels[modelKey] !== false}
+              onToggle={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !(prev[modelKey] !== false) }))}
+              customName={getDisplayName(modelKey)}
+              isEditing={editingModel === modelKey}
+              editingName={editingName}
+              savingModelLabel={savingModelLabel}
+              deletingId={deletingId}
+              onEditingNameChange={setEditingName}
+              onStartEdit={(e) => startEditModelName(modelKey, e)}
+              onSaveName={() => void saveModelName(modelKey)}
+              onCancelEdit={() => setEditingModel(null)}
+              onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
+            />
+          ))}
         </div>
       )}
 
@@ -450,4 +556,3 @@ export function InventorySerialView() {
     </div>
   )
 }
-
