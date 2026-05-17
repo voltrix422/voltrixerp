@@ -12,6 +12,7 @@ function fulfillmentData(o: Record<string, unknown>) {
     fulfillmentReceiverCnicImageUrl: (o.fulfillmentReceiverCnicImageUrl as string | undefined) ?? null,
     fulfillmentVehicleImageUrl: (o.fulfillmentVehicleImageUrl as string | undefined) ?? null,
     fulfillmentProductImageUrls: (o.fulfillmentProductImageUrls as string[] | undefined) ?? [],
+    inventoryDeductedAt: (o.inventoryDeductedAt as string | undefined) ?? null,
   }
 }
 

@@ -83,6 +83,7 @@ export interface Order {
   fulfillmentReceiverCnicImageUrl?: string
   fulfillmentVehicleImageUrl?: string
   fulfillmentProductImageUrls?: string[]
+  inventoryDeductedAt?: string
 }
 
 export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"
@@ -194,6 +195,7 @@ function rowToOrder(r: Record<string, unknown>): Order {
     fulfillmentProductImageUrls: Array.isArray(r.fulfillmentProductImageUrls)
       ? (r.fulfillmentProductImageUrls as string[])
       : undefined,
+    inventoryDeductedAt: (r.inventoryDeductedAt as string) ?? undefined,
   }
 }
 

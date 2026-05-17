@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { getOrders, saveOrder, type Order } from "@/lib/orders"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +8,7 @@ import { SuccessNotification } from "@/components/ui/success-notification"
 import { Loader2, X, Eye, Download, Truck, FileText, Search } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
-import { deductInventoryForOrder } from "@/lib/inventory"
+import { deductInventoryForOrder, orderNeedsInventoryDeduction } from "@/lib/inventory"
 import { logOrderFulfillmentHistory } from "@/lib/order-fulfillment-history"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadDispatchOrdersExcel } from "@/lib/inventory-excel-export"
@@ -323,6 +323,41 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [vehicleImage, setVehicleImage] = useState<File | null>(null)
   const [productImages, setProductImages] = useState<File[]>([])
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
+  const [deductingStock, setDeductingStock] = useState(false)
+  const [stockDeductionNotice, setStockDeductionNotice] = useState<string | null>(null)
+  const autoDeductAttempted = useRef(false)
+
+  async function applyInventoryDeduction(targetOrder: Order): Promise<Order> {
+    const result = await deductInventoryForOrder(targetOrder)
+    if (result.alreadyDeducted) {
+      if (!targetOrder.inventoryDeductedAt) {
+        const marked: Order = { ...targetOrder, inventoryDeductedAt: new Date().toISOString() }
+        await saveOrder(marked)
+        return marked
+      }
+      return targetOrder
+    }
+    if (result.success) {
+      const marked: Order = { ...targetOrder, inventoryDeductedAt: new Date().toISOString() }
+      await saveOrder(marked)
+      setStockDeductionNotice("Inventory updated successfully.")
+      return marked
+    }
+    if (result.deductedLines > 0) {
+      const marked: Order = { ...targetOrder, inventoryDeductedAt: new Date().toISOString() }
+      await saveOrder(marked)
+      setStockDeductionNotice(
+        `Partial inventory update: ${result.failedLines.join("; ")}`
+      )
+      return marked
+    }
+    setStockDeductionNotice(
+      result.failedLines.length > 0
+        ? `Could not update inventory: ${result.failedLines.join("; ")}`
+        : "Could not update inventory. Check stock records match order items."
+    )
+    return targetOrder
+  }
 
   function openFulfillPrefilled() {
     setFulfillDispatcherName(order.fulfillmentDispatcher || order.dispatcher || "")
@@ -346,7 +381,6 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
     try {
       const fulfillDate = new Date().toLocaleDateString()
-      const wasDelivered = order.status === "delivered"
 
       const uploadImg = async (file: File): Promise<string> => {
         const fd = new FormData()
@@ -388,11 +422,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
       updatedOrder = await applySalesCommissionOnDelivery(updatedOrder)
 
-      await saveOrder(updatedOrder)
-
-      if (!wasDelivered) {
-        await deductInventoryForOrder(updatedOrder)
-      }
+      updatedOrder = await applyInventoryDeduction(updatedOrder)
 
       await logOrderFulfillmentHistory({
         orderId: updatedOrder.id,
@@ -426,6 +456,11 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
       setShowFulfillDialog(false)
       onUpdate(updatedOrder)
+      if (!updatedOrder.inventoryDeductedAt) {
+        setStockDeductionNotice(
+          "Dispatch saved, but inventory could not be matched. Use “Update inventory” on the order."
+        )
+      }
 
       setFulfillDispatcherName("")
       setReceiverName("")
@@ -503,9 +538,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     const updated: Order = { ...order, status: newStatus }
     await saveOrder(updated)
     
-    // Deduct inventory when order is delivered
     if (newStatus === "delivered") {
-      await deductInventoryForOrder(updated)
+      const withStock = await applyInventoryDeduction(updated)
+      onUpdate(withStock)
       
       // Close the delivery confirmation dialog
       if (showDeliveryConfirm) {
@@ -518,7 +553,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       // Hide animation and update order after 3 seconds
       setTimeout(() => {
         setShowDeliveryAnimation(false)
-        onUpdate(updated)
+        onUpdate(withStock)
         setUpdating(false)
       }, 3000)
     } else {
@@ -575,6 +610,40 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const proofComplete = orderHasCompleteFulfillmentProof(order)
   const hasDispatcher = !!(order.fulfillmentDispatcher || order.dispatcher || "").trim()
   const canSubmitFulfillment = !!fulfillDispatcherName.trim()
+  const needsStockUpdate = hasDispatcher && !order.inventoryDeductedAt
+
+  async function handleUpdateInventory() {
+    setDeductingStock(true)
+    setStockDeductionNotice(null)
+    try {
+      const next = await applyInventoryDeduction(order)
+      onUpdate(next)
+    } finally {
+      setDeductingStock(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!hasDispatcher || order.inventoryDeductedAt || autoDeductAttempted.current) return
+    autoDeductAttempted.current = true
+
+    let cancelled = false
+    ;(async () => {
+      const needs = await orderNeedsInventoryDeduction(order)
+      if (!needs || cancelled) return
+      setDeductingStock(true)
+      try {
+        const next = await applyInventoryDeduction(order)
+        if (!cancelled) onUpdate(next)
+      } finally {
+        if (!cancelled) setDeductingStock(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [order.id, order.inventoryDeductedAt, hasDispatcher])
 
   return (
     <>
@@ -643,6 +712,37 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <CrmLineItemsDisplay items={order.items} />
           </div>
           <CrmOrderSummaryDisplay order={order} />
+
+          {(needsStockUpdate || stockDeductionNotice || deductingStock) && (
+            <div
+              className={`rounded-lg border px-3 py-3 text-xs space-y-2 ${
+                needsStockUpdate
+                  ? "border-amber-200 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100"
+                  : "border-green-200 bg-green-50 dark:bg-green-950/40 text-green-900 dark:text-green-100"
+              }`}
+            >
+              {deductingStock ? (
+                <p className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  Updating inventory from this order…
+                </p>
+              ) : needsStockUpdate ? (
+                <p>Stock has not been reduced for this dispatch yet.</p>
+              ) : (
+                <p>{stockDeductionNotice || "Inventory updated for this order."}</p>
+              )}
+              {needsStockUpdate && !deductingStock && (
+                <Button
+                  size="sm"
+                  className="h-8 w-full sm:w-auto text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => void handleUpdateInventory()}
+                >
+                  Update inventory now
+                </Button>
+              )}
+            </div>
+          )}
+
         {hasDispatcher && (
           <div className="space-y-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Dispatch &amp; delivery</p>

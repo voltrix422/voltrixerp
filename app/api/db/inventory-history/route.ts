@@ -4,8 +4,15 @@ import { prisma } from "@/lib/db"
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const item = searchParams.get("item")
+  const referenceId = searchParams.get("referenceId")
 
-  const where = item ? { itemDescription: item } : {}
+  const where: Record<string, unknown> = {}
+  if (item) where.itemDescription = item
+  if (referenceId) {
+    where.referenceId = referenceId
+    where.referenceType = "order"
+    where.transactionType = "out"
+  }
   const records = await prisma.erpInventoryHistory.findMany({
     where,
     orderBy: { createdAt: "desc" },

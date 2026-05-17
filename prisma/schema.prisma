@@ -128,6 +128,7 @@ model ErpOrder {
   fulfillmentReceiverCnicImageUrl  String? @map("fulfillment_receiver_cnic_image_url")
   fulfillmentVehicleImageUrl       String? @map("fulfillment_vehicle_image_url")
   fulfillmentProductImageUrls      Json    @default("[]") @map("fulfillment_product_image_urls")
+  inventoryDeductedAt              String? @map("inventory_deducted_at")
 
   @@map("erp_orders")
 }
