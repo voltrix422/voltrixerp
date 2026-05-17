@@ -69,6 +69,33 @@ function itemSecondary(item: { name?: string; description?: string }) {
   return ""
 }
 
+import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
+
+export function downloadSerialUnitsExcel(units: InventorySerialUnit[], exportedBy?: string) {
+  const headers = [
+    "Model",
+    "Serial Number (SN)",
+    "Product Name",
+    "Specs",
+    "Status",
+    "Scanned Date",
+    "Scanned By",
+    "Notes",
+  ]
+  const rows = units.map((u) => [
+    u.model || "",
+    u.serialNumber,
+    u.productName || "",
+    u.specs || "",
+    u.status,
+    formatDate(u.scannedAt),
+    u.scannedBy || "",
+    u.notes || "",
+  ])
+  const csv = exportMetaHeader(exportedBy) + rowsToCsv(headers, rows)
+  downloadCsv(`inventory-qr-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+}
+
 export function downloadManualInventoryExcel(items: ManualInventoryExportRow[], exportedBy?: string) {
   const headers = [
     "Item Description",

@@ -1,72 +1,116 @@
 "use client"
 
-import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent } from "react"
-import { Html5Qrcode } from "html5-qrcode"
-import { parseProductQrPayload, matchManualStockItem } from "@/lib/parse-product-qr"
 import {
-  createWarrantyClaim,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type KeyboardEvent,
+} from "react"
+import { Html5Qrcode } from "html5-qrcode"
+import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import {
   getInventorySerialUnits,
-  getWarrantyClaims,
-  saveInventorySerialUnit,
+  saveInventorySerialUnitsBatch,
   type InventorySerialUnit,
-  type WarrantyClaim,
 } from "@/lib/inventory-serial-units"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
-import { Camera, QrCode, Save, ShieldAlert, Loader2, ImageUp } from "lucide-react"
+import { useToast } from "@/components/ui/toast"
+import {
+  Camera,
+  QrCode,
+  Loader2,
+  ImageUp,
+  CheckCircle2,
+  Trash2,
+  Package,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react"
 
-type ManualStockOption = {
-  id: string
-  description: string
-  poNumber?: string
+type SessionScan = {
+  tempId: string
+  serialNumber: string
+  model: string
+  itemNo: string
+  internalRef: string
+  manufacturedDate: string
+  rawPayload: string
+  inventoryStockId: string
+  productName: string
+  specs: string
+  notes: string
+  scannedAt: string
 }
 
 type Props = {
-  manualStockItems: ManualStockOption[]
+  existingSerialNumbers?: string[]
+  onSaved?: (savedCount: number) => void
+  compact?: boolean
 }
 
-export function InventoryQrScanPanel({ manualStockItems }: Props) {
+function formatDisplayDate(iso?: string) {
+  if (!iso) return ""
+  try {
+    return new Date(iso).toLocaleDateString("en-PK")
+  } catch {
+    return iso
+  }
+}
+
+function sessionNotes(scan: SessionScan, receiveDate: string) {
+  const parts = [
+    receiveDate ? `Received ${receiveDate}` : "",
+    scan.manufacturedDate ? `Mfg ${scan.manufacturedDate}` : "",
+    scan.itemNo ? `Item ${scan.itemNo}` : "",
+    scan.internalRef ? `Ref ${scan.internalRef}` : "",
+  ].filter(Boolean)
+  return parts.join(" · ")
+}
+
+export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, compact }: Props) {
   const { user } = useAuth()
+  const { toast } = useToast()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const assignedNameRef = useRef<HTMLInputElement | null>(null)
+  const lastScanRef = useRef<{ text: string; at: number }>({ text: "", at: 0 })
+  const pasteRef = useRef<HTMLTextAreaElement | null>(null)
+
   const [scanning, setScanning] = useState(false)
-  const [scanMessage, setScanMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [units, setUnits] = useState<InventorySerialUnit[]>([])
-  const [claims, setClaims] = useState<WarrantyClaim[]>([])
-  const [rawPayload, setRawPayload] = useState("")
-  const [serialNumber, setSerialNumber] = useState("")
-  const [productName, setProductName] = useState("")
-  const [model, setModel] = useState("")
-  const [specs, setSpecs] = useState("")
-  const [assignedName, setAssignedName] = useState("")
-  const [inventoryStockId, setInventoryStockId] = useState("")
-  const [notes, setNotes] = useState("")
-  const [claimUnit, setClaimUnit] = useState<InventorySerialUnit | null>(null)
-  const [claimReason, setClaimReason] = useState("")
-  const [claimNotes, setClaimNotes] = useState("")
-  const [claimSaving, setClaimSaving] = useState(false)
+  const [savedUnits, setSavedUnits] = useState<InventorySerialUnit[]>([])
+  const [existingSerials, setExistingSerials] = useState<Set<string>>(new Set())
+  const [sessionScans, setSessionScans] = useState<SessionScan[]>([])
+  const [scanMessage, setScanMessage] = useState("")
   const [error, setError] = useState("")
+  const [receiveDate, setReceiveDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [showSummary, setShowSummary] = useState(false)
+  const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({})
+  const [pasteValue, setPasteValue] = useState("")
 
   useEffect(() => {
-    loadRecords()
-    return () => {
-      stopScanner()
+    if (compact) {
+      setExistingSerials(new Set(existingSerialNumbers))
+      setLoading(false)
+      return
     }
-  }, [])
+    void loadRecords()
+    return () => {
+      void stopScanner()
+    }
+  }, [compact, existingSerialNumbers.join("|")])
 
   async function loadRecords() {
     setLoading(true)
     try {
-      const [unitRows, claimRows] = await Promise.all([
-        getInventorySerialUnits(),
-        getWarrantyClaims(),
-      ])
-      setUnits(unitRows)
-      setClaims(claimRows)
+      const unitRows = await getInventorySerialUnits()
+      setSavedUnits(unitRows)
+      setExistingSerials(new Set(unitRows.map((u) => u.serialNumber)))
     } catch (loadError) {
       console.error(loadError)
       setError("Failed to load scanned units.")
@@ -75,61 +119,79 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
     }
   }
 
-  function applyPayload(payload: string, options?: { preserveAssignedName?: boolean }) {
-    const parsed = parseProductQrPayload(payload)
-    setRawPayload(payload)
-    setSerialNumber(parsed.serialNumber)
-    setModel(parsed.model)
-    setSpecs(parsed.specs)
-    setNotes(parsed.notes || "")
-    if (!options?.preserveAssignedName) {
-      setAssignedName("")
+  const groupedByModel = useMemo(() => {
+    const map = new Map<string, SessionScan[]>()
+    for (const scan of sessionScans) {
+      const key = scan.model || "Unknown model"
+      const list = map.get(key) ?? []
+      list.push(scan)
+      map.set(key, list)
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [sessionScans])
+
+  const sessionTotal = sessionScans.length
+
+  function buildSessionScan(payload: string): SessionScan | null {
+    const trimmed = payload.trim()
+    if (!trimmed) return null
+
+    const parsed = parseProductQrPayload(trimmed)
+    if (!parsed.serialNumber) {
+      setError("QR has no serial number (SN).")
+      return null
     }
 
-    const matchedStockId = matchManualStockItem(parsed, manualStockItems)
-    const matchedItem = matchedStockId
-      ? manualStockItems.find((item) => item.id === matchedStockId)
-      : undefined
+    const manufacturedDate = parsed.extra.manufacturedDate || ""
+    const itemNo = parsed.extra.batchRef || ""
+    const internalRef = parsed.extra.internalRef || ""
 
-    setInventoryStockId(matchedStockId)
-    setProductName(matchedItem?.description || parsed.productName || parsed.model)
-
-    if (matchedItem) {
-      setScanMessage(`Detected SN ${parsed.serialNumber} · Model ${parsed.model || "—"} · Linked to ${matchedItem.description}`)
-    } else if (parsed.serialNumber && parsed.model) {
-      setScanMessage(`Detected SN ${parsed.serialNumber} · Model ${parsed.model}. Add an assigned name and save.`)
-    } else if (parsed.serialNumber) {
-      setScanMessage(`Detected SN ${parsed.serialNumber}. Add an assigned name and save.`)
-    } else if (parsed.inventoryStockId) {
-      setScanMessage("QR included a stock link, but no matching manual stock item was found.")
-    } else {
-      setScanMessage("QR details loaded. Add an assigned name and save.")
+    return {
+      tempId: `${parsed.serialNumber}-${Date.now()}`,
+      serialNumber: parsed.serialNumber,
+      model: parsed.model || "Unknown model",
+      itemNo,
+      internalRef,
+      manufacturedDate,
+      rawPayload: trimmed,
+      inventoryStockId: "",
+      productName: parsed.productName || parsed.model,
+      specs: parsed.specs || internalRef,
+      notes: "",
+      scannedAt: new Date().toISOString(),
     }
-
-    setError("")
-    requestAnimationFrame(() => assignedNameRef.current?.focus())
   }
 
-  function handlePayloadInput(value: string) {
-    setRawPayload(value)
-    if (!value.trim()) {
-      setSerialNumber("")
-      setModel("")
-      setSpecs("")
-      setNotes("")
-      setProductName("")
-      setInventoryStockId("")
-      setScanMessage("")
+  function addScanFromPayload(payload: string) {
+    const trimmed = payload.trim()
+    if (!trimmed) return
+
+    const now = Date.now()
+    if (lastScanRef.current.text === trimmed && now - lastScanRef.current.at < 2500) {
       return
     }
-    applyPayload(value, { preserveAssignedName: true })
-  }
+    lastScanRef.current = { text: trimmed, at: now }
 
-  function handlePayloadPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const pasted = event.clipboardData.getData("text").trim()
-    if (!pasted) return
-    event.preventDefault()
-    applyPayload(pasted)
+    const scan = buildSessionScan(trimmed)
+    if (!scan) return
+
+    if (sessionScans.some((s) => s.serialNumber === scan.serialNumber)) {
+      setScanMessage(`Already in this session: ${scan.serialNumber}`)
+      setError("")
+      return
+    }
+
+    if (existingSerials.has(scan.serialNumber)) {
+      setScanMessage(`Already in system: ${scan.serialNumber}`)
+      setError("")
+      return
+    }
+
+    setSessionScans((prev) => [...prev, scan])
+    setExpandedModels((prev) => ({ ...prev, [scan.model]: true }))
+    setScanMessage(`+1 · ${scan.model} · SN ${scan.serialNumber} (${sessionTotal + 1} total)`)
+    setError("")
+    setPasteValue("")
   }
 
   async function waitForScannerMount() {
@@ -152,7 +214,7 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
   async function startScanner() {
     if (scanning) return
     setError("")
-    setScanMessage("")
+    setScanMessage("Continuous scan on — scan each box QR.")
     setScanning(true)
     await waitForScannerMount()
 
@@ -162,16 +224,15 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
       const cameraId = await resolveCameraId()
       await scanner.start(
         cameraId,
-        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        { fps: 12, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
         (decodedText) => {
-          applyPayload(decodedText)
-          void stopScanner()
+          addScanFromPayload(decodedText)
         },
         () => undefined,
       )
     } catch (scanError) {
       console.error(scanError)
-      setError("Could not open the camera. Upload a QR image or paste the QR text below.")
+      setError("Could not open the camera. Paste QR text or upload an image.")
       setScanning(false)
       scannerRef.current = null
     }
@@ -194,342 +255,361 @@ export function InventoryQrScanPanel({ manualStockItems }: Props) {
 
   async function handleImageFile(file: File) {
     setError("")
-    setScanMessage("")
     await stopScanner()
     try {
       const scanner = new Html5Qrcode("inventory-qr-reader", { verbose: false })
       const decodedText = await scanner.scanFile(file, false)
-      applyPayload(decodedText)
+      addScanFromPayload(decodedText)
     } catch (scanError) {
       console.error(scanError)
-      setError("No QR code was detected in that image. Try another photo or paste the QR text.")
+      setError("No QR code detected in that image.")
     }
   }
 
   function handleImageInputChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = ""
-    if (file) {
-      void handleImageFile(file)
+    if (file) void handleImageFile(file)
+  }
+
+  function handlePasteSubmit() {
+    if (!pasteValue.trim()) return
+    addScanFromPayload(pasteValue)
+    pasteRef.current?.focus()
+  }
+
+  function handlePasteKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      handlePasteSubmit()
     }
   }
 
-  async function handleSave() {
-    if (!serialNumber.trim()) {
-      setError("Scan a QR code first so the serial number is captured.")
-      return
-    }
-    if (!assignedName.trim()) {
-      setError("Assigned name is required.")
-      assignedNameRef.current?.focus()
-      return
-    }
+  function handlePasteArea(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const pasted = event.clipboardData.getData("text").trim()
+    if (!pasted) return
+    event.preventDefault()
+    addScanFromPayload(pasted)
+  }
+
+  function removeFromSession(tempId: string) {
+    setSessionScans((prev) => prev.filter((s) => s.tempId !== tempId))
+  }
+
+  function clearSession() {
+    if (sessionScans.length > 0 && !confirm("Clear all scans in this session?")) return
+    setSessionScans([])
+    setScanMessage("")
+    setShowSummary(false)
+  }
+
+  async function completeAndSave() {
+    if (sessionScans.length === 0) return
+    setShowSummary(true)
+  }
+
+  async function confirmSave() {
     setSaving(true)
     setError("")
+    const receiveLabel = formatDisplayDate(receiveDate) || receiveDate
+    const scannedBy = user?.name || "system"
+    const batchLabel = `Bulk receive ${receiveLabel}`
+
     try {
-      const saved = await saveInventorySerialUnit({
-        serialNumber: serialNumber.trim(),
-        assignedName: assignedName.trim(),
-        productName: productName.trim(),
-        model: model.trim(),
-        specs: specs.trim(),
-        rawPayload,
-        inventoryStockId: inventoryStockId || undefined,
-        notes: notes.trim(),
-        scannedBy: user?.name || "system",
-        createWarranty: true,
+      const { saved, errors } = await saveInventorySerialUnitsBatch(
+        sessionScans.map((scan) => ({
+          serialNumber: scan.serialNumber,
+          assignedName: batchLabel,
+          productName: scan.productName,
+          model: scan.model,
+          specs: scan.specs,
+          rawPayload: scan.rawPayload,
+          inventoryStockId: scan.inventoryStockId || undefined,
+          notes: sessionNotes(scan, receiveLabel),
+          scannedBy,
+          createWarranty: true,
+        })),
+      )
+
+      setExistingSerials((prev) => {
+        const next = new Set(prev)
+        for (const unit of saved) next.add(unit.serialNumber)
+        return next
       })
-      setUnits((prev) => [saved, ...prev])
-      setRawPayload("")
-      setSerialNumber("")
-      setProductName("")
-      setModel("")
-      setSpecs("")
-      setAssignedName("")
-      setInventoryStockId("")
-      setNotes("")
-      setScanMessage("")
+      setSavedUnits((prev) => [...saved, ...prev])
+      setSessionScans([])
+      setShowSummary(false)
+      await stopScanner()
+
+      toast({
+        title: "Receiving saved",
+        message: `${saved.length} unit(s) registered${errors.length ? ` · ${errors.length} skipped` : ""}.`,
+        type: errors.length && saved.length === 0 ? "error" : "success",
+      })
+
+      if (errors.length > 0) {
+        setError(
+          errors
+            .slice(0, 5)
+            .map((e) => `${e.serialNumber}: ${e.error}`)
+            .join(" · ") + (errors.length > 5 ? ` · +${errors.length - 5} more` : ""),
+        )
+      }
+
+      if (saved.length > 0) {
+        onSaved?.(saved.length)
+      }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save scanned unit.")
+      setError(saveError instanceof Error ? saveError.message : "Failed to save receiving batch.")
     } finally {
       setSaving(false)
     }
   }
 
-  async function submitClaim() {
-    if (!claimUnit || !claimReason.trim()) return
-    setClaimSaving(true)
-    try {
-      const claim = await createWarrantyClaim({
-        unitId: claimUnit.id,
-        serialNumber: claimUnit.serialNumber,
-        claimReason: claimReason.trim(),
-        notes: claimNotes.trim(),
-        claimedBy: user?.name || "system",
-      })
-      setClaims((prev) => [claim, ...prev])
-      setUnits((prev) => prev.map((unit) => unit.id === claimUnit.id ? { ...unit, status: "claim_pending" } : unit))
-      setClaimUnit(null)
-      setClaimReason("")
-      setClaimNotes("")
-    } catch (claimError) {
-      setError(claimError instanceof Error ? claimError.message : "Failed to submit warranty claim.")
-    } finally {
-      setClaimSaving(false)
-    }
-  }
-
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className={compact ? "space-y-4" : "rounded-lg border bg-[hsl(var(--card))] p-4 space-y-4"}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold flex items-center gap-2">
               <QrCode className="h-4 w-4 text-[#1faca6]" />
-              Scan product QR
+              Bulk QR receiving
             </p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-              Scan with the camera, upload a QR photo, or paste the QR text. Fields auto-fill and link to manual stock when possible.
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
+              Scan boxes one after another. Each QR adds SN, model, and date. When finished, tap{" "}
+              <span className="font-medium text-[hsl(var(--foreground))]">Complete scan</span> to review counts by model and save.
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Receive date</label>
             <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleImageInputChange}
+              type="date"
+              value={receiveDate}
+              onChange={(e) => setReceiveDate(e.target.value)}
+              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
             />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImageUp className="h-3.5 w-3.5 mr-1.5" />
-              Upload QR image
-            </Button>
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={scanning ? stopScanner : startScanner}>
-              <Camera className="h-3.5 w-3.5 mr-1.5" />
-              {scanning ? "Stop camera" : "Open camera"}
-            </Button>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            className={`h-8 text-xs ${scanning ? "bg-red-600 hover:bg-red-700" : "bg-[#1faca6] hover:bg-[#17857f]"} text-white`}
+            onClick={scanning ? stopScanner : startScanner}
+          >
+            <Camera className="h-3.5 w-3.5 mr-1.5" />
+            {scanning ? "Stop scanning" : "Start scan scan scan"}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleImageInputChange}
+          />
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => fileInputRef.current?.click()}>
+            <ImageUp className="h-3.5 w-3.5 mr-1.5" />
+            QR image
+          </Button>
+          {sessionScans.length > 0 && (
+            <Button size="sm" variant="outline" className="h-8 text-xs text-red-600" onClick={clearSession}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Clear session
+            </Button>
+          )}
         </div>
 
         <div
           id="inventory-qr-reader"
-          className={scanning ? "min-h-[280px] overflow-hidden rounded-lg border bg-black/5" : "sr-only"}
+          className={scanning ? "min-h-[260px] overflow-hidden rounded-lg border bg-black/5" : "hidden"}
         />
-        {!scanning && (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full rounded-lg border border-dashed px-4 py-6 text-center transition-colors hover:bg-[hsl(var(--muted))]/30"
-          >
-            <ImageUp className="mx-auto h-5 w-5 text-[#1faca6]" />
-            <p className="mt-2 text-sm font-medium">Upload a QR image</p>
-            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-              Tap to choose a photo or screenshot containing the product QR code.
-            </p>
-          </button>
-        )}
+
+        <div className="flex gap-2">
+          <textarea
+            ref={pasteRef}
+            value={pasteValue}
+            onChange={(e) => setPasteValue(e.target.value)}
+            onPaste={handlePasteArea}
+            onKeyDown={handlePasteKeyDown}
+            rows={1}
+            placeholder="Paste QR text and press Enter"
+            className="flex-1 rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-xs resize-none"
+          />
+          <Button size="sm" variant="outline" className="h-9 text-xs shrink-0" onClick={handlePasteSubmit}>
+            Add
+          </Button>
+        </div>
 
         {scanMessage && <p className="text-xs text-[#17857f]">{scanMessage}</p>}
-
-        <div className="space-y-2">
-          <label className="text-xs font-medium">QR payload</label>
-          <textarea
-            value={rawPayload}
-            onChange={(e) => handlePayloadInput(e.target.value)}
-            onPaste={handlePayloadPaste}
-            onBlur={(e) => {
-              if (e.target.value.trim()) applyPayload(e.target.value, { preserveAssignedName: true })
-            }}
-            rows={2}
-            placeholder="Scan a QR code or paste its text here"
-            className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm resize-none"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Serial number *</label>
-            <input
-              value={serialNumber}
-              onChange={(e) => setSerialNumber(e.target.value)}
-              readOnly={Boolean(rawPayload.trim() && serialNumber)}
-              className="w-full h-9 rounded-md border px-3 text-sm bg-[hsl(var(--background))]"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Model</label>
-            <input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              readOnly={Boolean(rawPayload.trim() && model)}
-              className="w-full h-9 rounded-md border px-3 text-sm bg-[hsl(var(--background))]"
-            />
-          </div>
-        </div>
-
-        {serialNumber && (
-          <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Serial number</p>
-              <p className="text-sm font-medium mt-1 break-all">{serialNumber}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Model</p>
-              <p className="text-sm font-medium mt-1 break-all">{model || "—"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Manual stock</p>
-              <p className="text-sm font-medium mt-1">
-                {inventoryStockId
-                  ? manualStockItems.find((item) => item.id === inventoryStockId)?.description || "Linked"
-                  : "No stock link"}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Assigned name *</label>
-          <input
-            ref={assignedNameRef}
-            value={assignedName}
-            onChange={(e) => setAssignedName(e.target.value)}
-            placeholder="e.g. Unit for office install, display sample, customer reserve"
-            className="w-full h-10 rounded-md border px-3 text-sm"
-          />
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            Serial number, model, and stock link are taken from the QR. You only need to name this unit before saving.
-          </p>
-        </div>
-
-        <details className="rounded-lg border px-3 py-2">
-          <summary className="text-xs font-medium cursor-pointer">Edit extra details</summary>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Product name</label>
-              <input value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Specifications</label>
-              <input value={specs} onChange={(e) => setSpecs(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm" />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-xs font-medium">Link to manual stock item</label>
-              <select value={inventoryStockId} onChange={(e) => setInventoryStockId(e.target.value)} className="w-full h-9 rounded-md border px-3 text-sm">
-                <option value="">No stock link</option>
-                {manualStockItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.description} {item.poNumber ? `(${item.poNumber})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-xs font-medium">Notes</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-md border px-3 py-2 text-sm resize-none" />
-            </div>
-          </div>
-        </details>
-
         {error && <p className="text-xs text-red-600">{error}</p>}
 
-        <Button size="sm" className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
-          Save scanned unit
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 px-3 py-2">
+          <div className="flex items-center gap-3 text-xs">
+            <span>
+              Session: <strong>{sessionTotal}</strong> box{sessionTotal !== 1 ? "es" : ""}
+            </span>
+            <span>
+              Models: <strong>{groupedByModel.length}</strong>
+            </span>
+          </div>
+          <Button
+            size="sm"
+            className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
+            disabled={sessionTotal === 0 || saving}
+            onClick={completeAndSave}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+            Complete scan
+          </Button>
+        </div>
+
+        {sessionTotal === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center text-[hsl(var(--muted-foreground))] border border-dashed rounded-lg">
+            <Package className="h-8 w-8 opacity-30 mb-2" />
+            <p className="text-sm">No boxes scanned yet</p>
+            <p className="text-xs mt-1">Start the camera and scan each box QR in the warehouse.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {groupedByModel.map(([modelKey, scans]) => {
+              const expanded = expandedModels[modelKey] !== false
+              return (
+                <div key={modelKey} className="rounded-lg border overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-[hsl(var(--muted))]/30 hover:bg-[hsl(var(--muted))]/50 text-left"
+                    onClick={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !expanded }))}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{modelKey}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className="bg-[#1faca6] text-white text-[10px]">{scans.length} pcs</Badge>
+                      {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </div>
+                  </button>
+                  {expanded && (
+                    <div className="divide-y max-h-48 overflow-y-auto">
+                      {scans.map((scan) => (
+                        <div key={scan.tempId} className="px-3 py-2 flex items-start justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium break-all">SN {scan.serialNumber}</p>
+                            <p className="text-[hsl(var(--muted-foreground))] mt-0.5">
+                              {scan.manufacturedDate ? `Mfg ${scan.manufacturedDate}` : "—"}
+                              {scan.itemNo ? ` · Item ${scan.itemNo}` : ""}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-red-600 shrink-0 hover:underline"
+                            onClick={() => removeFromSession(scan.tempId)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
+      {!compact && (
       <div className="rounded-lg border overflow-hidden">
-        <div className="px-4 py-3 border-b bg-[hsl(var(--muted))]/40">
-          <p className="text-sm font-semibold">Scanned units</p>
+        <div className="px-4 py-3 border-b bg-[hsl(var(--muted))]/40 flex items-center justify-between">
+          <p className="text-sm font-semibold">Registered units</p>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{savedUnits.length} total</span>
         </div>
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
           </div>
-        ) : units.length === 0 ? (
-          <p className="text-sm text-[hsl(var(--muted-foreground))] px-4 py-8">No QR units registered yet.</p>
+        ) : savedUnits.length === 0 ? (
+          <p className="text-sm text-[hsl(var(--muted-foreground))] px-4 py-8">No QR units saved yet.</p>
         ) : (
-          <div className="divide-y">
-            {units.map((unit) => (
-              <div key={unit.id} className="px-4 py-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm font-medium">{unit.assignedName || unit.productName || unit.serialNumber}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">SN: {unit.serialNumber}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    {unit.productName}{unit.model ? ` · ${unit.model}` : ""}{unit.specs ? ` · ${unit.specs}` : ""}
-                  </p>
-                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                    Scanned {new Date(unit.scannedAt).toLocaleString()} by {unit.scannedBy}
-                    {unit.warrantyId ? ` · Warranty ${unit.warrantyId}` : ""}
-                    {unit.inventoryStockId
-                      ? ` · Stock ${manualStockItems.find((item) => item.id === unit.inventoryStockId)?.description || unit.inventoryStockId}`
-                      : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[10px] capitalize">{unit.status.replace(/_/g, " ")}</Badge>
-                  <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setClaimUnit(unit)}>
-                    <ShieldAlert className="h-3 w-3 mr-1" />
-                    Claim
-                  </Button>
-                </div>
+          <div className="divide-y max-h-64 overflow-y-auto">
+            {savedUnits.slice(0, 30).map((unit) => (
+              <div key={unit.id} className="px-4 py-2.5 text-xs">
+                <p className="font-medium">{unit.model || unit.productName || "—"}</p>
+                <p className="text-[hsl(var(--muted-foreground))]">
+                  SN {unit.serialNumber} · {formatDisplayDate(unit.scannedAt)}
+                </p>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {claims.length > 0 && (
-        <div className="rounded-lg border overflow-hidden">
-          <div className="px-4 py-3 border-b bg-[hsl(var(--muted))]/40">
-            <p className="text-sm font-semibold">Warranty claims</p>
-          </div>
-          <div className="divide-y">
-            {claims.map((claim) => (
-              <div key={claim.id} className="px-4 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">SN {claim.serialNumber}</p>
-                  <Badge variant="secondary" className="text-[10px] capitalize">{claim.status}</Badge>
-                </div>
-                <p className="text-xs mt-1">{claim.claimReason}</p>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                  Filed {new Date(claim.createdAt).toLocaleString()} by {claim.claimedBy}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
-      {claimUnit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setClaimUnit(null)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm font-semibold">Warranty claim for {claimUnit.serialNumber}</p>
-            <textarea
-              value={claimReason}
-              onChange={(e) => setClaimReason(e.target.value)}
-              rows={3}
-              placeholder="Describe the issue"
-              className="w-full rounded-md border px-3 py-2 text-sm resize-none"
-            />
-            <textarea
-              value={claimNotes}
-              onChange={(e) => setClaimNotes(e.target.value)}
-              rows={2}
-              placeholder="Additional notes"
-              className="w-full rounded-md border px-3 py-2 text-sm resize-none"
-            />
+
+      {showSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !saving && setShowSummary(false)}>
+          <div
+            className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] p-5 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm font-semibold">Complete scan — review & save</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Receive date: <strong>{formatDisplayDate(receiveDate) || receiveDate}</strong> ·{" "}
+              <strong>{sessionTotal}</strong> box{sessionTotal !== 1 ? "es" : ""} across{" "}
+              <strong>{groupedByModel.length}</strong> model{groupedByModel.length !== 1 ? "s" : ""}
+            </p>
+
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-[hsl(var(--muted))]/40">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Model</th>
+                    <th className="text-right px-3 py-2 font-medium w-16">Qty</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {groupedByModel.map(([modelKey, scans]) => (
+                    <tr key={modelKey}>
+                      <td className="px-3 py-2 align-top">
+                        <p className="font-medium">{modelKey}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 break-all">
+                          {scans.map((s) => s.serialNumber).join(", ")}
+                        </p>
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold align-top">{scans.length}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-[hsl(var(--muted))]/20 font-semibold">
+                  <tr>
+                    <td className="px-3 py-2">Total</td>
+                    <td className="px-3 py-2 text-right">{sessionTotal}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
             <div className="flex justify-end gap-2">
-              <Button size="sm" variant="outline" onClick={() => setClaimUnit(null)}>Cancel</Button>
-              <Button size="sm" onClick={submitClaim} disabled={claimSaving || !claimReason.trim()}>
-                {claimSaving ? "Submitting..." : "Submit claim"}
+              <Button size="sm" variant="outline" disabled={saving} onClick={() => setShowSummary(false)}>
+                Back to scanning
+              </Button>
+              <Button
+                size="sm"
+                className="bg-[#1faca6] hover:bg-[#17857f] text-white"
+                disabled={saving}
+                onClick={() => void confirmSave()}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                    Save {sessionTotal} to system
+                  </>
+                )}
               </Button>
             </div>
           </div>

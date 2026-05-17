@@ -78,6 +78,38 @@ export async function getInventorySerialUnits(inventoryStockId?: string): Promis
   return (data ?? []).map(mapSerialUnit)
 }
 
+export async function saveInventorySerialUnitsBatch(
+  units: Array<{
+    serialNumber: string
+    assignedName?: string
+    productName?: string
+    model?: string
+    specs?: string
+    rawPayload?: string
+    inventoryStockId?: string
+    notes?: string
+    scannedBy: string
+    createWarranty?: boolean
+  }>,
+): Promise<{ saved: InventorySerialUnit[]; errors: { serialNumber: string; error: string }[] }> {
+  const saved: InventorySerialUnit[] = []
+  const errors: { serialNumber: string; error: string }[] = []
+
+  for (const unit of units) {
+    try {
+      const row = await saveInventorySerialUnit(unit)
+      saved.push(row)
+    } catch (err) {
+      errors.push({
+        serialNumber: unit.serialNumber,
+        error: err instanceof Error ? err.message : "Failed to save",
+      })
+    }
+  }
+
+  return { saved, errors }
+}
+
 export async function saveInventorySerialUnit(data: {
   serialNumber: string
   assignedName?: string
