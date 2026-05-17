@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { getPOs, savePO, type PurchaseOrder, type ImportedPOItem } from "@/lib/purchase"
 // DB access via /api/db routes (Prisma)
@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Package, Search, X, CheckCircle2, Plus, Calendar, Calculator, Trash2, ChevronDown } from "lucide-react"
 import { generateGRN } from "@/lib/generate-grn"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
+import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
+import { downloadManualInventoryExcel } from "@/lib/inventory-excel-export"
+import { useToast } from "@/components/ui/toast"
 
 interface PODetailModalProps {
   po: PurchaseOrder
@@ -257,6 +260,8 @@ function getInventoryItemSecondary(item: { name?: string; description?: string }
 }
 
 export function InventoryList() {
+  const { toast } = useToast()
+  const [exportingExcel, setExportingExcel] = useState(false)
   const [pos, setPos] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -635,6 +640,35 @@ export function InventoryList() {
   const totalInventoryItems = allInventoryItems.length
   const totalInventoryValue = allInventoryItems.reduce((s, i) => s + i.unitPrice * (typeof i.availableQty === "number" ? i.availableQty : i.qty), 0)
 
+  function exportManualExcel() {
+    setExportingExcel(true)
+    try {
+      downloadManualInventoryExcel(
+        filteredInventory.map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          poNumber: item.poNumber,
+          supplier: item.supplier,
+          qty: item.qty,
+          availableQty: item.availableQty,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          receivedAt: item.receivedAt,
+        }))
+      )
+      toast({
+        title: "Download started",
+        message: `${filteredInventory.length} item(s) exported for Excel.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export inventory.", type: "error" })
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   const alreadyReceived = (po: PurchaseOrder) => po.flowHistory.some(h => h.step === "Items Received")
 
   async function saveManualItem() {
@@ -914,6 +948,11 @@ export function InventoryList() {
                   className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
                 />
               </div>
+              <CrmExcelExportButton
+                onExport={exportManualExcel}
+                exporting={exportingExcel}
+                disabled={filteredInventory.length === 0}
+              />
               <button
                 onClick={() => setShowManualItemModal(true)}
                 className="text-xs font-medium text-[hsl(var(--primary))] hover:underline decoration-dotted underline-offset-2 cursor-pointer transition-colors ml-3 shrink-0"

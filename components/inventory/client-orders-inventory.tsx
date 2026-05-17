@@ -10,6 +10,9 @@ import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder } from "@/lib/inventory"
 import { logOrderFulfillmentHistory } from "@/lib/order-fulfillment-history"
+import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
+import { downloadDispatchOrdersExcel } from "@/lib/inventory-excel-export"
+import { useToast } from "@/components/ui/toast"
 
 /** Full delivery proof: receiver + CNIC + vehicle + all proof images (matches Fulfill Order requirements). */
 function orderHasCompleteFulfillmentProof(o: Order): boolean {
@@ -26,6 +29,8 @@ function orderHasCompleteFulfillmentProof(o: Order): boolean {
 }
 
 export function ClientOrdersInventory() {
+  const { toast } = useToast()
+  const [exportingExcel, setExportingExcel] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -77,16 +82,41 @@ export function ClientOrdersInventory() {
     return matchesSearch && matchesDateRange
   })
 
+  function exportDispatchExcel() {
+    setExportingExcel(true)
+    try {
+      downloadDispatchOrdersExcel(filteredOrders)
+      toast({
+        title: "Download started",
+        message: `${filteredOrders.length} order(s) exported for Excel.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export orders.", type: "error" })
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Header with count */}
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">{orders.length} order{orders.length !== 1 ? "s" : ""} for dispatch</p>
-        {!loading && orders.length > 0 && (
-          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
-            Filters
-          </Button>
-        )}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""} for dispatch
+        </p>
+        <div className="flex items-center gap-2">
+          <CrmExcelExportButton
+            onExport={exportDispatchExcel}
+            exporting={exportingExcel}
+            disabled={loading || filteredOrders.length === 0}
+          />
+          {!loading && orders.length > 0 && (
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+              Filters
+            </Button>
+          )}
+        </div>
       </div>
 
       
