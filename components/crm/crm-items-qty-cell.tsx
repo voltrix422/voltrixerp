@@ -15,12 +15,15 @@ export function CrmItemsQtyCell({ items }: { items?: CrmQtyLineItem[] | null }) 
   }
 
   return (
-    <div className="flex flex-col items-center leading-tight" title={`${lineCount} product line(s), ${totalQty} total qty`}>
-      <span className="font-medium tabular-nums">{totalQty}</span>
-      <span className="text-[9px] text-[hsl(var(--muted-foreground))]">
-        {lineCount} {lineCount === 1 ? "line" : "lines"}
+    <span
+      className="inline-flex flex-wrap items-baseline justify-center gap-x-1 tabular-nums"
+      title={`${lineCount} product line(s), ${totalQty} total qty`}
+    >
+      <span className="font-medium">{totalQty}</span>
+      <span className="text-[10px] text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+        {lineCount === 1 ? "pc" : `pcs · ${lineCount} lines`}
       </span>
-    </div>
+    </span>
   )
 }
 

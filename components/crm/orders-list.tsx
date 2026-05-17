@@ -8,6 +8,8 @@ import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inve
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmItemsQtyCell } from "@/components/crm/crm-items-qty-cell"
+import { CrmOrdersListCards } from "@/components/crm/crm-orders-list-cards"
+import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
@@ -94,7 +96,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     <div className="space-y-4">
       {/* Filter Panel */}
       {showFilters && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
           <input
             type="date"
             value={fromDate}
@@ -121,7 +123,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
           <CrmExcelExportButton
             onExport={exportListExcel}
             exporting={exportingExcel}
@@ -131,7 +133,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             {showFilters ? "Hide Filters" : "Filters"}
           </Button>
           {!workspace?.readOnly && (
-          <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
+          <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Order
           </Button>
           )}
@@ -149,7 +151,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
+        <>
+          <CrmOrdersListCards
+            orders={filtered}
+            onSelect={setSelected}
+            onDownloadPdf={downloadInvoicePDF}
+            onDelete={setDeleteConfirmOrder}
+          />
+          <div className="hidden md:block rounded-lg border overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b bg-[hsl(var(--muted))]/40">
@@ -160,8 +169,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Customer Relationship</th>
-                <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-16">Actions</th>
+                <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-20">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -217,7 +225,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {showForm && (
@@ -985,52 +994,67 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
     {showInvoicePreview && (
       <InvoicePreviewModal order={order} onClose={() => setShowInvoicePreview(false)} />
     )}
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-6xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-8 py-5 border-b shrink-0">
-          <div className="flex items-center gap-8">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full max-w-6xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-2 px-4 sm:px-8 py-3 sm:py-5 border-b shrink-0">
+          <div className="flex items-start gap-2 sm:gap-4 min-w-0 flex-1">
             <button
+              type="button"
               onClick={() => setIsEditing(!isEditing)}
-              className="h-9 w-9 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center transition-colors cursor-pointer"
+              className="h-9 w-9 shrink-0 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center transition-colors cursor-pointer"
               title={isEditing ? "Back to view" : "Edit order"}
             >
               <ArrowLeft className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
             </button>
-            <div>
-              <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <OrderSourceBadge order={order} />
-                <p className="text-xl font-bold text-[hsl(var(--primary))]">{order.orderNumber}</p>
-                <span className={`inline-flex items-center px-3 py-1 rounded text-xs font-medium ${STATUS_COLORS[order.status]}`}>
+                <p className="text-base sm:text-xl font-bold text-[hsl(var(--primary))] truncate">{order.orderNumber}</p>
+                <span className={`inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-medium ${STATUS_COLORS[order.status]}`}>
                   {STATUS_LABELS[order.status]}
                 </span>
               </div>
-              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize">{order.clientName}</p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize truncate">{order.clientName}</p>
+              {!isEditing && (
+                <div className="lg:hidden grid grid-cols-2 gap-2 mt-2 text-[10px]">
+                  {order.deliveryDate && (
+                    <div>
+                      <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Delivery</p>
+                      <p className="mt-0.5">{new Date(order.deliveryDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Created</p>
+                    <p className="mt-0.5">{new Date(order.createdAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              )}
             </div>
             {!isEditing && order.deliveryDate && (
-              <div className="border-l pl-6">
+              <div className="hidden lg:block border-l pl-6 shrink-0">
                 <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Delivery date</p>
                 <p className="text-sm mt-1">{new Date(order.deliveryDate).toLocaleDateString()}</p>
               </div>
             )}
             {!isEditing && (
-              <div className="border-l pl-6">
+              <div className="hidden lg:block border-l pl-6 shrink-0">
                 <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Source</p>
                 <p className="text-sm mt-1">{order.ownerUserId ? `Sales agent · ${order.createdBy}` : "CRM"}</p>
               </div>
             )}
             {!isEditing && (
-              <div className="border-l pl-6">
+              <div className="hidden lg:block border-l pl-6 shrink-0">
                 <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Created</p>
                 <p className="text-sm mt-1">{new Date(order.createdAt).toLocaleDateString()} by {order.createdBy}</p>
               </div>
             )}
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
             <X className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 space-y-5 sm:space-y-6">
           {isEditing ? (
             <>
               {/* Edit Form */}
@@ -1151,66 +1175,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
             <CrmLineItemsDisplay items={order.items} size="md" />
           </div>
 
-          {/* Order Summary */}
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <tbody className="divide-y">
-                <tr className="bg-[hsl(var(--muted))]/30">
-                  <td className="px-4 py-3 text-right font-medium">Subtotal</td>
-                  <td className="px-4 py-3 text-right font-medium w-48">PKR {order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                </tr>
-                {((order.tax || 0) > 0) && (
-                  <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium">Tax ({order.taxPercent || 18}%)</td>
-                    <td className="px-4 py-3 text-right font-medium">PKR {(order.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                )}
-                {order.transportCost > 0 && (
-                  <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium">{order.transportLabel || "Transport"}{order.transportIsPercentage && ` (${order.transportCost}%)`}</td>
-                    <td className="px-4 py-3 text-right font-medium">PKR {(order.transportCostValue || order.transportCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                )}
-                {order.otherCost > 0 && (
-                  <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium">{order.otherCostLabel || "Other"}{order.otherCostIsPercentage && ` (${order.otherCost}%)`}</td>
-                    <td className="px-4 py-3 text-right font-medium">PKR {(order.otherCostValue || order.otherCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                )}
-                {order.shipping > 0 && (
-                  <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium">Shipping</td>
-                    <td className="px-4 py-3 text-right font-medium">PKR {order.shipping.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                )}
-                {((order.discountValue !== undefined && order.discountValue !== null && order.discountValue > 0) || 
-                  (order.discount !== undefined && order.discount !== null && order.discount > 0)) && (
-                  <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium text-green-600">
-                      Discount{order.discount > 0 ? ` (${order.discount}%)` : ""}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-green-600">
-                      - PKR {(
-                        order.discountValue !== undefined && order.discountValue !== null && order.discountValue > 0
-                          ? order.discountValue
-                          : order.discountIsPercentage === true
-                            ? order.subtotal * (order.discount || 0) / 100
-                            : order.discountIsPercentage === false
-                              ? order.discount
-                              : (order.discount || 0) <= 100
-                                ? order.subtotal * (order.discount || 0) / 100
-                                : (order.discount || 0)
-                      ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                )}
-                <tr className="bg-[hsl(var(--muted))]/50 font-bold border-t">
-                  <td className="px-4 py-4 text-right text-base">Total</td>
-                  <td className="px-4 py-4 text-right text-base">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <CrmOrderSummaryDisplay order={order} />
 
           {/* Payment Section */}
           <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
@@ -1308,22 +1273,22 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
           )}
         </div>
 
-        <div className="flex items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
+        <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 px-4 sm:px-8 py-3 sm:py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {isEditing ? (
             <>
-              <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={handleSaveEdit} disabled={saving}>
+              <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={handleSaveEdit} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : "Save Changes"}
               </Button>
-              <Button size="sm" variant="outline" className="h-10 text-sm cursor-pointer" onClick={cancelEdit}>Cancel</Button>
+              <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm cursor-pointer" onClick={cancelEdit}>Cancel</Button>
             </>
           ) : (
             <>
               {order.status === "pending_approval" && isAdmin && (
                 <>
-                  <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => updateStatus("approved")}>
+                  <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => updateStatus("approved")}>
                     Approve Order
                   </Button>
-                  <Button size="sm" variant="outline" className="h-10 text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => updateStatus("rejected")}>
+                  <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => updateStatus("rejected")}>
                     Reject Order
                   </Button>
                 </>
@@ -1348,8 +1313,8 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   </Button>
                 </>
               )}
-              <Button size="sm" variant="outline" className="h-10 text-sm ml-auto cursor-pointer" onClick={onClose}>Close</Button>
-              <Button size="sm" className="h-10 text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
+              <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm sm:ml-auto cursor-pointer" onClick={onClose}>Close</Button>
+              <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
                 <Trash2 className="h-4 w-4 mr-2" /> {deleting ? "Deleting..." : "Delete"}
               </Button>
             </>
