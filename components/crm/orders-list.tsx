@@ -26,7 +26,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Order | null>(null)
   const [showFilters, setShowFilters] = useState(false)
@@ -62,15 +61,13 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     const matchesSearch = (o.orderNumber?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (o.clientName?.toLowerCase() || "").includes(search.toLowerCase())
     
-    const matchesStatus = statusFilter === "all" || o.status === statusFilter
-    
     const matchesDateRange = (!fromDate || !toDate) || (
       o.createdAt && 
       new Date(o.createdAt) >= new Date(fromDate) && 
       new Date(o.createdAt) <= new Date(toDate)
     )
     
-    return matchesSearch && matchesStatus && matchesDateRange
+    return matchesSearch && matchesDateRange
   })
 
   function exportListExcel() {
@@ -120,101 +117,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 border-b">
-          <button
-            onClick={() => setStatusFilter("all")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-              statusFilter === "all"
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-            }`}
-          >
-            All
-            {statusFilter === "all" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-            )}
-          </button>
-          <button
-            onClick={() => setStatusFilter("pending_approval")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-              statusFilter === "pending_approval"
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-            }`}
-          >
-            Pending
-            {statusFilter === "pending_approval" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-            )}
-          </button>
-          <button
-            onClick={() => setStatusFilter("approved")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-              statusFilter === "approved"
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-            }`}
-          >
-            Approved
-            {statusFilter === "approved" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-            )}
-          </button>
-          <button
-            onClick={() => setStatusFilter("rejected")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-              statusFilter === "rejected"
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-            }`}
-          >
-            Rejected
-            {statusFilter === "rejected" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-            )}
-          </button>
-          <button
-            onClick={() => setStatusFilter("payment_added")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-              statusFilter === "payment_added"
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-            }`}
-          >
-            Payment Pending
-            {statusFilter === "payment_added" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-            )}
-          </button>
-          <button
-            onClick={() => setStatusFilter("finalized")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-              statusFilter === "finalized"
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-            }`}
-          >
-            Finalized
-            {statusFilter === "finalized" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-            )}
-          </button>
-          <button
-            onClick={() => setStatusFilter("delivered")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-              statusFilter === "delivered"
-                ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-            }`}
-          >
-            Delivered
-            {statusFilter === "delivered" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-            )}
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3">
           <CrmExcelExportButton
             onExport={exportListExcel}
             exporting={exportingExcel}
@@ -228,7 +131,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             <Plus className="h-3.5 w-3.5 mr-1" /> Order
           </Button>
           )}
-        </div>
       </div>
 
       {loading ? (

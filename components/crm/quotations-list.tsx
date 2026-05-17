@@ -42,8 +42,6 @@ function inDateRange(createdAt: string | undefined, from: string, to: string) {
   return true
 }
 
-const STATUS_TABS = ["all", "draft", "pending_approval", "sent", "accepted", "rejected", "expired", "converted"] as const
-
 export function QuotationsList({
   currentUser,
   currentUserId,
@@ -61,7 +59,6 @@ export function QuotationsList({
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Quotation | null>(null)
   const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null)
@@ -91,9 +88,8 @@ export function QuotationsList({
     const ms =
       (q.quotationNumber?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (q.clientName?.toLowerCase() || "").includes(search.toLowerCase())
-    const statusOk = statusFilter === "all" || q.status === statusFilter
     const dateOk = isSalesAgent ? inDateRange(q.createdAt, appliedFrom, appliedTo) : true
-    return ms && statusOk && dateOk
+    return ms && dateOk
   })
 
   function applyDates() {
@@ -117,7 +113,7 @@ export function QuotationsList({
         quotations: filtered,
         dateFrom: isSalesAgent ? appliedFrom || null : null,
         dateTo: isSalesAgent ? appliedTo || null : null,
-        statusFilter,
+        statusFilter: "all",
       })
       toast({ title: "Downloaded", message: "Quotations report saved as PDF.", type: "success" })
     } catch {
@@ -161,41 +157,24 @@ export function QuotationsList({
         />
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-wrap gap-1.5 min-w-0">
-          {STATUS_TABS.map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer shrink-0 ${
-                statusFilter === s
-                  ? "bg-[#1faca6] text-white"
-                  : "bg-[hsl(var(--muted))]/50 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              {s === "all" ? "All" : STATUS_LABELS[s as keyof typeof STATUS_LABELS] || s}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full min-w-0 sm:w-40"
-          />
-          <CrmExcelExportButton
-            onExport={exportListExcel}
-            exporting={exportingExcel}
-            disabled={loading || filtered.length === 0}
-          />
-          {!workspace?.readOnly && (
-            <Button size="sm" className="h-8 text-xs px-3 cursor-pointer w-full sm:w-auto" onClick={() => setShowForm(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Create Quotation
-            </Button>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search..."
+          className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full min-w-0 sm:w-40"
+        />
+        <CrmExcelExportButton
+          onExport={exportListExcel}
+          exporting={exportingExcel}
+          disabled={loading || filtered.length === 0}
+        />
+        {!workspace?.readOnly && (
+          <Button size="sm" className="h-8 text-xs px-3 cursor-pointer w-full sm:w-auto" onClick={() => setShowForm(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Create Quotation
+          </Button>
+        )}
       </div>
 
       {isSalesAgent && (appliedFrom || appliedTo) && (
@@ -218,7 +197,7 @@ export function QuotationsList({
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {quotations.length === 0
               ? "No quotations yet. Create your first one!"
-              : "No quotations match your filters."}
+              : "No quotations match your search."}
           </p>
         </div>
       ) : (
