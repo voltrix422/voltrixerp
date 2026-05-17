@@ -38,12 +38,15 @@ export async function POST(req: NextRequest) {
     createWarranty = true,
   } = body
 
-  if (!serialNumber) {
+  const normalizedSerial = String(serialNumber ?? "").trim()
+  if (!normalizedSerial) {
     return NextResponse.json({ error: "Serial number is required" }, { status: 400 })
   }
 
-  const existing = await prisma.erpInventorySerialUnit.findUnique({
-    where: { serialNumber },
+  const existing = await prisma.erpInventorySerialUnit.findFirst({
+    where: {
+      serialNumber: { equals: normalizedSerial, mode: "insensitive" },
+    },
   })
   if (existing) {
     return NextResponse.json({ error: "This serial number is already registered" }, { status: 409 })
@@ -59,12 +62,12 @@ export async function POST(req: NextRequest) {
     const warranty = await prisma.erpWarranty.create({
       data: {
         warrantyId: generatedWarrantyId,
-        serialNumber,
-        productName: productName || assignedName || serialNumber,
+        serialNumber: normalizedSerial,
+        productName: productName || assignedName || normalizedSerial,
         soldDate: now,
         warrantyStartDate,
         warrantyEndDate,
-        notes: notes || `Registered from inventory QR scan (${serialNumber})`,
+        notes: notes || `Registered from inventory QR scan (${normalizedSerial})`,
         createdBy: scannedBy || "system",
       },
     })
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
 
   const unit = await prisma.erpInventorySerialUnit.create({
     data: {
-      serialNumber,
+      serialNumber: normalizedSerial,
       assignedName: assignedName || "",
       productName: productName || "",
       model: model || "",

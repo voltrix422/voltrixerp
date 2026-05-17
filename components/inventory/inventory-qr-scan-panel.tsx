@@ -13,7 +13,9 @@ import { Html5Qrcode } from "html5-qrcode"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
 import {
   getInventorySerialUnits,
+  normalizeInventorySerialNumber,
   saveInventorySerialUnitsBatch,
+  serialNumberKey,
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
 import { Button } from "@/components/ui/button"
@@ -77,7 +79,9 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
   const { toast } = useToast()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const lastScanRef = useRef<{ text: string; at: number }>({ text: "", at: 0 })
+  const lastSnScanRef = useRef<{ key: string; at: number }>({ key: "", at: 0 })
+  const sessionSerialKeysRef = useRef<Set<string>>(new Set())
+  const knownSerialKeysRef = useRef<Set<string>>(new Set())
   const pasteRef = useRef<HTMLTextAreaElement | null>(null)
 
   const [scanning, setScanning] = useState(false)
@@ -93,9 +97,15 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({})
   const [pasteValue, setPasteValue] = useState("")
 
+  function syncKnownSerials(serials: string[]) {
+    const keys = new Set(serials.map((s) => serialNumberKey(s)).filter(Boolean))
+    knownSerialKeysRef.current = keys
+    setExistingSerials(keys)
+  }
+
   useEffect(() => {
     if (compact) {
-      setExistingSerials(new Set(existingSerialNumbers))
+      syncKnownSerials(existingSerialNumbers)
       setLoading(false)
       return
     }
@@ -110,7 +120,7 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     try {
       const unitRows = await getInventorySerialUnits()
       setSavedUnits(unitRows)
-      setExistingSerials(new Set(unitRows.map((u) => u.serialNumber)))
+      syncKnownSerials(unitRows.map((u) => u.serialNumber))
     } catch (loadError) {
       console.error(loadError)
       setError("Failed to load scanned units.")
@@ -121,11 +131,15 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
 
   const groupedByModel = useMemo(() => {
     const map = new Map<string, SessionScan[]>()
+    const seenSn = new Set<string>()
     for (const scan of sessionScans) {
-      const key = scan.model || "Unknown model"
-      const list = map.get(key) ?? []
+      const snKey = serialNumberKey(scan.serialNumber)
+      if (!snKey || seenSn.has(snKey)) continue
+      seenSn.add(snKey)
+      const modelKey = scan.model || "Unknown model"
+      const list = map.get(modelKey) ?? []
       list.push(scan)
-      map.set(key, list)
+      map.set(modelKey, list)
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [sessionScans])
@@ -146,9 +160,12 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     const itemNo = parsed.extra.batchRef || ""
     const internalRef = parsed.extra.internalRef || ""
 
+    const serialNumber = normalizeInventorySerialNumber(parsed.serialNumber)
+    if (!serialNumber) return null
+
     return {
-      tempId: `${parsed.serialNumber}-${Date.now()}`,
-      serialNumber: parsed.serialNumber,
+      tempId: `${serialNumber}-${Date.now()}`,
+      serialNumber,
       model: parsed.model || "Unknown model",
       itemNo,
       internalRef,
@@ -162,34 +179,46 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     }
   }
 
+  function rejectDuplicate(sn: string, reason: string) {
+    setScanMessage(`${reason}: ${sn}`)
+    setError("")
+  }
+
   function addScanFromPayload(payload: string) {
     const trimmed = payload.trim()
     if (!trimmed) return
 
-    const now = Date.now()
-    if (lastScanRef.current.text === trimmed && now - lastScanRef.current.at < 2500) {
-      return
-    }
-    lastScanRef.current = { text: trimmed, at: now }
-
     const scan = buildSessionScan(trimmed)
     if (!scan) return
 
-    if (sessionScans.some((s) => s.serialNumber === scan.serialNumber)) {
-      setScanMessage(`Already in this session: ${scan.serialNumber}`)
-      setError("")
+    const snKey = serialNumberKey(scan.serialNumber)
+    const now = Date.now()
+
+    if (lastSnScanRef.current.key === snKey && now - lastSnScanRef.current.at < 4000) {
+      return
+    }
+    lastSnScanRef.current = { key: snKey, at: now }
+
+    if (sessionSerialKeysRef.current.has(snKey)) {
+      rejectDuplicate(scan.serialNumber, "Already scanned this session")
       return
     }
 
-    if (existingSerials.has(scan.serialNumber)) {
-      setScanMessage(`Already in system: ${scan.serialNumber}`)
-      setError("")
+    if (knownSerialKeysRef.current.has(snKey)) {
+      rejectDuplicate(scan.serialNumber, "Already in inventory")
       return
     }
 
-    setSessionScans((prev) => [...prev, scan])
+    sessionSerialKeysRef.current.add(snKey)
+    setSessionScans((prev) => {
+      if (prev.some((s) => serialNumberKey(s.serialNumber) === snKey)) {
+        return prev
+      }
+      return [...prev, scan]
+    })
+
     setExpandedModels((prev) => ({ ...prev, [scan.model]: true }))
-    setScanMessage(`+1 · ${scan.model} · SN ${scan.serialNumber} (${sessionTotal + 1} total)`)
+    setScanMessage(`+1 · ${scan.model} · SN ${scan.serialNumber}`)
     setError("")
     setPasteValue("")
   }
@@ -293,14 +322,33 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
   }
 
   function removeFromSession(tempId: string) {
-    setSessionScans((prev) => prev.filter((s) => s.tempId !== tempId))
+    setSessionScans((prev) => {
+      const removed = prev.find((s) => s.tempId === tempId)
+      if (removed) {
+        sessionSerialKeysRef.current.delete(serialNumberKey(removed.serialNumber))
+      }
+      return prev.filter((s) => s.tempId !== tempId)
+    })
   }
 
   function clearSession() {
     if (sessionScans.length > 0 && !confirm("Clear all scans in this session?")) return
+    sessionSerialKeysRef.current = new Set()
     setSessionScans([])
     setScanMessage("")
     setShowSummary(false)
+  }
+
+  function dedupeSessionScans(scans: SessionScan[]): SessionScan[] {
+    const seen = new Set<string>()
+    const out: SessionScan[] = []
+    for (const scan of scans) {
+      const key = serialNumberKey(scan.serialNumber)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push(scan)
+    }
+    return out
   }
 
   async function completeAndSave() {
@@ -316,8 +364,9 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     const batchLabel = `Bulk receive ${receiveLabel}`
 
     try {
+      const toSave = dedupeSessionScans(sessionScans)
       const { saved, errors } = await saveInventorySerialUnitsBatch(
-        sessionScans.map((scan) => ({
+        toSave.map((scan) => ({
           serialNumber: scan.serialNumber,
           assignedName: batchLabel,
           productName: scan.productName,
@@ -331,12 +380,12 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
         })),
       )
 
-      setExistingSerials((prev) => {
-        const next = new Set(prev)
-        for (const unit of saved) next.add(unit.serialNumber)
-        return next
-      })
+      for (const unit of saved) {
+        knownSerialKeysRef.current.add(serialNumberKey(unit.serialNumber))
+      }
+      setExistingSerials(new Set(knownSerialKeysRef.current))
       setSavedUnits((prev) => [...saved, ...prev])
+      sessionSerialKeysRef.current = new Set()
       setSessionScans([])
       setShowSummary(false)
       await stopScanner()

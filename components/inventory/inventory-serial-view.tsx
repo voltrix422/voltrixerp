@@ -1,7 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { getInventorySerialUnits, type InventorySerialUnit } from "@/lib/inventory-serial-units"
+import {
+  getInventorySerialUnits,
+  serialNumberKey,
+  type InventorySerialUnit,
+} from "@/lib/inventory-serial-units"
 import { downloadSerialUnitsExcel } from "@/lib/inventory-excel-export"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
@@ -52,10 +56,20 @@ export function InventorySerialView() {
     void loadUnits()
   }, [loadUnits])
 
+  const uniqueUnits = useMemo(() => {
+    const byKey = new Map<string, InventorySerialUnit>()
+    for (const unit of units) {
+      const key = serialNumberKey(unit.serialNumber)
+      if (!key) continue
+      if (!byKey.has(key)) byKey.set(key, unit)
+    }
+    return Array.from(byKey.values())
+  }, [units])
+
   const filteredUnits = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return units
-    return units.filter(
+    if (!q) return uniqueUnits
+    return uniqueUnits.filter(
       (u) =>
         u.serialNumber.toLowerCase().includes(q) ||
         (u.model || "").toLowerCase().includes(q) ||
@@ -63,7 +77,7 @@ export function InventorySerialView() {
         (u.specs || "").toLowerCase().includes(q) ||
         (u.notes || "").toLowerCase().includes(q),
     )
-  }, [units, search])
+  }, [uniqueUnits, search])
 
   const groupedByModel = useMemo(() => {
     const map = new Map<string, InventorySerialUnit[]>()

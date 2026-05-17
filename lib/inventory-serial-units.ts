@@ -1,3 +1,12 @@
+/** One physical unit = one SN. Normalize so duplicate scans match reliably. */
+export function normalizeInventorySerialNumber(serial: string): string {
+  return serial.trim()
+}
+
+export function serialNumberKey(serial: string): string {
+  return normalizeInventorySerialNumber(serial).toUpperCase()
+}
+
 export interface InventorySerialUnit {
   id: string
   serialNumber: string
@@ -95,13 +104,27 @@ export async function saveInventorySerialUnitsBatch(
   const saved: InventorySerialUnit[] = []
   const errors: { serialNumber: string; error: string }[] = []
 
+  const seenInBatch = new Set<string>()
+
   for (const unit of units) {
+    const sn = normalizeInventorySerialNumber(unit.serialNumber)
+    if (!sn) {
+      errors.push({ serialNumber: unit.serialNumber, error: "Serial number is required" })
+      continue
+    }
+    const key = serialNumberKey(sn)
+    if (seenInBatch.has(key)) {
+      errors.push({ serialNumber: sn, error: "Duplicate serial number in this batch" })
+      continue
+    }
+    seenInBatch.add(key)
+
     try {
-      const row = await saveInventorySerialUnit(unit)
+      const row = await saveInventorySerialUnit({ ...unit, serialNumber: sn })
       saved.push(row)
     } catch (err) {
       errors.push({
-        serialNumber: unit.serialNumber,
+        serialNumber: sn,
         error: err instanceof Error ? err.message : "Failed to save",
       })
     }
