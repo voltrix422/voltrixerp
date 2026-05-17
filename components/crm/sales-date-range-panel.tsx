@@ -40,7 +40,7 @@ export function SalesDateRangePanel({
     dateFrom && dateTo ? `${dateFrom} → ${dateTo}` : dateFrom ? `From ${dateFrom}` : dateTo ? `Until ${dateTo}` : "All time"
 
   return (
-    <motion className="w-full max-w-full min-w-0 rounded-lg border overflow-hidden shadow-sm box-border">
+    <div className="w-full max-w-full min-w-0 rounded-lg border overflow-hidden shadow-sm box-border">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
