@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { getPOs, savePO, type PurchaseOrder, type ImportedPOItem } from "@/lib/purchase"
 // DB access via /api/db routes (Prisma)
@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Package, Search, X, CheckCircle2, Plus, Calendar, Calculator, Trash2, ChevronDown } from "lucide-react"
 import { generateGRN } from "@/lib/generate-grn"
-import { InventoryHistory } from "@/components/inventory/inventory-history"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
 
 interface PODetailModalProps {
@@ -267,9 +266,9 @@ export function InventoryList() {
   const [selected, setSelected] = useState<PurchaseOrder | null>(null)
   const [selectedInventoryItem, setSelectedInventoryItem] = useState<InventoryItem | null>(null)
   const [receiving, setReceiving] = useState(false)
-  const [tab, setTab] = useState<"receiving" | "inventory">("receiving")
-  const [receivingSubTab, setReceivingSubTab] = useState<"pending" | "received">("pending")
-  const [inventorySubTab, setInventorySubTab] = useState<"po" | "manual" | "qr">("po")
+  const [inventorySubTab, setInventorySubTab] = useState<"manual" | "qr">("manual")
+  const tab = "inventory" as const
+  const receivingSubTab = "pending" as const
   const [allInventoryItems, setAllInventoryItems] = useState<InventoryItem[]>([])
   const [usingFallbackData, setUsingFallbackData] = useState(false)
   const [showManualItemModal, setShowManualItemModal] = useState(false)
@@ -557,10 +556,8 @@ export function InventoryList() {
   }, [])
 
   useEffect(() => {
-    if (tab === "inventory" || pos.length > 0) {
-      loadStockItems()
-    }
-  }, [tab, pos])
+    loadStockItems()
+  }, [pos])
 
   const receivingPOs = pos.filter(p => {
     if (p.type === "imported") {
@@ -611,8 +608,7 @@ export function InventoryList() {
       (!toDate || itemDate <= new Date(toDate))
     
     const isManual = item.poNumber?.startsWith("MI-")
-    const isFromPO = item.poNumber && item.poNumber.trim() !== "" && !isManual
-    const matchesSource = inventorySubTab === "po" ? isFromPO : inventorySubTab === "manual" ? isManual : false
+    const matchesSource = inventorySubTab === "manual" ? isManual : false
     
     return matchesSearch && matchesDateRange && matchesSource
   })
@@ -806,12 +802,7 @@ export function InventoryList() {
     generateGRN(updated)
     setReceiving(false)
 
-    const currentTab = tab
-    setTab("receiving")
-    setTimeout(() => {
-      setTab(currentTab)
-      loadStockItems()
-    }, 100)
+    loadStockItems()
   }
 
   if (loading) return (
@@ -821,8 +812,7 @@ export function InventoryList() {
   )
   return (
     <div className="space-y-4">
-      {/* Filter Section */}
-      {showFilters && (
+      {false && showFilters && (
         <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-2">
         <input
           type="date"
@@ -843,7 +833,7 @@ export function InventoryList() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder={tab === "receiving" ? "Search PO, supplier, PSSID..." : "Search item, PO, supplier..."}
+            placeholder="Search item, PO, supplier..."
             className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
           />
         </div>
@@ -853,11 +843,11 @@ export function InventoryList() {
       </div>
       )}
 
-      {/* Main Tabs */}
+      {false && (
       <div className="flex items-center justify-between gap-0 border-b -mx-6 px-6">
         <div className="flex gap-0">
           {(["receiving", "inventory"] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
+            <button key={t} onClick={() => {}}
               className={`px-4 py-2.5 text-sm font-medium transition-colors relative cursor-pointer ${
                 tab === t ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
@@ -871,12 +861,13 @@ export function InventoryList() {
         
         <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={() => setShowFilters(!showFilters)}>Filters</Button>
       </div>
+      )}
 
       {/* Receiving Sub-tabs */}
-      {tab === "receiving" && (
+      {false && (
         <div className="flex gap-0 border-b -mx-6 px-6 -mt-4">
           {(["pending", "received"] as const).map(st => (
-            <button key={st} onClick={() => setReceivingSubTab(st)}
+            <button key={st} onClick={() => {}}
               className={`px-3 py-2 text-xs font-medium transition-colors relative cursor-pointer ${
                 receivingSubTab === st ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}>
@@ -893,18 +884,17 @@ export function InventoryList() {
       )}
 
       {/* Inventory Sub-tabs */}
-      {tab === "inventory" && (
-        <div className="flex items-center gap-0 border-b -mx-6 px-6 -mt-4">
-          <div className="flex gap-0">
-            {(["po", "manual", "qr"] as const).map(st => (
+      <div className="flex items-center gap-0 border-b -mx-6 px-6">
+          <div className="flex gap-0 flex-1">
+            {(["manual", "qr"] as const).map(st => (
               <button key={st} onClick={() => setInventorySubTab(st)}
                 className={`px-3 py-2 text-xs font-medium transition-colors relative cursor-pointer ${
                   inventorySubTab === st ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                 }`}>
-                {st === "po" ? "From Purchase Orders" : st === "manual" ? "Manual Added" : "Scan QR"}
-                {st !== "qr" && (
+                {st === "manual" ? "Manual Added" : "Scan QR"}
+                {st === "manual" && (
                   <span className="ml-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                    {st === "po" ? allInventoryItems.filter(i => i.poNumber && i.poNumber.trim() !== "" && !i.poNumber.startsWith("MI-")).length : allInventoryItems.filter(i => i.poNumber?.startsWith("MI-")).length}
+                    ({allInventoryItems.filter(i => i.poNumber?.startsWith("MI-")).length})
                   </span>
                 )}
                 {inventorySubTab === st && (
@@ -914,18 +904,27 @@ export function InventoryList() {
             ))}
           </div>
           {inventorySubTab === "manual" && (
-            <button 
-              onClick={() => setShowManualItemModal(true)}
-              className="text-xs font-medium text-[hsl(var(--primary))] hover:underline decoration-dotted underline-offset-2 cursor-pointer transition-colors ml-auto"
-            >
-              Add Manual Item
-            </button>
+            <>
+              <div className="relative flex-1 max-w-xs ml-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search item, PO, supplier..."
+                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                />
+              </div>
+              <button
+                onClick={() => setShowManualItemModal(true)}
+                className="text-xs font-medium text-[hsl(var(--primary))] hover:underline decoration-dotted underline-offset-2 cursor-pointer transition-colors ml-3 shrink-0"
+              >
+                Add Manual Item
+              </button>
+            </>
           )}
         </div>
-      )}
 
-      {/* Receiving Tab */}
-      {tab === "receiving" && (
+      {false && (
         <>
           {filteredReceiving.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-2 text-[hsl(var(--muted-foreground))]">
@@ -995,7 +994,7 @@ export function InventoryList() {
         </>
       )}
       {/* Inventory Tab */}
-      {tab === "inventory" && inventorySubTab === "qr" && (
+      {inventorySubTab === "qr" && (
         <InventoryQrScanPanel
           manualStockItems={allInventoryItems
             .filter((item) => item.poNumber?.startsWith("MI-"))
@@ -1007,7 +1006,7 @@ export function InventoryList() {
         />
       )}
 
-      {tab === "inventory" && inventorySubTab !== "qr" && (
+      {inventorySubTab === "manual" && (
         <>
           {filteredInventory.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-2 text-[hsl(var(--muted-foreground))]">

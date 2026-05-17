@@ -4,78 +4,53 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { InventoryList } from "@/components/inventory/inventory-list"
 import { ClientOrdersInventory } from "@/components/inventory/client-orders-inventory"
-import { InventoryHistory } from "@/components/inventory/inventory-history"
 import { BranchesTab } from "@/components/branches/branches-tab"
+import { History } from "lucide-react"
 
 export default function InventoryPage() {
-  const [tab, setTab] = useState<"orders" | "stock" | "history" | "branches">("orders")
+  const [tab, setTab] = useState<"orders" | "inventory" | "branches" | "history">("orders")
+
+  const tabs = [
+    { id: "orders" as const, label: "Client Orders" },
+    { id: "inventory" as const, label: "Inventory" },
+    { id: "branches" as const, label: "Branches" },
+    { id: "history" as const, label: "History" },
+  ]
 
   return (
     <ModuleGuard module="inventory">
       <Topbar title="Inventory" description="Manage stock and dispatch client orders" />
       <div className="flex-1 overflow-auto">
         <div className="p-6 max-w-6xl">
-          {/* Tabs */}
           <div className="flex items-center gap-1 border-b border-[hsl(var(--border))] mb-4">
-            <button
-              onClick={() => setTab("orders")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-                tab === "orders"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              Client Orders
-              {tab === "orders" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-              )}
-            </button>
-            <button
-              onClick={() => setTab("stock")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-                tab === "stock"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              Stock Items
-              {tab === "stock" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-              )}
-            </button>
-            <button
-              onClick={() => setTab("branches")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-                tab === "branches"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              Branches
-              {tab === "branches" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-              )}
-            </button>
-            <button
-              onClick={() => setTab("history")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-                tab === "history"
-                  ? "text-[hsl(var(--foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              History
-              {tab === "history" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-              )}
-            </button>
+            {tabs.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+                  tab === id
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                {label}
+                {tab === id && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                )}
+              </button>
+            ))}
           </div>
 
-          {/* Tab Content */}
           {tab === "orders" && <ClientOrdersInventory />}
-          {tab === "stock" && <InventoryList />}
-          {tab === "history" && <InventoryHistory />}
+          {tab === "inventory" && <InventoryList />}
           {tab === "branches" && <BranchesTab />}
+          {tab === "history" && (
+            <div className="flex flex-col items-center justify-center py-24 text-center text-[hsl(var(--muted-foreground))]">
+              <History className="h-10 w-10 opacity-30 mb-3" />
+              <p className="text-sm font-medium text-[hsl(var(--foreground))]">History</p>
+              <p className="text-xs mt-1 max-w-sm">Inventory and fulfillment history will appear here soon.</p>
+            </div>
+          )}
         </div>
       </div>
     </ModuleGuard>
