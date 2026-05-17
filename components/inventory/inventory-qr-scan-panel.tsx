@@ -11,6 +11,7 @@ import {
 } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import { playScanRejectBeep, playScanSuccessBeep, prepareScanAudio } from "@/lib/scan-beep"
 import {
   getInventorySerialUnits,
   normalizeInventorySerialNumber,
@@ -180,6 +181,7 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
   }
 
   function rejectDuplicate(sn: string, reason: string) {
+    playScanRejectBeep()
     setScanMessage(`${reason}: ${sn}`)
     setError("")
   }
@@ -218,6 +220,7 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     })
 
     setExpandedModels((prev) => ({ ...prev, [scan.model]: true }))
+    playScanSuccessBeep()
     setScanMessage(`+1 · ${scan.model} · SN ${scan.serialNumber}`)
     setError("")
     setPasteValue("")
@@ -245,6 +248,7 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     setError("")
     setScanMessage("Continuous scan on — scan each box QR.")
     setScanning(true)
+    prepareScanAudio()
     await waitForScannerMount()
 
     try {
