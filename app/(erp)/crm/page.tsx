@@ -76,7 +76,7 @@ export default function CRMPage() {
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
             >
-              Sales leads
+              Leads
               {tab === "leads" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}

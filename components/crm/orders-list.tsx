@@ -4,7 +4,8 @@ import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPayment
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
-import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
+import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
+import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
 import { useAuth } from "@/components/auth-provider"
@@ -280,7 +281,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
   const [deliveryDate, setDeliveryDate] = useState("")
   const [notes, setNotes] = useState("")
   const [saving, setSaving] = useState(false)
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
+  const [warehouseProducts, setWarehouseProducts] = useState<CrmWarehouseProduct[]>([])
   const [showInventory, setShowInventory] = useState(false)
   const [showClientDropdown, setShowClientDropdown] = useState(false)
   const [clientSearch, setClientSearch] = useState("")
@@ -300,8 +301,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
   const [discountIsPercentage, setDiscountIsPercentage] = useState<boolean>(true)
 
   useEffect(() => {
-    // Load inventory items
-    getInventoryItems().then(setInventoryItems)
+    void loadCrmWarehouseProducts().then(setWarehouseProducts)
   }, [])
 
   useEffect(() => {
@@ -339,10 +339,6 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
   // Total calculation
   const total = discountedSubtotal + taxAmount + transportAmount + otherAmount
 
-  function addCustomItem() {
-    setItems(prev => [...prev, { id: Date.now().toString(), description: "", qty: 1, unit: "pcs", unitPrice: 0, isCustom: true }])
-  }
-
   function updateItem(id: string, key: keyof OrderItem, value: any) {
     setItems(prev => prev.map(i => {
       if (i.id === id) {
@@ -366,34 +362,33 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
     setItems(prev => prev.filter(i => i.id !== id))
   }
 
-  function addFromInventory(invItem: InventoryItem) {
-    // Check if item already exists in the order
-    const existingItem = items.find(i => i.inventoryItemId === invItem.id)
-    
+  function addFromInventory(product: CrmWarehouseProduct) {
+    const existingItem = items.find((i) => i.inventoryItemId === product.id)
+
     if (existingItem) {
-      // Item already added, just increase quantity by 1 (up to available stock)
-      if (existingItem.qty < invItem.qty) {
-        setItems(prev => prev.map(i => 
-          i.id === existingItem.id 
-            ? { ...i, qty: i.qty + 1 }
-            : i
-        ))
+      if (existingItem.qty < product.qty) {
+        setItems((prev) =>
+          prev.map((i) => (i.id === existingItem.id ? { ...i, qty: i.qty + 1 } : i)),
+        )
       }
     } else {
-      // Add new item with cost price, user can edit to add profit
-      setItems(prev => [...prev, {
-        id: Date.now().toString(),
-        description: invItem.description,
-        qty: 1,
-        unit: invItem.unit,
-        unitPrice: invItem.unitPrice, // Start with cost price
-        isCustom: false,
-        inventoryItemId: invItem.id,
-        availableQty: invItem.qty,
-        costPrice: invItem.unitPrice, // Store cost price for reference
-      }])
+      setItems((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          description: product.displayName,
+          qty: 1,
+          unit: product.unit,
+          unitPrice: 0,
+          isCustom: false,
+          inventoryItemId: product.id,
+          availableQty: product.qty,
+          costPrice: 0,
+        },
+      ])
     }
     setShowInventory(false)
+    setInventorySearch("")
   }
 
   async function submit() {
@@ -448,16 +443,16 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
           <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">{quantityError}</p>
         </div>
       )}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-        <div className="w-full max-w-5xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-8 py-5 border-b shrink-0">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+        <div className="w-full sm:max-w-5xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[85vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-5 border-b shrink-0">
             <p className="text-lg font-bold">Create New Order</p>
-            <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
               <X className="h-5 w-5" />
             </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-8 space-y-6">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-8 space-y-5 sm:space-y-6">
             <div className="space-y-2 relative">
             <label className="text-sm font-semibold">Select Client *</label>
             <button
@@ -519,7 +514,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
           {/* Delivery Information */}
           <div className="pt-4 border-t">
             <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Delivery Information</p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Delivery Address</label>
                 <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)}
@@ -548,25 +543,20 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
           <div className="pt-4 border-t">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order Items *</p>
-              <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" className="h-9 text-xs px-3 cursor-pointer" onClick={() => setShowInventory(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Add from Inventory
-                </Button>
-                <Button type="button" size="sm" variant="outline" className="h-9 text-xs px-3 cursor-pointer" onClick={addCustomItem}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Add Custom Product
-                </Button>
-              </div>
+              <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowInventory(true)}>
+                <Plus className="h-4 w-4 mr-1.5" /> Add from inventory
+              </Button>
             </div>
 
             {items.length === 0 ? (
               <div className="rounded-lg border border-dashed p-8 text-center bg-[hsl(var(--muted))]/10">
                 <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mx-auto mb-3" />
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">No items added yet</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add items from inventory or create custom products</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add items from warehouse inventory</p>
               </div>
             ) : (
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-lg border overflow-hidden overflow-x-auto">
+                <table className="w-full text-sm min-w-[520px]">
                   <thead>
                     <tr className="bg-[hsl(var(--muted))]/40 border-b">
                       <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
@@ -861,119 +851,23 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          <Button size="sm" className="h-10 text-sm px-6 cursor-pointer" onClick={submit} disabled={saving || !clientId || items.length === 0}>
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 px-4 sm:px-8 py-3 sm:py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <Button size="sm" variant="outline" className="h-10 text-sm px-6 cursor-pointer w-full sm:w-auto" onClick={onClose}>Cancel</Button>
+          <Button size="sm" className="h-10 text-sm px-6 cursor-pointer w-full sm:w-auto bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={submit} disabled={saving || !clientId || items.length === 0}>
             {saving ? "Creating..." : workspace?.mode === "sales_agent" ? "Submit for approval" : "Create Order"}
           </Button>
-          <Button size="sm" variant="outline" className="h-10 text-sm px-6 cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
       </div>
+      </div>
 
-      {showInventory && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowInventory(false)}>
-          <div className="w-full max-w-3xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <p className="text-sm font-semibold">Select from Inventory</p>
-              <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={() => setShowInventory(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="p-4 border-b">
-              <input
-                type="text"
-                value={inventorySearch}
-                onChange={e => setInventorySearch(e.target.value)}
-                placeholder="Search inventory..."
-                className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-              />
-            </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
-              {inventoryItems.length === 0 ? (
-                <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-8">No items in inventory</p>
-              ) : (() => {
-                const filteredItems = inventoryItems.filter(item => 
-                  (item.name && item.name.toLowerCase().includes(inventorySearch.toLowerCase())) ||
-                  item.description.toLowerCase().includes(inventorySearch.toLowerCase()) ||
-                  (item.supplier && item.supplier.toLowerCase().includes(inventorySearch.toLowerCase())) ||
-                  (item.poNumber && item.poNumber.toLowerCase().includes(inventorySearch.toLowerCase()))
-                )
-                // Manual items: no poNumber or poNumber starts with "MI-"
-                const manualItems = filteredItems.filter(item => !item.poNumber || item.poNumber?.startsWith("MI-"))
-                // PO items: has poNumber and doesn't start with "MI-"
-                const poItems = filteredItems.filter(item => item.poNumber && !item.poNumber.startsWith("MI-"))
-                
-                if (filteredItems.length === 0) {
-                  return (
-                    <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-8">No items found matching your search</p>
-                  )
-                }
-                
-                return (
-                  <div className="space-y-6">
-                    {poItems.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] border-b pb-2">From Purchase Orders</p>
-                        {poItems.map(item => (
-                          <div key={item.id}
-                            className="flex items-center justify-between p-3 rounded-lg border hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors cursor-pointer">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">{item.name || item.description}</p>
-                              {item.name && item.description && (
-                                <p className="text-xs text-[hsl(var(--muted-foreground))]">{item.description}</p>
-                              )}
-                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                                {item.poNumber} · {item.supplier}
-                              </p>
-                              <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
-                                Available: {item.qty} {item.unit} in stock
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold">PKR {item.unitPrice.toLocaleString()}/{item.unit}</p>
-                              <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => addFromInventory(item)}>
-                                Add
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {manualItems.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] border-b pb-2">From Manual Inventory</p>
-                        {manualItems.map(item => (
-                          <div key={item.id}
-                            className="flex items-center justify-between p-3 rounded-lg border hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors cursor-pointer">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">{item.name || item.description}</p>
-                              {item.name && item.description && (
-                                <p className="text-xs text-[hsl(var(--muted-foreground))]">{item.description}</p>
-                              )}
-                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                                {item.poNumber || "Manual"} · {item.supplier}
-                              </p>
-                              <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
-                                Available: {item.qty} {item.unit} in stock
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold">PKR {item.unitPrice.toLocaleString()}/{item.unit}</p>
-                              <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => addFromInventory(item)}>
-                                Add
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <CrmWarehouseInventoryPicker
+        open={showInventory}
+        products={warehouseProducts}
+        search={inventorySearch}
+        onSearchChange={setInventorySearch}
+        onClose={() => setShowInventory(false)}
+        onSelect={addFromInventory}
+      />
     </>
   )
 }

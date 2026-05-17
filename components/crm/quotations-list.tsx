@@ -5,7 +5,8 @@ import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, orderStatusForQuotationConversion, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
-import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
+import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
+import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -314,13 +315,15 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   const [otherCostLabel, setOtherCostLabel] = useState(existing?.otherCostLabel || "Other")
   const [otherCostIsPercentage, setOtherCostIsPercentage] = useState(existing?.otherCostIsPercentage ?? false)
   const [status, setStatus] = useState<Quotation["status"]>(existing?.status || initialQuotationStatus(workspace))
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
+  const [warehouseProducts, setWarehouseProducts] = useState<CrmWarehouseProduct[]>([])
   const [showInventory, setShowInventory] = useState(false)
   const [invSearch, setInvSearch] = useState("")
   const [saving, setSaving] = useState(false)
   const [qtyError, setQtyError] = useState("")
 
-  useEffect(() => { getInventoryItems().then(setInventoryItems) }, [])
+  useEffect(() => {
+    void loadCrmWarehouseProducts().then(setWarehouseProducts)
+  }, [])
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0)
   const discountAmount = discountIsPercentage ? subtotal * (discount / 100) : discount
@@ -331,18 +334,30 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   const total = discountedSubtotal + taxAmount + transportAmount + otherAmount
   const hasTax = Math.abs(taxAmount) > 0.004
 
-  function addCustomItem() {
-    setItems(prev => [...prev, { id: Date.now().toString(), description: "", qty: 1, unit: "pcs", unitPrice: 0, isCustom: true }])
-  }
-
-  function addFromInventory(inv: InventoryItem) {
-    const ex = items.find(i => i.inventoryItemId === inv.id)
+  function addFromInventory(product: CrmWarehouseProduct) {
+    const ex = items.find((i) => i.inventoryItemId === product.id)
     if (ex) {
-      if (ex.qty < inv.qty) setItems(prev => prev.map(i => i.id === ex.id ? { ...i, qty: i.qty + 1 } : i))
+      if (ex.qty < product.qty) {
+        setItems((prev) => prev.map((i) => (i.id === ex.id ? { ...i, qty: i.qty + 1 } : i)))
+      }
     } else {
-      setItems(prev => [...prev, { id: Date.now().toString(), description: inv.description, qty: 1, unit: inv.unit, unitPrice: inv.unitPrice, isCustom: false, inventoryItemId: inv.id, availableQty: inv.qty, costPrice: inv.unitPrice }])
+      setItems((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          description: product.displayName,
+          qty: 1,
+          unit: product.unit,
+          unitPrice: 0,
+          isCustom: false,
+          inventoryItemId: product.id,
+          availableQty: product.qty,
+          costPrice: 0,
+        },
+      ])
     }
     setShowInventory(false)
+    setInvSearch("")
   }
 
   function updateItem(id: string, key: keyof QuotationItem, value: any) {
@@ -380,13 +395,13 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   const selectedClient = clients.find(c => c.id === clientId)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-5xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+      <div className="w-full sm:max-w-5xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
           <p className="text-base font-bold">{existing ? "Edit Quotation" : "Create Quotation"}</p>
-          <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}><X className="h-4 w-4"/></Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}><X className="h-4 w-4"/></Button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Client */}
           <div className="space-y-1.5 relative">
             <label className="text-xs font-semibold">Select Client *</label>
@@ -408,8 +423,8 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
             )}
           </div>
           {/* Delivery & Validity */}
-          <div className="grid grid-cols-3 gap-4 pt-3 border-t">
-            <div className="space-y-1.5 col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-3 border-t">
+            <div className="space-y-1.5 sm:col-span-2">
               <label className="text-xs font-semibold">Delivery Address</label>
               <input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} placeholder="Enter delivery address"
                 className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
@@ -428,12 +443,11 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
           </div>
           {/* Items */}
           <div className="pt-3 border-t">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Items *</p>
-              <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowInventory(true)}><Plus className="h-3.5 w-3.5 mr-1"/>From Inventory</Button>
-                <Button type="button" size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={addCustomItem}><Plus className="h-3.5 w-3.5 mr-1"/>Custom Product</Button>
-              </div>
+              <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowInventory(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1"/>Add from inventory
+              </Button>
             </div>
             {qtyError && <p className="text-xs text-orange-600 mb-2">{qtyError}</p>}
             {items.length === 0 ? (
@@ -442,8 +456,8 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">No items added yet</p>
               </div>
             ) : (
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-lg border overflow-hidden overflow-x-auto">
+                <table className="w-full text-sm min-w-[520px]">
                   <thead><tr className="bg-[hsl(var(--muted))]/40 border-b">
                     <th className="px-3 py-2 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
                     <th className="px-3 py-2 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-24">Qty</th>
@@ -473,7 +487,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
             )}
           </div>
           {/* Financials */}
-          <div className="pt-3 border-t grid grid-cols-2 gap-4">
+          <div className="pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Discount</label>
@@ -493,8 +507,8 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Transport / Expense</label>
-                <div className="flex gap-2">
-                  <input value={transportLabel} onChange={e => setTransportLabel(e.target.value)} placeholder="Label" className="w-28 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input value={transportLabel} onChange={e => setTransportLabel(e.target.value)} placeholder="Label" className="w-full sm:w-28 h-10 sm:h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
                   <input type="number" min="0" value={transportCost} onChange={e => setTransportCost(Number(e.target.value))} className="flex-1 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
                   <select value={transportIsPercentage?"pct":"flat"} onChange={e => setTransportIsPercentage(e.target.value==="pct")} className="h-9 rounded-md border bg-[hsl(var(--background))] px-2 text-sm focus:outline-none">
                     <option value="flat">PKR</option><option value="pct">%</option>
@@ -503,8 +517,8 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Other Cost</label>
-                <div className="flex gap-2">
-                  <input value={otherCostLabel} onChange={e => setOtherCostLabel(e.target.value)} placeholder="Label" className="w-28 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input value={otherCostLabel} onChange={e => setOtherCostLabel(e.target.value)} placeholder="Label" className="w-full sm:w-28 h-10 sm:h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
                   <input type="number" min="0" value={otherCost} onChange={e => setOtherCost(Number(e.target.value))} className="flex-1 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
                   <select value={otherCostIsPercentage?"pct":"flat"} onChange={e => setOtherCostIsPercentage(e.target.value==="pct")} className="h-9 rounded-md border bg-[hsl(var(--background))] px-2 text-sm focus:outline-none">
                     <option value="flat">PKR</option><option value="pct">%</option>
@@ -515,7 +529,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
           </div>
           {/* Summary */}
           <div className="pt-3 border-t">
-            <div className="ml-auto w-64 space-y-1.5 text-xs">
+            <div className="w-full sm:ml-auto sm:w-64 space-y-1.5 text-xs">
               <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Subtotal</span><span className="font-medium">PKR {subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
               {discount>0&&<div className="flex justify-between text-red-600"><span>Discount {discountIsPercentage?`(${discount}%)`:""}</span><span>-PKR {discountAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               {hasTax&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Tax ({taxPercent}%)</span><span>PKR {taxAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
@@ -532,41 +546,21 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
             </select>
           </div>
         </div>
-        <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={submit} disabled={saving||!clientId||items.length===0}>
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <Button size="sm" variant="outline" className="h-10 sm:h-8 text-xs cursor-pointer w-full sm:w-auto" onClick={onClose}>Cancel</Button>
+          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer w-full sm:w-auto bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={submit} disabled={saving||!clientId||items.length===0}>
             {saving?"Saving...":existing?"Update Quotation":"Create Quotation"}
           </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>Cancel</Button>
         </div>
       </div>
-      {/* Inventory Picker */}
-      {showInventory && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowInventory(false)}>
-          <div className="w-full max-w-2xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-              <p className="text-sm font-semibold">Select from Inventory</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={() => setShowInventory(false)}><X className="h-4 w-4"/></Button>
-            </div>
-            <div className="p-3 border-b shrink-0">
-              <input value={invSearch} onChange={e => setInvSearch(e.target.value)} placeholder="Search inventory..." className="w-full h-8 rounded border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"/>
-            </div>
-            <div className="flex-1 overflow-y-auto divide-y">
-              {inventoryItems.filter(i => i.description.toLowerCase().includes(invSearch.toLowerCase())).map(inv => (
-                <div key={inv.id} onClick={() => addFromInventory(inv)} className="flex items-center justify-between px-4 py-3 hover:bg-[hsl(var(--muted))]/40 cursor-pointer">
-                  <div>
-                    <p className="text-sm font-medium">{inv.description}</p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Stock: {inv.qty} {inv.unit} | {inv.supplier}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">PKR {inv.unitPrice.toLocaleString()}</p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))]">per {inv.unit}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <CrmWarehouseInventoryPicker
+        open={showInventory}
+        products={warehouseProducts}
+        search={invSearch}
+        onSearchChange={setInvSearch}
+        onClose={() => setShowInventory(false)}
+        onSelect={addFromInventory}
+      />
     </div>
   )
 }
