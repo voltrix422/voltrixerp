@@ -4,6 +4,7 @@ import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber,
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, orderStatusForQuotationConversion, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
+import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
 import { getInventoryItems, type InventoryItem } from "@/lib/purchase"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
@@ -13,7 +14,47 @@ import { Plus, X, Trash2, FileText, Edit, ShoppingCart } from "lucide-react"
 import { saveOrder, generateOrderNumber } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 
-export function QuotationsList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
+function defaultFromDate() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
+}
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function inDateRange(createdAt: string | undefined, from: string, to: string) {
+  if (!from && !to) return true
+  if (!createdAt) return false
+  const d = new Date(createdAt)
+  if (from) {
+    const f = new Date(from)
+    f.setHours(0, 0, 0, 0)
+    if (d < f) return false
+  }
+  if (to) {
+    const t = new Date(to)
+    t.setHours(23, 59, 59, 999)
+    if (d > t) return false
+  }
+  return true
+}
+
+const STATUS_TABS = ["all", "draft", "pending_approval", "sent", "accepted", "rejected", "expired", "converted"] as const
+
+export function QuotationsList({
+  currentUser,
+  currentUserId,
+  workspace,
+  agentDisplayName,
+}: {
+  currentUser: string
+  currentUserId?: string
+  workspace?: CrmWorkspaceScope
+  agentDisplayName?: string
+}) {
+  const { toast } = useToast()
+  const isSalesAgent = workspace?.mode === "sales_agent"
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +64,11 @@ export function QuotationsList({ currentUser, currentUserId, workspace }: { curr
   const [selected, setSelected] = useState<Quotation | null>(null)
   const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Quotation | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [dateFrom, setDateFrom] = useState(defaultFromDate)
+  const [dateTo, setDateTo] = useState(todayDate)
+  const [appliedFrom, setAppliedFrom] = useState(defaultFromDate)
+  const [appliedTo, setAppliedTo] = useState(todayDate)
 
   useEffect(() => {
     Promise.all([getQuotations(), getClients()]).then(([q, c]) => {
@@ -39,31 +85,165 @@ export function QuotationsList({ currentUser, currentUserId, workspace }: { curr
   }, [])
 
   const filtered = quotations.filter(q => {
-    const ms = (q.quotationNumber?.toLowerCase() || "").includes(search.toLowerCase()) || (q.clientName?.toLowerCase() || "").includes(search.toLowerCase())
-    return ms && (statusFilter === "all" || q.status === statusFilter)
+    const ms =
+      (q.quotationNumber?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (q.clientName?.toLowerCase() || "").includes(search.toLowerCase())
+    const statusOk = statusFilter === "all" || q.status === statusFilter
+    const dateOk = isSalesAgent ? inDateRange(q.createdAt, appliedFrom, appliedTo) : true
+    return ms && statusOk && dateOk
   })
 
+  function applyDates() {
+    setAppliedFrom(dateFrom)
+    setAppliedTo(dateTo)
+  }
+
+  function clearDates() {
+    setDateFrom("")
+    setDateTo("")
+    setAppliedFrom("")
+    setAppliedTo("")
+  }
+
+  async function exportListPdf() {
+    setExporting(true)
+    try {
+      const { downloadQuotationsReportPDF } = await import("@/lib/generate-quotations-report-pdf")
+      await downloadQuotationsReportPDF({
+        agentName: agentDisplayName || currentUser,
+        quotations: filtered,
+        dateFrom: isSalesAgent ? appliedFrom || null : null,
+        dateTo: isSalesAgent ? appliedTo || null : null,
+        statusFilter,
+      })
+      toast({ title: "Downloaded", message: "Quotations report saved as PDF.", type: "success" })
+    } catch {
+      toast({ title: "Error", message: "Could not generate PDF.", type: "error" })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 border-b">
-          {["all","draft","pending_approval","sent","accepted","rejected","expired","converted"].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${statusFilter===s?"text-[hsl(var(--foreground))]":"text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"}`}>
-              {s==="all"?"All":STATUS_LABELS[s as keyof typeof STATUS_LABELS]||s}
-              {statusFilter===s&&<div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]"/>}
+    <div className="space-y-4 max-w-full overflow-x-hidden">
+      {isSalesAgent && (
+        <SalesDateRangePanel
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
+          onApply={applyDates}
+          onClear={clearDates}
+          onExport={exportListPdf}
+          exporting={exporting}
+          showExport
+          defaultOpen={false}
+          subtitle="Filter quotations & export PDF"
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-wrap gap-1.5 min-w-0">
+          {STATUS_TABS.map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                statusFilter === s
+                  ? "bg-[#1faca6] text-white"
+                  : "bg-[hsl(var(--muted))]/50 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              {s === "all" ? "All" : STATUS_LABELS[s as keyof typeof STATUS_LABELS] || s}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-40"/>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search..."
+            className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full min-w-0 sm:w-40"
+          />
           {!workspace?.readOnly && (
-          <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={()=>setShowForm(true)}><Plus className="h-3.5 w-3.5 mr-1"/>Create Quotation</Button>
+            <Button size="sm" className="h-8 text-xs px-3 cursor-pointer w-full sm:w-auto" onClick={() => setShowForm(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Create Quotation
+            </Button>
           )}
         </div>
       </div>
-      {loading?(<div className="flex items-center justify-center py-20"><div className="h-8 w-8 rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent animate-spin"/></div>
-      ):filtered.length===0?(<div className="flex flex-col items-center justify-center py-20 text-center"><FileText className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3"/><p className="text-sm text-[hsl(var(--muted-foreground))]">{quotations.length===0?"No quotations yet. Create your first one!":"No quotations match your filters."}</p></div>
-      ):(<div className="rounded-lg border overflow-hidden"><table className="w-full"><thead><tr className="border-b bg-[hsl(var(--muted))]/40">
+
+      {isSalesAgent && (appliedFrom || appliedTo) && (
+        <p className="text-[10px] text-center text-[hsl(var(--muted-foreground))] -mt-1">
+          {appliedFrom && appliedTo
+            ? `${appliedFrom} → ${appliedTo}`
+            : appliedFrom
+              ? `From ${appliedFrom}`
+              : `Until ${appliedTo}`}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <FileText className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {quotations.length === 0
+              ? "No quotations yet. Create your first one!"
+              : "No quotations match your filters."}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="md:hidden space-y-2">
+            {filtered.map(q => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => setSelected(q)}
+                className="w-full text-left rounded-lg border p-3 space-y-2 hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    {q.ownerUserId && <SalesAgentSourceBadge agentName={q.createdBy} kind="quotation" />}
+                    <p className="text-xs font-semibold text-[#1faca6] truncate">{q.quotationNumber}</p>
+                    <p className="text-sm font-medium truncate">{q.clientName}</p>
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[q.status]}`}>
+                    {STATUS_LABELS[q.status]}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+                  <span>{q.items?.length || 0} items</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">
+                    PKR {(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span>{q.createdAt ? new Date(q.createdAt).toLocaleDateString() : "—"}</span>
+                </div>
+                <div className="flex gap-3 pt-1" onClick={e => e.stopPropagation()}>
+                  {!workspace?.readOnly && (
+                    <button onClick={() => setEditingQuotation(q)} className="text-blue-500 text-xs cursor-pointer">
+                      Edit
+                    </button>
+                  )}
+                  <button onClick={() => downloadQuotationPDF(q)} className="text-[#1a9f9a] text-xs cursor-pointer">
+                    PDF
+                  </button>
+                  {!workspace?.readOnly && (
+                    <button onClick={() => setDeleteConfirm(q)} className="text-red-500 text-xs cursor-pointer">
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden md:block rounded-lg border overflow-hidden"><table className="w-full"><thead><tr className="border-b bg-[hsl(var(--muted))]/40">
         <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Quotation #</th>
         <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
         <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Items</th>
@@ -96,7 +276,9 @@ export function QuotationsList({ currentUser, currentUserId, workspace }: { curr
             </td>
           </tr>
         ))}
-      </tbody></table></div>)}
+      </tbody></table></div>
+        </>
+      )}
       {showForm&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}
       {editingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} existing={editingQuotation} onClose={()=>setEditingQuotation(null)} onSave={q=>{setQuotations(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQuotation(null)}}/>}
       {selected&&!editingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}} onUpdate={updated=>{setQuotations(prev=>prev.map(x=>x.id===updated.id?updated:x));setSelected(updated)}}/>}

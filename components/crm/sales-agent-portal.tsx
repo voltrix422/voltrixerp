@@ -8,8 +8,8 @@ import { ClientsList } from "@/components/crm/clients-list"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
 import { useToast } from "@/components/ui/toast"
-import { Button } from "@/components/ui/button"
-import { Calendar, DollarSign, Download, FileText, Package, Users } from "lucide-react"
+import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
+import { DollarSign, FileText, Package, Users } from "lucide-react"
 
 type PortalTab = "home" | "clients" | "quotations" | "orders" | "commission"
 
@@ -28,89 +28,6 @@ function defaultFromDate() {
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10)
-}
-
-function DateRangeBar({
-  dateFrom,
-  dateTo,
-  onFromChange,
-  onToChange,
-  onApply,
-  onClear,
-  onExport,
-  loading,
-  exporting,
-  showExport,
-}: {
-  dateFrom: string
-  dateTo: string
-  onFromChange: (v: string) => void
-  onToChange: (v: string) => void
-  onApply: () => void
-  onClear: () => void
-  onExport: () => void
-  loading?: boolean
-  exporting?: boolean
-  showExport?: boolean
-}) {
-  return (
-    <div className="rounded-lg border bg-[hsl(var(--muted))]/15 p-2.5 space-y-2 mx-1">
-      <div className="flex items-center gap-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
-        <Calendar className="h-3 w-3 text-[#1faca6]" />
-        Date range
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">From</label>
-          <input
-            type="date"
-            className="mt-0.5 w-full h-8 rounded-md border px-2 text-xs bg-[hsl(var(--background))]"
-            value={dateFrom}
-            onChange={e => onFromChange(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">To</label>
-          <input
-            type="date"
-            className="mt-0.5 w-full h-8 rounded-md border px-2 text-xs bg-[hsl(var(--background))]"
-            value={dateTo}
-            onChange={e => onToChange(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        <Button
-          size="sm"
-          className="h-7 text-[11px] flex-1 bg-[#1faca6] hover:bg-[#1a9b96] text-white cursor-pointer"
-          disabled={loading}
-          onClick={onApply}
-        >
-          {loading ? "Loading…" : "Apply"}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-[11px] cursor-pointer"
-          onClick={onClear}
-        >
-          All time
-        </Button>
-        {showExport && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-[11px] gap-1 cursor-pointer"
-            disabled={exporting || loading}
-            onClick={onExport}
-          >
-            <Download className="h-3 w-3" />
-            {exporting ? "PDF…" : "PDF"}
-          </Button>
-        )}
-      </div>
-    </div>
-  )
 }
 
 export function SalesAgentPortal({ user }: Props) {
@@ -202,12 +119,12 @@ export function SalesAgentPortal({ user }: Props) {
         <p className="text-xs text-[hsl(var(--muted-foreground))] px-1 pb-2">
           {location || "Sales agent"} · {commissionPercent}% per delivered order
         </p>
-        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex flex-wrap gap-1.5 pb-1">
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
                 tab === key
                   ? "bg-[#1faca6] text-white"
                   : "bg-[hsl(var(--muted))]/50 text-[hsl(var(--muted-foreground))]"
@@ -220,9 +137,9 @@ export function SalesAgentPortal({ user }: Props) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto px-2 py-3 space-y-3">
+      <div className="flex-1 overflow-auto px-2 py-3 space-y-3 max-w-full overflow-x-hidden">
         {showDateBar && (
-          <DateRangeBar
+          <SalesDateRangePanel
             dateFrom={dateFrom}
             dateTo={dateTo}
             onFromChange={setDateFrom}
@@ -233,6 +150,8 @@ export function SalesAgentPortal({ user }: Props) {
             loading={loading}
             exporting={exporting}
             showExport
+            defaultOpen={false}
+            subtitle="Performance stats & PDF export"
           />
         )}
 
@@ -288,7 +207,12 @@ export function SalesAgentPortal({ user }: Props) {
           <ClientsList currentUser={user.name} currentUserId={user.id} workspace={workspace} />
         )}
         {tab === "quotations" && (
-          <QuotationsList currentUser={user.name} currentUserId={user.id} workspace={workspace} />
+          <QuotationsList
+            currentUser={user.name}
+            currentUserId={user.id}
+            workspace={workspace}
+            agentDisplayName={user.name}
+          />
         )}
         {tab === "orders" && (
           <OrdersList currentUser={user.name} currentUserId={user.id} workspace={workspace} />

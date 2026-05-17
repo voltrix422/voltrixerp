@@ -43,8 +43,8 @@ export default function SalesAgentsPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto">
-        <div className={`p-4 sm:p-6 ${isAgent ? "max-w-3xl mx-auto" : "max-w-6xl"} space-y-6`}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className={`p-3 sm:p-6 w-full min-w-0 max-w-full ${isAgent ? "max-w-3xl mx-auto" : "max-w-6xl"} space-y-6`}>
           {isAdminView && <SalesAgentsHub user={user} />}
           {isAgent && <SalesAgentPortal user={user} />}
         </div>
