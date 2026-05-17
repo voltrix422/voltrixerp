@@ -13,8 +13,11 @@ import { logOrderFulfillmentHistory } from "@/lib/order-fulfillment-history"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadDispatchOrdersExcel } from "@/lib/inventory-excel-export"
 import { useToast } from "@/components/ui/toast"
+import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
+import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
+import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 
-/** Full delivery proof: receiver + CNIC + vehicle + all proof images (matches Fulfill Order requirements). */
+/** Optional delivery proof — all receiver/vehicle/product fields filled. */
 function orderHasCompleteFulfillmentProof(o: Order): boolean {
   const textOk =
     !!(o.fulfillmentReceiverName || "").trim() &&
@@ -26,6 +29,16 @@ function orderHasCompleteFulfillmentProof(o: Order): boolean {
     !!(o.fulfillmentVehicleImageUrl || "").trim()
   const productsOk = Array.isArray(o.fulfillmentProductImageUrls) && o.fulfillmentProductImageUrls.length > 0
   return textOk && imgOk && productsOk
+}
+
+function orderDispatchStatusLabel(order: Order): { label: string; variant: "success" | "warning" } {
+  if (!order.dispatcher) {
+    return { label: "ready to fulfill", variant: "warning" }
+  }
+  if (order.status === "delivered" || orderHasCompleteFulfillmentProof(order)) {
+    return { label: "delivered", variant: "success" }
+  }
+  return { label: "dispatched", variant: "success" }
 }
 
 export function ClientOrdersInventory() {
@@ -101,18 +114,18 @@ export function ClientOrdersInventory() {
   return (
     <div className="space-y-4">
       {/* Header with count */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""} for dispatch
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <CrmExcelExportButton
             onExport={exportDispatchExcel}
             exporting={exportingExcel}
             disabled={loading || filteredOrders.length === 0}
           />
           {!loading && orders.length > 0 && (
-            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+            <Button size="sm" variant="outline" className="h-8 flex-1 sm:flex-none text-xs gap-1.5 cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
               Filters
             </Button>
           )}
@@ -122,8 +135,8 @@ export function ClientOrdersInventory() {
       
       {/* Filters */}
       {showFilters && !loading && orders.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-2">
-          <div className="relative flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 p-2">
+          <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
             <input
               value={search}
@@ -137,14 +150,14 @@ export function ClientOrdersInventory() {
             value={fromDate}
             onChange={e => setFromDate(e.target.value)}
             placeholder="From Date"
-            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
+            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full sm:w-36 cursor-pointer"
           />
           <input
             type="date"
             value={toDate}
             onChange={e => setToDate(e.target.value)}
             placeholder="To Date"
-            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-36 cursor-pointer"
+            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full sm:w-36 cursor-pointer"
           />
           {(search || fromDate || toDate) && (
             <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setSearch(""); setFromDate(""); setToDate("") }}>
@@ -180,42 +193,95 @@ export function ClientOrdersInventory() {
       )}
 
       {!loading && filteredOrders.length > 0 && (
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-[hsl(var(--muted))]/40">
-                {["Order #", "Client", "Items", "Total", "Dispatcher", "Delivery Date", "Invoice"].map(h => (
-                  <th key={h} className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filteredOrders.map(order => (
-                <tr key={order.id} onClick={() => setSelectedOrder(order)} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer">
-                  <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">{order.orderNumber}</td>
-                  <td className="px-4 py-2.5 text-xs font-medium">{order.clientName}</td>
-                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{order.items.length}</td>
-                  <td className="px-4 py-2.5 text-xs font-semibold">PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-2.5 text-xs">{order.dispatcher || "—"}</td>
-                  <td className="px-4 py-2.5 text-xs">{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-2.5">
-                    {order.status === "pending_approval" ? (
-                      <div className="text-[10px] px-1.5 py-0 font-semibold text-blue-600 bg-blue-50 rounded">
-                        Invoice
-                      </div>
-                    ) : order.dispatcher && !orderHasCompleteFulfillmentProof(order) ? (
-                      <Badge variant="warning" className="text-[10px] px-1.5 py-0">proof required</Badge>
-                    ) : order.dispatcher ? (
-                      <Badge variant="success" className="text-[10px] px-1.5 py-0">delivered</Badge>
-                    ) : (
-                      <Badge variant="warning" className="text-[10px] px-1.5 py-0">ready to fulfill</Badge>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="md:hidden space-y-2">
+            {filteredOrders.map((order) => {
+              const status = orderDispatchStatusLabel(order)
+              return (
+                <button
+                  key={order.id}
+                  type="button"
+                  onClick={() => setSelectedOrder(order)}
+                  className="w-full text-left rounded-lg border p-3 space-y-2.5 hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber}</p>
+                      <p className="text-sm font-medium truncate mt-0.5">{order.clientName}</p>
+                    </div>
+                    <Badge variant={status.variant} className="text-[10px] px-1.5 py-0 shrink-0 max-w-[42%] text-right leading-tight">
+                      {status.label}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    <div>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Items</p>
+                      <p className="font-medium">{formatCrmItemsQtyLabel(order.items)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total</p>
+                      <p className="font-semibold tabular-nums">
+                        PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Delivery</p>
+                      <p>{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}</p>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="hidden md:block rounded-lg border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[40rem]">
+                <thead>
+                  <tr className="border-b bg-[hsl(var(--muted))]/40">
+                    {["Order #", "Client", "Items", "Total", "Delivery Date", "Status"].map((h) => (
+                      <th
+                        key={h}
+                        className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredOrders.map((order) => {
+                    const status = orderDispatchStatusLabel(order)
+                    return (
+                      <tr
+                        key={order.id}
+                        onClick={() => setSelectedOrder(order)}
+                        className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                      >
+                        <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] whitespace-nowrap">
+                          {order.orderNumber}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs font-medium">{order.clientName}</td>
+                        <td className="px-4 py-2.5 text-xs">{formatCrmItemsQtyLabel(order.items)}</td>
+                        <td className="px-4 py-2.5 text-xs font-semibold whitespace-nowrap tabular-nums">
+                          PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs whitespace-nowrap">
+                          {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <Badge variant={status.variant} className="text-[10px] px-1.5 py-0">
+                            {status.label}
+                          </Badge>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       {selectedOrder && (
@@ -271,26 +337,8 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   }
 
   async function handleFulfillOrder() {
-    if (!fulfillDispatcherName || !receiverName || !receiverCnic || !vehicleNumber) {
-      alert("Please fill in all required fields")
-      return
-    }
-
-    if (!receiverImage && !(order.fulfillmentReceiverImageUrl || "").trim()) {
-      alert("Please upload the receiver photo (or it was missing from a previous save).")
-      return
-    }
-    if (!receiverCnicImage && !(order.fulfillmentReceiverCnicImageUrl || "").trim()) {
-      alert("Please upload the receiver CNIC photo.")
-      return
-    }
-    if (!vehicleImage && !(order.fulfillmentVehicleImageUrl || "").trim()) {
-      alert("Please upload the vehicle photo.")
-      return
-    }
-    const existingProductCount = order.fulfillmentProductImageUrls?.length ?? 0
-    if (productImages.length === 0 && existingProductCount === 0) {
-      alert("Please upload at least one product photo.")
+    if (!fulfillDispatcherName.trim()) {
+      alert("Please enter the dispatcher name.")
       return
     }
 
@@ -298,6 +346,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
     try {
       const fulfillDate = new Date().toLocaleDateString()
+      const wasDelivered = order.status === "delivered"
 
       const uploadImg = async (file: File): Promise<string> => {
         const fd = new FormData()
@@ -321,24 +370,19 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         productImageUrls = [...productImageUrls, ...newUrls]
       }
 
-      if (!receiverImageUrl?.trim() || !receiverCnicImageUrl?.trim() || !vehicleImageUrl?.trim() || productImageUrls.length === 0) {
-        alert("Upload failed or proof images are incomplete. Please try again.")
-        return
-      }
-
       let updatedOrder: Order = {
         ...order,
-        dispatcher: fulfillDispatcherName,
+        dispatcher: fulfillDispatcherName.trim(),
         status: "delivered",
-        fulfillmentDispatcher: fulfillDispatcherName,
-        fulfillmentReceiverName: receiverName,
-        fulfillmentReceiverCnic: receiverCnic,
-        fulfillmentVehicleNumber: vehicleNumber,
+        fulfillmentDispatcher: fulfillDispatcherName.trim(),
         fulfillmentDate: new Date().toISOString(),
+        fulfillmentReceiverName: receiverName.trim() || order.fulfillmentReceiverName,
+        fulfillmentReceiverCnic: receiverCnic.trim() || order.fulfillmentReceiverCnic,
+        fulfillmentVehicleNumber: vehicleNumber.trim() || order.fulfillmentVehicleNumber,
         fulfillmentReceiverImageUrl: receiverImageUrl,
         fulfillmentReceiverCnicImageUrl: receiverCnicImageUrl,
         fulfillmentVehicleImageUrl: vehicleImageUrl,
-        fulfillmentProductImageUrls: productImageUrls,
+        fulfillmentProductImageUrls: productImageUrls.length > 0 ? productImageUrls : order.fulfillmentProductImageUrls,
       }
 
       const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
@@ -346,7 +390,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
       await saveOrder(updatedOrder)
 
-      if (order.status !== "delivered") {
+      if (!wasDelivered) {
         await deductInventoryForOrder(updatedOrder)
       }
 
@@ -354,17 +398,17 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         orderId: updatedOrder.id,
         orderNumber: updatedOrder.orderNumber,
         clientName: updatedOrder.clientName,
-        dispatcherName: fulfillDispatcherName,
-        receiverName,
-        receiverCnic,
-        vehicleNumber,
+        dispatcherName: fulfillDispatcherName.trim(),
+        receiverName: receiverName.trim() || "",
+        receiverCnic: receiverCnic.trim() || "",
+        vehicleNumber: vehicleNumber.trim() || "",
         receiverImageUrl,
         receiverCnicImageUrl,
         vehicleImageUrl,
-        productImageUrls,
+        productImageUrls: productImageUrls.length > 0 ? productImageUrls : [],
         fulfilledAt: updatedOrder.fulfillmentDate || new Date().toISOString(),
         fulfilledBy: updatedOrder.createdBy || "Inventory",
-        notes: `Order fulfilled and marked delivered by dispatcher ${fulfillDispatcherName}`,
+        notes: `Dispatch note created by ${fulfillDispatcherName.trim()}. Inventory updated.`,
       })
 
       const blob = await generateDispatchNotePDF(updatedOrder, fulfillDispatcherName, fulfillDate)
@@ -429,8 +473,8 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   }
 
   async function redownloadDispatchNote() {
-    if (!orderHasCompleteFulfillmentProof(order)) {
-      alert("Add full delivery proof (receiver, CNIC, vehicle, and all photos) before downloading the dispatch note.")
+    if (!(order.fulfillmentDispatcher || order.dispatcher || "").trim()) {
+      alert("Create a dispatch note first by entering the dispatcher name.")
       openFulfillPrefilled()
       return
     }
@@ -528,36 +572,36 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     }
   }
 
-  const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0)
   const proofComplete = orderHasCompleteFulfillmentProof(order)
-  const canSubmitFulfillment =
-    !!fulfillDispatcherName.trim() &&
-    !!receiverName.trim() &&
-    !!receiverCnic.trim() &&
-    !!vehicleNumber.trim() &&
-    (!!(receiverImage || (order.fulfillmentReceiverImageUrl || "").trim()) &&
-      !!(receiverCnicImage || (order.fulfillmentReceiverCnicImageUrl || "").trim()) &&
-      !!(vehicleImage || (order.fulfillmentVehicleImageUrl || "").trim()) &&
-      (productImages.length > 0 || (order.fulfillmentProductImageUrls?.length ?? 0) > 0))
+  const hasDispatcher = !!(order.fulfillmentDispatcher || order.dispatcher || "").trim()
+  const canSubmitFulfillment = !!fulfillDispatcherName.trim()
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-lg font-bold text-[hsl(var(--primary))]">{order.orderNumber}</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{order.clientName}</p>
-            </div>
-            {(order.dispatcher || order.deliveryDate) && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[hsl(var(--muted-foreground))] w-20">Delivery Date:</span>
-                <span className="text-sm font-medium">{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}</span>
-              </div>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
+          <div className="min-w-0 flex-1 pr-2 space-y-1">
+            <p className="text-base sm:text-lg font-bold text-[hsl(var(--primary))] truncate">{order.orderNumber}</p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] truncate">{order.clientName}</p>
+            {order.deliveryDate && (
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Delivery: {new Date(order.deliveryDate).toLocaleDateString()}
+              </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="hidden sm:flex flex-wrap items-center gap-2 px-4 sm:px-6 py-2 border-b shrink-0">
             <Button
               size="sm"
               variant="outline"
@@ -577,36 +621,35 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 </>
               )}
             </Button>
-          {order.dispatcher && proofComplete && (
+          {hasDispatcher && (
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={redownloadDispatchNote}>
               <Download className="h-3 w-3 mr-1.5" /> Dispatch Note
             </Button>
           )}
-          {order.dispatcher && !proofComplete && (
-            <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={openFulfillPrefilled} disabled={updating}>
-              <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Complete delivery proof"}
-            </Button>
-          )}
-          {!order.dispatcher && (
-            <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={openFulfillPrefilled} disabled={updating}>
-              <Truck className="h-3 w-3 mr-1.5" /> {updating ? "Processing..." : "Fulfill Order"}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" className="h-8 text-xs ml-auto" onClick={onClose}>Close</Button>
-          </div>
+          <Button
+            size="sm"
+            className="h-8 text-xs bg-green-600 hover:bg-green-700"
+            onClick={openFulfillPrefilled}
+            disabled={updating}
+          >
+            <Truck className="h-3 w-3 mr-1.5" />{" "}
+            {updating ? "Processing..." : hasDispatcher ? "Update dispatch" : "Create dispatch note"}
+          </Button>
         </div>
 
-        {/* Fulfillment details panel — shown for fulfilled orders */}
-        {order.dispatcher && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Fulfillment Details</p>
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4">
+          <div>
+            <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
+            <CrmLineItemsDisplay items={order.items} />
+          </div>
+          <CrmOrderSummaryDisplay order={order} />
+        {hasDispatcher && (
+          <div className="space-y-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Dispatch &amp; delivery</p>
 
             {!proofComplete && (
-              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-xs text-amber-900 dark:text-amber-100">
-                <p className="font-semibold mb-1">Delivery proof incomplete</p>
-                <p className="text-amber-800 dark:text-amber-200/90">
-                  This order has a dispatcher but is missing receiver details or proof photos. Use &quot;Complete delivery proof&quot; above to add them. The dispatch note is available only after proof is complete.
-                </p>
+              <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3 py-2.5 text-xs text-blue-900 dark:text-blue-100">
+                Receiver details and photos are optional. You can add them later if needed.
               </div>
             )}
 
@@ -716,6 +759,43 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             )}
           </div>
         )}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:hidden px-4 py-3 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-10 w-full text-xs"
+            onClick={() => void viewInvoice()}
+            disabled={!!invoiceLoading}
+          >
+            {invoiceLoading === "view" ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Loading…
+              </>
+            ) : (
+              <>
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                View Invoice
+              </>
+            )}
+          </Button>
+          {hasDispatcher && (
+            <Button size="sm" variant="outline" className="h-10 w-full text-xs" onClick={redownloadDispatchNote}>
+              <Download className="h-3.5 w-3.5 mr-1.5" /> Dispatch Note
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className="h-10 w-full text-xs bg-green-600 hover:bg-green-700"
+            onClick={openFulfillPrefilled}
+            disabled={updating}
+          >
+            <Truck className="h-3.5 w-3.5 mr-1.5" />{" "}
+            {updating ? "Processing..." : hasDispatcher ? "Update dispatch" : "Create dispatch note"}
+          </Button>
+        </div>
       </div>
     </div>
 
@@ -923,23 +1003,31 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
       {/* Fulfillment Dialog */}
       {showFulfillDialog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowFulfillDialog(false)}>
-          <div className="w-full max-w-2xl max-h-[90vh] rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+          onClick={() => setShowFulfillDialog(false)}
+        >
+          <div
+            className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
               <div>
-                <p className="text-base font-bold">Fulfill Order</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">Enter complete fulfillment information</p>
+                <p className="text-base font-bold">Create dispatch note</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                  Dispatcher name is required. Other fields are optional.
+                </p>
               </div>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFulfillDialog(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5">
               {/* Dispatcher Information */}
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Dispatcher Information</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
                       Dispatcher Name *
@@ -958,10 +1046,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               {/* Receiver Information */}
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Receiver Information</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Receiver Name *
+                      Receiver Name
                     </label>
                     <input
                       type="text"
@@ -973,7 +1061,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Receiver CNIC *
+                      Receiver CNIC
                     </label>
                     <input
                       type="text"
@@ -987,7 +1075,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Receiver Image *
+                      Receiver Image
                     </label>
                     <input
                       type="file"
@@ -1001,7 +1089,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      CNIC Image *
+                      CNIC Image
                     </label>
                     <input
                       type="file"
@@ -1019,10 +1107,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               {/* Vehicle Information */}
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Vehicle Information</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Vehicle Number *
+                      Vehicle Number
                     </label>
                     <input
                       type="text"
@@ -1034,7 +1122,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                      Vehicle Image *
+                      Vehicle Image
                     </label>
                     <input
                       type="file"
@@ -1054,7 +1142,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Product Images</p>
                 <div>
                   <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1.5 block">
-                    Upload Product Images *
+                    Upload Product Images
                   </label>
                   <input
                     type="file"
@@ -1077,25 +1165,23 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
-              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowFulfillDialog(false)} disabled={updating}>
-                Cancel
-              </Button>
-              <Button 
-                size="sm" 
-                className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto min-w-[140px]" 
+            <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <Button
+                size="sm"
+                className="h-10 w-full sm:w-auto sm:ml-auto text-xs bg-green-600 hover:bg-green-700"
                 onClick={handleFulfillOrder}
                 disabled={updating || !canSubmitFulfillment}
               >
-                {updating ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                    Fulfilling...
-                  </span>
-                ) : "Fulfill Order"}
+                {updating ? "Creating…" : "Create dispatch note"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-10 w-full sm:w-auto text-xs"
+                onClick={() => setShowFulfillDialog(false)}
+                disabled={updating}
+              >
+                Cancel
               </Button>
             </div>
           </div>
