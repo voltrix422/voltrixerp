@@ -1,5 +1,6 @@
 "use client"
-import { X, Download } from "lucide-react"
+import { useState } from "react"
+import { X, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import type { Order } from "@/lib/orders"
@@ -12,6 +13,7 @@ interface InvoicePreviewModalProps {
 }
 
 export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps) {
+  const [downloading, setDownloading] = useState(false)
   const subtotal  = order.subtotal ?? 0
   const tax       = order.tax ?? (subtotal * (order.taxPercent || 0)) / 100
   const transport = order.transportCostValue ?? order.transportCost ?? 0
@@ -41,8 +43,15 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
   const fmt = (n: number) => `PKR ${n.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`
 
   async function handleDownload() {
-    try { await downloadInvoicePDF(order) }
-    catch { alert("Failed to generate PDF. Please try again.") }
+    if (downloading) return
+    setDownloading(true)
+    try {
+      await downloadInvoicePDF(order)
+    } catch {
+      alert("Failed to generate PDF. Please try again.")
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -53,10 +62,26 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
         <div className="flex items-center justify-between px-4 py-2.5 border-b bg-gray-50 shrink-0">
           <p className="text-sm font-semibold text-gray-700">Invoice Preview</p>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={handleDownload}>
-              <Download className="h-3.5 w-3.5" /> Download PDF
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 cursor-pointer min-w-[7.5rem]"
+              onClick={() => void handleDownload()}
+              disabled={downloading}
+            >
+              {downloading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <Download className="h-3.5 w-3.5" />
+                  Download PDF
+                </>
+              )}
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose} disabled={downloading}>
               <X className="h-4 w-4" />
             </Button>
           </div>

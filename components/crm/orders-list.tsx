@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit } from "lucide-react"
+import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2 } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { PaymentCapture } from "@/components/crm/payment-capture"
@@ -39,6 +39,21 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [toDate, setToDate] = useState("")
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<Order | null>(null)
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
+
+  async function handleListDownloadPdf(order: Order, e?: { stopPropagation: () => void }) {
+    e?.stopPropagation()
+    if (pdfDownloadingId) return
+    setPdfDownloadingId(order.id)
+    try {
+      await downloadInvoicePDF(order)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      toast({ title: "Error", message: "Failed to generate PDF. Please try again.", type: "error" })
+    } finally {
+      setPdfDownloadingId(null)
+    }
+  }
 
   useEffect(() => {
     Promise.all([getOrders(), getClients()]).then(([o, c]) => {
@@ -155,8 +170,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           <CrmOrdersListCards
             orders={filtered}
             onSelect={setSelected}
-            onDownloadPdf={downloadInvoicePDF}
+            onDownloadPdf={(order, e) => void handleListDownloadPdf(order, e)}
             onDelete={setDeleteConfirmOrder}
+            pdfDownloadingId={pdfDownloadingId}
           />
           <div className="hidden md:block rounded-lg border overflow-hidden">
           <table className="w-full">
@@ -200,14 +216,16 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   <td className="px-4 py-2.5 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          downloadInvoicePDF(order)
-                        }}
-                        className="text-[#1a9f9a] hover:text-[#158a85] cursor-pointer transition-colors"
+                        onClick={(e) => void handleListDownloadPdf(order, e)}
+                        disabled={pdfDownloadingId === order.id}
+                        className="text-[#1a9f9a] hover:text-[#158a85] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Download PDF"
                       >
-                        <FileText className="h-3.5 w-3.5" />
+                        {pdfDownloadingId === order.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <FileText className="h-3.5 w-3.5" />
+                        )}
                       </button>
                       <button
                         onClick={(e) => {
@@ -908,6 +926,7 @@ function OrderDetail({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [detailOrder, setDetailOrder] = useState(order)
+  const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
 
   useEffect(() => {
     setDetailOrder(order)
@@ -955,15 +974,20 @@ function OrderDetail({
     !["confirmed", "processing", "shipped", "delivered", "cancelled", "rejected", "draft", "pending_approval"].includes(detailOrder.status)
 
   async function downloadInvoice() {
+    if (invoiceLoading) return
+    setInvoiceLoading("download")
     try {
       await downloadInvoicePDF(detailOrder)
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
+    } finally {
+      setInvoiceLoading(null)
     }
   }
 
-  async function viewInvoice() {
+  function viewInvoice() {
+    if (invoiceLoading) return
     setShowInvoicePreview(true)
   }
 
@@ -1207,11 +1231,29 @@ function OrderDetail({
           )}
           {hasInvoiceDetails && (detailOrder.status === "finalized" || detailOrder.status === "payment_added" || detailOrder.status === "approved") && (
             <>
-              <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={viewInvoice} title="View Invoice">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-10 w-10 p-0 cursor-pointer"
+                onClick={viewInvoice}
+                disabled={!!invoiceLoading}
+                title="View Invoice"
+              >
                 <Eye className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={downloadInvoice} title="Download PDF">
-                <Download className="h-4 w-4" />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-10 w-10 p-0 cursor-pointer"
+                onClick={() => void downloadInvoice()}
+                disabled={!!invoiceLoading}
+                title={invoiceLoading === "download" ? "Generating PDF…" : "Download PDF"}
+              >
+                {invoiceLoading === "download" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
               </Button>
             </>
           )}

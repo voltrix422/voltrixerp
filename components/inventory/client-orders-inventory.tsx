@@ -256,6 +256,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [vehicleNumber, setVehicleNumber] = useState("")
   const [vehicleImage, setVehicleImage] = useState<File | null>(null)
   const [productImages, setProductImages] = useState<File[]>([])
+  const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
 
   function openFulfillPrefilled() {
     setFulfillDispatcherName(order.fulfillmentDispatcher || order.dispatcher || "")
@@ -399,15 +400,21 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   }
 
   async function downloadInvoice() {
+    if (invoiceLoading) return
+    setInvoiceLoading("download")
     try {
       await downloadInvoicePDF(order)
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
+    } finally {
+      setInvoiceLoading(null)
     }
   }
 
   async function viewInvoice() {
+    if (invoiceLoading) return
+    setInvoiceLoading("view")
     try {
       const blob = await import("@/lib/generate-invoice-pdf").then(m => m.generateInvoicePDF(order))
       const url = URL.createObjectURL(blob)
@@ -416,6 +423,8 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
+    } finally {
+      setInvoiceLoading(null)
     }
   }
 
@@ -549,8 +558,24 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={viewInvoice}>
-              <Eye className="h-3 w-3 mr-1.5" /> View Invoice
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs min-w-[7rem]"
+              onClick={() => void viewInvoice()}
+              disabled={!!invoiceLoading}
+            >
+              {invoiceLoading === "view" ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                  Loading…
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3 w-3 mr-1.5" />
+                  View Invoice
+                </>
+              )}
             </Button>
           {order.dispatcher && proofComplete && (
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={redownloadDispatchNote}>

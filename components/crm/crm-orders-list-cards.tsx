@@ -1,20 +1,24 @@
 "use client"
 
+import type { MouseEvent } from "react"
 import type { Order } from "@/lib/orders"
 import { STATUS_COLORS, STATUS_LABELS } from "@/lib/orders"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
+import { Loader2 } from "lucide-react"
 
 export function CrmOrdersListCards({
   orders,
   onSelect,
   onDownloadPdf,
   onDelete,
+  pdfDownloadingId,
 }: {
   orders: Order[]
   onSelect: (order: Order) => void
-  onDownloadPdf?: (order: Order) => void
+  onDownloadPdf?: (order: Order, e: MouseEvent) => void
   onDelete?: (order: Order) => void
+  pdfDownloadingId?: string | null
 }) {
   const showActions = Boolean(onDownloadPdf || onDelete)
   return (
@@ -50,10 +54,18 @@ export function CrmOrdersListCards({
               {onDownloadPdf && (
                 <button
                   type="button"
-                  onClick={() => onDownloadPdf(order)}
-                  className="text-[#1a9f9a] text-xs cursor-pointer"
+                  onClick={(e) => onDownloadPdf(order, e)}
+                  disabled={pdfDownloadingId === order.id}
+                  className="text-[#1a9f9a] text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
                 >
-                  PDF
+                  {pdfDownloadingId === order.id ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading…
+                    </>
+                  ) : (
+                    "PDF"
+                  )}
                 </button>
               )}
               {onDelete && (
