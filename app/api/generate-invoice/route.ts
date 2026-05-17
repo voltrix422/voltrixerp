@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     doc.setFontSize(7)
     doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', mL + 30, 21)
     doc.text('Phone: 051-8731661  |  Mobile: +92 303 4927779', mL + 30, 26)
-    doc.text('Email: info@voltrix-power.com  |  www.voltrixbatteries.com', mL + 30, 31)
+    doc.text('Email: info@voltrixbatteries.com  |  www.voltrixbatteries.com', mL + 30, 31)
 
     doc.setFont(FONT, 'bold')
     doc.setFontSize(26)

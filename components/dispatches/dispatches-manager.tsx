@@ -220,7 +220,7 @@ async function generateDispatchPDF(d: Dispatch) {
   const PH = doc.internal.pageSize.height
   doc.setFillColor(...DARK); doc.rect(0, PH - 14, W, 14, 'F')
   doc.setFillColor(...TEAL); doc.rect(0, PH - 14, 4, 14, 'F')
-  t('Voltrix ERP System  |  voltrixev.com', M + 4, PH - 5, 7, [130,140,155])
+  t('Voltrix ERP System  |  voltrixbatteries.com', M + 4, PH - 5, 7, [130,140,155])
   t(new Date().toLocaleString(), W - M, PH - 5, 7, [130,140,155], 'normal', 'right')
 
   doc.save(`${d.order_id}-dispatch.pdf`)

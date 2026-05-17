@@ -28,7 +28,7 @@ export default function TermsPage() {
             <p className="text-neutral-600">Voltrix shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from the use of our products or services.</p>
             
             <h2 className="text-xl font-semibold text-neutral-900">Contact Us</h2>
-            <p className="text-neutral-600">If you have any questions about these Terms of Service, please contact us at legal@voltrixev.com</p>
+            <p className="text-neutral-600">If you have any questions about these Terms of Service, please contact us at legal@voltrixbatteries.com</p>
           </div>
         </div>
       </section>

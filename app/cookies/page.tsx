@@ -25,7 +25,7 @@ export default function CookiesPage() {
             <p className="text-neutral-600">You can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.</p>
             
             <h2 className="text-xl font-semibold text-neutral-900">Contact Us</h2>
-            <p className="text-neutral-600">If you have any questions about our use of cookies, please contact us at <a href="mailto:info@voltrixev.com" className="text-[#1a9f9a] hover:underline">info@voltrixev.com</a></p>
+            <p className="text-neutral-600">If you have any questions about our use of cookies, please contact us at <a href="mailto:info@voltrixbatteries.com" className="text-[#1a9f9a] hover:underline">info@voltrixbatteries.com</a></p>
           </div>
         </div>
       </section>

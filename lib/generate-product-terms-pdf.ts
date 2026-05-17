@@ -64,7 +64,7 @@ export async function generateProductTermsPDF(productName: string, content: stri
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", margin + (logo ? 22 : 0), 18)
-  doc.text("Phone: 051-8731661 | Email: info@voltrix-power.com", margin + (logo ? 22 : 0), 22.5)
+  doc.text("Phone: 051-8731661 | Email: info@voltrixbatteries.com", margin + (logo ? 22 : 0), 22.5)
   doc.text("www.voltrixbatteries.com", margin + (logo ? 22 : 0), 27)
 
   y = 44

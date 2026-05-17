@@ -76,7 +76,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                   <p className="text-white font-bold text-base leading-tight">VOLTRIX BATTERIES</p>
                   <p className="text-white/80 text-[10px] mt-0.5">Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad</p>
                   <p className="text-white/80 text-[10px]">Phone: 051-8731661  |  Mobile: +92 303 4927779</p>
-                  <p className="text-white/80 text-[10px]">Email: info@voltrix-power.com  |  www.voltrixbatteries.com</p>
+                  <p className="text-white/80 text-[10px]">Email: info@voltrixbatteries.com  |  www.voltrixbatteries.com</p>
                 </div>
               </div>
               <div className="text-right">

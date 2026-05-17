@@ -25,7 +25,7 @@ export default function PrivacyPage() {
             <p className="text-neutral-600">We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.</p>
             
             <h2 className="text-xl font-semibold text-neutral-900">Contact Us</h2>
-            <p className="text-neutral-600">If you have any questions about this Privacy Policy, please contact us at <a href="mailto:info@voltrixev.com" className="text-[#1a9f9a] hover:underline">info@voltrixev.com</a></p>
+            <p className="text-neutral-600">If you have any questions about this Privacy Policy, please contact us at <a href="mailto:info@voltrixbatteries.com" className="text-[#1a9f9a] hover:underline">info@voltrixbatteries.com</a></p>
           </div>
         </div>
       </section>

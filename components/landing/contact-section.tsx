@@ -66,8 +66,8 @@ export default function ContactSection() {
                 </div>
                 <div>
                   <p className="font-semibold text-neutral-900 text-sm">Email</p>
-                  <a href="mailto:info@voltrix-power.com" className="text-sm text-neutral-500 hover:text-neutral-900 transition-colors">
-                    info@voltrix-power.com
+                  <a href="mailto:info@voltrixbatteries.com" className="text-sm text-neutral-500 hover:text-neutral-900 transition-colors">
+                    info@voltrixbatteries.com
                   </a>
                 </div>
               </div>
