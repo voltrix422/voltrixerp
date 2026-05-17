@@ -8,6 +8,7 @@ import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
+import { CrmItemsQtyCell, formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
@@ -224,7 +225,7 @@ export function QuotationsList({
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-                  <span>{q.items?.length || 0} items</span>
+                  <span>{formatCrmItemsQtyLabel(q.items)}</span>
                   <span className="font-semibold text-[hsl(var(--foreground))]">
                     PKR {(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
@@ -252,7 +253,7 @@ export function QuotationsList({
           <div className="hidden md:block rounded-lg border overflow-hidden"><table className="w-full"><thead><tr className="border-b bg-[hsl(var(--muted))]/40">
         <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Quotation #</th>
         <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
-        <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Items</th>
+        <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Qty</th>
         <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
         <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
         <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Valid Until</th>
@@ -268,7 +269,7 @@ export function QuotationsList({
               </div>
             </td>
             <td className="px-4 py-2.5 text-xs font-medium">{q.clientName}</td>
-            <td className="px-4 py-2.5 text-xs text-center">{q.items?.length||0}</td>
+            <td className="px-4 py-2.5 text-xs text-center"><CrmItemsQtyCell items={q.items} /></td>
             <td className="px-4 py-2.5 text-xs text-right font-semibold">PKR {(q.total||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
             <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[q.status]}`}>{STATUS_LABELS[q.status]}</span></td>
             <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{q.validUntil?new Date(q.validUntil).toLocaleDateString():"—"}</td>

@@ -5,6 +5,7 @@ import type { Order } from "@/lib/orders"
 import { STATUS_LABELS as ORDER_STATUS_LABELS, getOrderSourcePdfLabel } from "@/lib/orders"
 import type { Quotation } from "@/lib/quotations"
 import { STATUS_LABELS as QUOTATION_STATUS_LABELS } from "@/lib/quotations"
+import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 
 export function escCsvCell(value: string | number | null | undefined): string {
   const s = String(value ?? "").replace(/"/g, '""')
@@ -60,7 +61,8 @@ export function downloadOrdersExcel(orders: Order[], exportedBy?: string) {
     "Source",
     "Client",
     "Client ID",
-    "Item Count",
+    "Line Count",
+    "Total Qty",
     "Line Items",
     "Subtotal",
     "Tax %",
@@ -86,6 +88,7 @@ export function downloadOrdersExcel(orders: Order[], exportedBy?: string) {
     o.clientName,
     o.clientId,
     o.items?.length ?? 0,
+    getCrmItemsTotalQty(o.items),
     formatItemsLine(o.items),
     o.subtotal ?? 0,
     o.taxPercent ?? 0,
@@ -114,7 +117,8 @@ export function downloadQuotationsExcel(quotations: Quotation[], exportedBy?: st
     "Quotation #",
     "Client",
     "Client ID",
-    "Item Count",
+    "Line Count",
+    "Total Qty",
     "Line Items",
     "Subtotal",
     "Tax %",
@@ -137,6 +141,7 @@ export function downloadQuotationsExcel(quotations: Quotation[], exportedBy?: st
     q.clientName,
     q.clientId,
     q.items?.length ?? 0,
+    getCrmItemsTotalQty(q.items),
     formatItemsLine(q.items),
     q.subtotal ?? 0,
     q.taxPercent ?? 0,
