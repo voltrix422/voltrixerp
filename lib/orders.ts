@@ -10,8 +10,33 @@ export interface OrderItem {
   unitPrice: number
   isCustom: boolean // true if custom item, false if from inventory
   inventoryItemId?: string // reference to inventory item if not custom
+  model?: string // warehouse model number when from inventory
   availableQty?: number // available quantity in stock (for validation, not saved to DB)
   costPrice?: number // cost price from inventory (for reference, not saved to DB)
+}
+
+export function resolveOrderItemModel(item: Pick<OrderItem, "model" | "inventoryItemId">): string | null {
+  if (item.model?.trim()) return item.model.trim()
+  const id = item.inventoryItemId?.trim()
+  if (id?.startsWith("wh:")) {
+    const model = id.slice(3).trim()
+    return model || null
+  }
+  return null
+}
+
+export function orderHasInvoiceDetails(order: Pick<Order, "tax" | "transportCost" | "otherCost" | "dispatcher">): boolean {
+  return (
+    Math.abs(Number(order.tax || 0)) > 0.004 ||
+    order.transportCost > 0 ||
+    order.otherCost > 0 ||
+    !!order.dispatcher
+  )
+}
+
+export function canShowOrderInvoiceActions(order: Order): boolean {
+  if (!orderHasInvoiceDetails(order)) return false
+  return ["finalized", "payment_added", "approved", "confirmed", "processing", "shipped", "delivered"].includes(order.status)
 }
 
 export interface Order {

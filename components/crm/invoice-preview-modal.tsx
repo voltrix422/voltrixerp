@@ -4,7 +4,7 @@ import { X, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import type { Order } from "@/lib/orders"
-import { getOrderSourcePdfLabel } from "@/lib/orders"
+import { getOrderSourcePdfLabel, resolveOrderItemModel } from "@/lib/orders"
 import Image from "next/image"
 
 interface InvoicePreviewModalProps {
@@ -41,6 +41,13 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
   const remaining  = total - totalPaid
 
   const fmt = (n: number) => `PKR ${n.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`
+
+  const itemRows = order.items.map((item, i) => ({
+    item,
+    index: i + 1,
+    model: resolveOrderItemModel(item),
+  }))
+  const showModelCol = itemRows.some((r) => r.model)
 
   async function handleDownload() {
     if (downloading) return
@@ -144,6 +151,9 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                   <thead>
                     <tr className="bg-[#1a9f9a] text-white">
                       <th className="px-3 py-2.5 text-left text-xs font-semibold w-6">#</th>
+                      {showModelCol && (
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold w-28">Model</th>
+                      )}
                       <th className="px-3 py-2.5 text-left text-xs font-semibold">Description</th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold w-12">Qty</th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold w-12">Unit</th>
@@ -152,9 +162,12 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                     </tr>
                   </thead>
                   <tbody>
-                    {order.items.map((item, i) => (
+                    {itemRows.map(({ item, index, model }, i) => (
                       <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#f0fafa]"}>
-                        <td className="px-3 py-2.5 text-gray-500 text-xs">{i + 1}</td>
+                        <td className="px-3 py-2.5 text-gray-500 text-xs">{index}</td>
+                        {showModelCol && (
+                          <td className="px-3 py-2.5 text-gray-800 text-xs font-medium tabular-nums">{model || "—"}</td>
+                        )}
                         <td className="px-3 py-2.5 text-gray-800 text-xs">{item.description}</td>
                         <td className="px-3 py-2.5 text-center text-gray-700 text-xs">{item.qty}</td>
                         <td className="px-3 py-2.5 text-center text-gray-700 text-xs">{item.unit}</td>

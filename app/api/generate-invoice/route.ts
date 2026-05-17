@@ -3,7 +3,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import fs from 'fs'
 import path from 'path'
-import { getOrderSourcePdfLabel } from '@/lib/orders'
+import { getOrderSourcePdfLabel, resolveOrderItemModel } from '@/lib/orders'
 
 function loadFont(filename: string): string {
   try {
@@ -168,31 +168,56 @@ export async function POST(request: NextRequest) {
     // ── Items table ───────────────────────────────────────────────────────────
     y += 34
 
-    const tableData = order.items.map((item: any, idx: number) => [
-      `${idx + 1}`,
-      item.description,
-      item.qty.toString(),
-      item.unit,
-      `PKR ${Number(item.unitPrice).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
-      `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
-    ])
+    const itemsWithModel = order.items.map((item: any) => ({
+      item,
+      model: resolveOrderItemModel(item),
+    }))
+    const showModelCol = itemsWithModel.some((row: { model: string | null }) => row.model)
+
+    const tableData = itemsWithModel.map(({ item, model }: { item: any; model: string | null }, idx: number) => {
+      const row = [
+        `${idx + 1}`,
+        item.description,
+        item.qty.toString(),
+        item.unit,
+        `PKR ${Number(item.unitPrice).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
+        `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
+      ]
+      if (showModelCol) row.splice(1, 0, model || '—')
+      return row
+    })
+
+    const headRow = ['#', 'DESCRIPTION', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']
+    if (showModelCol) headRow.splice(1, 0, 'MODEL')
+
+    const columnStyles = showModelCol
+      ? {
+          0: { cellWidth: 8, halign: 'center' as const },
+          1: { cellWidth: 28 },
+          2: { cellWidth: 'auto' as const },
+          3: { cellWidth: 13, halign: 'center' as const },
+          4: { cellWidth: 15, halign: 'center' as const },
+          5: { cellWidth: 34, halign: 'right' as const },
+          6: { cellWidth: 34, halign: 'right' as const, fontStyle: 'bold' as const },
+        }
+      : {
+          0: { cellWidth: 8, halign: 'center' as const },
+          1: { cellWidth: 'auto' as const },
+          2: { cellWidth: 13, halign: 'center' as const },
+          3: { cellWidth: 15, halign: 'center' as const },
+          4: { cellWidth: 34, halign: 'right' as const },
+          5: { cellWidth: 34, halign: 'right' as const, fontStyle: 'bold' as const },
+        }
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'DESCRIPTION', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']],
+      head: [headRow],
       body: tableData,
       theme: 'plain',
       headStyles: { fillColor: teal, textColor: white, fontStyle: 'bold', fontSize: 8, font: FONT, cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 } },
       bodyStyles: { fontSize: 8.5, textColor: black, font: FONT, cellPadding: { top: 3, bottom: 3, left: 3, right: 3 } },
       alternateRowStyles: { fillColor: rowAlt },
-      columnStyles: {
-        0: { cellWidth: 8,  halign: 'center' },
-        1: { cellWidth: 'auto' },
-        2: { cellWidth: 13, halign: 'center' },
-        3: { cellWidth: 15, halign: 'center' },
-        4: { cellWidth: 34, halign: 'right' },
-        5: { cellWidth: 34, halign: 'right', fontStyle: 'bold' },
-      },
+      columnStyles: columnStyles as Record<string, object>,
       margin: { left: mL, right: mR },
       tableLineColor: lightGray,
       tableLineWidth: 0.25,

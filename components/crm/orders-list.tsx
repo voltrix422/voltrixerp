@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, canCapturePaymentsForOrder, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
@@ -343,7 +343,9 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
         setItems(
           existing.items.map((item) => {
             const product = products.find((p) => p.id === item.inventoryItemId)
-            return product ? { ...item, availableQty: product.qty } : item
+            return product
+              ? { ...item, availableQty: product.qty, model: item.model || product.model }
+              : item
           }),
         )
       }
@@ -428,6 +430,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           unitPrice: 0,
           isCustom: false,
           inventoryItemId: product.id,
+          model: product.model,
           availableQty: product.qty,
           costPrice: 0,
         },
@@ -968,7 +971,8 @@ function OrderDetail({
     onUpdate(toSave)
   }
 
-  const hasInvoiceDetails = Math.abs(Number(detailOrder.tax || 0)) > 0.004 || detailOrder.transportCost > 0 || detailOrder.otherCost > 0 || detailOrder.dispatcher
+  const hasInvoiceDetails = orderHasInvoiceDetails(detailOrder)
+  const showInvoiceActions = canShowOrderInvoiceActions(detailOrder)
   const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
   const canManagePayments = canCapturePaymentsForOrder(detailOrder) &&
     !["confirmed", "processing", "shipped", "delivered", "cancelled", "rejected", "draft", "pending_approval"].includes(detailOrder.status)
@@ -1229,7 +1233,7 @@ function OrderDetail({
               <Plus className="h-4 w-4 mr-2" /> {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
             </Button>
           )}
-          {hasInvoiceDetails && (detailOrder.status === "finalized" || detailOrder.status === "payment_added" || detailOrder.status === "approved") && (
+          {showInvoiceActions && (
             <>
               <Button
                 size="sm"

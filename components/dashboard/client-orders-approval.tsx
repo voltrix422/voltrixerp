@@ -1,6 +1,8 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, canShowOrderInvoiceActions, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
+import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 import { getClients, type Client } from "@/lib/crm"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
 import { CrmItemsQtyCell } from "@/components/crm/crm-items-qty-cell"
@@ -11,7 +13,7 @@ import { OrderForm } from "@/components/crm/orders-list"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, CheckCircle2, XCircle, Edit } from "lucide-react"
+import { X, CheckCircle2, XCircle, Edit, Eye, Download, Loader2 } from "lucide-react"
 
 export function ClientOrdersApproval() {
   const { user } = useAuth()
@@ -23,6 +25,8 @@ export function ClientOrdersApproval() {
   const [tab, setTab] = useState<"pending" | "approved">("pending")
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false)
+  const [invoiceLoading, setInvoiceLoading] = useState<null | "download">(null)
   const [rejectionReason, setRejectionReason] = useState("")
 
   useEffect(() => {
@@ -39,6 +43,7 @@ export function ClientOrdersApproval() {
   useEffect(() => {
     setDetailOrder(selected)
     setShowEdit(false)
+    setShowInvoicePreview(false)
   }, [selected])
 
   const pendingOrders = orders.filter(o => o.status === "pending_approval")
@@ -54,7 +59,26 @@ export function ClientOrdersApproval() {
 
   const displayOrders = tab === "pending" ? pendingOrders : approvedOrders
   const canEditOrder = detailOrder?.status === "pending_approval"
+  const showInvoiceActions = detailOrder ? canShowOrderInvoiceActions(detailOrder) : false
   const currentUserName = user?.name || user?.email || "Admin"
+
+  async function downloadInvoice() {
+    if (!detailOrder || invoiceLoading) return
+    setInvoiceLoading("download")
+    try {
+      await downloadInvoicePDF(detailOrder)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      alert("Failed to generate PDF. Please try again.")
+    } finally {
+      setInvoiceLoading(null)
+    }
+  }
+
+  function viewInvoice() {
+    if (invoiceLoading) return
+    setShowInvoicePreview(true)
+  }
 
   async function handleApprove() {
     if (!detailOrder) return
@@ -174,6 +198,10 @@ export function ClientOrdersApproval() {
         />
       )}
 
+      {showInvoicePreview && detailOrder && (
+        <InvoicePreviewModal order={detailOrder} onClose={() => setShowInvoicePreview(false)} />
+      )}
+
       {detailOrder && !showEdit && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
@@ -266,6 +294,34 @@ export function ClientOrdersApproval() {
               )}
               {detailOrder.status !== "pending_approval" && (
                 <Badge variant="success" className="text-xs w-fit">Order {STATUS_LABELS[detailOrder.status]}</Badge>
+              )}
+              {showInvoiceActions && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-10 w-10 p-0 cursor-pointer shrink-0"
+                    onClick={viewInvoice}
+                    disabled={!!invoiceLoading}
+                    title="View Invoice"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-10 w-10 p-0 cursor-pointer shrink-0"
+                    onClick={() => void downloadInvoice()}
+                    disabled={!!invoiceLoading}
+                    title={invoiceLoading === "download" ? "Generating PDF…" : "Download PDF"}
+                  >
+                    {invoiceLoading === "download" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </Button>
+                </>
               )}
               <Button
                 size="sm"
