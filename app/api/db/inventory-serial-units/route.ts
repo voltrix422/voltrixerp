@@ -115,3 +115,39 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json(unit)
 }
+
+export async function DELETE(req: NextRequest) {
+  let id: string | null = new URL(req.url).searchParams.get("id")
+  if (!id) {
+    try {
+      const body = await req.json()
+      id = body?.id ? String(body.id) : null
+    } catch {
+      id = null
+    }
+  }
+
+  if (!id) {
+    return NextResponse.json({ error: "Unit ID is required" }, { status: 400 })
+  }
+
+  const unit = await prisma.erpInventorySerialUnit.findUnique({ where: { id } })
+  if (!unit) {
+    return NextResponse.json({ error: "Unit not found" }, { status: 404 })
+  }
+
+  await prisma.erpWarrantyClaim.deleteMany({ where: { unitId: id } })
+
+  if (unit.warrantyId) {
+    await prisma.erpWarranty.deleteMany({ where: { warrantyId: unit.warrantyId } })
+  }
+  if (unit.serialNumber) {
+    await prisma.erpWarranty.deleteMany({
+      where: { serialNumber: unit.serialNumber },
+    })
+  }
+
+  await prisma.erpInventorySerialUnit.delete({ where: { id } })
+
+  return NextResponse.json({ ok: true })
+}

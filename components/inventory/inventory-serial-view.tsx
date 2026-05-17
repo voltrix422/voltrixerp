@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
+  deleteInventorySerialUnit,
   getInventorySerialUnits,
   serialNumberKey,
   type InventorySerialUnit,
@@ -20,6 +21,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from "lucide-react"
 
 function formatDate(iso?: string) {
@@ -39,6 +41,7 @@ export function InventorySerialView() {
   const [exportingExcel, setExportingExcel] = useState(false)
   const [showQrModal, setShowQrModal] = useState(false)
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({})
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
@@ -112,6 +115,30 @@ export function InventorySerialView() {
   function handleScanSaved() {
     void loadUnits()
     setShowQrModal(false)
+  }
+
+  async function handleDeleteUnit(unit: InventorySerialUnit) {
+    const label = unit.serialNumber || unit.model || "this unit"
+    if (!confirm(`Remove SN ${label} from inventory? This cannot be undone.`)) return
+
+    setDeletingId(unit.id)
+    try {
+      await deleteInventorySerialUnit(unit.id)
+      setUnits((prev) => prev.filter((u) => u.id !== unit.id))
+      toast({
+        title: "Removed",
+        message: `SN ${unit.serialNumber} deleted from inventory.`,
+        type: "success",
+      })
+    } catch (err) {
+      toast({
+        title: "Error",
+        message: err instanceof Error ? err.message : "Could not delete unit.",
+        type: "error",
+      })
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   if (loading && units.length === 0) {
@@ -214,6 +241,7 @@ export function InventorySerialView() {
                           <th className="px-4 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Item ref</th>
                           <th className="px-4 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Received</th>
                           <th className="px-4 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))]">Status</th>
+                          <th className="px-4 py-2 text-right font-semibold text-[hsl(var(--muted-foreground))] w-16">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -226,6 +254,23 @@ export function InventorySerialView() {
                               <Badge variant="secondary" className="text-[10px] capitalize">
                                 {unit.status.replace(/_/g, " ")}
                               </Badge>
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                disabled={deletingId === unit.id}
+                                onClick={() => void handleDeleteUnit(unit)}
+                                title="Delete from inventory"
+                              >
+                                {deletingId === unit.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
                             </td>
                           </tr>
                         ))}

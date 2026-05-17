@@ -157,6 +157,18 @@ export async function saveInventorySerialUnit(data: {
   return mapSerialUnit(await res.json())
 }
 
+export async function deleteInventorySerialUnit(id: string): Promise<void> {
+  const res = await fetch("/api/db/inventory-serial-units", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}))
+    throw new Error(payload?.error || "Failed to delete unit")
+  }
+}
+
 export async function updateInventorySerialUnit(data: {
   id: string
   assignedName?: string
