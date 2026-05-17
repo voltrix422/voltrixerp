@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { uploadFiles } from "@/lib/upload"
-import { parseLeadImportCsv, downloadLeadsCsv } from "@/lib/csv-leads"
+import { parseLeadImportCsv } from "@/lib/csv-leads"
+import { downloadLeadsExcel } from "@/lib/crm-excel-export"
 import {
   fetchLeads,
   fetchLeadDetail,
@@ -406,14 +407,18 @@ export function LeadsManager({
             size="sm"
             variant="outline"
             className="h-8 text-xs"
-            disabled={leads.length === 0}
+            disabled={filteredAll.length === 0}
             onClick={() => {
-              downloadLeadsCsv(leads, undefined, { exportedBy: currentUser })
-              toast({ type: "success", title: "Download started", message: `${leads.length} lead(s) exported.` })
+              downloadLeadsExcel(filteredAll, { exportedBy: currentUser })
+              toast({
+                type: "success",
+                title: "Download started",
+                message: `${filteredAll.length} lead(s) exported for Excel.`,
+              })
             }}
           >
             <Download className="h-3.5 w-3.5 mr-1" />
-            Export all leads
+            Export Excel
           </Button>
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowAddLead(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Add lead

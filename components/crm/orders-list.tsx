@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, ArrowLeft, Save } from "lucide-react"
+import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
+import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
@@ -31,6 +33,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<Order | null>(null)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   useEffect(() => {
     Promise.all([getOrders(), getClients()]).then(([o, c]) => {
@@ -69,6 +72,22 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     
     return matchesSearch && matchesStatus && matchesDateRange
   })
+
+  function exportListExcel() {
+    setExportingExcel(true)
+    try {
+      downloadOrdersExcel(filtered, currentUser)
+      toast({
+        title: "Download started",
+        message: `${filtered.length} order(s) exported for Excel.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export orders.", type: "error" })
+    } finally {
+      setExportingExcel(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -196,6 +215,11 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           </button>
         </div>
         <div className="flex items-center gap-3">
+          <CrmExcelExportButton
+            onExport={exportListExcel}
+            exporting={exportingExcel}
+            disabled={loading || filtered.length === 0}
+          />
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
             {showFilters ? "Hide Filters" : "Filters"}
           </Button>

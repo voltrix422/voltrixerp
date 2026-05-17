@@ -10,14 +10,18 @@ import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Plus, Search, X, Upload, Trash2, User, ShoppingCart } from "lucide-react"
+import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
+import { downloadClientsExcel } from "@/lib/crm-excel-export"
 
 export function ClientsList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
+  const { toast } = useToast()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Client | null>(null)
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   useEffect(() => {
     getClients().then(c => {
@@ -35,6 +39,22 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
     c.email.toLowerCase().includes(search.toLowerCase())
   )
 
+  function exportListExcel() {
+    setExportingExcel(true)
+    try {
+      downloadClientsExcel(filtered, currentUser)
+      toast({
+        title: "Download started",
+        message: `${filtered.length} client(s) exported for Excel.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export clients.", type: "error" })
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end gap-3">
@@ -46,6 +66,11 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
             className="w-full h-9 px-3 border-b-2 border-t-0 border-x-0 border-[hsl(var(--border))] bg-transparent text-sm focus:outline-none focus:border-[hsl(var(--primary))] transition-colors cursor-pointer"
           />
         </div>
+        <CrmExcelExportButton
+          onExport={exportListExcel}
+          exporting={exportingExcel}
+          disabled={loading || filtered.length === 0}
+        />
         {!workspace?.readOnly && (
         <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Clients

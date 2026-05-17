@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { Plus, X, Trash2, FileText, Edit, ShoppingCart } from "lucide-react"
+import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
+import { downloadQuotationsExcel } from "@/lib/crm-excel-export"
 import { saveOrder, generateOrderNumber } from "@/lib/orders"
 import type { Order } from "@/lib/orders"
 
@@ -65,6 +67,7 @@ export function QuotationsList({
   const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Quotation | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
   const [dateFrom, setDateFrom] = useState(defaultFromDate)
   const [dateTo, setDateTo] = useState(todayDate)
   const [appliedFrom, setAppliedFrom] = useState(defaultFromDate)
@@ -124,6 +127,22 @@ export function QuotationsList({
     }
   }
 
+  function exportListExcel() {
+    setExportingExcel(true)
+    try {
+      downloadQuotationsExcel(filtered, agentDisplayName || currentUser)
+      toast({
+        title: "Download started",
+        message: `${filtered.length} quotation(s) exported for Excel.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export quotations.", type: "error" })
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   return (
     <div className="space-y-4 max-w-full overflow-x-hidden">
       {isSalesAgent && (
@@ -164,6 +183,11 @@ export function QuotationsList({
             onChange={e => setSearch(e.target.value)}
             placeholder="Search..."
             className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full min-w-0 sm:w-40"
+          />
+          <CrmExcelExportButton
+            onExport={exportListExcel}
+            exporting={exportingExcel}
+            disabled={loading || filtered.length === 0}
           />
           {!workspace?.readOnly && (
             <Button size="sm" className="h-8 text-xs px-3 cursor-pointer w-full sm:w-auto" onClick={() => setShowForm(true)}>
