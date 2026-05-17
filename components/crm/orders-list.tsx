@@ -5,6 +5,7 @@ import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
+import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
@@ -541,7 +542,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
           </div>
 
           <div className="pt-4 border-t">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
               <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order Items *</p>
               <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowInventory(true)}>
                 <Plus className="h-4 w-4 mr-1.5" /> Add from inventory
@@ -555,65 +556,13 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add items from warehouse inventory</p>
               </div>
             ) : (
-              <div className="rounded-lg border overflow-hidden overflow-x-auto">
-                <table className="w-full text-sm min-w-[520px]">
-                  <thead>
-                    <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                      <th className="px-4 py-3 text-left font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                      <th className="px-4 py-3 text-center font-semibold text-[hsl(var(--muted-foreground))] w-28">Qty</th>
-                      <th className="px-4 py-3 text-center font-semibold text-[hsl(var(--muted-foreground))] w-20">Unit</th>
-                      <th className="px-4 py-3 text-right font-semibold text-[hsl(var(--muted-foreground))] w-36">Unit Price</th>
-                      <th className="px-4 py-3 text-right font-semibold text-[hsl(var(--muted-foreground))] w-32">Total</th>
-                      <th className="w-12" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {items.map(item => (
-                      <tr key={item.id}>
-                        <td className="px-3 py-2">
-                          <div>
-                            <input value={item.description} onChange={e => updateItem(item.id, "description", e.target.value)}
-                              disabled={!item.isCustom}
-                              placeholder="Product description"
-                              className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-60" />
-                            {item.availableQty !== undefined && (
-                              <p className="text-xs text-green-600 dark:text-green-400 font-medium mt-1 px-1">
-                                Stock: {item.availableQty} {item.unit}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="number" min="1" max={item.availableQty} value={item.qty} onChange={e => updateItem(item.id, "qty", Number(e.target.value))}
-                            className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input value={item.unit} onChange={e => updateItem(item.id, "unit", e.target.value)}
-                            disabled={!item.isCustom}
-                            className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] disabled:opacity-60" />
-                        </td>
-                        <td className="px-3 py-2">
-                          <div>
-                            <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", Number(e.target.value))}
-                              className="w-full h-9 rounded border bg-[hsl(var(--background))] px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
-                            {item.costPrice !== undefined && (
-                              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1 px-1">
-                                Cost: PKR {item.costPrice.toLocaleString()}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-right font-medium">PKR {(item.unitPrice * item.qty).toLocaleString()}</td>
-                        <td className="px-2">
-                          <button type="button" onClick={() => removeItem(item.id)} className="cursor-pointer">
-                            <Trash2 className="h-4 w-4 text-[hsl(var(--muted-foreground))] hover:text-red-500" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CrmLineItemsEditor
+                items={items}
+                onUpdate={(id, key, value) => updateItem(id, key, value)}
+                onRemove={removeItem}
+                size="md"
+                removeIcon="trash"
+              />
             )}
           </div>
 

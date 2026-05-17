@@ -6,6 +6,7 @@ import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, orderSt
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
+import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
@@ -456,35 +457,15 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">No items added yet</p>
               </div>
             ) : (
-              <div className="rounded-lg border overflow-hidden overflow-x-auto">
-                <table className="w-full text-sm min-w-[520px]">
-                  <thead><tr className="bg-[hsl(var(--muted))]/40 border-b">
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-24">Qty</th>
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-20">Unit</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-32">Unit Price</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Total</th>
-                    <th className="w-10"/>
-                  </tr></thead>
-                  <tbody className="divide-y">
-                    {items.map(item => (
-                      <tr key={item.id}>
-                        <td className="px-2 py-1.5">
-                          <input value={item.description} onChange={e => updateItem(item.id, "description", e.target.value)} disabled={!item.isCustom} placeholder="Product description"
-                            className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-60"/>
-                          {item.availableQty !== undefined && <p className="text-[10px] text-green-600 mt-0.5 px-1">Stock: {item.availableQty} {item.unit}</p>}
-                        </td>
-                        <td className="px-2 py-1.5"><input type="number" min="1" value={item.qty} onChange={e => updateItem(item.id, "qty", Number(e.target.value))} className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"/></td>
-                        <td className="px-2 py-1.5"><input value={item.unit} onChange={e => updateItem(item.id, "unit", e.target.value)} className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"/></td>
-                        <td className="px-2 py-1.5"><input type="number" min="0" value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", Number(e.target.value))} className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"/></td>
-                        <td className="px-2 py-1.5 text-xs text-right font-medium">PKR {(item.qty * item.unitPrice).toLocaleString()}</td>
-                        <td className="px-2 py-1.5"><button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))} className="text-red-400 hover:text-red-600 cursor-pointer"><X className="h-3.5 w-3.5"/></button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CrmLineItemsEditor
+                items={items}
+                onUpdate={(id, key, value) => updateItem(id, key, value)}
+                onRemove={(id) => setItems((prev) => prev.filter((i) => i.id !== id))}
+                size="sm"
+                removeIcon="x"
+              />
             )}
+
           </div>
           {/* Financials */}
           <div className="pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-4">
