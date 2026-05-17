@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, ArrowLeft, Save } from "lucide-react"
+import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { PaymentCapture } from "@/components/crm/payment-capture"
@@ -246,7 +246,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       {selected && (
         <OrderDetail
           order={selected}
+          clients={clients}
+          workspace={workspace}
           currentUser={currentUser}
+          currentUserId={currentUserId}
           onClose={() => setSelected(null)}
           onUpdate={o => {
             setOrders(prev => prev.map(x => x.id === o.id ? o : x))
@@ -280,20 +283,22 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   )
 }
 
-function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, onSave }: {
+function OrderForm({ currentUser, currentUserId, workspace, clients, existing, onClose, onSave }: {
   currentUser: string
   currentUserId?: string
   workspace?: CrmWorkspaceScope
   clients: Client[]
+  existing?: Order
   onClose: () => void
   onSave: (o: Order) => void
 }) {
   const { toast } = useToast()
-  const [clientId, setClientId] = useState("")
-  const [items, setItems] = useState<OrderItem[]>([])
-  const [deliveryAddress, setDeliveryAddress] = useState("")
-  const [deliveryDate, setDeliveryDate] = useState("")
-  const [notes, setNotes] = useState("")
+  const isEdit = !!existing
+  const [clientId, setClientId] = useState(existing?.clientId ?? "")
+  const [items, setItems] = useState<OrderItem[]>(existing?.items ?? [])
+  const [deliveryAddress, setDeliveryAddress] = useState(existing?.deliveryAddress ?? "")
+  const [deliveryDate, setDeliveryDate] = useState(existing?.deliveryDate ?? "")
+  const [notes, setNotes] = useState(existing?.notes ?? "")
   const [saving, setSaving] = useState(false)
   const [warehouseProducts, setWarehouseProducts] = useState<CrmWarehouseProduct[]>([])
   const [showInventory, setShowInventory] = useState(false)
@@ -303,20 +308,29 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
   const [quantityError, setQuantityError] = useState<string | null>(null)
   
   // Tax and expenses state
-  const [taxPercent, setTaxPercent] = useState<number>(0)
-  const [transportCost, setTransportCost] = useState<number>(0)
-  const [transportLabel, setTransportLabel] = useState<string>("Transport")
-  const [transportIsPercentage, setTransportIsPercentage] = useState<boolean>(false)
-  const [otherCost, setOtherCost] = useState<number>(0)
-  const [otherCostLabel, setOtherCostLabel] = useState<string>("Other")
-  const [otherCostIsPercentage, setOtherCostIsPercentage] = useState<boolean>(false)
-  // Discount state
-  const [discount, setDiscount] = useState<number>(0)
-  const [discountIsPercentage, setDiscountIsPercentage] = useState<boolean>(true)
+  const [taxPercent, setTaxPercent] = useState<number>(existing?.taxPercent ?? 0)
+  const [transportCost, setTransportCost] = useState<number>(existing?.transportCost ?? 0)
+  const [transportLabel, setTransportLabel] = useState<string>(existing?.transportLabel ?? "Transport")
+  const [transportIsPercentage, setTransportIsPercentage] = useState<boolean>(existing?.transportIsPercentage ?? false)
+  const [otherCost, setOtherCost] = useState<number>(existing?.otherCost ?? 0)
+  const [otherCostLabel, setOtherCostLabel] = useState<string>(existing?.otherCostLabel ?? "Other")
+  const [otherCostIsPercentage, setOtherCostIsPercentage] = useState<boolean>(existing?.otherCostIsPercentage ?? false)
+  const [discount, setDiscount] = useState<number>(existing?.discount ?? 0)
+  const [discountIsPercentage, setDiscountIsPercentage] = useState<boolean>(existing?.discountIsPercentage ?? true)
 
   useEffect(() => {
-    void loadCrmWarehouseProducts().then(setWarehouseProducts)
-  }, [])
+    void loadCrmWarehouseProducts().then((products) => {
+      setWarehouseProducts(products)
+      if (existing?.items?.length) {
+        setItems(
+          existing.items.map((item) => {
+            const product = products.find((p) => p.id === item.inventoryItemId)
+            return product ? { ...item, availableQty: product.qty } : item
+          }),
+        )
+      }
+    })
+  }, [existing?.id])
 
   useEffect(() => {
     if (quantityError) {
@@ -410,42 +424,73 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
     setSaving(true)
 
     const client = clients.find(c => c.id === clientId)
-    const orderNumber = await generateOrderNumber()
 
-    const order: Order = {
-      id: Date.now().toString(),
-      orderNumber,
-      clientId,
-      clientName: client?.name || "",
-      items,
-      subtotal,
-      taxPercent,
-      tax: taxAmount,
-      transportCost,
-      transportLabel,
-      transportIsPercentage,
-      transportCostValue: transportAmount,
-      otherCost,
-      otherCostLabel,
-      otherCostIsPercentage,
-      otherCostValue: otherAmount,
-      shipping: 0,
-      discount,
-      discountIsPercentage,
-      discountValue: discountAmount,
-      total,
-      status: initialOrderStatus(workspace),
-      notes: notes.trim(),
-      createdAt: new Date().toISOString(),
-      createdBy: currentUser,
-      ownerUserId: resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
-      deliveryAddress: deliveryAddress.trim(),
-      deliveryDate: deliveryDate || "",
-      payments: [],
-    }
+    const order: Order = isEdit
+      ? {
+          ...existing!,
+          clientId,
+          clientName: client?.name || existing!.clientName,
+          items,
+          subtotal,
+          taxPercent,
+          tax: taxAmount,
+          transportCost,
+          transportLabel,
+          transportIsPercentage,
+          transportCostValue: transportAmount,
+          otherCost,
+          otherCostLabel,
+          otherCostIsPercentage,
+          otherCostValue: otherAmount,
+          shipping: existing!.shipping ?? 0,
+          discount,
+          discountIsPercentage,
+          discountValue: discountAmount,
+          total,
+          notes: notes.trim(),
+          deliveryAddress: deliveryAddress.trim(),
+          deliveryDate: deliveryDate || "",
+        }
+      : {
+          id: Date.now().toString(),
+          orderNumber: await generateOrderNumber(),
+          clientId,
+          clientName: client?.name || "",
+          items,
+          subtotal,
+          taxPercent,
+          tax: taxAmount,
+          transportCost,
+          transportLabel,
+          transportIsPercentage,
+          transportCostValue: transportAmount,
+          otherCost,
+          otherCostLabel,
+          otherCostIsPercentage,
+          otherCostValue: otherAmount,
+          shipping: 0,
+          discount,
+          discountIsPercentage,
+          discountValue: discountAmount,
+          total,
+          status: initialOrderStatus(workspace),
+          notes: notes.trim(),
+          createdAt: new Date().toISOString(),
+          createdBy: currentUser,
+          ownerUserId: resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
+          deliveryAddress: deliveryAddress.trim(),
+          deliveryDate: deliveryDate || "",
+          payments: [],
+        }
 
     await saveOrder(order)
-    toast({ title: "Order submitted", message: "This order was sent to the dashboard for admin approval.", type: "success" })
+    toast({
+      title: isEdit ? "Order updated" : "Order submitted",
+      message: isEdit
+        ? "Changes saved. Order is still pending admin approval."
+        : "This order was sent to the dashboard for admin approval.",
+      type: "success",
+    })
     onSave(order)
     setSaving(false)
   }
@@ -457,10 +502,10 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
           <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">{quantityError}</p>
         </div>
       )}
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+      <div className={`fixed inset-0 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 ${isEdit ? "z-[60]" : "z-50"}`} onClick={onClose}>
         <div className="w-full sm:max-w-5xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[85vh]" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-5 border-b shrink-0">
-            <p className="text-lg font-bold">Create New Order</p>
+            <p className="text-lg font-bold">{isEdit ? `Edit ${existing?.orderNumber}` : "Create New Order"}</p>
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
               <X className="h-5 w-5" />
             </Button>
@@ -816,7 +861,7 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 px-4 sm:px-8 py-3 sm:py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button size="sm" variant="outline" className="h-10 text-sm px-6 cursor-pointer w-full sm:w-auto" onClick={onClose}>Cancel</Button>
           <Button size="sm" className="h-10 text-sm px-6 cursor-pointer w-full sm:w-auto bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={submit} disabled={saving || !clientId || items.length === 0}>
-            {saving ? "Creating..." : workspace?.mode === "sales_agent" ? "Submit for approval" : "Create Order"}
+            {saving ? "Saving..." : isEdit ? "Save changes" : workspace?.mode === "sales_agent" ? "Submit for approval" : "Create Order"}
           </Button>
         </div>
       </div>
@@ -834,12 +879,25 @@ function OrderForm({ currentUser, currentUserId, workspace, clients, onClose, on
   )
 }
 
-function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
+
+function OrderDetail({
+  order,
+  clients,
+  workspace,
+  currentUser,
+  currentUserId,
+  onClose,
+  onUpdate,
+  onDelete,
+}: {
   order: Order
+  clients: Client[]
+  workspace?: CrmWorkspaceScope
+  currentUser: string
+  currentUserId?: string
   onClose: () => void
   onUpdate: (o: Order) => void
   onDelete: (id: string) => void
-  currentUser: string
 }) {
   const { user } = useAuth()
   const [deleting, setDeleting] = useState(false)
@@ -849,92 +907,34 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
   const [showPayment, setShowPayment] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [detailOrder, setDetailOrder] = useState(order)
 
   useEffect(() => {
     setDetailOrder(order)
+    setStatus(order.status)
   }, [order])
 
-  // Check if current user is admin
   const isAdmin = user?.role === "superadmin"
-  
-  // Editable fields
-  const [editDeliveryDate, setEditDeliveryDate] = useState(order.deliveryDate || "")
-  const [editDeliveryAddress, setEditDeliveryAddress] = useState(order.deliveryAddress || "")
-  const [editNotes, setEditNotes] = useState(order.notes || "")
-  const [editTaxPercent, setEditTaxPercent] = useState(order.taxPercent || "")
-  const [editTransportCost, setEditTransportCost] = useState(order.transportCost || "")
-  const [editOtherCost, setEditOtherCost] = useState(order.otherCost || "")
-  const [editDispatcher, setEditDispatcher] = useState(order.dispatcher || "")
+  const canEditOrder = detailOrder.status === "pending_approval"
 
   async function handleDelete() {
     setDeleting(true)
-    
-    // Restore inventory if order was delivered
     await restoreInventoryForOrder(order)
-    
     await deleteOrder(order.id)
     onDelete(order.id)
     setShowDeleteConfirm(false)
   }
 
-  async function handleSaveEdit() {
-    setSaving(true)
-    
-    const subtotal = order.subtotal
-    const tax = (subtotal * (Number(editTaxPercent) || 0)) / 100
-    const total = subtotal + tax + (Number(editTransportCost) || 0) + (Number(editOtherCost) || 0)
-    
-    const updated: Order = {
-      ...order,
-      deliveryDate: editDeliveryDate || "",
-      deliveryAddress: editDeliveryAddress,
-      notes: editNotes,
-      taxPercent: Number(editTaxPercent) || 0,
-      tax,
-      transportCost: Number(editTransportCost) || 0,
-      transportLabel: "Transport cost",
-      otherCost: Number(editOtherCost) || 0,
-      otherCostLabel: "Other cost",
-      dispatcher: editDispatcher,
-      discount: order.discount,
-      discountIsPercentage: order.discountIsPercentage,
-      discountValue: order.discountValue,
-      total,
-    }
-    
-    await saveOrder(updated)
-    onUpdate(updated)
-    setIsEditing(false)
-    setSaving(false)
-  }
-
-  function cancelEdit() {
-    setEditDeliveryDate(order.deliveryDate || "")
-    setEditDeliveryAddress(order.deliveryAddress || "")
-    setEditNotes(order.notes || "")
-    setEditTaxPercent(order.taxPercent || "")
-    setEditTransportCost(order.transportCost || "")
-    setEditOtherCost(order.otherCost || "")
-    setEditDispatcher(order.dispatcher || "")
-    setIsEditing(false)
-  }
-
   async function updateStatus(newStatus: typeof status) {
     setStatus(newStatus)
-    const updated = { ...order, status: newStatus }
-    
-    // Deduct inventory when order is delivered
+    const updated = { ...detailOrder, status: newStatus }
+
     if (newStatus === "delivered" && status !== "delivered") {
       try {
         const { deductInventoryForOrder } = await import("@/lib/inventory")
         await deductInventoryForOrder(updated)
-        console.log("Inventory deducted for delivered order:", updated.orderNumber)
       } catch (error) {
         console.error("Error deducting inventory:", error)
-        // Don't fail the status update if inventory deduction fails
       }
     }
 
@@ -945,6 +945,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
     }
 
     await saveOrder(toSave)
+    setDetailOrder(toSave)
     onUpdate(toSave)
   }
 
@@ -955,7 +956,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
 
   async function downloadInvoice() {
     try {
-      await downloadInvoicePDF(order)
+      await downloadInvoicePDF(detailOrder)
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
@@ -968,12 +969,28 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
 
   return (
     <>
+      {showEdit && canEditOrder && (
+        <OrderForm
+          existing={detailOrder}
+          clients={clients}
+          workspace={workspace}
+          currentUser={currentUser}
+          currentUserId={currentUserId}
+          onClose={() => setShowEdit(false)}
+          onSave={(o) => {
+            setDetailOrder(o)
+            onUpdate(o)
+            setShowEdit(false)
+          }}
+        />
+      )}
       {showFinalize ? (
         <OrderFinalize
-          order={order}
+          order={detailOrder}
           currentUser={currentUser}
           onClose={() => setShowFinalize(false)}
           onUpdate={o => {
+            setDetailOrder(o)
             onUpdate(o)
             setShowFinalize(false)
           }}
@@ -992,62 +1009,48 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
       ) : (
     <>
     {showInvoicePreview && (
-      <InvoicePreviewModal order={order} onClose={() => setShowInvoicePreview(false)} />
+      <InvoicePreviewModal order={detailOrder} onClose={() => setShowInvoicePreview(false)} />
     )}
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
       <div className="w-full max-w-6xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-2 px-4 sm:px-8 py-3 sm:py-5 border-b shrink-0">
           <div className="flex items-start gap-2 sm:gap-4 min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => setIsEditing(!isEditing)}
-              className="h-9 w-9 shrink-0 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center transition-colors cursor-pointer"
-              title={isEditing ? "Back to view" : "Edit order"}
-            >
-              <ArrowLeft className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
-            </button>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <OrderSourceBadge order={order} />
-                <p className="text-base sm:text-xl font-bold text-[hsl(var(--primary))] truncate">{order.orderNumber}</p>
-                <span className={`inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-medium ${STATUS_COLORS[order.status]}`}>
-                  {STATUS_LABELS[order.status]}
+                <OrderSourceBadge order={detailOrder} />
+                <p className="text-base sm:text-xl font-bold text-[hsl(var(--primary))] truncate">{detailOrder.orderNumber}</p>
+                <span className={`inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-medium ${STATUS_COLORS[detailOrder.status]}`}>
+                  {STATUS_LABELS[detailOrder.status]}
                 </span>
               </div>
-              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize truncate">{order.clientName}</p>
-              {!isEditing && (
-                <div className="lg:hidden grid grid-cols-2 gap-2 mt-2 text-[10px]">
-                  {order.deliveryDate && (
-                    <div>
-                      <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Delivery</p>
-                      <p className="mt-0.5">{new Date(order.deliveryDate).toLocaleDateString()}</p>
-                    </div>
-                  )}
+              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize truncate">{detailOrder.clientName}</p>
+              <div className="lg:hidden grid grid-cols-2 gap-2 mt-2 text-[10px]">
+                {detailOrder.deliveryDate && (
                   <div>
-                    <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Created</p>
-                    <p className="mt-0.5">{new Date(order.createdAt).toLocaleDateString()}</p>
+                    <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Delivery</p>
+                    <p className="mt-0.5">{new Date(detailOrder.deliveryDate).toLocaleDateString()}</p>
                   </div>
+                )}
+                <div>
+                  <p className="font-bold text-[hsl(var(--muted-foreground))] uppercase">Created</p>
+                  <p className="mt-0.5">{new Date(detailOrder.createdAt).toLocaleDateString()}</p>
                 </div>
-              )}
+              </div>
             </div>
-            {!isEditing && order.deliveryDate && (
+            {detailOrder.deliveryDate && (
               <div className="hidden lg:block border-l pl-6 shrink-0">
                 <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Delivery date</p>
-                <p className="text-sm mt-1">{new Date(order.deliveryDate).toLocaleDateString()}</p>
+                <p className="text-sm mt-1">{new Date(detailOrder.deliveryDate).toLocaleDateString()}</p>
               </div>
             )}
-            {!isEditing && (
-              <div className="hidden lg:block border-l pl-6 shrink-0">
-                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Source</p>
-                <p className="text-sm mt-1">{order.ownerUserId ? `Sales agent · ${order.createdBy}` : "CRM"}</p>
-              </div>
-            )}
-            {!isEditing && (
-              <div className="hidden lg:block border-l pl-6 shrink-0">
-                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Created</p>
-                <p className="text-sm mt-1">{new Date(order.createdAt).toLocaleDateString()} by {order.createdBy}</p>
-              </div>
-            )}
+            <div className="hidden lg:block border-l pl-6 shrink-0">
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Source</p>
+              <p className="text-sm mt-1">{detailOrder.ownerUserId ? `Sales agent · ${detailOrder.createdBy}` : "CRM"}</p>
+            </div>
+            <div className="hidden lg:block border-l pl-6 shrink-0">
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Created</p>
+              <p className="text-sm mt-1">{new Date(detailOrder.createdAt).toLocaleDateString()} by {detailOrder.createdBy}</p>
+            </div>
           </div>
           <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
             <X className="h-5 w-5" />
@@ -1055,129 +1058,34 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
         </div>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 space-y-5 sm:space-y-6">
-          {isEditing ? (
-            <>
-              {/* Edit Form */}
-              <div className="space-y-4">
-                <div className="border-b pb-4">
-                  <label className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2 block">Notes</label>
-                  <textarea
-                    value={editNotes}
-                    onChange={e => setEditNotes(e.target.value)}
-                    rows={2}
-                    className="w-full rounded-md border bg-[hsl(var(--background))] px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none"
-                    placeholder="Add notes..."
-                  />
-                </div>
+          {detailOrder.dispatcher && (
+            <div className="border-b pb-4">
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Dispatcher</p>
+              <p className="text-sm font-medium">{detailOrder.dispatcher}</p>
+            </div>
+          )}
 
-                <div className="border-b pb-3">
-                  <label className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1 block">Delivery date</label>
-                  <input
-                    type="date"
-                    value={editDeliveryDate}
-                    onChange={e => setEditDeliveryDate(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                  />
-                </div>
+          {detailOrder.deliveryAddress && (
+            <div className="border-b pb-4">
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Delivery address</p>
+              <p className="text-sm whitespace-pre-wrap">{detailOrder.deliveryAddress}</p>
+            </div>
+          )}
 
-                <div className="border-b pb-3">
-                  <p className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-2">Costs</p>
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <div className="space-y-0.5">
-                      <label className="text-[10px] font-medium">Tax percentage (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={editTaxPercent}
-                        onChange={e => setEditTaxPercent(e.target.value)}
-                        className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                        placeholder="e.g., 18"
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[10px] font-medium">Transport cost</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={editTransportCost}
-                        onChange={e => setEditTransportCost(e.target.value)}
-                        className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                        placeholder=""
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[10px] font-medium">Other cost</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={editOtherCost}
-                        onChange={e => setEditOtherCost(e.target.value)}
-                        className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                        placeholder=""
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-b pb-3">
-                  <label className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1 block">Delivery address</label>
-                  <textarea
-                    value={editDeliveryAddress}
-                    onChange={e => setEditDeliveryAddress(e.target.value)}
-                    rows={2}
-                    className="w-full rounded-md border bg-[hsl(var(--background))] px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none"
-                    placeholder="Enter delivery address"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[9px] font-bold text-[hsl(var(--muted-foreground))] mb-1 block">Dispatcher</label>
-                  <input
-                    type="text"
-                    value={editDispatcher}
-                    onChange={e => setEditDispatcher(e.target.value)}
-                    className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                    placeholder="Assign dispatcher"
-                  />
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* View Mode */}
-              {order.dispatcher && (
-                <div className="border-b pb-4">
-                  <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Dispatcher</p>
-                  <p className="text-sm font-medium">{order.dispatcher}</p>
-                </div>
-              )}
-
-              {order.deliveryAddress && (
-                <div className="border-b pb-4">
-                  <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Delivery address</p>
-                  <p className="text-sm whitespace-pre-wrap">{order.deliveryAddress}</p>
-                </div>
-              )}
-
-              {order.notes && (
-                <div className="border-b pb-4">
-                  <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Notes</p>
-                  <p className="text-sm whitespace-pre-wrap">{order.notes}</p>
-                </div>
-              )}
+          {detailOrder.notes && (
+            <div className="border-b pb-4">
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Notes</p>
+              <p className="text-sm whitespace-pre-wrap">{detailOrder.notes}</p>
+            </div>
+          )}
 
           <div>
             <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] mb-3">Order Items</p>
-            <CrmLineItemsDisplay items={order.items} size="md" />
+            <CrmLineItemsDisplay items={detailOrder.items} size="md" />
           </div>
 
-          <CrmOrderSummaryDisplay order={order} />
+          <CrmOrderSummaryDisplay order={detailOrder} />
 
-          {/* Payment Section */}
           <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100">Payment</p>
@@ -1212,13 +1120,13 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
             </div>
           </div>
 
-          {order.payments && order.payments.length > 0 && (
+          {detailOrder.payments && detailOrder.payments.length > 0 && (
             <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-green-900 dark:text-green-100 mb-2">Payments Received</p>
               <div className="space-y-2">
-                {order.payments.map(p => {
+                {detailOrder.payments.map(p => {
                   const proofUrls = getOrderPaymentProofUrls(p)
-                  const pStatus = getPaymentSubmissionStatus(p, order.status)
+                  const pStatus = getPaymentSubmissionStatus(p, detailOrder.status)
                   return (
                   <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0">
                     <div>
@@ -1250,17 +1158,17 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
                   )
                 })}
                 {(() => {
-                  const submittedTotal = getSubmittedPayments(order.payments, order.status).reduce((sum, p) => sum + p.amount, 0)
+                  const submittedTotal = getSubmittedPayments(detailOrder.payments, detailOrder.status).reduce((sum, p) => sum + p.amount, 0)
                   return (
                     <>
                 <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-green-200 dark:border-green-800">
                   <span className="text-green-900 dark:text-green-100">Total Paid (submitted)</span>
                   <span className="text-green-900 dark:text-green-100">PKR {submittedTotal.toLocaleString()}</span>
                 </div>
-                {submittedTotal < order.total && (
+                {submittedTotal < detailOrder.total && (
                   <div className="flex items-center justify-between text-xs font-bold text-orange-700 dark:text-orange-300">
                     <span>Remaining</span>
-                    <span>PKR {(order.total - submittedTotal).toLocaleString()}</span>
+                    <span>PKR {(detailOrder.total - submittedTotal).toLocaleString()}</span>
                   </div>
                 )}
                     </>
@@ -1269,66 +1177,58 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
               </div>
             </div>
           )}
-            </>
-          )}
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 px-4 sm:px-8 py-3 sm:py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {isEditing ? (
+          {detailOrder.status === "pending_approval" && isAdmin && (
             <>
-              <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={handleSaveEdit} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : "Save Changes"}
+              <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => updateStatus("approved")}>
+                Approve Order
               </Button>
-              <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm cursor-pointer" onClick={cancelEdit}>Cancel</Button>
-            </>
-          ) : (
-            <>
-              {order.status === "pending_approval" && isAdmin && (
-                <>
-                  <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => updateStatus("approved")}>
-                    Approve Order
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => updateStatus("rejected")}>
-                    Reject Order
-                  </Button>
-                </>
-              )}
-              {canFinalize && (
-                <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => setShowFinalize(true)}>
-                  <FileText className="h-4 w-4 mr-2" /> Finalize Order
-                </Button>
-              )}
-              {canManagePayments && (
-                <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
-                  <Plus className="h-4 w-4 mr-2" /> {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
-                </Button>
-              )}
-              {hasInvoiceDetails && (detailOrder.status === "finalized" || detailOrder.status === "payment_added" || detailOrder.status === "approved") && (
-                <>
-                  <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={viewInvoice} title="View Invoice">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={downloadInvoice} title="Download PDF">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
-              <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm sm:ml-auto cursor-pointer" onClick={onClose}>Close</Button>
-              <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
-                <Trash2 className="h-4 w-4 mr-2" /> {deleting ? "Deleting..." : "Delete"}
+              <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => updateStatus("rejected")}>
+                Reject Order
               </Button>
             </>
           )}
+          {canEditOrder && (
+            <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm cursor-pointer" onClick={() => setShowEdit(true)}>
+              <Edit className="h-4 w-4 mr-2" /> Edit order
+            </Button>
+          )}
+          {canFinalize && (
+            <Button size="sm" className="h-10 text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => setShowFinalize(true)}>
+              <FileText className="h-4 w-4 mr-2" /> Finalize Order
+            </Button>
+          )}
+          {canManagePayments && (
+            <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
+              <Plus className="h-4 w-4 mr-2" /> {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
+            </Button>
+          )}
+          {hasInvoiceDetails && (detailOrder.status === "finalized" || detailOrder.status === "payment_added" || detailOrder.status === "approved") && (
+            <>
+              <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={viewInvoice} title="View Invoice">
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" className="h-10 w-10 p-0 cursor-pointer" onClick={downloadInvoice} title="Download PDF">
+                <Download className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm sm:ml-auto cursor-pointer" onClick={onClose}>Close</Button>
+          <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
+            <Trash2 className="h-4 w-4 mr-2" /> {deleting ? "Deleting..." : "Delete"}
+          </Button>
         </div>
       </div>
     </div>
     </>
       )}
-      
+
       <ConfirmDialog
         isOpen={showDeleteConfirm}
         title="Delete Order"
-        message={`Are you sure you want to delete this order? Order ${order.orderNumber} will be permanently removed and any inventory deductions will be restored.`}
+        message={`Are you sure you want to delete this order? Order ${detailOrder.orderNumber} will be permanently removed and any inventory deductions will be restored.`}
         confirmText="Delete Order"
         cancelText="Cancel"
         variant="danger"
