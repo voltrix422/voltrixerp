@@ -13,9 +13,10 @@ export function CrmOrdersListCards({
 }: {
   orders: Order[]
   onSelect: (order: Order) => void
-  onDownloadPdf: (order: Order) => void
-  onDelete: (order: Order) => void
+  onDownloadPdf?: (order: Order) => void
+  onDelete?: (order: Order) => void
 }) {
+  const showActions = Boolean(onDownloadPdf || onDelete)
   return (
     <div className="md:hidden space-y-2">
       {orders.map((order) => (
@@ -44,22 +45,28 @@ export function CrmOrdersListCards({
             </span>
             <span>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</span>
           </div>
-          <div className="flex gap-4 pt-1" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => onDownloadPdf(order)}
-              className="text-[#1a9f9a] text-xs cursor-pointer"
-            >
-              PDF
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(order)}
-              className="text-red-500 text-xs cursor-pointer"
-            >
-              Delete
-            </button>
-          </div>
+          {showActions && (
+            <div className="flex gap-4 pt-1" onClick={(e) => e.stopPropagation()}>
+              {onDownloadPdf && (
+                <button
+                  type="button"
+                  onClick={() => onDownloadPdf(order)}
+                  className="text-[#1a9f9a] text-xs cursor-pointer"
+                >
+                  PDF
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(order)}
+                  className="text-red-500 text-xs cursor-pointer"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
         </button>
       ))}
     </div>

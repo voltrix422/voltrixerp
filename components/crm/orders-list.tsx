@@ -283,7 +283,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   )
 }
 
-function OrderForm({ currentUser, currentUserId, workspace, clients, existing, onClose, onSave }: {
+export function OrderForm({ currentUser, currentUserId, workspace, clients, existing, onClose, onSave }: {
   currentUser: string
   currentUserId?: string
   workspace?: CrmWorkspaceScope
