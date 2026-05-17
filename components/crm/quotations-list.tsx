@@ -7,6 +7,7 @@ import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge
 import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
+import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
@@ -576,9 +577,9 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly, onUpd
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-5">
           {/* Info Grid */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
               <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Created</p>
               <p className="text-sm font-medium">{new Date(quotation.createdAt).toLocaleDateString()}</p>
@@ -616,33 +617,12 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly, onUpd
           {/* Items */}
           <div>
             <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Items</p>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full">
-                <thead><tr className="border-b bg-[hsl(var(--muted))]/40">
-                  <th className="h-8 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Description</th>
-                  <th className="h-8 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-20">Qty</th>
-                  <th className="h-8 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-16">Unit</th>
-                  <th className="h-8 px-3 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-28">Unit Price</th>
-                  <th className="h-8 px-3 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-28">Total</th>
-                </tr></thead>
-                <tbody className="divide-y">
-                  {quotation.items.map(item => (
-                    <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/20">
-                      <td className="px-3 py-2 text-xs">{item.description}</td>
-                      <td className="px-3 py-2 text-xs text-center">{item.qty}</td>
-                      <td className="px-3 py-2 text-xs text-center">{item.unit}</td>
-                      <td className="px-3 py-2 text-xs text-right">PKR {item.unitPrice.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-xs text-right font-medium">PKR {(item.qty * item.unitPrice).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <CrmLineItemsDisplay items={quotation.items} size="sm" />
           </div>
 
           {/* Totals */}
           <div className="flex justify-end">
-            <div className="w-64 space-y-1.5 text-xs">
+            <div className="w-full sm:w-64 space-y-1.5 text-xs">
               <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Subtotal</span><span>PKR {quotation.subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
               {(quotation.discountValue||0)>0&&<div className="flex justify-between text-red-600"><span>Discount {quotation.discountIsPercentage?`(${quotation.discount}%)`:""}</span><span>-PKR {(quotation.discountValue||0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               {Math.abs(Number(quotation.tax || 0))>0.004&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Tax ({quotation.taxPercent}%)</span><span>PKR {Number(quotation.tax || 0).toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
@@ -653,10 +633,10 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly, onUpd
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {!readOnly && (
             <>
-              <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
+              <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
               <ConvertToOrderButton
                 quotation={quotation}
                 onConverted={updated => {
@@ -752,7 +732,7 @@ function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation
   )
 
   return (
-    <Button size="sm" className="h-8 text-xs cursor-pointer bg-green-600 hover:bg-green-700 text-white" onClick={convert} disabled={converting}>
+    <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer bg-green-600 hover:bg-green-700 text-white" onClick={convert} disabled={converting}>
       <ShoppingCart className="h-3.5 w-3.5 mr-1"/>
       {converting ? "Converting..." : "Convert to Order"}
     </Button>

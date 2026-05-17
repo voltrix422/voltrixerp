@@ -6,6 +6,7 @@ import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWor
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
+import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { restoreInventoryForOrder } from "@/lib/inventory"
@@ -1144,33 +1145,7 @@ function OrderDetail({ order, onClose, onUpdate, onDelete, currentUser }: {
 
           <div>
             <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] mb-3">Order Items</p>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Description</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-16">Qty</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[hsl(var(--muted-foreground))] w-16">Unit</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-28">Unit Price</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))] w-32">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {order.items.map(item => {
-                    const total = item.unitPrice * item.qty
-                    return (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3">{item.description}</td>
-                        <td className="px-4 py-3 text-center">{item.qty}</td>
-                        <td className="px-4 py-3 text-center">{item.unit}</td>
-                        <td className="px-4 py-3 text-right">PKR {item.unitPrice.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right font-medium">PKR {total.toLocaleString()}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <CrmLineItemsDisplay items={order.items} size="md" />
           </div>
 
           {/* Order Summary */}
