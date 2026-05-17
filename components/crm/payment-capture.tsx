@@ -399,28 +399,39 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-        <div className="w-full max-w-3xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-8 py-5 border-b shrink-0">
-            <div>
-              <p className="text-xl font-bold text-[hsl(var(--primary))]">Capture Payment - {order.orderNumber}</p>
-              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-                Total: PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })} |
-                Submitted: PKR {totalSubmitted.toLocaleString(undefined, { minimumFractionDigits: 2 })} |
-                Remaining: PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+        <div className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-start justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
+            <div className="min-w-0 flex-1 pr-2">
+              <p className="text-base sm:text-lg font-bold text-[hsl(var(--primary))] truncate">
+                Capture Payment — {order.orderNumber}
               </p>
-              {totalDraft > 0 && (
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                  Draft (not sent to finance): PKR {totalDraft.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="mt-2 space-y-1 text-xs sm:text-sm text-[hsl(var(--muted-foreground))]">
+                <p>
+                  <span className="font-medium text-[hsl(var(--foreground))]">Total:</span>{" "}
+                  PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
-              )}
+                <p>
+                  <span className="font-medium text-[hsl(var(--foreground))]">Submitted:</span>{" "}
+                  PKR {totalSubmitted.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+                <p>
+                  <span className="font-medium text-[hsl(var(--foreground))]">Remaining:</span>{" "}
+                  PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+                {totalDraft > 0 && (
+                  <p className="text-[11px]">
+                    Draft (not sent to finance): PKR {totalDraft.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                )}
+              </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}>
               <X className="h-5 w-5" />
             </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-8 space-y-6">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-5">
             {error && (
               <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
                 <p className="text-sm text-red-800 dark:text-red-200 font-medium">{error}</p>
@@ -434,8 +445,8 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                 </p>
               </div>
             ) : (
-              <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
-                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-3 sm:p-4">
+                <p className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-100 leading-snug">
                   Add multiple payments (Payment 1, Payment 2, …). Each payment you submit is sent to Finance with its proofs. You can edit or add proofs until Finance approves the order.
                 </p>
               </div>
@@ -454,7 +465,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                   <p className="text-sm font-semibold mb-4">Add another payment</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Payment Amount *</label>
                     <input
@@ -543,29 +554,34 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 px-8 py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0">
+          <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             {canAddPayments && remaining > 0 && (
               <>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-10 text-sm cursor-pointer"
-                  onClick={handleSaveDraft}
-                  disabled={saving || uploadingProof || !paymentAmount}
-                >
-                  {saving ? "Saving..." : "Save as draft"}
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-10 text-sm bg-green-600 hover:bg-green-700 cursor-pointer"
+                  className="h-10 w-full sm:w-auto text-sm bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
                   onClick={handleSubmitNewForApproval}
                   disabled={saving || uploadingProof || !paymentAmount}
                 >
                   {saving ? "Processing..." : uploadingProof ? "Uploading..." : "Submit for approval"}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 w-full sm:w-auto text-sm cursor-pointer"
+                  onClick={handleSaveDraft}
+                  disabled={saving || uploadingProof || !paymentAmount}
+                >
+                  {saving ? "Saving..." : "Save as draft"}
+                </Button>
               </>
             )}
-            <Button size="sm" variant="outline" className="h-10 text-sm ml-auto cursor-pointer" onClick={onClose}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-10 w-full sm:w-auto sm:ml-auto text-sm cursor-pointer"
+              onClick={onClose}
+            >
               {financeLocked || remaining <= 0 ? "Close" : "Done"}
             </Button>
           </div>
