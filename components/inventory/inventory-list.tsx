@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Package, Search, X, CheckCircle2, Plus, Calendar, Calculator, Trash2, ChevronDown } from "lucide-react"
 import { generateGRN } from "@/lib/generate-grn"
-import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadManualInventoryExcel } from "@/lib/inventory-excel-export"
 import { useToast } from "@/components/ui/toast"
@@ -1033,17 +1032,7 @@ export function InventoryList() {
         </>
       )}
       {/* Inventory Tab */}
-      {inventorySubTab === "qr" && (
-        <InventoryQrScanPanel
-          manualStockItems={allInventoryItems
-            .filter((item) => item.poNumber?.startsWith("MI-"))
-            .map((item) => ({
-              id: item.id,
-              description: getInventoryItemLabel(item),
-              poNumber: item.poNumber,
-            }))}
-        />
-      )}
+      {inventorySubTab === "qr" && <div className="min-h-[12rem]" aria-hidden />}
 
       {inventorySubTab === "manual" && (
         <>
