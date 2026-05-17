@@ -33,19 +33,19 @@ export default function Home() {
         <Hero />
       </div>
       <SectionBlur>
-        <Stats />
-      </SectionBlur>
-      <SectionBlur>
-        <MissionBanner />
-      </SectionBlur>
-      <SectionBlur>
         <FeaturedProduct />
+      </SectionBlur>
+      <SectionBlur id="products">
+        <Products />
       </SectionBlur>
       <SectionBlur>
         <Testimonials />
       </SectionBlur>
-      <SectionBlur id="products">
-        <Products />
+      <SectionBlur>
+        <Stats />
+      </SectionBlur>
+      <SectionBlur>
+        <MissionBanner />
       </SectionBlur>
       <SectionBlur>
         <ServicesSection />
