@@ -1,4 +1,4 @@
-export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty"
+export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos"
 
 export interface User {
   id: string
@@ -14,7 +14,7 @@ export interface User {
   commissionPercent?: number
 }
 
-export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty"]
+export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty", "pos"]
 
 export const MODULE_LABELS: Record<Module, string> = {
   dashboard: "Dashboard",
@@ -29,6 +29,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   branches: "Branches",
   tickets: "Tickets",
   warranty: "Warranty",
+  pos: "POS",
 }
 
 const SESSION_KEY = "erp_session"

@@ -664,3 +664,35 @@ model ErpPettyCashReceipt {
 
   @@map("erp_petty_cash_receipts")
 }
+
+model ErpPosTerminal {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  location  String   @default("")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("erp_pos_terminals")
+}
+
+model ErpPosSale {
+  id            String   @id @default(cuid())
+  receiptNumber String   @map("receipt_number")
+  terminalId    String   @map("terminal_id")
+  terminalName  String   @default("") @map("terminal_name")
+  items         Json     @default("[]")
+  subtotal      Float    @default(0)
+  discount      Float    @default(0)
+  tax           Float    @default(0)
+  total         Float    @default(0)
+  paymentMethod String   @default("cash") @map("payment_method")
+  cashierId     String   @default("") @map("cashier_id")
+  cashierName   String   @default("") @map("cashier_name")
+  customerName  String   @default("") @map("customer_name")
+  notes         String   @default("")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([terminalId, createdAt])
+  @@map("erp_pos_sales")
+}

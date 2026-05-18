@@ -4,7 +4,8 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
-import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap } from "lucide-react"
+import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap, Store } from "lucide-react"
+import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
 
 const modules = [
@@ -43,6 +44,11 @@ export default function LoginPage() {
       router.replace("/dashboard")
     } else if (loggedInUser.role === "sales_agent" || loggedInUser.role === "sales_manager") {
       router.replace("/crm/sales-agents")
+    } else if (
+      loggedInUser.modules?.length === 1 &&
+      loggedInUser.modules[0] === "pos"
+    ) {
+      router.replace("/pos")
     } else if (loggedInUser.modules && loggedInUser.modules.length > 0) {
       // Redirect to first assigned module
       const targetModule = loggedInUser.modules[0]
@@ -70,7 +76,7 @@ export default function LoginPage() {
               Manage your<br />
               <span className="inline-flex items-center gap-2">
                 <RotatingText
-                  texts={["Dashboard", "Inventory", "CRM", "Website", "Finance"]}
+                  texts={["Dashboard", "Inventory", "CRM", "Website", "Finance", "POS"]}
                   mainClassName="bg-white text-[#1a9f9a] px-2 py-0.5 rounded-md font-bold"
                   splitLevelClassName="overflow-hidden"
                   initial={{ y: "100%" }}
@@ -160,8 +166,15 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="text-center">
-            <a href="/" className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors hover:underline hover:decoration-dotted underline-offset-2">
+          <div className="text-center space-y-3">
+            <Link
+              href="/pos/login"
+              className="flex items-center justify-center gap-2 w-full h-10 rounded-lg border border-[#1a9f9a] text-sm font-medium text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-colors"
+            >
+              <Store className="h-4 w-4" />
+              Sign in to POS
+            </Link>
+            <a href="/" className="block text-xs text-neutral-400 hover:text-neutral-600 transition-colors hover:underline hover:decoration-dotted underline-offset-2">
               Back to website
             </a>
           </div>

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet, ChevronDown,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet, ChevronDown, Store,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -21,6 +21,7 @@ const ALL_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" as Module },
   { href: "/purchase", label: "Purchase", icon: ShoppingCart, module: "purchase" as Module },
   { href: "/finance", label: "Finance", icon: DollarSign, module: "finance" as Module },
+  { href: "/pos", label: "POS", icon: Store, module: "pos" as Module },
   { href: "/crm", label: "CRM", icon: Users2, module: "crm" as Module },
   { href: "/inventory", label: "Inventory", icon: Package, module: "inventory" as Module },
   { href: "/rfid", label: "RFID", icon: ScanLine, module: "inventory" as Module },
