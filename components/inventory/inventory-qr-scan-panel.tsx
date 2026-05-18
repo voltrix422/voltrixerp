@@ -160,8 +160,9 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     }
 
     const manufacturedDate = parsed.extra.manufacturedDate || ""
-    const productId = parsed.productId || parsed.extra.productId || parsed.extra.poNumber || ""
-    const itemNo = parsed.extra.batchRef || productId || ""
+    const productId =
+      parsed.extra.partNo || parsed.productId || parsed.extra.productId || parsed.extra.poNumber || ""
+    const itemNo = parsed.extra.itemNo || parsed.extra.batchRef || ""
     const internalRef = parsed.extra.internalRef || ""
 
     const serialNumber = normalizeInventorySerialNumber(parsed.serialNumber)
@@ -232,7 +233,29 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
   function addScanFromPayload(payload: string) {
     const trimmed = payload.trim()
     if (!trimmed) return
-    const parsed = mergeLabelScan(trimmed, "")
+
+    let qrText = ""
+    let ocrText = ""
+
+    if (trimmed.includes("\n---\n")) {
+      const parts = trimmed.split(/\n---\n/)
+      qrText = parts[0]?.trim() || ""
+      ocrText = parts.slice(1).join("\n").trim()
+    } else if (trimmed.includes("\n")) {
+      ocrText = trimmed
+      const firstLine = trimmed.split("\n")[0]?.trim() || ""
+      if (/^https?:\/\//i.test(firstLine) || (firstLine.includes("/") && firstLine.length > 20)) {
+        qrText = firstLine
+      }
+    } else if (/^https?:\/\//i.test(trimmed)) {
+      qrText = trimmed
+    } else {
+      const parsed = mergeLabelScan(trimmed, trimmed)
+      addScanFromMerged(parsed, trimmed)
+      return
+    }
+
+    const parsed = mergeLabelScan(qrText, ocrText || trimmed)
     addScanFromMerged(parsed, trimmed)
   }
 
@@ -324,7 +347,11 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
       try {
         qrText = await scanner.scanFile(file, false)
       } catch {
-        // QR optional when label has printed model/SN
+        try {
+          qrText = await scanner.scanFile(file, true)
+        } catch {
+          // QR optional when label has printed model/SN
+        }
       }
     } catch (scanError) {
       console.error(scanError)
@@ -564,10 +591,16 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
               <span className="text-[hsl(var(--muted-foreground))]">SN:</span>{" "}
               <span className="font-mono font-medium">{lastPreview.serialNumber}</span>
             </p>
-            {(lastPreview.productId || lastPreview.extra.productId) && (
+            {lastPreview.extra.itemNo && (
               <p>
-                <span className="text-[hsl(var(--muted-foreground))]">Product ID:</span>{" "}
-                <span className="font-medium">{lastPreview.productId || lastPreview.extra.productId}</span>
+                <span className="text-[hsl(var(--muted-foreground))]">Item No.:</span>{" "}
+                <span className="font-medium">{lastPreview.extra.itemNo}</span>
+              </p>
+            )}
+            {(lastPreview.extra.partNo || lastPreview.productId) && (
+              <p>
+                <span className="text-[hsl(var(--muted-foreground))]">Part No.:</span>{" "}
+                <span className="font-medium">{lastPreview.extra.partNo || lastPreview.productId}</span>
               </p>
             )}
           </div>

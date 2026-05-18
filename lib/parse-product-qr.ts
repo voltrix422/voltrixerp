@@ -1,3 +1,11 @@
+import {
+  isDateSegment,
+  looksLikeProductModel,
+  looksLikeSerialNumber,
+  looksLikeUrlOrPath,
+  scoreSerialCandidate,
+} from "@/lib/label-field-utils"
+
 export type ParsedProductQr = {
   serialNumber: string
   productName: string
@@ -41,25 +49,41 @@ function parseVoltrixSlashPayload(raw: string): ParsedProductQr | null {
   const trimmed = raw.trim()
   const basePath = trimmed.split(/[?#]/)[0] ?? trimmed
   const segments = basePath.split("/").map((part) => part.trim()).filter(Boolean)
-  if (segments.length < 4) return null
-  if (!/^[A-Z0-9-]{6,}$/i.test(segments[0])) return null
+  if (segments.length < 3) return null
 
   const queryValues = trimmed.includes("?") ? parseQueryString(trimmed) : {}
-  const serialNumber = segments[0] || pickString(queryValues, ["c", "serial", "sn", "serialNumber"])
-  const manufacturedDate = segments[1] || ""
-  const batchRef = segments[2] || ""
+
+  let serialNumber = pickString(queryValues, ["c", "serial", "sn", "serialNumber"])
+  if (!serialNumber) {
+    let bestScore = -1
+    for (const segment of segments) {
+      if (/\.php$/i.test(segment) || isDateSegment(segment) || looksLikeProductModel(segment)) continue
+      const score = scoreSerialCandidate(segment)
+      if (score > bestScore) {
+        bestScore = score
+        serialNumber = segment
+      }
+    }
+  }
+  if (!serialNumber && segments[0] && !isDateSegment(segments[0]) && !looksLikeUrlOrPath(segments[0])) {
+    serialNumber = segments[0]
+  }
+
+  const manufacturedDate =
+    segments.find((s) => isDateSegment(s)) || (isDateSegment(segments[1] || "") ? segments[1] : "")
+  const batchRef = segments.find((s, i) => i > 0 && !isDateSegment(s) && s !== serialNumber && /^[A-Z0-9-]{4,}$/i.test(s) && !looksLikeProductModel(s)) || segments[2] || ""
   const internalRef = segments[3] || ""
 
   let model = ""
   for (let index = segments.length - 1; index >= 0; index -= 1) {
-    const segment = segments[index]
-    if (/\.php$/i.test(segment)) continue
-    if (/^(AEP|HS|LD)-/i.test(segment) || /^[A-Z]{2,}[A-Z0-9-]*$/i.test(segment)) {
+    const segment = segments[index].replace(/\.php$/i, "")
+    if (!segment || segment === serialNumber) continue
+    if (looksLikeProductModel(segment)) {
       model = segment
       break
     }
   }
-  if (!model && segments[4]) model = segments[4]
+  if (!model && segments[4]) model = segments[4].replace(/\.php$/i, "")
 
   const extra: Record<string, string> = { ...queryValues }
   if (manufacturedDate) extra.manufacturedDate = manufacturedDate
@@ -216,10 +240,23 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     }
   }
 
+  if (looksLikeSerialNumber(trimmed)) {
+    return {
+      serialNumber: trimmed,
+      productName: "",
+      model: "",
+      specs: "",
+      notes: "",
+      inventoryStockId: "",
+      productId: "",
+      extra,
+    }
+  }
+
   return {
-    serialNumber: trimmed,
+    serialNumber: "",
     productName: "",
-    model: "",
+    model: looksLikeProductModel(trimmed) ? trimmed : "",
     specs: "",
     notes: "",
     inventoryStockId: "",

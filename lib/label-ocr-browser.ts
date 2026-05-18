@@ -4,5 +4,5 @@ export async function runLabelOcrOnImageFile(file: File | Blob): Promise<string>
   const { data } = await Tesseract.recognize(file, "eng", {
     logger: () => undefined,
   })
-  return data.text || ""
+  return (data.text || "").replace(/\r/g, "\n")
 }
