@@ -10,7 +10,10 @@ import {
   type KeyboardEvent,
 } from "react"
 import { Html5Qrcode } from "html5-qrcode"
+import { mergeLabelScan } from "@/lib/merge-label-scan"
+import type { ParsedProductQr } from "@/lib/parse-product-qr"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import { runLabelOcrOnImageFile } from "@/lib/label-ocr-browser"
 import { playScanRejectBeep, playScanSuccessBeep, prepareScanAudio } from "@/lib/scan-beep"
 import {
   getInventorySerialUnits,
@@ -43,6 +46,7 @@ type SessionScan = {
   internalRef: string
   manufacturedDate: string
   rawPayload: string
+  productId: string
   inventoryStockId: string
   productName: string
   specs: string
@@ -97,6 +101,8 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
   const [showSummary, setShowSummary] = useState(false)
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({})
   const [pasteValue, setPasteValue] = useState("")
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [lastPreview, setLastPreview] = useState<ParsedProductQr | null>(null)
 
   function syncKnownSerials(serials: string[]) {
     const keys = new Set(serials.map((s) => serialNumberKey(s)).filter(Boolean))
@@ -147,18 +153,15 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
 
   const sessionTotal = sessionScans.length
 
-  function buildSessionScan(payload: string): SessionScan | null {
-    const trimmed = payload.trim()
-    if (!trimmed) return null
-
-    const parsed = parseProductQrPayload(trimmed)
+  function buildSessionScan(parsed: ParsedProductQr, rawPayload: string): SessionScan | null {
     if (!parsed.serialNumber) {
-      setError("QR has no serial number (SN).")
+      setError("No serial number (SN) found. Scan QR, use a label photo, or paste text with model + SN.")
       return null
     }
 
     const manufacturedDate = parsed.extra.manufacturedDate || ""
-    const itemNo = parsed.extra.batchRef || ""
+    const productId = parsed.productId || parsed.extra.productId || parsed.extra.poNumber || ""
+    const itemNo = parsed.extra.batchRef || productId || ""
     const internalRef = parsed.extra.internalRef || ""
 
     const serialNumber = normalizeInventorySerialNumber(parsed.serialNumber)
@@ -167,15 +170,16 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     return {
       tempId: `${serialNumber}-${Date.now()}`,
       serialNumber,
-      model: parsed.model || "Unknown model",
+      model: parsed.model || parsed.productName || "Unknown model",
       itemNo,
       internalRef,
       manufacturedDate,
-      rawPayload: trimmed,
-      inventoryStockId: "",
-      productName: parsed.productName || parsed.model,
-      specs: parsed.specs || internalRef,
-      notes: "",
+      rawPayload: rawPayload.trim(),
+      productId,
+      inventoryStockId: parsed.inventoryStockId || "",
+      productName: parsed.productName || parsed.model || "Unknown model",
+      specs: parsed.specs || productId || internalRef,
+      notes: parsed.notes || "",
       scannedAt: new Date().toISOString(),
     }
   }
@@ -186,11 +190,8 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
     setError("")
   }
 
-  function addScanFromPayload(payload: string) {
-    const trimmed = payload.trim()
-    if (!trimmed) return
-
-    const scan = buildSessionScan(trimmed)
+  function addScanFromMerged(parsed: ParsedProductQr, rawPayload: string) {
+    const scan = buildSessionScan(parsed, rawPayload)
     if (!scan) return
 
     const snKey = serialNumberKey(scan.serialNumber)
@@ -221,9 +222,36 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
 
     setExpandedModels((prev) => ({ ...prev, [scan.model]: true }))
     playScanSuccessBeep()
-    setScanMessage(`+1 · ${scan.model} · SN ${scan.serialNumber}`)
+    const idHint = scan.productId ? ` · ID ${scan.productId}` : ""
+    setScanMessage(`+1 · ${scan.model} · SN ${scan.serialNumber}${idHint}`)
+    setLastPreview(parsed)
     setError("")
     setPasteValue("")
+  }
+
+  function addScanFromPayload(payload: string) {
+    const trimmed = payload.trim()
+    if (!trimmed) return
+    const parsed = mergeLabelScan(trimmed, "")
+    addScanFromMerged(parsed, trimmed)
+  }
+
+  function addScanFromLabelImage(qrText: string, ocrText: string) {
+    const parsed = mergeLabelScan(qrText, ocrText)
+    setLastPreview(parsed)
+    if (!parsed.serialNumber) {
+      setError(
+        ocrText || qrText
+          ? "Read label text but could not find SN. Paste or edit text below, then Add."
+          : "No QR or readable text on this image.",
+      )
+      if (ocrText || qrText) {
+        setPasteValue([qrText, ocrText].filter(Boolean).join("\n---\n"))
+      }
+      return
+    }
+    const raw = [qrText && `QR:${qrText}`, ocrText && `OCR:${ocrText.slice(0, 500)}`].filter(Boolean).join("\n")
+    addScanFromMerged(parsed, raw)
   }
 
   async function waitForScannerMount() {
@@ -288,15 +316,35 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
 
   async function handleImageFile(file: File) {
     setError("")
+    setOcrLoading(true)
     await stopScanner()
+    let qrText = ""
     try {
       const scanner = new Html5Qrcode("inventory-qr-reader", { verbose: false })
-      const decodedText = await scanner.scanFile(file, false)
-      addScanFromPayload(decodedText)
+      try {
+        qrText = await scanner.scanFile(file, false)
+      } catch {
+        // QR optional when label has printed model/SN
+      }
     } catch (scanError) {
       console.error(scanError)
-      setError("No QR code detected in that image.")
     }
+
+    let ocrText = ""
+    try {
+      ocrText = await runLabelOcrOnImageFile(file)
+    } catch (ocrError) {
+      console.error(ocrError)
+    } finally {
+      setOcrLoading(false)
+    }
+
+    if (!qrText && !ocrText.trim()) {
+      setError("No QR or readable text on this image.")
+      return
+    }
+
+    addScanFromLabelImage(qrText, ocrText)
   }
 
   function handleImageInputChange(event: ChangeEvent<HTMLInputElement>) {
@@ -429,8 +477,9 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
               Bulk QR receiving
             </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
-              Scan boxes one after another. Each QR adds SN, model, and date. When finished, tap{" "}
-              <span className="font-medium text-[hsl(var(--foreground))]">Complete scan</span> to review counts by model and save.
+              Scan QR codes or photograph the full label. We read the QR plus OCR (model, SN, product ID / PO) and save each unit.
+              When finished, tap{" "}
+              <span className="font-medium text-[hsl(var(--foreground))]">Complete scan</span> to review and save.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -451,7 +500,7 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
             onClick={scanning ? stopScanner : startScanner}
           >
             <Camera className="h-3.5 w-3.5 mr-1.5" />
-            {scanning ? "Stop scanning" : "Start scan scan scan"}
+            {scanning ? "Stop scanning" : "Start scanning"}
           </Button>
           <input
             ref={fileInputRef}
@@ -461,9 +510,19 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
             className="hidden"
             onChange={handleImageInputChange}
           />
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => fileInputRef.current?.click()}>
-            <ImageUp className="h-3.5 w-3.5 mr-1.5" />
-            QR image
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={ocrLoading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {ocrLoading ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <ImageUp className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {ocrLoading ? "Reading label…" : "Label photo"}
           </Button>
           {sessionScans.length > 0 && (
             <Button size="sm" variant="outline" className="h-8 text-xs text-red-600" onClick={clearSession}>
@@ -486,7 +545,7 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
             onPaste={handlePasteArea}
             onKeyDown={handlePasteKeyDown}
             rows={1}
-            placeholder="Paste QR text and press Enter"
+            placeholder="Paste QR / label text (model, SN, P/N) and press Enter"
             className="flex-1 rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-xs resize-none"
           />
           <Button size="sm" variant="outline" className="h-9 text-xs shrink-0" onClick={handlePasteSubmit}>
@@ -495,6 +554,24 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
         </div>
 
         {scanMessage && <p className="text-xs text-[#17857f]">{scanMessage}</p>}
+        {lastPreview?.serialNumber && (
+          <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-3 py-2 text-[11px] space-y-0.5">
+            <p>
+              <span className="text-[hsl(var(--muted-foreground))]">Model:</span>{" "}
+              <span className="font-medium">{lastPreview.model || "—"}</span>
+            </p>
+            <p>
+              <span className="text-[hsl(var(--muted-foreground))]">SN:</span>{" "}
+              <span className="font-mono font-medium">{lastPreview.serialNumber}</span>
+            </p>
+            {(lastPreview.productId || lastPreview.extra.productId) && (
+              <p>
+                <span className="text-[hsl(var(--muted-foreground))]">Product ID:</span>{" "}
+                <span className="font-medium">{lastPreview.productId || lastPreview.extra.productId}</span>
+              </p>
+            )}
+          </div>
+        )}
         {error && <p className="text-xs text-red-600">{error}</p>}
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 px-3 py-2">
@@ -550,7 +627,7 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
                             <p className="font-medium break-all">SN {scan.serialNumber}</p>
                             <p className="text-[hsl(var(--muted-foreground))] mt-0.5">
                               {scan.manufacturedDate ? `Mfg ${scan.manufacturedDate}` : "—"}
-                              {scan.itemNo ? ` · Item ${scan.itemNo}` : ""}
+                              {scan.productId ? ` · ID ${scan.productId}` : scan.itemNo ? ` · Item ${scan.itemNo}` : ""}
                             </p>
                           </div>
                           <button

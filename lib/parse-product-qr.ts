@@ -151,6 +151,52 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     }
   }
 
+  const modelSnSpaced = trimmed.match(/^([A-Z][A-Z0-9._/-]{2,30})\s*[-–—]\s*([A-Z0-9][A-Z0-9._/-]{5,})$/i)
+  if (modelSnSpaced) {
+    const [, modelPart, snPart] = modelSnSpaced
+    return {
+      serialNumber: snPart,
+      productName: modelPart,
+      model: modelPart,
+      specs: "",
+      notes: "",
+      inventoryStockId: "",
+      productId: "",
+      extra: { source: "model-sn-text" },
+    }
+  }
+
+  const modelSnHyphen = trimmed.match(/^([A-Z]{2,}[A-Z0-9]*(?:[.-][A-Z0-9]+)?)-([A-Z0-9]{8,})$/i)
+  if (modelSnHyphen && !trimmed.includes("/") && !trimmed.startsWith("{")) {
+    const [, modelPart, snPart] = modelSnHyphen
+    return {
+      serialNumber: snPart,
+      productName: modelPart,
+      model: modelPart,
+      specs: "",
+      notes: "",
+      inventoryStockId: "",
+      productId: "",
+      extra: { source: "model-sn-compact" },
+    }
+  }
+
+  if (/^[A-Z0-9]{14,}$/i.test(trimmed) && /[A-Z]/i.test(trimmed) && /\d/.test(trimmed)) {
+    const compact = trimmed.match(/^([A-Z]{2,}[A-Z0-9]*?)([A-Z]{1,3}\d{5,}[A-Z0-9]*)$/i)
+    if (compact) {
+      return {
+        serialNumber: compact[2],
+        productName: compact[1],
+        model: compact[1],
+        specs: "",
+        notes: "",
+        inventoryStockId: "",
+        productId: "",
+        extra: { source: "model-sn-glued" },
+      }
+    }
+  }
+
   if (trimmed.includes("|") || trimmed.includes(";")) {
     const parts = trimmed.split(/[|;]/).map((part) => part.trim()).filter(Boolean)
     parts.forEach((part) => {
