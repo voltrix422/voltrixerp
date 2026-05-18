@@ -58,6 +58,8 @@ type Props = {
   existingSerialNumbers?: string[]
   onSaved?: (savedCount: number) => void
   compact?: boolean
+  /** When "pos", saving also increases POS register stock quantities. */
+  receiveTarget?: "inventory" | "pos"
 }
 
 function formatDisplayDate(iso?: string) {
@@ -79,7 +81,12 @@ function sessionNotes(scan: SessionScan, receiveDate: string) {
   return parts.join(" · ")
 }
 
-export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, compact }: Props) {
+export function InventoryQrScanPanel({
+  existingSerialNumbers = [],
+  onSaved,
+  compact,
+  receiveTarget = "inventory",
+}: Props) {
   const { user } = useAuth()
   const { toast } = useToast()
   const scannerRef = useRef<Html5Qrcode | null>(null)
@@ -444,48 +451,99 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
 
     try {
       const toSave = dedupeSessionScans(sessionScans)
-      const { saved, errors } = await saveInventorySerialUnitsBatch(
-        toSave.map((scan) => ({
-          serialNumber: scan.serialNumber,
-          assignedName: batchLabel,
-          productName: scan.productName,
-          model: scan.model,
-          specs: scan.specs,
-          rawPayload: scan.rawPayload,
-          inventoryStockId: scan.inventoryStockId || undefined,
-          notes: sessionNotes(scan, receiveLabel),
-          scannedBy,
-          createWarranty: true,
-        })),
-      )
 
-      for (const unit of saved) {
-        knownSerialKeysRef.current.add(serialNumberKey(unit.serialNumber))
-      }
-      setExistingSerials(new Set(knownSerialKeysRef.current))
-      setSavedUnits((prev) => [...saved, ...prev])
-      sessionSerialKeysRef.current = new Set()
-      setSessionScans([])
-      setShowSummary(false)
-      await stopScanner()
+      if (receiveTarget === "pos") {
+        const res = await fetch("/api/db/pos/receive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            receiveDate,
+            scannedBy,
+            scans: toSave.map((scan) => ({
+              serialNumber: scan.serialNumber,
+              model: scan.model,
+              productName: scan.productName,
+              specs: scan.specs,
+              productId: scan.productId,
+              rawPayload: scan.rawPayload,
+            })),
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error((data as { error?: string }).error || "POS receive failed")
+        }
 
-      toast({
-        title: "Receiving saved",
-        message: `${saved.length} unit(s) registered${errors.length ? ` · ${errors.length} skipped` : ""}.`,
-        type: errors.length && saved.length === 0 ? "error" : "success",
-      })
+        const serialsSaved = Number((data as { serialsSaved?: number }).serialsSaved) || 0
+        const serialErrors = ((data as { serialErrors?: { serialNumber: string; error: string }[] }).serialErrors) || []
 
-      if (errors.length > 0) {
-        setError(
-          errors
-            .slice(0, 5)
-            .map((e) => `${e.serialNumber}: ${e.error}`)
-            .join(" · ") + (errors.length > 5 ? ` · +${errors.length - 5} more` : ""),
+        for (const scan of toSave) {
+          knownSerialKeysRef.current.add(serialNumberKey(scan.serialNumber))
+        }
+        setExistingSerials(new Set(knownSerialKeysRef.current))
+        sessionSerialKeysRef.current = new Set()
+        setSessionScans([])
+        setShowSummary(false)
+        await stopScanner()
+
+        toast({
+          title: "Added to POS inventory",
+          message: `${serialsSaved} unit(s) ready to sell${serialErrors.length ? ` · ${serialErrors.length} skipped` : ""}.`,
+          type: serialsSaved === 0 ? "error" : "success",
+        })
+
+        if (serialErrors.length > 0) {
+          setError(
+            serialErrors
+              .slice(0, 5)
+              .map((e) => `${e.serialNumber}: ${e.error}`)
+              .join(" · "),
+          )
+        }
+
+        if (serialsSaved > 0) onSaved?.(serialsSaved)
+      } else {
+        const { saved, errors } = await saveInventorySerialUnitsBatch(
+          toSave.map((scan) => ({
+            serialNumber: scan.serialNumber,
+            assignedName: batchLabel,
+            productName: scan.productName,
+            model: scan.model,
+            specs: scan.specs,
+            rawPayload: scan.rawPayload,
+            inventoryStockId: scan.inventoryStockId || undefined,
+            notes: sessionNotes(scan, receiveLabel),
+            scannedBy,
+            createWarranty: true,
+          })),
         )
-      }
 
-      if (saved.length > 0) {
-        onSaved?.(saved.length)
+        for (const unit of saved) {
+          knownSerialKeysRef.current.add(serialNumberKey(unit.serialNumber))
+        }
+        setExistingSerials(new Set(knownSerialKeysRef.current))
+        setSavedUnits((prev) => [...saved, ...prev])
+        sessionSerialKeysRef.current = new Set()
+        setSessionScans([])
+        setShowSummary(false)
+        await stopScanner()
+
+        toast({
+          title: "Receiving saved",
+          message: `${saved.length} unit(s) registered${errors.length ? ` · ${errors.length} skipped` : ""}.`,
+          type: errors.length && saved.length === 0 ? "error" : "success",
+        })
+
+        if (errors.length > 0) {
+          setError(
+            errors
+              .slice(0, 5)
+              .map((e) => `${e.serialNumber}: ${e.error}`)
+              .join(" · ") + (errors.length > 5 ? ` · +${errors.length - 5} more` : ""),
+          )
+        }
+
+        if (saved.length > 0) onSaved?.(saved.length)
       }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save receiving batch.")
@@ -504,9 +562,9 @@ export function InventoryQrScanPanel({ existingSerialNumbers = [], onSaved, comp
               Bulk QR receiving
             </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
-              Scan QR codes or photograph the full label. We read the QR plus OCR (model, SN, product ID / PO) and save each unit.
-              When finished, tap{" "}
-              <span className="font-medium text-[hsl(var(--foreground))]">Complete scan</span> to review and save.
+              {receiveTarget === "pos"
+                ? "Scan QR codes or photograph labels. Each unit adds to POS stock by model — then sell from Register."
+                : "Scan QR codes or photograph the full label. We read the QR plus OCR (model, SN, product ID / PO) and save each unit. When finished, tap Complete scan to review and save."}
             </p>
           </div>
           <div className="flex items-center gap-2">

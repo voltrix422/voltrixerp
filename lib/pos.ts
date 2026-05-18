@@ -76,10 +76,38 @@ export async function deletePosTerminal(id: string): Promise<boolean> {
   return res.ok
 }
 
-export async function getPosStockProducts(): Promise<PosStockProduct[]> {
-  const res = await fetch("/api/db/pos/products")
+export async function getPosStockProducts(all = false): Promise<PosStockProduct[]> {
+  const res = await fetch(`/api/db/pos/products${all ? "?all=1" : ""}`)
   if (!res.ok) return []
   return res.json()
+}
+
+export async function receivePosManualLine(payload: {
+  model: string
+  qty: number
+  unitPrice?: number
+  receiveDate?: string
+  scannedBy?: string
+}): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/db/pos/receive", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      receiveDate: payload.receiveDate,
+      scannedBy: payload.scannedBy,
+      manualLines: [
+        {
+          model: payload.model,
+          qty: payload.qty,
+          unitPrice: payload.unitPrice ?? 0,
+          description: payload.model,
+        },
+      ],
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { ok: false, error: (data as { error?: string }).error || "Failed" }
+  return { ok: true }
 }
 
 export async function getPosSales(terminalId?: string): Promise<PosSale[]> {

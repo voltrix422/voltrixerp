@@ -18,6 +18,7 @@ import {
   type PosStockProduct,
   type PosTerminal,
 } from "@/lib/pos"
+import { PosInventoryPanel } from "@/components/pos/pos-inventory-panel"
 import {
   CreditCard,
   Loader2,
@@ -29,7 +30,7 @@ import {
   Trash2,
 } from "lucide-react"
 
-type Tab = "register" | "terminals" | "sales"
+type Tab = "register" | "inventory" | "terminals" | "sales"
 
 export function PosManager() {
   const { user } = useAuth()
@@ -217,6 +218,7 @@ export function PosManager() {
             {(
               [
                 { id: "register" as Tab, label: "Register" },
+                { id: "inventory" as Tab, label: "Inventory" },
                 { id: "terminals" as Tab, label: "POS terminals" },
                 { id: "sales" as Tab, label: "Sales" },
               ] as const
@@ -294,9 +296,12 @@ export function PosManager() {
                       </button>
                     ))}
                     {filteredProducts.length === 0 && (
-                      <p className="col-span-2 text-sm text-[hsl(var(--muted-foreground))] py-8 text-center">
-                        No products in stock.
-                      </p>
+                      <div className="col-span-2 text-sm text-[hsl(var(--muted-foreground))] py-8 text-center space-y-2">
+                        <p>No products in stock.</p>
+                        <Button size="sm" variant="outline" onClick={() => setTab("inventory")}>
+                          Add products with QR
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -398,6 +403,8 @@ export function PosManager() {
             )}
           </>
         )}
+
+        {tab === "inventory" && <PosInventoryPanel onStockUpdated={() => void loadAll()} />}
 
         {tab === "terminals" && canManageTerminals && (
           <div className="grid md:grid-cols-2 gap-6">
