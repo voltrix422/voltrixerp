@@ -1,6 +1,7 @@
 import { promises as fs } from "fs"
 import path from "path"
 import { DEFAULT_PRODUCT_TERMS_CONTENT, DEFAULT_PRODUCT_TERMS_NAME } from "@/lib/default-product-terms"
+import { resolveStoredProductTermsContent } from "@/lib/resolve-stored-product-terms"
 
 export type ProductTermsTemplate = {
   id: string
@@ -46,11 +47,12 @@ export async function loadProductTermsTemplates(): Promise<ProductTermsTemplate[
 export function resolveProductTermsDisplay(
   product: {
     terms?: string | null
+    termsUseCustom?: boolean | null
     termsFile?: string | null
     termsTemplateId?: string | null
   },
   _templates?: ProductTermsTemplate[],
 ): ProductTermsDisplay {
-  const content = (product.terms || "").trim() || DEFAULT_PRODUCT_TERMS_CONTENT
+  const content = resolveStoredProductTermsContent(product.terms, product.termsUseCustom)
   return { content, fileUrl: null }
 }

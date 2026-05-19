@@ -8,6 +8,10 @@ import {
 import ProductTermsEditor from "@/components/website/product-terms-editor"
 import ProductBrochureField from "@/components/website/product-brochure-field"
 import { DEFAULT_PRODUCT_TERMS_CONTENT } from "@/lib/default-product-terms"
+import {
+  productTermsPayloadFromForm,
+  resolveStoredProductTermsContent,
+} from "@/lib/resolve-stored-product-terms"
 
 type Spec = { label: string; value: string }
 type StockVal = "in" | "low" | "out"
@@ -29,6 +33,7 @@ type Product = {
   unit: string
   quoteMode: boolean
   terms?: string
+  termsUseCustom?: boolean
   termsTemplateId?: string
   termsFile?: string
   brochureUrl?: string
@@ -104,7 +109,7 @@ export default function ProductsManager() {
       specs: Array.isArray(p.specs) ? p.specs : [],
       images: Array.isArray(p.images) ? p.images : [],
       published: p.published || false, unit: p.unit || "pcs", quoteMode: p.quoteMode || false,
-      terms: (p.terms || "").trim() || DEFAULT_PRODUCT_TERMS_CONTENT,
+      terms: resolveStoredProductTermsContent(p.terms, p.termsUseCustom),
       termsTemplateId: "",
       termsFile: "",
       brochureUrl: p.brochureUrl || "",
@@ -194,13 +199,15 @@ export default function ProductsManager() {
       const allImages = [...form.images, ...newUrls]
       const published = publishOverride !== undefined ? publishOverride : form.published
 
+      const termsPayload = productTermsPayloadFromForm(form.terms || DEFAULT_PRODUCT_TERMS_CONTENT)
+
       const payload = {
         name: form.name, category: form.category, description: form.description,
         full_desc: form.full_desc, specification: form.specification,
         price: form.price || 0, warranty: form.warranty,
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
-        terms: form.terms || DEFAULT_PRODUCT_TERMS_CONTENT,
+        ...termsPayload,
         termsTemplateId: "",
         termsFile: "",
         brochureUrl: form.brochureUrl, brochureName: form.brochureName,

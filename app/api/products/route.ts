@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { promises as fs } from 'fs'
 import path from 'path'
+import { DEFAULT_PRODUCT_TERMS_CONTENT } from '@/lib/default-product-terms'
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'products.json')
+
+async function resetAllProductTermsInFile() {
+  const data = await fs.readFile(DATA_FILE, 'utf-8')
+  const products = JSON.parse(data) as Record<string, unknown>[]
+  let updated = 0
+  for (const product of products) {
+    const hadTerms = Boolean(String(product.terms || '').trim())
+    const hadCustom = Boolean(product.termsUseCustom)
+    if (hadTerms || hadCustom || product.termsTemplateId || product.termsFile) {
+      product.terms = ''
+      product.termsUseCustom = false
+      product.termsTemplateId = ''
+      product.termsFile = ''
+      updated += 1
+    }
+  }
+  await fs.writeFile(DATA_FILE, JSON.stringify(products, null, 2))
+  return { total: products.length, updated, defaultTerms: DEFAULT_PRODUCT_TERMS_CONTENT }
+}
 
 async function ensureDataFile() {
   try {
@@ -29,6 +49,17 @@ export async function POST(request: NextRequest) {
   const url = new URL(request.url)
   const action = url.searchParams.get('action')
   
+  if (action === 'reset-all-terms') {
+    try {
+      await ensureDataFile()
+      const result = await resetAllProductTermsInFile()
+      return NextResponse.json({ success: true, ...result })
+    } catch (error) {
+      console.error('Error resetting product terms:', error)
+      return NextResponse.json({ error: 'Failed to reset product terms' }, { status: 500 })
+    }
+  }
+
   if (action === 'reorder') {
     try {
       await ensureDataFile()
