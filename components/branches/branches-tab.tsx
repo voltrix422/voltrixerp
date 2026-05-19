@@ -1,7 +1,8 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, getBranchTransferHistory, assignInventoryToBranch, transferBranchInventory, clearBranchTransferHistory, resetBranchInventory, type Branch, type BranchInventory, type BranchInventoryTransfer } from "@/lib/branches"
+import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, getBranchTransferHistory, batchBranchInventoryTransfer, clearBranchTransferHistory, resetBranchInventory, type Branch, type BranchInventory, type BranchInventoryTransfer } from "@/lib/branches"
 import { downloadBranchTransferHistoryPDF } from "@/lib/generate-branch-transfer-history-pdf"
+import { BulkBranchTransferModal, type BulkTransferProduct } from "@/components/branches/bulk-branch-transfer-modal"
 import { Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -163,17 +164,10 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
 }) {
   const [inventory, setInventory] = useState<BranchInventory[]>([])
   const [loadingInventory, setLoadingInventory] = useState(true)
-  const [showMainDispatch, setShowMainDispatch] = useState(false)
-  const [mainDispatchInventoryId, setMainDispatchInventoryId] = useState("")
-  const [mainDispatchQty, setMainDispatchQty] = useState("")
-  const [mainDispatchToBranchId, setMainDispatchToBranchId] = useState("")
-  const [mainDispatchLoading, setMainDispatchLoading] = useState(false)
-  const [transferItem, setTransferItem] = useState<BranchInventory | null>(null)
-  const [transferToId, setTransferToId] = useState("")
-  const [transferQty, setTransferQty] = useState("")
-  const [transferLoading, setTransferLoading] = useState(false)
-  const [transferNote, setTransferNote] = useState("")
-  const [mainDispatchNote, setMainDispatchNote] = useState("")
+  const [showBulkTransfer, setShowBulkTransfer] = useState(false)
+  const [bulkTransferMode, setBulkTransferMode] = useState<"dispatch" | "transfer">("dispatch")
+  const [bulkPreselectId, setBulkPreselectId] = useState<string | null>(null)
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
   const [transferHistory, setTransferHistory] = useState<BranchInventoryTransfer[]>([])
   const [loadingTransferHistory, setLoadingTransferHistory] = useState(true)
   const [clearingHistory, setClearingHistory] = useState(false)
@@ -270,93 +264,92 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
     }
   }
 
-  const dispatchableInventory = inventory.filter(
-    (item) => item.canDispatch !== false && item.inventoryId && !item.inventoryId.startsWith("wh:"),
-  )
-
-  async function handleMainWarehouseDispatch() {
-    if (!mainDispatchInventoryId || !mainDispatchToBranchId || !mainDispatchQty) return
-    const qty = parseFloat(mainDispatchQty)
-    const systemItem = inventory.find((item) => item.inventoryId === mainDispatchInventoryId)
-    const destination = branches.find((b) => b.id === mainDispatchToBranchId)
-    if (!systemItem || !destination || isNaN(qty) || qty <= 0 || qty > systemItem.quantity) {
-      toast({
-        type: "error",
-        title: "Invalid Dispatch",
-        message: "Please select a valid destination and quantity.",
-        duration: 3000,
+  const bulkTransferProducts: BulkTransferProduct[] = isMainWarehouse
+    ? inventory.map((item) => {
+        const canDispatch = Boolean(
+          item.canDispatch !== false && item.inventoryId && !item.inventoryId.startsWith("wh:"),
+        )
+        return {
+          id: item.id,
+          label: item.itemName || item.productDescription || item.model || "Item",
+          sublabel: item.model || item.productDescription,
+          maxQty: item.quantity,
+          unit: item.unit || "pcs",
+          inventoryId: canDispatch ? item.inventoryId : undefined,
+          selectable: canDispatch,
+          unselectableReason: canDispatch ? undefined : "No stock link — cannot send yet",
+        }
       })
-      return
-    }
-    setMainDispatchLoading(true)
+    : inventory
+        .filter((item) => item.quantity > 0)
+        .map((item) => ({
+          id: item.id,
+          label: item.productDescription || item.inventoryId,
+          sublabel: `${item.quantity} ${item.unit} available`,
+          maxQty: item.quantity,
+          unit: item.unit || "pcs",
+          fromBranchInventoryId: item.id,
+          selectable: true,
+        }))
+
+  function openBulkTransfer(mode: "dispatch" | "transfer", preselectId?: string) {
+    setBulkTransferMode(mode)
+    setBulkPreselectId(preselectId ?? null)
+    setShowBulkTransfer(true)
+  }
+
+  async function handleBulkTransferSubmit(payload: {
+    toBranchId: string
+    lines: Array<{
+      inventoryId?: string
+      fromBranchInventoryId?: string
+      quantity: number
+      unit?: string
+      userNote?: string
+    }>
+  }) {
+    const destination = branches.find((b) => b.id === payload.toBranchId)
+    setBulkSubmitting(true)
     try {
-      await assignInventoryToBranch({
-        branchId: destination.id,
-        inventoryId: systemItem.id,
-        quantity: qty,
-        unit: systemItem.unit || "",
-        branchCode: destination.code,
-        assignedBy: user?.name || "system",
-        notes: `Dispatched from main warehouse ${branch.code}`,
-        fromBranchId: branch.id,
+      const result = await batchBranchInventoryTransfer({
+        mode: bulkTransferMode,
+        toBranchId: payload.toBranchId,
+        fromBranchId: isMainWarehouse ? branch.id : undefined,
         fromBranchName: branch.name,
         fromBranchCode: branch.code,
-        userNote: mainDispatchNote.trim(),
+        destinationBranchCode: destination?.code,
+        assignedBy: user?.name || "system",
+        systemNotes: isMainWarehouse ? `Dispatched from main warehouse ${branch.code}` : undefined,
+        lines: payload.lines,
       })
       await reloadInventory()
       await loadTransferHistory()
-      setShowMainDispatch(false)
-      setMainDispatchInventoryId("")
-      setMainDispatchQty("")
-      setMainDispatchToBranchId("")
-      setMainDispatchNote("")
-      toast({
-        type: "success",
-        title: "Inventory Sent",
-        message: `${qty} ${systemItem.unit} sent to ${destination.name}.`,
-        duration: 3000,
-      })
+      setShowBulkTransfer(false)
+      setBulkPreselectId(null)
+      if (result.failed > 0) {
+        toast({
+          type: "error",
+          title: "Partial transfer",
+          message: `${result.succeeded} saved, ${result.failed} failed. Check transfer history.`,
+          duration: 5000,
+        })
+      } else {
+        toast({
+          type: "success",
+          title: bulkTransferMode === "dispatch" ? "Inventory sent" : "Transfer complete",
+          message: `${result.succeeded} transfer${result.succeeded === 1 ? "" : "s"} saved to history.`,
+          duration: 4000,
+        })
+      }
     } catch {
       toast({
         type: "error",
-        title: "Dispatch Failed",
-        message: "Could not send inventory from main warehouse.",
-        duration: 3000,
+        title: "Transfer failed",
+        message: "Could not save transfers. Please try again.",
+        duration: 4000,
       })
     } finally {
-      setMainDispatchLoading(false)
-    }
-  }
-
-  async function handleTransfer() {
-    if (!transferItem || !transferToId || !transferQty) return
-    const qty = parseFloat(transferQty)
-    if (isNaN(qty) || qty <= 0 || qty > transferItem.quantity) {
-      toast({ type: "error", title: "Invalid Quantity", message: `Please enter a quantity between 1 and ${transferItem.quantity}.`, duration: 3000 })
-      return
-    }
-    const destination = branches.find(b => b.id === transferToId)
-    setTransferLoading(true)
-    try {
-      await transferBranchInventory({
-        fromBranchInventoryId: transferItem.id,
-        toBranchId: transferToId,
-        quantity: qty,
-        transferredBy: user?.name || "system",
-        notes: transferNote.trim() || `Transferred from ${branch.name} (${branch.code}) to ${destination?.name}`,
-      })
-      const updatedInventory = await getBranchInventory(branch.id)
-      setInventory(updatedInventory)
-      await loadTransferHistory()
-      setTransferItem(null)
-      setTransferToId("")
-      setTransferQty("")
-      setTransferNote("")
-      toast({ type: "success", title: "Transfer Successful", message: `${qty} ${transferItem.unit} sent to ${destination?.name}.`, duration: 3000 })
-    } catch {
-      toast({ type: "error", title: "Transfer Failed", message: "Could not complete the inventory transfer.", duration: 3000 })
-    } finally {
-      setTransferLoading(false)
+      setBulkSubmitting(false)
     }
   }
 
@@ -464,10 +457,24 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
               </p>
               <div className="flex items-center gap-1.5">
                 {isMainWarehouse ? (
-                  <Button size="sm" variant="outline" className="h-6 text-[10px] cursor-pointer" onClick={() => setShowMainDispatch(true)}>
-                    <ArrowRightLeft className="h-3 w-3" /> Send
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] cursor-pointer"
+                    onClick={() => openBulkTransfer("dispatch")}
+                  >
+                    <ArrowRightLeft className="h-3 w-3" /> Send multiple
                   </Button>
                 ) : inventory.length > 0 ? (
+                  <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] cursor-pointer text-[#1faca6] border-[#1faca6] hover:bg-[#1faca6]/10"
+                    onClick={() => openBulkTransfer("transfer")}
+                  >
+                    <ArrowRightLeft className="h-3 w-3" /> Transfer
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -478,6 +485,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                     {returningToMain ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRightLeft className="h-3 w-3" />}
                     Return to main
                   </Button>
+                  </>
                 ) : null}
               </div>
             </div>
@@ -522,14 +530,14 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                           {inv.quantity} {inv.unit}
                         </Badge>
                         {!isMainWarehouse && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-6 w-6 text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
-                            title="Transfer / Send Back"
+                            title="Add to transfer"
                             onClick={(e) => {
                               e.stopPropagation()
-                              setTransferItem(inv)
+                              openBulkTransfer("transfer", inv.id)
                             }}
                           >
                             <ArrowRightLeft className="h-3 w-3" />
@@ -656,169 +664,31 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
         </div>
       </div>
 
-      {showMainDispatch && isMainWarehouse && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowMainDispatch(false)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <p className="text-sm font-semibold">Send Inventory To Branch Warehouse</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowMainDispatch(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Inventory Item</label>
-                <select
-                  value={mainDispatchInventoryId}
-                  onChange={e => setMainDispatchInventoryId(e.target.value)}
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                >
-                  <option value="">-- Select Item --</option>
-                  {dispatchableInventory.length === 0 ? (
-                    <option value="" disabled>No linked stock — scan items in Inventory first</option>
-                  ) : (
-                    dispatchableInventory.map(item => (
-                      <option key={item.inventoryId} value={item.inventoryId}>
-                        {item.productDescription} (Available: {item.quantity} {item.unit})
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Destination Branch Warehouse</label>
-                <select
-                  value={mainDispatchToBranchId}
-                  onChange={e => setMainDispatchToBranchId(e.target.value)}
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                >
-                  <option value="">-- Select Branch Warehouse --</option>
-                  {branches
-                    .filter(b => b.id !== branch.id && b.status === "active" && (b.type === "branch_warehouse" || b.type === "warehouse"))
-                    .map(b => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                    ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Quantity</label>
-                <input
-                  type="number"
-                  value={mainDispatchQty}
-                  onChange={e => setMainDispatchQty(e.target.value)}
-                  placeholder="Enter quantity"
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Transfer note (optional)</label>
-                <textarea
-                  value={mainDispatchNote}
-                  onChange={e => setMainDispatchNote(e.target.value)}
-                  rows={3}
-                  placeholder="Add a note for this transfer"
-                  className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none"
-                />
-              </div>
-              <Button
-                size="sm"
-                className="w-full cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
-                onClick={handleMainWarehouseDispatch}
-                disabled={mainDispatchLoading || !mainDispatchInventoryId || !mainDispatchToBranchId || !mainDispatchQty}
-              >
-                {mainDispatchLoading ? "Sending..." : "Send Inventory"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <BulkBranchTransferModal
+        open={showBulkTransfer}
+        onClose={() => {
+          setShowBulkTransfer(false)
+          setBulkPreselectId(null)
+        }}
+        title={
+          bulkTransferMode === "dispatch"
+            ? "Send multiple products to branch"
+            : "Transfer multiple products"
+        }
+        mode={bulkTransferMode}
+        products={bulkTransferProducts}
+        branches={branches}
+        currentBranchId={branch.id}
+        preselectedProductId={bulkPreselectId}
+        submitting={bulkSubmitting}
+        destinationFilter={
+          bulkTransferMode === "dispatch"
+            ? (b) => b.type === "branch_warehouse" || b.type === "warehouse"
+            : undefined
+        }
+        onSubmit={handleBulkTransferSubmit}
+      />
 
-      {transferItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setTransferItem(null)}>
-          <div className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <p className="text-sm font-semibold">Transfer Inventory</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setTransferItem(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div className="p-2.5 rounded-lg bg-[hsl(var(--muted))]/30 mb-2">
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider font-medium">Item to Transfer</p>
-                <p className="text-sm font-semibold">{transferItem.productDescription}</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">Available: {transferItem.quantity} {transferItem.unit}</p>
-              </div>
-              
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Destination Branch / Warehouse</label>
-                <select
-                  value={transferToId}
-                  onChange={e => setTransferToId(e.target.value)}
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                >
-                  <option value="">-- Select Destination --</option>
-                  {branches
-                    .filter(b => b.id !== branch.id && b.status === "active")
-                    .map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} ({b.code}) - {b.type.replace("_", " ")}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Quantity to Transfer</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={transferQty}
-                    onChange={e => setTransferQty(e.target.value)}
-                    max={transferItem.quantity}
-                    placeholder="Enter quantity"
-                    className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-                  />
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-9 px-3 text-xs"
-                    onClick={() => setTransferQty(String(transferItem.quantity))}
-                  >
-                    Max
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Transfer note (optional)</label>
-                <textarea
-                  value={transferNote}
-                  onChange={e => setTransferNote(e.target.value)}
-                  rows={3}
-                  placeholder="Add a note for this transfer"
-                  className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none"
-                />
-              </div>
-              
-              <Button
-                size="sm"
-                className="w-full mt-2 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
-                onClick={handleTransfer}
-                disabled={transferLoading || !transferToId || !transferQty}
-              >
-                {transferLoading ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                    Processing...
-                  </>
-                ) : (
-                  "Confirm Transfer"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
 
   )

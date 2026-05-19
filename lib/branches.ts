@@ -196,6 +196,42 @@ export async function transferBranchInventory(data: {
   })
 }
 
+export type BatchTransferLine = {
+  inventoryId?: string
+  fromBranchInventoryId?: string
+  quantity: number
+  unit?: string
+  userNote?: string
+}
+
+export async function batchBranchInventoryTransfer(data: {
+  mode: "dispatch" | "transfer"
+  toBranchId: string
+  fromBranchId?: string
+  fromBranchName?: string
+  fromBranchCode?: string
+  destinationBranchCode?: string
+  assignedBy: string
+  systemNotes?: string
+  lines: BatchTransferLine[]
+}): Promise<{
+  ok: boolean
+  succeeded: number
+  failed: number
+  results: Array<{ ok: boolean; productDescription?: string; error?: string }>
+}> {
+  const res = await fetch("/api/db/branch-inventory-batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(payload?.error || "Batch transfer failed")
+  }
+  return payload
+}
+
 export async function clearBranchTransferHistory(branchId?: string): Promise<{ deleted: number }> {
   const url = branchId
     ? `/api/db/branch-transfer-history?branchId=${encodeURIComponent(branchId)}`
