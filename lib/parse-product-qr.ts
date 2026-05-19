@@ -3,6 +3,8 @@ import {
   looksLikeProductModel,
   looksLikeSerialNumber,
   looksLikeUrlOrPath,
+  normalizeAepModelCode,
+  parseAepModelAndSerial,
   scoreSerialCandidate,
 } from "@/lib/label-field-utils"
 
@@ -275,6 +277,22 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     }
   }
 
+  const pipeModelSn = trimmed.match(/^([A-Za-z0-9][A-Za-z0-9._/-]{2,40})[|]([A-Za-z0-9][A-Za-z0-9._/-]{2,60})$/i)
+  if (pipeModelSn) {
+    const modelPart = normalizeAepModelCode(pipeModelSn[1].trim())
+    const snPart = pipeModelSn[2].trim()
+    return {
+      serialNumber: snPart,
+      productName: modelPart,
+      model: modelPart,
+      specs: "",
+      notes: "",
+      inventoryStockId: "",
+      productId: "",
+      extra: { source: "model-sn-pipe" },
+    }
+  }
+
   if (trimmed.includes("|") || trimmed.includes(";")) {
     const parts = trimmed.split(/[|;]/).map((part) => part.trim()).filter(Boolean)
     parts.forEach((part) => {
@@ -296,7 +314,34 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     }
   }
 
+  const aepGlued = parseAepModelAndSerial(trimmed)
+  if (aepGlued) {
+    return {
+      serialNumber: aepGlued.serialNumber,
+      productName: aepGlued.model,
+      model: aepGlued.model,
+      specs: "",
+      notes: "",
+      inventoryStockId: "",
+      productId: "",
+      extra: { source: "aep-glued" },
+    }
+  }
+
   if (looksLikeSerialNumber(trimmed)) {
+    const normalized = normalizeAepModelCode(trimmed)
+    if (looksLikeProductModel(normalized)) {
+      return {
+        serialNumber: trimmed,
+        productName: normalized,
+        model: normalized,
+        specs: "",
+        notes: "",
+        inventoryStockId: "",
+        productId: "",
+        extra: { source: "aep-model-as-sn" },
+      }
+    }
     return {
       serialNumber: trimmed,
       productName: "",
