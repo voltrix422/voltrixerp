@@ -605,7 +605,7 @@ export function LeadsManager({
                         Company
                       </th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Contact
+                        Phone
                       </th>
                       <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                         Status
