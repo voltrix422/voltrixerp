@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { CheckCircle2, Download, Loader2, X } from "lucide-react"
 import type { ProductTermsDisplay } from "@/lib/product-terms"
-import { parseProductTermsContent } from "@/lib/parse-product-terms"
+import { decomposeProductTermsContent, parseProductTermsContent } from "@/lib/parse-product-terms"
 import { downloadProductTermsPDF } from "@/lib/generate-product-terms-pdf"
 
 type Props = {
@@ -16,6 +16,7 @@ type Props = {
 export default function ProductTermsModal({ open, onClose, productName, termsDisplay }: Props) {
   const [downloading, setDownloading] = useState(false)
   const parsed = parseProductTermsContent(termsDisplay.content)
+  const structured = decomposeProductTermsContent(termsDisplay.content)
 
   useEffect(() => {
     if (!open) return
@@ -64,6 +65,9 @@ export default function ProductTermsModal({ open, onClose, productName, termsDis
             <h2 id="product-terms-title" className="text-xl font-bold text-neutral-900 sm:text-2xl">
               {parsed.title}
             </h2>
+            {structured.subtitle && (
+              <p className="text-sm font-medium text-neutral-700">{structured.subtitle}</p>
+            )}
             <p className="text-sm text-neutral-500">{productName}</p>
           </div>
           <button
@@ -77,13 +81,17 @@ export default function ProductTermsModal({ open, onClose, productName, termsDis
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-          {parsed.intro.length > 0 && (
+          {structured.intro.trim() && (
             <div className="space-y-4">
-              {parsed.intro.map((paragraph) => (
-                <p key={paragraph.slice(0, 40)} className="text-sm leading-7 text-neutral-600 sm:text-base">
-                  {paragraph}
-                </p>
-              ))}
+              {structured.intro
+                .split(/\n\n+/)
+                .map((p) => p.trim())
+                .filter(Boolean)
+                .map((paragraph) => (
+                  <p key={paragraph.slice(0, 40)} className="text-sm leading-7 text-neutral-600 sm:text-base">
+                    {paragraph}
+                  </p>
+                ))}
             </div>
           )}
 

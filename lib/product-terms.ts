@@ -49,14 +49,8 @@ export function resolveProductTermsDisplay(
     termsFile?: string | null
     termsTemplateId?: string | null
   },
-  templates: ProductTermsTemplate[]
+  _templates?: ProductTermsTemplate[],
 ): ProductTermsDisplay {
-  const template = product.termsTemplateId
-    ? templates.find((item) => item.id === product.termsTemplateId)
-  : templates.find((item) => item.isDefault) || templates[0]
-
-  const content = (product.terms || "").trim() || template?.content || DEFAULT_PRODUCT_TERMS_CONTENT
-  const fileUrl = product.termsFile || template?.fileUrl || null
-
-  return { content, fileUrl }
+  const content = (product.terms || "").trim() || DEFAULT_PRODUCT_TERMS_CONTENT
+  return { content, fileUrl: null }
 }

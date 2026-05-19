@@ -49,7 +49,7 @@ const EMPTY = {
   name: "", category: "Residential", description: "", full_desc: "",
   specification: "", price: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
-  terms: DEFAULT_PRODUCT_TERMS_CONTENT, termsTemplateId: "default-product-terms", termsFile: "",
+  terms: DEFAULT_PRODUCT_TERMS_CONTENT, termsTemplateId: "", termsFile: "",
   brochureUrl: "", brochureName: "",
 }
 
@@ -104,9 +104,9 @@ export default function ProductsManager() {
       specs: Array.isArray(p.specs) ? p.specs : [],
       images: Array.isArray(p.images) ? p.images : [],
       published: p.published || false, unit: p.unit || "pcs", quoteMode: p.quoteMode || false,
-      terms: p.terms || DEFAULT_PRODUCT_TERMS_CONTENT,
-      termsTemplateId: p.termsTemplateId || "default-product-terms",
-      termsFile: p.termsFile || "",
+      terms: (p.terms || "").trim() || DEFAULT_PRODUCT_TERMS_CONTENT,
+      termsTemplateId: "",
+      termsFile: "",
       brochureUrl: p.brochureUrl || "",
       brochureName: p.brochureName || "",
     })
@@ -200,7 +200,9 @@ export default function ProductsManager() {
         price: form.price || 0, warranty: form.warranty,
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
-        terms: form.terms, termsTemplateId: form.termsTemplateId, termsFile: form.termsFile,
+        terms: form.terms || DEFAULT_PRODUCT_TERMS_CONTENT,
+        termsTemplateId: "",
+        termsFile: "",
         brochureUrl: form.brochureUrl, brochureName: form.brochureName,
       }
 

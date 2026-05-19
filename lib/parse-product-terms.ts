@@ -7,17 +7,18 @@ export type ParsedProductTerms = {
 
 export function composeProductTermsContent(params: {
   title: string
+  subtitle?: string
   intro: string
   bullets: string[]
 }): string {
-  const title = params.title.trim()
+  const head = [params.title.trim(), params.subtitle?.trim()].filter(Boolean).join("\n")
   const intro = params.intro.trim()
   const bullets = params.bullets.map((line) => line.trim()).filter(Boolean)
   const bulletBlock = bullets
     .map((line) => (line.startsWith("-") || line.startsWith("•") ? line : `- ${line}`))
     .join("\n")
 
-  const parts = [title]
+  const parts = [head]
   if (intro) parts.push("", intro)
   if (bulletBlock) parts.push("", "Terms and Conditions:", "", bulletBlock)
   return parts.join("\n").trim()
@@ -25,13 +26,30 @@ export function composeProductTermsContent(params: {
 
 export function decomposeProductTermsContent(content: string): {
   title: string
+  subtitle: string
   intro: string
   bullets: string[]
 } {
   const parsed = parseProductTermsContent(content)
+  let subtitle = ""
+  let introParts = [...parsed.intro]
+
+  if (introParts.length > 0) {
+    const first = introParts[0].trim()
+    const looksLikeSubtitle =
+      first.length <= 120 &&
+      !first.toLowerCase().startsWith("voltrix batteries") &&
+      (first.includes("|") || /\bkw\b/i.test(first) || first.length < 55)
+    if (looksLikeSubtitle) {
+      subtitle = first
+      introParts = introParts.slice(1)
+    }
+  }
+
   return {
     title: parsed.title,
-    intro: parsed.intro.join("\n\n"),
+    subtitle,
+    intro: introParts.join("\n\n"),
     bullets: parsed.bullets,
   }
 }
