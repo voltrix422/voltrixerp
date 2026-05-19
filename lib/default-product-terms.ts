@@ -6,9 +6,8 @@ export const DEFAULT_PRODUCT_TERMS_NAME = "5 Year Warranty"
 export const DEFAULT_PRODUCT_TERMS_FIELDS = {
   title: "5 Year Warranty",
   subtitle: "12KW Hybrid Inverter | AEP-12KS48P3",
-  intro: `Voltrix Batteries Pvt. Ltd. provides advanced lithium-based energy storage solutions for residential and commercial use. Known for innovation and reliability, Voltrix offers high-performance, durable products designed to meet modern energy needs efficiently.
-
-Their WL-16 model is a compact, wall-mounted 16 kWh Lithium Iron Phosphate (LiFePO4) battery, delivering 16 kWh capacity with over 6000 charge cycles. It features an intelligent BMS for safety, supports CAN, RS485, and RS232 communication, and offers Bluetooth app monitoring for real-time tracking. Compliant with international safety standards, it ensures dependable operation with strong technical support and warranty coverage.`,
+  intro:
+    "Voltrix Batteries Pvt. Ltd. provides advanced lithium-based energy storage solutions for residential and commercial use. Known for innovation and reliability, Voltrix offers high-performance, durable products designed to meet modern energy needs efficiently.",
   bullets: [
     "For indoor use only (IP21); keep away from water, moisture, and high humidity.",
     "Install correctly with approved inverters and chargers as per guidelines.",
