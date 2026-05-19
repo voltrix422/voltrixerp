@@ -11,7 +11,7 @@ import {
   fetchLeads,
   fetchLeadDetail,
   importLeadsJson,
-  importVoltrixInstallersLeads,
+  syncVoltrixInstallersPhones,
   patchLeadStatus,
   deleteLead,
   deleteLeadsByImportBatch,
@@ -164,6 +164,7 @@ export function LeadsManager({
   const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
   const csvInputRef = useRef<HTMLInputElement>(null)
   const pendingCsvImportRef = useRef<{ importBatchId: string; importUploaderName: string } | null>(null)
+  const autoSyncPhonesDone = useRef(false)
 
   const refresh = useCallback(async () => {
     const list = await fetchLeads()
@@ -182,6 +183,27 @@ export function LeadsManager({
   useEffect(() => {
     refreshStats()
   }, [refreshStats])
+
+  useEffect(() => {
+    if (loading || autoSyncPhonesDone.current) return
+    const missingPhones = leads.some((l) => !l.phone?.trim())
+    if (!missingPhones) return
+    autoSyncPhonesDone.current = true
+    syncVoltrixInstallersPhones()
+      .then((r) => {
+        if (r.updated > 0) {
+          toast({
+            type: "success",
+            title: "Phones synced",
+            message: `Filled ${r.updated} phone number(s) from installers CSV.`,
+          })
+          return refresh()
+        }
+      })
+      .catch(() => {
+        autoSyncPhonesDone.current = false
+      })
+  }, [loading, leads, refresh, toast])
 
   useEffect(() => {
     if (!detailId) {
@@ -320,29 +342,12 @@ export function LeadsManager({
   async function loadHardcodedInstallersCsv() {
     setLoadingInstallersCsv(true)
     try {
-      const result = await importVoltrixInstallersLeads({
-        createdBy: currentUser,
-        createdById: currentUserId ?? null,
-        repairAll: true,
+      const result = await syncVoltrixInstallersPhones()
+      toast({
+        type: "success",
+        title: "Installers CSV synced",
+        message: `Updated ${result.updated} of ${result.total} leads from Voltrix installers May 2026 CSV.`,
       })
-      if (result.mode === "import") {
-        toast({
-          type: "success",
-          title: "Installers imported",
-          message: `${result.created ?? 0} leads from Voltrix installers May 2026 CSV.`,
-        })
-        if (result.importBatchId) {
-          setOpenBatchIds((prev) => new Set(prev).add(result.importBatchId!))
-        }
-      } else {
-        const batch = result.batchRepair?.updated ?? 0
-        const all = result.allRepair?.updated ?? 0
-        toast({
-          type: "success",
-          title: "Installers CSV applied",
-          message: `Phones updated: ${batch} in official batch, ${all} across all leads.`,
-        })
-      }
       await refresh()
       await refreshStats()
     } catch (err) {
@@ -359,20 +364,11 @@ export function LeadsManager({
   async function repairBatchPhones(importBatchId: string) {
     setRepairingPhonesBatchId(importBatchId)
     try {
-      const res = await fetch("/api/crm/leads/repair-phones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ importBatchId, repairAll: true }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error((data as { error?: string }).error || "Repair failed")
-      }
-      const updated = (data as { updated?: number }).updated ?? 0
+      const result = await syncVoltrixInstallersPhones()
       toast({
         type: "success",
         title: "Phones updated",
-        message: `${updated} lead(s) now have phone numbers.`,
+        message: `${result.updated} lead(s) synced from installers CSV (${result.notMatched} not matched).`,
       })
       await refresh()
     } catch (err) {
@@ -467,7 +463,7 @@ export function LeadsManager({
             onClick={() => loadHardcodedInstallersCsv()}
           >
             <Upload className="h-3.5 w-3.5 mr-1" />
-            {loadingInstallersCsv ? "Loading…" : "Load installers CSV"}
+            {loadingInstallersCsv ? "Syncing…" : "Sync phones from CSV"}
           </Button>
           <Button
             size="sm"

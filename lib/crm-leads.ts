@@ -42,16 +42,29 @@ export async function fetchLeadDetail(id: string): Promise<{
   return res.json()
 }
 
+/** Sync phones from hardcoded public/Voltrix installers Leads 19 May 2026.csv */
+export async function syncVoltrixInstallersPhones(importBatchId?: string): Promise<{
+  updated: number
+  total: number
+  notMatched: number
+}> {
+  const res = await fetch("/api/crm/leads/sync-installers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(importBatchId ? { importBatchId } : {}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Sync installers phones failed")
+  return data as { updated: number; total: number; notMatched: number }
+}
+
 export async function importVoltrixInstallersLeads(body: {
   createdBy: string
   createdById?: string | null
-  /** When batch already exists, also fix phones on every lead (any import batch). */
-  repairAll?: boolean
+  allowImport?: boolean
 }): Promise<{
   mode: string
   created?: number
-  importBatchId?: string
-  batchRepair?: { updated: number; total: number }
   allRepair?: { updated: number; total: number }
 }> {
   const res = await fetch("/api/crm/leads/import-installers", {
@@ -61,13 +74,7 @@ export async function importVoltrixInstallersLeads(body: {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || "Import installers failed")
-  return data as {
-    mode: string
-    created?: number
-    importBatchId?: string
-    batchRepair?: { updated: number; total: number }
-    allRepair?: { updated: number; total: number }
-  }
+  return data as { mode: string; created?: number; allRepair?: { updated: number; total: number } }
 }
 
 export async function importLeadsJson(body: {

@@ -282,9 +282,13 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
   return out
 }
 
+export function normalizeLeadMatchText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
 /** Keys for matching DB rows to parsed CSV (name/company may be stored either way). */
 export function leadPhoneLookupKeys(name: string, company: string): string[] {
-  const norm = (s: string) => s.trim().toLowerCase()
+  const norm = normalizeLeadMatchText
   const n = norm(name)
   const c = norm(company)
   const keys = new Set<string>()
@@ -294,14 +298,65 @@ export function leadPhoneLookupKeys(name: string, company: string): string[] {
 }
 
 export function buildLeadPhoneLookupFromCsv(text: string): Map<string, string> {
+  return buildFacebookLeadPhoneLookup(text)
+}
+
+/**
+ * Phone lookup keyed by FULL_NAME / COMPANY_NAME from Facebook export (matches DB either way).
+ */
+export function buildFacebookLeadPhoneLookup(csvText: string): Map<string, string> {
+  const rows = parseCsv(stripBom(csvText))
+  if (rows.length < 2) return new Map()
+  const h = rows[0]
+
+  const iFull = colIndex(h, "fullname", "full_name")
+  const iPhone = colIndex(h, "phone")
+  const iCompany = colIndex(h, "companyname", "company_name", "company")
+
+  if (iFull < 0 || iPhone < 0) {
+    const map = new Map<string, string>()
+    for (const row of parseLeadImportCsv(csvText)) {
+      if (!row.phone?.trim()) continue
+      for (const key of leadPhoneLookupKeys(row.name, row.company)) {
+        map.set(key, row.phone.trim())
+      }
+    }
+    return map
+  }
+
   const map = new Map<string, string>()
-  for (const row of parseLeadImportCsv(text)) {
-    if (!row.phone?.trim()) continue
-    for (const key of leadPhoneLookupKeys(row.name, row.company)) {
-      map.set(key, row.phone.trim())
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]
+    const full = trimCell(row, iFull)
+    const company = iCompany >= 0 ? trimCell(row, iCompany) : ""
+    const phone = formatMetaLeadPhone(trimCell(row, iPhone))
+    if (!phone) continue
+
+    const nf = normalizeLeadMatchText(full)
+    const nc = normalizeLeadMatchText(company)
+    if (nf) map.set(`name:${nf}`, phone)
+    if (nc) map.set(`name:${nc}`, phone)
+    if (nf && nc) {
+      map.set(`pair:${nf}|||${nc}`, phone)
+      map.set(`pair:${nc}|||${nf}`, phone)
     }
   }
   return map
+}
+
+export function resolvePhoneFromFacebookLookup(
+  lookup: Map<string, string>,
+  name: string,
+  company: string,
+): string | undefined {
+  const n = normalizeLeadMatchText(name)
+  const c = normalizeLeadMatchText(company)
+  return (
+    (n && c ? lookup.get(`pair:${n}|||${c}`) : undefined) ??
+    (n && c ? lookup.get(`pair:${c}|||${n}`) : undefined) ??
+    (n ? lookup.get(`name:${n}`) : undefined) ??
+    (c ? lookup.get(`name:${c}`) : undefined)
+  )
 }
 
 function escCsvCell(value: string): string {
