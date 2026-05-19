@@ -4,11 +4,11 @@ import { useState, useEffect, useRef } from 'react'
 import Image from "next/image"
 import Link from "next/link"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight, FileText } from "lucide-react"
-import ProductTermsPanel from "@/components/products/product-terms-panel"
+import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductBrochurePanel from "@/components/products/product-brochure-panel"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
-type TabType = 'description' | 'specifications' | 'terms' | 'brochure'
+type TabType = "description" | "specifications" | "brochure"
 
 function StockBadge({ stock }: { stock: any }) {
   const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
@@ -304,7 +304,8 @@ export default function ProductDetailClient({
   termsDisplay: { content: string; fileUrl?: string | null }
 }) {
   const images = Array.isArray(product.images) ? product.images : []
-  const [activeTab, setActiveTab] = useState<TabType>('description')
+  const [activeTab, setActiveTab] = useState<TabType>("description")
+  const [termsOpen, setTermsOpen] = useState(false)
   const requestQuote = shouldRequestQuote(product)
   const hasBrochure = Boolean(product.brochureUrl)
 
@@ -389,12 +390,9 @@ export default function ProductDetailClient({
                   </button>
                 )}
                 <button
-                  onClick={() => setActiveTab('terms')}
-                  className={`px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
-                    activeTab === 'terms'
-                      ? 'border-[#1a9f9a] text-[#1a9f9a]'
-                      : 'border-transparent text-neutral-500 hover:text-neutral-700'
-                  }`}
+                  type="button"
+                  onClick={() => setTermsOpen(true)}
+                  className="px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px border-transparent text-neutral-500 hover:text-neutral-700 hover:border-[#1a9f9a]/40"
                 >
                   Terms & Conditions
                 </button>
@@ -432,11 +430,7 @@ export default function ProductDetailClient({
                   </div>
                 )}
 
-                {activeTab === 'terms' && (
-                  <ProductTermsPanel productName={product.name} termsDisplay={termsDisplay} />
-                )}
-
-                {activeTab === 'brochure' && hasBrochure && (
+                {activeTab === "brochure" && hasBrochure && (
                   <ProductBrochurePanel
                     brochureUrl={product.brochureUrl}
                     brochureName={product.brochureName}
@@ -481,6 +475,13 @@ export default function ProductDetailClient({
           </div>
         )}
       </div>
+
+      <ProductTermsModal
+        open={termsOpen}
+        onClose={() => setTermsOpen(false)}
+        productName={product.name}
+        termsDisplay={termsDisplay}
+      />
     </section>
   )
 }
