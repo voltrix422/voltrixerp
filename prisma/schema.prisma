@@ -408,6 +408,8 @@ model ErpInventorySerialUnit {
   warrantyStartDate DateTime? @map("warranty_start_date")
   warrantyEndDate   DateTime? @map("warranty_end_date")
   status           String   @default("in_stock")
+  retailPrice      Decimal? @map("retail_price") @db.Decimal(12, 2)
+  gstPercent       Decimal? @map("gst_percent") @db.Decimal(5, 2)
   notes            String   @default("")
   scannedBy        String   @default("system") @map("scanned_by")
   scannedAt        DateTime @default(now()) @map("scanned_at")

@@ -2,6 +2,7 @@
 
 import type { MouseEvent } from "react"
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
+import { formatGstPercent, formatRetailPricePkr } from "@/lib/format-inventory-price"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronRight, Loader2, Pencil, Trash2 } from "lucide-react"
 
@@ -120,6 +121,8 @@ export function InventoryModelGroup({
               <tr className="border-b border-[hsl(var(--border))]">
                 <th className="px-3 py-1.5 text-left font-medium text-[hsl(var(--muted-foreground))]">SN</th>
                 <th className="px-3 py-1.5 text-left font-medium text-[hsl(var(--muted-foreground))]">Item ref</th>
+                <th className="px-3 py-1.5 text-right font-medium text-[hsl(var(--muted-foreground))]">Retail</th>
+                <th className="px-3 py-1.5 text-right font-medium text-[hsl(var(--muted-foreground))]">GST</th>
                 <th className="px-3 py-1.5 text-left font-medium text-[hsl(var(--muted-foreground))]">Received</th>
                 <th className="px-3 py-1.5 text-left font-medium text-[hsl(var(--muted-foreground))]">Status</th>
                 <th className="w-8" />
@@ -130,6 +133,12 @@ export function InventoryModelGroup({
                 <tr key={unit.id} className="border-b border-[hsl(var(--border))] last:border-b-0">
                   <td className="px-3 py-1.5 font-mono break-all">{unit.serialNumber}</td>
                   <td className="px-3 py-1.5 font-mono text-[hsl(var(--muted-foreground))]">{unit.specs || "—"}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                    {formatRetailPricePkr(unit.retailPrice)}
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                    {formatGstPercent(unit.gstPercent)}
+                  </td>
                   <td className="px-3 py-1.5 text-[hsl(var(--muted-foreground))] whitespace-nowrap tabular-nums">
                     {formatDate(unit.scannedAt)}
                   </td>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { parseDecimalField } from "@/lib/format-inventory-price"
 
 function addYears(date: Date, years: number) {
   const next = new Date(date)
@@ -34,6 +35,8 @@ export async function POST(req: NextRequest) {
     rawPayload,
     inventoryStockId,
     notes,
+    retailPrice,
+    gstPercent,
     scannedBy,
     createWarranty = true,
   } = body
@@ -87,6 +90,8 @@ export async function POST(req: NextRequest) {
       warrantyStartDate,
       warrantyEndDate,
       status: "in_stock",
+      retailPrice: parseDecimalField(retailPrice),
+      gstPercent: parseDecimalField(gstPercent),
       notes: notes || "",
       scannedBy: scannedBy || "system",
     },

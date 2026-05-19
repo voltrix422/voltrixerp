@@ -88,6 +88,8 @@ export function mergeLabelScan(qrRaw = "", ocrRaw = ""): ParsedProductQr {
     notes,
     inventoryStockId: fromQr.inventoryStockId || fromOcr.inventoryStockId,
     productId,
+    retailPrice: fromQr.retailPrice ?? fromOcr.retailPrice ?? null,
+    gstPercent: fromQr.gstPercent ?? fromOcr.gstPercent ?? null,
     warrantyStartDate: fromQr.warrantyStartDate || fromOcr.warrantyStartDate,
     warrantyEndDate: fromQr.warrantyEndDate || fromOcr.warrantyEndDate,
     extra,

@@ -13,6 +13,7 @@ import { Html5Qrcode } from "html5-qrcode"
 import { mergeLabelScan } from "@/lib/merge-label-scan"
 import type { ParsedProductQr } from "@/lib/parse-product-qr"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import { formatGstPercent, formatRetailPricePkr } from "@/lib/format-inventory-price"
 import { runLabelOcrOnImageFile } from "@/lib/label-ocr-browser"
 import { playScanRejectBeep, playScanSuccessBeep, prepareScanAudio } from "@/lib/scan-beep"
 import {
@@ -51,6 +52,8 @@ type SessionScan = {
   productName: string
   specs: string
   notes: string
+  retailPrice?: number | null
+  gstPercent?: number | null
   scannedAt: string
 }
 
@@ -188,6 +191,8 @@ export function InventoryQrScanPanel({
       productName: parsed.productName || parsed.model || "Unknown model",
       specs: parsed.specs || productId || internalRef,
       notes: parsed.notes || "",
+      retailPrice: parsed.retailPrice ?? null,
+      gstPercent: parsed.gstPercent ?? null,
       scannedAt: new Date().toISOString(),
     }
   }
@@ -466,6 +471,8 @@ export function InventoryQrScanPanel({
               specs: scan.specs,
               productId: scan.productId,
               rawPayload: scan.rawPayload,
+              retailPrice: scan.retailPrice,
+              gstPercent: scan.gstPercent,
             })),
           }),
         })
@@ -513,6 +520,8 @@ export function InventoryQrScanPanel({
             rawPayload: scan.rawPayload,
             inventoryStockId: scan.inventoryStockId || undefined,
             notes: sessionNotes(scan, receiveLabel),
+            retailPrice: scan.retailPrice,
+            gstPercent: scan.gstPercent,
             scannedBy,
             createWarranty: true,
           })),
@@ -661,6 +670,18 @@ export function InventoryQrScanPanel({
                 <span className="font-medium">{lastPreview.extra.partNo || lastPreview.productId}</span>
               </p>
             )}
+            {lastPreview.retailPrice != null && (
+              <p>
+                <span className="text-[hsl(var(--muted-foreground))]">Retail:</span>{" "}
+                <span className="font-medium">{formatRetailPricePkr(lastPreview.retailPrice)}</span>
+              </p>
+            )}
+            {lastPreview.gstPercent != null && (
+              <p>
+                <span className="text-[hsl(var(--muted-foreground))]">GST:</span>{" "}
+                <span className="font-medium">{formatGstPercent(lastPreview.gstPercent)}</span>
+              </p>
+            )}
           </div>
         )}
         {error && <p className="text-xs text-red-600">{error}</p>}
@@ -720,6 +741,13 @@ export function InventoryQrScanPanel({
                               {scan.manufacturedDate ? `Mfg ${scan.manufacturedDate}` : "—"}
                               {scan.productId ? ` · ID ${scan.productId}` : scan.itemNo ? ` · Item ${scan.itemNo}` : ""}
                             </p>
+                            {(scan.retailPrice != null || scan.gstPercent != null) && (
+                              <p className="text-[hsl(var(--muted-foreground))] mt-0.5">
+                                {scan.retailPrice != null ? formatRetailPricePkr(scan.retailPrice) : ""}
+                                {scan.retailPrice != null && scan.gstPercent != null ? " · " : ""}
+                                {scan.gstPercent != null ? `GST ${formatGstPercent(scan.gstPercent)}` : ""}
+                              </p>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -758,6 +786,14 @@ export function InventoryQrScanPanel({
                 <p className="font-medium">{unit.model || unit.productName || "—"}</p>
                 <p className="text-[hsl(var(--muted-foreground))]">
                   SN {unit.serialNumber} · {formatDisplayDate(unit.scannedAt)}
+                  {(unit.retailPrice != null || unit.gstPercent != null) && (
+                    <>
+                      {" · "}
+                      {unit.retailPrice != null ? formatRetailPricePkr(unit.retailPrice) : ""}
+                      {unit.retailPrice != null && unit.gstPercent != null ? " · " : ""}
+                      {unit.gstPercent != null ? `GST ${formatGstPercent(unit.gstPercent)}` : ""}
+                    </>
+                  )}
                 </p>
               </div>
             ))}

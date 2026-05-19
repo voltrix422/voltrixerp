@@ -14,9 +14,54 @@ export type ParsedProductQr = {
   notes: string
   inventoryStockId: string
   productId: string
+  retailPrice?: number | null
+  gstPercent?: number | null
   warrantyStartDate?: string
   warrantyEndDate?: string
   extra: Record<string, string>
+}
+
+function pickNumber(source: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === "number" && Number.isFinite(value)) return value
+    if (typeof value === "string" && value.trim()) {
+      const cleaned = value.trim().replace(/,/g, "").replace(/[^\d.]/g, "")
+      if (!cleaned) continue
+      const n = Number(cleaned)
+      if (Number.isFinite(n)) return n
+    }
+  }
+  return null
+}
+
+function pickPricing(source: Record<string, unknown>): {
+  retailPrice: number | null
+  gstPercent: number | null
+} {
+  const retailPrice = pickNumber(source, [
+    "retailPrice",
+    "retail_price",
+    "price",
+    "retail",
+    "mrp",
+    "unitPrice",
+    "unit_price",
+  ])
+  let gstPercent = pickNumber(source, [
+    "gstPercent",
+    "gst_percent",
+    "gstRate",
+    "gst_rate",
+    "gst",
+    "taxPercent",
+    "tax_percent",
+    "vat",
+  ])
+  if (gstPercent != null && gstPercent > 0 && gstPercent <= 1) {
+    gstPercent = Math.round(gstPercent * 10000) / 100
+  }
+  return { retailPrice, gstPercent }
 }
 
 function pickString(source: Record<string, unknown>, keys: string[]) {
@@ -124,6 +169,8 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
       notes: "",
       inventoryStockId: "",
       productId: "",
+      retailPrice: null,
+      gstPercent: null,
       extra,
     }
   }
@@ -136,6 +183,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
           extra[key] = String(value)
         }
       })
+      const pricing = pickPricing(parsed)
       return {
         serialNumber: pickString(parsed, ["serialNumber", "serial_number", "sn", "SN", "serial", "barcode"]),
         productName: pickString(parsed, ["productName", "product_name", "product", "name", "item", "description"]),
@@ -144,6 +192,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
         notes: pickString(parsed, ["notes", "note", "remarks"]),
         inventoryStockId: pickString(parsed, ["inventoryStockId", "inventory_stock_id", "stockId", "stock_id", "manualStockId", "manual_stock_id"]),
         productId: pickString(parsed, ["productId", "product_id", "catalogProductId", "catalog_product_id"]),
+        ...pricing,
         warrantyStartDate: pickString(parsed, ["warrantyStartDate", "warranty_start_date", "startDate"]),
         warrantyEndDate: pickString(parsed, ["warrantyEndDate", "warranty_end_date", "endDate"]),
         extra,
@@ -161,6 +210,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
   if (trimmed.includes("http://") || trimmed.includes("https://") || trimmed.includes("?")) {
     const queryValues = parseQueryString(trimmed)
     Object.assign(extra, queryValues)
+    const pricing = pickPricing(queryValues as Record<string, unknown>)
     return {
       serialNumber: pickString(queryValues, ["serialNumber", "serial_number", "sn", "serial", "barcode", "c"]),
       productName: pickString(queryValues, ["productName", "product_name", "product", "name", "item", "description"]),
@@ -169,6 +219,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
       notes: pickString(queryValues, ["notes", "note", "remarks"]),
       inventoryStockId: pickString(queryValues, ["inventoryStockId", "inventory_stock_id", "stockId", "stock_id", "manualStockId", "manual_stock_id"]),
       productId: pickString(queryValues, ["productId", "product_id", "catalogProductId", "catalog_product_id"]),
+      ...pricing,
       warrantyStartDate: pickString(queryValues, ["warrantyStartDate", "warranty_start_date", "startDate"]),
       warrantyEndDate: pickString(queryValues, ["warrantyEndDate", "warranty_end_date", "endDate"]),
       extra,
@@ -228,6 +279,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
       if (!label || rest.length === 0) return
       extra[label.trim().toLowerCase()] = rest.join(":").trim()
     })
+    const pricing = pickPricing(extra as Record<string, unknown>)
     return {
       serialNumber: extra.sn || extra.serial || extra.serialnumber || extra["serial number"] || "",
       productName: extra.product || extra.name || extra.item || extra.description || "",
@@ -236,6 +288,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
       notes: extra.notes || extra.note || "",
       inventoryStockId: extra.inventorystockid || extra.stockid || extra.manualstockid || "",
       productId: extra.productid || extra.catalogproductid || "",
+      ...pricing,
       extra,
     }
   }

@@ -1,3 +1,5 @@
+import { parseDecimalField } from "@/lib/format-inventory-price"
+
 /** One physical unit = one SN. Normalize so duplicate scans match reliably. */
 export function normalizeInventorySerialNumber(serial: string): string {
   return serial.trim()
@@ -20,6 +22,8 @@ export interface InventorySerialUnit {
   warrantyStartDate?: string | null
   warrantyEndDate?: string | null
   status: string
+  retailPrice?: number | null
+  gstPercent?: number | null
   notes: string
   scannedBy: string
   scannedAt: string
@@ -54,6 +58,8 @@ function mapSerialUnit(row: Record<string, unknown>): InventorySerialUnit {
     warrantyStartDate: row.warrantyStartDate ? String(row.warrantyStartDate) : null,
     warrantyEndDate: row.warrantyEndDate ? String(row.warrantyEndDate) : null,
     status: String(row.status ?? "in_stock"),
+    retailPrice: parseDecimalField(row.retailPrice),
+    gstPercent: parseDecimalField(row.gstPercent),
     notes: String(row.notes ?? ""),
     scannedBy: String(row.scannedBy ?? "system"),
     scannedAt: String(row.scannedAt ?? new Date().toISOString()),
@@ -97,6 +103,8 @@ export async function saveInventorySerialUnitsBatch(
     rawPayload?: string
     inventoryStockId?: string
     notes?: string
+    retailPrice?: number | null
+    gstPercent?: number | null
     scannedBy: string
     createWarranty?: boolean
   }>,
@@ -142,6 +150,8 @@ export async function saveInventorySerialUnit(data: {
   rawPayload?: string
   inventoryStockId?: string
   notes?: string
+  retailPrice?: number | null
+  gstPercent?: number | null
   scannedBy: string
   createWarranty?: boolean
 }): Promise<InventorySerialUnit> {

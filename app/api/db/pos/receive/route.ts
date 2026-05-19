@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { parseDecimalField } from "@/lib/format-inventory-price"
 
 type ScanInput = {
   serialNumber: string
@@ -9,6 +10,8 @@ type ScanInput = {
   productId?: string
   rawPayload?: string
   unitPrice?: number
+  retailPrice?: number | null
+  gstPercent?: number | null
 }
 
 type ManualLine = {
@@ -94,7 +97,10 @@ export async function POST(req: NextRequest) {
       }
 
       for (const [description, group] of grouped) {
-        const unitPrice = group.find((g) => g.unitPrice && g.unitPrice > 0)?.unitPrice ?? 0
+        const unitPrice =
+          group.find((g) => g.unitPrice && g.unitPrice > 0)?.unitPrice ??
+          group.find((g) => g.retailPrice && g.retailPrice > 0)?.retailPrice ??
+          0
         let addedCount = 0
         let stockId = ""
 
@@ -122,6 +128,8 @@ export async function POST(req: NextRequest) {
               rawPayload: scan.rawPayload || "",
               inventoryStockId: stockId,
               status: "in_stock",
+              retailPrice: parseDecimalField(scan.retailPrice),
+              gstPercent: parseDecimalField(scan.gstPercent),
               notes: `POS · ${receiveDate}`,
               scannedBy,
             },
