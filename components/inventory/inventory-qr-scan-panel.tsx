@@ -94,7 +94,9 @@ export function InventoryQrScanPanel({
   const { toast } = useToast()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const lastSnScanRef = useRef<{ key: string; at: number }>({ key: "", at: 0 })
+  /** Last successfully accepted SN — used to silence camera re-reads for ~5s */
+  const lastAcceptedScanRef = useRef<{ key: string; at: number }>({ key: "", at: 0 })
+  const DUPLICATE_BEEP_GRACE_MS = 5000
   const sessionSerialKeysRef = useRef<Set<string>>(new Set())
   const knownSerialKeysRef = useRef<Set<string>>(new Set())
   const pasteRef = useRef<HTMLTextAreaElement | null>(null)
@@ -210,12 +212,13 @@ export function InventoryQrScanPanel({
 
     const snKey = serialNumberKey(scan.serialNumber)
     const now = Date.now()
+    const withinGrace =
+      lastAcceptedScanRef.current.key === snKey &&
+      now - lastAcceptedScanRef.current.at < DUPLICATE_BEEP_GRACE_MS
 
-    if (lastSnScanRef.current.key === snKey && now - lastSnScanRef.current.at < 4000) {
-      rejectDuplicate(scan.serialNumber, "Already scanned (repeat)")
+    if (withinGrace) {
       return
     }
-    lastSnScanRef.current = { key: snKey, at: now }
 
     if (sessionSerialKeysRef.current.has(snKey)) {
       rejectDuplicate(scan.serialNumber, "Already scanned this session")
@@ -234,6 +237,8 @@ export function InventoryQrScanPanel({
       }
       return [...prev, scan]
     })
+
+    lastAcceptedScanRef.current = { key: snKey, at: now }
 
     setExpandedModels((prev) => ({ ...prev, [scan.model]: true }))
     playScanSuccessBeep()
