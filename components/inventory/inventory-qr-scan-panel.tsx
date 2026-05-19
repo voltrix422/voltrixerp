@@ -121,6 +121,7 @@ export function InventoryQrScanPanel({
   }
 
   useEffect(() => {
+    prepareScanAudio()
     if (compact) {
       syncKnownSerials(existingSerialNumbers)
       setLoading(false)
@@ -211,6 +212,7 @@ export function InventoryQrScanPanel({
     const now = Date.now()
 
     if (lastSnScanRef.current.key === snKey && now - lastSnScanRef.current.at < 4000) {
+      rejectDuplicate(scan.serialNumber, "Already scanned (repeat)")
       return
     }
     lastSnScanRef.current = { key: snKey, at: now }
@@ -394,6 +396,7 @@ export function InventoryQrScanPanel({
 
   function handlePasteSubmit() {
     if (!pasteValue.trim()) return
+    prepareScanAudio()
     addScanFromPayload(pasteValue)
     pasteRef.current?.focus()
   }
