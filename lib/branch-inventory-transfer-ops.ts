@@ -195,7 +195,7 @@ export async function executeDispatchLine(params: {
     toBranchId: destinationBranch.id,
     toBranchName: destinationBranch.name,
     toBranchCode: destinationBranch.code,
-    inventoryId: line.    inventoryId: stockId,
+    inventoryId: stockId,
     productDescription: inventory.description,
     quantity,
     unit: line.unit || inventory.unit,
