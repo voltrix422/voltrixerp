@@ -87,7 +87,7 @@ export async function saveCombinedBatchTransferRecord(params: {
   const productDescription =
     params.lines.length === 1
       ? params.lines[0].productDescription
-      : `${params.lines.length} products (${totalQty} ${unit} total)`
+      : `${params.lines.length} ${params.lines.length === 1 ? "product" : "products"} (${totalQty} ${unit} total)`
 
   const note =
     params.lines.length === 1

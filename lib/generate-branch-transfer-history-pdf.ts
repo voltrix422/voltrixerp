@@ -241,12 +241,17 @@ export async function generateBranchTransferHistoryPDF(
 export async function downloadBranchTransferHistoryPDF(
   branch: Branch,
   transferHistory: TransferHistoryDisplayEntry[],
+  options?: { singleEntry?: TransferHistoryDisplayEntry },
 ): Promise<void> {
-  const blob = await generateBranchTransferHistoryPDF(branch, transferHistory)
+  const entries = options?.singleEntry ? [options.singleEntry] : transferHistory
+  const blob = await generateBranchTransferHistoryPDF(branch, entries)
   const url = window.URL.createObjectURL(blob)
   const anchor = document.createElement("a")
   anchor.href = url
-  anchor.download = `Voltrix-Transfer-History-${branch.code}-${new Date().toISOString().slice(0, 10)}.pdf`
+  const datePart = new Date().toISOString().slice(0, 10)
+  anchor.download = options?.singleEntry
+    ? `Voltrix-Transfer-${branch.code}-${datePart}-${options.singleEntry.id.slice(0, 8)}.pdf`
+    : `Voltrix-Transfer-History-${branch.code}-${datePart}.pdf`
   document.body.appendChild(anchor)
   anchor.click()
   window.URL.revokeObjectURL(url)

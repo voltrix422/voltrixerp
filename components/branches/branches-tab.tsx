@@ -639,10 +639,24 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                             <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed whitespace-pre-line">{entry.note}</p>
                           )}
                         </div>
-                        <div className="text-right shrink-0">
+                        <div className="text-right shrink-0 flex flex-col items-end gap-1">
                           <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
                             {entry.quantity} {entry.unit}
                           </Badge>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[9px] px-2 cursor-pointer text-[#1faca6] border-[#1faca6] hover:bg-[#1faca6] hover:text-white"
+                            onClick={() =>
+                              downloadBranchTransferHistoryPDF(branch, groupedTransferHistory, {
+                                singleEntry: entry,
+                              })
+                            }
+                          >
+                            <FileDown className="h-3 w-3 mr-0.5" />
+                            PDF
+                          </Button>
                           <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
                             {new Date(entry.transferredAt).toLocaleString()}
                           </p>
