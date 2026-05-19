@@ -69,7 +69,7 @@ function LeadTableRow({
       className="hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
       onClick={() => onOpenDetail(lead.id)}
     >
-      <td className="px-3 py-2 text-xs font-medium capitalize">{lead.name}</td>
+      <td className="px-3 py-2 text-xs font-medium">{lead.name}</td>
       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
       <td className="px-3 py-2 text-xs">
         {lead.phone && (
@@ -373,10 +373,11 @@ export function LeadsManager({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-          Import leads from CSV — <strong>simple</strong> columns (name, company, email, phone, notes) or a{" "}
-          <strong>Google Contacts</strong>–style export (First Name, Last Name, Name Pre, Name Suf, File As, three
-          Organizati columns, Phone 1 - Value, E-mail 1 - Value, Notes, Birthday, Labels). Export all leads as CSV
-          anytime. Log each outreach with chat or call screenshots and the lead&apos;s response.
+          Import leads from CSV — <strong>simple</strong> columns (name, company, email, phone, notes),{" "}
+          <strong>Meta / Facebook Lead Ads</strong> export (FULL_NAME, PHONE, COMPANY_NAME, City, Address), or a{" "}
+          <strong>Google Contacts</strong>–style file. Company name becomes the lead title; city shows as{" "}
+          <strong>Labels: …</strong> in notes. Export all leads as Excel anytime. Log outreach with screenshots and the
+          lead&apos;s response.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -1010,12 +1011,14 @@ function LeadDetailDrawer({
           ) : (
             <>
               <div>
-                <p className="text-lg font-semibold capitalize">{lead.name}</p>
+                <p className="text-lg font-semibold">{lead.name}</p>
                 {lead.company && <p className="text-sm text-[hsl(var(--muted-foreground))]">{lead.company}</p>}
                 <div className="mt-2 text-xs space-y-1">
                   {lead.phone && <p>Phone: {lead.phone}</p>}
                   {lead.email && <p>Email: {lead.email}</p>}
-                  {lead.notes && <p className="text-[hsl(var(--muted-foreground))] pt-1">Notes: {lead.notes}</p>}
+                  {lead.notes && (
+                    <p className="text-[hsl(var(--muted-foreground))] pt-1 whitespace-pre-line">Notes: {lead.notes}</p>
+                  )}
                   {lead.importUploaderName && (
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))] pt-2 border-t border-[hsl(var(--border))] mt-2">
                       CSV import: <span className="font-medium text-[hsl(var(--foreground))]">{lead.importUploaderName}</span>

@@ -124,12 +124,81 @@ function buildLeadDisplayName(row: string[], h: string[]): string {
 }
 
 function headerSupportsLeadName(h: string[]): boolean {
+  if (isMetaLeadAdsExport(h)) return true
   if (colIndex(h, "name", "fullname", "leadname", "displayname", "contactname") >= 0) return true
   if (colIndex(h, "firstname", "first name", "givenname", "given name") >= 0) return true
   if (colIndex(h, "lastname", "last name", "surname", "familyname", "family name") >= 0) return true
   if (colIndex(h, "fileas", "file as") >= 0) return true
   if (colIndex(h, "nickname") >= 0) return true
   return false
+}
+
+/** Meta / Facebook Lead Ads CSV (FULL_NAME, PHONE, COMPANY_NAME, City, Address, …). */
+export function isMetaLeadAdsExport(h: string[]): boolean {
+  const hasPerson = colIndex(h, "fullname", "full_name") >= 0
+  const hasPhone = colIndex(h, "phone") >= 0
+  const hasCompany = colIndex(h, "companyname", "company_name", "company") >= 0
+  return hasPerson && hasPhone && hasCompany
+}
+
+/** Normalize Meta `p:+923001234567` style numbers for display (e.g. 0300 1234567). */
+export function formatMetaLeadPhone(raw: string): string {
+  let p = (raw ?? "").trim()
+  if (!p) return ""
+  if (p.toLowerCase().startsWith("p:")) p = p.slice(2).trim()
+  const digits = p.replace(/\D/g, "")
+  if (digits.startsWith("92") && digits.length >= 12) {
+    const local = `0${digits.slice(2)}`
+    if (local.length >= 11) return `${local.slice(0, 4)} ${local.slice(4)}`
+    return local
+  }
+  if (digits.length === 11 && digits.startsWith("0")) {
+    return `${digits.slice(0, 4)} ${digits.slice(4)}`
+  }
+  if (digits.length === 10) {
+    return `${digits.slice(0, 4)} ${digits.slice(4)}`
+  }
+  return p
+}
+
+function parseMetaLeadAdsRows(rows: string[][], h: string[]): LeadCsvRow[] {
+  const iFull = colIndex(h, "fullname", "full_name")
+  const iPhone = colIndex(h, "phone")
+  const iCompany = colIndex(h, "companyname", "company_name", "company")
+  const iCity = colIndex(h, "city")
+  const iAddress = colIndex(h, "address")
+  const iPlatform = colIndex(h, "platform")
+
+  const out: LeadCsvRow[] = []
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]
+    const fullName = trimCell(row, iFull)
+    const companyName = trimCell(row, iCompany)
+    const name = companyName || fullName
+    if (!name) continue
+
+    const company =
+      companyName && fullName && companyName.toLowerCase() !== fullName.toLowerCase() ? fullName : ""
+
+    const phone = formatMetaLeadPhone(trimCell(row, iPhone))
+    const city = trimCell(row, iCity)
+    const address = trimCell(row, iAddress)
+    const platform = trimCell(row, iPlatform)
+
+    const noteParts: string[] = []
+    if (city) noteParts.push(`Labels: ${city}`)
+    if (address) noteParts.push(`Address: ${address}`)
+    if (platform) noteParts.push(`Platform: ${platform}`)
+
+    out.push({
+      name,
+      company,
+      email: "",
+      phone,
+      notes: noteParts.join("\n"),
+    })
+  }
+  return out
 }
 
 /**
@@ -143,6 +212,7 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
   const rows = parseCsv(stripBom(text))
   if (rows.length < 2) return []
   const h = rows[0]
+  if (isMetaLeadAdsExport(h)) return parseMetaLeadAdsRows(rows, h)
   if (!headerSupportsLeadName(h)) return []
 
   const orgIdx = orgColumnIndices(h)
