@@ -37,9 +37,35 @@ export async function fetchLeads(): Promise<CrmLeadRow[]> {
 export async function fetchLeadDetail(id: string): Promise<{
   lead: CrmLeadRow & { contacts: CrmLeadContactRow[] }
 } | null> {
-  const res = await fetch(`/api/crm/leads/${id}`)
+  const res = await fetch(`/api/crm/leads/${id}`, { cache: "no-store" })
   if (!res.ok) return null
   return res.json()
+}
+
+export async function fetchLeadContacts(leadId: string): Promise<CrmLeadContactRow[]> {
+  const res = await fetch(`/api/crm/leads/contacts?leadId=${encodeURIComponent(leadId)}`, {
+    cache: "no-store",
+  })
+  if (!res.ok) return []
+  const data = (await res.json()) as { contacts?: CrmLeadContactRow[] }
+  return Array.isArray(data.contacts) ? data.contacts : []
+}
+
+export async function importFacebookLeadAdsCsv(body: {
+  csvText: string
+  createdBy: string
+  createdById?: string | null
+  importUploaderName: string
+  importBatchId?: string
+}): Promise<{ created: number; importBatchId: string; importUploaderName: string }> {
+  const res = await fetch("/api/crm/leads/import-facebook", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Facebook import failed")
+  return data as { created: number; importBatchId: string; importUploaderName: string }
 }
 
 /** Sync phones from hardcoded public/Voltrix installers Leads 19 May 2026.csv */

@@ -6,6 +6,47 @@ function asStringArray(v: unknown): string[] {
   return []
 }
 
+function mapContact(c: {
+  id: string
+  leadId: string
+  contactedAt: Date
+  contactedBy: string
+  contactedById: string | null
+  screenshotUrls: unknown
+  leadResponse: string
+  notes: string
+}) {
+  return {
+    id: c.id,
+    leadId: c.leadId,
+    contactedAt: c.contactedAt.toISOString(),
+    contactedBy: c.contactedBy,
+    contactedById: c.contactedById,
+    screenshotUrls: asStringArray(c.screenshotUrls),
+    leadResponse: c.leadResponse,
+    notes: c.notes,
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const leadId = new URL(req.url).searchParams.get("leadId")?.trim()
+    if (!leadId) {
+      return NextResponse.json({ error: "leadId query required" }, { status: 400 })
+    }
+
+    const contacts = await prisma.crmLeadContact.findMany({
+      where: { leadId },
+      orderBy: { contactedAt: "desc" },
+    })
+
+    return NextResponse.json({ contacts: contacts.map(mapContact) })
+  } catch (e) {
+    console.error(e)
+    return NextResponse.json({ error: "Failed to load outreach history" }, { status: 500 })
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const b = await req.json()
@@ -29,7 +70,7 @@ export async function POST(req: NextRequest) {
         contactedBy,
         contactedById: b.contactedById ? String(b.contactedById) : null,
         contactedAt,
-        screenshotUrls,
+        screenshotUrls: screenshotUrls.length > 0 ? screenshotUrls : [],
         leadResponse,
         notes,
       },
@@ -46,16 +87,7 @@ export async function POST(req: NextRequest) {
       data: { status },
     })
 
-    return NextResponse.json({
-      id: contact.id,
-      leadId: contact.leadId,
-      contactedAt: contact.contactedAt.toISOString(),
-      contactedBy: contact.contactedBy,
-      contactedById: contact.contactedById,
-      screenshotUrls: asStringArray(contact.screenshotUrls as unknown),
-      leadResponse: contact.leadResponse,
-      notes: contact.notes,
-    })
+    return NextResponse.json(mapContact(contact))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Failed to log contact" }, { status: 500 })

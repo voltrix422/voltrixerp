@@ -168,27 +168,33 @@ function parseMetaLeadAdsRows(rows: string[][], h: string[]): LeadCsvRow[] {
   const iCity = colIndex(h, "city")
   const iAddress = colIndex(h, "address")
   const iPlatform = colIndex(h, "platform")
+  const iCreated = colIndex(h, "createdtime", "created_time")
+  const iStatus = colIndex(h, "leadstatus", "lead_status")
 
   const out: LeadCsvRow[] = []
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r]
     const fullName = trimCell(row, iFull)
     const companyName = trimCell(row, iCompany)
-    const name = companyName || fullName
+    const name = fullName || companyName
     if (!name) continue
 
     const company =
-      companyName && fullName && companyName.toLowerCase() !== fullName.toLowerCase() ? fullName : ""
+      fullName && companyName && fullName.toLowerCase() !== companyName.toLowerCase() ? companyName : ""
 
     const phone = formatMetaLeadPhone(trimCell(row, iPhone))
     const city = trimCell(row, iCity)
     const address = trimCell(row, iAddress)
     const platform = trimCell(row, iPlatform)
+    const createdTime = trimCell(row, iCreated)
+    const leadStatus = trimCell(row, iStatus)
 
     const noteParts: string[] = []
     if (city) noteParts.push(`Labels: ${city}`)
     if (address) noteParts.push(`Address: ${address}`)
     if (platform) noteParts.push(`Platform: ${platform}`)
+    if (leadStatus) noteParts.push(`Lead status: ${leadStatus}`)
+    if (createdTime) noteParts.push(`Submitted: ${createdTime}`)
 
     out.push({
       name,

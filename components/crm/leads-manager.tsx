@@ -6,11 +6,18 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { uploadFiles } from "@/lib/upload"
 import { parseLeadImportCsv } from "@/lib/csv-leads"
+import {
+  facebookLeadAdsImportSummary,
+  isFacebookLeadAdsCsv,
+  FACEBOOK_LEAD_ADS_HEADERS,
+} from "@/lib/facebook-lead-ads-csv"
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
 import {
   fetchLeads,
   fetchLeadDetail,
+  fetchLeadContacts,
   importLeadsJson,
+  importFacebookLeadAdsCsv,
   syncVoltrixInstallersPhones,
   patchLeadStatus,
   deleteLead,
@@ -33,6 +40,7 @@ import {
   ChevronRight,
   User,
   Download,
+  RefreshCw,
 } from "lucide-react"
 
 const STATUS_OPTIONS = [
@@ -51,6 +59,8 @@ const SAMPLE_CSV = `name,company,email,phone,notes
 Jane Doe,Acme Industries,jane@example.com,+923001234567,Interested in UPS
 John Smith,,john@smith.com,,Follow up next week
 `
+
+const CRM_LEAD_DETAIL_KEY = "crm-lead-detail-id"
 
 function LeadTableRow({
   lead,
@@ -161,8 +171,10 @@ export function LeadsManager({
   const [loadingInstallersCsv, setLoadingInstallersCsv] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
+  const [showFacebookImportModal, setShowFacebookImportModal] = useState(false)
   const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
   const csvInputRef = useRef<HTMLInputElement>(null)
+  const facebookCsvInputRef = useRef<HTMLInputElement>(null)
   const pendingCsvImportRef = useRef<{ importBatchId: string; importUploaderName: string } | null>(null)
   const autoSyncPhonesDone = useRef(false)
 
@@ -171,12 +183,50 @@ export function LeadsManager({
     setLeads(list)
   }, [])
 
+  const reloadLeadDetail = useCallback(async (id: string) => {
+    setDetailLoading(true)
+    try {
+      const [detailRes, contacts] = await Promise.all([fetchLeadDetail(id), fetchLeadContacts(id)])
+      if (detailRes?.lead) {
+        const lead = detailRes.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] }
+        setDetail({
+          ...lead,
+          contacts: contacts.length > 0 ? contacts : lead.contacts,
+          contactCount: contacts.length > 0 ? contacts.length : lead.contactCount,
+        })
+      } else {
+        setDetail(null)
+      }
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
+
+  const openLeadDetail = useCallback((id: string) => {
+    setDetailId(id)
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(CRM_LEAD_DETAIL_KEY, id)
+    }
+  }, [])
+
+  const closeLeadDetail = useCallback(() => {
+    setDetailId(null)
+    setDetail(null)
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem(CRM_LEAD_DETAIL_KEY)
+    }
+  }, [])
+
   const refreshStats = useCallback(async () => {
     const s = await fetchDailyStats(statsDate)
     setStats({ total: s.total, byMember: s.byMember })
   }, [statsDate])
 
   useEffect(() => {
+    if (typeof sessionStorage !== "undefined") {
+      const saved = sessionStorage.getItem(CRM_LEAD_DETAIL_KEY)
+      if (saved) setDetailId(saved)
+    }
     refresh().finally(() => setLoading(false))
   }, [refresh])
 
@@ -210,14 +260,8 @@ export function LeadsManager({
       setDetail(null)
       return
     }
-    setDetailLoading(true)
-    fetchLeadDetail(detailId)
-      .then((r) => {
-        if (r?.lead) setDetail(r.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] })
-        else setDetail(null)
-      })
-      .finally(() => setDetailLoading(false))
-  }, [detailId])
+    reloadLeadDetail(detailId)
+  }, [detailId, reloadLeadDetail])
 
   const filteredAll = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -293,12 +337,31 @@ export function LeadsManager({
     setImporting(true)
     try {
       const text = await file.text()
+      if (isFacebookLeadAdsCsv(text)) {
+        const { created, importBatchId } = await importFacebookLeadAdsCsv({
+          csvText: text,
+          createdBy: currentUser,
+          createdById: currentUserId ?? null,
+          importUploaderName: meta.importUploaderName.trim(),
+          importBatchId: meta.importBatchId,
+        })
+        toast({
+          type: "success",
+          title: "Facebook leads imported",
+          message: `${created} lead(s) with name, company, and phone.`,
+        })
+        setOpenBatchIds((prev) => new Set(prev).add(importBatchId))
+        pendingCsvImportRef.current = null
+        await refresh()
+        await refreshStats()
+        return
+      }
       const rows = parseLeadImportCsv(text)
       if (rows.length === 0) {
         toast({
           type: "error",
           title: "No rows imported",
-          message: "Add a header row with at least a name column, then data rows.",
+          message: "Use Facebook Lead Ads CSV or a file with name / phone columns.",
         })
         return
       }
@@ -313,6 +376,49 @@ export function LeadsManager({
       toast({ type: "success", title: "Import complete", message: `${created} lead(s) added.` })
       setOpenBatchIds((prev) => new Set(prev).add(meta.importBatchId))
       pendingCsvImportRef.current = null
+      await refresh()
+      await refreshStats()
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Import failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function onFacebookCsvFile(e: React.ChangeEvent<HTMLInputElement>, uploaderName: string) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const summary = facebookLeadAdsImportSummary(text)
+      if (!summary.valid) {
+        toast({ type: "error", title: "Invalid file", message: summary.message })
+        return
+      }
+      const importBatchId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `fb-${Date.now()}`
+      const { created, importBatchId: batchId } = await importFacebookLeadAdsCsv({
+        csvText: text,
+        createdBy: currentUser,
+        createdById: currentUserId ?? null,
+        importUploaderName: uploaderName.trim() || "Facebook Lead Ads",
+        importBatchId,
+      })
+      toast({
+        type: "success",
+        title: "Facebook leads imported",
+        message: `${created} lead(s) added.`,
+      })
+      setOpenBatchIds((prev) => new Set(prev).add(batchId))
+      setShowFacebookImportModal(false)
       await refresh()
       await refreshStats()
     } catch (err) {
@@ -441,11 +547,9 @@ export function LeadsManager({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-          Import leads from CSV — <strong>simple</strong> columns (name, company, email, phone, notes),{" "}
-          <strong>Meta / Facebook Lead Ads</strong> export (FULL_NAME, PHONE, COMPANY_NAME, City, Address), or a{" "}
-          <strong>Google Contacts</strong>–style file. Company name becomes the lead title; city shows as{" "}
-          <strong>Labels: …</strong> in notes. Export all leads as Excel anytime. Log outreach with screenshots and the
-          lead&apos;s response.
+          Import <strong>Facebook Lead Ads</strong> CSV (FULL_NAME, PHONE, COMPANY_NAME, City, Address) or other CSV
+          formats. Outreach logs are saved in the database — open a lead to view full history after refresh. Export
+          leads as Excel anytime.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -455,14 +559,33 @@ export function LeadsManager({
             className="hidden"
             onChange={onCsvFile}
           />
+          <input
+            ref={facebookCsvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const name = pendingCsvImportRef.current?.importUploaderName || currentUser
+              onFacebookCsvFile(e, name)
+            }}
+          />
           <Button
             size="sm"
             variant="default"
             className="h-8 text-xs"
+            disabled={importing}
+            onClick={() => setShowFacebookImportModal(true)}
+          >
+            <Upload className="h-3.5 w-3.5 mr-1" />
+            {importing ? "Importing…" : "Import Facebook leads"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
             disabled={loadingInstallersCsv || importing}
             onClick={() => loadHardcodedInstallersCsv()}
           >
-            <Upload className="h-3.5 w-3.5 mr-1" />
             {loadingInstallersCsv ? "Syncing…" : "Sync phones from CSV"}
           </Button>
           <Button
@@ -473,7 +596,7 @@ export function LeadsManager({
             onClick={() => setShowCsvImportModal(true)}
           >
             <Upload className="h-3.5 w-3.5 mr-1" />
-            {importing ? "Importing…" : "Import other CSV"}
+            Import other CSV
           </Button>
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`}
@@ -617,7 +740,7 @@ export function LeadsManager({
                                 <LeadTableRow
                                   key={lead.id}
                                   lead={lead}
-                                  onOpenDetail={setDetailId}
+                                  onOpenDetail={openLeadDetail}
                                   onStatusChange={onStatusChange}
                                   onLog={setLogForLead}
                                   onDelete={requestDeleteLead}
@@ -673,7 +796,7 @@ export function LeadsManager({
                       <LeadTableRow
                         key={lead.id}
                         lead={lead}
-                        onOpenDetail={setDetailId}
+                        onOpenDetail={openLeadDetail}
                         onStatusChange={onStatusChange}
                         onLog={setLogForLead}
                         onDelete={requestDeleteLead}
@@ -685,6 +808,24 @@ export function LeadsManager({
             </div>
           )}
         </div>
+      )}
+
+      {showFacebookImportModal && (
+        <FacebookLeadImportModal
+          importing={importing}
+          onClose={() => setShowFacebookImportModal(false)}
+          onPickFile={(uploaderName) => {
+            pendingCsvImportRef.current = {
+              importBatchId:
+                typeof crypto !== "undefined" && crypto.randomUUID
+                  ? crypto.randomUUID()
+                  : `fb-${Date.now()}`,
+              importUploaderName: uploaderName,
+            }
+            setShowFacebookImportModal(false)
+            queueMicrotask(() => facebookCsvInputRef.current?.click())
+          }}
+        />
       )}
 
       {showCsvImportModal && (
@@ -715,13 +856,45 @@ export function LeadsManager({
           currentUser={currentUser}
           currentUserId={currentUserId}
           onClose={() => setLogForLead(null)}
-          onSaved={async () => {
+          onSaved={async (savedContact) => {
+            const leadId = logForLead.id
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id === leadId
+                  ? {
+                      ...l,
+                      contactCount: l.contactCount + 1,
+                      lastContactedAt: savedContact.contactedAt,
+                      lastResponseSnippet: savedContact.leadResponse
+                        ? savedContact.leadResponse.slice(0, 160)
+                        : l.lastResponseSnippet,
+                      status:
+                        l.status === "closed"
+                          ? l.status
+                          : savedContact.leadResponse.trim()
+                            ? "responded"
+                            : l.status === "new"
+                              ? "contacted"
+                              : l.status,
+                    }
+                  : l,
+              ),
+            )
+            if (detailId === leadId) {
+              setDetail((d) =>
+                d
+                  ? {
+                      ...d,
+                      contacts: [savedContact, ...d.contacts],
+                      contactCount: d.contactCount + 1,
+                      lastContactedAt: savedContact.contactedAt,
+                    }
+                  : d,
+              )
+              await reloadLeadDetail(leadId)
+            }
             await refresh()
             await refreshStats()
-            if (detailId === logForLead.id) {
-              const r = await fetchLeadDetail(logForLead.id)
-              if (r?.lead) setDetail(r.lead as CrmLeadRow & { contacts: CrmLeadContactRow[] })
-            }
             setLogForLead(null)
           }}
         />
@@ -731,10 +904,8 @@ export function LeadsManager({
         <LeadDetailDrawer
           loading={detailLoading}
           lead={detail}
-          onClose={() => {
-            setDetailId(null)
-            setDetail(null)
-          }}
+          onClose={closeLeadDetail}
+          onRefreshHistory={() => detailId && reloadLeadDetail(detailId)}
           onLog={() => {
             if (detail) setLogForLead(detail)
           }}
@@ -753,7 +924,7 @@ export function LeadsManager({
           try {
             await deleteLead(deleteId)
             setLeads((prev) => prev.filter((l) => l.id !== deleteId))
-            if (detailId === deleteId) setDetailId(null)
+            if (detailId === deleteId) closeLeadDetail()
             toast({ type: "success", title: "Lead deleted" })
             await refreshStats()
           } catch {
@@ -787,7 +958,7 @@ export function LeadsManager({
               return next
             })
             if (detailId && leads.some((l) => l.id === detailId && l.importBatchId === importBatchId)) {
-              setDetailId(null)
+              closeLeadDetail()
             }
             toast({
               type: "success",
@@ -802,6 +973,62 @@ export function LeadsManager({
         }}
         onCancel={() => setDeleteImportBatch(null)}
       />
+    </div>
+  )
+}
+
+function FacebookLeadImportModal({
+  importing,
+  onClose,
+  onPickFile,
+}: {
+  importing: boolean
+  onClose: () => void
+  onPickFile: (uploaderName: string) => void
+}) {
+  const [name, setName] = useState("Facebook Lead Ads")
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-lg w-full p-4 space-y-3 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold">Import Facebook Lead Ads</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          Upload Meta export with FULL_NAME, PHONE, COMPANY_NAME, City, Address.
+        </p>
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-mono break-all">
+          {FACEBOOK_LEAD_ADS_HEADERS.join(", ")}
+        </p>
+        <div>
+          <label className="text-xs font-medium">Import label *</label>
+          <input
+            className="mt-1 w-full h-9 rounded border px-2 text-sm"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={onClose} disabled={importing}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="cursor-pointer"
+            disabled={!name.trim() || importing}
+            onClick={() => onPickFile(name.trim())}
+          >
+            {importing ? "Importing…" : "Choose CSV file"}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -828,8 +1055,7 @@ function CsvImportModal({
           </button>
         </div>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Who is importing these leads? This name and the import date are shown on the import record so your team can
-          see who uploaded each file.
+          Who is importing these leads? This name and the import date are shown on the import record.
         </p>
         <div>
           <label className="text-xs font-medium">Importer name *</label>
@@ -966,7 +1192,7 @@ function LogOutreachModal({
   currentUser: string
   currentUserId?: string | null
   onClose: () => void
-  onSaved: () => Promise<void>
+  onSaved: (contact: CrmLeadContactRow) => Promise<void>
 }) {
   const { toast } = useToast()
   const [when, setWhen] = useState(() => toDatetimeLocalValue(new Date()))
@@ -980,9 +1206,17 @@ function LogOutreachModal({
     try {
       let screenshotUrls: string[] = []
       if (files.length > 0) {
-        screenshotUrls = await uploadFiles(files, "crm-leads")
+        try {
+          screenshotUrls = await uploadFiles(files, "crm-leads")
+        } catch {
+          toast({
+            type: "warning",
+            title: "Screenshots not uploaded",
+            message: "Saving outreach log without images.",
+          })
+        }
       }
-      await logLeadContact({
+      const savedContact = await logLeadContact({
         leadId: lead.id,
         contactedBy: currentUser,
         contactedById: currentUserId ?? null,
@@ -992,7 +1226,7 @@ function LogOutreachModal({
         notes,
       })
       toast({ type: "success", title: "Outreach logged" })
-      await onSaved()
+      await onSaved(savedContact)
     } catch (e) {
       toast({
         type: "error",
@@ -1075,11 +1309,13 @@ function LeadDetailDrawer({
   lead,
   onClose,
   onLog,
+  onRefreshHistory,
 }: {
   loading: boolean
   lead: (CrmLeadRow & { contacts: CrmLeadContactRow[] }) | null
   onClose: () => void
   onLog: () => void
+  onRefreshHistory: () => void
 }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
@@ -1122,7 +1358,19 @@ function LeadDetailDrawer({
                 </Button>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase text-[hsl(var(--muted-foreground))] mb-2">Outreach history</p>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-xs font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                    Outreach history ({lead.contactCount})
+                  </p>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-[10px] text-[hsl(var(--primary))] hover:underline cursor-pointer"
+                    onClick={onRefreshHistory}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Refresh
+                  </button>
+                </div>
                 {lead.contacts.length === 0 ? (
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">No logs yet.</p>
                 ) : (

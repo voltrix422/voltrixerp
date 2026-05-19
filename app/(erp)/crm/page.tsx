@@ -20,6 +20,12 @@ export default function CRMPage() {
       router.replace("/crm/sales-agents")
     }
   }, [user, router])
+
+  useEffect(() => {
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("crm-lead-detail-id")) {
+      setTab("leads")
+    }
+  }, [])
   
   return (
     <ModuleGuard module="crm">
