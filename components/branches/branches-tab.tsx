@@ -1,7 +1,8 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, getBranchTransferHistory, batchBranchInventoryTransfer, clearBranchTransferHistory, resetBranchInventory, type Branch, type BranchInventory, type BranchInventoryTransfer } from "@/lib/branches"
 import { downloadBranchTransferHistoryPDF } from "@/lib/generate-branch-transfer-history-pdf"
+import { groupTransferHistoryForDisplay } from "@/lib/branch-transfer-history-display"
 import { BulkBranchTransferModal, type BulkTransferProduct } from "@/components/branches/bulk-branch-transfer-modal"
 import { Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -359,6 +360,11 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
 
   const inventoryRows = inventory
 
+  const groupedTransferHistory = useMemo(
+    () => groupTransferHistoryForDisplay(transferHistory),
+    [transferHistory],
+  )
+
   const mainWarehouseSummary = isMainWarehouse
     ? {
         models: inventory.length,
@@ -567,13 +573,13 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                 Transfer History
               </p>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{transferHistory.length} record{transferHistory.length === 1 ? "" : "s"}</span>
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{groupedTransferHistory.length} record{groupedTransferHistory.length === 1 ? "" : "s"}</span>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7 text-[10px] cursor-pointer text-[#1faca6] border-[#1faca6] hover:bg-[#1faca6] hover:text-white"
-                  disabled={transferHistory.length === 0}
-                  onClick={() => downloadBranchTransferHistoryPDF(branch, transferHistory)}
+                  disabled={groupedTransferHistory.length === 0}
+                  onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
                 >
                   <FileDown className="h-3 w-3 mr-1" />
                   Download PDF
@@ -582,7 +588,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                   size="sm"
                   variant="outline"
                   className="h-7 text-[10px] cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
-                  disabled={transferHistory.length === 0 || clearingHistory}
+                  disabled={groupedTransferHistory.length === 0 || clearingHistory}
                   onClick={handleClearTransferHistory}
                 >
                   {clearingHistory ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3 mr-1" />}
@@ -594,11 +600,11 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
               </div>
-            ) : transferHistory.length === 0 ? (
+            ) : groupedTransferHistory.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))] py-2">No inventory transfers recorded for this branch yet.</p>
             ) : (
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {transferHistory.map(entry => {
+                {groupedTransferHistory.map(entry => {
                   const isOutgoing = entry.fromBranchId === branch.id
                   const isIncoming = entry.toBranchId === branch.id
                   return (
@@ -614,11 +620,24 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                               <ArrowRightLeft className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
                             )}
                             <p className="text-xs font-semibold truncate">{entry.productDescription}</p>
+                            {entry.isBatch && (
+                              <Badge variant="info" className="text-[9px] px-1.5 py-0">Batch</Badge>
+                            )}
                           </div>
                           <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
                             {isOutgoing ? `To ${entry.toBranchName} (${entry.toBranchCode})` : isIncoming ? `From ${entry.fromBranchName} (${entry.fromBranchCode})` : `${entry.fromBranchName} → ${entry.toBranchName}`}
                           </p>
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">{entry.note}</p>
+                          {entry.isBatch && entry.lineItems.length > 0 ? (
+                            <ul className="mt-2 space-y-1">
+                              {entry.lineItems.map((line, idx) => (
+                                <li key={`${entry.id}-line-${idx}`} className="text-[10px] text-[hsl(var(--foreground))]">
+                                  {line.quantity} {line.unit} × {line.productDescription}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed whitespace-pre-line">{entry.note}</p>
+                          )}
                         </div>
                         <div className="text-right shrink-0">
                           <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
@@ -656,8 +675,8 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
             size="sm"
             variant="outline"
             className="h-9 text-xs cursor-pointer text-[#1faca6] border-[#1faca6] hover:bg-[#1faca6] hover:text-white"
-            onClick={() => downloadBranchTransferHistoryPDF(branch, transferHistory)}
-            disabled={transferHistory.length === 0}
+            onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
+            disabled={groupedTransferHistory.length === 0}
           >
             <FileDown className="h-3.5 w-3.5" /> Transfer PDF
           </Button>

@@ -348,9 +348,11 @@ model ErpBranchInventoryTransfer {
   note               String   @default("")
   transferredBy      String   @map("transferred_by")
   transferredAt      DateTime @default(now()) @map("transferred_at")
+  transferBatchId    String?  @map("transfer_batch_id")
 
   @@index([fromBranchId])
   @@index([toBranchId])
+  @@index([transferBatchId])
   @@map("erp_branch_inventory_transfers")
 }
 

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/db"
 import {
   executeDispatchLine,
   executeTransferLine,
+  saveCombinedBatchTransferRecord,
+  type BatchTransferLineResult,
   type DispatchLineInput,
   type TransferLineInput,
 } from "@/lib/branch-inventory-transfer-ops"
@@ -38,6 +41,8 @@ export async function POST(req: NextRequest) {
   }
 
   const actor = assignedBy || "system"
+  const isMultiLineBatch = lines.length > 1
+  const successfulLines: BatchTransferLineResult[] = []
   const results: Array<{
     ok: boolean
     productDescription?: string
@@ -46,6 +51,13 @@ export async function POST(req: NextRequest) {
     inventoryId?: string
     fromBranchInventoryId?: string
   }> = []
+
+  const destinationBranch = await prisma.erpBranch.findUnique({
+    where: { id: toBranchId },
+  })
+  if (!destinationBranch) {
+    return NextResponse.json({ error: "Destination branch not found" }, { status: 404 })
+  }
 
   for (const line of lines) {
     try {
@@ -59,18 +71,23 @@ export async function POST(req: NextRequest) {
         }
         const result = await executeDispatchLine({
           destinationBranchId: toBranchId,
-          destinationBranchCode: destinationBranchCode || "",
+          destinationBranchCode: destinationBranchCode || destinationBranch.code,
           fromBranchId,
           fromBranchName: fromBranchName || "Main warehouse",
           fromBranchCode: fromBranchCode || "MAIN",
           assignedBy: actor,
           systemNotes,
           line: dispatchLine,
+          skipTransferHistory: isMultiLineBatch,
         })
-        results.push({
-          ok: true,
-          ...result,
+        successfulLines.push({
+          inventoryId: result.inventoryId,
+          productDescription: result.productDescription,
+          quantity: result.quantity,
+          unit: result.unit,
+          userNote: dispatchLine.userNote,
         })
+        results.push({ ok: true, ...result })
       } else if (mode === "transfer") {
         const transferLine = line as TransferLineInput
         if (
@@ -84,6 +101,14 @@ export async function POST(req: NextRequest) {
           toBranchId,
           transferredBy: actor,
           line: transferLine,
+          skipTransferHistory: isMultiLineBatch,
+        })
+        successfulLines.push({
+          inventoryId: result.inventoryId,
+          productDescription: result.productDescription,
+          quantity: result.quantity,
+          unit: result.unit,
+          userNote: transferLine.userNote,
         })
         results.push({
           ok: true,
@@ -103,6 +128,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (isMultiLineBatch && successfulLines.length > 0) {
+    const sourceBranch = fromBranchId
+      ? await prisma.erpBranch.findUnique({ where: { id: fromBranchId } })
+      : null
+    await saveCombinedBatchTransferRecord({
+      fromBranchId: fromBranchId || null,
+      fromBranchName: sourceBranch?.name || fromBranchName || "Main warehouse",
+      fromBranchCode: sourceBranch?.code || fromBranchCode || "MAIN",
+      toBranchId: destinationBranch.id,
+      toBranchName: destinationBranch.name,
+      toBranchCode: destinationBranch.code,
+      transferredBy: actor,
+      systemNotes,
+      lines: successfulLines,
+    })
+  }
+
   const succeeded = results.filter((r) => r.ok).length
   const failed = results.filter((r) => !r.ok)
 
@@ -111,5 +153,6 @@ export async function POST(req: NextRequest) {
     succeeded,
     failed: failed.length,
     results,
+    batchRecorded: isMultiLineBatch && successfulLines.length > 0,
   })
 }

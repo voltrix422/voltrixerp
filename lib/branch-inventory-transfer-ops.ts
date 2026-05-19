@@ -1,4 +1,6 @@
+import { randomUUID } from "crypto"
 import { prisma } from "@/lib/db"
+import { buildBatchTransferSummary } from "@/lib/branch-transfer-history-display"
 import {
   allocateSerialUnitsForBranchDispatch,
   ensureInventoryStockForModel,
@@ -33,6 +35,7 @@ export async function saveBranchTransferRecord(data: {
   unit: string
   note: string
   transferredBy: string
+  transferBatchId?: string | null
 }) {
   await prisma.erpBranchInventoryTransfer.create({
     data: {
@@ -48,8 +51,89 @@ export async function saveBranchTransferRecord(data: {
       unit: data.unit,
       note: data.note,
       transferredBy: data.transferredBy,
+      transferBatchId: data.transferBatchId || null,
     },
   })
+}
+
+export type BatchTransferLineResult = {
+  inventoryId: string
+  productDescription: string
+  quantity: number
+  unit: string
+  userNote?: string
+}
+
+export async function saveCombinedBatchTransferRecord(params: {
+  fromBranchId?: string | null
+  fromBranchName: string
+  fromBranchCode: string
+  toBranchId: string
+  toBranchName: string
+  toBranchCode: string
+  transferredBy: string
+  systemNotes?: string
+  lines: BatchTransferLineResult[]
+  transferBatchId?: string
+}) {
+  if (params.lines.length === 0) return null
+
+  const transferBatchId = params.transferBatchId || randomUUID()
+  const totalQty = params.lines.reduce((sum, line) => sum + line.quantity, 0)
+  const unit = params.lines.every((line) => line.unit === params.lines[0].unit)
+    ? params.lines[0].unit
+    : "pcs"
+
+  const productDescription =
+    params.lines.length === 1
+      ? params.lines[0].productDescription
+      : `${params.lines.length} products (${totalQty} ${unit} total)`
+
+  const note =
+    params.lines.length === 1
+      ? buildBranchTransferNote({
+          quantity: params.lines[0].quantity,
+          unit: params.lines[0].unit,
+          productDescription: params.lines[0].productDescription,
+          fromBranchName: params.fromBranchName,
+          fromBranchCode: params.fromBranchCode,
+          toBranchName: params.toBranchName,
+          toBranchCode: params.toBranchCode,
+          transferredBy: params.transferredBy,
+          userNote: params.lines[0].userNote || params.systemNotes,
+        })
+      : buildBatchTransferSummary({
+          fromBranchName: params.fromBranchName,
+          fromBranchCode: params.fromBranchCode,
+          toBranchName: params.toBranchName,
+          toBranchCode: params.toBranchCode,
+          transferredBy: params.transferredBy,
+          systemNotes: params.systemNotes,
+          lines: params.lines.map((line) => ({
+            productDescription: line.productDescription,
+            quantity: line.quantity,
+            unit: line.unit,
+            userNote: line.userNote,
+          })),
+        })
+
+  await saveBranchTransferRecord({
+    fromBranchId: params.fromBranchId,
+    fromBranchName: params.fromBranchName,
+    fromBranchCode: params.fromBranchCode,
+    toBranchId: params.toBranchId,
+    toBranchName: params.toBranchName,
+    toBranchCode: params.toBranchCode,
+    inventoryId: params.lines[0].inventoryId,
+    productDescription,
+    quantity: params.lines.length === 1 ? params.lines[0].quantity : totalQty,
+    unit: params.lines.length === 1 ? params.lines[0].unit : unit,
+    note,
+    transferredBy: params.transferredBy,
+    transferBatchId,
+  })
+
+  return transferBatchId
 }
 
 export type DispatchLineInput = {
@@ -70,6 +154,7 @@ export async function executeDispatchLine(params: {
   assignedBy: string
   systemNotes?: string
   line: DispatchLineInput
+  skipTransferHistory?: boolean
 }) {
   const { line, destinationBranchId, destinationBranchCode, assignedBy } = params
   const quantity = line.quantity
@@ -188,22 +273,30 @@ export async function executeDispatchLine(params: {
     },
   })
 
-  await saveBranchTransferRecord({
-    fromBranchId: params.fromBranchId || null,
-    fromBranchName: params.fromBranchName,
-    fromBranchCode: params.fromBranchCode,
-    toBranchId: destinationBranch.id,
-    toBranchName: destinationBranch.name,
-    toBranchCode: destinationBranch.code,
-    inventoryId: stockId,
+  if (!params.skipTransferHistory) {
+    await saveBranchTransferRecord({
+      fromBranchId: params.fromBranchId || null,
+      fromBranchName: params.fromBranchName,
+      fromBranchCode: params.fromBranchCode,
+      toBranchId: destinationBranch.id,
+      toBranchName: destinationBranch.name,
+      toBranchCode: destinationBranch.code,
+      inventoryId: stockId,
+      productDescription: inventory.description,
+      quantity,
+      unit: line.unit || inventory.unit,
+      note: transferNote,
+      transferredBy: assignedBy,
+    })
+  }
+
+  return {
     productDescription: inventory.description,
     quantity,
+    inventoryId: stockId,
     unit: line.unit || inventory.unit,
-    note: transferNote,
-    transferredBy: assignedBy,
-  })
-
-  return { productDescription: inventory.description, quantity, inventoryId: stockId }
+    userNote: line.userNote,
+  }
 }
 
 export type TransferLineInput = {
@@ -216,6 +309,7 @@ export async function executeTransferLine(params: {
   toBranchId: string
   transferredBy: string
   line: TransferLineInput
+  skipTransferHistory?: boolean
 }) {
   const { line, toBranchId, transferredBy } = params
   const quantity = line.quantity
@@ -312,22 +406,24 @@ export async function executeTransferLine(params: {
       },
     })
 
-    await tx.erpBranchInventoryTransfer.create({
-      data: {
-        fromBranchId: source.branchId,
-        fromBranchName: sourceBranch?.name || "Branch warehouse",
-        fromBranchCode: sourceBranch?.code || "N/A",
-        toBranchId: destinationBranch.id,
-        toBranchName: destinationBranch.name,
-        toBranchCode: destinationBranch.code,
-        inventoryId: source.inventoryId,
-        productDescription: source.productDescription,
-        quantity,
-        unit: source.unit,
-        note: transferNote,
-        transferredBy,
-      },
-    })
+    if (!params.skipTransferHistory) {
+      await tx.erpBranchInventoryTransfer.create({
+        data: {
+          fromBranchId: source.branchId,
+          fromBranchName: sourceBranch?.name || "Branch warehouse",
+          fromBranchCode: sourceBranch?.code || "N/A",
+          toBranchId: destinationBranch.id,
+          toBranchName: destinationBranch.name,
+          toBranchCode: destinationBranch.code,
+          inventoryId: source.inventoryId,
+          productDescription: source.productDescription,
+          quantity,
+          unit: source.unit,
+          note: transferNote,
+          transferredBy,
+        },
+      })
+    }
   })
 
   const updatedSource = await prisma.erpBranchInventory.findUnique({
@@ -337,5 +433,11 @@ export async function executeTransferLine(params: {
     await prisma.erpBranchInventory.delete({ where: { id: line.fromBranchInventoryId } })
   }
 
-  return { productDescription: source.productDescription, quantity }
+  return {
+    productDescription: source.productDescription,
+    quantity,
+    inventoryId: source.inventoryId,
+    unit: source.unit,
+    userNote: line.userNote,
+  }
 }

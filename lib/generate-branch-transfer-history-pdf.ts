@@ -1,6 +1,7 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import type { Branch, BranchInventoryTransfer } from "@/lib/branches"
+import type { Branch } from "@/lib/branches"
+import type { TransferHistoryDisplayEntry } from "@/lib/branch-transfer-history-display"
 
 const BRAND: [number, number, number] = [26, 159, 154]
 const BRAND_DARK: [number, number, number] = [18, 120, 116]
@@ -55,7 +56,7 @@ function drawPageFooter(doc: jsPDF, page: number, pageCount: number, margin: num
 
 export async function generateBranchTransferHistoryPDF(
   branch: Branch,
-  transferHistory: BranchInventoryTransfer[],
+  transferHistory: TransferHistoryDisplayEntry[],
 ): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const pageW = 210
@@ -166,6 +167,10 @@ export async function generateBranchTransferHistoryPDF(
         ? `${entry.fromBranchName} (${entry.fromBranchCode}) -> ${entry.toBranchName} (${entry.toBranchCode})`
         : `${entry.fromBranchName} (${entry.fromBranchCode}) -> ${entry.toBranchName} (${entry.toBranchCode})`
 
+    const remarks = entry.isBatch
+      ? entry.lineItems.map((line) => `${line.quantity} ${line.unit} × ${line.productDescription}`).join("; ")
+      : entry.note
+
     return [
       String(index + 1),
       formatDateTime(entry.transferredAt),
@@ -174,7 +179,7 @@ export async function generateBranchTransferHistoryPDF(
       `${entry.quantity} ${entry.unit}`,
       route,
       entry.transferredBy,
-      entry.note,
+      remarks,
     ]
   })
 
@@ -235,7 +240,7 @@ export async function generateBranchTransferHistoryPDF(
 
 export async function downloadBranchTransferHistoryPDF(
   branch: Branch,
-  transferHistory: BranchInventoryTransfer[],
+  transferHistory: TransferHistoryDisplayEntry[],
 ): Promise<void> {
   const blob = await generateBranchTransferHistoryPDF(branch, transferHistory)
   const url = window.URL.createObjectURL(blob)

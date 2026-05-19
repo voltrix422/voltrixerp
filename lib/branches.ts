@@ -128,6 +128,7 @@ export interface BranchInventoryTransfer {
   note: string
   transferredBy: string
   transferredAt: string
+  transferBatchId?: string | null
 }
 
 export async function getBranchTransferHistory(branchId: string): Promise<BranchInventoryTransfer[]> {
@@ -150,6 +151,7 @@ export async function getBranchTransferHistory(branchId: string): Promise<Branch
       note: r.note as string,
       transferredBy: r.transferredBy as string,
       transferredAt: r.transferredAt as string,
+      transferBatchId: (r.transferBatchId as string | null | undefined) ?? null,
     }))
   } catch { return [] }
 }
