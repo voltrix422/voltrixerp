@@ -176,9 +176,46 @@ async function main() {
   console.log(`Importer label: ${importUploaderName}`)
 }
 
-main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
+async function repairPhones(batchId) {
+  const dbLeads = await prisma.crmLead.findMany({
+    where: { importBatchId: batchId },
+    select: { id: true, name: true, company: true, phone: true },
   })
-  .finally(() => prisma.$disconnect())
+  const lookup = new Map()
+  for (const row of leads) {
+    if (!row.phone) continue
+    const n = row.name.trim().toLowerCase()
+    const c = row.company.trim().toLowerCase()
+    lookup.set(`${n}|||${c}`, row.phone)
+    lookup.set(`${c}|||${n}`, row.phone)
+  }
+  let updated = 0
+  for (const lead of dbLeads) {
+    if (lead.phone?.trim()) continue
+    const key = `${lead.name.trim().toLowerCase()}|||${lead.company.trim().toLowerCase()}`
+    const alt = `${lead.company.trim().toLowerCase()}|||${lead.name.trim().toLowerCase()}`
+    const phone = lookup.get(key) ?? lookup.get(alt)
+    if (!phone) continue
+    await prisma.crmLead.update({ where: { id: lead.id }, data: { phone } })
+    updated += 1
+  }
+  console.log(`Repaired phones on ${updated} of ${dbLeads.length} leads (batch: ${batchId}).`)
+}
+
+const repairIdx = process.argv.indexOf("--repair-phones")
+if (repairIdx >= 0) {
+  const batchId = process.argv[repairIdx + 1] || importBatchId
+  repairPhones(batchId)
+    .catch((e) => {
+      console.error(e)
+      process.exit(1)
+    })
+    .finally(() => prisma.$disconnect())
+} else {
+  main()
+    .catch((e) => {
+      console.error(e)
+      process.exit(1)
+    })
+    .finally(() => prisma.$disconnect())
+}

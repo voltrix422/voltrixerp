@@ -156,6 +156,7 @@ export function LeadsManager({
     count: number
   } | null>(null)
   const [importing, setImporting] = useState(false)
+  const [repairingPhonesBatchId, setRepairingPhonesBatchId] = useState<string | null>(null)
   const [showAddLead, setShowAddLead] = useState(false)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
@@ -312,6 +313,36 @@ export function LeadsManager({
     }
     setShowCsvImportModal(false)
     queueMicrotask(() => csvInputRef.current?.click())
+  }
+
+  async function repairBatchPhones(importBatchId: string) {
+    setRepairingPhonesBatchId(importBatchId)
+    try {
+      const res = await fetch("/api/crm/leads/repair-phones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ importBatchId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error || "Repair failed")
+      }
+      const updated = (data as { updated?: number }).updated ?? 0
+      toast({
+        type: "success",
+        title: "Phones updated",
+        message: `${updated} lead(s) now have phone numbers.`,
+      })
+      await refresh()
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not fix phones",
+        message: err instanceof Error ? err.message : "Unknown error",
+      })
+    } finally {
+      setRepairingPhonesBatchId(null)
+    }
   }
 
   async function onStatusChange(lead: CrmLeadRow, status: string) {
@@ -479,6 +510,18 @@ export function LeadsManager({
                         </button>
                         <button
                           type="button"
+                          className="shrink-0 px-3 flex items-center justify-center text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/40 border-l border-[hsl(var(--border))] cursor-pointer text-[11px] font-medium disabled:opacity-50"
+                          title="Fill missing phone numbers from the installers CSV on the server"
+                          disabled={repairingPhonesBatchId === group.importBatchId}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            repairBatchPhones(group.importBatchId)
+                          }}
+                        >
+                          {repairingPhonesBatchId === group.importBatchId ? "Fixing…" : "Fix phones"}
+                        </button>
+                        <button
+                          type="button"
                           className="shrink-0 px-3 flex items-center justify-center text-red-500 hover:bg-red-500/10 border-l border-[hsl(var(--border))] cursor-pointer"
                           title="Delete this import and all leads in it"
                           onClick={(e) => {
@@ -506,7 +549,7 @@ export function LeadsManager({
                                   Company
                                 </th>
                                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Contact
+                                  Phone
                                 </th>
                                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                                   Status

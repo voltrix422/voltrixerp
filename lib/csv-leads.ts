@@ -228,6 +228,7 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
   )
   const iPhone = colIndex(
     h,
+    "phone",
     "phone1value",
     "phone1-value",
     "phonework",
@@ -242,7 +243,7 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
   const iNotes = colIndex(h, "notes", "remarks", "comments", "description")
   const iBirth = colIndex(h, "birthday", "birthdate")
   const iLabels = colIndex(h, "labels", "groups", "categories")
-  const iCompany = colIndex(h, "company", "business", "employer")
+  const iCompany = colIndex(h, "companyname", "company_name", "company", "business", "employer")
 
   const out: LeadCsvRow[] = []
   for (let r = 1; r < rows.length; r++) {
@@ -255,7 +256,8 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
     if (!company && iCompany >= 0) company = trimCell(row, iCompany)
 
     const email = iEmail >= 0 ? trimCell(row, iEmail) : ""
-    const phone = iPhone >= 0 ? trimCell(row, iPhone) : ""
+    const phoneRaw = iPhone >= 0 ? trimCell(row, iPhone) : ""
+    const phone = phoneRaw ? formatMetaLeadPhone(phoneRaw) : ""
 
     let notes = iNotes >= 0 ? trimCell(row, iNotes) : ""
     const birth = trimCell(row, iBirth)
@@ -278,6 +280,28 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
     })
   }
   return out
+}
+
+/** Keys for matching DB rows to parsed CSV (name/company may be stored either way). */
+export function leadPhoneLookupKeys(name: string, company: string): string[] {
+  const norm = (s: string) => s.trim().toLowerCase()
+  const n = norm(name)
+  const c = norm(company)
+  const keys = new Set<string>()
+  if (n || c) keys.add(`${n}|||${c}`)
+  if (c || n) keys.add(`${c}|||${n}`)
+  return [...keys]
+}
+
+export function buildLeadPhoneLookupFromCsv(text: string): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const row of parseLeadImportCsv(text)) {
+    if (!row.phone?.trim()) continue
+    for (const key of leadPhoneLookupKeys(row.name, row.company)) {
+      map.set(key, row.phone.trim())
+    }
+  }
+  return map
 }
 
 function escCsvCell(value: string): string {
