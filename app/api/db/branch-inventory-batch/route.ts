@@ -69,7 +69,6 @@ export async function POST(req: NextRequest) {
         })
         results.push({
           ok: true,
-          inventoryId: dispatchLine.inventoryId,
           ...result,
         })
       } else if (mode === "transfer") {
