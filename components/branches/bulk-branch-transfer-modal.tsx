@@ -25,6 +25,23 @@ type LineState = {
   note: string
 }
 
+function getQtyValidationError(qtyStr: string, maxQty: number): string | null {
+  if (!qtyStr.trim()) return "Enter quantity"
+  const qty = parseFloat(qtyStr)
+  if (isNaN(qty) || qty <= 0) return "Enter a valid quantity"
+  if (qty > maxQty) return `Cannot exceed ${maxQty} available`
+  return null
+}
+
+function clampQtyInput(raw: string, maxQty: number): string {
+  if (raw === "" || raw === ".") return raw
+  const qty = parseFloat(raw)
+  if (isNaN(qty)) return raw
+  if (qty > maxQty) return String(maxQty)
+  if (qty < 0) return "0"
+  return raw
+}
+
 type Props = {
   open: boolean
   onClose: () => void
@@ -102,8 +119,8 @@ export function BulkBranchTransferModal({
       .map((p) => {
         const state = lineState[p.id]
         if (!state?.selected || p.selectable === false) return null
+        if (getQtyValidationError(state.qty, p.maxQty)) return null
         const qty = parseFloat(state.qty)
-        if (isNaN(qty) || qty <= 0 || qty > p.maxQty) return null
         return {
           product: p,
           quantity: qty,
@@ -117,8 +134,16 @@ export function BulkBranchTransferModal({
     }>
   }, [products, lineState])
 
+  const hasInvalidSelectedQty = useMemo(() => {
+    return products.some((p) => {
+      const state = lineState[p.id]
+      if (!state?.selected || p.selectable === false) return false
+      return Boolean(getQtyValidationError(state.qty, p.maxQty))
+    })
+  }, [products, lineState])
+
   async function handleSubmit() {
-    if (!toBranchId || selectedLines.length === 0) return
+    if (!toBranchId || selectedLines.length === 0 || hasInvalidSelectedQty) return
     await onSubmit({
       toBranchId,
       lines: selectedLines.map(({ product, quantity, userNote }) => ({
@@ -179,6 +204,10 @@ export function BulkBranchTransferModal({
                 {products.map((p) => {
                   const state = lineState[p.id] ?? { selected: false, qty: "", note: "" }
                   const disabled = p.selectable === false
+                  const qtyError =
+                    state.selected && !disabled
+                      ? getQtyValidationError(state.qty, p.maxQty)
+                      : null
                   return (
                     <div
                       key={p.id}
@@ -208,14 +237,23 @@ export function BulkBranchTransferModal({
                           </p>
                         </div>
                         {state.selected && (
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex flex-col items-end gap-0.5 shrink-0">
+                            <div className="flex items-center gap-1">
                             <input
                               type="number"
                               min={1}
                               max={p.maxQty}
+                              step={1}
                               value={state.qty}
-                              onChange={(e) => updateLine(p.id, { qty: e.target.value })}
-                              className="w-16 h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs text-center"
+                              onChange={(e) =>
+                                updateLine(p.id, { qty: clampQtyInput(e.target.value, p.maxQty) })
+                              }
+                              onBlur={(e) =>
+                                updateLine(p.id, { qty: clampQtyInput(e.target.value, p.maxQty) })
+                              }
+                              className={`w-16 h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs text-center ${
+                                qtyError ? "border-red-500 focus:ring-red-500" : ""
+                              }`}
                             />
                             <Button
                               type="button"
@@ -226,6 +264,12 @@ export function BulkBranchTransferModal({
                             >
                               Max
                             </Button>
+                            </div>
+                            {qtyError && (
+                              <p className="text-[10px] text-red-600 max-w-[140px] text-right leading-tight">
+                                {qtyError}
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -258,7 +302,7 @@ export function BulkBranchTransferModal({
           <Button
             size="sm"
             className="flex-1 h-9 bg-[#1faca6] hover:bg-[#17857f] text-white"
-            disabled={submitting || !toBranchId || selectedLines.length === 0}
+            disabled={submitting || !toBranchId || selectedLines.length === 0 || hasInvalidSelectedQty}
             onClick={() => void handleSubmit()}
           >
             {submitting ? (
