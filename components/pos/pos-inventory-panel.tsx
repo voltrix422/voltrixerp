@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/components/ui/toast"
 import {
+  deletePosStockProduct,
   formatCurrency,
   getPosStockProducts,
   receivePosManualLine,
   type PosStockProduct,
 } from "@/lib/pos"
 import { getInventorySerialUnits } from "@/lib/inventory-serial-units"
-import { Loader2, Package, Plus } from "lucide-react"
+import { Loader2, Package, Plus, Trash2 } from "lucide-react"
 
 type Props = {
   onStockUpdated?: () => void
@@ -28,6 +29,7 @@ export function PosInventoryPanel({ onStockUpdated }: Props) {
   const [manualQty, setManualQty] = useState(1)
   const [manualPrice, setManualPrice] = useState(0)
   const [manualSaving, setManualSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadStock = useCallback(async () => {
     setLoading(true)
@@ -55,6 +57,29 @@ export function PosInventoryPanel({ onStockUpdated }: Props) {
   function handleSaved() {
     void loadStock()
     onStockUpdated?.()
+  }
+
+  async function handleDeleteProduct(row: PosStockProduct) {
+    const label = row.description || row.name
+    if (
+      !confirm(
+        `Remove "${label}" from POS?\n\nThis deletes the product and ${row.availableQty} unit(s) from the register.`,
+      )
+    ) {
+      return
+    }
+    setDeletingId(row.id)
+    try {
+      const result = await deletePosStockProduct(row.id)
+      if (!result.ok) {
+        toast({ type: "error", title: result.error || "Could not delete" })
+        return
+      }
+      toast({ type: "success", title: `Removed ${label}` })
+      handleSaved()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   async function handleManualAdd(e: React.FormEvent) {
@@ -168,6 +193,7 @@ export function PosInventoryPanel({ onStockUpdated }: Props) {
                 <th className="text-left px-3 py-2">Product</th>
                 <th className="text-right px-3 py-2">Qty</th>
                 <th className="text-right px-3 py-2">Price</th>
+                <th className="w-10" />
               </tr>
             </thead>
             <tbody>
@@ -178,11 +204,26 @@ export function PosInventoryPanel({ onStockUpdated }: Props) {
                     {row.availableQty} {row.unit}
                   </td>
                   <td className="px-3 py-2 text-right">{formatCurrency(row.costPrice)}</td>
+                  <td className="px-2 py-2 text-right">
+                    <button
+                      type="button"
+                      title="Remove product"
+                      disabled={deletingId === row.id}
+                      onClick={() => void handleDeleteProduct(row)}
+                      className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-50 cursor-pointer disabled:opacity-50"
+                    >
+                      {deletingId === row.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {stock.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))] text-xs">
+                  <td colSpan={4} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))] text-xs">
                     No products yet. Scan QR labels above or use quick add.
                   </td>
                 </tr>

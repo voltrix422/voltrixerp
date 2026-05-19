@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, getBranchTransferHistory, assignInventoryToBranch, transferBranchInventory, type Branch, type BranchInventory, type BranchInventoryTransfer } from "@/lib/branches"
+import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, getBranchTransferHistory, assignInventoryToBranch, transferBranchInventory, clearBranchTransferHistory, resetBranchInventory, type Branch, type BranchInventory, type BranchInventoryTransfer } from "@/lib/branches"
 import { downloadBranchTransferHistoryPDF } from "@/lib/generate-branch-transfer-history-pdf"
 import { Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -178,7 +178,10 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
   const [mainDispatchNote, setMainDispatchNote] = useState("")
   const [transferHistory, setTransferHistory] = useState<BranchInventoryTransfer[]>([])
   const [loadingTransferHistory, setLoadingTransferHistory] = useState(true)
+  const [clearingHistory, setClearingHistory] = useState(false)
+  const [returningToMain, setReturningToMain] = useState(false)
   const { toast } = useToast()
+  const { confirm } = useDialog()
   const { user } = useAuth()
   const isMainWarehouse = branch.type === "main_warehouse"
 
@@ -202,6 +205,75 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
       setTransferHistory([])
     } finally {
       setLoadingTransferHistory(false)
+    }
+  }
+
+  async function reloadInventory() {
+    const data = await getBranchInventory(branch.id)
+    setInventory(data)
+    if (isMainWarehouse) {
+      await loadSystemInventory()
+    }
+  }
+
+  async function handleClearTransferHistory() {
+    const ok = await confirm({
+      type: "confirm",
+      title: "Clear transfer history",
+      message: `Remove all transfer history records for ${branch.name}? This cannot be undone.`,
+      confirmLabel: "Clear history",
+    })
+    if (!ok) return
+    setClearingHistory(true)
+    try {
+      await clearBranchTransferHistory(branch.id)
+      await loadTransferHistory()
+      toast({
+        type: "success",
+        title: "History cleared",
+        message: "Transfer history has been removed for this branch.",
+        duration: 3000,
+      })
+    } catch {
+      toast({
+        type: "error",
+        title: "Failed",
+        message: "Could not clear transfer history.",
+        duration: 3000,
+      })
+    } finally {
+      setClearingHistory(false)
+    }
+  }
+
+  async function handleReturnInventoryToMain() {
+    const ok = await confirm({
+      type: "confirm",
+      title: "Return inventory to main warehouse",
+      message: `Move all transferred stock from ${branch.name} back to the main warehouse and clear this branch's transfer history?`,
+      confirmLabel: "Return to main",
+    })
+    if (!ok) return
+    setReturningToMain(true)
+    try {
+      await resetBranchInventory({ branchId: branch.id, all: false })
+      await reloadInventory()
+      await loadTransferHistory()
+      toast({
+        type: "success",
+        title: "Inventory returned",
+        message: "Stock is back in the main warehouse and transfer history was cleared.",
+        duration: 3000,
+      })
+    } catch {
+      toast({
+        type: "error",
+        title: "Failed",
+        message: "Could not return inventory to the main warehouse.",
+        duration: 3000,
+      })
+    } finally {
+      setReturningToMain(false)
     }
   }
 
@@ -314,7 +386,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
         itemName: item.name || "",
         specs: item.specs || "",
         productDescription: item.description,
-        quantity: item.availableQty,
+        quantity: (item.availableQty ?? 0) + (item.allocatedQty ?? 0),
         unit: item.unit,
         assignedAt: "",
         assignedBy: "",
@@ -414,11 +486,24 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wider font-medium">
                 {isMainWarehouse ? "Main Warehouse Inventory" : "Transferred Inventory"}
               </p>
-              {isMainWarehouse ? (
-                <Button size="sm" variant="outline" className="h-6 text-[10px] cursor-pointer" onClick={() => setShowMainDispatch(true)}>
-                  <ArrowRightLeft className="h-3 w-3" /> Send
-                </Button>
-              ) : null}
+              <div className="flex items-center gap-1.5">
+                {isMainWarehouse ? (
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] cursor-pointer" onClick={() => setShowMainDispatch(true)}>
+                    <ArrowRightLeft className="h-3 w-3" /> Send
+                  </Button>
+                ) : inventory.length > 0 ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] cursor-pointer text-orange-600 border-orange-300 hover:bg-orange-50"
+                    disabled={returningToMain}
+                    onClick={handleReturnInventoryToMain}
+                  >
+                    {returningToMain ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRightLeft className="h-3 w-3" />}
+                    Return to main
+                  </Button>
+                ) : null}
+              </div>
             </div>
             {loadingInventory ? (
               <div className="flex items-center justify-center py-4">
@@ -490,6 +575,16 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                 >
                   <FileDown className="h-3 w-3 mr-1" />
                   Download PDF
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[10px] cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
+                  disabled={transferHistory.length === 0 || clearingHistory}
+                  onClick={handleClearTransferHistory}
+                >
+                  {clearingHistory ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                  Clear history
                 </Button>
               </div>
             </div>
@@ -746,6 +841,7 @@ export function BranchesTab() {
   const [autoCode, setAutoCode] = useState("")
   const [exportPreviewOpen, setExportPreviewOpen] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
+  const [resettingAll, setResettingAll] = useState(false)
   const [exportRows, setExportRows] = useState<Array<{
     branchName: string
     branchCode: string
@@ -814,6 +910,39 @@ export function BranchesTab() {
       })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleResetAllBranches() {
+    const ok = await confirm({
+      type: "confirm",
+      title: "Reset all branch transfers",
+      message:
+        "Return all transferred inventory to the main warehouse and clear transfer history for every branch? This cannot be undone.",
+      confirmLabel: "Reset everything",
+    })
+    if (!ok) return
+    setResettingAll(true)
+    try {
+      await resetBranchInventory({ all: true })
+      if (viewBranch) {
+        setViewBranch(null)
+      }
+      toast({
+        type: "success",
+        title: "Reset complete",
+        message: "All stock is back in the main warehouse and transfer history has been cleared.",
+        duration: 4000,
+      })
+    } catch {
+      toast({
+        type: "error",
+        title: "Reset failed",
+        message: "Could not reset branch inventory and transfer history.",
+        duration: 4000,
+      })
+    } finally {
+      setResettingAll(false)
     }
   }
 
@@ -898,6 +1027,16 @@ export function BranchesTab() {
           <div className="space-y-0 my-4">
             {/* Action buttons */}
             <div className="flex items-center justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
+                onClick={handleResetAllBranches}
+                disabled={resettingAll}
+              >
+                {resettingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Reset all transfers
+              </Button>
               <Button
                 size="sm"
                 variant="outline"

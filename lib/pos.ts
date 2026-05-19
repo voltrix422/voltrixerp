@@ -82,6 +82,17 @@ export async function getPosStockProducts(all = false): Promise<PosStockProduct[
   return res.json()
 }
 
+export async function deletePosStockProduct(id: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/db/pos/products", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { ok: false, error: (data as { error?: string }).error || "Delete failed" }
+  return { ok: true }
+}
+
 export async function receivePosManualLine(payload: {
   model: string
   qty: number

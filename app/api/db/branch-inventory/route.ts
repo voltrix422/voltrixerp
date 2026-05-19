@@ -62,14 +62,12 @@ export async function GET(req: NextRequest) {
       const stock = await prisma.erpInventoryStock.findMany({
         orderBy: { description: "asc" }
       })
-      const mainWarehouseRows = stock
-        .filter(item => item.availableQty > 0)
-        .map(item => ({
+      const mainWarehouseRows = stock.map(item => ({
           id: `system-${item.id}`,
           branchId,
           inventoryId: item.id,
           productDescription: item.description,
-          quantity: item.availableQty,
+          quantity: item.availableQty + item.allocatedQty,
           unit: item.unit,
           assignedAt: item.updatedAt,
           assignedBy: "system",

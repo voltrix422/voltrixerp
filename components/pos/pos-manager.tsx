@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import {
   completePosSale,
+  deletePosStockProduct,
   deletePosTerminal,
   formatCurrency,
   getPosSales,
@@ -50,6 +51,7 @@ export function PosManager() {
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [terminalForm, setTerminalForm] = useState({ name: "", code: "", location: "" })
   const [savingTerminal, setSavingTerminal] = useState(false)
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
 
   const selectedTerminal = terminals.find((t) => t.id === selectedTerminalId) ?? null
   const canManageTerminals = user?.role === "superadmin" || user?.modules.includes("pos")
@@ -195,6 +197,29 @@ export function PosManager() {
     }
   }
 
+  async function handleDeleteProduct(product: PosStockProduct) {
+    if (
+      !confirm(
+        `Remove "${product.description}" from POS?\n\n${product.availableQty} unit(s) will be removed from the register.`,
+      )
+    ) {
+      return
+    }
+    setDeletingProductId(product.id)
+    try {
+      const result = await deletePosStockProduct(product.id)
+      if (!result.ok) {
+        toast({ type: "error", title: result.error || "Could not delete" })
+        return
+      }
+      setCart((prev) => prev.filter((l) => l.stockId !== product.id))
+      toast({ type: "success", title: `Removed ${product.description}` })
+      await loadAll()
+    } finally {
+      setDeletingProductId(null)
+    }
+  }
+
   async function handleDeleteTerminal(id: string) {
     if (!confirm("Delete this POS terminal?")) return
     await deletePosTerminal(id)
@@ -280,20 +305,40 @@ export function PosManager() {
                   </div>
                   <div className="grid sm:grid-cols-2 gap-2 max-h-[calc(100vh-280px)] overflow-y-auto">
                     {filteredProducts.map((p) => (
-                      <button
+                      <div
                         key={p.id}
-                        type="button"
-                        onClick={() => addToCart(p)}
-                        className="text-left rounded-lg border p-3 hover:border-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-colors cursor-pointer"
+                        className="relative rounded-lg border p-3 hover:border-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-colors"
                       >
-                        <p className="text-sm font-medium line-clamp-2">{p.description}</p>
-                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                          Stock: {p.availableQty} {p.unit}
-                        </p>
-                        <p className="text-sm font-semibold text-[#17857f] mt-1">
-                          {formatCurrency(p.costPrice)}
-                        </p>
-                      </button>
+                        <button
+                          type="button"
+                          title="Remove product"
+                          disabled={deletingProductId === p.id}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void handleDeleteProduct(p)
+                          }}
+                          className="absolute top-2 right-2 p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-50 cursor-pointer disabled:opacity-50"
+                        >
+                          {deletingProductId === p.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addToCart(p)}
+                          className="w-full text-left pr-8 cursor-pointer"
+                        >
+                          <p className="text-sm font-medium line-clamp-2">{p.description}</p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                            Stock: {p.availableQty} {p.unit}
+                          </p>
+                          <p className="text-sm font-semibold text-[#17857f] mt-1">
+                            {formatCurrency(p.costPrice)}
+                          </p>
+                        </button>
+                      </div>
                     ))}
                     {filteredProducts.length === 0 && (
                       <div className="col-span-2 text-sm text-[hsl(var(--muted-foreground))] py-8 text-center space-y-2">

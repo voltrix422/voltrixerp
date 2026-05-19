@@ -183,3 +183,30 @@ export async function transferBranchInventory(data: {
     body: JSON.stringify(data),
   })
 }
+
+export async function clearBranchTransferHistory(branchId?: string): Promise<{ deleted: number }> {
+  const url = branchId
+    ? `/api/db/branch-transfer-history?branchId=${encodeURIComponent(branchId)}`
+    : "/api/db/branch-transfer-history?all=true"
+  const res = await fetch(url, { method: "DELETE" })
+  if (!res.ok) throw new Error("Failed to clear transfer history")
+  return res.json()
+}
+
+export async function resetBranchInventory(options?: {
+  branchId?: string
+  returnToMain?: boolean
+  clearHistory?: boolean
+  all?: boolean
+}): Promise<void> {
+  const res = await fetch("/api/db/branch-inventory-reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      returnToMain: true,
+      clearHistory: true,
+      ...options,
+    }),
+  })
+  if (!res.ok) throw new Error("Failed to reset branch inventory")
+}
