@@ -157,7 +157,7 @@ function parseVoltrixSlashPayload(raw: string): ParsedProductQr | null {
 }
 
 export function parseProductQrPayload(raw: string): ParsedProductQr {
-  const trimmed = raw.trim()
+  const trimmed = normalizeScanPayload(raw)
   const extra: Record<string, string> = {}
 
   if (!trimmed) {
@@ -225,6 +225,9 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
       extra,
     }
   }
+
+  const modelSnPair = parseModelSnPair(trimmed)
+  if (modelSnPair) return modelSnPair
 
   const modelSnSpaced = trimmed.match(/^([A-Z][A-Z0-9._/-]{2,30})\s*[-–—]\s*([A-Z0-9][A-Z0-9._/-]{5,})$/i)
   if (modelSnSpaced) {
@@ -315,6 +318,35 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     inventoryStockId: "",
     productId: "",
     extra,
+  }
+}
+
+/** Strip common prefixes from pasted or labeled QR text before parsing. */
+export function normalizeScanPayload(raw: string): string {
+  let trimmed = raw.trim()
+  if (/^QR:\s*/i.test(trimmed)) {
+    trimmed = trimmed.replace(/^QR:\s*/i, "").trim()
+  }
+  return trimmed
+}
+
+function parseModelSnPair(trimmed: string): ParsedProductQr | null {
+  const match = trimmed.match(
+    /^([A-Za-z0-9][A-Za-z0-9._/-]{2,40})\s*(?:->|=>|→|—>|-->|[-–—])\s*([A-Za-z0-9][A-Za-z0-9._/-]{4,60})$/i,
+  )
+  if (!match) return null
+  const modelPart = match[1].trim()
+  const snPart = match[2].trim()
+  if (!looksLikeSerialNumber(snPart)) return null
+  return {
+    serialNumber: snPart,
+    productName: modelPart,
+    model: modelPart,
+    specs: "",
+    notes: "",
+    inventoryStockId: "",
+    productId: "",
+    extra: { source: "model-sn-pair" },
   }
 }
 
