@@ -163,8 +163,6 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
 }) {
   const [inventory, setInventory] = useState<BranchInventory[]>([])
   const [loadingInventory, setLoadingInventory] = useState(true)
-  const [systemInventory, setSystemInventory] = useState<any[]>([])
-  const [loadingSystemInventory, setLoadingSystemInventory] = useState(false)
   const [showMainDispatch, setShowMainDispatch] = useState(false)
   const [mainDispatchInventoryId, setMainDispatchInventoryId] = useState("")
   const [mainDispatchQty, setMainDispatchQty] = useState("")
@@ -186,15 +184,13 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
   const isMainWarehouse = branch.type === "main_warehouse"
 
   useEffect(() => {
+    setLoadingInventory(true)
     getBranchInventory(branch.id).then(data => {
       setInventory(data)
       setLoadingInventory(false)
     })
     loadTransferHistory()
-    if (isMainWarehouse) {
-      loadSystemInventory()
-    }
-  }, [branch.id, isMainWarehouse])
+  }, [branch.id])
 
   async function loadTransferHistory() {
     setLoadingTransferHistory(true)
@@ -211,9 +207,6 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
   async function reloadInventory() {
     const data = await getBranchInventory(branch.id)
     setInventory(data)
-    if (isMainWarehouse) {
-      await loadSystemInventory()
-    }
   }
 
   async function handleClearTransferHistory() {
@@ -277,27 +270,16 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
     }
   }
 
-  async function loadSystemInventory() {
-    setLoadingSystemInventory(true)
-    try {
-      const res = await fetch("/api/db/inventory-stock")
-      if (res.ok) {
-        const data = await res.json()
-        setSystemInventory(data)
-      }
-    } catch {
-      setSystemInventory([])
-    } finally {
-      setLoadingSystemInventory(false)
-    }
-  }
+  const dispatchableInventory = inventory.filter(
+    (item) => item.canDispatch !== false && item.inventoryId && !item.inventoryId.startsWith("wh:"),
+  )
 
   async function handleMainWarehouseDispatch() {
     if (!mainDispatchInventoryId || !mainDispatchToBranchId || !mainDispatchQty) return
     const qty = parseFloat(mainDispatchQty)
-    const systemItem = systemInventory.find((item) => item.id === mainDispatchInventoryId)
+    const systemItem = inventory.find((item) => item.inventoryId === mainDispatchInventoryId)
     const destination = branches.find((b) => b.id === mainDispatchToBranchId)
-    if (!systemItem || !destination || isNaN(qty) || qty <= 0 || qty > systemItem.availableQty) {
+    if (!systemItem || !destination || isNaN(qty) || qty <= 0 || qty > systemItem.quantity) {
       toast({
         type: "error",
         title: "Invalid Dispatch",
@@ -321,7 +303,7 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
         fromBranchCode: branch.code,
         userNote: mainDispatchNote.trim(),
       })
-      await loadSystemInventory()
+      await reloadInventory()
       await loadTransferHistory()
       setShowMainDispatch(false)
       setMainDispatchInventoryId("")
@@ -378,21 +360,15 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
     }
   }
 
-  const inventoryRows = isMainWarehouse
-    ? systemInventory.map(item => ({
-        id: `system-${item.id}`,
-        branchId: branch.id,
-        inventoryId: item.id,
-        itemName: item.name || "",
-        specs: item.specs || "",
-        productDescription: item.description,
-        quantity: (item.availableQty ?? 0) + (item.allocatedQty ?? 0),
-        unit: item.unit,
-        assignedAt: "",
-        assignedBy: "",
-        notes: "",
-      }))
-    : inventory
+  const inventoryRows = inventory
+
+  const mainWarehouseSummary = isMainWarehouse
+    ? {
+        models: inventory.length,
+        boxes: inventory.reduce((sum, row) => sum + (row.totalUnits ?? row.quantity ?? 0), 0),
+        inStock: inventory.reduce((sum, row) => sum + (row.inStock ?? row.quantity ?? 0), 0),
+      }
+    : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
@@ -505,13 +481,22 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                 ) : null}
               </div>
             </div>
+            {mainWarehouseSummary && mainWarehouseSummary.models > 0 && (
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">
+                <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.boxes}</strong> boxes
+                {" · "}
+                <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.models}</strong> models
+                {" · "}
+                <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.inStock}</strong> in stock
+              </p>
+            )}
             {loadingInventory ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
               </div>
             ) : inventoryRows.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))] py-2">
-                {isMainWarehouse ? "No inventory available in main warehouse." : "No transferred inventory yet."}
+                {isMainWarehouse ? "No scanned inventory yet. Use Inventory → Scan QR." : "No transferred inventory yet."}
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
@@ -519,12 +504,17 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                   <div key={inv.id} className="rounded-lg border bg-[hsl(var(--background))] p-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold truncate">{inv.productDescription || inv.inventoryId}</p>
-                        {isMainWarehouse && (inv as any).itemName && (
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{(inv as any).itemName}</p>
+                        <p className="text-xs font-semibold truncate">{inv.itemName || inv.productDescription || inv.inventoryId}</p>
+                        {isMainWarehouse && inv.model && (
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{inv.model}</p>
                         )}
-                        {isMainWarehouse && (inv as any).specs && (
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{(inv as any).specs}</p>
+                        {isMainWarehouse && inv.specs && (
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{inv.specs}</p>
+                        )}
+                        {isMainWarehouse && inv.totalUnits != null && (
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                            {inv.inStock ?? inv.quantity}/{inv.totalUnits} in stock
+                          </p>
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
@@ -684,11 +674,15 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
                   className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
                 >
                   <option value="">-- Select Item --</option>
-                  {systemInventory.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.description} (Available: {item.availableQty} {item.unit})
-                    </option>
-                  ))}
+                  {dispatchableInventory.length === 0 ? (
+                    <option value="" disabled>No linked stock — scan items in Inventory first</option>
+                  ) : (
+                    dispatchableInventory.map(item => (
+                      <option key={item.inventoryId} value={item.inventoryId}>
+                        {item.productDescription} (Available: {item.quantity} {item.unit})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <div className="space-y-1">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { buildMainWarehouseItems, buildModelLabelMap } from "@/lib/main-warehouse-inventory"
 
 function buildBranchTransferNote(params: {
   quantity: number
@@ -59,20 +60,77 @@ export async function GET(req: NextRequest) {
     })
 
     if (branch?.type === "main_warehouse") {
-      const stock = await prisma.erpInventoryStock.findMany({
-        orderBy: { description: "asc" }
-      })
-      const mainWarehouseRows = stock.map(item => ({
-          id: `system-${item.id}`,
-          branchId,
-          inventoryId: item.id,
-          productDescription: item.description,
-          quantity: item.availableQty + item.allocatedQty,
-          unit: item.unit,
-          assignedAt: item.updatedAt,
-          assignedBy: "system",
-          notes: "System inventory mirrored to main warehouse"
-        }))
+      const [units, labels, stock] = await Promise.all([
+        prisma.erpInventorySerialUnit.findMany({ orderBy: { scannedAt: "desc" } }),
+        prisma.erpInventoryModelLabel.findMany(),
+        prisma.erpInventoryStock.findMany({ orderBy: { description: "asc" } }),
+      ])
+
+      const labelMap = buildModelLabelMap(
+        labels.map((l) => ({ model: l.model, displayName: l.displayName })),
+        units.map((u) => ({
+          id: u.id,
+          serialNumber: u.serialNumber,
+          assignedName: u.assignedName,
+          productName: u.productName,
+          model: u.model,
+          specs: u.specs,
+          rawPayload: u.rawPayload,
+          inventoryStockId: u.inventoryStockId,
+          status: u.status,
+          notes: u.notes,
+          scannedBy: u.scannedBy,
+          scannedAt: u.scannedAt.toISOString(),
+          createdAt: u.createdAt.toISOString(),
+          updatedAt: u.updatedAt.toISOString(),
+        })),
+      )
+
+      const items = buildMainWarehouseItems(
+        units.map((u) => ({
+          id: u.id,
+          serialNumber: u.serialNumber,
+          assignedName: u.assignedName,
+          productName: u.productName,
+          model: u.model,
+          specs: u.specs,
+          rawPayload: u.rawPayload,
+          inventoryStockId: u.inventoryStockId,
+          status: u.status,
+          notes: u.notes,
+          scannedBy: u.scannedBy,
+          scannedAt: u.scannedAt.toISOString(),
+          createdAt: u.createdAt.toISOString(),
+          updatedAt: u.updatedAt.toISOString(),
+        })),
+        labelMap,
+        stock.map((s) => ({
+          id: s.id,
+          description: s.description,
+          name: s.name,
+          unit: s.unit,
+          availableQty: s.availableQty,
+        })),
+      )
+
+      const mainWarehouseRows = items.map((item) => ({
+        id: item.id,
+        branchId,
+        inventoryId: item.inventoryStockId ?? item.id,
+        productDescription: item.productDescription,
+        quantity: item.quantity,
+        inStock: item.inStock,
+        totalUnits: item.totalUnits,
+        unit: item.unit,
+        model: item.model,
+        itemName: item.itemName,
+        specs: item.specs,
+        assignedAt: "",
+        assignedBy: "system",
+        notes: `${item.inStock}/${item.totalUnits} in stock`,
+        canDispatch: Boolean(item.inventoryStockId),
+      }))
+
       return NextResponse.json(mainWarehouseRows)
     }
 

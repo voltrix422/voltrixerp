@@ -80,6 +80,12 @@ export interface BranchInventory {
   assignedAt: string
   assignedBy: string
   notes: string
+  model?: string
+  itemName?: string
+  specs?: string
+  inStock?: number
+  totalUnits?: number
+  canDispatch?: boolean
 }
 
 export async function getBranchInventory(branchId: string): Promise<BranchInventory[]> {
@@ -97,6 +103,12 @@ export async function getBranchInventory(branchId: string): Promise<BranchInvent
       assignedAt: r.assignedAt as string,
       assignedBy: r.assignedBy as string,
       notes: r.notes as string,
+      model: r.model as string | undefined,
+      itemName: r.itemName as string | undefined,
+      specs: r.specs as string | undefined,
+      inStock: r.inStock as number | undefined,
+      totalUnits: r.totalUnits as number | undefined,
+      canDispatch: r.canDispatch as boolean | undefined,
     }))
   } catch { return [] }
 }
