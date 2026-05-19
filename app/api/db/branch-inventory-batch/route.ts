@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
     try {
       if (mode === "dispatch") {
         const dispatchLine = line as DispatchLineInput
-        if (!dispatchLine.inventoryId || !dispatchLine.quantity || dispatchLine.quantity <= 0) {
+        const hasTarget =
+          (dispatchLine.inventoryId && !dispatchLine.inventoryId.startsWith("wh:")) ||
+          dispatchLine.model
+        if (!hasTarget || !dispatchLine.quantity || dispatchLine.quantity <= 0) {
           throw new Error("Invalid dispatch line")
         }
         const result = await executeDispatchLine({

@@ -199,6 +199,8 @@ export async function transferBranchInventory(data: {
 export type BatchTransferLine = {
   inventoryId?: string
   fromBranchInventoryId?: string
+  model?: string
+  productName?: string
   quantity: number
   unit?: string
   userNote?: string

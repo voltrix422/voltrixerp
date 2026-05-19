@@ -266,18 +266,22 @@ function BranchDetail({ branch, branches, onClose, onEdit, onDelete }: {
 
   const bulkTransferProducts: BulkTransferProduct[] = isMainWarehouse
     ? inventory.map((item) => {
-        const canDispatch = Boolean(
-          item.canDispatch !== false && item.inventoryId && !item.inventoryId.startsWith("wh:"),
-        )
+        const canSend = (item.inStock ?? item.quantity) > 0
+        const stockId =
+          item.inventoryId && !item.inventoryId.startsWith("wh:")
+            ? item.inventoryId
+            : undefined
         return {
           id: item.id,
           label: item.itemName || item.productDescription || item.model || "Item",
           sublabel: item.model || item.productDescription,
-          maxQty: item.quantity,
+          model: item.model,
+          productName: item.itemName,
+          maxQty: item.inStock ?? item.quantity,
           unit: item.unit || "pcs",
-          inventoryId: canDispatch ? item.inventoryId : undefined,
-          selectable: canDispatch,
-          unselectableReason: canDispatch ? undefined : "No stock link — cannot send yet",
+          inventoryId: stockId,
+          selectable: canSend,
+          unselectableReason: canSend ? undefined : "No units in stock",
         }
       })
     : inventory

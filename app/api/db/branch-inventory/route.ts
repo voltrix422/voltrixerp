@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { buildMainWarehouseItems, buildModelLabelMap } from "@/lib/main-warehouse-inventory"
+import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
 
 function buildBranchTransferNote(params: {
   quantity: number
@@ -113,25 +114,42 @@ export async function GET(req: NextRequest) {
         })),
       )
 
-      const mainWarehouseRows = items.map((item) => ({
-        id: item.id,
-        branchId,
-        inventoryId: item.inventoryStockId ?? item.id,
-        productDescription: item.productDescription,
-        quantity: item.quantity,
-        inStock: item.inStock,
-        totalUnits: item.totalUnits,
-        unit: item.unit,
-        model: item.model,
-        itemName: item.itemName,
-        specs: item.specs,
-        assignedAt: "",
-        assignedBy: "system",
-        notes: `${item.inStock}/${item.totalUnits} in stock`,
-        canDispatch: Boolean(item.inventoryStockId),
-      }))
+      const linkedItems = await Promise.all(
+        items.map(async (item) => {
+          let stockId = item.inventoryStockId
+          let inStock = item.inStock
 
-      return NextResponse.json(mainWarehouseRows)
+          if (item.inStock > 0) {
+            const ensured = await ensureInventoryStockForModel(
+              item.model,
+              item.itemName,
+              item.unit,
+            )
+            stockId = ensured.stock.id
+            inStock = ensured.inStockCount
+          }
+
+          return {
+            id: item.id,
+            branchId,
+            inventoryId: stockId ?? item.id,
+            productDescription: item.productDescription,
+            quantity: inStock,
+            inStock,
+            totalUnits: item.totalUnits,
+            unit: item.unit,
+            model: item.model,
+            itemName: item.itemName,
+            specs: item.specs,
+            assignedAt: "",
+            assignedBy: "system",
+            notes: `${inStock}/${item.totalUnits} in stock`,
+            canDispatch: inStock > 0 && Boolean(stockId),
+          }
+        }),
+      )
+
+      return NextResponse.json(linkedItems)
     }
 
     const inventory = await prisma.erpBranchInventory.findMany({

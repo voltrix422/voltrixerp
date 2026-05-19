@@ -9,6 +9,8 @@ export type BulkTransferProduct = {
   id: string
   label: string
   sublabel?: string
+  model?: string
+  productName?: string
   maxQty: number
   unit: string
   inventoryId?: string
@@ -122,6 +124,8 @@ export function BulkBranchTransferModal({
       lines: selectedLines.map(({ product, quantity, userNote }) => ({
         inventoryId: product.inventoryId,
         fromBranchInventoryId: product.fromBranchInventoryId,
+        model: product.model,
+        productName: product.productName || product.label,
         quantity,
         unit: product.unit,
         userNote: userNote || undefined,
@@ -141,7 +145,7 @@ export function BulkBranchTransferModal({
           <div>
             <p className="text-sm font-semibold">{title}</p>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-              Select products, set qty and a note for each — each line creates its own transfer history record.
+              Select products, set qty and a note for each. Scanned inventory is linked automatically — each line saves its own transfer history record.
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>

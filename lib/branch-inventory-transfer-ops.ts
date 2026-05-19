@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/db"
+import {
+  allocateSerialUnitsForBranchDispatch,
+  ensureInventoryStockForModel,
+} from "@/lib/ensure-model-stock-link"
 
 export function buildBranchTransferNote(params: {
   quantity: number
@@ -49,7 +53,9 @@ export async function saveBranchTransferRecord(data: {
 }
 
 export type DispatchLineInput = {
-  inventoryId: string
+  inventoryId?: string
+  model?: string
+  productName?: string
   quantity: number
   unit?: string
   userNote?: string
@@ -68,13 +74,49 @@ export async function executeDispatchLine(params: {
   const { line, destinationBranchId, destinationBranchCode, assignedBy } = params
   const quantity = line.quantity
 
+  let stockId = line.inventoryId?.trim() || ""
+  let modelKey = line.model?.trim() || ""
+
+  if ((!stockId || stockId.startsWith("wh:")) && modelKey) {
+    const ensured = await ensureInventoryStockForModel(
+      modelKey,
+      line.productName,
+      line.unit || "pcs",
+    )
+    stockId = ensured.stock.id
+    if (ensured.inStockCount < quantity) {
+      throw new Error(
+        `Insufficient stock for "${modelKey}" (available: ${ensured.inStockCount})`,
+      )
+    }
+  } else if (stockId && !modelKey) {
+    const linked = await prisma.erpInventorySerialUnit.findFirst({
+      where: { inventoryStockId: stockId },
+      select: { model: true },
+    })
+    if (linked?.model) modelKey = linked.model
+  }
+
+  if (!stockId) {
+    throw new Error("Missing inventory item or model for dispatch")
+  }
+
   const inventory = await prisma.erpInventoryStock.findUnique({
-    where: { id: line.inventoryId },
+    where: { id: stockId },
   })
   if (!inventory) {
-    throw new Error(`Stock item not found: ${line.inventoryId}`)
+    throw new Error(`Stock item not found: ${stockId}`)
   }
-  if (inventory.availableQty < quantity) {
+
+  if (modelKey) {
+    await ensureInventoryStockForModel(modelKey, line.productName || inventory.description, inventory.unit)
+    const fresh = await prisma.erpInventoryStock.findUnique({ where: { id: stockId } })
+    if (fresh && fresh.availableQty < quantity) {
+      throw new Error(
+        `Insufficient stock for "${inventory.description}" (available: ${fresh.availableQty})`,
+      )
+    }
+  } else if (inventory.availableQty < quantity) {
     throw new Error(
       `Insufficient stock for "${inventory.description}" (available: ${inventory.availableQty})`,
     )
@@ -102,7 +144,7 @@ export async function executeDispatchLine(params: {
   await prisma.erpBranchInventory.create({
     data: {
       branchId: destinationBranchId,
-      inventoryId: line.inventoryId,
+      inventoryId: stockId,
       productDescription: inventory.description,
       quantity,
       unit: line.unit || inventory.unit,
@@ -111,13 +153,26 @@ export async function executeDispatchLine(params: {
     },
   })
 
-  await prisma.erpInventoryStock.update({
-    where: { id: line.inventoryId },
-    data: {
-      availableQty: inventory.availableQty - quantity,
-      allocatedQty: inventory.allocatedQty + quantity,
-    },
-  })
+  if (modelKey) {
+    await allocateSerialUnitsForBranchDispatch({
+      model: modelKey,
+      inventoryStockId: stockId,
+      quantity,
+      branchCode: destinationBranchCode || destinationBranch?.code || "",
+    })
+    await prisma.erpInventoryStock.update({
+      where: { id: stockId },
+      data: { allocatedQty: { increment: quantity } },
+    })
+  } else {
+    await prisma.erpInventoryStock.update({
+      where: { id: stockId },
+      data: {
+        availableQty: inventory.availableQty - quantity,
+        allocatedQty: inventory.allocatedQty + quantity,
+      },
+    })
+  }
 
   await prisma.erpInventoryHistory.create({
     data: {
@@ -140,7 +195,7 @@ export async function executeDispatchLine(params: {
     toBranchId: destinationBranch.id,
     toBranchName: destinationBranch.name,
     toBranchCode: destinationBranch.code,
-    inventoryId: line.inventoryId,
+    inventoryId: line.    inventoryId: stockId,
     productDescription: inventory.description,
     quantity,
     unit: line.unit || inventory.unit,
@@ -148,7 +203,7 @@ export async function executeDispatchLine(params: {
     transferredBy: assignedBy,
   })
 
-  return { productDescription: inventory.description, quantity }
+  return { productDescription: inventory.description, quantity, inventoryId: stockId }
 }
 
 export type TransferLineInput = {
