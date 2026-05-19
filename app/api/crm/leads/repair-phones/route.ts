@@ -1,42 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { promises as fs } from "fs"
-import path from "path"
 import { prisma } from "@/lib/db"
 import { buildLeadPhoneLookupFromCsv } from "@/lib/csv-leads"
-
-const DEFAULT_CSV = path.join(
-  process.cwd(),
-  "public",
-  "Voltrix installers Leads 19 May 2026.csv",
-)
+import { getVoltrixInstallersLeadsCsvPath } from "@/lib/voltrix-installers-leads-csv"
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
     const importBatchId = String(body.importBatchId ?? "").trim()
-    if (!importBatchId) {
-      return NextResponse.json({ error: "importBatchId required" }, { status: 400 })
-    }
+    const repairAll = Boolean(body.repairAll)
 
-    let csvText = typeof body.csvText === "string" ? body.csvText : ""
-    if (!csvText.trim()) {
-      try {
-        csvText = await fs.readFile(DEFAULT_CSV, "utf-8")
-      } catch {
-        return NextResponse.json(
-          { error: "csvText required (or place installers CSV in public/)" },
-          { status: 400 },
-        )
-      }
-    }
-
+    const csvText = await fs.readFile(getVoltrixInstallersLeadsCsvPath(), "utf-8")
     const lookup = buildLeadPhoneLookupFromCsv(csvText)
     if (lookup.size === 0) {
-      return NextResponse.json({ error: "No phone numbers found in CSV" }, { status: 400 })
+      return NextResponse.json({ error: "No phone numbers found in installers CSV" }, { status: 400 })
     }
 
     const leads = await prisma.crmLead.findMany({
-      where: { importBatchId },
+      where: importBatchId && !repairAll ? { importBatchId } : undefined,
       select: { id: true, name: true, company: true, phone: true },
     })
 
@@ -69,6 +50,7 @@ export async function POST(req: NextRequest) {
       updated,
       alreadyHad,
       notMatched,
+      repairAll: repairAll || !importBatchId,
     })
   } catch (e) {
     console.error(e)

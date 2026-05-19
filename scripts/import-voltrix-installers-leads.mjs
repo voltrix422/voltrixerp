@@ -125,7 +125,7 @@ function parseMetaLeads(text) {
   return out
 }
 
-const csvPath = path.join(root, "public", "Voltrix installers Leads 19 May 2026.csv")
+const csvPath = path.join(root, "public", "Voltrix installers Leads 19 May 2026.csv") // keep in sync with lib/voltrix-installers-leads-csv.ts
 if (!fs.existsSync(csvPath)) {
   console.error("Missing file:", csvPath)
   process.exit(1)

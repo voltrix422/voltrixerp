@@ -11,6 +11,7 @@ import {
   fetchLeads,
   fetchLeadDetail,
   importLeadsJson,
+  importVoltrixInstallersLeads,
   patchLeadStatus,
   deleteLead,
   deleteLeadsByImportBatch,
@@ -157,6 +158,7 @@ export function LeadsManager({
   } | null>(null)
   const [importing, setImporting] = useState(false)
   const [repairingPhonesBatchId, setRepairingPhonesBatchId] = useState<string | null>(null)
+  const [loadingInstallersCsv, setLoadingInstallersCsv] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
@@ -315,13 +317,52 @@ export function LeadsManager({
     queueMicrotask(() => csvInputRef.current?.click())
   }
 
+  async function loadHardcodedInstallersCsv() {
+    setLoadingInstallersCsv(true)
+    try {
+      const result = await importVoltrixInstallersLeads({
+        createdBy: currentUser,
+        createdById: currentUserId ?? null,
+        repairAll: true,
+      })
+      if (result.mode === "import") {
+        toast({
+          type: "success",
+          title: "Installers imported",
+          message: `${result.created ?? 0} leads from Voltrix installers May 2026 CSV.`,
+        })
+        if (result.importBatchId) {
+          setOpenBatchIds((prev) => new Set(prev).add(result.importBatchId!))
+        }
+      } else {
+        const batch = result.batchRepair?.updated ?? 0
+        const all = result.allRepair?.updated ?? 0
+        toast({
+          type: "success",
+          title: "Installers CSV applied",
+          message: `Phones updated: ${batch} in official batch, ${all} across all leads.`,
+        })
+      }
+      await refresh()
+      await refreshStats()
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Installers CSV failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+      })
+    } finally {
+      setLoadingInstallersCsv(false)
+    }
+  }
+
   async function repairBatchPhones(importBatchId: string) {
     setRepairingPhonesBatchId(importBatchId)
     try {
       const res = await fetch("/api/crm/leads/repair-phones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ importBatchId }),
+        body: JSON.stringify({ importBatchId, repairAll: true }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -420,13 +461,23 @@ export function LeadsManager({
           />
           <Button
             size="sm"
+            variant="default"
+            className="h-8 text-xs"
+            disabled={loadingInstallersCsv || importing}
+            onClick={() => loadHardcodedInstallersCsv()}
+          >
+            <Upload className="h-3.5 w-3.5 mr-1" />
+            {loadingInstallersCsv ? "Loading…" : "Load installers CSV"}
+          </Button>
+          <Button
+            size="sm"
             variant="outline"
             className="h-8 text-xs"
             disabled={importing}
             onClick={() => setShowCsvImportModal(true)}
           >
             <Upload className="h-3.5 w-3.5 mr-1" />
-            {importing ? "Importing…" : "Import CSV"}
+            {importing ? "Importing…" : "Import other CSV"}
           </Button>
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`}

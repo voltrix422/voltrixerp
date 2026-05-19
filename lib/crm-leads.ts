@@ -42,6 +42,34 @@ export async function fetchLeadDetail(id: string): Promise<{
   return res.json()
 }
 
+export async function importVoltrixInstallersLeads(body: {
+  createdBy: string
+  createdById?: string | null
+  /** When batch already exists, also fix phones on every lead (any import batch). */
+  repairAll?: boolean
+}): Promise<{
+  mode: string
+  created?: number
+  importBatchId?: string
+  batchRepair?: { updated: number; total: number }
+  allRepair?: { updated: number; total: number }
+}> {
+  const res = await fetch("/api/crm/leads/import-installers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Import installers failed")
+  return data as {
+    mode: string
+    created?: number
+    importBatchId?: string
+    batchRepair?: { updated: number; total: number }
+    allRepair?: { updated: number; total: number }
+  }
+}
+
 export async function importLeadsJson(body: {
   leads: { name: string; company?: string; email?: string; phone?: string; notes?: string }[]
   createdBy: string
