@@ -107,6 +107,19 @@ export async function syncPhonesFromCsvText(body: {
   }
 }
 
+/** Fetch installers CSV from /public and sync phones (preferred on VPS). */
+export async function syncInstallersPhonesFromBrowser(importBatchId?: string): Promise<{
+  updated: number
+  total: number
+  notMatched: number
+  alreadyHad?: number
+  lookupSize?: number
+}> {
+  const { fetchInstallersLeadsCsvText } = await import("@/lib/installers-leads-csv-client")
+  const csvText = await fetchInstallersLeadsCsvText()
+  return syncPhonesFromCsvText({ csvText, importBatchId })
+}
+
 /** Sync phones from hardcoded public/Voltrix installers Leads 19 May 2026.csv */
 export async function syncVoltrixInstallersPhones(importBatchId?: string): Promise<{
   updated: number

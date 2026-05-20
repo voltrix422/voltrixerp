@@ -18,8 +18,8 @@ import {
   fetchLeadContacts,
   importLeadsJson,
   importFacebookLeadAdsCsv,
+  syncInstallersPhonesFromBrowser,
   syncPhonesFromCsvText,
-  syncVoltrixInstallersPhones,
   patchLeadStatus,
   deleteLead,
   deleteLeadsByImportBatch,
@@ -244,19 +244,30 @@ export function LeadsManager({
     const missingPhones = leads.some((l) => !l.phone?.trim())
     if (!missingPhones) return
     autoSyncPhonesDone.current = true
-    syncVoltrixInstallersPhones()
-      .then((r) => {
+    syncInstallersPhonesFromBrowser()
+      .then(async (r) => {
         if (r.updated > 0) {
           toast({
             type: "success",
             title: "Phones synced",
             message: `Filled ${r.updated} phone number(s) from installers CSV.`,
           })
-          return refresh()
+          await refresh()
+        } else if ((r.lookupSize ?? 0) > 0 && r.notMatched > 0) {
+          toast({
+            type: "error",
+            title: "Could not match phones",
+            message: `${r.notMatched} lead(s) had no matching row in the CSV. Try re-importing the Facebook file.`,
+          })
         }
       })
-      .catch(() => {
+      .catch((err) => {
         autoSyncPhonesDone.current = false
+        toast({
+          type: "error",
+          title: "Phone sync failed",
+          message: err instanceof Error ? err.message : "Could not load installers CSV.",
+        })
       })
   }, [loading, leads, refresh, toast])
 
@@ -458,14 +469,17 @@ export function LeadsManager({
     queueMicrotask(() => csvInputRef.current?.click())
   }
 
-  async function loadHardcodedInstallersCsv() {
+  async function loadHardcodedInstallersCsv(importBatchId?: string) {
     setLoadingInstallersCsv(true)
     try {
-      const result = await syncVoltrixInstallersPhones()
+      const result = await syncInstallersPhonesFromBrowser(importBatchId)
+      if (result.updated === 0 && (result.lookupSize ?? 0) === 0) {
+        throw new Error("CSV has no PHONE column data. Re-upload the Facebook export.")
+      }
       toast({
         type: "success",
         title: "Installers CSV synced",
-        message: `Updated ${result.updated} of ${result.total} leads from Voltrix installers May 2026 CSV.`,
+        message: `Updated ${result.updated} of ${result.total} leads (${result.notMatched} not matched).`,
       })
       await refresh()
       await refreshStats()
@@ -483,7 +497,7 @@ export function LeadsManager({
   async function repairBatchPhones(importBatchId: string) {
     setRepairingPhonesBatchId(importBatchId)
     try {
-      const result = await syncVoltrixInstallersPhones(importBatchId)
+      const result = await syncInstallersPhonesFromBrowser(importBatchId)
       toast({
         type: "success",
         title: "Phones updated",

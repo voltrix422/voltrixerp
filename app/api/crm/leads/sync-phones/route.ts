@@ -19,6 +19,16 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await syncPhonesFromCsv(prisma, csvText, importBatchId ? { importBatchId } : undefined)
+    if (result.lookupSize === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No phone numbers found in CSV (expected Facebook columns FULL_NAME and PHONE).",
+          ...result,
+        },
+        { status: 400 },
+      )
+    }
     return NextResponse.json({ success: true, ...result })
   } catch (e) {
     console.error(e)

@@ -28,6 +28,17 @@ export async function POST(req: NextRequest) {
     if (csvText.trim() && isFacebookLeadAdsCsv(csvText)) {
       const { parseFacebookLeadAdsCsv } = await import("@/lib/facebook-lead-ads-csv")
       leads = enrichLeadRowsWithPhonesFromCsv(parseFacebookLeadAdsCsv(csvText), csvText)
+    } else if (csvText.trim()) {
+      leads = enrichLeadRowsWithPhonesFromCsv(
+        leads.map((l) => ({
+          name: String(l.name ?? ""),
+          company: String(l.company ?? ""),
+          email: String(l.email ?? ""),
+          phone: String(l.phone ?? ""),
+          notes: String(l.notes ?? ""),
+        })),
+        csvText,
+      )
     }
 
     const data = leads
