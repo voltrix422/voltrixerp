@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { uploadFiles } from "@/lib/upload"
-import { parseLeadImportCsv } from "@/lib/csv-leads"
+import { enrichLeadRowsWithPhonesFromCsv, parseLeadImportCsv } from "@/lib/csv-leads"
 import {
   facebookLeadAdsImportSummary,
   isFacebookLeadAdsCsv,
@@ -18,6 +18,7 @@ import {
   fetchLeadContacts,
   importLeadsJson,
   importFacebookLeadAdsCsv,
+  syncPhonesFromCsvText,
   syncVoltrixInstallersPhones,
   patchLeadStatus,
   deleteLead,
@@ -82,15 +83,19 @@ function LeadTableRow({
     >
       <td className="px-3 py-2 text-xs font-medium">{lead.name}</td>
       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
-      <td className="px-3 py-2 text-xs">
-        {lead.phone && (
-          <span className="flex items-center gap-1 text-[hsl(var(--muted-foreground))]">
-            <Phone className="h-3 w-3 shrink-0" />
+      <td className="px-3 py-2 text-xs tabular-nums">
+        {lead.phone?.trim() ? (
+          <a
+            href={`tel:${lead.phone.replace(/\s/g, "")}`}
+            className="inline-flex items-center gap-1 font-medium text-[hsl(var(--foreground))] hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Phone className="h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))]" />
             {lead.phone}
-          </span>
+          </a>
+        ) : (
+          "—"
         )}
-        {lead.email && <div className="text-[hsl(var(--muted-foreground))] truncate max-w-[140px]">{lead.email}</div>}
-        {!lead.phone && !lead.email && "—"}
       </td>
       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
         <select
@@ -338,17 +343,18 @@ export function LeadsManager({
     try {
       const text = await file.text()
       if (isFacebookLeadAdsCsv(text)) {
-        const { created, importBatchId } = await importFacebookLeadAdsCsv({
+        const { created, importBatchId, withPhone } = await importFacebookLeadAdsCsv({
           csvText: text,
           createdBy: currentUser,
           createdById: currentUserId ?? null,
           importUploaderName: meta.importUploaderName.trim(),
           importBatchId: meta.importBatchId,
         })
+        await syncPhonesFromCsvText({ csvText: text, importBatchId })
         toast({
           type: "success",
           title: "Facebook leads imported",
-          message: `${created} lead(s) with name, company, and phone.`,
+          message: `${created} lead(s) imported${withPhone != null ? `, ${withPhone} with phone` : ""}.`,
         })
         setOpenBatchIds((prev) => new Set(prev).add(importBatchId))
         pendingCsvImportRef.current = null
@@ -356,7 +362,7 @@ export function LeadsManager({
         await refreshStats()
         return
       }
-      const rows = parseLeadImportCsv(text)
+      const rows = enrichLeadRowsWithPhonesFromCsv(parseLeadImportCsv(text), text)
       if (rows.length === 0) {
         toast({
           type: "error",
@@ -365,15 +371,21 @@ export function LeadsManager({
         })
         return
       }
-      const { created } = await importLeadsJson({
+      const { created, withPhone } = await importLeadsJson({
         leads: rows,
+        csvText: text,
         createdBy: currentUser,
         createdById: currentUserId ?? null,
         source: "csv",
         importBatchId: meta.importBatchId,
         importUploaderName: meta.importUploaderName.trim(),
       })
-      toast({ type: "success", title: "Import complete", message: `${created} lead(s) added.` })
+      await syncPhonesFromCsvText({ csvText: text, importBatchId: meta.importBatchId })
+      toast({
+        type: "success",
+        title: "Import complete",
+        message: `${created} lead(s) added${withPhone != null ? `, ${withPhone} with phone` : ""}.`,
+      })
       setOpenBatchIds((prev) => new Set(prev).add(meta.importBatchId))
       pendingCsvImportRef.current = null
       await refresh()
@@ -405,17 +417,18 @@ export function LeadsManager({
         typeof crypto !== "undefined" && crypto.randomUUID
           ? crypto.randomUUID()
           : `fb-${Date.now()}`
-      const { created, importBatchId: batchId } = await importFacebookLeadAdsCsv({
+      const { created, importBatchId: batchId, withPhone } = await importFacebookLeadAdsCsv({
         csvText: text,
         createdBy: currentUser,
         createdById: currentUserId ?? null,
         importUploaderName: uploaderName.trim() || "Facebook Lead Ads",
         importBatchId,
       })
+      await syncPhonesFromCsvText({ csvText: text, importBatchId: batchId })
       toast({
         type: "success",
         title: "Facebook leads imported",
-        message: `${created} lead(s) added.`,
+        message: `${created} lead(s) added${withPhone != null ? `, ${withPhone} with phone` : ""}.`,
       })
       setOpenBatchIds((prev) => new Set(prev).add(batchId))
       setShowFacebookImportModal(false)
@@ -470,7 +483,7 @@ export function LeadsManager({
   async function repairBatchPhones(importBatchId: string) {
     setRepairingPhonesBatchId(importBatchId)
     try {
-      const result = await syncVoltrixInstallersPhones()
+      const result = await syncVoltrixInstallersPhones(importBatchId)
       toast({
         type: "success",
         title: "Phones updated",

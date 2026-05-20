@@ -350,6 +350,18 @@ export function buildFacebookLeadPhoneLookup(csvText: string): Map<string, strin
   return map
 }
 
+/** Attach PHONE from Facebook CSV to each parsed row (import + display). */
+export function enrichLeadRowsWithPhonesFromCsv(rows: LeadCsvRow[], csvText: string): LeadCsvRow[] {
+  const lookup = buildFacebookLeadPhoneLookup(csvText)
+  return rows.map((row) => {
+    const phone =
+      (row.phone || "").trim() ||
+      resolvePhoneFromFacebookLookup(lookup, row.name, row.company) ||
+      ""
+    return { ...row, phone }
+  })
+}
+
 export function resolvePhoneFromFacebookLookup(
   lookup: Map<string, string>,
   name: string,

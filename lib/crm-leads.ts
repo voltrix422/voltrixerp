@@ -57,7 +57,13 @@ export async function importFacebookLeadAdsCsv(body: {
   createdById?: string | null
   importUploaderName: string
   importBatchId?: string
-}): Promise<{ created: number; importBatchId: string; importUploaderName: string }> {
+}): Promise<{
+  created: number
+  importBatchId: string
+  importUploaderName: string
+  withPhone?: number
+  phonesSynced?: number
+}> {
   const res = await fetch("/api/crm/leads/import-facebook", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -65,7 +71,40 @@ export async function importFacebookLeadAdsCsv(body: {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || "Facebook import failed")
-  return data as { created: number; importBatchId: string; importUploaderName: string }
+  return data as {
+    created: number
+    importBatchId: string
+    importUploaderName: string
+    withPhone?: number
+    phonesSynced?: number
+  }
+}
+
+/** Sync phones from uploaded Facebook CSV or bundled installers file on server. */
+export async function syncPhonesFromCsvText(body: {
+  csvText?: string
+  importBatchId?: string
+}): Promise<{
+  updated: number
+  total: number
+  notMatched: number
+  alreadyHad?: number
+  lookupSize?: number
+}> {
+  const res = await fetch("/api/crm/leads/sync-phones", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Sync phones failed")
+  return data as {
+    updated: number
+    total: number
+    notMatched: number
+    alreadyHad?: number
+    lookupSize?: number
+  }
 }
 
 /** Sync phones from hardcoded public/Voltrix installers Leads 19 May 2026.csv */
@@ -110,7 +149,8 @@ export async function importLeadsJson(body: {
   source?: string
   importBatchId: string
   importUploaderName: string
-}): Promise<{ created: number }> {
+  csvText?: string
+}): Promise<{ created: number; withPhone?: number; phonesSynced?: number }> {
   const res = await fetch("/api/crm/leads/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

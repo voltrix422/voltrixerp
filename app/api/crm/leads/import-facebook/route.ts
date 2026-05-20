@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { enrichLeadRowsWithPhonesFromCsv } from "@/lib/csv-leads"
 import { isFacebookLeadAdsCsv, parseFacebookLeadAdsCsv } from "@/lib/facebook-lead-ads-csv"
+import { syncPhonesFromCsv } from "@/lib/sync-phones-from-csv"
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,17 +33,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const rows = parseFacebookLeadAdsCsv(csvText)
+    const rows = enrichLeadRowsWithPhonesFromCsv(parseFacebookLeadAdsCsv(csvText), csvText)
     if (rows.length === 0) {
       return NextResponse.json({ error: "No valid lead rows in file" }, { status: 400 })
     }
+
+    const withPhone = rows.filter((l) => l.phone?.trim()).length
 
     const result = await prisma.crmLead.createMany({
       data: rows.map((l) => ({
         name: l.name,
         company: l.company,
         email: l.email,
-        phone: l.phone,
+        phone: l.phone.trim(),
         notes: l.notes,
         source: "facebook_lead_ads",
         createdBy,
@@ -51,9 +55,13 @@ export async function POST(req: NextRequest) {
       })),
     })
 
+    const phoneSync = await syncPhonesFromCsv(prisma, csvText, { importBatchId })
+
     return NextResponse.json({
       success: true,
       created: result.count,
+      withPhone,
+      phonesSynced: phoneSync.updated,
       importBatchId,
       importUploaderName,
     })

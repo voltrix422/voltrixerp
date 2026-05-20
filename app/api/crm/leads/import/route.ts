@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { enrichLeadRowsWithPhonesFromCsv } from "@/lib/csv-leads"
+import { isFacebookLeadAdsCsv } from "@/lib/facebook-lead-ads-csv"
+import { syncPhonesFromCsv } from "@/lib/sync-phones-from-csv"
 
 type Incoming = {
   name: string
@@ -12,13 +15,19 @@ type Incoming = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const leads = body.leads as Incoming[]
+    const csvText = typeof body.csvText === "string" ? body.csvText : ""
+    let leads = body.leads as Incoming[]
     const createdBy = body.createdBy as string
     const createdById = body.createdById as string | undefined
     const source = (body.source as string) || "csv"
 
     if (!createdBy || !Array.isArray(leads) || leads.length === 0) {
       return NextResponse.json({ error: "createdBy and non-empty leads[] required" }, { status: 400 })
+    }
+
+    if (csvText.trim() && isFacebookLeadAdsCsv(csvText)) {
+      const { parseFacebookLeadAdsCsv } = await import("@/lib/facebook-lead-ads-csv")
+      leads = enrichLeadRowsWithPhonesFromCsv(parseFacebookLeadAdsCsv(csvText), csvText)
     }
 
     const data = leads
@@ -53,7 +62,17 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await prisma.crmLead.createMany({ data })
-    return NextResponse.json({ created: result.count })
+    const batchId = body.importBatchId ? String(body.importBatchId).trim() : undefined
+    let phonesSynced = 0
+    if (csvText.trim() && batchId) {
+      const sync = await syncPhonesFromCsv(prisma, csvText, { importBatchId: batchId })
+      phonesSynced = sync.updated
+    }
+    return NextResponse.json({
+      created: result.count,
+      withPhone: data.filter((l) => l.phone).length,
+      phonesSynced,
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Import failed" }, { status: 500 })
