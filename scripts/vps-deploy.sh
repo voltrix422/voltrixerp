@@ -27,4 +27,9 @@ npm run build
 echo "==> pm2 restart ${PM2_NAME}"
 pm2 restart "${PM2_NAME}"
 
+if [ -f "public/Voltrix installers Leads 19 May 2026.csv" ]; then
+  echo "==> Backfill lead phones from Facebook installers CSV"
+  node scripts/sync-all-lead-phones.mjs || echo "WARN: phone sync failed (run: npm run sync-lead-phones)"
+fi
+
 echo "==> Done."

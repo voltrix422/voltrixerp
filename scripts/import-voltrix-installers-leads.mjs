@@ -108,10 +108,10 @@ function parseMetaLeads(text) {
     const row = rows[r]
     const fullName = trimCell(row, iFull)
     const companyName = trimCell(row, iCompany)
-    const name = companyName || fullName
+    const name = fullName || companyName
     if (!name) continue
     const company =
-      companyName && fullName && companyName.toLowerCase() !== fullName.toLowerCase() ? fullName : ""
+      fullName && companyName && fullName.toLowerCase() !== companyName.toLowerCase() ? companyName : ""
     const phone = formatMetaLeadPhone(trimCell(row, iPhone))
     const city = trimCell(row, iCity)
     const address = trimCell(row, iAddress)
@@ -176,35 +176,75 @@ async function main() {
   console.log(`Importer label: ${importUploaderName}`)
 }
 
+function normalizeLeadMatchText(value) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function buildLookupFromCsv(text) {
+  const rows = parseCsv(text.replace(/^\ufeff/, ""))
+  const h = rows[0]
+  const iFull = colIndex(h, "fullname", "full_name")
+  const iPhone = colIndex(h, "phone")
+  const iCompany = colIndex(h, "companyname", "company_name", "company")
+  const map = new Map()
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]
+    const full = trimCell(row, iFull)
+    const company = iCompany >= 0 ? trimCell(row, iCompany) : ""
+    const phone = formatMetaLeadPhone(trimCell(row, iPhone))
+    if (!phone) continue
+    const nf = normalizeLeadMatchText(full)
+    const nc = normalizeLeadMatchText(company)
+    if (nf) map.set(`name:${nf}`, phone)
+    if (nc) map.set(`name:${nc}`, phone)
+    if (nf && nc) {
+      map.set(`pair:${nf}|||${nc}`, phone)
+      map.set(`pair:${nc}|||${nf}`, phone)
+    }
+  }
+  return map
+}
+
+function resolvePhone(lookup, name, company) {
+  const n = normalizeLeadMatchText(name)
+  const c = normalizeLeadMatchText(company)
+  return (
+    (n && c ? lookup.get(`pair:${n}|||${c}`) : undefined) ??
+    (n && c ? lookup.get(`pair:${c}|||${n}`) : undefined) ??
+    (n ? lookup.get(`name:${n}`) : undefined) ??
+    (c ? lookup.get(`name:${c}`) : undefined)
+  )
+}
+
 async function repairPhones(batchId) {
+  const where = batchId ? { importBatchId: batchId } : {}
   const dbLeads = await prisma.crmLead.findMany({
-    where: { importBatchId: batchId },
+    where,
     select: { id: true, name: true, company: true, phone: true },
   })
-  const lookup = new Map()
-  for (const row of leads) {
-    if (!row.phone) continue
-    const n = row.name.trim().toLowerCase()
-    const c = row.company.trim().toLowerCase()
-    lookup.set(`${n}|||${c}`, row.phone)
-    lookup.set(`${c}|||${n}`, row.phone)
-  }
+  const lookup = buildLookupFromCsv(fs.readFileSync(csvPath, "utf8"))
   let updated = 0
+  let notMatched = 0
   for (const lead of dbLeads) {
     if (lead.phone?.trim()) continue
-    const key = `${lead.name.trim().toLowerCase()}|||${lead.company.trim().toLowerCase()}`
-    const alt = `${lead.company.trim().toLowerCase()}|||${lead.name.trim().toLowerCase()}`
-    const phone = lookup.get(key) ?? lookup.get(alt)
-    if (!phone) continue
+    const phone = resolvePhone(lookup, lead.name, lead.company)
+    if (!phone) {
+      notMatched += 1
+      continue
+    }
     await prisma.crmLead.update({ where: { id: lead.id }, data: { phone } })
     updated += 1
   }
-  console.log(`Repaired phones on ${updated} of ${dbLeads.length} leads (batch: ${batchId}).`)
+  console.log(
+    `Repaired phones on ${updated} of ${dbLeads.length} leads (${notMatched} not matched).` +
+      (batchId ? ` Batch: ${batchId}` : " All leads."),
+  )
 }
 
 const repairIdx = process.argv.indexOf("--repair-phones")
 if (repairIdx >= 0) {
-  const batchId = process.argv[repairIdx + 1] || importBatchId
+  const next = process.argv[repairIdx + 1]
+  const batchId = next && !next.startsWith("--") ? next : ""
   repairPhones(batchId)
     .catch((e) => {
       console.error(e)
