@@ -132,6 +132,17 @@ function parseVoltrixSlashPayload(raw: string): ParsedProductQr | null {
   }
   if (!model && segments[4]) model = segments[4].replace(/\.php$/i, "")
 
+  // BarTender path: .../MODEL//c.php?c=SN — model may include spaces (e.g. HS-TQ25.6V 314Ah)
+  if (!model) {
+    const phpIdx = segments.findIndex((s) => /\.php$/i.test(s))
+    if (phpIdx > 0) {
+      const candidate = segments[phpIdx - 1].replace(/\.php$/i, "")
+      if (candidate && candidate !== serialNumber && !isDateSegment(candidate)) {
+        model = candidate
+      }
+    }
+  }
+
   const extra: Record<string, string> = { ...queryValues }
   if (manufacturedDate) extra.manufacturedDate = manufacturedDate
   if (batchRef) extra.batchRef = batchRef
