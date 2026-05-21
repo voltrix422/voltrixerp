@@ -169,6 +169,56 @@ function parseVoltrixSlashPayload(raw: string): ParsedProductQr | null {
   }
 }
 
+/**
+ * BarTender serialization: fixed model, then "/", then SN (and optional Voltrix tail).
+ * Examples:
+ *   HS-TQ25.6V314Ah/12345678
+ *   HS-TQ25.6V314Ah/1GY26340670064/03-05-2026/610110-00342/X60304255//c.php?c=1GY26340670064
+ */
+function parseModelPrefixSlashPayload(trimmed: string): ParsedProductQr | null {
+  const slashIdx = trimmed.indexOf("/")
+  if (slashIdx <= 0) return null
+
+  const modelPart = trimmed.slice(0, slashIdx).trim()
+  const restPart = trimmed.slice(slashIdx + 1).trim()
+  if (!modelPart || !restPart) return null
+
+  const isKnownModel =
+    looksLikeProductModel(modelPart) || /^HS[-\s]?TQ[\d.A-Za-z.]+V?\d*Ah?$/i.test(modelPart)
+  if (!isKnownModel) return null
+
+  const queryValues = restPart.includes("?") ? parseQueryString(restPart) : {}
+  const snFromQuery = pickString(queryValues, ["c", "serial", "sn", "serialNumber"])
+  const pathOnly = restPart.split("?")[0]
+  const restSegments = pathOnly.split("/").map((s) => s.trim()).filter(Boolean)
+
+  if (restSegments.length >= 2 || /\.php/i.test(restPart)) {
+    const voltrix = parseVoltrixSlashPayload(restPart)
+    if (voltrix?.serialNumber) {
+      return {
+        ...voltrix,
+        model: modelPart,
+        productName: modelPart,
+        extra: { ...voltrix.extra, source: "model-prefix-voltrix" },
+      }
+    }
+  }
+
+  const serialNumber = snFromQuery || restSegments[0] || pathOnly.trim()
+  if (!serialNumber || serialNumber.length < 4) return null
+
+  return {
+    serialNumber,
+    productName: modelPart,
+    model: modelPart,
+    specs: "",
+    notes: "",
+    inventoryStockId: "",
+    productId: "",
+    extra: { source: "model-prefix-sn", ...queryValues },
+  }
+}
+
 export function parseProductQrPayload(raw: string): ParsedProductQr {
   const trimmed = normalizeScanPayload(raw)
   const extra: Record<string, string> = {}
@@ -216,6 +266,9 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
   }
 
   if (trimmed.includes("/")) {
+    const modelFirst = parseModelPrefixSlashPayload(trimmed)
+    if (modelFirst?.serialNumber) return modelFirst
+
     const slashParsed = parseVoltrixSlashPayload(trimmed)
     if (slashParsed) return slashParsed
   }

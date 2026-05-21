@@ -73,6 +73,7 @@ export function looksLikeProductModel(value: string): boolean {
     /^\d{1,3}A-[A-Z]-[A-Z]-[A-Z]$/i.test(v) ||
     /^[A-Z]{2,6}\d{0,3}[A-Z]{0,3}-[A-Z0-9]{2,}$/i.test(v) ||
     /^HS[-\s]?TQ[\d.A-Za-z\s]+Ah$/i.test(v) ||
+    /^HS[-\s]?TQ[\d.]+V\d*Ah$/i.test(v) ||
     /^HS[-\s]?TQ/i.test(v)
   )
 }
