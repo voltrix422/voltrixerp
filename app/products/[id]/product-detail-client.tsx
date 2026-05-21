@@ -295,16 +295,13 @@ export default function ProductDetailClient({
   product, 
   related, 
   categoryColors,
-  termsDisplay,
 }: { 
   product: any
   related: any[]
   categoryColors: Record<string, string>
-  termsDisplay: { content: string; fileUrl?: string | null }
 }) {
   const images = Array.isArray(product.images) ? product.images : []
   const [activeTab, setActiveTab] = useState<TabType>("description")
-  const [termsOpen, setTermsOpen] = useState(false)
   const requestQuote = shouldRequestQuote(product)
   const hasBrochure = Boolean(product.brochureUrl)
 
