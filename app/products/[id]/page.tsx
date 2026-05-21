@@ -7,7 +7,6 @@ import WhatsappButton from "@/components/landing/whatsapp-button"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react"
 import { promises as fs } from 'fs'
 import path from 'path'
-import { loadProductTermsTemplates, resolveProductTermsDisplay } from '@/lib/product-terms'
 import ProductDetailClient from './product-detail-client'
 
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-dm-sans" })
@@ -60,13 +59,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   if (!product) notFound()
 
   const related = await getRelated(product.category, product.id)
-  const termsTemplates = await loadProductTermsTemplates()
-  const termsDisplay = resolveProductTermsDisplay(product, termsTemplates)
 
   return (
     <main className={`${dmSans.variable} min-h-screen bg-white text-neutral-900 antialiased`} style={{ fontFamily: "var(--font-dm-sans), sans-serif" }}>
       <Navbar />
-      <ProductDetailClient product={product} related={related} categoryColors={categoryColors} termsDisplay={termsDisplay} />
+      <ProductDetailClient product={product} related={related} categoryColors={categoryColors} />
       <Footer />
       <WhatsappButton />
     </main>
