@@ -352,18 +352,27 @@ export function BranchesTab() {
     )
   }
 
+  function branchTypeLabel(type: Branch["type"]) {
+    if (type === "main_warehouse") return "main warehouse"
+    if (type === "branch_warehouse") return "branch warehouse"
+    return type.replace("_", " ")
+  }
+
   return (
-    <div className="p-6 space-y-2">
+    <div className="space-y-3">
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading branches...</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">Loading branches…</p>
         </div>
       ) : (
         <>
-          <div className="space-y-0 my-4">
-            {/* Action buttons */}
-            <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              <strong className="text-[hsl(var(--foreground))]">{branches.length}</strong> branch
+              {branches.length === 1 ? "" : "es"}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
               <Button
                 size="sm"
                 variant="outline"
@@ -371,7 +380,7 @@ export function BranchesTab() {
                 onClick={handleResetAllBranches}
                 disabled={resettingAll}
               >
-                {resettingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {resettingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
                 Reset all transfers
               </Button>
               <Button
@@ -381,80 +390,118 @@ export function BranchesTab() {
                 onClick={handleOpenExportPreview}
                 disabled={exportLoading}
               >
-                {exportLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                {exportLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
                 Export Inventory PDF
               </Button>
-              <Button size="sm" className="h-8 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={async () => {
-                const code = await generateBranchCode()
-                setAutoCode(code)
-                setAdding(true)
-                setEditId(null)
-              }}>
-                <Plus className="h-3.5 w-3.5" /> Add Branch
+              <Button
+                size="sm"
+                className="h-8 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+                onClick={async () => {
+                  const code = await generateBranchCode()
+                  setAutoCode(code)
+                  setAdding(true)
+                  setEditId(null)
+                }}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Branch
               </Button>
             </div>
           </div>
 
-          {/* Empty */}
           {branches.length === 0 && !adding && (
-            <div className="flex flex-col items-center justify-center py-24 text-center gap-2">
+            <div className="flex flex-col items-center justify-center py-16 text-center gap-2 border border-dashed rounded-lg">
               <p className="text-sm font-medium">No branches yet</p>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Add your first branch using the button above.</p>
             </div>
           )}
 
-          {/* List */}
           {branches.length > 0 && (
             <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-[hsl(var(--muted))]/40">
-                {["Name", "Code", "Type", "Manager", "Status", "Actions"].map(h => (
-                  <th key={h} className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{h === "Actions" ? "" : h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {branches.map(b => (
-                <tr key={b.id}
-                  onClick={() => { setViewBranch(b); setEditId(null) }}
-                  className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer">
-                  <td className="px-4 py-2.5 font-medium text-[hsl(var(--primary))]">{b.name}</td>
-                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{b.code}</td>
-                  <td className="px-4 py-2.5">
-                    <Badge variant="info" className="text-[10px] px-1.5 py-0">
-                      {b.type === "main_warehouse" ? "main warehouse" : b.type === "branch_warehouse" ? "branch warehouse" : b.type}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{b.manager || "â€”"}</td>
-                  <td className="px-4 py-2.5">
-                    <Badge variant={b.status === "active" ? "success" : "secondary"} className="text-[10px] px-1.5 py-0">{b.status}</Badge>
-                  </td>
-                  <td className="px-4 py-2.5 flex items-center gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7 text-[#1faca6] hover:text-[#17857f] hover:bg-[#1faca6]/10"
-                      title="Export Inventory PDF"
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        const inv = await getBranchInventory(b.id)
-                        generateSingleBranchPdf(b, inv)
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-[hsl(var(--muted))]/30">
+                    {["Name", "Code", "Type", "Manager", "Status", ""].map((h) => (
+                      <th
+                        key={h || "actions"}
+                        className="h-8 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {branches.map((b) => (
+                    <tr
+                      key={b.id}
+                      onClick={() => {
+                        setViewBranch(b)
+                        setEditId(null)
                       }}
+                      className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/15 transition-colors cursor-pointer"
                     >
-                      <FileDown className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-50"
-                      onClick={e => { e.stopPropagation(); handleDelete(b.id) }}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      <td className="px-3 py-2 font-medium">{b.name}</td>
+                      <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] tabular-nums">{b.code}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant="info" className="text-[10px] px-1.5 py-0">
+                          {branchTypeLabel(b.type)}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">{b.manager || "—"}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant={b.status === "active" ? "success" : "secondary"} className="text-[10px] px-1.5 py-0">
+                          {b.status}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-[#1faca6] hover:text-[#17857f] hover:bg-[#1faca6]/10 cursor-pointer"
+                            title="Export inventory PDF"
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              const inv = await getBranchInventory(b.id)
+                              generateSingleBranchPdf(b, inv)
+                            }}
+                          >
+                            <FileDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 cursor-pointer text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[#1faca6]/10"
+                            title="Edit branch"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditId(b.id)
+                              setViewBranch(null)
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 cursor-pointer text-[hsl(var(--muted-foreground))] hover:text-red-500 hover:bg-red-50"
+                            title="Delete branch"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(b.id)
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 

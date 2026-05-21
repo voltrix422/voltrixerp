@@ -21,24 +21,26 @@ export default function InventoryPage() {
     <ModuleGuard module="inventory">
       <Topbar title="Inventory" description="Manage stock and dispatch client orders" />
       <div className="flex-1 overflow-auto">
-        <div className="p-6 max-w-6xl">
-          <div className="flex items-center gap-1 border-b border-[hsl(var(--border))] mb-4">
-            {tabs.map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
-                  tab === id
-                    ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                }`}
-              >
-                {label}
-                {tab === id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-                )}
-              </button>
-            ))}
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[hsl(var(--border))] mb-4">
+            <div className="flex items-center gap-1">
+              {tabs.map(({ id, label }) => (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className={`px-3 py-2 text-xs font-medium transition-colors relative cursor-pointer ${
+                    tab === id
+                      ? "text-[hsl(var(--foreground))]"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                >
+                  {label}
+                  {tab === id && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
           {tab === "orders" && <ClientOrdersInventory />}

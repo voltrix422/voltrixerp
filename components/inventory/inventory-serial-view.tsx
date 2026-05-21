@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
 import {
   deleteInventorySerialUnit,
   getInventorySerialUnits,
@@ -22,7 +22,16 @@ import {
   Loader2,
 } from "lucide-react"
 
-export function InventorySerialView() {
+type InventorySerialViewProps = {
+  /** Renders after Export Excel / Scan QR (e.g. Send multiple on branch detail). */
+  toolbarEnd?: ReactNode
+  /** Parent refresh when units are scanned or deleted. */
+  onUnitsChanged?: () => void
+  /** Tighter layout inside branch detail (no negative horizontal margin). */
+  embedded?: boolean
+}
+
+export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: InventorySerialViewProps = {}) {
   const { toast } = useToast()
   const [units, setUnits] = useState<InventorySerialUnit[]>([])
   const [loading, setLoading] = useState(true)
@@ -175,6 +184,7 @@ export function InventorySerialView() {
   function handleScanSaved() {
     void loadUnits()
     setShowQrModal(false)
+    onUnitsChanged?.()
   }
 
   async function handleDeleteUnit(unit: InventorySerialUnit) {
@@ -185,6 +195,7 @@ export function InventorySerialView() {
     try {
       await deleteInventorySerialUnit(unit.id)
       setUnits((prev) => prev.filter((u) => u.id !== unit.id))
+      onUnitsChanged?.()
       toast({
         title: "Removed",
         message: `SN ${unit.serialNumber} deleted from inventory.`,
@@ -212,7 +223,11 @@ export function InventorySerialView() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 -mx-6 px-6">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 border-b pb-2 ${
+          embedded ? "" : "-mx-6 px-6"
+        }`}
+      >
         <div className="flex flex-wrap items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
           <span>
             <strong className="text-[hsl(var(--foreground))]">{totalBoxes}</strong> box
@@ -251,6 +266,7 @@ export function InventorySerialView() {
             <QrCode className="h-3.5 w-3.5" />
             Scan QR
           </Button>
+          {toolbarEnd}
         </div>
       </div>
 
