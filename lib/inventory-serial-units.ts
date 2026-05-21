@@ -179,6 +179,20 @@ export async function deleteInventorySerialUnit(id: string): Promise<void> {
   }
 }
 
+/** Remove all scanned serial units for a model (main warehouse row). */
+export async function deleteInventorySerialUnitsByModel(model: string): Promise<number> {
+  const res = await fetch("/api/db/inventory-serial-units", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: model.trim() }),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((payload as { error?: string }).error || "Failed to delete model inventory")
+  }
+  return (payload as { deleted?: number }).deleted ?? 0
+}
+
 export async function updateInventorySerialUnit(data: {
   id: string
   assignedName?: string

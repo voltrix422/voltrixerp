@@ -23,18 +23,14 @@ import {
   ArrowRightLeft,
   ArrowUpRight,
   FileDown,
-  History,
   Loader2,
-  Mail,
-  MapPin,
   Pencil,
-  Phone,
   Trash2,
-  User,
 } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
+import { deleteInventorySerialUnitsByModel } from "@/lib/inventory-serial-units"
 
 async function generateSingleBranchPdf(branch: Branch, inventoryRows: BranchInventory[]) {
   const [{ default: jsPDF }, autoTableModule] = await Promise.all([
@@ -92,6 +88,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   const [returningToMain, setReturningToMain] = useState(false)
   const [removingAll, setRemovingAll] = useState(false)
   const [deletingInvId, setDeletingInvId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<"inventory" | "history">("inventory")
   const { toast } = useToast()
   const { confirm } = useDialog()
   const { user } = useAuth()
@@ -184,27 +181,32 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   }
 
   async function handleRemoveInventoryItem(inv: BranchInventory) {
-    if (isMainWarehouse) {
-      toast({
-        type: "error",
-        title: "Main warehouse",
-        message: "Remove scanned units from Inventory → Scan QR. Branch records are built from serial scans.",
-      })
-      return
-    }
-    const label = inv.productDescription || inv.itemName || inv.inventoryId
+    const label = inv.itemName || inv.productDescription || inv.model || inv.inventoryId
+    const modelKey = inv.model || (inv.id.startsWith("wh:") ? inv.id.slice(3) : null)
     const ok = await confirm({
       type: "confirm",
-      title: "Remove from branch",
-      message: `Remove ${inv.quantity} ${inv.unit} of "${label}" from ${branch.name}? Stock returns to the main warehouse.`,
-      confirmLabel: "Remove",
+      title: isMainWarehouse ? "Delete from inventory" : "Remove from branch",
+      message: isMainWarehouse && modelKey
+        ? `Delete all ${inv.totalUnits ?? inv.quantity} scanned unit(s) for "${label}"? This cannot be undone.`
+        : `Remove ${inv.quantity} ${inv.unit} of "${label}" from ${branch.name}? Stock returns to the main warehouse.`,
+      confirmLabel: isMainWarehouse ? "Delete" : "Remove",
     })
     if (!ok) return
     setDeletingInvId(inv.id)
     try {
-      await removeBranchInventory(inv.id)
-      await reloadInventory()
-      toast({ type: "success", title: "Removed", message: `${label} removed from this branch.` })
+      if (isMainWarehouse && modelKey) {
+        const deleted = await deleteInventorySerialUnitsByModel(modelKey)
+        await reloadInventory()
+        toast({
+          type: "success",
+          title: "Deleted",
+          message: `${deleted} unit(s) removed for ${label}.`,
+        })
+      } else {
+        await removeBranchInventory(inv.id)
+        await reloadInventory()
+        toast({ type: "success", title: "Removed", message: `${label} removed from this branch.` })
+      }
     } catch {
       toast({ type: "error", title: "Failed", message: "Could not remove this item." })
     } finally {
@@ -309,359 +311,367 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
       }
     : null
 
+  const detailBits: string[] = []
+  if (branch.manager) detailBits.push(`Mgr: ${branch.manager}`)
+  if (branch.phone) detailBits.push(branch.phone)
+  if (branch.email) detailBits.push(branch.email)
+  if (branch.address || branch.city) {
+    detailBits.push([branch.address, branch.city, branch.country].filter(Boolean).join(", "))
+  }
+
   return (
     <div className="flex min-h-[calc(100dvh-5rem)] w-full flex-col bg-[hsl(var(--background))]">
       <div className="sticky top-0 z-20 border-b bg-[hsl(var(--card))]/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-6 py-4">
-          <Button variant="ghost" className="h-10 gap-2 text-sm font-medium cursor-pointer" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-            Back to branches
-          </Button>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" className="h-9 cursor-pointer" onClick={onEdit}>
-              <Pencil className="h-3.5 w-3.5 mr-1.5" />
-              Edit branch
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-start justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button variant="ghost" className="h-8 gap-1.5 px-2 text-xs font-medium cursor-pointer" onClick={onBack}>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 cursor-pointer text-[#1faca6] border-[#1faca6]"
-              disabled={inventory.length === 0}
-              onClick={() => generateSingleBranchPdf(branch, inventory)}
-            >
-              <FileDown className="h-3.5 w-3.5 mr-1.5" />
-              Inventory PDF
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 cursor-pointer text-[#1faca6] border-[#1faca6]"
-              disabled={groupedTransferHistory.length === 0}
-              onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
-            >
-              <FileDown className="h-3.5 w-3.5 mr-1.5" />
-              Transfer PDF
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
-              onClick={onDelete}
-            >
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              Delete branch
-            </Button>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1faca6] text-lg font-bold text-white">
+              {branch.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg font-semibold truncate">{branch.name}</h1>
+                <span className="text-xs text-[hsl(var(--muted-foreground))]">{branch.code}</span>
+                <Badge variant={branch.status === "active" ? "success" : "secondary"} className="text-[10px] px-1.5 py-0">
+                  {branch.status}
+                </Badge>
+                <Badge variant="info" className="text-[10px] px-1.5 py-0">
+                  {branchTypeLabel(branch.type)}
+                </Badge>
+              </div>
+              {mainWarehouseSummary && mainWarehouseSummary.models > 0 && (
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                  {mainWarehouseSummary.boxes} units · {mainWarehouseSummary.models} models · {mainWarehouseSummary.inStock} in stock
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-2 ml-auto">
+            {detailBits.length > 0 && (
+              <div className="hidden sm:block max-w-md text-right text-[11px] leading-snug text-[hsl(var(--muted-foreground))]">
+                {detailBits.map((bit, i) => (
+                  <span key={i}>
+                    {i > 0 && <span className="mx-1.5 text-[hsl(var(--border))]">|</span>}
+                    {bit}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] cursor-pointer" onClick={onEdit}>
+                <Pencil className="h-3 w-3 mr-1" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px] cursor-pointer text-[#1faca6] border-[#1faca6]"
+                disabled={inventory.length === 0}
+                onClick={() => generateSingleBranchPdf(branch, inventory)}
+              >
+                <FileDown className="h-3 w-3 mr-1" />
+                Inv. PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px] cursor-pointer text-[#1faca6] border-[#1faca6]"
+                disabled={groupedTransferHistory.length === 0}
+                onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
+              >
+                <FileDown className="h-3 w-3 mr-1" />
+                Xfer PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px] cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Delete
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-8 space-y-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-[#1faca6] text-4xl font-bold text-white shadow-lg">
-            {branch.name.charAt(0).toUpperCase()}
+      <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-4 sm:px-6">
+        {branch.notes && (
+          <p className="mb-3 text-xs text-[hsl(var(--muted-foreground))] border-b pb-2">
+            <span className="font-medium text-[hsl(var(--foreground))]">Notes: </span>
+            {branch.notes}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-2 border-b">
+          <div className="flex items-center gap-1">
+            {(["inventory", "history"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`relative px-3 py-2 text-xs font-medium capitalize cursor-pointer ${
+                  activeTab === tab
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                {tab === "inventory" ? "Inventory" : "Transfer history"}
+                {tab === "history" && groupedTransferHistory.length > 0 && (
+                  <span className="ml-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+                    ({groupedTransferHistory.length})
+                  </span>
+                )}
+                {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
+              </button>
+            ))}
           </div>
-          <div className="min-w-0 flex-1 space-y-3">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{branch.name}</h1>
-              <p className="text-lg text-[hsl(var(--muted-foreground))] mt-1">{branch.code}</p>
+
+          {activeTab === "inventory" && (
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              {isMainWarehouse ? (
+                <Button
+                  size="sm"
+                  className="h-7 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f]"
+                  onClick={() => openBulkTransfer("dispatch")}
+                >
+                  <ArrowRightLeft className="h-3 w-3 mr-1" />
+                  Send multiple
+                </Button>
+              ) : inventory.length > 0 ? (
+                <>
+                  <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => openBulkTransfer("transfer")}>
+                    Transfer
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs cursor-pointer text-orange-700"
+                    disabled={returningToMain}
+                    onClick={handleReturnInventoryToMain}
+                  >
+                    {returningToMain ? <Loader2 className="h-3 w-3 animate-spin" /> : "Return to main"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs cursor-pointer text-red-600"
+                    disabled={removingAll}
+                    onClick={handleRemoveAllBranchInventory}
+                  >
+                    {removingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : "Remove all"}
+                  </Button>
+                </>
+              ) : null}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={branch.status === "active" ? "success" : "secondary"} className="text-xs px-3 py-1">
-                {branch.status}
-              </Badge>
-              <Badge variant="info" className="text-xs px-3 py-1">
-                {branchTypeLabel(branch.type)}
-              </Badge>
+          )}
+
+          {activeTab === "history" && (
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs cursor-pointer"
+                disabled={groupedTransferHistory.length === 0}
+                onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
+              >
+                <FileDown className="h-3 w-3 mr-1" />
+                PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs cursor-pointer text-red-600"
+                disabled={groupedTransferHistory.length === 0 || clearingHistory}
+                onClick={handleClearTransferHistory}
+              >
+                {clearingHistory ? <Loader2 className="h-3 w-3 animate-spin" /> : "Clear"}
+              </Button>
             </div>
-            {mainWarehouseSummary && mainWarehouseSummary.models > 0 && (
-              <p className="text-base text-[hsl(var(--muted-foreground))]">
-                <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.boxes}</strong> units tracked
-                {" · "}
-                <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.models}</strong> models
-                {" · "}
-                <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.inStock}</strong> in stock
+          )}
+        </div>
+
+        {activeTab === "inventory" && (
+          <div className="mt-3 rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
+            {loadingInventory ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
+              </div>
+            ) : inventory.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                {isMainWarehouse ? "No scanned inventory yet. Use Inventory → Scan QR." : "No inventory at this branch yet."}
               </p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-12">
-          <aside className="xl:col-span-4 space-y-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-              Branch details
-            </h2>
-            {branch.manager && (
-              <div className="flex items-center gap-4 rounded-xl border bg-[hsl(var(--card))] p-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[hsl(var(--muted))]/50">
-                  <User className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase text-[hsl(var(--muted-foreground))]">Manager</p>
-                  <p className="text-base font-semibold">{branch.manager}</p>
-                </div>
-              </div>
-            )}
-            {branch.phone && (
-              <div className="flex items-center gap-4 rounded-xl border bg-[hsl(var(--card))] p-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[hsl(var(--muted))]/50">
-                  <Phone className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase text-[hsl(var(--muted-foreground))]">Phone</p>
-                  <p className="text-base font-semibold">{branch.phone}</p>
-                </div>
-              </div>
-            )}
-            {branch.email && (
-              <div className="flex items-center gap-4 rounded-xl border bg-[hsl(var(--card))] p-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[hsl(var(--muted))]/50">
-                  <Mail className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs uppercase text-[hsl(var(--muted-foreground))]">Email</p>
-                  <p className="text-base font-semibold break-all">{branch.email}</p>
-                </div>
-              </div>
-            )}
-            {(branch.address || branch.city) && (
-              <div className="flex items-start gap-4 rounded-xl border bg-[hsl(var(--card))] p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--muted))]/50">
-                  <MapPin className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase text-[hsl(var(--muted-foreground))]">Address</p>
-                  <p className="text-base font-medium leading-relaxed">
-                    {branch.address}
-                    {branch.city && `, ${branch.city}`}
-                    {branch.country && `, ${branch.country}`}
-                  </p>
-                </div>
-              </div>
-            )}
-            {branch.notes && (
-              <div className="rounded-xl border bg-[hsl(var(--card))] p-4">
-                <p className="text-xs uppercase text-[hsl(var(--muted-foreground))] mb-2">Notes</p>
-                <p className="text-sm leading-relaxed">{branch.notes}</p>
-              </div>
-            )}
-          </aside>
-
-          <div className="xl:col-span-8 space-y-8">
-            <section className="rounded-2xl border bg-[hsl(var(--card))] p-6 shadow-sm">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold">
-                    {isMainWarehouse ? "Main warehouse inventory" : "Branch inventory"}
-                  </h2>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-                    {isMainWarehouse
-                      ? "Stock available to send to branch warehouses"
-                      : "Items currently held at this location"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {isMainWarehouse ? (
-                    <Button className="h-10 cursor-pointer bg-[#1faca6] hover:bg-[#17857f]" onClick={() => openBulkTransfer("dispatch")}>
-                      <ArrowRightLeft className="h-4 w-4 mr-2" />
-                      Send multiple
-                    </Button>
-                  ) : inventory.length > 0 ? (
-                    <>
-                      <Button variant="outline" className="h-10 cursor-pointer" onClick={() => openBulkTransfer("transfer")}>
-                        <ArrowRightLeft className="h-4 w-4 mr-2" />
-                        Transfer
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-10 cursor-pointer text-orange-700 border-orange-300"
-                        disabled={returningToMain}
-                        onClick={handleReturnInventoryToMain}
-                      >
-                        {returningToMain ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4 mr-2" />}
-                        Return to main
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-10 cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
-                        disabled={removingAll}
-                        onClick={handleRemoveAllBranchInventory}
-                      >
-                        {removingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                        Remove all
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-
-              {loadingInventory ? (
-                <div className="flex justify-center py-16">
-                  <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--muted-foreground))]" />
-                </div>
-              ) : inventory.length === 0 ? (
-                <p className="py-12 text-center text-base text-[hsl(var(--muted-foreground))]">
-                  {isMainWarehouse ? "No scanned inventory yet. Use Inventory → Scan QR." : "No inventory at this branch yet."}
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {inventory.map((inv) => (
-                    <div key={inv.id} className="rounded-xl border bg-[hsl(var(--background))] p-4 hover:border-[#1faca6]/40 transition-colors">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-base font-semibold leading-snug truncate">
-                            {inv.itemName || inv.productDescription || inv.inventoryId}
-                          </p>
-                          {inv.model && (
-                            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 truncate">{inv.model}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      <th className="px-3 py-2 font-medium">Product</th>
+                      <th className="px-3 py-2 font-medium">Model</th>
+                      {isMainWarehouse && <th className="px-3 py-2 font-medium text-right">In stock</th>}
+                      <th className="px-3 py-2 font-medium text-right">Qty</th>
+                      <th className="px-3 py-2 font-medium">Unit</th>
+                      {!isMainWarehouse && <th className="px-3 py-2 font-medium">Added</th>}
+                      <th className="px-3 py-2 font-medium text-right w-[140px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventory.map((inv) => {
+                      const canSend = isMainWarehouse && (inv.inStock ?? inv.quantity) > 0
+                      return (
+                        <tr key={inv.id} className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/10">
+                          <td className="px-3 py-2 font-medium max-w-[200px] truncate">
+                            {inv.itemName || inv.productDescription || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-[120px] truncate">
+                            {inv.model || "—"}
+                          </td>
+                          {isMainWarehouse && (
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {inv.inStock ?? inv.quantity}/{inv.totalUnits ?? "—"}
+                            </td>
                           )}
-                          {isMainWarehouse && inv.totalUnits != null && (
-                            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-2">
-                              {inv.inStock ?? inv.quantity}/{inv.totalUnits} in stock
-                            </p>
+                          <td className="px-3 py-2 text-right tabular-nums font-medium">{inv.quantity}</td>
+                          <td className="px-3 py-2">{inv.unit || "pcs"}</td>
+                          {!isMainWarehouse && (
+                            <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
+                              {inv.assignedAt ? new Date(inv.assignedAt).toLocaleDateString() : "—"}
+                            </td>
                           )}
-                          {!isMainWarehouse && inv.assignedAt && (
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
-                              Added {new Date(inv.assignedAt).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                        <Badge variant="secondary" className="text-sm px-2.5 py-1 shrink-0">
-                          {inv.quantity} {inv.unit}
-                        </Badge>
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {!isMainWarehouse && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs cursor-pointer"
-                              onClick={() => openBulkTransfer("transfer", inv.id)}
-                            >
-                              <ArrowRightLeft className="h-3 w-3 mr-1" />
-                              Transfer
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs cursor-pointer text-red-600 border-red-200 hover:bg-red-50"
-                              disabled={deletingInvId === inv.id}
-                              onClick={() => handleRemoveInventoryItem(inv)}
-                            >
-                              {deletingInvId === inv.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3 w-3 mr-1" />
+                          <td className="px-3 py-2">
+                            <div className="flex justify-end gap-1">
+                              {isMainWarehouse && canSend && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] cursor-pointer"
+                                  onClick={() => openBulkTransfer("dispatch", inv.id)}
+                                >
+                                  Send
+                                </Button>
                               )}
-                              Remove
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-2xl border bg-[hsl(var(--card))] p-6 shadow-sm">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <History className="h-5 w-5 text-[#1faca6]" />
-                  <div>
-                    <h2 className="text-xl font-bold">Transfer history</h2>
-                    <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                      {groupedTransferHistory.length} record{groupedTransferHistory.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-10 cursor-pointer"
-                    disabled={groupedTransferHistory.length === 0}
-                    onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
-                  >
-                    <FileDown className="h-4 w-4 mr-2" />
-                    Download PDF
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-10 cursor-pointer text-red-600 border-red-300"
-                    disabled={groupedTransferHistory.length === 0 || clearingHistory}
-                    onClick={handleClearTransferHistory}
-                  >
-                    {clearingHistory ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                    Clear history
-                  </Button>
-                </div>
-              </div>
-
-              {loadingTransferHistory ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              ) : groupedTransferHistory.length === 0 ? (
-                <p className="py-10 text-center text-base text-[hsl(var(--muted-foreground))]">
-                  No inventory transfers recorded for this branch yet.
-                </p>
-              ) : (
-                <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-                  {groupedTransferHistory.map((entry) => {
-                    const isOutgoing = entry.fromBranchId === branch.id
-                    const isIncoming = entry.toBranchId === branch.id
-                    return (
-                      <div key={entry.id} className="rounded-xl border bg-[hsl(var(--background))] p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              {isOutgoing ? (
-                                <ArrowUpRight className="h-4 w-4 text-orange-500 shrink-0" />
-                              ) : isIncoming ? (
-                                <ArrowDownLeft className="h-4 w-4 text-green-600 shrink-0" />
-                              ) : (
-                                <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                              {!isMainWarehouse && inv.quantity > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] cursor-pointer"
+                                  onClick={() => openBulkTransfer("transfer", inv.id)}
+                                >
+                                  Transfer
+                                </Button>
                               )}
-                              <p className="text-base font-semibold">{entry.productDescription}</p>
-                              {entry.isBatch && <Badge variant="info" className="text-[10px]">Batch</Badge>}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-[10px] cursor-pointer text-red-600 border-red-200 hover:bg-red-50"
+                                disabled={deletingInvId === inv.id}
+                                onClick={() => handleRemoveInventoryItem(inv)}
+                              >
+                                {deletingInvId === inv.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Trash2 className="h-3 w-3 mr-0.5" />
+                                    {isMainWarehouse ? "Delete" : "Remove"}
+                                  </>
+                                )}
+                              </Button>
                             </div>
-                            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-2">
-                              {isOutgoing
-                                ? `To ${entry.toBranchName} (${entry.toBranchCode})`
-                                : isIncoming
-                                  ? `From ${entry.fromBranchName} (${entry.fromBranchCode})`
-                                  : `${entry.fromBranchName} → ${entry.toBranchName}`}
-                            </p>
-                            {entry.isBatch && entry.lineItems.length > 0 && (
-                              <ul className="mt-3 space-y-1 text-sm">
-                                {entry.lineItems.map((line, idx) => (
-                                  <li key={`${entry.id}-${idx}`}>
-                                    {line.quantity} {line.unit} × {line.productDescription}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                          <div className="text-right shrink-0">
-                            <Badge className="text-sm mb-2">
-                              {entry.quantity} {entry.unit}
-                            </Badge>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                              {new Date(entry.transferredAt).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{entry.transferredBy}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {activeTab === "history" && (
+          <div className="mt-3 rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
+            {loadingTransferHistory ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : groupedTransferHistory.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                No inventory transfers recorded for this branch yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto max-h-[min(70vh,560px)] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 z-10 bg-[hsl(var(--card))]">
+                    <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      <th className="px-3 py-2 w-8" />
+                      <th className="px-3 py-2 font-medium">Product</th>
+                      <th className="px-3 py-2 font-medium">Route</th>
+                      <th className="px-3 py-2 font-medium text-right">Qty</th>
+                      <th className="px-3 py-2 font-medium">Date</th>
+                      <th className="px-3 py-2 font-medium">By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedTransferHistory.map((entry) => {
+                      const isOutgoing = entry.fromBranchId === branch.id
+                      const isIncoming = entry.toBranchId === branch.id
+                      const route = isOutgoing
+                        ? `→ ${entry.toBranchName} (${entry.toBranchCode})`
+                        : isIncoming
+                          ? `← ${entry.fromBranchName} (${entry.fromBranchCode})`
+                          : `${entry.fromBranchCode} → ${entry.toBranchCode}`
+                      const productCell =
+                        entry.isBatch && entry.lineItems.length > 0
+                          ? entry.lineItems
+                              .map((l) => `${l.quantity} ${l.unit} × ${l.productDescription}`)
+                              .join("; ")
+                          : entry.productDescription
+                      return (
+                        <tr key={entry.id} className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/10 align-top">
+                          <td className="px-3 py-2">
+                            {isOutgoing ? (
+                              <ArrowUpRight className="h-3.5 w-3.5 text-orange-500" />
+                            ) : isIncoming ? (
+                              <ArrowDownLeft className="h-3.5 w-3.5 text-green-600" />
+                            ) : (
+                              <ArrowRightLeft className="h-3.5 w-3.5" />
+                            )}
+                          </td>
+                          <td className="px-3 py-2 max-w-[240px]">
+                            <span className="font-medium line-clamp-2">{productCell}</span>
+                            {entry.isBatch && (
+                              <Badge variant="info" className="mt-1 text-[9px] px-1 py-0">
+                                Batch
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] whitespace-nowrap">{route}</td>
+                          <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                            {entry.quantity} {entry.unit}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-[hsl(var(--muted-foreground))]">
+                            {new Date(entry.transferredAt).toLocaleString(undefined, {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </td>
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-[100px] truncate">
+                            {entry.transferredBy}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <BulkBranchTransferModal

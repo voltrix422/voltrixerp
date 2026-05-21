@@ -121,19 +121,47 @@ export async function PUT(req: NextRequest) {
   return NextResponse.json(unit)
 }
 
+async function deleteSerialUnitAndWarranties(unit: {
+  id: string
+  warrantyId: string | null
+  serialNumber: string | null
+}) {
+  await prisma.erpWarrantyClaim.deleteMany({ where: { unitId: unit.id } })
+  if (unit.warrantyId) {
+    await prisma.erpWarranty.deleteMany({ where: { warrantyId: unit.warrantyId } })
+  }
+  if (unit.serialNumber) {
+    await prisma.erpWarranty.deleteMany({ where: { serialNumber: unit.serialNumber } })
+  }
+  await prisma.erpInventorySerialUnit.delete({ where: { id: unit.id } })
+}
+
 export async function DELETE(req: NextRequest) {
   let id: string | null = new URL(req.url).searchParams.get("id")
-  if (!id) {
-    try {
-      const body = await req.json()
-      id = body?.id ? String(body.id) : null
-    } catch {
-      id = null
+  let model: string | null = null
+  try {
+    const body = await req.json()
+    if (body?.id) id = String(body.id)
+    if (body?.model) model = String(body.model).trim()
+  } catch {
+    // query param id only
+  }
+
+  if (model) {
+    const units = await prisma.erpInventorySerialUnit.findMany({
+      where: { model },
+    })
+    if (units.length === 0) {
+      return NextResponse.json({ error: "No scanned units for this model" }, { status: 404 })
     }
+    for (const unit of units) {
+      await deleteSerialUnitAndWarranties(unit)
+    }
+    return NextResponse.json({ ok: true, deleted: units.length })
   }
 
   if (!id) {
-    return NextResponse.json({ error: "Unit ID is required" }, { status: 400 })
+    return NextResponse.json({ error: "Unit ID or model is required" }, { status: 400 })
   }
 
   const unit = await prisma.erpInventorySerialUnit.findUnique({ where: { id } })
@@ -141,18 +169,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 })
   }
 
-  await prisma.erpWarrantyClaim.deleteMany({ where: { unitId: id } })
-
-  if (unit.warrantyId) {
-    await prisma.erpWarranty.deleteMany({ where: { warrantyId: unit.warrantyId } })
-  }
-  if (unit.serialNumber) {
-    await prisma.erpWarranty.deleteMany({
-      where: { serialNumber: unit.serialNumber },
-    })
-  }
-
-  await prisma.erpInventorySerialUnit.delete({ where: { id } })
-
-  return NextResponse.json({ ok: true })
+  await deleteSerialUnitAndWarranties(unit)
+  return NextResponse.json({ ok: true, deleted: 1 })
 }
