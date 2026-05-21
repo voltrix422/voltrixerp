@@ -31,6 +31,7 @@ import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
 import { deleteInventorySerialUnitsByModel } from "@/lib/inventory-serial-units"
+import { InventorySerialView } from "@/components/inventory/inventory-serial-view"
 
 async function generateSingleBranchPdf(branch: Branch, inventoryRows: BranchInventory[]) {
   const [{ default: jsPDF }, autoTableModule] = await Promise.all([
@@ -303,14 +304,6 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
     [transferHistory],
   )
 
-  const mainWarehouseSummary = isMainWarehouse
-    ? {
-        models: inventory.length,
-        boxes: inventory.reduce((sum, row) => sum + (row.totalUnits ?? row.quantity ?? 0), 0),
-        inStock: inventory.reduce((sum, row) => sum + (row.inStock ?? row.quantity ?? 0), 0),
-      }
-    : null
-
   const detailBits: string[] = []
   if (branch.manager) detailBits.push(`Mgr: ${branch.manager}`)
   if (branch.phone) detailBits.push(branch.phone)
@@ -342,11 +335,6 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                   {branchTypeLabel(branch.type)}
                 </Badge>
               </div>
-              {mainWarehouseSummary && mainWarehouseSummary.models > 0 && (
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                  {mainWarehouseSummary.boxes} units · {mainWarehouseSummary.models} models · {mainWarehouseSummary.inStock} in stock
-                </p>
-              )}
             </div>
           </div>
 
@@ -432,18 +420,9 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
             ))}
           </div>
 
-          {activeTab === "inventory" && (
+          {activeTab === "inventory" && !isMainWarehouse && (
             <div className="flex flex-wrap gap-1.5 pb-1">
-              {isMainWarehouse ? (
-                <Button
-                  size="sm"
-                  className="h-7 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f]"
-                  onClick={() => openBulkTransfer("dispatch")}
-                >
-                  <ArrowRightLeft className="h-3 w-3 mr-1" />
-                  Send multiple
-                </Button>
-              ) : inventory.length > 0 ? (
+              {inventory.length > 0 ? (
                 <>
                   <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => openBulkTransfer("transfer")}>
                     Transfer
@@ -496,7 +475,27 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
           )}
         </div>
 
-        {activeTab === "inventory" && (
+        {activeTab === "inventory" && isMainWarehouse && (
+          <div className="mt-3">
+            <InventorySerialView
+              embedded
+              onUnitsChanged={() => void reloadInventory()}
+              toolbarEnd={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs cursor-pointer border-[#1faca6] text-[#1faca6] hover:bg-[#1faca6]/10"
+                  onClick={() => openBulkTransfer("dispatch")}
+                >
+                  <ArrowRightLeft className="h-3 w-3 mr-1" />
+                  Send multiple
+                </Button>
+              }
+            />
+          </div>
+        )}
+
+        {activeTab === "inventory" && !isMainWarehouse && (
           <div className="mt-3 rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
             {loadingInventory ? (
               <div className="flex justify-center py-10">
@@ -504,7 +503,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
               </div>
             ) : inventory.length === 0 ? (
               <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                {isMainWarehouse ? "No scanned inventory yet. Use Inventory → Scan QR." : "No inventory at this branch yet."}
+                No inventory at this branch yet.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -513,17 +512,14 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                     <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                       <th className="px-3 py-2 font-medium">Product</th>
                       <th className="px-3 py-2 font-medium">Model</th>
-                      {isMainWarehouse && <th className="px-3 py-2 font-medium text-right">In stock</th>}
                       <th className="px-3 py-2 font-medium text-right">Qty</th>
                       <th className="px-3 py-2 font-medium">Unit</th>
-                      {!isMainWarehouse && <th className="px-3 py-2 font-medium">Added</th>}
+                      <th className="px-3 py-2 font-medium">Added</th>
                       <th className="px-3 py-2 font-medium text-right w-[140px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {inventory.map((inv) => {
-                      const canSend = isMainWarehouse && (inv.inStock ?? inv.quantity) > 0
-                      return (
+                    {inventory.map((inv) => (
                         <tr key={inv.id} className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/10">
                           <td className="px-3 py-2 font-medium max-w-[200px] truncate">
                             {inv.itemName || inv.productDescription || "—"}
@@ -531,31 +527,14 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                           <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-[120px] truncate">
                             {inv.model || "—"}
                           </td>
-                          {isMainWarehouse && (
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {inv.inStock ?? inv.quantity}/{inv.totalUnits ?? "—"}
-                            </td>
-                          )}
                           <td className="px-3 py-2 text-right tabular-nums font-medium">{inv.quantity}</td>
                           <td className="px-3 py-2">{inv.unit || "pcs"}</td>
-                          {!isMainWarehouse && (
-                            <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
-                              {inv.assignedAt ? new Date(inv.assignedAt).toLocaleDateString() : "—"}
-                            </td>
-                          )}
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
+                            {inv.assignedAt ? new Date(inv.assignedAt).toLocaleDateString() : "—"}
+                          </td>
                           <td className="px-3 py-2">
                             <div className="flex justify-end gap-1">
-                              {isMainWarehouse && canSend && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 px-2 text-[10px] cursor-pointer"
-                                  onClick={() => openBulkTransfer("dispatch", inv.id)}
-                                >
-                                  Send
-                                </Button>
-                              )}
-                              {!isMainWarehouse && inv.quantity > 0 && (
+                              {inv.quantity > 0 && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -577,15 +556,14 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                                 ) : (
                                   <>
                                     <Trash2 className="h-3 w-3 mr-0.5" />
-                                    {isMainWarehouse ? "Delete" : "Remove"}
+                                    Remove
                                   </>
                                 )}
                               </Button>
                             </div>
                           </td>
                         </tr>
-                      )
-                    })}
+                      ))}
                   </tbody>
                 </table>
               </div>

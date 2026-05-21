@@ -51,10 +51,10 @@ export function InventoryModelGroup({
   const title = customName || modelKey
 
   return (
-    <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+    <div className="bg-[hsl(var(--background))]">
       {isEditing ? (
         <div
-          className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-[hsl(var(--border))]"
+          className="flex flex-wrap items-center gap-2 px-3 py-2 bg-[hsl(var(--muted))]/10"
           onClick={(e) => e.stopPropagation()}
         >
           <input
@@ -78,7 +78,7 @@ export function InventoryModelGroup({
       ) : (
         <button
           type="button"
-          className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[hsl(var(--muted))]/15"
+          className="w-full grid grid-cols-[20px_minmax(0,1fr)_minmax(0,1fr)_72px_72px_56px] sm:grid-cols-[20px_minmax(0,1fr)_minmax(0,1fr)_72px_72px_56px] gap-2 items-center px-3 py-2.5 text-left hover:bg-[hsl(var(--muted))]/12 transition-colors"
           onClick={onToggle}
           aria-expanded={expanded}
         >
@@ -87,22 +87,20 @@ export function InventoryModelGroup({
           ) : (
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" />
           )}
-          <span className="min-w-0 flex-1 text-xs font-medium truncate">{title}</span>
-          {customName && customName !== modelKey ? (
-            <span className="hidden sm:inline text-[10px] font-mono text-[hsl(var(--muted-foreground))] truncate max-w-[36%]">
-              {modelKey}
-            </span>
-          ) : null}
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums shrink-0">
+          <span className="min-w-0 text-xs font-medium truncate text-left">{title}</span>
+          <span className="min-w-0 text-[10px] font-mono text-[hsl(var(--muted-foreground))] truncate text-left hidden sm:block">
+            {modelKey}
+          </span>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums text-right sm:col-start-4 col-start-3">
             {inStock}/{count}
           </span>
-          <span className="text-[10px] font-medium text-[#1faca6] tabular-nums shrink-0">
+          <span className="text-[10px] font-medium text-[#1faca6] tabular-nums text-right sm:col-start-5 col-start-4">
             {count} {count === 1 ? "pc" : "pcs"}
           </span>
           <span
             role="button"
             tabIndex={0}
-            className="p-0.5 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
+            className="flex justify-end p-0.5 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] sm:col-start-6 col-start-5"
             onClick={onStartEdit}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") onStartEdit(e as unknown as MouseEvent)

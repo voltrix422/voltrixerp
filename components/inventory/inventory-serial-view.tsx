@@ -182,7 +182,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   }
 
   function handleScanSaved() {
-    void loadUnits()
+    void loadUnits().then(() => onUnitsChanged?.())
     setShowQrModal(false)
   }
 
@@ -194,6 +194,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     try {
       await deleteInventorySerialUnit(unit.id)
       setUnits((prev) => prev.filter((u) => u.id !== unit.id))
+      onUnitsChanged?.()
       toast({
         title: "Removed",
         message: `SN ${unit.serialNumber} deleted from inventory.`,
@@ -219,32 +220,36 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     )
   }
 
+  const statItems = [
+    { label: "Boxes", value: totalBoxes },
+    { label: "Models", value: groupedByModel.length },
+    { label: "In stock", value: inStockCount },
+  ]
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 -mx-6 px-6">
-        <div className="flex flex-wrap items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
-          <span>
-            <strong className="text-[hsl(var(--foreground))]">{totalBoxes}</strong> box
-            {totalBoxes !== 1 ? "es" : ""}
-          </span>
-          <span>·</span>
-          <span>
-            <strong className="text-[hsl(var(--foreground))]">{groupedByModel.length}</strong> model
-            {groupedByModel.length !== 1 ? "s" : ""}
-          </span>
-          <span>·</span>
-          <span>
-            <strong className="text-[hsl(var(--foreground))]">{inStockCount}</strong> in stock
-          </span>
+    <div className={embedded ? "space-y-3" : "space-y-4"}>
+      <div
+        className={`rounded-lg border bg-[hsl(var(--card))] p-3 ${embedded ? "" : "shadow-sm"}`}
+      >
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {statItems.map((s) => (
+            <div
+              key={s.label}
+              className="flex items-center gap-2 rounded-md border bg-[hsl(var(--background))] px-3 py-1.5 min-w-[88px]"
+            >
+              <span className="text-lg font-semibold tabular-nums text-[#1faca6] leading-none">{s.value}</span>
+              <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{s.label}</span>
+            </div>
+          ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:w-56">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+          <div className="relative flex-1 min-w-[160px] max-w-md">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search model, SN…"
-              className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+              className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50"
             />
           </div>
           <CrmExcelExportButton
@@ -254,23 +259,24 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           />
           <Button
             size="sm"
-            className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5"
+            className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 shrink-0"
             onClick={() => setShowQrModal(true)}
           >
             <QrCode className="h-3.5 w-3.5" />
             Scan QR
           </Button>
+          {toolbarEnd}
         </div>
       </div>
 
       {totalBoxes === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center text-[hsl(var(--muted-foreground))] border border-dashed rounded-lg">
-          <Package className="h-10 w-10 opacity-30 mb-3" />
+        <div className="flex flex-col items-center justify-center py-14 text-center text-[hsl(var(--muted-foreground))] rounded-lg border border-dashed bg-[hsl(var(--card))]/50">
+          <Package className="h-9 w-9 opacity-30 mb-2" />
           <p className="text-sm font-medium text-[hsl(var(--foreground))]">No inventory yet</p>
-          <p className="text-xs mt-1 max-w-sm">Tap Scan QR to receive boxes into the warehouse.</p>
+          <p className="text-xs mt-1 max-w-sm">Scan QR to add boxes to the warehouse.</p>
           <Button
             size="sm"
-            className="mt-4 h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
+            className="mt-3 h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
             onClick={() => setShowQrModal(true)}
           >
             <QrCode className="h-3.5 w-3.5 mr-1.5" />
@@ -278,7 +284,15 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           </Button>
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className="rounded-lg border overflow-hidden bg-[hsl(var(--card))]">
+          <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_72px_72px_56px] gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/25 text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+            <span>Model / product</span>
+            <span>Model code</span>
+            <span className="text-right">Stock</span>
+            <span className="text-right">Units</span>
+            <span />
+          </div>
+          <div className="divide-y">
           {groupedByModel.map(([modelKey, modelUnits]) => (
             <InventoryModelGroup
               key={modelKey}
@@ -298,6 +312,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
               onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
             />
           ))}
+          </div>
         </div>
       )}
 
