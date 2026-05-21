@@ -30,8 +30,7 @@ import {
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
-import { InventorySerialView } from "@/components/inventory/inventory-serial-view"
-import { BranchInventoryCompactList } from "@/components/branches/branch-inventory-compact-list"
+import { deleteInventorySerialUnitsByModel } from "@/lib/inventory-serial-units"
 
 async function generateSingleBranchPdf(branch: Branch, inventoryRows: BranchInventory[]) {
   const [{ default: jsPDF }, autoTableModule] = await Promise.all([
@@ -183,18 +182,31 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
 
   async function handleRemoveInventoryItem(inv: BranchInventory) {
     const label = inv.itemName || inv.productDescription || inv.model || inv.inventoryId
+    const modelKey = inv.model || (inv.id.startsWith("wh:") ? inv.id.slice(3) : null)
     const ok = await confirm({
       type: "confirm",
-      title: "Remove from branch",
-      message: `Remove ${inv.quantity} ${inv.unit} of "${label}" from ${branch.name}? Stock returns to the main warehouse.`,
-      confirmLabel: "Remove",
+      title: isMainWarehouse ? "Delete from inventory" : "Remove from branch",
+      message: isMainWarehouse && modelKey
+        ? `Delete all ${inv.totalUnits ?? inv.quantity} scanned unit(s) for "${label}"? This cannot be undone.`
+        : `Remove ${inv.quantity} ${inv.unit} of "${label}" from ${branch.name}? Stock returns to the main warehouse.`,
+      confirmLabel: isMainWarehouse ? "Delete" : "Remove",
     })
     if (!ok) return
     setDeletingInvId(inv.id)
     try {
-      await removeBranchInventory(inv.id)
-      await reloadInventory()
-      toast({ type: "success", title: "Removed", message: `${label} removed from this branch.` })
+      if (isMainWarehouse && modelKey) {
+        const deleted = await deleteInventorySerialUnitsByModel(modelKey)
+        await reloadInventory()
+        toast({
+          type: "success",
+          title: "Deleted",
+          message: `${deleted} unit(s) removed for ${label}.`,
+        })
+      } else {
+        await removeBranchInventory(inv.id)
+        await reloadInventory()
+        toast({ type: "success", title: "Removed", message: `${label} removed from this branch.` })
+      }
     } catch {
       toast({ type: "error", title: "Failed", message: "Could not remove this item." })
     } finally {
@@ -332,13 +344,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
               </div>
               {mainWarehouseSummary && mainWarehouseSummary.models > 0 && (
                 <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                  <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.boxes}</strong> box
-                  {mainWarehouseSummary.boxes !== 1 ? "es" : ""}
-                  {" · "}
-                  <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.models}</strong> model
-                  {mainWarehouseSummary.models !== 1 ? "s" : ""}
-                  {" · "}
-                  <strong className="text-[hsl(var(--foreground))]">{mainWarehouseSummary.inStock}</strong> in stock
+                  {mainWarehouseSummary.boxes} units · {mainWarehouseSummary.models} models · {mainWarehouseSummary.inStock} in stock
                 </p>
               )}
             </div>
@@ -426,9 +432,18 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
             ))}
           </div>
 
-          {activeTab === "inventory" && !isMainWarehouse && (
+          {activeTab === "inventory" && (
             <div className="flex flex-wrap gap-1.5 pb-1">
-              {inventory.length > 0 ? (
+              {isMainWarehouse ? (
+                <Button
+                  size="sm"
+                  className="h-7 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f]"
+                  onClick={() => openBulkTransfer("dispatch")}
+                >
+                  <ArrowRightLeft className="h-3 w-3 mr-1" />
+                  Send multiple
+                </Button>
+              ) : inventory.length > 0 ? (
                 <>
                   <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => openBulkTransfer("transfer")}>
                     Transfer
@@ -481,42 +496,99 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
           )}
         </div>
 
-        {activeTab === "inventory" && isMainWarehouse && (
-          <div className="mt-3">
-            <InventorySerialView
-              embedded
-              onUnitsChanged={() => void reloadInventory()}
-              toolbarEnd={
-                <Button
-                  size="sm"
-                  className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 cursor-pointer"
-                  onClick={() => openBulkTransfer("dispatch")}
-                >
-                  <ArrowRightLeft className="h-3.5 w-3.5" />
-                  Send multiple
-                </Button>
-              }
-            />
-          </div>
-        )}
-
-        {activeTab === "inventory" && !isMainWarehouse && (
-          <div className="mt-3">
+        {activeTab === "inventory" && (
+          <div className="mt-3 rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
             {loadingInventory ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
               </div>
             ) : inventory.length === 0 ? (
-              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))] border border-dashed rounded-lg">
-                No inventory at this branch yet.
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                {isMainWarehouse ? "No scanned inventory yet. Use Inventory → Scan QR." : "No inventory at this branch yet."}
               </p>
             ) : (
-              <BranchInventoryCompactList
-                items={inventory}
-                deletingId={deletingInvId}
-                onTransfer={(inv) => openBulkTransfer("transfer", inv.id)}
-                onRemove={(inv) => void handleRemoveInventoryItem(inv)}
-              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      <th className="px-3 py-2 font-medium">Product</th>
+                      <th className="px-3 py-2 font-medium">Model</th>
+                      {isMainWarehouse && <th className="px-3 py-2 font-medium text-right">In stock</th>}
+                      <th className="px-3 py-2 font-medium text-right">Qty</th>
+                      <th className="px-3 py-2 font-medium">Unit</th>
+                      {!isMainWarehouse && <th className="px-3 py-2 font-medium">Added</th>}
+                      <th className="px-3 py-2 font-medium text-right w-[140px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventory.map((inv) => {
+                      const canSend = isMainWarehouse && (inv.inStock ?? inv.quantity) > 0
+                      return (
+                        <tr key={inv.id} className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/10">
+                          <td className="px-3 py-2 font-medium max-w-[200px] truncate">
+                            {inv.itemName || inv.productDescription || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-[120px] truncate">
+                            {inv.model || "—"}
+                          </td>
+                          {isMainWarehouse && (
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {inv.inStock ?? inv.quantity}/{inv.totalUnits ?? "—"}
+                            </td>
+                          )}
+                          <td className="px-3 py-2 text-right tabular-nums font-medium">{inv.quantity}</td>
+                          <td className="px-3 py-2">{inv.unit || "pcs"}</td>
+                          {!isMainWarehouse && (
+                            <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
+                              {inv.assignedAt ? new Date(inv.assignedAt).toLocaleDateString() : "—"}
+                            </td>
+                          )}
+                          <td className="px-3 py-2">
+                            <div className="flex justify-end gap-1">
+                              {isMainWarehouse && canSend && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] cursor-pointer"
+                                  onClick={() => openBulkTransfer("dispatch", inv.id)}
+                                >
+                                  Send
+                                </Button>
+                              )}
+                              {!isMainWarehouse && inv.quantity > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] cursor-pointer"
+                                  onClick={() => openBulkTransfer("transfer", inv.id)}
+                                >
+                                  Transfer
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-[10px] cursor-pointer text-red-600 border-red-200 hover:bg-red-50"
+                                disabled={deletingInvId === inv.id}
+                                onClick={() => handleRemoveInventoryItem(inv)}
+                              >
+                                {deletingInvId === inv.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Trash2 className="h-3 w-3 mr-0.5" />
+                                    {isMainWarehouse ? "Delete" : "Remove"}
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}

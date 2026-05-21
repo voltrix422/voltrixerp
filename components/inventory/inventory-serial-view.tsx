@@ -184,7 +184,6 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   function handleScanSaved() {
     void loadUnits()
     setShowQrModal(false)
-    onUnitsChanged?.()
   }
 
   async function handleDeleteUnit(unit: InventorySerialUnit) {
@@ -195,7 +194,6 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     try {
       await deleteInventorySerialUnit(unit.id)
       setUnits((prev) => prev.filter((u) => u.id !== unit.id))
-      onUnitsChanged?.()
       toast({
         title: "Removed",
         message: `SN ${unit.serialNumber} deleted from inventory.`,
@@ -223,11 +221,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
 
   return (
     <div className="space-y-3">
-      <div
-        className={`flex flex-wrap items-center justify-between gap-2 border-b pb-2 ${
-          embedded ? "" : "-mx-6 px-6"
-        }`}
-      >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 -mx-6 px-6">
         <div className="flex flex-wrap items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
           <span>
             <strong className="text-[hsl(var(--foreground))]">{totalBoxes}</strong> box
@@ -266,7 +260,6 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
             <QrCode className="h-3.5 w-3.5" />
             Scan QR
           </Button>
-          {toolbarEnd}
         </div>
       </div>
 
