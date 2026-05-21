@@ -41,7 +41,7 @@ async function generateSingleBranchPdf(branch: Branch, inventoryRows: BranchInve
     import("jspdf"),
     import("jspdf-autotable"),
   ])
-  const autoTable = (autoTableModule as { default?: typeof import("jspdf-autotable") }).default || autoTableModule
+  const autoTable = (autoTableModule as any).default || autoTableModule
   const doc = new jsPDF("p", "mm", "a4")
   doc.setFontSize(14)
   doc.text(`Inventory Report: ${branch.name}`, 14, 16)
