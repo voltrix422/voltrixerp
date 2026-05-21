@@ -10,7 +10,7 @@ export function isLegacyStoredProductTerms(content: string): boolean {
     c.includes("wl-16 model") ||
     c.includes("5 year warranty + 5 year cell") ||
     c.includes("cell replacement") ||
-    !c.includes("thorough inspection")
+    !c.includes("inspected and investigated at the company")
   )
 }
 

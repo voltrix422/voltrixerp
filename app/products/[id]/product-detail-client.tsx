@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from "next/image"
 import Link from "next/link"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight, FileText } from "lucide-react"
+import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductBrochurePanel from "@/components/products/product-brochure-panel"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 
@@ -295,13 +296,16 @@ export default function ProductDetailClient({
   product, 
   related, 
   categoryColors,
+  termsDisplay,
 }: { 
   product: any
   related: any[]
   categoryColors: Record<string, string>
+  termsDisplay: { content: string; fileUrl?: string | null }
 }) {
   const images = Array.isArray(product.images) ? product.images : []
   const [activeTab, setActiveTab] = useState<TabType>("description")
+  const [termsOpen, setTermsOpen] = useState(false)
   const requestQuote = shouldRequestQuote(product)
   const hasBrochure = Boolean(product.brochureUrl)
 
@@ -385,6 +389,13 @@ export default function ProductDetailClient({
                     Specifications
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setTermsOpen(true)}
+                  className="px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px border-transparent text-neutral-500 hover:text-neutral-700 hover:border-[#1a9f9a]/40"
+                >
+                  Terms & Conditions
+                </button>
                 {hasBrochure && (
                   <button
                     onClick={() => setActiveTab('brochure')}
@@ -465,6 +476,12 @@ export default function ProductDetailClient({
         )}
       </div>
 
+      <ProductTermsModal
+        open={termsOpen}
+        onClose={() => setTermsOpen(false)}
+        productName={product.name}
+        termsDisplay={termsDisplay}
+      />
     </section>
   )
 }

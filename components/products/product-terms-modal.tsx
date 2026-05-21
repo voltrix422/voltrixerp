@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle2, Download, Loader2, X } from "lucide-react"
+import { Download, Loader2, X } from "lucide-react"
 import type { ProductTermsDisplay } from "@/lib/product-terms"
 import { decomposeProductTermsContent, parseProductTermsContent } from "@/lib/parse-product-terms"
 import { downloadProductTermsPDF } from "@/lib/generate-product-terms-pdf"
@@ -104,7 +104,9 @@ export default function ProductTermsModal({ open, onClose, productName, termsDis
                     key={`${index}-${bullet.slice(0, 24)}`}
                     className="flex gap-3 rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-3"
                   >
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#1a9f9a]" />
+                    <span className="mt-0.5 shrink-0 text-[#1a9f9a] font-bold" aria-hidden>
+                      ➤
+                    </span>
                     <span className="text-sm leading-7 text-neutral-700">{bullet}</span>
                   </li>
                 ))}

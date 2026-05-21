@@ -15,7 +15,10 @@ export function composeProductTermsContent(params: {
   const intro = params.intro.trim()
   const bullets = params.bullets.map((line) => line.trim()).filter(Boolean)
   const bulletBlock = bullets
-    .map((line) => (line.startsWith("-") || line.startsWith("•") ? line : `- ${line}`))
+    .map((line) => {
+      const t = line.trim().replace(/^[➤•*-]\s*/, "")
+      return `➤ ${t}`
+    })
     .join("\n")
 
   const parts = [head]
@@ -89,7 +92,7 @@ export function parseProductTermsContent(content: string): ParsedProductTerms {
 function extractBullets(section: string): string[] {
   return section
     .split("\n")
-    .map((line) => line.replace(/^[-•*]\s*/, "").trim())
+    .map((line) => line.replace(/^[➤•*-]\s*/, "").trim())
     .filter(Boolean)
 }
 

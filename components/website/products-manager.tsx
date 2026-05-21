@@ -192,6 +192,10 @@ export default function ProductsManager() {
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
         brochureUrl: form.brochureUrl, brochureName: form.brochureName,
+        terms: "",
+        termsUseCustom: false,
+        termsTemplateId: "",
+        termsFile: "",
       }
 
       if (isNew) {

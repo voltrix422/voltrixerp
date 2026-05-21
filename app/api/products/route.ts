@@ -102,7 +102,13 @@ export async function POST(request: NextRequest) {
     product.id = product.id || crypto.randomUUID()
     product.created_at = product.created_at || new Date().toISOString()
     product.order = product.order ?? products.length
-    
+    if (product.termsUseCustom !== true) {
+      product.terms = ""
+      product.termsUseCustom = false
+      product.termsTemplateId = ""
+      product.termsFile = ""
+    }
+
     products.unshift(product)
     await fs.writeFile(DATA_FILE, JSON.stringify(products, null, 2))
     
