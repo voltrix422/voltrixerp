@@ -55,7 +55,7 @@ export default function Hero() {
             Power your{" "}
             <span className="inline-block w-[100px]">
               <RotatingText
-                texts={["Drive", "Solar", "EVs", "Car", "House"]}
+                texts={["Drive", "Solar", "EVs", "House"]}
                 mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
                 staggerDuration={0.03}
                 staggerFrom="last"
