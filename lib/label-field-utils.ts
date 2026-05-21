@@ -71,7 +71,9 @@ export function looksLikeProductModel(value: string): boolean {
     /^(AEP|HS|BG|LD|HSLD)-[A-Z0-9]+$/i.test(v) ||
     /^AEP-?\d+KS\d+P\d*$/i.test(v) ||
     /^\d{1,3}A-[A-Z]-[A-Z]-[A-Z]$/i.test(v) ||
-    /^[A-Z]{2,6}\d{0,3}[A-Z]{0,3}-[A-Z0-9]{2,}$/i.test(v)
+    /^[A-Z]{2,6}\d{0,3}[A-Z]{0,3}-[A-Z0-9]{2,}$/i.test(v) ||
+    /^HS[-\s]?TQ[\d.A-Za-z\s]+Ah$/i.test(v) ||
+    /^HS[-\s]?TQ/i.test(v)
   )
 }
 
@@ -81,6 +83,7 @@ export function looksLikeSerialNumber(value: string): boolean {
   if (looksLikeUrlOrPath(v)) return false
   if (isDateSegment(v)) return false
   if (looksLikeProductModel(v) && !/\d{4,}/.test(v)) return false
+  if (/^\d{6,24}$/.test(v)) return true
   return /^[A-Z0-9][A-Z0-9._/-]*$/i.test(v) && /[0-9]/.test(v) && /[A-Z]/i.test(v)
 }
 

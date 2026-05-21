@@ -228,6 +228,9 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     }
   }
 
+  const multiline = parseMultilineModelSn(trimmed)
+  if (multiline) return multiline
+
   const modelSnPair = parseModelSnPair(trimmed)
   if (modelSnPair) return modelSnPair
 
@@ -277,7 +280,7 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
     }
   }
 
-  const pipeModelSn = trimmed.match(/^([A-Za-z0-9][A-Za-z0-9._/-]{2,40})[|]([A-Za-z0-9][A-Za-z0-9._/-]{2,60})$/i)
+  const pipeModelSn = trimmed.match(/^([A-Za-z0-9][A-Za-z0-9._/\s-]{2,48})[|]([A-Za-z0-9][A-Za-z0-9._/-]{2,60})$/i)
   if (pipeModelSn) {
     const modelPart = normalizeAepModelCode(pipeModelSn[1].trim())
     const snPart = pipeModelSn[2].trim()
@@ -375,9 +378,37 @@ export function normalizeScanPayload(raw: string): string {
   return trimmed
 }
 
+/** BarTender / labels: model on first line, SN on second (or last) line. */
+function parseMultilineModelSn(trimmed: string): ParsedProductQr | null {
+  if (!/[\r\n]/.test(trimmed)) return null
+  const lines = trimmed
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (lines.length < 2) return null
+
+  const snLine =
+    lines.find((l, i) => i > 0 && (looksLikeSerialNumber(l) || /^\d{6,24}$/.test(l))) ??
+    lines[lines.length - 1]
+  const modelLine = lines.find((l) => l !== snLine) ?? lines[0]
+  if (!snLine || snLine === modelLine) return null
+  if (!looksLikeSerialNumber(snLine) && !/^\d{6,24}$/.test(snLine)) return null
+
+  return {
+    serialNumber: snLine,
+    productName: modelLine,
+    model: modelLine,
+    specs: "",
+    notes: "",
+    inventoryStockId: "",
+    productId: "",
+    extra: { source: "model-sn-multiline" },
+  }
+}
+
 function parseModelSnPair(trimmed: string): ParsedProductQr | null {
   const match = trimmed.match(
-    /^([A-Za-z0-9][A-Za-z0-9._/-]{2,40})\s*(?:->|=>|→|—>|-->|[-–—])\s*([A-Za-z0-9][A-Za-z0-9._/-]{4,60})$/i,
+    /^([A-Za-z0-9][A-Za-z0-9._/\s-]{2,48})\s*(?:->|=>|→|—>|-->|[-–—])\s*([A-Za-z0-9][A-Za-z0-9._/-]{4,60})$/i,
   )
   if (!match) return null
   const modelPart = match[1].trim()
