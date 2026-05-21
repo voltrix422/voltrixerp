@@ -177,11 +177,15 @@ export async function assignInventoryToBranch(data: {
 }
 
 export async function removeBranchInventory(id: string): Promise<void> {
-  await fetch("/api/db/branch-inventory", {
+  const res = await fetch("/api/db/branch-inventory", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
   })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || "Failed to remove inventory")
+  }
 }
 
 export async function transferBranchInventory(data: {
