@@ -10,10 +10,13 @@ import {
   deletePettyCashReceipt,
 } from "@/lib/petty-cash"
 import {
+  allocationBelongsToUser,
+  formatPettyCashBalance,
   formatPettyCashExpense,
   sumApprovedReceipts,
   sumCommittedReceipts,
 } from "@/lib/petty-cash-display"
+import { isPersonalLedgerAllocation } from "@/lib/petty-cash-personal"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
@@ -102,7 +105,10 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
       return
     }
 
-    if (parseFloat(amount) > remainingAmount) {
+    if (
+      !isPersonalLedgerAllocation(allocation) &&
+      parseFloat(amount) > remainingAmount
+    ) {
       toast({
         title: "Amount Exceeds Remaining Balance",
         message: `Maximum amount available: PKR ${remainingAmount.toLocaleString()}`,
@@ -251,7 +257,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   }
 
   const canManagePettyCash = userRole === "superadmin"
-  const isOwnAllocation = allocation.employeeId === currentUserId || allocation.employeeName === currentUser
+  const isOwnAllocation = allocationBelongsToUser(allocation, currentUserId, currentUser)
   const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
   const isPdf = (value?: string) => !!value && (value.startsWith("data:application/pdf") || /\.pdf$/i.test(value))
 
@@ -299,7 +305,11 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                   <Target className="h-4 w-4 text-orange-600" />
                   <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Remaining</p>
                 </div>
-                <p className="text-xl font-bold text-orange-600">PKR {remainingAmount.toLocaleString()}</p>
+                <p className={`text-xl font-bold ${remainingAmount < 0 ? "text-red-600" : "text-orange-600"}`}>
+                  {isPersonalLedgerAllocation(allocation)
+                    ? formatPettyCashBalance(remainingAmount)
+                    : `PKR ${remainingAmount.toLocaleString()}`}
+                </p>
               </div>
               
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
@@ -398,7 +408,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             <PettyCashActivityTimeline allocation={allocation} receipts={receipts} />
 
             {/* Actions */}
-            {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && remainingAmount > 0 && (
+            {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && (isPersonalLedgerAllocation(allocation) || remainingAmount > 0) && (
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Receipts</h3>
                 <Button

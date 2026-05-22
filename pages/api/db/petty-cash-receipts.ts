@@ -1,7 +1,43 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { PrismaClient } from '@prisma/client'
+import {
+  PERSONAL_LEDGER_MARKER,
+  PERSONAL_LEDGER_PURPOSE,
+} from '@/lib/petty-cash-personal'
 
 const prisma = new PrismaClient()
+
+function isPersonalLedger(allocation: { notes: string; purpose: string }) {
+  return (
+    allocation.notes?.includes(PERSONAL_LEDGER_MARKER) ||
+    allocation.purpose === PERSONAL_LEDGER_PURPOSE
+  )
+}
+
+async function ensurePersonalLedger(data: {
+  employeeId: string
+  employeeName: string
+  employeeRole?: string
+}) {
+  const existing = await prisma.erpPettyCashAllocation.findMany({
+    where: { employeeId: data.employeeId, status: 'active' },
+  })
+  const ledger = existing.find(isPersonalLedger)
+  if (ledger) return ledger
+
+  return prisma.erpPettyCashAllocation.create({
+    data: {
+      employeeId: data.employeeId,
+      employeeName: data.employeeName,
+      employeeRole: data.employeeRole || 'Employee',
+      amount: 0,
+      purpose: PERSONAL_LEDGER_PURPOSE,
+      notes: PERSONAL_LEDGER_MARKER,
+      allocatedBy: data.employeeName,
+      status: 'active',
+    },
+  })
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -25,8 +61,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'POST') {
       const {
-        allocationId,
+        allocationId: bodyAllocationId,
+        employeeId,
         employeeName,
+        employeeRole,
         description,
         amount,
         receiptProof,
@@ -36,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         submittedBy,
       } = req.body
 
-      if (!allocationId || !employeeName || !description || !amount) {
+      if (!employeeName || !description || amount === undefined || amount === null) {
         return res.status(400).json({ error: 'Missing required fields' })
       }
       const parsedAmount = parseFloat(amount)
@@ -44,26 +82,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Invalid amount' })
       }
 
-      const allocation = await prisma.erpPettyCashAllocation.findUnique({
-        where: { id: allocationId }
-      })
-      if (!allocation) {
-        return res.status(404).json({ error: 'Allocation not found' })
+      let allocation
+      if (bodyAllocationId) {
+        allocation = await prisma.erpPettyCashAllocation.findUnique({
+          where: { id: bodyAllocationId },
+        })
+        if (!allocation) {
+          return res.status(404).json({ error: 'Allocation not found' })
+        }
+      } else {
+        if (!employeeId) {
+          return res.status(400).json({ error: 'Employee id is required' })
+        }
+        allocation = await ensurePersonalLedger({
+          employeeId,
+          employeeName,
+          employeeRole,
+        })
       }
+
+      const allocationId = allocation.id
+
       if (allocation.status !== 'active') {
         return res.status(400).json({ error: 'Allocation is not active' })
       }
 
+      const personal = isPersonalLedger(allocation)
+
       const existing = await prisma.erpPettyCashReceipt.findMany({
         where: {
           allocationId,
-          status: { in: ['pending', 'approved'] }
-        }
+          status: { in: ['pending', 'approved'] },
+        },
       })
       const usedAmount = existing.reduce((sum, item) => sum + item.amount, 0)
-      if (usedAmount + parsedAmount > allocation.amount) {
+      if (!personal && usedAmount + parsedAmount > allocation.amount) {
         const remaining = Math.max(allocation.amount - usedAmount, 0)
-        return res.status(400).json({ error: `Settlement exceeds remaining balance. Remaining: PKR ${remaining.toLocaleString()}` })
+        return res.status(400).json({
+          error: `Receipt exceeds remaining balance. Remaining: PKR ${remaining.toLocaleString()}`,
+        })
       }
 
       const autoApprove = selfSubmit === true
@@ -84,7 +141,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       })
 
-      if (autoApprove) {
+      if (autoApprove && !personal) {
         const approvedRows = await prisma.erpPettyCashReceipt.findMany({
           where: { allocationId, status: 'approved' },
         })
@@ -126,9 +183,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         })
         const approvedAmount = approvedReceipts.reduce((sum, item) => sum + item.amount, 0)
-        if (approvedAmount + existingReceipt.amount > allocation.amount) {
+        if (
+          !isPersonalLedger(allocation) &&
+          approvedAmount + existingReceipt.amount > allocation.amount
+        ) {
           const remaining = Math.max(allocation.amount - approvedAmount, 0)
-          return res.status(400).json({ error: `Approval exceeds allocation. Remaining approvable: PKR ${remaining.toLocaleString()}` })
+          return res.status(400).json({
+            error: `Approval exceeds allocation. Remaining approvable: PKR ${remaining.toLocaleString()}`,
+          })
         }
       }
 

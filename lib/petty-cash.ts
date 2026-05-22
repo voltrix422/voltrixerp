@@ -164,8 +164,10 @@ export async function getPettyCashReceipts(allocationId?: string): Promise<Petty
 }
 
 export async function createPettyCashReceipt(data: {
-  allocationId: string
+  allocationId?: string
+  employeeId?: string
   employeeName: string
+  employeeRole?: string
   description: string
   amount: number
   receiptProof?: string

@@ -15,10 +15,17 @@ import { MODULE_LABELS } from "@/lib/auth"
 import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Trash2 } from "lucide-react"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
+  allocationBelongsToUser,
+  formatPettyCashBalance,
   formatPettyCashExpense,
   sumApprovedReceipts,
   sumCommittedReceipts,
 } from "@/lib/petty-cash-display"
+import {
+  findPersonalLedger,
+  getLedgerBalance,
+  isPersonalLedgerAllocation,
+} from "@/lib/petty-cash-personal"
 
 export function PettyCashDashboard() {
   const { user, userRole } = useAuthWithRole()
@@ -151,15 +158,27 @@ export function PettyCashDashboard() {
 
   const canManagePettyCash = userRole === "superadmin"
   const belongsToCurrentUser = (allocation: PettyCashAllocation) =>
-    allocation.employeeId === currentUserId || allocation.employeeName === currentUser
+    allocationBelongsToUser(allocation, currentUserId, currentUser)
   const receiptBelongsToCurrentUser = (receipt: PettyCashReceipt) => {
     const allocation = allocations.find((item) => item.id === receipt.allocationId)
     if (allocation) return belongsToCurrentUser(allocation)
     return receipt.employeeName === currentUser
   }
-  const displayAllocations = canManagePettyCash ? allocations : allocations.filter(belongsToCurrentUser)
+  const displayAllocations = (canManagePettyCash ? allocations : allocations.filter(belongsToCurrentUser))
+    .slice()
+    .sort((a, b) => {
+      const aPersonal = isPersonalLedgerAllocation(a) ? 0 : 1
+      const bPersonal = isPersonalLedgerAllocation(b) ? 0 : 1
+      return aPersonal - bPersonal
+    })
   const displayReceipts = canManagePettyCash ? receipts : receipts.filter(receiptBelongsToCurrentUser)
-  const pendingRequests = allocations.filter((allocation) => allocation.status === "pending")
+  const personalLedger = findPersonalLedger(allocations, currentUserId, currentUser)
+  const personalBalance = personalLedger
+    ? getLedgerBalance(personalLedger, receipts)
+    : 0
+  const pendingRequests = allocations.filter(
+    (allocation) => allocation.status === "pending" && !isPersonalLedgerAllocation(allocation),
+  )
   const employeeRole = userRole === "superadmin"
     ? "Super Admin"
     : user?.modules[0]
@@ -244,6 +263,23 @@ export function PettyCashDashboard() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {!canManagePettyCash && (
+        <div className="rounded-lg border bg-[hsl(var(--card))] p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">Your petty cash balance</p>
+            <p className={`text-2xl font-bold ${personalBalance < 0 ? "text-red-600" : "text-green-600"}`}>
+              {formatPettyCashBalance(personalBalance)}
+            </p>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+              Negative balance = expenses you paid; finance can reimburse later.
+            </p>
+          </div>
+          <Button size="sm" className="h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Receipt
+          </Button>
         </div>
       )}
 
@@ -375,7 +411,11 @@ export function PettyCashDashboard() {
                           <td className="px-4 py-2.5 text-xs font-semibold">PKR {allocation.amount.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-xs">{allocation.purpose}</td>
                           <td className="px-4 py-2.5 text-xs font-semibold text-red-600">{formatPettyCashExpense(spent)}</td>
-                          <td className="px-4 py-2.5 text-xs font-semibold text-green-600">PKR {remaining.toLocaleString()}</td>
+                          <td className={`px-4 py-2.5 text-xs font-semibold ${isPersonalLedgerAllocation(allocation) ? (remaining < 0 ? "text-red-600" : "text-green-600") : "text-green-600"}`}>
+                            {isPersonalLedgerAllocation(allocation)
+                              ? formatPettyCashBalance(remaining)
+                              : `PKR ${remaining.toLocaleString()}`}
+                          </td>
                           <td className="px-4 py-2.5 text-xs">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(allocation.status)}`}>
                               {allocation.status}
@@ -522,9 +562,11 @@ export function PettyCashDashboard() {
           onSave={(receipt) => {
             setReceipts(prev => [receipt, ...prev])
             setShowReceiptForm(false)
+            loadData()
           }}
           employeeName={currentUser}
           employeeId={currentUserId}
+          employeeRole={employeeRole}
         />
       )}
 
