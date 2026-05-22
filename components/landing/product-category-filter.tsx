@@ -14,7 +14,7 @@ export default function ProductCategoryFilter({
   onSelect,
   activeInverterSubs,
 }: Props) {
-  const inverterActive =
+  const inverterOpen =
     selected === "Inverter" || activeInverterSubs.includes(selected)
 
   return (
@@ -31,7 +31,7 @@ export default function ProductCategoryFilter({
               <FilterChip
                 key={group.id}
                 label={group.label}
-                active={inverterActive}
+                active={inverterOpen}
                 onClick={() => onSelect("Inverter")}
               />
             )
@@ -47,9 +47,8 @@ export default function ProductCategoryFilter({
         })}
       </div>
 
-      {activeInverterSubs.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 pl-1">
-          <span className="text-xs text-neutral-400 self-center mr-1">Inverter</span>
+      {inverterOpen && activeInverterSubs.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2">
           {activeInverterSubs.map((sub) => (
             <button
               key={sub}
