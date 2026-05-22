@@ -6,7 +6,7 @@ import {
   createPettyCashReceipt,
   type PettyCashReceipt as PettyCashReceiptType,
 } from "@/lib/petty-cash"
-import { formatPettyCashBalance } from "@/lib/petty-cash-display"
+import { formatPettyCashBalance, formatPettyCashExpense, sumPendingReceipts } from "@/lib/petty-cash-display"
 import { findPersonalLedger, getLedgerBalance } from "@/lib/petty-cash-personal"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ export function PettyCashReceipt({
   const { user } = useAuth()
   const { toast } = useToast()
   const [balance, setBalance] = useState(0)
+  const [pendingTotal, setPendingTotal] = useState(0)
   const [dataLoading, setDataLoading] = useState(true)
   const [loading, setLoading] = useState(false)
   const [description, setDescription] = useState("")
@@ -51,10 +52,17 @@ export function PettyCashReceipt({
     Promise.all([getPettyCashAllocations(), getPettyCashReceipts()])
       .then(([allocations, receipts]) => {
         const ledger = findPersonalLedger(allocations, resolvedId, resolvedName)
+        const myReceipts = receipts.filter(
+          (r) =>
+            r.employeeName.trim().toLowerCase() === resolvedName.trim().toLowerCase() ||
+            (ledger && r.allocationId === ledger.id),
+        )
         if (ledger) {
           setBalance(getLedgerBalance(ledger, receipts))
+          setPendingTotal(sumPendingReceipts(receipts, ledger.id))
         } else {
           setBalance(0)
+          setPendingTotal(sumPendingReceipts(myReceipts))
         }
       })
       .catch((err) => console.error("Error loading petty cash balance:", err))
@@ -111,13 +119,13 @@ export function PettyCashReceipt({
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
         notes: notes.trim(),
-        selfSubmit: true,
+        selfSubmit: false,
         submittedBy: user?.name || resolvedName,
       })
 
       toast({
-        title: "Receipt added",
-        message: `Expense recorded. Your balance is now ${formatPettyCashBalance(balanceAfter)}.`,
+        title: "Sent for approval",
+        message: "Admin will review your receipt. Your balance updates after approval.",
         type: "success",
       })
       onSave(receipt)
@@ -159,14 +167,19 @@ export function PettyCashReceipt({
             <p className="text-xs text-blue-800 dark:text-blue-200">
               <span className="font-semibold">Your petty cash balance</span>
               <br />
-              No prior allocation needed — add a receipt and your balance goes down (negative = you spent out of pocket).
+              Add a receipt anytime. Admin must approve before it counts (negative = reimbursed expense).
             </p>
             <p className="text-lg font-bold mt-2 text-blue-900 dark:text-blue-100">
               {dataLoading ? "…" : formatPettyCashBalance(balance)}
             </p>
+            {!dataLoading && pendingTotal > 0 && (
+              <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
+                Pending approval: {formatPettyCashExpense(pendingTotal)}
+              </p>
+            )}
             {amount && Number.parseFloat(amount) > 0 && !dataLoading && (
               <p className="text-xs mt-1 text-[hsl(var(--muted-foreground))]">
-                After this receipt:{" "}
+                If approved:{" "}
                 <span className={balanceAfter < 0 ? "text-red-600 font-semibold" : "font-medium"}>
                   {formatPettyCashBalance(balanceAfter)}
                 </span>

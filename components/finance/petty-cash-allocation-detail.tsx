@@ -13,8 +13,9 @@ import {
   allocationBelongsToUser,
   formatPettyCashBalance,
   formatPettyCashExpense,
+  getAllocationRemaining,
   sumApprovedReceipts,
-  sumCommittedReceipts,
+  sumPendingReceipts,
 } from "@/lib/petty-cash-display"
 import { isPersonalLedgerAllocation } from "@/lib/petty-cash-personal"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -72,9 +73,10 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
     }
   }
 
+  const isPersonal = isPersonalLedgerAllocation(allocation)
   const totalSpent = sumApprovedReceipts(receipts, allocation.id)
-  const committedAmount = sumCommittedReceipts(receipts, allocation.id)
-  const remainingAmount = allocation.amount - committedAmount
+  const pendingTotal = sumPendingReceipts(receipts, allocation.id)
+  const remainingAmount = getAllocationRemaining(allocation, receipts)
   const progressPercentage = allocation.amount > 0 ? (totalSpent / allocation.amount) * 100 : 0
 
   async function handleFileUpload(file: File): Promise<string> {
@@ -137,17 +139,19 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
         notes: notes.trim(),
-        selfSubmit: isOwnAllocation,
+        selfSubmit: isOwnAllocation && !isPersonal,
         submittedBy: currentUser || allocation.employeeName,
       })
 
       setReceipts(prev => [newReceipt, ...prev])
 
       toast({
-        title: "Success",
-        message: isOwnAllocation
-          ? `Receipt recorded. ${formatPettyCashExpense(parseFloat(amount))} released from petty cash.`
-          : "Receipt submitted for approval.",
+        title: isPersonal ? "Sent for approval" : "Success",
+        message: isPersonal
+          ? "Receipt sent to admin. Balance updates after approval."
+          : isOwnAllocation
+            ? `Receipt recorded. ${formatPettyCashExpense(parseFloat(amount))} released from petty cash.`
+            : "Receipt submitted for approval.",
         type: "success"
       })
 
@@ -214,7 +218,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         const totalSpent = allocationReceipts.reduce((sum, r) => sum + r.amount, 0)
         
         // Auto-settle if total receipts equal or exceed allocation amount
-        if (totalSpent >= allocation.amount) {
+        if (!isPersonal && totalSpent >= allocation.amount) {
           await updatePettyCashAllocationStatus(allocation.id, 'settled', new Date().toISOString())
           toast({
             title: "Auto-Settled",
@@ -223,8 +227,18 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
           })
         }
       }
-      
-      toast({ title: "Success", message: `Settlement ${status}`, type: "success" })
+
+      if (status === "approved") {
+        toast({
+          title: "Receipt approved",
+          message: isPersonal
+            ? `Expense ${formatPettyCashExpense(receipt.amount)} released to ${allocation.employeeName}'s ledger.`
+            : `Receipt approved.`,
+          type: "success",
+        })
+      } else {
+        toast({ title: "Receipt rejected", message: "Expense was not applied to the ledger.", type: "success" })
+      }
       
       onUpdate()
     } catch (error) {
@@ -282,36 +296,58 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-6 space-y-6">
+            {canManagePettyCash && isPersonal && pendingTotal > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                <p className="font-semibold">Pending receipt approval</p>
+                <p className="text-xs mt-1">
+                  {formatPettyCashExpense(pendingTotal)} waiting — approve below to release the expense to{" "}
+                  {allocation.employeeName}&apos;s ledger.
+                </p>
+              </div>
+            )}
+
             {/* Allocation Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <DollarSign className="h-4 w-4 text-blue-600" />
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Total Amount</p>
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    {isPersonal ? "Cash allocated" : "Total Amount"}
+                  </p>
                 </div>
                 <p className="text-xl font-bold text-blue-600">PKR {allocation.amount.toLocaleString()}</p>
               </div>
-              
+
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Receipt className="h-4 w-4 text-green-600" />
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Total Spent</p>
+                  <Receipt className="h-4 w-4 text-red-600" />
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    {isPersonal ? "Approved expenses" : "Total Spent"}
+                  </p>
                 </div>
-                <p className="text-xl font-bold text-red-600">{formatPettyCashExpense(totalSpent)}</p>
+                <p className="text-xl font-bold text-red-600">
+                  {totalSpent > 0 ? formatPettyCashExpense(totalSpent) : "PKR 0"}
+                </p>
               </div>
-              
+
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Target className="h-4 w-4 text-orange-600" />
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Remaining</p>
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    {isPersonal ? (pendingTotal > 0 ? "Pending" : "Balance") : "Remaining"}
+                  </p>
                 </div>
-                <p className={`text-xl font-bold ${remainingAmount < 0 ? "text-red-600" : "text-orange-600"}`}>
-                  {isPersonalLedgerAllocation(allocation)
-                    ? formatPettyCashBalance(remainingAmount)
-                    : `PKR ${remainingAmount.toLocaleString()}`}
-                </p>
+                {isPersonal && pendingTotal > 0 ? (
+                  <p className="text-xl font-bold text-amber-600">{formatPettyCashExpense(pendingTotal)}</p>
+                ) : (
+                  <p className={`text-xl font-bold ${remainingAmount < 0 ? "text-red-600" : "text-orange-600"}`}>
+                    {isPersonal
+                      ? formatPettyCashBalance(remainingAmount)
+                      : `PKR ${remainingAmount.toLocaleString()}`}
+                  </p>
+                )}
               </div>
-              
+
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Calendar className="h-4 w-4 text-purple-600" />
@@ -323,22 +359,31 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
               </div>
             </div>
 
-            {/* Progress Bar */}
-            <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">Settlement Progress</p>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">{progressPercentage.toFixed(1)}%</p>
+            {isPersonal ? (
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4 text-sm">
+                <p className="font-medium">Personal expense ledger</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  Employee submits receipts → admin approves → approved amount is released as{" "}
+                  {formatPettyCashBalance(remainingAmount)} (negative = owed to employee).
+                </p>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-                />
+            ) : (
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium">Settlement Progress</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">{progressPercentage.toFixed(1)}%</p>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  {formatPettyCashExpense(totalSpent)} of PKR {allocation.amount.toLocaleString()} released
+                </p>
               </div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                {formatPettyCashExpense(totalSpent)} of PKR {allocation.amount.toLocaleString()} released
-              </p>
-            </div>
+            )}
 
             {/* Allocation Info */}
             <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
@@ -408,7 +453,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             <PettyCashActivityTimeline allocation={allocation} receipts={receipts} />
 
             {/* Actions */}
-            {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && (isPersonalLedgerAllocation(allocation) || remainingAmount > 0) && (
+            {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && (isPersonal || remainingAmount > 0) && (
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Receipts</h3>
                 <Button
@@ -426,7 +471,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <h3 className="text-sm font-semibold mb-4">Add expense receipt</h3>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mb-4">
-                  Amount is recorded as a negative expense and reduces your remaining petty cash balance immediately.
+                  {isPersonal
+                    ? "Receipt is sent to admin for approval before it affects your balance."
+                    : "Amount is recorded as a negative expense and reduces your remaining petty cash balance."}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">

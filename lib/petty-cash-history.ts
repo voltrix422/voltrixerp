@@ -71,17 +71,17 @@ export function buildPettyCashHistory(
     const expenseAmount = -Math.abs(receipt.amount)
     const submitTitle =
       receipt.status === "approved"
-        ? "Receipt recorded — petty cash released"
+        ? "Receipt approved — expense released"
         : receipt.status === "rejected"
           ? "Receipt rejected"
-          : "Receipt submitted (pending approval)"
+          : "Receipt submitted — awaiting admin approval"
 
     events.push({
       id: `${receipt.id}-submitted`,
       type: "settlement",
       title: submitTitle,
       description: receipt.description,
-      amount: receipt.status === "rejected" ? undefined : expenseAmount,
+      amount: receipt.status === "approved" ? expenseAmount : undefined,
       occurredAt: receipt.submittedAt,
       actor: receipt.employeeName,
       proofUrl: receipt.receiptProof,
@@ -96,7 +96,7 @@ export function buildPettyCashHistory(
         events.push({
           id: `${receipt.id}-review`,
           type: "settlement_review",
-          title: "Receipt approved — petty cash released",
+          title: "Admin approved — expense released to employee",
           description: receipt.reviewNotes || receipt.notes || undefined,
           amount: expenseAmount,
           occurredAt: receipt.reviewedAt,

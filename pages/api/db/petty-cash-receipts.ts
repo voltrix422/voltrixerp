@@ -123,7 +123,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
       }
 
-      const autoApprove = selfSubmit === true
+      // Personal ledger expenses require admin approval before balance changes.
+      const autoApprove = selfSubmit === true && !personal
       const reviewer = String(submittedBy || employeeName || '').trim()
 
       const receipt = await prisma.erpPettyCashReceipt.create({

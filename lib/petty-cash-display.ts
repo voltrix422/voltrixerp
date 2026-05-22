@@ -52,6 +52,15 @@ export function sumApprovedReceipts(receipts: PettyCashReceipt[], allocationId?:
     .reduce((sum, r) => sum + r.amount, 0)
 }
 
+export function sumPendingReceipts(receipts: PettyCashReceipt[], allocationId?: string) {
+  return receipts
+    .filter(
+      (r) =>
+        (!allocationId || r.allocationId === allocationId) && r.status === "pending",
+    )
+    .reduce((sum, r) => sum + r.amount, 0)
+}
+
 /** Pending + approved — used to cap new receipt amounts. */
 export function sumCommittedReceipts(receipts: PettyCashReceipt[], allocationId?: string) {
   return receipts

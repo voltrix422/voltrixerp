@@ -20,6 +20,7 @@ import {
   formatPettyCashExpense,
   sumApprovedReceipts,
   sumCommittedReceipts,
+  sumPendingReceipts,
 } from "@/lib/petty-cash-display"
 import {
   findPersonalLedger,
@@ -112,7 +113,7 @@ export function PettyCashDashboard() {
       if (status === "approved") {
         // Check auto-settle using updated receipts
         const allocation = allocations.find(a => a.id === receipt.allocationId)
-        if (allocation) {
+        if (allocation && !isPersonalLedgerAllocation(allocation)) {
           const totalSpent = updatedReceipts
             .filter(r => r.allocationId === receipt.allocationId && r.status === "approved")
             .reduce((sum, r) => sum + r.amount, 0)
@@ -130,7 +131,19 @@ export function PettyCashDashboard() {
         }
       }
 
-      toast({ title: "Success", message: `Receipt ${status}`, type: "success" })
+      const allocation = allocations.find((a) => a.id === receipt.allocationId)
+      if (status === "approved") {
+        toast({
+          title: "Receipt approved",
+          message: allocation && isPersonalLedgerAllocation(allocation)
+            ? `Expense ${formatPettyCashExpense(receipt.amount)} released to ${allocation.employeeName}.`
+            : "Receipt approved.",
+          type: "success",
+        })
+      } else {
+        toast({ title: "Receipt rejected", message: "Expense was not applied.", type: "success" })
+      }
+      loadData()
     } catch (error) {
       console.error("Error reviewing receipt:", error)
       toast({ title: "Error", message: "Failed to review receipt", type: "error" })
@@ -175,6 +188,9 @@ export function PettyCashDashboard() {
   const personalLedger = findPersonalLedger(allocations, currentUserId, currentUser)
   const personalBalance = personalLedger
     ? getLedgerBalance(personalLedger, receipts)
+    : 0
+  const personalPending = personalLedger
+    ? sumPendingReceipts(receipts, personalLedger.id)
     : 0
   const pendingRequests = allocations.filter(
     (allocation) => allocation.status === "pending" && !isPersonalLedgerAllocation(allocation),
@@ -273,8 +289,13 @@ export function PettyCashDashboard() {
             <p className={`text-2xl font-bold ${personalBalance < 0 ? "text-red-600" : "text-green-600"}`}>
               {formatPettyCashBalance(personalBalance)}
             </p>
+            {personalPending > 0 && (
+              <p className="text-[11px] text-amber-700 mt-1">
+                Pending approval: {formatPettyCashExpense(personalPending)}
+              </p>
+            )}
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-              Negative balance = expenses you paid; finance can reimburse later.
+              Negative balance = approved expenses; admin reimburses when paying you back.
             </p>
           </div>
           <Button size="sm" className="h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
