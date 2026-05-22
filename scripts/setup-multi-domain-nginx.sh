@@ -4,29 +4,44 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONF_SRC="$ROOT/scripts/nginx/voltrix-domains.conf"
+CONF_SSL="$ROOT/scripts/nginx/voltrix-domains.conf"
+CONF_HTTP="$ROOT/scripts/nginx/voltrix-domains.http.conf"
 CONF_DST="/etc/nginx/sites-available/voltrix-erp"
 APP_PORT="${APP_PORT:-3000}"
 
 echo "==> Domains: voltrixpv.com, www.voltrixpv.com, voltrix-power.com, www.voltrix-power.com"
 echo "==> Backend: 127.0.0.1:${APP_PORT} (pm2: voltrix-erp)"
 
-if [[ ! -f "$CONF_SRC" ]]; then
-  echo "ERROR: Missing $CONF_SRC"
+if [[ ! -f "$CONF_HTTP" ]]; then
+  echo "ERROR: Missing $CONF_HTTP"
   exit 1
 fi
 
-echo "==> Install nginx config"
-cp "$CONF_SRC" "$CONF_DST"
+mkdir -p /var/www/certbot
+
+# Use HTTP-only config until certbot has created certificates (avoids nginx -t failure).
+CERT_DIR=""
+for d in voltrixpv.com voltrix-power.com; do
+  if [[ -f "/etc/letsencrypt/live/${d}/fullchain.pem" ]]; then
+    CERT_DIR="$d"
+    break
+  fi
+done
+
+if [[ -n "$CERT_DIR" && -f "$CONF_SSL" ]]; then
+  echo "==> Install nginx config (SSL cert found: $CERT_DIR)"
+  cp "$CONF_SSL" "$CONF_DST"
+else
+  echo "==> Install nginx config (HTTP only — no cert yet; run certbot after this)"
+  cp "$CONF_HTTP" "$CONF_DST"
+fi
+
 ln -sf "$CONF_DST" /etc/nginx/sites-enabled/voltrix-erp
 
-# Disable default site if it conflicts (optional)
 if [[ -f /etc/nginx/sites-enabled/default ]]; then
   rm -f /etc/nginx/sites-enabled/default
   echo "==> Removed default nginx site (was conflicting)"
 fi
-
-mkdir -p /var/www/certbot
 
 echo "==> Test nginx config"
 nginx -t
@@ -42,18 +57,19 @@ for host in voltrixpv.com voltrix-power.com; do
 done
 
 echo ""
-echo "==> Issue / renew SSL certificate (run after DNS propagates):"
-echo "sudo certbot --nginx \\"
-echo "  -d voltrixpv.com -d www.voltrixpv.com \\"
-echo "  -d voltrix-power.com -d www.voltrix-power.com"
-echo ""
-echo "If you already have another domain on this server, add it to the same certbot command, e.g.:"
-echo "  -d your-existing-domain.com -d www.your-existing-domain.com"
-echo ""
-echo "Then edit $CONF_DST server_name and ssl_certificate paths if certbot used a different folder."
+if [[ -z "$CERT_DIR" ]]; then
+  echo "==> Issue SSL (run now if DNS is correct):"
+  echo "sudo certbot --nginx \\"
+  echo "  -d voltrixpv.com -d www.voltrixpv.com \\"
+  echo "  -d voltrix-power.com -d www.voltrix-power.com"
+  echo ""
+  echo "Certbot will add HTTPS. To use the repo SSL template afterward:"
+  echo "  sudo cp $CONF_SSL $CONF_DST && sudo nginx -t && sudo systemctl reload nginx"
+fi
+
 echo ""
 echo "==> Ensure app is running:"
 echo "  pm2 status voltrix-erp"
 echo "  curl -sI http://127.0.0.1:${APP_PORT} | head -3"
 echo ""
-echo "Done. Open https://voltrixpv.com and https://voltrix-power.com after DNS + certbot."
+echo "Done."

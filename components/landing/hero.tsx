@@ -53,9 +53,10 @@ export default function Hero() {
           </div>
           <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
             Power your{" "}
-            <span className="inline-block w-[100px]">
+            <span className="inline-block min-w-[4.5rem] align-bottom">
               <RotatingText
                 texts={["Drive", "Solar", "EVs", "House"]}
+                splitBy="words"
                 mainClassName="px-1 py-1 rounded-lg font-bold text-[#1a9f9a]"
                 staggerDuration={0.03}
                 staggerFrom="last"
@@ -64,7 +65,7 @@ export default function Hero() {
                 initial={{ y: "100%", opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "-100%", opacity: 0 }}
-                splitLevelClassName="overflow-hidden"
+                splitLevelClassName="overflow-hidden inline-block"
               />
             </span>
             <br />

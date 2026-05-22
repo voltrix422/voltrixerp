@@ -1,8 +1,7 @@
 // @ts-nocheck
 "use client"
 
-import React, { useEffect, useRef, useState, useMemo } from "react"
-import { pow, round } from "mathjs"
+import React, { useRef, useMemo } from "react"
 
 type Position = "top" | "bottom" | "left" | "right"
 type Curve = "linear" | "bezier" | "ease-in" | "ease-out" | "ease-in-out"
@@ -55,13 +54,13 @@ function GradualBlur({
     for (let i = 1; i <= divCount; i++) {
       const progress = curveFunc(i / divCount)
       const blurValue = exponential
-        ? (pow(2, progress * 4) as number) * 0.0625 * strength
+        ? Math.pow(2, progress * 4) * 0.0625 * strength
         : 0.0625 * (progress * divCount + 1) * strength
 
-      const p1 = (round((increment * i - increment) * 10) as number) / 10
-      const p2 = (round(increment * i * 10) as number) / 10
-      const p3 = (round((increment * i + increment) * 10) as number) / 10
-      const p4 = (round((increment * i + increment * 2) * 10) as number) / 10
+      const p1 = Math.round((increment * i - increment) * 10) / 10
+      const p2 = Math.round(increment * i * 10) / 10
+      const p3 = Math.round((increment * i + increment) * 10) / 10
+      const p4 = Math.round((increment * i + increment * 2) * 10) / 10
 
       let gradient = `transparent ${p1}%, black ${p2}%`
       if (p3 <= 100) gradient += `, black ${p3}%`

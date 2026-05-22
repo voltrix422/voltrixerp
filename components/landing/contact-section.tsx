@@ -1,7 +1,10 @@
 // @ts-nocheck
-import { MapPin, Phone, Mail } from "lucide-react"
+import { ExternalLink, MapPin, Phone, Mail } from "lucide-react"
 import ScrollFloat from "./scroll-float"
 import ScrollReveal from "./scroll-reveal"
+
+const OFFICE_ADDRESS = "Plot 73 Street 14 I-9/2 Industrial Area Islamabad 44000 Pakistan"
+const GOOGLE_MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(OFFICE_ADDRESS)}`
 
 export default function ContactSection() {
   return (
@@ -115,18 +118,31 @@ export default function ContactSection() {
             <MapPin className="w-4 h-4" style={{ color: "#1a9f9a" }} />
             <p className="text-sm font-semibold text-neutral-700">Head Office — I-9/2 Industrial Area, Islamabad</p>
           </div>
-          <div className="w-full rounded-2xl overflow-hidden border border-neutral-100" style={{ height: "400px" }}>
-            <iframe
-              title="Voltrix Head Office"
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              loading="lazy"
-              allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
-              src="https://maps.google.com/maps?q=Plot+73+Street+14+I-9%2F2+Industrial+Area+Islamabad+44000+Pakistan&output=embed&z=16"
-            />
-          </div>
+          <a
+            href={GOOGLE_MAPS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex w-full flex-col items-center justify-center gap-4 rounded-2xl border border-neutral-100 bg-gradient-to-br from-[#1a9f9a]/10 via-white to-neutral-50 px-6 text-center transition-colors hover:border-[#1a9f9a]/40"
+            style={{ minHeight: "280px" }}
+          >
+            <div
+              className="flex h-14 w-14 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: "#1a9f9a18" }}
+            >
+              <MapPin className="h-7 w-7" style={{ color: "#1a9f9a" }} />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-neutral-900">View head office on Google Maps</p>
+              <p className="max-w-md text-sm text-neutral-500">{OFFICE_ADDRESS}</p>
+            </div>
+            <span
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition-opacity group-hover:opacity-90"
+              style={{ backgroundColor: "#1a9f9a" }}
+            >
+              Open map
+              <ExternalLink className="h-4 w-4" />
+            </span>
+          </a>
         </div>
       </div>
 
