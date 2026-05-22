@@ -6,12 +6,25 @@ import { ArrowRight, CheckCircle2, XCircle, AlertCircle, FileText, Box } from "l
 import Image from "next/image"
 import Link from "next/link"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
+import {
+  INVERTER_SUBCATEGORIES,
+  getMainCategory,
+  isInverterSubcategory,
+  productMatchesCategoryFilter,
+} from "@/lib/product-categories"
+import ProductCategoryFilter from "@/components/landing/product-category-filter"
 
 const categoryColors: Record<string, string> = {
   Residential: "bg-blue-50 text-blue-600 border-blue-200",
   Industrial:  "bg-orange-50 text-orange-600 border-orange-200",
   EV:          "bg-purple-50 text-purple-600 border-purple-200",
   BMS:         "bg-neutral-100 text-neutral-600 border-neutral-200",
+  "Energy Storage Battery": "bg-teal-50 text-teal-700 border-teal-200",
+  "Energy Storage": "bg-teal-50 text-teal-700 border-teal-200",
+  Inverter: "bg-sky-50 text-sky-700 border-sky-200",
+  "Voltrix Prime": "bg-sky-50 text-sky-700 border-sky-200",
+  "Voltrix Nivo": "bg-sky-50 text-sky-700 border-sky-200",
+  "Voltrix Fusion": "bg-amber-50 text-amber-700 border-amber-200",
 }
 
 function StockBadge({ stock }: { stock: any }) {
@@ -36,10 +49,12 @@ export default function Products() {
       .catch(err => console.error('Error fetching products:', err))
   }, [])
 
-  const categories = ["All", ...Array.from(new Set(products.map((p: any) => p.category).filter(Boolean)))]
-  const filteredProducts = selectedCategory === "All" 
-    ? products 
-    : products.filter((p: any) => p.category === selectedCategory)
+  const activeInverterSubs = INVERTER_SUBCATEGORIES.filter((sub) =>
+    products.some((p: any) => p.category === sub),
+  )
+  const filteredProducts = products.filter((p: any) =>
+    productMatchesCategoryFilter(p.category || "", selectedCategory),
+  )
 
   return (
     <section className="py-24 px-4 bg-white" id="products">
@@ -56,22 +71,11 @@ export default function Products() {
           </p>
         </div>
 
-        {/* Category Filter */}
-        <div className="flex flex-wrap justify-center gap-2">
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
-                selectedCategory === category
-                  ? "bg-[#1a9f9a] text-white shadow-lg shadow-[#1a9f9a]/20"
-                  : "bg-neutral-50 text-neutral-600 border border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] hover:bg-neutral-100"
-              }`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
+        <ProductCategoryFilter
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
+          activeInverterSubs={activeInverterSubs}
+        />
 
         {filteredProducts.length === 0 ? (
           <div className="text-center py-16 text-neutral-400 text-sm">No products in this category.</div>
@@ -96,7 +100,11 @@ export default function Products() {
                   {/* Content Section */}
                   <div className="p-6 flex flex-col gap-4 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${categoryColors[p.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{p.category}</span>
+                      <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${categoryColors[p.category] || categoryColors[getMainCategory(p.category)] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
+                        {isInverterSubcategory(p.category)
+                          ? `Inverter · ${p.category}`
+                          : (getMainCategory(p.category) || p.category)}
+                      </span>
                       <StockBadge stock={p.stock} />
                     </div>
                     

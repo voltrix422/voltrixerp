@@ -6,6 +6,12 @@ import {
   Globe, EyeOff, RefreshCw, Star, Check, GripVertical
 } from "lucide-react"
 import ProductBrochureField from "@/components/website/product-brochure-field"
+import {
+  MAIN_CATEGORIES,
+  INVERTER_SUBCATEGORIES,
+  resolveStoredCategory,
+  splitStoredCategory,
+} from "@/lib/product-categories"
 
 type Spec = { label: string; value: string }
 type StockVal = "in" | "low" | "out"
@@ -31,7 +37,6 @@ type Product = {
   order?: number
 }
 
-const CATEGORIES = ["Residential", "Industrial", "EV", "BMS"]
 const STOCK_OPTIONS = [
   { value: "in",  label: "In Stock",     cls: "text-emerald-600 bg-emerald-50 border-emerald-100" },
   { value: "low", label: "Low Stock",    cls: "text-amber-600 bg-amber-50 border-amber-100" },
@@ -41,7 +46,8 @@ const STOCK_OPTIONS = [
 type PendingImage = { file: File; preview: string }
 
 const EMPTY = {
-  name: "", category: "Residential", description: "", full_desc: "",
+  name: "", category: "Energy Storage Battery", mainCategory: "Energy Storage Battery", subCategory: "",
+  description: "", full_desc: "",
   specification: "", price: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
   brochureUrl: "", brochureName: "",
@@ -90,8 +96,10 @@ export default function ProductsManager() {
       stockStr = String(p.stock)
     }
     
+    const { main, sub } = splitStoredCategory(p.category || "")
     setForm({
-      name: p.name || "", category: p.category || "Residential",
+      name: p.name || "", category: p.category || main,
+      mainCategory: main, subCategory: sub,
       description: p.description || "", full_desc: p.full_desc || "",
       specification: p.specification || "", price: String(p.price ?? ""),
       warranty: p.warranty || "", stock: stockStr,
@@ -170,6 +178,10 @@ export default function ProductsManager() {
   // ── save ───────────────────────────────────────────────
   const save = async (publishOverride?: boolean, closeAfter = false) => {
     if (!form.name.trim()) { setSaveError("Product name is required."); return }
+    if (form.mainCategory === "Inverter" && !form.subCategory) {
+      setSaveError("Select Voltrix Prime or Voltrix Nivo under Inverter.")
+      return
+    }
     setSaving(true); setSaveError(""); setSaveOk(false)
 
     try {
@@ -185,8 +197,9 @@ export default function ProductsManager() {
       const allImages = [...form.images, ...newUrls]
       const published = publishOverride !== undefined ? publishOverride : form.published
 
+      const category = resolveStoredCategory(form.mainCategory, form.subCategory)
       const payload = {
-        name: form.name, category: form.category, description: form.description,
+        name: form.name, category, description: form.description,
         full_desc: form.full_desc, specification: form.specification,
         price: form.price || 0, warranty: form.warranty,
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
@@ -502,18 +515,32 @@ export default function ProductsManager() {
                     className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" placeholder="e.g. WL-5" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Category</label>
-                  <input 
-                    value={form.category} 
-                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    list="category-options"
-                    className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" 
-                    placeholder="e.g. Residential, Industrial, EV, BMS"
-                  />
-                  <datalist id="category-options">
-                    {CATEGORIES.map(c => <option key={c} value={c} />)}
-                  </datalist>
+                  <label className="text-xs font-medium text-muted-foreground">Main category</label>
+                  <select
+                    value={form.mainCategory}
+                    onChange={e => setForm(f => ({
+                      ...f,
+                      mainCategory: e.target.value,
+                      subCategory: e.target.value === "Inverter" ? f.subCategory : "",
+                    }))}
+                    className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]"
+                  >
+                    {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
+                {form.mainCategory === "Inverter" && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Inverter line</label>
+                    <select
+                      value={form.subCategory}
+                      onChange={e => setForm(f => ({ ...f, subCategory: e.target.value }))}
+                      className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]"
+                    >
+                      <option value="">Select line…</option>
+                      {INVERTER_SUBCATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Stock Status</label>
                   <select value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
