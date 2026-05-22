@@ -14,6 +14,11 @@ import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS } from "@/lib/auth"
 import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Trash2 } from "lucide-react"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
+import {
+  formatPettyCashExpense,
+  sumApprovedReceipts,
+  sumCommittedReceipts,
+} from "@/lib/petty-cash-display"
 
 export function PettyCashDashboard() {
   const { user, userRole } = useAuthWithRole()
@@ -69,13 +74,11 @@ export function PettyCashDashboard() {
   }
 
   function calculateSpentAmount(allocationId: string) {
-    return receipts
-      .filter(r => r.allocationId === allocationId && r.status === "approved")
-      .reduce((sum, r) => sum + r.amount, 0)
+    return sumApprovedReceipts(receipts, allocationId)
   }
 
   function calculateRemainingAmount(allocation: PettyCashAllocation) {
-    return allocation.amount - calculateSpentAmount(allocation.id)
+    return allocation.amount - sumCommittedReceipts(receipts, allocation.id)
   }
 
   async function handleSettleAllocation(allocation: PettyCashAllocation) {
@@ -180,7 +183,7 @@ export function PettyCashDashboard() {
           <div>
             <h2 className="text-xl font-bold">Petty Cash Management</h2>
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Request cash, submit settlements, and track your own petty cash balance
+              Request cash, add expense receipts, and track your petty cash balance
             </p>
           </div>
         </div>
@@ -194,7 +197,7 @@ export function PettyCashDashboard() {
             </Button>
           )}
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Settlement
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Receipt
           </Button>
         </div>
       </div>
@@ -265,7 +268,9 @@ export function PettyCashDashboard() {
             </div>
             <div>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Spent</p>
-              <p className="text-lg font-bold">PKR {displayReceipts.filter(r => r.status === "approved").reduce((sum, r) => sum + r.amount, 0).toLocaleString()}</p>
+              <p className="text-lg font-bold text-red-600">
+                {formatPettyCashExpense(sumApprovedReceipts(displayReceipts))}
+              </p>
             </div>
           </div>
         </div>
@@ -288,7 +293,7 @@ export function PettyCashDashboard() {
               <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending Settlements</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Pending Receipts</p>
               <p className="text-lg font-bold">{displayReceipts.filter(r => r.status === "pending").length}</p>
             </div>
           </div>
@@ -332,7 +337,7 @@ export function PettyCashDashboard() {
           ) : (
             <div>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3 text-center">
-                💡 Click on any row to view details and submit settlement receipts
+                💡 Click on any row to view details and add expense receipts
               </p>
               <div className="rounded-lg border overflow-hidden">
                 <table className="w-full">
@@ -369,7 +374,7 @@ export function PettyCashDashboard() {
                           </td>
                           <td className="px-4 py-2.5 text-xs font-semibold">PKR {allocation.amount.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-xs">{allocation.purpose}</td>
-                          <td className="px-4 py-2.5 text-xs font-semibold text-blue-600">PKR {spent.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-xs font-semibold text-red-600">{formatPettyCashExpense(spent)}</td>
                           <td className="px-4 py-2.5 text-xs font-semibold text-green-600">PKR {remaining.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-xs">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(allocation.status)}`}>
@@ -427,9 +432,9 @@ export function PettyCashDashboard() {
           {displayReceipts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Receipt className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">No settlements found</p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">No receipts found</p>
               <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowReceiptForm(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Settlement
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Receipt
               </Button>
             </div>
           ) : (
@@ -450,7 +455,9 @@ export function PettyCashDashboard() {
                     <tr key={receipt.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
                       <td className="px-4 py-2.5 text-xs font-medium">{receipt.employeeName}</td>
                       <td className="px-4 py-2.5 text-xs">{receipt.description}</td>
-                      <td className="px-4 py-2.5 text-xs font-semibold">PKR {receipt.amount.toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-xs font-semibold text-red-600">
+                        {formatPettyCashExpense(receipt.amount)}
+                      </td>
                       <td className="px-4 py-2.5 text-xs">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(receipt.status)}`}>
                           {receipt.status}

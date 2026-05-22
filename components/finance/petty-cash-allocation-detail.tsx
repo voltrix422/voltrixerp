@@ -1,6 +1,19 @@
 "use client"
 import { useState, useEffect } from "react"
-import { PettyCashAllocation, PettyCashReceipt, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, deletePettyCashReceipt } from "@/lib/petty-cash"
+import {
+  PettyCashAllocation,
+  PettyCashReceipt,
+  getPettyCashReceipts,
+  createPettyCashReceipt,
+  updatePettyCashAllocationStatus,
+  updatePettyCashReceiptStatus,
+  deletePettyCashReceipt,
+} from "@/lib/petty-cash"
+import {
+  formatPettyCashExpense,
+  sumApprovedReceipts,
+  sumCommittedReceipts,
+} from "@/lib/petty-cash-display"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
@@ -56,8 +69,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
     }
   }
 
-  const totalSpent = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0)
-  const remainingAmount = allocation.amount - totalSpent
+  const totalSpent = sumApprovedReceipts(receipts, allocation.id)
+  const committedAmount = sumCommittedReceipts(receipts, allocation.id)
+  const remainingAmount = allocation.amount - committedAmount
   const progressPercentage = allocation.amount > 0 ? (totalSpent / allocation.amount) * 100 : 0
 
   async function handleFileUpload(file: File): Promise<string> {
@@ -109,31 +123,25 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         receiptProofFileName = receiptFile.name
       }
 
-      const response = await fetch("/api/db/petty-cash-receipts", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          allocationId: allocation.id,
-          employeeName: allocation.employeeName,
-          description,
-          amount: parseFloat(amount),
-          receiptProof: receiptProofUrl || undefined,
-          receiptProofName: receiptProofFileName || undefined,
-          notes: notes.trim()
-        })
+      const newReceipt = await createPettyCashReceipt({
+        allocationId: allocation.id,
+        employeeName: allocation.employeeName,
+        description,
+        amount: parseFloat(amount),
+        receiptProof: receiptProofUrl || undefined,
+        receiptProofName: receiptProofFileName || undefined,
+        notes: notes.trim(),
+        selfSubmit: isOwnAllocation,
+        submittedBy: currentUser || allocation.employeeName,
       })
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(payload?.error || "Failed to submit settlement")
-      }
-
-      const newReceipt = await response.json()
       setReceipts(prev => [newReceipt, ...prev])
 
       toast({
         title: "Success",
-        message: "Settlement entry submitted successfully",
+        message: isOwnAllocation
+          ? `Receipt recorded. ${formatPettyCashExpense(parseFloat(amount))} released from petty cash.`
+          : "Receipt submitted for approval.",
         type: "success"
       })
 
@@ -283,7 +291,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                   <Receipt className="h-4 w-4 text-green-600" />
                   <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Total Spent</p>
                 </div>
-                <p className="text-xl font-bold text-green-600">PKR {totalSpent.toLocaleString()}</p>
+                <p className="text-xl font-bold text-red-600">{formatPettyCashExpense(totalSpent)}</p>
               </div>
               
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
@@ -318,7 +326,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 />
               </div>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                PKR {totalSpent.toLocaleString()} of PKR {allocation.amount.toLocaleString()} spent
+                {formatPettyCashExpense(totalSpent)} of PKR {allocation.amount.toLocaleString()} released
               </p>
             </div>
 
@@ -392,13 +400,13 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             {/* Actions */}
             {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && remainingAmount > 0 && (
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Settlement Management</h3>
+                <h3 className="text-sm font-semibold">Receipts</h3>
                 <Button
                   onClick={() => setShowReceiptForm(!showReceiptForm)}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Add Settlement
+                  Add Receipt
                 </Button>
               </div>
             )}
@@ -406,7 +414,10 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             {/* Settlement Form */}
             {showReceiptForm && (
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-                <h3 className="text-sm font-semibold mb-4">Submit Settlement Entry</h3>
+                <h3 className="text-sm font-semibold mb-4">Add expense receipt</h3>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-4">
+                  Amount is recorded as a negative expense and reduces your remaining petty cash balance immediately.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Description *</label>
@@ -468,7 +479,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                     disabled={loading || uploading}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    {uploading ? "Uploading..." : "Submit Settlement"}
+                    {uploading ? "Uploading..." : "Add Receipt"}
                   </Button>
                   <Button variant="outline" onClick={() => setShowReceiptForm(false)}>
                     Cancel
@@ -481,7 +492,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
               <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                 <Receipt className="h-4 w-4" />
-                Settlement History ({receipts.length})
+                Receipt history ({receipts.length})
               </h3>
               {loading && (
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">Loading settlement history...</p>
@@ -489,7 +500,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
               {receipts.length === 0 ? (
                 <div className="text-center py-8">
                   <Receipt className="h-12 w-12 text-[hsl(var(--muted-foreground))] mx-auto mb-3" />
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No settlements submitted yet</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No receipts yet</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -503,7 +514,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                               {receipt.status}
                             </Badge>
                           </div>
-                          <p className="text-sm font-semibold text-blue-600 mb-1">PKR {receipt.amount.toLocaleString()}</p>
+                          <p className="text-sm font-semibold text-red-600 mb-1">
+                            {formatPettyCashExpense(receipt.amount)}
+                          </p>
                           {receipt.notes && (
                             <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">{receipt.notes}</p>
                           )}

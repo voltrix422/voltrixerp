@@ -171,6 +171,9 @@ export async function createPettyCashReceipt(data: {
   receiptProof?: string
   receiptProofName?: string
   notes?: string
+  /** Employee's own receipt — deducts balance immediately (auto-approved). */
+  selfSubmit?: boolean
+  submittedBy?: string
 }): Promise<PettyCashReceipt> {
   const res = await fetch('/api/db/petty-cash-receipts', {
     method: 'POST',

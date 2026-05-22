@@ -3,6 +3,11 @@
 import { useMemo } from "react"
 import type { PettyCashAllocation, PettyCashReceipt } from "@/lib/petty-cash"
 import { buildPettyCashHistory, isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
+import {
+  formatPettyCashCredit,
+  formatPettyCashExpense,
+  isPettyCashExpenseEvent,
+} from "@/lib/petty-cash-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { History, Eye } from "lucide-react"
@@ -149,7 +154,19 @@ export function PettyCashActivityTimeline({
               <div className="flex flex-wrap gap-3 text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
                 <span>{new Date(event.occurredAt).toLocaleString()}</span>
                 {event.actor && <span>By {event.actor}</span>}
-                {event.amount !== undefined && <span>PKR {event.amount.toLocaleString()}</span>}
+                {event.amount !== undefined && (
+                  <span
+                    className={
+                      event.amount < 0 || isPettyCashExpenseEvent(event.type)
+                        ? "text-red-600 font-medium"
+                        : "text-green-600 font-medium"
+                    }
+                  >
+                    {event.amount < 0 || isPettyCashExpenseEvent(event.type)
+                      ? formatPettyCashExpense(event.amount)
+                      : formatPettyCashCredit(event.amount)}
+                  </span>
+                )}
               </div>
               {event.proofUrl && (
                 <a

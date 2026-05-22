@@ -68,12 +68,20 @@ export function buildPettyCashHistory(
   }
 
   receipts.forEach((receipt) => {
+    const expenseAmount = -Math.abs(receipt.amount)
+    const submitTitle =
+      receipt.status === "approved"
+        ? "Receipt recorded — petty cash released"
+        : receipt.status === "rejected"
+          ? "Receipt rejected"
+          : "Receipt submitted (pending approval)"
+
     events.push({
       id: `${receipt.id}-submitted`,
       type: "settlement",
-      title: "Settlement submitted",
+      title: submitTitle,
       description: receipt.description,
-      amount: receipt.amount,
+      amount: receipt.status === "rejected" ? undefined : expenseAmount,
       occurredAt: receipt.submittedAt,
       actor: receipt.employeeName,
       proofUrl: receipt.receiptProof,
@@ -82,16 +90,30 @@ export function buildPettyCashHistory(
     })
 
     if (receipt.reviewedAt) {
-      events.push({
-        id: `${receipt.id}-review`,
-        type: "settlement_review",
-        title: receipt.status === "approved" ? "Settlement approved" : "Settlement rejected",
-        description: receipt.reviewNotes || receipt.notes || undefined,
-        amount: receipt.amount,
-        occurredAt: receipt.reviewedAt,
-        actor: receipt.reviewedBy,
-        status: receipt.status,
-      })
+      const reviewedLater =
+        new Date(receipt.reviewedAt).getTime() - new Date(receipt.submittedAt).getTime() > 2000
+      if (reviewedLater && receipt.status === "approved") {
+        events.push({
+          id: `${receipt.id}-review`,
+          type: "settlement_review",
+          title: "Receipt approved — petty cash released",
+          description: receipt.reviewNotes || receipt.notes || undefined,
+          amount: expenseAmount,
+          occurredAt: receipt.reviewedAt,
+          actor: receipt.reviewedBy,
+          status: receipt.status,
+        })
+      } else if (reviewedLater && receipt.status === "rejected") {
+        events.push({
+          id: `${receipt.id}-review`,
+          type: "settlement_review",
+          title: "Receipt rejected",
+          description: receipt.reviewNotes || receipt.notes || undefined,
+          occurredAt: receipt.reviewedAt,
+          actor: receipt.reviewedBy,
+          status: receipt.status,
+        })
+      }
     }
   })
 

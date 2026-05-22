@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getPettyCashAllocations, getPettyCashReceipts, createPettyCashReceipt, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
+import { sumCommittedReceipts } from "@/lib/petty-cash-display"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
@@ -69,13 +70,13 @@ export function PettyCashReceipt({ onClose, onSave, employeeName, employeeId }: 
 
     // Calculate actual remaining amount from existing receipts
     const existingReceipts = await getPettyCashReceipts(selectedAllocation.id)
-    const approvedAmount = existingReceipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0)
-    const remainingAmount = selectedAllocation.amount - approvedAmount
+    const committedAmount = sumCommittedReceipts(existingReceipts, selectedAllocation.id)
+    const remainingAmount = selectedAllocation.amount - committedAmount
 
     if (parseFloat(amount) > remainingAmount) {
       toast({
         title: "Amount Exceeds Remaining Balance",
-        message: `Maximum amount available: PKR ${remainingAmount.toLocaleString()} (PKR ${selectedAllocation.amount.toLocaleString()} - PKR ${approvedAmount.toLocaleString()} spent)`,
+        message: `Maximum amount available: PKR ${remainingAmount.toLocaleString()} (PKR ${selectedAllocation.amount.toLocaleString()} - PKR ${committedAmount.toLocaleString()} already used)`,
         type: "error"
       })
       return
@@ -101,12 +102,14 @@ export function PettyCashReceipt({ onClose, onSave, employeeName, employeeId }: 
         amount: parseFloat(amount),
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
-        notes: notes.trim()
+        notes: notes.trim(),
+        selfSubmit: true,
+        submittedBy: user?.name || selectedAllocation.employeeName,
       })
 
       toast({
         title: "Success",
-        message: "Settlement submitted successfully",
+        message: `Receipt recorded. PKR ${parseFloat(amount).toLocaleString()} released from your petty cash.`,
         type: "success"
       })
 
@@ -131,7 +134,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName, employeeId }: 
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-blue-600" />
-            <p className="text-lg font-bold">Add Settlement</p>
+            <p className="text-lg font-bold">Add Receipt</p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -234,7 +237,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName, employeeId }: 
                   step="0.01"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
-                  placeholder="Enter expense amount"
+                  placeholder="Expense amount (deducted from petty cash)"
                   className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                 />
                 {selectedAllocation && (
@@ -299,7 +302,7 @@ export function PettyCashReceipt({ onClose, onSave, employeeName, employeeId }: 
             onClick={submit}
             disabled={loading || uploading || allocations.length === 0}
           >
-            {loading || uploading ? "Processing..." : "Submit Settlement"}
+            {loading || uploading ? "Processing..." : "Add Receipt"}
           </Button>
         </div>
       </div>

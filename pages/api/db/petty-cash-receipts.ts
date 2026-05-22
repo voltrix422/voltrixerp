@@ -31,7 +31,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         amount,
         receiptProof,
         receiptProofName,
-        notes
+        notes,
+        selfSubmit,
+        submittedBy,
       } = req.body
 
       if (!allocationId || !employeeName || !description || !amount) {
@@ -64,6 +66,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: `Settlement exceeds remaining balance. Remaining: PKR ${remaining.toLocaleString()}` })
       }
 
+      const autoApprove = selfSubmit === true
+      const reviewer = String(submittedBy || employeeName || '').trim()
+
       const receipt = await prisma.erpPettyCashReceipt.create({
         data: {
           allocationId,
@@ -72,9 +77,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           amount: parsedAmount,
           receiptProof,
           receiptProofName,
-          notes: notes || ''
+          notes: notes || '',
+          status: autoApprove ? 'approved' : 'pending',
+          reviewedBy: autoApprove ? reviewer || employeeName : null,
+          reviewedAt: autoApprove ? new Date() : null,
         }
       })
+
+      if (autoApprove) {
+        const approvedRows = await prisma.erpPettyCashReceipt.findMany({
+          where: { allocationId, status: 'approved' },
+        })
+        const approvedTotal = approvedRows.reduce((sum, item) => sum + item.amount, 0)
+        if (approvedTotal >= allocation.amount - 0.004) {
+          await prisma.erpPettyCashAllocation.update({
+            where: { id: allocationId },
+            data: { status: 'settled', settledAt: new Date() },
+          })
+        }
+      }
 
       return res.status(201).json(receipt)
     }
