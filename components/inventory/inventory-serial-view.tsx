@@ -304,7 +304,9 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
             <span>Model code</span>
             <span className="text-right">Stock</span>
             <span className="text-right">Units</span>
-            <span />
+            <span className="text-right text-[10px] font-normal normal-case tracking-normal text-[#1faca6]/90">
+              Hover for prices
+            </span>
           </div>
           <div className="divide-y">
           {groupedByModel.map(([modelKey, modelUnits]) => (

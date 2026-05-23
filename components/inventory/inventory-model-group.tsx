@@ -1,8 +1,9 @@
 "use client"
 
-import type { MouseEvent } from "react"
+import { useCallback, useRef, useState, type MouseEvent } from "react"
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 import { formatGstPercent, formatRetailPricePkr } from "@/lib/format-inventory-price"
+import { InventoryModelPricePanel } from "@/components/inventory/inventory-model-price-panel"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronRight, Loader2, Pencil, Trash2 } from "lucide-react"
 
@@ -50,8 +51,42 @@ export function InventoryModelGroup({
   const inStock = modelUnits.filter((u) => u.status === "in_stock").length
   const title = customName || modelKey
 
+  const [pricePanelOpen, setPricePanelOpen] = useState(false)
+  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearOpenTimer = useCallback(() => {
+    if (openTimerRef.current) {
+      clearTimeout(openTimerRef.current)
+      openTimerRef.current = null
+    }
+  }, [])
+
+  const schedulePricePanel = useCallback(() => {
+    if (isEditing) return
+    clearOpenTimer()
+    openTimerRef.current = setTimeout(() => setPricePanelOpen(true), 400)
+  }, [isEditing, clearOpenTimer])
+
+  const cancelScheduledPricePanel = useCallback(() => {
+    clearOpenTimer()
+  }, [clearOpenTimer])
+
+  const closePricePanel = useCallback(() => {
+    clearOpenTimer()
+    setPricePanelOpen(false)
+  }, [clearOpenTimer])
+
   return (
     <div className="bg-[hsl(var(--background))]">
+      <InventoryModelPricePanel
+        open={pricePanelOpen}
+        onClose={closePricePanel}
+        modelKey={modelKey}
+        title={title}
+        modelUnits={modelUnits}
+        inStock={inStock}
+        total={count}
+      />
       {isEditing ? (
         <div
           className="flex flex-wrap items-center gap-2.5 px-4 py-3 bg-[hsl(var(--muted))]/10"
@@ -78,9 +113,12 @@ export function InventoryModelGroup({
       ) : (
         <button
           type="button"
-          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] gap-3 items-center px-4 py-3.5 text-left hover:bg-[hsl(var(--muted))]/12 transition-colors"
+          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] gap-3 items-center px-4 py-3.5 text-left hover:bg-[hsl(var(--muted))]/12 transition-colors cursor-pointer"
           onClick={onToggle}
+          onMouseEnter={schedulePricePanel}
+          onMouseLeave={cancelScheduledPricePanel}
           aria-expanded={expanded}
+          title="Hover for prices · click to expand units"
         >
           {expanded ? (
             <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
