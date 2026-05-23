@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     retailPrice,
     gstPercent,
     scannedBy,
-    createWarranty = true,
+    createWarranty = false,
   } = body
 
   const normalizedSerial = String(serialNumber ?? "").trim()

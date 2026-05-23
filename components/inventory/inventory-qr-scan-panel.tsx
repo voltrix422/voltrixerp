@@ -531,7 +531,7 @@ export function InventoryQrScanPanel({
             retailPrice: scan.retailPrice,
             gstPercent: scan.gstPercent,
             scannedBy,
-            createWarranty: true,
+            createWarranty: false,
           })),
         )
 

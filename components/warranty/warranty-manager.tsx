@@ -3,7 +3,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, Filter } from "lucide-react"
-import { isWarrantyRegistryVisible } from "@/lib/warranty-registry"
 
 interface Warranty {
   id: string
@@ -200,9 +199,7 @@ export function WarrantyManager() {
     return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
   }
 
-  const registryWarranties = warranties.filter((w) => isWarrantyRegistryVisible(w))
-
-  const filtered = registryWarranties.filter(w => {
+  const filtered = warranties.filter(w => {
     const remaining = calculateRemainingWarranty(w.warrantyEndDate)
     
     // Search filter
@@ -310,7 +307,7 @@ export function WarrantyManager() {
         <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))]">Loading warranties...</div>
       )}
 
-      {!loading && registryWarranties.length === 0 && (
+      {!loading && warranties.length === 0 && (
         <div className="text-center py-10 rounded-lg border border-dashed">
           <Shield className="h-10 w-10 mx-auto text-[hsl(var(--muted-foreground))] opacity-40 mb-2" />
           <p className="text-sm font-medium">No sold warranties yet</p>
@@ -321,7 +318,7 @@ export function WarrantyManager() {
       )}
 
       {/* Warranty Table */}
-      {!loading && registryWarranties.length > 0 && (
+      {!loading && warranties.length > 0 && (
         <div className="rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">

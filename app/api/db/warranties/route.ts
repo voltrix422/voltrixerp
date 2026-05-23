@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { isWarrantyRegistryVisible } from "@/lib/warranty-registry"
+import { filterWarrantiesForRegistry } from "@/lib/warranty-registry"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -10,11 +10,33 @@ export async function GET(req: NextRequest) {
     orderBy: { soldDate: "desc" },
   })
 
-  const visible = includeInventory
-    ? warranties
-    : warranties.filter((w) => isWarrantyRegistryVisible(w))
+  if (includeInventory) {
+    return NextResponse.json(warranties)
+  }
 
-  return NextResponse.json(visible)
+  const warrantyIds = warranties
+    .map((w) => w.warrantyId)
+    .filter((id): id is string => !!id?.trim())
+  const serialKeys = [
+    ...new Set(
+      warranties.flatMap((w) => [w.serialNumber, w.productName].filter((s): s is string => !!s?.trim())),
+    ),
+  ]
+
+  const units =
+    warrantyIds.length > 0 || serialKeys.length > 0
+      ? await prisma.erpInventorySerialUnit.findMany({
+          where: {
+            OR: [
+              ...(warrantyIds.length > 0 ? [{ warrantyId: { in: warrantyIds } }] : []),
+              ...(serialKeys.length > 0 ? [{ serialNumber: { in: serialKeys } }] : []),
+            ],
+          },
+          select: { warrantyId: true, serialNumber: true, status: true },
+        })
+      : []
+
+  return NextResponse.json(filterWarrantiesForRegistry(warranties, units))
 }
 
 export async function POST(req: NextRequest) {
@@ -57,14 +79,13 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json(warranty)
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string; code?: string }
     console.error("Error saving warranty:", error)
-    console.error("Error details:", error.message)
-    console.error("Error code:", error.code)
     return NextResponse.json({ 
       error: "Failed to save warranty", 
-      details: error.message || String(error),
-      code: error.code || "UNKNOWN"
+      details: err.message || String(error),
+      code: err.code || "UNKNOWN"
     }, { status: 500 })
   }
 }

@@ -1,21 +1,88 @@
+import type { ErpInventorySerialUnit, ErpWarranty } from "@prisma/client"
+
 /** True when warranty was auto-created from warehouse QR scan (not yet sold). */
 export function isInventoryScanWarranty(notes: string | null | undefined): boolean {
-  return (notes || "").includes("Registered from inventory QR scan")
+  const n = (notes || "").toLowerCase()
+  return (
+    n.includes("registered from inventory") ||
+    n.includes("inventory qr scan") ||
+    n.includes("qr scan")
+  )
 }
 
-/** Warranties visible on the website / warranty manager (sold or manually registered). */
-export function isWarrantyRegistryVisible(row: {
-  customerName?: string | null
-  notes?: string | null
-}): boolean {
-  const customer = (row.customerName || "").trim()
-  if (customer) return true
+function hasRealCustomer(customerName: string | null | undefined): boolean {
+  const customer = (customerName || "").trim()
+  return customer.length > 0 && customer !== "-"
+}
+
+/**
+ * Warranties visible on /website warranty tab: sold/dispatched only, not warehouse stock.
+ */
+export function isWarrantyRegistryVisible(
+  row: {
+    customerName?: string | null
+    notes?: string | null
+    serialNumber?: string | null
+    productName?: string | null
+    warrantyId?: string | null
+  },
+  unitStatus?: string | null,
+): boolean {
+  if (hasRealCustomer(row.customerName)) return true
 
   const notes = (row.notes || "").toLowerCase()
   if (notes.includes("dispatched on order")) return true
 
-  // Manual "Add Warranty" entries (not from inventory scan)
-  if (!isInventoryScanWarranty(row.notes)) return true
+  if (unitStatus === "delivered") return true
+  if (unitStatus === "in_stock") return false
 
-  return false
+  if (isInventoryScanWarranty(row.notes)) return false
+
+  const serialKey = (row.serialNumber || row.productName || "").trim()
+  if (serialKey && !hasRealCustomer(row.customerName)) {
+    if (/^[A-Z]{2,}[-\dA-Z]+$/i.test(serialKey)) return false
+    if (serialKey.startsWith("AEP-") || serialKey.startsWith("HSLD")) return false
+  }
+
+  return true
+}
+
+export function resolveUnitStatusForWarranty(
+  warranty: Pick<ErpWarranty, "warrantyId" | "serialNumber" | "productName">,
+  byWarrantyId: Map<string, string>,
+  bySerial: Map<string, string>,
+): string | null {
+  if (warranty.warrantyId) {
+    const s = byWarrantyId.get(warranty.warrantyId)
+    if (s) return s
+  }
+  const sn = (warranty.serialNumber || "").trim()
+  if (sn) {
+    const s = bySerial.get(sn.toLowerCase())
+    if (s) return s
+  }
+  const pn = (warranty.productName || "").trim()
+  if (pn) {
+    const s = bySerial.get(pn.toLowerCase())
+    if (s) return s
+  }
+  return null
+}
+
+export function filterWarrantiesForRegistry<
+  T extends Pick<
+    ErpWarranty,
+    "customerName" | "notes" | "serialNumber" | "productName" | "warrantyId"
+  >,
+>(warranties: T[], units: Pick<ErpInventorySerialUnit, "warrantyId" | "serialNumber" | "status">[]): T[] {
+  const byWarrantyId = new Map<string, string>()
+  const bySerial = new Map<string, string>()
+  for (const u of units) {
+    if (u.warrantyId) byWarrantyId.set(u.warrantyId, u.status)
+    if (u.serialNumber) bySerial.set(u.serialNumber.toLowerCase(), u.status)
+  }
+
+  return warranties.filter((w) =>
+    isWarrantyRegistryVisible(w, resolveUnitStatusForWarranty(w, byWarrantyId, bySerial)),
+  )
 }

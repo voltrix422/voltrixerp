@@ -133,21 +133,91 @@ async function findInStockSerials(keys: string[], qty: number) {
   return null
 }
 
-async function linkWarrantyToOrderDispatch(
-  unit: { warrantyId: string | null; serialNumber: string },
+function addYears(date: Date, years: number) {
+  const next = new Date(date)
+  next.setFullYear(next.getFullYear() + years)
+  return next
+}
+
+async function ensureWarrantyForDispatch(
+  unit: {
+    id: string
+    warrantyId: string | null
+    serialNumber: string
+    model: string
+    productName?: string
+  },
   order: OrderDeductInput,
 ) {
-  if (!unit.warrantyId?.trim()) return
   const soldDate = order.inventoryDeductedAt
     ? new Date(order.inventoryDeductedAt)
     : new Date()
+  const warrantyStartDate = soldDate
+  const warrantyEndDate = addYears(soldDate, 5)
+  const dispatchNote = `Dispatched on order ${order.orderNumber}`
+
   try {
-    await prisma.erpWarranty.updateMany({
-      where: { warrantyId: unit.warrantyId },
+    if (unit.warrantyId?.trim()) {
+      await prisma.erpWarranty.updateMany({
+        where: { warrantyId: unit.warrantyId },
+        data: {
+          customerName: order.clientName,
+          soldDate,
+          warrantyStartDate,
+          warrantyEndDate,
+          notes: dispatchNote,
+        },
+      })
+      return
+    }
+
+    const bySerial = await prisma.erpWarranty.findFirst({
+      where: { serialNumber: unit.serialNumber },
+    })
+    if (bySerial) {
+      await prisma.erpWarranty.update({
+        where: { id: bySerial.id },
+        data: {
+          customerName: order.clientName,
+          soldDate,
+          warrantyStartDate,
+          warrantyEndDate,
+          notes: dispatchNote,
+        },
+      })
+      if (bySerial.warrantyId) {
+        await prisma.erpInventorySerialUnit.update({
+          where: { id: unit.id },
+          data: {
+            warrantyId: bySerial.warrantyId,
+            warrantyStartDate,
+            warrantyEndDate,
+          },
+        })
+      }
+      return
+    }
+
+    const generatedWarrantyId = `vol-${Math.floor(10000 + Math.random() * 90000)}`
+    const created = await prisma.erpWarranty.create({
       data: {
-        customerName: order.clientName,
+        warrantyId: generatedWarrantyId,
+        serialNumber: unit.serialNumber,
+        productName: unit.model || unit.productName || unit.serialNumber,
         soldDate,
-        notes: `Dispatched on order ${order.orderNumber}`,
+        warrantyStartDate,
+        warrantyEndDate,
+        customerName: order.clientName,
+        notes: dispatchNote,
+        createdBy: order.createdBy || "system",
+      },
+    })
+    await prisma.erpInventorySerialUnit.update({
+      where: { id: unit.id },
+      data: {
+        warrantyId: created.warrantyId,
+        warrantyStartDate,
+        warrantyEndDate,
       },
     })
   } catch {
@@ -183,7 +253,7 @@ async function markSerialUnitsDelivered(
   )
 
   for (const unit of units) {
-    await linkWarrantyToOrderDispatch(unit, order)
+    await ensureWarrantyForDispatch(unit, order)
   }
 }
 
