@@ -30,12 +30,31 @@ fi
 nginx -t
 systemctl reload nginx
 
-echo "==> Expand Let's Encrypt certificate"
+echo "==> Deploy / expand Let's Encrypt certificate"
 CERTBOT_ARGS=()
 for d in "${DOMAINS[@]}"; do
   CERTBOT_ARGS+=(-d "$d")
 done
-certbot --nginx --expand "${CERTBOT_ARGS[@]}"
+
+CERT_PATH="/etc/letsencrypt/live/voltrixpv.com/fullchain.pem"
+need_certbot=0
+if [[ ! -f "$CERT_PATH" ]]; then
+  need_certbot=1
+else
+  for d in "${DOMAINS[@]}"; do
+    if ! openssl x509 -in "$CERT_PATH" -noout -text 2>/dev/null | grep -q "DNS:${d}"; then
+      echo "==> Missing from cert: $d"
+      need_certbot=1
+      break
+    fi
+  done
+fi
+
+if [[ $need_certbot -eq 1 ]]; then
+  certbot --nginx --expand --non-interactive "${CERTBOT_ARGS[@]}"
+else
+  echo "==> Certificate already covers all domains; nginx config updated (certbot skipped)"
+fi
 
 nginx -t
 systemctl reload nginx
