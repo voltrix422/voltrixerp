@@ -19,15 +19,13 @@ if [[ -f "$CONF_SRC" ]] && [[ -f /etc/letsencrypt/live/voltrixpv.com/fullchain.p
   ln -sf "$CONF_DST" /etc/nginx/sites-enabled/voltrix-erp
 fi
 
-# Ensure server_name includes voltrixbatteries on live config (certbot may have edited files)
-for site in /etc/nginx/sites-enabled/*; do
-  [[ -f "$site" ]] || continue
-  if grep -q "ssl_certificate" "$site" 2>/dev/null && grep -q "voltrixpv.com\|voltrixbatteries\|proxy_pass" "$site" 2>/dev/null; then
-    if ! grep -q "voltrixbatteries.com" "$site" 2>/dev/null; then
-      echo "==> Add voltrixbatteries.com to server_name in $site (manual check recommended)"
-    fi
-  fi
-done
+# Legacy site "erpvoltrix" duplicates server_name for batteries/ev — certbot splits certs across
+# both files and nginx ignores the duplicates in voltrix-erp. Keep a single site.
+LEGACY="/etc/nginx/sites-enabled/erpvoltrix"
+if [[ -e "$LEGACY" ]]; then
+  echo "==> Disable legacy nginx site (conflicts with voltrix-erp): $LEGACY"
+  rm -f "$LEGACY"
+fi
 
 nginx -t
 systemctl reload nginx
