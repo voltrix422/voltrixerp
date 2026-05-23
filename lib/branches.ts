@@ -44,12 +44,35 @@ export async function getBranches(): Promise<Branch[]> {
   } catch { return [] }
 }
 
-export async function saveBranch(b: Branch): Promise<void> {
-  await fetch("/api/db/branches", {
+export async function saveBranch(b: Branch): Promise<Branch> {
+  const res = await fetch("/api/db/branches", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(b),
   })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(
+      (data as { error?: string }).error || `Failed to save branch (${res.status})`,
+    )
+  }
+  const r = data as Record<string, unknown>
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    code: r.code as string,
+    type: r.type as BranchType,
+    address: (r.address as string) ?? "",
+    city: (r.city as string) ?? "",
+    country: (r.country as string) ?? "",
+    phone: (r.phone as string) ?? "",
+    email: (r.email as string) ?? "",
+    manager: (r.manager as string) ?? "",
+    status: r.status as "active" | "inactive",
+    notes: (r.notes as string) ?? "",
+    createdAt: r.createdAt as string,
+    createdBy: r.createdBy as string,
+  }
 }
 
 export async function deleteBranch(id: string): Promise<void> {
@@ -63,10 +86,15 @@ export async function deleteBranch(id: string): Promise<void> {
 export async function generateBranchCode(): Promise<string> {
   try {
     const branches = await getBranches()
-    const count = branches.length
-    const n = count + 1
-    return `BR${String(n).padStart(3, "0")}`
-  } catch { return `BR${Date.now()}` }
+    let max = 0
+    for (const b of branches) {
+      const m = /^BR(\d+)$/i.exec((b.code || "").trim())
+      if (m) max = Math.max(max, parseInt(m[1], 10))
+    }
+    return `BR${String(max + 1).padStart(3, "0")}`
+  } catch {
+    return `BR${String(Date.now()).slice(-6)}`
+  }
 }
 
 // ── Branch Inventory ────────────────────────────────────────────

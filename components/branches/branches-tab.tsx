@@ -185,22 +185,28 @@ export function BranchesTab() {
 
   async function handleAdd(data: Omit<Branch, "id" | "createdAt" | "createdBy">) {
     setSaving(true)
-    const b: Branch = { ...data, id: Date.now().toString(), createdAt: new Date().toISOString(), createdBy: user?.name || "system" }
+    const b: Branch = {
+      ...data,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      createdBy: user?.name || "system",
+    }
     try {
-      await saveBranch(b)
-      setBranches(prev => [...prev, b])
+      const saved = await saveBranch(b)
+      setBranches((prev) => [...prev, saved])
       setAdding(false)
+      setAutoCode("")
       toast({
         type: "success",
         title: "Branch Created",
-        message: `${b.name} has been added successfully.`,
+        message: `${saved.name} has been added successfully.`,
         duration: 3000,
       })
     } catch (error) {
       toast({
         type: "error",
         title: "Error",
-        message: "Failed to create branch. Please try again.",
+        message: error instanceof Error ? error.message : "Failed to create branch. Please try again.",
         duration: 5000,
       })
     } finally {
@@ -213,21 +219,21 @@ export function BranchesTab() {
     const existing = branches.find(b => b.id === id)
     const b: Branch = { ...data, id, createdAt: existing?.createdAt || new Date().toISOString(), createdBy: existing?.createdBy || user?.name || "system" }
     try {
-      await saveBranch(b)
-      setBranches(prev => prev.map(x => x.id === id ? b : x))
+      const saved = await saveBranch(b)
+      setBranches((prev) => prev.map((x) => (x.id === id ? saved : x)))
       setEditId(null)
-      setViewBranch(b)
+      setViewBranch(saved)
       toast({
         type: "success",
         title: "Branch Updated",
-        message: `${b.name} has been updated successfully.`,
+        message: `${saved.name} has been updated successfully.`,
         duration: 3000,
       })
     } catch (error) {
       toast({
         type: "error",
         title: "Error",
-        message: "Failed to update branch. Please try again.",
+        message: error instanceof Error ? error.message : "Failed to update branch. Please try again.",
         duration: 5000,
       })
     } finally {

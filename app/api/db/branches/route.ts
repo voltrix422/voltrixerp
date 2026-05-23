@@ -7,48 +7,60 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const b = await req.json()
-  if (b.type === "main_warehouse") {
-    await prisma.erpBranch.updateMany({
-      where: {
-        type: "main_warehouse",
-        id: { not: b.id }
+  try {
+    const b = await req.json()
+    if (b.type === "main_warehouse") {
+      await prisma.erpBranch.updateMany({
+        where: {
+          type: "main_warehouse",
+          id: { not: b.id },
+        },
+        data: { type: "warehouse" },
+      })
+    }
+    const branch = await prisma.erpBranch.upsert({
+      where: { id: b.id ?? "__new__" },
+      update: {
+        name: b.name,
+        code: b.code,
+        type: b.type,
+        address: b.address ?? "",
+        city: b.city ?? "",
+        country: b.country ?? "",
+        phone: b.phone ?? "",
+        email: b.email ?? "",
+        manager: b.manager ?? "",
+        status: b.status ?? "active",
+        notes: b.notes ?? "",
       },
-      data: { type: "warehouse" }
+      create: {
+        id: b.id,
+        name: b.name,
+        code: b.code,
+        type: b.type,
+        address: b.address ?? "",
+        city: b.city ?? "",
+        country: b.country ?? "",
+        phone: b.phone ?? "",
+        email: b.email ?? "",
+        manager: b.manager ?? "",
+        status: b.status ?? "active",
+        notes: b.notes ?? "",
+        createdBy: b.createdBy || "system",
+      },
     })
+    return NextResponse.json(branch)
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code
+    if (code === "P2002") {
+      return NextResponse.json(
+        { error: "Branch code already exists. Use a different code." },
+        { status: 409 },
+      )
+    }
+    console.error("[branches POST]", err)
+    return NextResponse.json({ error: "Failed to save branch" }, { status: 500 })
   }
-  const branch = await prisma.erpBranch.upsert({
-    where: { id: b.id ?? "__new__" },
-    update: { 
-      name: b.name, 
-      code: b.code, 
-      type: b.type, 
-      address: b.address, 
-      city: b.city, 
-      country: b.country, 
-      phone: b.phone, 
-      email: b.email, 
-      manager: b.manager, 
-      status: b.status, 
-      notes: b.notes 
-    },
-    create: { 
-      id: b.id,
-      name: b.name, 
-      code: b.code, 
-      type: b.type, 
-      address: b.address, 
-      city: b.city, 
-      country: b.country, 
-      phone: b.phone, 
-      email: b.email, 
-      manager: b.manager, 
-      status: b.status, 
-      notes: b.notes,
-      createdBy: b.createdBy || "system"
-    },
-  })
-  return NextResponse.json(branch)
 }
 
 export async function DELETE(req: NextRequest) {
