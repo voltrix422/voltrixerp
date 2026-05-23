@@ -8,6 +8,7 @@ type Props = {
   exporting?: boolean
   disabled?: boolean
   label?: string
+  className?: string
 }
 
 export function CrmExcelExportButton({
@@ -15,13 +16,14 @@ export function CrmExcelExportButton({
   exporting,
   disabled,
   label = "Export Excel",
+  className,
 }: Props) {
   return (
     <Button
       type="button"
       size="sm"
       variant="outline"
-      className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+      className={className ?? "h-8 text-xs gap-1.5 cursor-pointer shrink-0"}
       disabled={disabled || exporting}
       onClick={onExport}
     >

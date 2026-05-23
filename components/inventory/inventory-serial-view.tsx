@@ -20,6 +20,9 @@ import {
   X,
   QrCode,
   Loader2,
+  Boxes,
+  Layers3,
+  CircleCheck,
 } from "lucide-react"
 
 type InventorySerialViewProps = {
@@ -213,56 +216,66 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
 
   if (loading && units.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-[hsl(var(--muted-foreground))]">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+      <div className="flex items-center justify-center h-56 text-base text-[hsl(var(--muted-foreground))]">
+        <Loader2 className="h-6 w-6 animate-spin mr-2.5" />
         Loading inventory…
       </div>
     )
   }
 
   const statItems = [
-    { label: "Boxes", value: totalBoxes },
-    { label: "Models", value: groupedByModel.length },
-    { label: "In stock", value: inStockCount },
+    { label: "Boxes", value: totalBoxes, icon: Boxes },
+    { label: "Models", value: groupedByModel.length, icon: Layers3 },
+    { label: "In stock", value: inStockCount, icon: CircleCheck },
   ]
 
   return (
-    <div className={embedded ? "space-y-3" : "space-y-4"}>
+    <div className={embedded ? "space-y-4" : "space-y-5"}>
       <div
-        className={`rounded-lg border bg-[hsl(var(--card))] p-3 ${embedded ? "" : "shadow-sm"}`}
+        className={`rounded-xl border bg-[hsl(var(--card))] p-4 sm:p-5 ${embedded ? "" : "shadow-sm"}`}
       >
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          {statItems.map((s) => (
-            <div
-              key={s.label}
-              className="flex items-center gap-2 rounded-md border bg-[hsl(var(--background))] px-3 py-1.5 min-w-[88px]"
-            >
-              <span className="text-lg font-semibold tabular-nums text-[#1faca6] leading-none">{s.value}</span>
-              <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{s.label}</span>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          {statItems.map((s) => {
+            const Icon = s.icon
+            return (
+              <div
+                key={s.label}
+                className="flex items-center gap-3 rounded-lg border bg-[hsl(var(--background))] px-4 py-3.5"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1faca6]/10 text-[#1faca6]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-semibold tabular-nums text-[#1faca6] leading-none">{s.value}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mt-1">
+                    {s.label}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[160px] max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-lg">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search model, SN…"
-              className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50"
+              className="w-full h-10 rounded-lg border bg-[hsl(var(--background))] pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
             />
           </div>
           <CrmExcelExportButton
             onExport={exportExcel}
             exporting={exportingExcel}
             disabled={filteredUnits.length === 0}
+            className="h-10 px-4 text-sm gap-2 cursor-pointer shrink-0"
           />
           <Button
-            size="sm"
-            className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 shrink-0"
+            className="h-10 px-4 text-sm bg-[#1faca6] hover:bg-[#17857f] text-white gap-2 shrink-0"
             onClick={() => setShowQrModal(true)}
           >
-            <QrCode className="h-3.5 w-3.5" />
+            <QrCode className="h-4 w-4" />
             Scan QR
           </Button>
           {toolbarEnd}
@@ -270,22 +283,23 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
       </div>
 
       {totalBoxes === 0 ? (
-        <div className="flex flex-col items-center justify-center py-14 text-center text-[hsl(var(--muted-foreground))] rounded-lg border border-dashed bg-[hsl(var(--card))]/50">
-          <Package className="h-9 w-9 opacity-30 mb-2" />
-          <p className="text-sm font-medium text-[hsl(var(--foreground))]">No inventory yet</p>
-          <p className="text-xs mt-1 max-w-sm">Scan QR to add boxes to the warehouse.</p>
+        <div className="flex flex-col items-center justify-center py-20 text-center text-[hsl(var(--muted-foreground))] rounded-xl border border-dashed bg-[hsl(var(--card))]/50">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--muted))]/30 mb-3">
+            <Package className="h-7 w-7 opacity-40" />
+          </div>
+          <p className="text-base font-medium text-[hsl(var(--foreground))]">No inventory yet</p>
+          <p className="text-sm mt-1.5 max-w-sm">Scan QR to add boxes to the warehouse.</p>
           <Button
-            size="sm"
-            className="mt-3 h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
+            className="mt-5 h-10 px-5 text-sm bg-[#1faca6] hover:bg-[#17857f] text-white gap-2"
             onClick={() => setShowQrModal(true)}
           >
-            <QrCode className="h-3.5 w-3.5 mr-1.5" />
+            <QrCode className="h-4 w-4" />
             Scan QR
           </Button>
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden bg-[hsl(var(--card))]">
-          <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_72px_72px_56px] gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/25 text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+        <div className="rounded-xl border overflow-hidden bg-[hsl(var(--card))] shadow-sm">
+          <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] gap-3 px-4 py-3 border-b bg-[hsl(var(--muted))]/20 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
             <span>Model / product</span>
             <span>Model code</span>
             <span className="text-right">Stock</span>
