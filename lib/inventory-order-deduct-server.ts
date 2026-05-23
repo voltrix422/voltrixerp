@@ -157,6 +157,7 @@ async function deductSerialsForLine(
     }
   }
 
+  const tag = orderUnitTag(order.id)
   const note = `${tag} ${order.orderNumber} → ${order.clientName}`
   await prisma.erpInventorySerialUnit.updateMany({
     where: { id: { in: found.units.map((u) => u.id) } },
