@@ -152,9 +152,8 @@ async function ensureWarrantyForDispatch(
   const soldDate = order.inventoryDeductedAt
     ? new Date(order.inventoryDeductedAt)
     : new Date()
-  const warrantyStartDate = soldDate
-  const warrantyEndDate = addYears(soldDate, 5)
-  const dispatchNote = `Dispatched on order ${order.orderNumber}`
+  const placeholderEnd = addYears(soldDate, 5)
+  const dispatchNote = `Dispatched on order ${order.orderNumber}. Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty.`
 
   try {
     if (unit.warrantyId?.trim()) {
@@ -163,8 +162,9 @@ async function ensureWarrantyForDispatch(
         data: {
           customerName: order.clientName,
           soldDate,
-          warrantyStartDate,
-          warrantyEndDate,
+          warrantyStartDate: soldDate,
+          warrantyEndDate: placeholderEnd,
+          activatedAt: null,
           notes: dispatchNote,
         },
       })
@@ -180,19 +180,16 @@ async function ensureWarrantyForDispatch(
         data: {
           customerName: order.clientName,
           soldDate,
-          warrantyStartDate,
-          warrantyEndDate,
+          warrantyStartDate: soldDate,
+          warrantyEndDate: placeholderEnd,
+          activatedAt: null,
           notes: dispatchNote,
         },
       })
       if (bySerial.warrantyId) {
         await prisma.erpInventorySerialUnit.update({
           where: { id: unit.id },
-          data: {
-            warrantyId: bySerial.warrantyId,
-            warrantyStartDate,
-            warrantyEndDate,
-          },
+          data: { warrantyId: bySerial.warrantyId },
         })
       }
       return
@@ -205,8 +202,9 @@ async function ensureWarrantyForDispatch(
         serialNumber: unit.serialNumber,
         productName: unit.model || unit.productName || unit.serialNumber,
         soldDate,
-        warrantyStartDate,
-        warrantyEndDate,
+        warrantyStartDate: soldDate,
+        warrantyEndDate: placeholderEnd,
+        activatedAt: null,
         customerName: order.clientName,
         notes: dispatchNote,
         createdBy: order.createdBy || "system",
@@ -214,11 +212,7 @@ async function ensureWarrantyForDispatch(
     })
     await prisma.erpInventorySerialUnit.update({
       where: { id: unit.id },
-      data: {
-        warrantyId: created.warrantyId,
-        warrantyStartDate,
-        warrantyEndDate,
-      },
+      data: { warrantyId: created.warrantyId },
     })
   } catch {
     // non-blocking

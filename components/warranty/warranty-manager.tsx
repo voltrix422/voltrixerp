@@ -227,7 +227,7 @@ export function WarrantyManager() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Only sold or dispatched units are listed. Warehouse stock (scanned in inventory) appears here after dispatch with a customer name.
+        Only warranties that have been <strong>started</strong> (branch scan under ERP → Warranty) appear here. After dispatch, staff must scan the product QR to start the 5-year period.
       </p>
 
       {/* Header with Filters and Add button on right */}

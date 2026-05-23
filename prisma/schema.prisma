@@ -389,6 +389,7 @@ model ErpWarranty {
   customerEmail     String?  @map("customer_email")
   customerPhone     String?  @map("customer_phone")
   notes             String?  @default("")
+  activatedAt       DateTime? @map("activated_at")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
   createdBy          String?  @map("created_by")

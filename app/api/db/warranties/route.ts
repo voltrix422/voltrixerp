@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
           soldDate: body.soldDate,
           warrantyStartDate: body.warrantyStartDate,
           warrantyEndDate: body.warrantyEndDate,
+          activatedAt: body.warrantyStartDate ? new Date(body.warrantyStartDate) : new Date(),
           customerName: body.customerName,
           customerEmail: body.customerEmail,
           customerPhone: body.customerPhone,

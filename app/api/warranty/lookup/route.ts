@@ -1,30 +1,41 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/db"
+import { lookupWarrantyForPublic } from "@/lib/warranty-activation"
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
-  const warrantyId = searchParams.get("id")
+  const warrantyId = searchParams.get("id") || searchParams.get("sn") || searchParams.get("serial")
 
-  if (!warrantyId) {
-    return NextResponse.json({ error: "Warranty ID is required" }, { status: 400 })
+  if (!warrantyId?.trim()) {
+    return NextResponse.json({ error: "Warranty ID or serial number is required" }, { status: 400 })
   }
 
   try {
-    const warranty = await prisma.erpWarranty.findFirst({
-      where: {
-        OR: [
-          { warrantyId },
-          { serialNumber: warrantyId },
-        ],
-      },
-    })
+    const result = await lookupWarrantyForPublic(warrantyId.trim())
 
-    if (!warranty) {
+    if (!result) {
       return NextResponse.json({ error: "Warranty not found" }, { status: 404 })
     }
 
-    return NextResponse.json(warranty)
-  } catch (error: any) {
+    if (result.pending) {
+      return NextResponse.json({
+        status: "pending_activation",
+        serialNumber: result.warranty.serialNumber,
+        productName: result.warranty.productName,
+        customerName: result.warranty.customerName,
+        message:
+          "Warranty has not been started yet. Visit a Voltrix branch and ask staff to scan your product QR under Start Warranty, or contact your dealer.",
+      })
+    }
+
+    if (!result.active) {
+      return NextResponse.json({
+        status: "inactive",
+        error: "This warranty is not active yet.",
+      }, { status: 403 })
+    }
+
+    return NextResponse.json(result.warranty)
+  } catch (error: unknown) {
     console.error("Error looking up warranty:", error)
     return NextResponse.json({ error: "Failed to lookup warranty" }, { status: 500 })
   }

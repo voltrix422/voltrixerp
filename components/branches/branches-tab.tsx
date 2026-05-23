@@ -4,7 +4,8 @@ import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInv
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight } from "lucide-react"
+import Link from "next/link"
+import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
@@ -386,6 +387,12 @@ export function BranchesTab() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
+              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" asChild>
+                <Link href="/warranty-center">
+                  <Shield className="h-3.5 w-3.5 mr-1" />
+                  Warranty
+                </Link>
+              </Button>
               <Button
                 size="sm"
                 variant="outline"

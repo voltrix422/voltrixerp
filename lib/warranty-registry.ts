@@ -1,4 +1,5 @@
 import type { ErpInventorySerialUnit, ErpWarranty } from "@prisma/client"
+import { isWarrantyActivated, isWarrantyPendingActivation } from "@/lib/warranty-activation"
 
 /** True when warranty was auto-created from warehouse QR scan (not yet sold). */
 export function isInventoryScanWarranty(notes: string | null | undefined): boolean {
@@ -25,9 +26,13 @@ export function isWarrantyRegistryVisible(
     serialNumber?: string | null
     productName?: string | null
     warrantyId?: string | null
+    activatedAt?: Date | string | null
   },
   unitStatus?: string | null,
 ): boolean {
+  if (isWarrantyPendingActivation(row.notes)) return false
+  if (!isWarrantyActivated(row)) return false
+
   if (hasRealCustomer(row.customerName)) return true
 
   const notes = (row.notes || "").toLowerCase()
@@ -72,7 +77,7 @@ export function resolveUnitStatusForWarranty(
 export function filterWarrantiesForRegistry<
   T extends Pick<
     ErpWarranty,
-    "customerName" | "notes" | "serialNumber" | "productName" | "warrantyId"
+    "customerName" | "notes" | "serialNumber" | "productName" | "warrantyId" | "activatedAt"
   >,
 >(warranties: T[], units: Pick<ErpInventorySerialUnit, "warrantyId" | "serialNumber" | "status">[]): T[] {
   const byWarrantyId = new Map<string, string>()
