@@ -20,4 +20,4 @@ fi
 nginx -t
 systemctl reload nginx
 echo "==> Done. Expand cert if voltrixev.com is used:"
-echo "sudo certbot --nginx --expand -d voltrixpv.com -d www.voltrixpv.com -d voltrix-power.com -d www.voltrix-power.com -d voltrixev.com -d www.voltrixev.com"
+echo "sudo bash scripts/vps-expand-ssl-domains.sh"

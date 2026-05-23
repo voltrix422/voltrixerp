@@ -9,7 +9,7 @@ CONF_HTTP="$ROOT/scripts/nginx/voltrix-domains.http.conf"
 CONF_DST="/etc/nginx/sites-available/voltrix-erp"
 APP_PORT="${APP_PORT:-3000}"
 
-echo "==> Domains: voltrixpv.com, www.voltrixpv.com, voltrix-power.com, www.voltrix-power.com"
+echo "==> Domains: voltrixpv.com, voltrix-power.com, voltrixbatteries.com, voltrixev.com (+ www)"
 echo "==> Backend: 127.0.0.1:${APP_PORT} (pm2: voltrix-erp)"
 
 if [[ ! -f "$CONF_HTTP" ]]; then
@@ -61,7 +61,9 @@ if [[ -z "$CERT_DIR" ]]; then
   echo "==> Issue SSL (run now if DNS is correct):"
   echo "sudo certbot --nginx \\"
   echo "  -d voltrixpv.com -d www.voltrixpv.com \\"
-  echo "  -d voltrix-power.com -d www.voltrix-power.com"
+  echo "  -d voltrix-power.com -d www.voltrix-power.com \\"
+  echo "  -d voltrixbatteries.com -d www.voltrixbatteries.com \\"
+  echo "  -d voltrixev.com -d www.voltrixev.com"
   echo ""
   echo "Certbot will add HTTPS. To use the repo SSL template afterward:"
   echo "  sudo cp $CONF_SSL $CONF_DST && sudo nginx -t && sudo systemctl reload nginx"
