@@ -2,11 +2,13 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Eye, Filter, X } from "lucide-react"
+import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, Filter } from "lucide-react"
+import { isWarrantyRegistryVisible } from "@/lib/warranty-registry"
 
 interface Warranty {
   id: string
   warrantyId: string
+  serialNumber?: string | null
   productName: string
   soldDate: string
   warrantyStartDate: string
@@ -198,12 +200,15 @@ export function WarrantyManager() {
     return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
   }
 
-  const filtered = warranties.filter(w => {
+  const registryWarranties = warranties.filter((w) => isWarrantyRegistryVisible(w))
+
+  const filtered = registryWarranties.filter(w => {
     const remaining = calculateRemainingWarranty(w.warrantyEndDate)
     
     // Search filter
     const matchesSearch = 
       w.productName.toLowerCase().includes(search.toLowerCase()) ||
+      (w.serialNumber && w.serialNumber.toLowerCase().includes(search.toLowerCase())) ||
       (w.customerName && w.customerName.toLowerCase().includes(search.toLowerCase())) ||
       (w.customerEmail && w.customerEmail.toLowerCase().includes(search.toLowerCase()))
     
@@ -224,6 +229,10 @@ export function WarrantyManager() {
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+        Only sold or dispatched units are listed. Warehouse stock (scanned in inventory) appears here after dispatch with a customer name.
+      </p>
+
       {/* Header with Filters and Add button on right */}
       <div className="flex items-center justify-end gap-2">
         <button
@@ -301,8 +310,18 @@ export function WarrantyManager() {
         <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))]">Loading warranties...</div>
       )}
 
+      {!loading && registryWarranties.length === 0 && (
+        <div className="text-center py-10 rounded-lg border border-dashed">
+          <Shield className="h-10 w-10 mx-auto text-[hsl(var(--muted-foreground))] opacity-40 mb-2" />
+          <p className="text-sm font-medium">No sold warranties yet</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-md mx-auto">
+            Units scanned into inventory are hidden until dispatched to a client. Use Add Warranty for manual entries.
+          </p>
+        </div>
+      )}
+
       {/* Warranty Table */}
-      {!loading && warranties.length > 0 && (
+      {!loading && registryWarranties.length > 0 && (
         <div className="rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -323,6 +342,9 @@ export function WarrantyManager() {
                     <tr key={warranty.id} className="border-b border-[hsl(var(--border))]/50 hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer" onClick={() => setViewDetail(warranty)}>
                       <td className="px-2 py-1.5">
                         <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{warranty.productName}</p>
+                        {warranty.serialNumber && warranty.serialNumber !== warranty.productName && (
+                          <p className="text-[9px] font-mono text-[hsl(var(--muted-foreground))]">{warranty.serialNumber}</p>
+                        )}
                       </td>
                       <td className="px-2 py-1.5">
                         <p className="text-[10px] text-[hsl(var(--foreground))]">{warranty.customerName || "-"}</p>

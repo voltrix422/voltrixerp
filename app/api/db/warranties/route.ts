@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { isWarrantyRegistryVisible } from "@/lib/warranty-registry"
 
-export async function GET() {
-  const warranties = await prisma.erpWarranty.findMany({ orderBy: { id: "asc" } })
-  return NextResponse.json(warranties)
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const includeInventory = searchParams.get("includeInventory") === "1"
+
+  const warranties = await prisma.erpWarranty.findMany({
+    orderBy: { soldDate: "desc" },
+  })
+
+  const visible = includeInventory
+    ? warranties
+    : warranties.filter((w) => isWarrantyRegistryVisible(w))
+
+  return NextResponse.json(visible)
 }
 
 export async function POST(req: NextRequest) {
