@@ -26,11 +26,13 @@ export function InventoryModelGroup({
   editingName,
   savingModelLabel,
   deletingId,
+  deletingModel,
   onEditingNameChange,
   onStartEdit,
   onSaveName,
   onCancelEdit,
   onDeleteUnit,
+  onDeleteModel,
 }: {
   modelKey: string
   modelUnits: InventorySerialUnit[]
@@ -41,11 +43,13 @@ export function InventoryModelGroup({
   editingName: string
   savingModelLabel: boolean
   deletingId: string | null
+  deletingModel?: boolean
   onEditingNameChange: (value: string) => void
   onStartEdit: (e: MouseEvent) => void
   onSaveName: () => void
   onCancelEdit: () => void
   onDeleteUnit: (unit: InventorySerialUnit) => void
+  onDeleteModel: () => void | Promise<boolean | void>
 }) {
   const count = modelUnits.length
   const inStock = modelUnits.filter((u) => u.status === "in_stock").length
@@ -67,6 +71,13 @@ export function InventoryModelGroup({
         modelUnits={modelUnits}
         inStock={inStock}
         total={count}
+        deletingId={deletingId}
+        deletingModel={deletingModel}
+        onDeleteUnit={onDeleteUnit}
+        onDeleteModel={async () => {
+          const ok = await onDeleteModel()
+          if (ok !== false) setPricePanelOpen(false)
+        }}
       />
       {isEditing ? (
         <div

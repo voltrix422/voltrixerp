@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
 import {
   deleteInventorySerialUnit,
+  deleteInventorySerialUnitsByModel,
   getInventorySerialUnits,
   serialNumberKey,
   type InventorySerialUnit,
@@ -43,6 +44,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [showQrModal, setShowQrModal] = useState(false)
   const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({})
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingModel, setDeletingModel] = useState<string | null>(null)
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({})
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
@@ -191,7 +193,11 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
 
   async function handleDeleteUnit(unit: InventorySerialUnit) {
     const label = unit.serialNumber || unit.model || "this unit"
-    if (!confirm(`Remove SN ${label} from inventory? This cannot be undone.`)) return
+    const statusNote =
+      unit.status && unit.status !== "in_stock"
+        ? `\n\nThis unit is currently “${unit.status.replace(/_/g, " ")}”.`
+        : ""
+    if (!confirm(`Remove SN ${label} from inventory? This cannot be undone.${statusNote}`)) return
 
     setDeletingId(unit.id)
     try {
@@ -211,6 +217,44 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
       })
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  async function handleDeleteModel(modelKey: string, unitCount: number) {
+    const display = getDisplayName(modelKey) || modelKey
+    if (
+      !confirm(
+        `Delete all ${unitCount} unit(s) for “${display}” (${modelKey})?\n\nThis removes every serial number for this model from inventory. This cannot be undone.`,
+      )
+    ) {
+      return
+    }
+
+    setDeletingModel(modelKey)
+    try {
+      const deleted = await deleteInventorySerialUnitsByModel(modelKey)
+      setUnits((prev) => prev.filter((u) => (u.model?.trim() || "Unknown model") !== modelKey))
+      setModelLabels((prev) => {
+        const next = { ...prev }
+        delete next[modelKey]
+        return next
+      })
+      onUnitsChanged?.()
+      toast({
+        title: "Model removed",
+        message: `${deleted} unit(s) deleted for ${modelKey}.`,
+        type: "success",
+      })
+      return true
+    } catch (err) {
+      toast({
+        title: "Error",
+        message: err instanceof Error ? err.message : "Could not delete model.",
+        type: "error",
+      })
+      return false
+    } finally {
+      setDeletingModel(null)
     }
   }
 
@@ -321,11 +365,13 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
               editingName={editingName}
               savingModelLabel={savingModelLabel}
               deletingId={deletingId}
+              deletingModel={deletingModel === modelKey}
               onEditingNameChange={setEditingName}
               onStartEdit={(e) => startEditModelName(modelKey, e)}
               onSaveName={() => void saveModelName(modelKey)}
               onCancelEdit={() => setEditingModel(null)}
               onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
+              onDeleteModel={() => handleDeleteModel(modelKey, modelUnits.length)}
             />
           ))}
           </div>
