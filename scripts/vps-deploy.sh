@@ -21,6 +21,11 @@ echo "==> prisma generate + migrate deploy"
 npx prisma generate
 npx prisma migrate deploy
 
+echo "==> Ensure upload directories exist"
+mkdir -p public/uploads/payment-proofs public/uploads/petty-cash public/uploads/misc \
+  public/uploads/products public/uploads/crm-leads public/uploads/client-images \
+  public/uploads/fulfillment public/uploads/imported-po-docs
+
 echo "==> npm run build"
 npm run build
 
