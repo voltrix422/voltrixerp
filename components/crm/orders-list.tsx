@@ -283,17 +283,29 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       <ConfirmDialog
         isOpen={!!deleteConfirmOrder}
         title="Delete Order"
-        message={`Are you sure you want to delete order ${deleteConfirmOrder?.orderNumber}?`}
+        message={`Delete order ${deleteConfirmOrder?.orderNumber}? Any units dispatched for this order will be returned to inventory.`}
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
         onConfirm={() => {
-          if (deleteConfirmOrder) {
-            deleteOrder(deleteConfirmOrder.id).then(() => {
-              setOrders(prev => prev.filter(x => x.id !== deleteConfirmOrder.id))
-            })
-          }
+          const target = deleteConfirmOrder
           setDeleteConfirmOrder(null)
+          if (!target) return
+          void (async () => {
+            try {
+              await restoreInventoryForOrder(target)
+              await deleteOrder(target.id)
+              setOrders((prev) => prev.filter((x) => x.id !== target.id))
+              if (selected?.id === target.id) setSelected(null)
+            } catch (err) {
+              console.error(err)
+              alert(
+                err instanceof Error
+                  ? err.message
+                  : "Could not restore inventory. Order was not deleted.",
+              )
+            }
+          })()
         }}
         onCancel={() => setDeleteConfirmOrder(null)}
       />
@@ -941,10 +953,21 @@ function OrderDetail({
 
   async function handleDelete() {
     setDeleting(true)
-    await restoreInventoryForOrder(order)
-    await deleteOrder(order.id)
-    onDelete(order.id)
-    setShowDeleteConfirm(false)
+    try {
+      await restoreInventoryForOrder(detailOrder)
+      await deleteOrder(detailOrder.id)
+      onDelete(detailOrder.id)
+      setShowDeleteConfirm(false)
+    } catch (err) {
+      console.error(err)
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Could not restore inventory. Order was not deleted.",
+      )
+    } finally {
+      setDeleting(false)
+    }
   }
 
   async function updateStatus(newStatus: typeof status) {

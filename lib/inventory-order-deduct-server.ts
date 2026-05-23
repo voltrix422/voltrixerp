@@ -317,10 +317,46 @@ export async function orderNeedsInventoryDeductionServer(order: OrderDeductInput
   return !order.inventoryDeductedAt
 }
 
+async function findDeliveredSerialsForKeys(keys: string[], limit: number) {
+  if (limit <= 0) return []
+  const lowerKeys = keys.map(normalizeKey).filter(Boolean)
+  if (lowerKeys.length === 0) return []
+
+  const pool = await prisma.erpInventorySerialUnit.findMany({
+    where: { status: "delivered" },
+    orderBy: { scannedAt: "desc" },
+    take: Math.max(limit * 3, 20),
+  })
+
+  return pool
+    .filter((u) => lowerKeys.includes(normalizeKey(u.model || "")))
+    .slice(0, limit)
+}
+
 export async function restoreInventoryForOrderServer(order: OrderDeductInput): Promise<void> {
   const tag = orderUnitTag(order.id)
+  const restoredIds = new Set<string>()
+  const models = new Set<string>()
 
-  const units = await prisma.erpInventorySerialUnit.findMany({
+  async function restoreUnit(unit: { id: string; model: string; notes: string | null }) {
+    if (restoredIds.has(unit.id)) return
+    restoredIds.add(unit.id)
+    models.add(unit.model)
+    let notes = (unit.notes || "")
+      .replace(tag, "")
+      .replace(order.orderNumber, "")
+      .replace(/→/g, "")
+      .trim()
+    await prisma.erpInventorySerialUnit.update({
+      where: { id: unit.id },
+      data: {
+        status: "in_stock",
+        notes,
+      },
+    })
+  }
+
+  const byNotes = await prisma.erpInventorySerialUnit.findMany({
     where: {
       OR: [
         { notes: { contains: tag } },
@@ -328,17 +364,28 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
       ],
     },
   })
+  for (const unit of byNotes) {
+    await restoreUnit(unit)
+  }
 
-  const models = new Set<string>()
-  for (const unit of units) {
-    models.add(unit.model)
-    await prisma.erpInventorySerialUnit.update({
-      where: { id: unit.id },
-      data: {
-        status: "in_stock",
-        notes: (unit.notes || "").replace(tag, "").trim() || "",
-      },
-    })
+  // Fallback when units were marked delivered without order notes (legacy rows).
+  if (order.inventoryDeductedAt) {
+    for (const item of order.items) {
+      if (item.isCustom) continue
+      const keys = getOrderLineMatchKeys(item)
+      const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+      const lowerKeys = keys.map(normalizeKey)
+      const alreadyForLine = byNotes.filter((u) =>
+        lowerKeys.includes(normalizeKey(u.model || "")),
+      ).length
+      const stillNeed = needQty - alreadyForLine
+      if (stillNeed <= 0) continue
+
+      const extra = await findDeliveredSerialsForKeys(keys, stillNeed)
+      for (const unit of extra) {
+        await restoreUnit(unit)
+      }
+    }
   }
 
   for (const model of models) {
@@ -349,11 +396,14 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
 
   for (const item of order.items) {
     if (item.isCustom) continue
-    const stock = await findStockByModel(item.model?.trim() || item.description?.trim() || "")
-    if (!stock) continue
-    await prisma.erpInventoryStock.update({
-      where: { id: stock.id },
-      data: { availableQty: (stock.availableQty ?? 0) + item.qty },
-    })
+    for (const key of getOrderLineMatchKeys(item)) {
+      const stock = await findStockByModel(key)
+      if (!stock) continue
+      await prisma.erpInventoryStock.update({
+        where: { id: stock.id },
+        data: { availableQty: (stock.availableQty ?? 0) + item.qty },
+      })
+      break
+    }
   }
 }

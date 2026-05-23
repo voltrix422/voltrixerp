@@ -74,17 +74,34 @@ export async function deductInventoryForOrder(order: Order): Promise<InventoryDe
   }
 }
 
+/** Whether deleting/cancelling this order should try to put stock back. */
+export function orderMayHaveInventoryDeduction(order: Order): boolean {
+  if (order.items.every((item) => item.isCustom)) return false
+  return !!(
+    order.inventoryDeductedAt ||
+    (order.dispatcher || "").trim() ||
+    (order.fulfillmentDispatcher || "").trim() ||
+    order.status === "processing" ||
+    order.status === "shipped" ||
+    order.status === "delivered"
+  )
+}
+
 /**
- * Restore inventory quantities to stock table when a delivered order is cancelled/deleted
+ * Restore serial units and stock when an order is deleted or cancelled after dispatch.
  */
 export async function restoreInventoryForOrder(order: Order): Promise<void> {
-  if (order.status !== "delivered") return
+  if (!orderMayHaveInventoryDeduction(order)) return
 
-  await fetch("/api/db/inventory-order-deduct", {
+  const res = await fetch("/api/db/inventory-order-deduct", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "restore", order }),
   })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || "Failed to restore inventory")
+  }
 }
 
 /**
