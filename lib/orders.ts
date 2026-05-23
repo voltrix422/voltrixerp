@@ -1,5 +1,9 @@
 // DB access via /api/db routes (Prisma)
 
+import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
+
+export type { OrderFulfillmentSerialAllocation }
+
 export type OrderStatus = "draft" | "pending_approval" | "approved" | "rejected" | "finalized" | "payment_added" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
 
 export interface OrderItem {
@@ -83,6 +87,7 @@ export interface Order {
   fulfillmentReceiverCnicImageUrl?: string
   fulfillmentVehicleImageUrl?: string
   fulfillmentProductImageUrls?: string[]
+  fulfillmentSerialAllocations?: OrderFulfillmentSerialAllocation[]
   inventoryDeductedAt?: string
 }
 
@@ -194,6 +199,9 @@ function rowToOrder(r: Record<string, unknown>): Order {
     fulfillmentVehicleImageUrl: (r.fulfillmentVehicleImageUrl as string) ?? undefined,
     fulfillmentProductImageUrls: Array.isArray(r.fulfillmentProductImageUrls)
       ? (r.fulfillmentProductImageUrls as string[])
+      : undefined,
+    fulfillmentSerialAllocations: Array.isArray(r.fulfillmentSerialAllocations)
+      ? (r.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
       : undefined,
     inventoryDeductedAt: (r.inventoryDeductedAt as string) ?? undefined,
   }

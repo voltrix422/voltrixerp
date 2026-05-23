@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 
 function fulfillmentData(o: Record<string, unknown>) {
@@ -12,6 +13,8 @@ function fulfillmentData(o: Record<string, unknown>) {
     fulfillmentReceiverCnicImageUrl: (o.fulfillmentReceiverCnicImageUrl as string | undefined) ?? null,
     fulfillmentVehicleImageUrl: (o.fulfillmentVehicleImageUrl as string | undefined) ?? null,
     fulfillmentProductImageUrls: (o.fulfillmentProductImageUrls as string[] | undefined) ?? [],
+    fulfillmentSerialAllocations:
+      (o.fulfillmentSerialAllocations as Prisma.InputJsonValue | undefined) ?? [],
     inventoryDeductedAt: (o.inventoryDeductedAt as string | undefined) ?? null,
   }
 }

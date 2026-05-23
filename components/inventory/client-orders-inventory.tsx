@@ -5,7 +5,7 @@ import { getOrders, saveOrder, type Order } from "@/lib/orders"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SuccessNotification } from "@/components/ui/success-notification"
-import { Loader2, X, Eye, Download, Truck, FileText, Search } from "lucide-react"
+import { Loader2, X, Eye, Download, Truck, FileText, Search, Package } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder, orderNeedsInventoryDeduction } from "@/lib/inventory"
@@ -16,6 +16,15 @@ import { useToast } from "@/components/ui/toast"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
+import { getInventorySerialUnits } from "@/lib/inventory-serial-units"
+import {
+  buildAllocationsFromSelections,
+  orderHasSerialAllocations,
+  orderLinesRequiringSerials,
+  selectionsFromAllocations,
+  validateSerialSelections,
+} from "@/lib/order-fulfillment-serials"
+import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 
 /** Optional delivery proof — all receiver/vehicle/product fields filled. */
 function orderHasCompleteFulfillmentProof(o: Order): boolean {
@@ -322,6 +331,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [vehicleNumber, setVehicleNumber] = useState("")
   const [vehicleImage, setVehicleImage] = useState<File | null>(null)
   const [productImages, setProductImages] = useState<File[]>([])
+  const [serialSelections, setSerialSelections] = useState<Record<string, string[]>>({})
+  const [serialSelectionValid, setSerialSelectionValid] = useState(true)
+  const [fulfillTab, setFulfillTab] = useState<"dispatcher" | "products">("dispatcher")
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [deductingStock, setDeductingStock] = useState(false)
   const [stockDeductionNotice, setStockDeductionNotice] = useState<string | null>(null)
@@ -368,6 +380,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     setReceiverCnicImage(null)
     setVehicleImage(null)
     setProductImages([])
+    setSerialSelections(selectionsFromAllocations(order.fulfillmentSerialAllocations))
+    setSerialSelectionValid(orderLinesRequiringSerials(order).length === 0)
+    setFulfillTab("dispatcher")
     setShowFulfillDialog(true)
   }
 
@@ -375,6 +390,25 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     if (!fulfillDispatcherName.trim()) {
       alert("Please enter the dispatcher name.")
       return
+    }
+
+    const linesNeedSerials = orderLinesRequiringSerials(order)
+    let fulfillmentSerialAllocations = order.fulfillmentSerialAllocations ?? []
+
+    if (linesNeedSerials.length > 0 && !order.inventoryDeductedAt) {
+      const units = await getInventorySerialUnits()
+      const unitsById = new Map(units.map((u) => [u.id, u]))
+      const check = validateSerialSelections(order, serialSelections, units)
+      if (!check.valid) {
+        setFulfillTab("products")
+        alert(check.errors.join("\n"))
+        return
+      }
+      fulfillmentSerialAllocations = buildAllocationsFromSelections(
+        order,
+        serialSelections,
+        unitsById,
+      )
     }
 
     setUpdating(true)
@@ -417,11 +451,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         fulfillmentReceiverCnicImageUrl: receiverCnicImageUrl,
         fulfillmentVehicleImageUrl: vehicleImageUrl,
         fulfillmentProductImageUrls: productImageUrls.length > 0 ? productImageUrls : order.fulfillmentProductImageUrls,
+        fulfillmentSerialAllocations,
       }
 
       const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
       updatedOrder = await applySalesCommissionOnDelivery(updatedOrder)
 
+      await saveOrder(updatedOrder)
       updatedOrder = await applyInventoryDeduction(updatedOrder)
 
       await logOrderFulfillmentHistory({
@@ -609,7 +645,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
   const proofComplete = orderHasCompleteFulfillmentProof(order)
   const hasDispatcher = !!(order.fulfillmentDispatcher || order.dispatcher || "").trim()
-  const canSubmitFulfillment = !!fulfillDispatcherName.trim()
+  const linesNeedSerials = orderLinesRequiringSerials(order).length > 0
+  const serialSelectionOk =
+    !linesNeedSerials || !!order.inventoryDeductedAt || serialSelectionValid
+  const canSubmitFulfillment = !!fulfillDispatcherName.trim() && serialSelectionOk
   const needsStockUpdate = hasDispatcher && !order.inventoryDeductedAt
 
   async function handleUpdateInventory() {
@@ -625,6 +664,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
   useEffect(() => {
     if (!hasDispatcher || order.inventoryDeductedAt || autoDeductAttempted.current) return
+    if (linesNeedSerials && !orderHasSerialAllocations(order)) return
     autoDeductAttempted.current = true
 
     let cancelled = false
@@ -710,6 +750,21 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
           <div>
             <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Order Items</p>
             <CrmLineItemsDisplay items={order.items} />
+            {orderHasSerialAllocations(order) && (
+              <div className="mt-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                  Dispatched serial numbers
+                </p>
+                <ul className="space-y-1.5 text-xs">
+                  {order.fulfillmentSerialAllocations!.map((a) => (
+                    <li key={`${a.orderItemId}-${a.unitId}`} className="flex flex-wrap gap-x-2">
+                      <span className="font-semibold tabular-nums">{a.model}</span>
+                      <span className="font-mono text-[hsl(var(--primary))]">{a.serialNumber}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <CrmOrderSummaryDisplay order={order} />
 
@@ -1115,7 +1170,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               <div>
                 <p className="text-base font-bold">Create dispatch note</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                  Dispatcher name is required. Other fields are optional.
+                  Tab 1: dispatcher details · Tab 2: select serial numbers for order items
                 </p>
               </div>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFulfillDialog(false)}>
@@ -1123,7 +1178,47 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </Button>
             </div>
 
+            <div className="flex items-center gap-1 px-4 sm:px-6 border-b shrink-0 bg-[hsl(var(--muted))]/10">
+              <button
+                type="button"
+                onClick={() => setFulfillTab("dispatcher")}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors relative ${
+                  fulfillTab === "dispatcher"
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                <Truck className="h-3.5 w-3.5 shrink-0" />
+                Dispatcher
+                {fulfillTab === "dispatcher" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFulfillTab("products")}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors relative ${
+                  fulfillTab === "products"
+                    ? "text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                <Package className="h-3.5 w-3.5 shrink-0" />
+                Products &amp; inventory
+                {linesNeedSerials && !serialSelectionValid && !order.inventoryDeductedAt && (
+                  <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white">
+                    !
+                  </span>
+                )}
+                {fulfillTab === "products" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                )}
+              </button>
+            </div>
+
             <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5">
+              {fulfillTab === "dispatcher" && (
+              <>
               {/* Dispatcher Information */}
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Dispatcher Information</p>
@@ -1263,9 +1358,42 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   )}
                 </div>
               </div>
+              </>
+              )}
+
+              {fulfillTab === "products" && (
+                <OrderDispatchSerialPicker
+                  order={order}
+                  value={serialSelections}
+                  onChange={setSerialSelections}
+                  disabled={!!order.inventoryDeductedAt}
+                  onValidationChange={(valid) => setSerialSelectionValid(valid)}
+                />
+              )}
             </div>
 
             <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              {fulfillTab === "products" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 w-full sm:w-auto text-xs"
+                  onClick={() => setFulfillTab("dispatcher")}
+                  disabled={updating}
+                >
+                  Back to dispatcher
+                </Button>
+              ) : linesNeedSerials && !order.inventoryDeductedAt ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 w-full sm:w-auto text-xs"
+                  onClick={() => setFulfillTab("products")}
+                  disabled={updating}
+                >
+                  Next: Select products
+                </Button>
+              ) : null}
               <Button
                 size="sm"
                 className="h-10 w-full sm:w-auto sm:ml-auto text-xs bg-green-600 hover:bg-green-700"

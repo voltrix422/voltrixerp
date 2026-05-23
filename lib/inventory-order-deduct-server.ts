@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db"
 import { ensureInventoryStockForModel, findStockByModel } from "@/lib/ensure-model-stock-link"
+import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 
 export type OrderDeductLine = {
+  id?: string
   description: string
   qty: number
   unit: string
@@ -16,6 +18,7 @@ export type OrderDeductInput = {
   clientName: string
   createdBy?: string
   inventoryDeductedAt?: string | null
+  fulfillmentSerialAllocations?: OrderFulfillmentSerialAllocation[]
   items: OrderDeductLine[]
 }
 
@@ -130,9 +133,112 @@ async function findInStockSerials(keys: string[], qty: number) {
   return null
 }
 
+async function linkWarrantyToOrderDispatch(
+  unit: { warrantyId: string | null; serialNumber: string },
+  order: OrderDeductInput,
+) {
+  if (!unit.warrantyId?.trim()) return
+  const soldDate = order.inventoryDeductedAt
+    ? new Date(order.inventoryDeductedAt)
+    : new Date()
+  try {
+    await prisma.erpWarranty.updateMany({
+      where: { warrantyId: unit.warrantyId },
+      data: {
+        customerName: order.clientName,
+        soldDate,
+        notes: `Dispatched on order ${order.orderNumber}`,
+      },
+    })
+  } catch {
+    // non-blocking
+  }
+}
+
+async function markSerialUnitsDelivered(
+  order: OrderDeductInput,
+  units: Array<{ id: string; model: string; serialNumber: string; warrantyId: string | null }>,
+  item: OrderDeductLine,
+) {
+  if (units.length === 0) return
+
+  const tag = orderUnitTag(order.id)
+  const note = `${tag} ${order.orderNumber} → ${order.clientName}`
+  await prisma.erpInventorySerialUnit.updateMany({
+    where: { id: { in: units.map((u) => u.id) } },
+    data: {
+      status: "delivered",
+      notes: note,
+    },
+  })
+
+  await ensureInventoryStockForModel(units[0].model, item.description, item.unit || "pcs")
+
+  await logHistory(
+    units[0].model,
+    units.length,
+    item.unit || "pcs",
+    order,
+    `Serial units delivered to ${order.clientName}`,
+  )
+
+  for (const unit of units) {
+    await linkWarrantyToOrderDispatch(unit, order)
+  }
+}
+
+async function deductExplicitSerialsForLine(
+  order: OrderDeductInput,
+  item: OrderDeductLine & { id?: string },
+): Promise<{ ok: boolean; count: number; error?: string }> {
+  const lineId = item.id
+  if (!lineId) return { ok: false, count: 0, error: "missing order line id" }
+
+  const explicit = (order.fulfillmentSerialAllocations ?? []).filter(
+    (a) => a.orderItemId === lineId,
+  )
+  if (explicit.length === 0) return { ok: false, count: 0, error: "no explicit serials" }
+
+  const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
+  if (explicit.length !== qty) {
+    return {
+      ok: false,
+      count: 0,
+      error: `expected ${qty} serial(s), got ${explicit.length}`,
+    }
+  }
+
+  const units = await prisma.erpInventorySerialUnit.findMany({
+    where: { id: { in: explicit.map((a) => a.unitId) } },
+  })
+  if (units.length !== explicit.length) {
+    return { ok: false, count: 0, error: "one or more serial units not found" }
+  }
+
+  const notInStock = units.filter((u) => u.status !== "in_stock")
+  if (notInStock.length > 0) {
+    return {
+      ok: false,
+      count: 0,
+      error: `${notInStock.map((u) => u.serialNumber).join(", ")} not in stock`,
+    }
+  }
+
+  const keys = getOrderLineMatchKeys(item).map(normalizeKey)
+  const badModel = units.filter(
+    (u) => !keys.includes(normalizeKey(u.model || "")),
+  )
+  if (badModel.length > 0) {
+    return { ok: false, count: 0, error: "serial model does not match order line" }
+  }
+
+  await markSerialUnitsDelivered(order, units, item)
+  return { ok: true, count: units.length }
+}
+
 async function deductSerialsForLine(
   order: OrderDeductInput,
-  item: OrderDeductLine,
+  item: OrderDeductLine & { id?: string },
 ): Promise<{ ok: boolean; count: number; error?: string }> {
   const keys = getOrderLineMatchKeys(item)
   const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
@@ -141,6 +247,13 @@ async function deductSerialsForLine(
   const allocated = await unitsAllocatedForLine(order, keys)
   if (allocated >= qty) {
     return { ok: true, count: 0 }
+  }
+
+  if (item.id && (order.fulfillmentSerialAllocations?.length ?? 0) > 0) {
+    const explicit = await deductExplicitSerialsForLine(order, item)
+    if (explicit.ok || explicit.error !== "no explicit serials") {
+      return explicit
+    }
   }
 
   const need = qty - allocated
@@ -157,26 +270,7 @@ async function deductSerialsForLine(
     }
   }
 
-  const tag = orderUnitTag(order.id)
-  const note = `${tag} ${order.orderNumber} → ${order.clientName}`
-  await prisma.erpInventorySerialUnit.updateMany({
-    where: { id: { in: found.units.map((u) => u.id) } },
-    data: {
-      status: "delivered",
-      notes: note,
-    },
-  })
-
-  await ensureInventoryStockForModel(found.model, item.description, item.unit || "pcs")
-
-  await logHistory(
-    found.model,
-    found.units.length,
-    item.unit || "pcs",
-    order,
-    `Serial units delivered to ${order.clientName}`,
-  )
-
+  await markSerialUnitsDelivered(order, found.units, item)
   return { ok: true, count: found.units.length }
 }
 
@@ -337,6 +431,27 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
   const tag = orderUnitTag(order.id)
   const restoredIds = new Set<string>()
   const models = new Set<string>()
+
+  const allocationIds = (order.fulfillmentSerialAllocations ?? []).map((a) => a.unitId)
+  if (allocationIds.length > 0) {
+    const allocatedUnits = await prisma.erpInventorySerialUnit.findMany({
+      where: { id: { in: allocationIds } },
+    })
+    for (const unit of allocatedUnits) {
+      if (restoredIds.has(unit.id)) continue
+      restoredIds.add(unit.id)
+      models.add(unit.model)
+      let notes = (unit.notes || "")
+        .replace(tag, "")
+        .replace(order.orderNumber, "")
+        .replace(/→/g, "")
+        .trim()
+      await prisma.erpInventorySerialUnit.update({
+        where: { id: unit.id },
+        data: { status: "in_stock", notes },
+      })
+    }
+  }
 
   async function restoreUnit(unit: { id: string; model: string; notes: string | null }) {
     if (restoredIds.has(unit.id)) return

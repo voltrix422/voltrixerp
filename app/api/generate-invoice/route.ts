@@ -3,6 +3,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import fs from 'fs'
 import path from 'path'
+import { formatSerialListForLine, orderHasSerialAllocations } from '@/lib/order-fulfillment-serials'
 import { getOrderSourcePdfLabel, resolveOrderItemModel } from '@/lib/orders'
 
 function loadFont(filename: string): string {
@@ -173,6 +174,7 @@ export async function POST(request: NextRequest) {
       model: resolveOrderItemModel(item),
     }))
     const showModelCol = itemsWithModel.some((row: { model: string | null }) => row.model)
+    const showSerialCol = orderHasSerialAllocations(order)
 
     const tableData = itemsWithModel.map(({ item, model }: { item: any; model: string | null }, idx: number) => {
       const row = [
@@ -183,11 +185,13 @@ export async function POST(request: NextRequest) {
         `PKR ${Number(item.unitPrice).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
         `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
       ]
+      if (showSerialCol) row.splice(3, 0, formatSerialListForLine(order, item.id))
       if (showModelCol) row.splice(1, 0, model || '—')
       return row
     })
 
     const headRow = ['#', 'DESCRIPTION', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']
+    if (showSerialCol) headRow.splice(3, 0, 'SERIAL NO.')
     if (showModelCol) headRow.splice(1, 0, 'MODEL')
 
     const columnStyles = showModelCol

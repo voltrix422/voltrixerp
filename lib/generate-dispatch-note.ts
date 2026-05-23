@@ -1,5 +1,6 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+import { formatSerialListForLine, orderHasSerialAllocations } from "@/lib/order-fulfillment-serials"
 import type { Order } from "@/lib/orders"
 
 type DispatchNoteOptions = {
@@ -150,6 +151,8 @@ export async function generateDispatchNotePDF(
   // ── Items table ────────────────────────────────────────────────────────────
   y = Math.max(y + 8, 92)
 
+  const showSerialCol = orderHasSerialAllocations(order)
+
   const tableData = order.items.map((item, idx) => {
     const base = [
       `${idx + 1}`,
@@ -157,6 +160,7 @@ export async function generateDispatchNotePDF(
       item.qty.toString(),
       item.unit,
     ]
+    if (showSerialCol) base.push(formatSerialListForLine(order, item.id))
     if (!showPricing) return base
     return [
       ...base,
@@ -165,9 +169,17 @@ export async function generateDispatchNotePDF(
     ]
   })
 
+  const dispatchHead = showPricing
+    ? ["#", "ITEM DESCRIPTION", "QTY", "UNIT", "UNIT PRICE", "TOTAL"]
+    : ["#", "ITEM DESCRIPTION", "QTY", "UNIT"]
+  if (showSerialCol) {
+    const insertAt = showPricing ? 4 : 4
+    dispatchHead.splice(insertAt, 0, "SERIAL NO.")
+  }
+
   autoTable(doc, {
     startY: y,
-    head: [showPricing ? ["#", "ITEM DESCRIPTION", "QTY", "UNIT", "UNIT PRICE", "TOTAL"] : ["#", "ITEM DESCRIPTION", "QTY", "UNIT"]],
+    head: [dispatchHead],
     body: tableData,
     theme: "plain",
     headStyles: {
