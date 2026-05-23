@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState, type MouseEvent } from "react"
+import { useState, type MouseEvent } from "react"
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 import { formatGstPercent, formatRetailPricePkr } from "@/lib/format-inventory-price"
 import { InventoryModelPricePanel } from "@/components/inventory/inventory-model-price-panel"
@@ -52,35 +52,16 @@ export function InventoryModelGroup({
   const title = customName || modelKey
 
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
-  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const clearOpenTimer = useCallback(() => {
-    if (openTimerRef.current) {
-      clearTimeout(openTimerRef.current)
-      openTimerRef.current = null
-    }
-  }, [])
-
-  const schedulePricePanel = useCallback(() => {
-    if (isEditing) return
-    clearOpenTimer()
-    openTimerRef.current = setTimeout(() => setPricePanelOpen(true), 400)
-  }, [isEditing, clearOpenTimer])
-
-  const cancelScheduledPricePanel = useCallback(() => {
-    clearOpenTimer()
-  }, [clearOpenTimer])
-
-  const closePricePanel = useCallback(() => {
-    clearOpenTimer()
-    setPricePanelOpen(false)
-  }, [clearOpenTimer])
+  function openPricePanel() {
+    if (!isEditing) setPricePanelOpen(true)
+  }
 
   return (
     <div className="bg-[hsl(var(--background))]">
       <InventoryModelPricePanel
         open={pricePanelOpen}
-        onClose={closePricePanel}
+        onClose={() => setPricePanelOpen(false)}
         modelKey={modelKey}
         title={title}
         modelUnits={modelUnits}
@@ -111,43 +92,48 @@ export function InventoryModelGroup({
           </Button>
         </div>
       ) : (
-        <button
-          type="button"
-          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] gap-3 items-center px-4 py-3.5 text-left hover:bg-[hsl(var(--muted))]/12 transition-colors cursor-pointer"
-          onClick={onToggle}
-          onMouseEnter={schedulePricePanel}
-          onMouseLeave={cancelScheduledPricePanel}
-          aria-expanded={expanded}
-          title="Hover for prices · click to expand units"
+        <div
+          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] gap-3 items-center px-4 py-3.5 hover:bg-[hsl(var(--muted))]/12 transition-colors"
         >
-          {expanded ? (
-            <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-          ) : (
-            <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
-          )}
-          <span className="min-w-0 text-sm font-medium truncate text-left">{title}</span>
-          <span className="min-w-0 text-xs font-mono text-[hsl(var(--muted-foreground))] truncate text-left hidden sm:block">
-            {modelKey}
-          </span>
-          <span className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums text-right sm:col-start-4 col-start-3">
-            {inStock}/{count}
-          </span>
-          <span className="text-sm font-semibold text-[#1faca6] tabular-nums text-right sm:col-start-5 col-start-4">
-            {count} {count === 1 ? "pc" : "pcs"}
-          </span>
-          <span
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
+            className="flex items-center justify-center p-0.5 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20 shrink-0"
+            onClick={onToggle}
+            aria-expanded={expanded}
+            title="Expand serial numbers"
+          >
+            {expanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            type="button"
+            className="col-span-4 sm:col-span-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px] gap-3 items-center min-w-0 text-left cursor-pointer rounded-md -my-1 py-1 hover:bg-[#1faca6]/5"
+            onClick={openPricePanel}
+            title="Click for prices"
+          >
+            <span className="min-w-0 text-sm font-medium truncate">{title}</span>
+            <span className="min-w-0 text-xs font-mono text-[hsl(var(--muted-foreground))] truncate hidden sm:block">
+              {modelKey}
+            </span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums text-right">
+              {inStock}/{count}
+            </span>
+            <span className="text-sm font-semibold text-[#1faca6] tabular-nums text-right">
+              {count} {count === 1 ? "pc" : "pcs"}
+            </span>
+          </button>
+          <button
+            type="button"
             className="flex justify-end p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] sm:col-start-6 col-start-5"
             onClick={onStartEdit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") onStartEdit(e as unknown as MouseEvent)
-            }}
             title="Edit name"
           >
             <Pencil className="h-4 w-4" />
-          </span>
-        </button>
+          </button>
+        </div>
       )}
 
       {expanded && (

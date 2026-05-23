@@ -86,10 +86,7 @@ export function InventoryModelPricePanel({
   if (!mounted || !open) return null
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
-      onMouseLeave={onClose}
-    >
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
         aria-hidden

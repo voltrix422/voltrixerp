@@ -305,7 +305,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
             <span className="text-right">Stock</span>
             <span className="text-right">Units</span>
             <span className="text-right text-[10px] font-normal normal-case tracking-normal text-[#1faca6]/90">
-              Hover for prices
+              Click for prices
             </span>
           </div>
           <div className="divide-y">
