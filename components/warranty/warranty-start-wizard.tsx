@@ -11,23 +11,30 @@ import {
   User,
   Phone,
   MapPin,
+  Home,
+  Truck,
 } from "lucide-react"
 import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
 
 export type WarrantyStartPreview = {
   serialNumber: string
   productName: string
+  invoiceNumber?: string | null
   customerName?: string | null
+  customerPhone?: string | null
+  customerAddress?: string | null
+  installLocation?: string | null
 }
 
 export type WarrantyStartFormData = {
   customerName: string
   customerPhone: string
   customerAddress: string
+  installLocation: string
   invoiceDocumentUrl: string | null
 }
 
-type Step = "scan" | "invoice" | "details"
+type Step = "scan" | "details" | "invoice"
 
 type Props = {
   scannerKey: number
@@ -38,6 +45,7 @@ type Props = {
 
 export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>("scan")
+  const [scanning, setScanning] = useState(false)
   const [scanPayload, setScanPayload] = useState("")
   const [preview, setPreview] = useState<WarrantyStartPreview | null>(null)
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null)
@@ -47,40 +55,57 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
   const [customerAddress, setCustomerAddress] = useState("")
+  const [installLocation, setInstallLocation] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleScan(payload: string) {
     setError("")
+    setScanning(true)
     setScanPayload(payload)
 
     try {
-      const res = await fetch(`/api/warranty/lookup?id=${encodeURIComponent(payload)}`)
+      const res = await fetch(`/api/warranty/preview?scan=${encodeURIComponent(payload)}`)
       const data = await res.json()
 
-      if (res.ok) {
+      if (!res.ok) {
+        setError(data.error || "This product could not be found.")
+        return
+      }
+
+      if (data.status === "already_active") {
         await onComplete(payload, {
-          customerName: data.customerName || "",
-          customerPhone: data.customerPhone || "",
-          customerAddress: data.customerAddress || "",
-          invoiceDocumentUrl: data.invoiceDocumentUrl || null,
+          customerName: data.warranty?.customerName || "",
+          customerPhone: data.warranty?.customerPhone || "",
+          customerAddress: data.warranty?.customerAddress || "",
+          installLocation: data.warranty?.installLocation || "",
+          invoiceDocumentUrl: data.warranty?.invoiceDocumentUrl || null,
         })
         return
       }
 
-      if (data.status === "pending_activation") {
+      if (data.status === "delivered_pending") {
         setPreview({
           serialNumber: data.serialNumber || "",
           productName: data.productName || "Product",
+          invoiceNumber: data.invoiceNumber,
           customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          customerAddress: data.customerAddress,
+          installLocation: data.installLocation,
         })
         if (data.customerName) setCustomerName(String(data.customerName))
-        setStep("invoice")
+        if (data.customerPhone) setCustomerPhone(String(data.customerPhone))
+        if (data.customerAddress) setCustomerAddress(String(data.customerAddress))
+        if (data.installLocation) setInstallLocation(String(data.installLocation))
+        setStep("details")
         return
       }
 
-      setError(data.error || data.message || "This product could not be found.")
+      setError(data.message || "Could not verify this product.")
     } catch {
       setError("Could not verify product. Please try again.")
+    } finally {
+      setScanning(false)
     }
   }
 
@@ -111,10 +136,19 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
     }
   }
 
-  async function submitDetails(e: React.FormEvent) {
+  function goToInvoiceStep() {
+    if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim() || !installLocation.trim()) {
+      setError("Please enter your name, phone, address, and install location.")
+      return
+    }
+    setError("")
+    setStep("invoice")
+  }
+
+  async function submitStart(e: React.FormEvent) {
     e.preventDefault()
-    if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
-      setError("Please enter your name, phone number, and address.")
+    if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim() || !installLocation.trim()) {
+      setError("Please enter your name, phone, address, and install location.")
       return
     }
     setError("")
@@ -122,11 +156,12 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerAddress: customerAddress.trim(),
+      installLocation: installLocation.trim(),
       invoiceDocumentUrl: invoiceUrl,
     })
   }
 
-  const stepIndex = step === "scan" ? 1 : step === "invoice" ? 2 : 3
+  const stepIndex = step === "scan" ? 1 : step === "details" ? 2 : 3
 
   return (
     <div className="space-y-4">
@@ -144,9 +179,7 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
           <div key={n} className="flex items-center gap-2">
             <span
               className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold ${
-                n <= stepIndex
-                  ? "bg-[#1a9f9a] text-white"
-                  : "bg-gray-200 text-gray-500"
+                n <= stepIndex ? "bg-[#1a9f9a] text-white" : "bg-gray-200 text-gray-500"
               }`}
             >
               {n < stepIndex ? <CheckCircle className="h-4 w-4" /> : n}
@@ -169,93 +202,33 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
             key={`start-${scannerKey}`}
             readerId="public-warranty-start-reader"
             onScan={(p) => void handleScan(p)}
-            busy={busy}
+            busy={scanning || busy}
             autoStart
             hideStartButton
           />
         </>
       )}
 
-      {step === "invoice" && preview && (
-        <>
-          <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm">
-            <p className="text-gray-500 text-xs uppercase tracking-wide">Product verified</p>
-            <p className="font-semibold text-gray-900 capitalize mt-1">{preview.productName}</p>
-            <p className="font-mono text-xs text-gray-600 mt-1">SN: {preview.serialNumber}</p>
-          </div>
-
-          <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 space-y-3">
-            <p className="text-sm font-medium text-gray-800">Step 2: Upload your purchase invoice</p>
-            <p className="text-xs text-gray-500">PDF or image (JPG, PNG) from your dealer or receipt</p>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,application/pdf"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) void handleInvoiceUpload(file)
-              }}
-            />
-
-            {invoiceUrl ? (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
-                <FileText className="h-5 w-5 text-green-600 shrink-0" />
-                <span className="text-sm text-green-800 truncate flex-1">{invoiceFileName || "Invoice uploaded"}</span>
-                <button
-                  type="button"
-                  className="text-xs text-[#1a9f9a] font-medium"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Change
-                </button>
+      {step === "details" && preview && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <Truck className="h-5 w-5 text-emerald-700" />
               </div>
-            ) : (
-              <button
-                type="button"
-                disabled={uploading}
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full flex flex-col items-center gap-2 py-8 rounded-xl border-2 border-dashed border-[#1a9f9a]/40 bg-white hover:bg-[#1a9f9a]/5 transition-colors"
-              >
-                {uploading ? (
-                  <Loader2 className="h-8 w-8 text-[#1a9f9a] animate-spin" />
-                ) : (
-                  <Upload className="h-8 w-8 text-[#1a9f9a]" />
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">Product found — delivered</p>
+                <p className="text-xs text-emerald-800 mt-1 capitalize">{preview.productName}</p>
+                <p className="font-mono text-xs text-emerald-700 mt-0.5">SN: {preview.serialNumber}</p>
+                {preview.invoiceNumber && (
+                  <p className="text-xs text-emerald-700 mt-1">Order: {preview.invoiceNumber}</p>
                 )}
-                <span className="text-sm font-medium text-gray-700">
-                  {uploading ? "Uploading…" : "Tap to upload invoice"}
-                </span>
-              </button>
-            )}
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setStep("details")}
-                className="flex-1 py-3 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] flex items-center justify-center gap-2"
-              >
-                Continue
-                <ArrowRight className="h-4 w-4" />
-              </button>
+              </div>
             </div>
-            {!invoiceUrl && (
-              <button
-                type="button"
-                onClick={() => setStep("details")}
-                className="w-full text-xs text-gray-500 hover:text-gray-700 py-1"
-              >
-                Skip invoice for now
-              </button>
-            )}
           </div>
-        </>
-      )}
 
-      {step === "details" && (
-        <form onSubmit={(e) => void submitDetails(e)} className="space-y-4">
           <div className="rounded-xl bg-[#1a9f9a]/10 border border-[#1a9f9a]/20 px-4 py-3 text-sm text-gray-700 text-center">
-            Step 3: Your details (Naam)
+            Step 2: Enter your information to start warranty
           </div>
 
           <div className="space-y-3">
@@ -292,12 +265,97 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 required
-                rows={3}
+                rows={2}
                 placeholder="House, street, city"
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] resize-none"
               />
             </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-gray-600 flex items-center gap-1">
+                <Home className="h-3.5 w-3.5" /> Install location *
+              </span>
+              <input
+                value={installLocation}
+                onChange={(e) => setInstallLocation(e.target.value)}
+                required
+                placeholder="e.g. Home – Lahore, Shop – Faisalabad"
+                className="w-full h-11 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+              />
+            </label>
           </div>
+
+          <button
+            type="button"
+            onClick={goToInvoiceStep}
+            className="w-full py-4 rounded-xl bg-[#1a9f9a] text-white text-base font-semibold hover:bg-[#158a85] flex items-center justify-center gap-2"
+          >
+            Continue
+            <ArrowRight className="h-5 w-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStep("scan")}
+            className="w-full text-sm text-gray-500 hover:text-gray-700"
+          >
+            Scan a different product
+          </button>
+        </div>
+      )}
+
+      {step === "invoice" && preview && (
+        <form onSubmit={(e) => void submitStart(e)} className="space-y-4">
+          <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-sm">
+            <p className="text-gray-500 text-xs uppercase tracking-wide">Ready to start warranty</p>
+            <p className="font-semibold text-gray-900 capitalize mt-1">{preview.productName}</p>
+            <p className="font-mono text-xs text-gray-600 mt-1">SN: {preview.serialNumber}</p>
+            <p className="text-xs text-gray-600 mt-2 capitalize">Naam: {customerName}</p>
+          </div>
+
+          <div className="rounded-xl bg-[#1a9f9a]/10 border border-[#1a9f9a]/20 px-4 py-3 text-sm text-gray-700 text-center">
+            Step 3: Upload purchase invoice (optional)
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void handleInvoiceUpload(file)
+            }}
+          />
+
+          {invoiceUrl ? (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+              <FileText className="h-5 w-5 text-green-600 shrink-0" />
+              <span className="text-sm text-green-800 truncate flex-1">{invoiceFileName || "Invoice uploaded"}</span>
+              <button
+                type="button"
+                className="text-xs text-[#1a9f9a] font-medium"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex flex-col items-center gap-2 py-6 rounded-xl border-2 border-dashed border-[#1a9f9a]/40 bg-white hover:bg-[#1a9f9a]/5 transition-colors"
+            >
+              {uploading ? (
+                <Loader2 className="h-8 w-8 text-[#1a9f9a] animate-spin" />
+              ) : (
+                <Upload className="h-8 w-8 text-[#1a9f9a]" />
+              )}
+              <span className="text-sm font-medium text-gray-700">
+                {uploading ? "Uploading…" : "Tap to upload invoice (PDF or image)"}
+              </span>
+            </button>
+          )}
 
           <button
             type="submit"
@@ -310,10 +368,10 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
 
           <button
             type="button"
-            onClick={() => setStep("invoice")}
+            onClick={() => setStep("details")}
             className="w-full text-sm text-gray-500 hover:text-gray-700"
           >
-            Back to invoice upload
+            Back to your details
           </button>
         </form>
       )}

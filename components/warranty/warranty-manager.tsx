@@ -17,6 +17,7 @@ interface Warranty {
   customerEmail?: string
   customerPhone?: string
   customerAddress?: string
+  installLocation?: string
   invoiceDocumentUrl?: string
   notes?: string
   createdAt: string
@@ -702,6 +703,10 @@ export function WarrantyManager() {
                   <div>
                     <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Address</p>
                     <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerAddress || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Install location</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.installLocation || "-"}</p>
                   </div>
                   {viewDetail.invoiceDocumentUrl && (
                     <div>

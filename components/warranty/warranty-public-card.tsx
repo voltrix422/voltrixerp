@@ -8,6 +8,7 @@ import {
   User,
   Phone,
   MapPin,
+  Home,
   FileText,
   Package,
   Calendar,
@@ -25,6 +26,7 @@ export type PublicWarrantyCardData = {
   customerEmail?: string | null
   customerPhone?: string | null
   customerAddress?: string | null
+  installLocation?: string | null
   invoiceDocumentUrl?: string | null
 }
 
@@ -177,7 +179,10 @@ export const WarrantyPublicCardView = forwardRef<
         </div>
 
         {showCustomer &&
-          (warranty.customerName || warranty.customerPhone || warranty.customerAddress) && (
+          (warranty.customerName ||
+            warranty.customerPhone ||
+            warranty.customerAddress ||
+            warranty.installLocation) && (
             <div className="rounded-xl border border-gray-100 bg-white p-4 space-y-3 shadow-sm">
               <p className="text-xs font-semibold text-gray-800 flex items-center gap-2">
                 <User className="h-4 w-4 text-[#1a9f9a]" />
@@ -191,6 +196,9 @@ export const WarrantyPublicCardView = forwardRef<
               )}
               {warranty.customerAddress && (
                 <DetailRow icon={MapPin} label="Address" value={warranty.customerAddress} />
+              )}
+              {warranty.installLocation && (
+                <DetailRow icon={Home} label="Install location" value={warranty.installLocation} />
               )}
             </div>
           )}

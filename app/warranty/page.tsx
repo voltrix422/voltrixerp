@@ -29,6 +29,7 @@ type Flow = null | "start" | "check"
 type WarrantyData = PublicWarrantyCardData & {
   id?: string
   warrantyId?: string | null
+  installLocation?: string | null
   notes?: string
   activatedAt?: string
 }
@@ -45,6 +46,7 @@ function toCardData(w: WarrantyData): PublicWarrantyCardData {
     customerEmail: w.customerEmail,
     customerPhone: w.customerPhone,
     customerAddress: w.customerAddress,
+    installLocation: w.installLocation,
     invoiceDocumentUrl: w.invoiceDocumentUrl,
   }
 }
@@ -148,6 +150,7 @@ function WarrantyLookupContent() {
           customerName: form.customerName,
           customerPhone: form.customerPhone,
           customerAddress: form.customerAddress,
+          installLocation: form.installLocation,
           invoiceDocumentUrl: form.invoiceDocumentUrl || undefined,
         }),
       })

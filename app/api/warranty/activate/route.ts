@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
       customerName: body.customerName ? String(body.customerName) : undefined,
       customerPhone: body.customerPhone ? String(body.customerPhone) : undefined,
       customerAddress: body.customerAddress ? String(body.customerAddress) : undefined,
+      installLocation: body.installLocation ? String(body.installLocation) : undefined,
       invoiceDocumentUrl: body.invoiceDocumentUrl ? String(body.invoiceDocumentUrl) : undefined,
     })
 

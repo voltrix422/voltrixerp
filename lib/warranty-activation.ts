@@ -82,6 +82,7 @@ export type ActivateWarrantyOptions = {
   customerName?: string
   customerPhone?: string
   customerAddress?: string
+  installLocation?: string
   invoiceDocumentUrl?: string
 }
 
@@ -131,6 +132,7 @@ export async function activateWarrantyBySerial(
     customerName: options?.customerName?.trim() || undefined,
     customerPhone: options?.customerPhone?.trim() || undefined,
     customerAddress: options?.customerAddress?.trim() || undefined,
+    installLocation: options?.installLocation?.trim() || undefined,
     invoiceDocumentUrl: options?.invoiceDocumentUrl?.trim() || undefined,
   }
 
@@ -143,6 +145,7 @@ export async function activateWarrantyBySerial(
           customerName: customerPatch.customerName ?? warranty.customerName,
           customerPhone: customerPatch.customerPhone ?? warranty.customerPhone,
           customerAddress: customerPatch.customerAddress ?? warranty.customerAddress,
+          installLocation: customerPatch.installLocation ?? warranty.installLocation,
           invoiceDocumentUrl: customerPatch.invoiceDocumentUrl ?? warranty.invoiceDocumentUrl,
         },
       })
@@ -169,6 +172,7 @@ export async function activateWarrantyBySerial(
         customerName: customerPatch.customerName || warranty.customerName,
         customerPhone: customerPatch.customerPhone || warranty.customerPhone,
         customerAddress: customerPatch.customerAddress || warranty.customerAddress,
+        installLocation: customerPatch.installLocation || warranty.installLocation,
         invoiceDocumentUrl: customerPatch.invoiceDocumentUrl || warranty.invoiceDocumentUrl,
         notes: `${warranty.notes || ""}\n${activationNote}`.trim(),
       },
@@ -187,6 +191,7 @@ export async function activateWarrantyBySerial(
         customerName: customerPatch.customerName || null,
         customerPhone: customerPatch.customerPhone || null,
         customerAddress: customerPatch.customerAddress || null,
+        installLocation: customerPatch.installLocation || null,
         invoiceDocumentUrl: customerPatch.invoiceDocumentUrl || null,
         notes: activationNote,
         createdBy: options?.activatedBy || "branch",
@@ -283,6 +288,7 @@ async function serializeWarrantyPublic(w: {
   customerEmail: string | null
   customerPhone: string | null
   customerAddress?: string | null
+  installLocation?: string | null
   invoiceDocumentUrl?: string | null
   notes: string | null
   activatedAt: Date | null
@@ -305,6 +311,7 @@ async function serializeWarrantyPublic(w: {
     customerEmail: w.customerEmail,
     customerPhone: w.customerPhone,
     customerAddress: w.customerAddress ?? null,
+    installLocation: w.installLocation ?? null,
     invoiceDocumentUrl: w.invoiceDocumentUrl ?? null,
     notes: w.notes,
     activatedAt: w.activatedAt?.toISOString() ?? null,
@@ -359,5 +366,98 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
     warranty: await serializeWarrantyPublic(warranty),
     pending: !isWarrantyActivated(warranty),
     active: isWarrantyActivated(warranty),
+  }
+}
+
+export type WarrantyStartPreviewResult =
+  | {
+      ok: true
+      status: "already_active"
+      warranty: Record<string, unknown>
+    }
+  | {
+      ok: true
+      status: "delivered_pending"
+      serialNumber: string
+      productName: string
+      customerName?: string | null
+      customerPhone?: string | null
+      customerAddress?: string | null
+      installLocation?: string | null
+      invoiceNumber?: string | null
+      message: string
+    }
+  | { ok: false; error: string; code?: string }
+
+/** Validate scan for start flow: delivered unit → collect customer details before activation. */
+export async function previewWarrantyStart(rawScan: string): Promise<WarrantyStartPreviewResult> {
+  const serialNumber = resolveSerialFromWarrantyScan(rawScan)
+  if (!serialNumber) {
+    return { ok: false, error: "Could not read serial number from scan.", code: "INVALID_SCAN" }
+  }
+
+  const unit = await prisma.erpInventorySerialUnit.findFirst({
+    where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
+  })
+
+  if (!unit) {
+    return {
+      ok: false,
+      error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
+      code: "NOT_FOUND",
+    }
+  }
+
+  if (unit.status === "in_stock") {
+    return {
+      ok: false,
+      error:
+        "This unit is still in warehouse stock. Warranty can be started after your dealer dispatches the order.",
+      code: "NOT_DISPATCHED",
+    }
+  }
+
+  const existing = await lookupWarrantyForPublic(rawScan)
+  if (existing?.active) {
+    return {
+      ok: true,
+      status: "already_active",
+      warranty: existing.warranty,
+    }
+  }
+
+  if (existing?.pending) {
+    const w = existing.warranty
+    return {
+      ok: true,
+      status: "delivered_pending",
+      serialNumber: String(w.serialNumber || serialNumber),
+      productName: String(w.productName || unit.model || unit.productName),
+      customerName: w.customerName as string | null,
+      customerPhone: w.customerPhone as string | null,
+      customerAddress: w.customerAddress as string | null,
+      installLocation: w.installLocation as string | null,
+      invoiceNumber: w.invoiceNumber as string | null,
+      message: "Product found and delivered. Please enter your details to start warranty.",
+    }
+  }
+
+  const invoiceNumber = await resolveInvoiceNumberForWarranty({
+    serialNumber: unit.serialNumber,
+    warrantyId: unit.warrantyId,
+    notes: null,
+  })
+
+  return {
+    ok: true,
+    status: "delivered_pending",
+    serialNumber: unit.serialNumber,
+    productName: unit.model || unit.productName || unit.serialNumber,
+    customerName: null,
+    customerPhone: null,
+    customerAddress: null,
+    installLocation: null,
+    invoiceNumber,
+    message: "Product found and delivered. Please enter your details to start warranty.",
   }
 }
