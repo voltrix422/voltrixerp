@@ -2,6 +2,7 @@
 
 import { forwardRef } from "react"
 import { Shield, CheckCircle, AlertCircle } from "lucide-react"
+import { VOLTRIX_COMPREHENSIVE_WARRANTY } from "@/lib/warranty-comprehensive-terms"
 
 export type PublicWarrantyCardData = {
   invoiceNumber?: string | null
@@ -17,18 +18,6 @@ export type PublicWarrantyCardData = {
   installLocation?: string | null
   invoiceDocumentUrl?: string | null
 }
-
-export const VOLTRIX_WARRANTY_TERMS = [
-  "For indoor use only (IP21); keep away from water, moisture, and high humidity.",
-  "Install correctly with approved inverters and chargers as per guidelines.",
-  "Warranty covers manufacturing defects under normal use with valid proof of purchase.",
-  "Warranty excludes water damage, physical damage, misuse, or unauthorized repairs.",
-  "Avoid overloading, short-circuiting, or bypassing the BMS; monitor via the mobile app.",
-  "Company not liable for indirect damage, losses, or misuse-related issues.",
-  "Operate within -10°C to 60°C and rated voltage limits for safe performance.",
-  "Modification, tampering, or disassembly voids the warranty immediately.",
-  "Claims require lab inspection; non-covered damage voids replacement; confirmed defects serviced per policy.",
-] as const
 
 export function calculateRemainingWarranty(endDate: string): {
   days: number
@@ -176,27 +165,52 @@ export const WarrantyPublicCardView = forwardRef<
           </a>
         )}
 
-        {/* Terms */}
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
-          <p className="text-[9px] font-bold uppercase tracking-wide text-gray-700 mb-1">
-            Terms &amp; Conditions
-          </p>
-          <ul className="space-y-0.5">
-            {VOLTRIX_WARRANTY_TERMS.map((term) => (
-              <li
-                key={term}
-                className="text-[8px] leading-[1.35] text-gray-600 flex gap-1"
-              >
-                <span className="text-[#1a9f9a] shrink-0 font-bold">➤</span>
-                <span>{term}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* Comprehensive terms */}
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5 space-y-1.5">
+          <div className="border-b border-gray-200 pb-1.5">
+            <p className="text-[10px] font-bold text-gray-900 leading-tight">
+              {VOLTRIX_COMPREHENSIVE_WARRANTY.company}
+            </p>
+            <p className="text-[9px] font-semibold text-[#1a9f9a] mt-0.5 leading-tight">
+              {VOLTRIX_COMPREHENSIVE_WARRANTY.documentTitle}
+            </p>
+          </div>
 
-        <p className="text-center text-[8px] text-gray-400 leading-tight">
-          Advanced lithium energy storage · voltrixbatteries.com · 5-year warranty
-        </p>
+          <div className="space-y-1.5">
+            {VOLTRIX_COMPREHENSIVE_WARRANTY.sections.map((section) => (
+              <div key={section.title}>
+                <p className="text-[8px] font-bold text-gray-800 leading-tight">{section.title}</p>
+                {section.paragraphs?.map((p) => (
+                  <p key={p.slice(0, 40)} className="text-[7px] leading-[1.4] text-gray-600 mt-0.5">
+                    {p}
+                  </p>
+                ))}
+                {section.bullets && (
+                  <ul className="mt-0.5 space-y-0.5 pl-2">
+                    {section.bullets.map((b) => (
+                      <li
+                        key={b.slice(0, 40)}
+                        className="text-[7px] leading-[1.35] text-gray-600 list-disc"
+                      >
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-1.5 border-t border-gray-200 text-center space-y-0.5">
+            <p className="text-[8px] font-bold text-gray-800">
+              {VOLTRIX_COMPREHENSIVE_WARRANTY.footer.company}
+            </p>
+            <p className="text-[7px] text-gray-500">{VOLTRIX_COMPREHENSIVE_WARRANTY.footer.location}</p>
+            <p className="text-[7px] text-[#1a9f9a] font-medium">
+              Website: {VOLTRIX_COMPREHENSIVE_WARRANTY.footer.website}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
