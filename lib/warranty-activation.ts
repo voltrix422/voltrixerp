@@ -30,8 +30,7 @@ export function isWarrantyActivated(row: {
   if (isWarrantyPendingActivation(row.notes)) return false
   const n = (row.notes || "").toLowerCase()
   if (n.includes("warranty activated")) return true
-  // Manual admin entries (not from dispatch flow) may have activatedAt only
-  if (row.activatedAt && !n.includes("dispatched on order")) return true
+  if (row.activatedAt) return true
   return false
 }
 
@@ -279,17 +278,43 @@ async function serializeWarrantyPublic(w: {
 
 
 export async function lookupWarrantyForPublic(idOrSerial: string) {
-  const key = idOrSerial.trim()
-  if (!key) return null
+  const trimmed = idOrSerial.trim()
+  if (!trimmed) return null
 
-  const warranty = await prisma.erpWarranty.findFirst({
-    where: {
-      OR: [
-        { warrantyId: key },
-        { serialNumber: { equals: key, mode: "insensitive" } },
-      ],
-    },
-  })
+  const resolvedSerial = resolveSerialFromWarrantyScan(trimmed)
+  const lookupKeys = [...new Set([trimmed, resolvedSerial].filter(Boolean))]
+
+  let warranty = null as Awaited<ReturnType<typeof prisma.erpWarranty.findFirst>>
+  for (const key of lookupKeys) {
+    warranty = await prisma.erpWarranty.findFirst({
+      where: {
+        OR: [
+          { warrantyId: key },
+          { serialNumber: { equals: key, mode: "insensitive" } },
+        ],
+      },
+    })
+    if (warranty) break
+  }
+
+  if (!warranty) {
+    const serialForUnit = resolvedSerial || trimmed
+    const unit = await prisma.erpInventorySerialUnit.findFirst({
+      where: { serialNumber: { equals: serialForUnit, mode: "insensitive" } },
+    })
+
+    if (unit?.warrantyId) {
+      warranty = await prisma.erpWarranty.findFirst({
+        where: { warrantyId: unit.warrantyId },
+      })
+    }
+
+    if (!warranty && unit?.serialNumber) {
+      warranty = await prisma.erpWarranty.findFirst({
+        where: { serialNumber: { equals: unit.serialNumber, mode: "insensitive" } },
+      })
+    }
+  }
 
   if (!warranty) return null
 

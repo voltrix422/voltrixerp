@@ -3,14 +3,18 @@ import { lookupWarrantyForPublic } from "@/lib/warranty-activation"
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
-  const warrantyId = searchParams.get("id") || searchParams.get("sn") || searchParams.get("serial")
+  const raw =
+    searchParams.get("id") ||
+    searchParams.get("sn") ||
+    searchParams.get("serial") ||
+    searchParams.get("scan")
 
-  if (!warrantyId?.trim()) {
+  if (!raw?.trim()) {
     return NextResponse.json({ error: "Warranty ID or serial number is required" }, { status: 400 })
   }
 
   try {
-    const result = await lookupWarrantyForPublic(warrantyId.trim())
+    const result = await lookupWarrantyForPublic(raw.trim())
 
     if (!result) {
       return NextResponse.json({ error: "Warranty not found" }, { status: 404 })
