@@ -120,14 +120,7 @@ function WarrantyLookupContent() {
         return
       }
 
-      if (data.status === "pending_activation") {
-        setError(
-          "Warranty has not been started yet. Tap Start warranty and complete the form after scanning your QR.",
-        )
-        return
-      }
-
-      setError(data.error || data.message || "Warranty not found")
+      setError(data.error || data.message || "No warranty data exists for this product.")
     } catch {
       setError("Failed to lookup warranty")
     } finally {

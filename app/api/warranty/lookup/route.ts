@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { lookupWarrantyForPublic } from "@/lib/warranty-activation"
+import { lookupWarrantyForPublic, previewWarrantyStart } from "@/lib/warranty-activation"
+
+const NO_WARRANTY_DATA_MSG = "No warranty data exists for this product."
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
@@ -17,28 +19,15 @@ export async function GET(req: NextRequest) {
     const result = await lookupWarrantyForPublic(raw.trim())
 
     if (!result) {
+      const preview = await previewWarrantyStart(raw.trim())
+      if (preview.ok && preview.status === "delivered_pending") {
+        return NextResponse.json({ error: NO_WARRANTY_DATA_MSG }, { status: 404 })
+      }
       return NextResponse.json({ error: "Warranty not found" }, { status: 404 })
     }
 
-    if (result.pending) {
-      return NextResponse.json({
-        status: "pending_activation",
-        serialNumber: result.warranty.serialNumber,
-        productName: result.warranty.productName,
-        customerName: result.warranty.customerName,
-        customerPhone: result.warranty.customerPhone,
-        customerAddress: result.warranty.customerAddress,
-        invoiceNumber: result.warranty.invoiceNumber,
-        message:
-          "Warranty has not been started yet. Open Start warranty on voltrixbatteries.com/warranty and scan your product QR, or ask your dealer to start it.",
-      })
-    }
-
-    if (!result.active) {
-      return NextResponse.json({
-        status: "inactive",
-        error: "This warranty is not active yet.",
-      }, { status: 403 })
+    if (result.pending || !result.active) {
+      return NextResponse.json({ error: NO_WARRANTY_DATA_MSG }, { status: 404 })
     }
 
     return NextResponse.json(result.warranty)
