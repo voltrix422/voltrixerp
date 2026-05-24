@@ -91,3 +91,43 @@ export function filterWarrantiesForRegistry<
     isWarrantyRegistryVisible(w, resolveUnitStatusForWarranty(w, byWarrantyId, bySerial)),
   )
 }
+
+/** Delivered/dispatched units whose warranty has not been started yet. */
+export function isDeliveredPendingWarranty(
+  row: Pick<
+    ErpWarranty,
+    "customerName" | "notes" | "serialNumber" | "productName" | "warrantyId" | "activatedAt"
+  >,
+  unitStatus?: string | null,
+): boolean {
+  if (isWarrantyActivated(row)) return false
+  if (unitStatus === "in_stock") return false
+  if (isInventoryScanWarranty(row.notes) && !hasRealCustomer(row.customerName)) return false
+
+  if (unitStatus === "delivered") return true
+
+  const notes = (row.notes || "").toLowerCase()
+  if (notes.includes("dispatched on order")) return true
+
+  if (hasRealCustomer(row.customerName) && isWarrantyPendingActivation(row.notes)) return true
+
+  return false
+}
+
+export function filterDeliveredPendingWarranties<
+  T extends Pick<
+    ErpWarranty,
+    "customerName" | "notes" | "serialNumber" | "productName" | "warrantyId" | "activatedAt"
+  >,
+>(warranties: T[], units: Pick<ErpInventorySerialUnit, "warrantyId" | "serialNumber" | "status">[]): T[] {
+  const byWarrantyId = new Map<string, string>()
+  const bySerial = new Map<string, string>()
+  for (const u of units) {
+    if (u.warrantyId) byWarrantyId.set(u.warrantyId, u.status)
+    if (u.serialNumber) bySerial.set(u.serialNumber.toLowerCase(), u.status)
+  }
+
+  return warranties.filter((w) =>
+    isDeliveredPendingWarranty(w, resolveUnitStatusForWarranty(w, byWarrantyId, bySerial)),
+  )
+}

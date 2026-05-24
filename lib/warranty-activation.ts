@@ -51,7 +51,15 @@ export function buildWarrantyCheckUrl(serialNumber: string, baseUrl?: string): s
     baseUrl?.replace(/\/$/, "") ||
     (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SITE_URL : "") ||
     "https://voltrixbatteries.com"
-  return `${origin}/warranty?sn=${encodeURIComponent(serialNumber.trim())}`
+  return `${origin}/warranty?sn=${encodeURIComponent(serialNumber.trim())}&action=check`
+}
+
+export function buildWarrantyStartUrl(serialNumber: string, baseUrl?: string): string {
+  const origin =
+    baseUrl?.replace(/\/$/, "") ||
+    (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_SITE_URL : "") ||
+    "https://voltrixbatteries.com"
+  return `${origin}/warranty?sn=${encodeURIComponent(serialNumber.trim())}&action=start`
 }
 
 export type ActivateWarrantyResult =

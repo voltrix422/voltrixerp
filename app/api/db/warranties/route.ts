@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { filterWarrantiesForRegistry } from "@/lib/warranty-registry"
+import { filterWarrantiesForRegistry, filterDeliveredPendingWarranties } from "@/lib/warranty-registry"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const includeInventory = searchParams.get("includeInventory") === "1"
+  const split = searchParams.get("split") === "1"
 
   const warranties = await prisma.erpWarranty.findMany({
     orderBy: { soldDate: "desc" },
@@ -35,6 +36,13 @@ export async function GET(req: NextRequest) {
           select: { warrantyId: true, serialNumber: true, status: true },
         })
       : []
+
+  if (split) {
+    return NextResponse.json({
+      started: filterWarrantiesForRegistry(warranties, units),
+      delivered: filterDeliveredPendingWarranties(warranties, units),
+    })
+  }
 
   return NextResponse.json(filterWarrantiesForRegistry(warranties, units))
 }

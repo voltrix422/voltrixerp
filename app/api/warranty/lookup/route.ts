@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
         productName: result.warranty.productName,
         customerName: result.warranty.customerName,
         message:
-          "Warranty has not been started yet. Visit a Voltrix branch and ask staff to scan your product QR under Start Warranty, or contact your dealer.",
+          "Warranty has not been started yet. Open Start warranty on voltrixbatteries.com/warranty and scan your product QR, or ask your dealer to start it.",
       })
     }
 
