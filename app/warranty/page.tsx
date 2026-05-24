@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useRef, useEffect, Suspense } from "react"
 import {
@@ -7,8 +7,8 @@ import {
   AlertCircle,
   CheckCircle,
   Download,
-  QrCode,
   PlayCircle,
+  ArrowLeft,
 } from "lucide-react"
 import { toPng } from "html-to-image"
 import Navbar from "@/components/landing/navbar"
@@ -20,8 +20,7 @@ import {
 } from "@/components/warranty/warranty-public-card"
 import { useSearchParams } from "next/navigation"
 
-type PageTab = "start" | "check"
-type InputMode = "scan" | "type"
+type Flow = null | "start" | "check"
 
 type WarrantyData = PublicWarrantyCardData & {
   id?: string
@@ -43,155 +42,10 @@ function toCardData(w: WarrantyData): PublicWarrantyCardData {
   }
 }
 
-function InputModeToggle({
-  inputMode,
-  setInputMode,
-}: {
-  inputMode: InputMode
-  setInputMode: (m: InputMode) => void
-}) {
-  return (
-    <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-      <button
-        type="button"
-        onClick={() => setInputMode("scan")}
-        className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium rounded-md transition-colors ${
-          inputMode === "scan" ? "bg-white shadow text-gray-900" : "text-gray-600"
-        }`}
-      >
-        <QrCode className="h-4 w-4" />
-        Scan QR
-      </button>
-      <button
-        type="button"
-        onClick={() => setInputMode("type")}
-        className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium rounded-md transition-colors ${
-          inputMode === "type" ? "bg-white shadow text-gray-900" : "text-gray-600"
-        }`}
-      >
-        <Search className="h-4 w-4" />
-        Enter ID
-      </button>
-    </div>
-  )
-}
-
-function StartWarrantyPanel({
-  inputMode,
-  setInputMode,
-  loading,
-  warrantyId,
-  setWarrantyId,
-  onScan,
-  onManualActivate,
-}: {
-  inputMode: InputMode
-  setInputMode: (m: InputMode) => void
-  loading: boolean
-  warrantyId: string
-  setWarrantyId: (v: string) => void
-  onScan: (payload: string) => void
-  onManualActivate: () => void
-}) {
-  return (
-    <div className="mb-6 space-y-4">
-      <div className="rounded-xl bg-[#1a9f9a]/10 border border-[#1a9f9a]/20 px-4 py-3 text-sm text-gray-700">
-        <strong>Scanning this QR starts your warranty.</strong> The 5-year period begins today after
-        your product has been delivered. If you scan again, you will see your active warranty card.
-      </div>
-
-      <InputModeToggle inputMode={inputMode} setInputMode={setInputMode} />
-
-      {inputMode === "scan" ? (
-        <WarrantyQrScanner
-          readerId="public-warranty-start-reader"
-          onScan={onScan}
-          busy={loading}
-        />
-      ) : (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={warrantyId}
-            onChange={(e) => setWarrantyId(e.target.value)}
-            placeholder="Serial number"
-            className="flex-1 h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm"
-          />
-          <button
-            type="button"
-            disabled={loading || !warrantyId.trim()}
-            onClick={onManualActivate}
-            className="px-4 h-10 rounded-lg bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a85] disabled:opacity-50"
-          >
-            {loading ? "…" : "Start"}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CheckWarrantyPanel({
-  inputMode,
-  setInputMode,
-  loading,
-  warrantyId,
-  setWarrantyId,
-  onScan,
-  onSubmit,
-}: {
-  inputMode: InputMode
-  setInputMode: (m: InputMode) => void
-  loading: boolean
-  warrantyId: string
-  setWarrantyId: (v: string) => void
-  onScan: (payload: string) => void
-  onSubmit: (e: React.FormEvent) => void
-}) {
-  return (
-    <div className="mb-6 space-y-4">
-      <p className="text-sm text-gray-600 text-center">
-        Scan the QR on your product or enter your warranty ID to view dates and download your card.
-      </p>
-
-      <InputModeToggle inputMode={inputMode} setInputMode={setInputMode} />
-
-      {inputMode === "scan" ? (
-        <WarrantyQrScanner
-          readerId="public-warranty-check-reader"
-          onScan={onScan}
-          busy={loading}
-        />
-      ) : (
-        <form onSubmit={onSubmit} className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              value={warrantyId}
-              onChange={(e) => setWarrantyId(e.target.value)}
-              placeholder="Warranty ID or serial number"
-              className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 h-10 rounded-lg bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a85] disabled:opacity-50"
-          >
-            {loading ? "…" : "Check"}
-          </button>
-        </form>
-      )}
-    </div>
-  )
-}
-
 function WarrantyLookupContent() {
   const searchParams = useSearchParams()
-  const [pageTab, setPageTab] = useState<PageTab>("start")
-  const [inputMode, setInputMode] = useState<InputMode>("scan")
-  const [warrantyId, setWarrantyId] = useState("")
+  const [flow, setFlow] = useState<Flow>(null)
+  const [scannerKey, setScannerKey] = useState(0)
   const [warranty, setWarranty] = useState<WarrantyData | null>(null)
   const [alreadyActive, setAlreadyActive] = useState(false)
   const [justActivated, setJustActivated] = useState(false)
@@ -212,10 +66,10 @@ function WarrantyLookupContent() {
     prefilled.current = true
     const action = searchParams.get("action")
     if (action === "check") {
-      setPageTab("check")
+      setFlow("check")
       void lookup(sn)
     } else {
-      setPageTab("start")
+      setFlow("start")
       void activate(sn)
     }
   }, [searchParams])
@@ -228,13 +82,24 @@ function WarrantyLookupContent() {
     setInfo("")
   }
 
+  function openFlow(next: Exclude<Flow, null>) {
+    resetResults()
+    setFlow(next)
+    setScannerKey((k) => k + 1)
+  }
+
+  function goBack() {
+    resetResults()
+    setFlow(null)
+    setScannerKey((k) => k + 1)
+  }
+
   async function lookup(id: string) {
     const key = id.trim()
     if (!key) return
 
     setLoading(true)
     resetResults()
-    setWarrantyId(key)
 
     try {
       const res = await fetch(`/api/warranty/lookup?id=${encodeURIComponent(key)}`)
@@ -247,7 +112,7 @@ function WarrantyLookupContent() {
 
       if (data.status === "pending_activation") {
         setError(
-          "Warranty has not been started yet. Switch to Start warranty and scan your product QR.",
+          "Warranty has not been started yet. Tap Start warranty and scan your product QR.",
         )
         return
       }
@@ -266,7 +131,6 @@ function WarrantyLookupContent() {
 
     setLoading(true)
     resetResults()
-    setWarrantyId(key)
 
     try {
       const res = await fetch("/api/warranty/activate", {
@@ -296,11 +160,6 @@ function WarrantyLookupContent() {
     }
   }
 
-  async function handleCheckSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    await lookup(warrantyId)
-  }
-
   async function handleDownload() {
     if (!cardRef.current) return
     try {
@@ -314,11 +173,7 @@ function WarrantyLookupContent() {
     }
   }
 
-  function switchTab(tab: PageTab) {
-    setPageTab(tab)
-    resetResults()
-    setWarrantyId("")
-  }
+  const showScanner = flow !== null && !warranty
 
   return (
     <div className="max-w-md mx-auto">
@@ -332,49 +187,57 @@ function WarrantyLookupContent() {
         </p>
       </div>
 
-      <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
-        <button
-          type="button"
-          onClick={() => switchTab("start")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium rounded-md transition-colors ${
-            pageTab === "start" ? "bg-white shadow text-gray-900" : "text-gray-600"
-          }`}
-        >
-          <PlayCircle className="h-4 w-4" />
-          Start warranty
-        </button>
-        <button
-          type="button"
-          onClick={() => switchTab("check")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium rounded-md transition-colors ${
-            pageTab === "check" ? "bg-white shadow text-gray-900" : "text-gray-600"
-          }`}
-        >
-          <Search className="h-4 w-4" />
-          Check warranty
-        </button>
-      </div>
+      {flow === null && !warranty && (
+        <div className="space-y-3 mb-6">
+          <button
+            type="button"
+            onClick={() => openFlow("start")}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-[#1a9f9a] text-white text-base font-semibold hover:bg-[#158a85] shadow-md transition-colors"
+          >
+            <PlayCircle className="h-5 w-5" />
+            Start warranty
+          </button>
+          <button
+            type="button"
+            onClick={() => openFlow("check")}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-[#1a9f9a] text-[#1a9f9a] bg-white text-base font-semibold hover:bg-[#1a9f9a]/5 transition-colors"
+          >
+            <Search className="h-5 w-5" />
+            Check warranty
+          </button>
+        </div>
+      )}
 
-      {pageTab === "start" ? (
-        <StartWarrantyPanel
-          inputMode={inputMode}
-          setInputMode={setInputMode}
-          loading={loading}
-          warrantyId={warrantyId}
-          setWarrantyId={setWarrantyId}
-          onScan={(p) => void activate(p)}
-          onManualActivate={() => void activate(warrantyId)}
-        />
-      ) : (
-        <CheckWarrantyPanel
-          inputMode={inputMode}
-          setInputMode={setInputMode}
-          loading={loading}
-          warrantyId={warrantyId}
-          setWarrantyId={setWarrantyId}
-          onScan={(p) => void lookup(p)}
-          onSubmit={handleCheckSubmit}
-        />
+      {showScanner && (
+        <div className="mb-6 space-y-4">
+          <button
+            type="button"
+            onClick={goBack}
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+
+          {flow === "start" ? (
+            <div className="rounded-xl bg-[#1a9f9a]/10 border border-[#1a9f9a]/20 px-4 py-3 text-sm text-gray-700 text-center">
+              Scan your product QR to <strong>start</strong> your 5-year warranty.
+            </div>
+          ) : (
+            <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
+              Scan your product QR to <strong>view</strong> your warranty card.
+            </div>
+          )}
+
+          <WarrantyQrScanner
+            key={`${flow}-${scannerKey}`}
+            readerId={flow === "start" ? "public-warranty-start-reader" : "public-warranty-check-reader"}
+            onScan={(p) => void (flow === "start" ? activate(p) : lookup(p))}
+            busy={loading}
+            autoStart
+            hideStartButton
+          />
+        </div>
       )}
 
       {error && (
@@ -393,13 +256,13 @@ function WarrantyLookupContent() {
 
       {warranty && (
         <div className="space-y-4">
-          {alreadyActive && pageTab === "start" && (
-            <p className="text-xs text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              This QR was already scanned — warranty is active.
+          {alreadyActive && flow === "start" && (
+            <p className="text-sm text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              This QR was already scanned â€” warranty is active.
             </p>
           )}
-          {justActivated && pageTab === "start" && (
-            <p className="text-xs text-center text-[#1a9f9a] font-medium">
+          {justActivated && flow === "start" && (
+            <p className="text-sm text-center text-[#1a9f9a] font-semibold">
               Warranty started successfully!
             </p>
           )}
@@ -412,6 +275,13 @@ function WarrantyLookupContent() {
             <Download className="h-4 w-4" />
             Download warranty card
           </button>
+          <button
+            type="button"
+            onClick={goBack}
+            className="w-full py-2.5 text-sm text-gray-600 hover:text-gray-900"
+          >
+            Scan another product
+          </button>
         </div>
       )}
     </div>
@@ -423,7 +293,7 @@ export default function WarrantyLookupPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 flex flex-col">
       <Navbar />
       <div className="flex-1 pt-24 pb-12 px-4">
-        <Suspense fallback={<div className="text-center text-sm text-gray-500">Loading…</div>}>
+        <Suspense fallback={<div className="text-center text-sm text-gray-500">Loadingâ€¦</div>}>
           <WarrantyLookupContent />
         </Suspense>
       </div>

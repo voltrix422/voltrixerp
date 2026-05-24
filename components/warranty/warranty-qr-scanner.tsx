@@ -10,6 +10,8 @@ type Props = {
   onScan: (payload: string) => void | Promise<void>
   disabled?: boolean
   busy?: boolean
+  autoStart?: boolean
+  hideStartButton?: boolean
 }
 
 export function WarrantyQrScanner({
@@ -17,17 +19,27 @@ export function WarrantyQrScanner({
   onScan,
   disabled,
   busy,
+  autoStart = false,
+  hideStartButton = false,
 }: Props) {
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState("")
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const lastScanRef = useRef("")
 
+  const autoStartedRef = useRef(false)
+
   useEffect(() => {
     return () => {
       void stopScanner()
     }
   }, [])
+
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current || disabled || busy) return
+    autoStartedRef.current = true
+    void startScanner()
+  }, [autoStart, disabled, busy])
 
   async function waitForMount() {
     await new Promise<void>((resolve) => {
@@ -83,7 +95,7 @@ export function WarrantyQrScanner({
         () => undefined,
       )
     } catch {
-      setError("Could not open camera. Paste serial or warranty ID below.")
+      setError("Could not open camera. Allow camera access and try again.")
       setScanning(false)
       scannerRef.current = null
     }
@@ -96,36 +108,60 @@ export function WarrantyQrScanner({
         className="w-full max-w-sm mx-auto aspect-square rounded-xl overflow-hidden border bg-black/90"
       />
       {error && <p className="text-xs text-red-600 dark:text-red-400 text-center">{error}</p>}
-      <div className="flex justify-center gap-2">
-        {scanning ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-9 text-xs"
-            onClick={() => void stopScanner()}
-            disabled={busy}
-          >
-            <CameraOff className="h-3.5 w-3.5 mr-1.5" />
-            Stop camera
-          </Button>
-        ) : (
+      {!hideStartButton && (
+        <div className="flex justify-center gap-2">
+          {scanning ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs"
+              onClick={() => void stopScanner()}
+              disabled={busy}
+            >
+              <CameraOff className="h-3.5 w-3.5 mr-1.5" />
+              Stop camera
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 text-xs bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+              onClick={() => void startScanner()}
+              disabled={disabled || busy}
+            >
+              {busy ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Camera className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {busy ? "Processing…" : "Open QR scanner"}
+            </Button>
+          )}
+        </div>
+      )}
+      {hideStartButton && scanning && !busy && (
+        <p className="text-center text-xs text-gray-500">Point your camera at the product QR code</p>
+      )}
+      {hideStartButton && scanning && busy && (
+        <p className="text-center text-xs text-[#1a9f9a]">Processing scan…</p>
+      )}
+      {hideStartButton && error && !scanning && (
+        <div className="flex justify-center">
           <Button
             type="button"
             size="sm"
             className="h-9 text-xs bg-[#1a9f9a] hover:bg-[#158a85] text-white"
-            onClick={() => void startScanner()}
-            disabled={disabled || busy}
+            onClick={() => {
+              setError("")
+              void startScanner()
+            }}
+            disabled={busy}
           >
-            {busy ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Camera className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {busy ? "Processing…" : "Open QR scanner"}
+            Try camera again
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
