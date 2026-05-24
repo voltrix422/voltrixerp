@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, Filter, PlayCircle, Truck } from "lucide-react"
+import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, Filter, PlayCircle, Truck, RotateCcw } from "lucide-react"
 
 interface Warranty {
   id: string
@@ -25,6 +25,7 @@ export function WarrantyManager() {
   const [deliveredWarranties, setDeliveredWarranties] = useState<Warranty[]>([])
   const [listTab, setListTab] = useState<"delivered" | "started">("delivered")
   const [activatingId, setActivatingId] = useState<string | null>(null)
+  const [resettingId, setResettingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -110,6 +111,36 @@ export function WarrantyManager() {
       alert("Failed to start warranty")
     } finally {
       setActivatingId(null)
+    }
+  }
+
+  async function handleResetWarranty(warranty: Warranty) {
+    if (
+      !confirm(
+        "Reset this warranty to not started? The unit will move back to Delivered and the customer will need to scan the QR again.",
+      )
+    ) {
+      return
+    }
+
+    setResettingId(warranty.id)
+    try {
+      const res = await fetch("/api/warranty/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: warranty.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || "Could not reset warranty")
+        return
+      }
+      await fetchWarranties()
+      setListTab("delivered")
+    } catch {
+      alert("Failed to reset warranty")
+    } finally {
+      setResettingId(null)
     }
   }
 
@@ -449,6 +480,18 @@ export function WarrantyManager() {
                             >
                               <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
                               {activatingId === warranty.id ? "Starting…" : "Start warranty"}
+                            </Button>
+                          )}
+                          {listTab === "started" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-3 text-xs font-medium"
+                              disabled={resettingId === warranty.id}
+                              onClick={() => void handleResetWarranty(warranty)}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                              {resettingId === warranty.id ? "Resetting…" : "Reset warranty"}
                             </Button>
                           )}
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => openEditForm(warranty)}>

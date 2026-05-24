@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/db"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import {
+  buildPendingDispatchNote,
+  parseOrderNumberFromUnitNotes,
+  parseOrderNumberFromWarrantyNotes,
+  resolveInvoiceNumberForWarranty,
+} from "@/lib/warranty-order-resolver"
 
 const WARRANTY_YEARS = 5
 
@@ -11,8 +17,9 @@ export function addYears(date: Date, years: number) {
 
 export function isWarrantyPendingActivation(notes: string | null | undefined): boolean {
   const n = (notes || "").toLowerCase()
+  if (n.includes("warranty activated")) return false
   if (n.includes("pending") && n.includes("scan")) return true
-  if (n.includes("dispatched on order") && !n.includes("warranty activated")) return true
+  if (n.includes("dispatched on order")) return true
   return false
 }
 
@@ -117,7 +124,7 @@ export async function activateWarrantyBySerial(
     return {
       ok: true,
       alreadyActive: true,
-      warranty: serializeWarranty(warranty),
+      warranty: await serializeWarrantyPublic(warranty),
     }
   }
 
@@ -134,9 +141,7 @@ export async function activateWarrantyBySerial(
         warrantyEndDate: warrantyEnd,
         soldDate: warranty.soldDate || now,
         customerName: options?.customerName?.trim() || warranty.customerName,
-        notes: isWarrantyPendingActivation(warranty.notes)
-          ? activationNote
-          : `${warranty.notes || ""}\n${activationNote}`.trim(),
+        notes: `${warranty.notes || ""}\n${activationNote}`.trim(),
       },
     })
   } else {
@@ -170,11 +175,71 @@ export async function activateWarrantyBySerial(
   return {
     ok: true,
     alreadyActive: false,
-    warranty: serializeWarranty(warranty),
+    warranty: await serializeWarrantyPublic(warranty),
   }
 }
 
-function serializeWarranty(w: {
+export async function resetWarrantyToPending(warrantyRowId: string) {
+  const warranty = await prisma.erpWarranty.findUnique({ where: { id: warrantyRowId } })
+  if (!warranty) {
+    return { ok: false as const, error: "Warranty not found" }
+  }
+
+  if (!isWarrantyActivated(warranty)) {
+    return { ok: false as const, error: "Warranty is not started yet." }
+  }
+
+  const unit = warranty.serialNumber
+    ? await prisma.erpInventorySerialUnit.findFirst({
+        where: { serialNumber: { equals: warranty.serialNumber, mode: "insensitive" } },
+      })
+    : warranty.warrantyId
+      ? await prisma.erpInventorySerialUnit.findFirst({ where: { warrantyId: warranty.warrantyId } })
+      : null
+
+  if (unit?.status === "in_stock") {
+    return { ok: false as const, error: "Unit is still in warehouse stock." }
+  }
+
+  const orderNumber =
+    parseOrderNumberFromWarrantyNotes(warranty.notes) ||
+    parseOrderNumberFromUnitNotes(unit?.notes) ||
+    null
+
+  const pendingNote = orderNumber
+    ? buildPendingDispatchNote(orderNumber)
+    : "Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty."
+
+  const soldDate = warranty.soldDate || new Date()
+  const placeholderEnd = addYears(soldDate, WARRANTY_YEARS)
+
+  const updated = await prisma.erpWarranty.update({
+    where: { id: warranty.id },
+    data: {
+      activatedAt: null,
+      warrantyStartDate: soldDate,
+      warrantyEndDate: placeholderEnd,
+      notes: pendingNote,
+    },
+  })
+
+  if (unit) {
+    await prisma.erpInventorySerialUnit.update({
+      where: { id: unit.id },
+      data: {
+        warrantyStartDate: null,
+        warrantyEndDate: null,
+      },
+    })
+  }
+
+  return {
+    ok: true as const,
+    warranty: await serializeWarrantyPublic(updated),
+  }
+}
+
+async function serializeWarrantyPublic(w: {
   id: string
   warrantyId: string | null
   serialNumber: string | null
@@ -188,6 +253,12 @@ function serializeWarranty(w: {
   notes: string | null
   activatedAt: Date | null
 }) {
+  const invoiceNumber = await resolveInvoiceNumberForWarranty({
+    serialNumber: w.serialNumber,
+    warrantyId: w.warrantyId,
+    notes: w.notes,
+  })
+
   return {
     id: w.id,
     warrantyId: w.warrantyId,
@@ -201,9 +272,11 @@ function serializeWarranty(w: {
     customerPhone: w.customerPhone,
     notes: w.notes,
     activatedAt: w.activatedAt?.toISOString() ?? null,
+    invoiceNumber,
     status: isWarrantyActivated(w) ? "active" : "pending",
   }
 }
+
 
 export async function lookupWarrantyForPublic(idOrSerial: string) {
   const key = idOrSerial.trim()
@@ -221,7 +294,7 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
   if (!warranty) return null
 
   return {
-    warranty: serializeWarranty(warranty),
+    warranty: await serializeWarrantyPublic(warranty),
     pending: !isWarrantyActivated(warranty),
     active: isWarrantyActivated(warranty),
   }

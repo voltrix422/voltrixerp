@@ -4,7 +4,7 @@ import { forwardRef } from "react"
 import { Shield, CheckCircle, AlertCircle, User, Mail, Phone } from "lucide-react"
 
 export type PublicWarrantyCardData = {
-  warrantyId?: string | null
+  invoiceNumber?: string | null
   serialNumber?: string | null
   productName: string
   soldDate: string
@@ -110,7 +110,9 @@ function CardHeaderLeft({ warranty }: { warranty: PublicWarrantyCardData }) {
       </div>
       <div className="min-w-0">
         <h2 className="text-lg font-bold capitalize truncate">{warranty.productName}</h2>
-        {warranty.warrantyId && <p className="text-white/80 text-xs">ID: {warranty.warrantyId}</p>}
+        {warranty.invoiceNumber && (
+          <p className="text-white/80 text-xs">Invoice: {warranty.invoiceNumber}</p>
+        )}
         {warranty.serialNumber && (
           <p className="text-white/70 text-[10px] font-mono mt-0.5 truncate">SN: {warranty.serialNumber}</p>
         )}

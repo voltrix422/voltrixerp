@@ -24,13 +24,14 @@ type Flow = null | "start" | "check"
 
 type WarrantyData = PublicWarrantyCardData & {
   id?: string
+  warrantyId?: string | null
   notes?: string
   activatedAt?: string
 }
 
 function toCardData(w: WarrantyData): PublicWarrantyCardData {
   return {
-    warrantyId: w.warrantyId,
+    invoiceNumber: w.invoiceNumber,
     serialNumber: w.serialNumber,
     productName: w.productName,
     soldDate: w.soldDate,
@@ -165,7 +166,7 @@ function WarrantyLookupContent() {
     try {
       const dataUrl = await toPng(cardRef.current, { quality: 1, pixelRatio: 2 })
       const link = document.createElement("a")
-      link.download = `warranty-${warranty?.warrantyId || warranty?.serialNumber || "card"}.png`
+      link.download = `warranty-${warranty?.invoiceNumber || warranty?.serialNumber || "card"}.png`
       link.href = dataUrl
       link.click()
     } catch (err) {
