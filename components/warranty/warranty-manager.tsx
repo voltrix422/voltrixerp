@@ -220,7 +220,7 @@ export function WarrantyManager() {
       return { days: diffDays, status: "active" }
     }
   }
-
+  
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr)
     return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
@@ -255,7 +255,7 @@ export function WarrantyManager() {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+      <p className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed">
         <strong>Delivered</strong> lists units dispatched to customers whose warranty has not been started yet.
         After someone scans the product QR (branch or{" "}
         <a href="https://voltrixbatteries.com/warranty" className="text-[#1a9f9a] underline" target="_blank" rel="noreferrer">
@@ -268,25 +268,25 @@ export function WarrantyManager() {
         <button
           type="button"
           onClick={() => setListTab("delivered")}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium relative ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium relative ${
             listTab === "delivered" ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))]"
           }`}
         >
-          <Truck className="h-3.5 w-3.5" />
+          <Truck className="h-4 w-4" />
           Delivered (not started)
-          <Badge variant="secondary" className="text-[8px] px-1 py-0 ml-1">{deliveredWarranties.length}</Badge>
+          <Badge variant="secondary" className="text-xs px-1.5 py-0 ml-1">{deliveredWarranties.length}</Badge>
           {listTab === "delivered" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />}
         </button>
         <button
           type="button"
           onClick={() => setListTab("started")}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium relative ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium relative ${
             listTab === "started" ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))]"
           }`}
         >
-          <Shield className="h-3.5 w-3.5" />
+          <Shield className="h-4 w-4" />
           Warranty started
-          <Badge variant="secondary" className="text-[8px] px-1 py-0 ml-1">{startedWarranties.length}</Badge>
+          <Badge variant="secondary" className="text-xs px-1.5 py-0 ml-1">{startedWarranties.length}</Badge>
           {listTab === "started" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a9f9a]" />}
         </button>
       </div>
@@ -295,14 +295,14 @@ export function WarrantyManager() {
       <div className="flex items-center justify-end gap-2">
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`p-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer ${
+          className={`p-2.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer ${
             showFilters ? "text-[#1a9f9a]" : ""
           }`}
         >
           <Filter className="h-4 w-4" />
         </button>
-        <Button size="sm" className="h-8 text-xs gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
-          <Plus className="h-3.5 w-3.5" /> Add Warranty
+        <Button size="sm" className="h-9 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4" /> Add Warranty
         </Button>
       </div>
 
@@ -384,78 +384,78 @@ export function WarrantyManager() {
 
       {/* Warranty Table */}
       {!loading && warranties.length > 0 && (
-        <div className="rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))] overflow-hidden">
+        <div className="rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[hsl(var(--border))]/50 bg-[hsl(var(--muted))]/30">
-                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Product</th>
-                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Customer</th>
-                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Sold Date</th>
+                <tr className="border-b border-[hsl(var(--border))]/50 bg-[hsl(var(--muted))]/40">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Product</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Customer</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Sold Date</th>
                   {listTab === "started" && (
-                    <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Warranty Period</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Warranty Period</th>
                   )}
-                  <th className="text-left px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
-                  <th className="text-right px-2 py-1.5 text-[9px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Status</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(warranty => {
                   const remaining = calculateRemainingWarranty(warranty.warrantyEndDate)
                   return (
-                    <tr key={warranty.id} className="border-b border-[hsl(var(--border))]/50 hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer" onClick={() => setViewDetail(warranty)}>
-                      <td className="px-2 py-1.5">
-                        <p className="text-[10px] font-medium text-[hsl(var(--foreground))]">{warranty.productName}</p>
+                    <tr key={warranty.id} className="border-b border-[hsl(var(--border))]/40 hover:bg-[hsl(var(--muted))]/15 transition-colors cursor-pointer" onClick={() => setViewDetail(warranty)}>
+                      <td className="px-4 py-3.5">
+                        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{warranty.productName}</p>
                         {warranty.serialNumber && warranty.serialNumber !== warranty.productName && (
-                          <p className="text-[9px] font-mono text-[hsl(var(--muted-foreground))]">{warranty.serialNumber}</p>
+                          <p className="text-xs font-mono text-[hsl(var(--muted-foreground))] mt-0.5">{warranty.serialNumber}</p>
                         )}
                       </td>
-                      <td className="px-2 py-1.5">
-                        <p className="text-[10px] text-[hsl(var(--foreground))]">{warranty.customerName || "-"}</p>
+                      <td className="px-4 py-3.5">
+                        <p className="text-sm text-[hsl(var(--foreground))] capitalize">{warranty.customerName || "-"}</p>
                       </td>
-                      <td className="px-2 py-1.5">
-                        <p className="text-[10px] text-[hsl(var(--foreground))]">{formatDate(warranty.soldDate)}</p>
+                      <td className="px-4 py-3.5">
+                        <p className="text-sm text-[hsl(var(--foreground))]">{formatDate(warranty.soldDate)}</p>
                       </td>
                       {listTab === "started" && (
-                        <td className="px-2 py-1.5">
-                          <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{formatDate(warranty.warrantyStartDate)} - {formatDate(warranty.warrantyEndDate)}</p>
+                        <td className="px-4 py-3.5">
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatDate(warranty.warrantyStartDate)} – {formatDate(warranty.warrantyEndDate)}</p>
                         </td>
                       )}
-                      <td className="px-2 py-1.5">
+                      <td className="px-4 py-3.5">
                         {listTab === "delivered" ? (
-                          <Badge variant="warning" className="text-[8px] px-1 py-0">
+                          <Badge variant="warning" className="text-xs px-2.5 py-1 font-medium">
                             Pending start
                           </Badge>
                         ) : (
                           <Badge
                             variant={remaining.status === "active" ? "success" : remaining.status === "expiring" ? "warning" : "destructive"}
-                            className="text-[8px] px-1 py-0"
+                            className="text-xs px-2.5 py-1 font-medium"
                           >
-                            {remaining.status === "active" && <CheckCircle className="h-2.5 w-2.5 mr-0.5 inline" />}
-                            {remaining.status === "expiring" && <AlertCircle className="h-2.5 w-2.5 mr-0.5 inline" />}
-                            {remaining.status === "expired" && <AlertCircle className="h-2.5 w-2.5 mr-0.5 inline" />}
+                            {remaining.status === "active" && <CheckCircle className="h-3.5 w-3.5 mr-1 inline" />}
+                            {remaining.status === "expiring" && <AlertCircle className="h-3.5 w-3.5 mr-1 inline" />}
+                            {remaining.status === "expired" && <AlertCircle className="h-3.5 w-3.5 mr-1 inline" />}
                             {remaining.status === "expired" ? `Expired ${remaining.days} days ago` : remaining.status === "expiring" ? `Expiring in ${remaining.days} days` : `${remaining.days} days remaining`}
                           </Badge>
                         )}
                       </td>
-                      <td className="px-2 py-1.5">
-                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
                           {listTab === "delivered" && warranty.serialNumber && (
                             <Button
                               size="sm"
-                              className="h-5 px-1.5 text-[8px] bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+                              className="h-8 px-3 text-xs font-medium bg-[#1a9f9a] hover:bg-[#158a85] text-white"
                               disabled={activatingId === warranty.id}
                               onClick={() => void handleStartWarranty(warranty)}
                             >
-                              <PlayCircle className="h-2.5 w-2.5 mr-0.5" />
-                              {activatingId === warranty.id ? "…" : "Start"}
+                              <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+                              {activatingId === warranty.id ? "Starting…" : "Start warranty"}
                             </Button>
                           )}
-                          <Button size="icon" variant="ghost" className="h-5 w-5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => openEditForm(warranty)}>
-                            <Edit className="h-2.5 w-2.5" />
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => openEditForm(warranty)}>
+                            <Edit className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-5 w-5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => handleDelete(warranty.id)}>
-                            <Trash2 className="h-2.5 w-2.5" />
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={() => handleDelete(warranty.id)}>
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </td>
