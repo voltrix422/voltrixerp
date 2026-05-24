@@ -77,9 +77,17 @@ export type ActivateWarrantyResult =
   | { ok: true; warranty: Record<string, unknown>; alreadyActive: boolean }
   | { ok: false; error: string; code?: string }
 
+export type ActivateWarrantyOptions = {
+  activatedBy?: string
+  customerName?: string
+  customerPhone?: string
+  customerAddress?: string
+  invoiceDocumentUrl?: string
+}
+
 export async function activateWarrantyBySerial(
   rawScan: string,
-  options?: { activatedBy?: string; customerName?: string },
+  options?: ActivateWarrantyOptions,
 ): Promise<ActivateWarrantyResult> {
   const serialNumber = resolveSerialFromWarrantyScan(rawScan)
   if (!serialNumber) {
@@ -119,7 +127,26 @@ export async function activateWarrantyBySerial(
     })
   }
 
+  const customerPatch = {
+    customerName: options?.customerName?.trim() || undefined,
+    customerPhone: options?.customerPhone?.trim() || undefined,
+    customerAddress: options?.customerAddress?.trim() || undefined,
+    invoiceDocumentUrl: options?.invoiceDocumentUrl?.trim() || undefined,
+  }
+
   if (warranty?.activatedAt && isWarrantyActivated(warranty)) {
+    const hasUpdates = Object.values(customerPatch).some(Boolean)
+    if (hasUpdates) {
+      warranty = await prisma.erpWarranty.update({
+        where: { id: warranty.id },
+        data: {
+          customerName: customerPatch.customerName ?? warranty.customerName,
+          customerPhone: customerPatch.customerPhone ?? warranty.customerPhone,
+          customerAddress: customerPatch.customerAddress ?? warranty.customerAddress,
+          invoiceDocumentUrl: customerPatch.invoiceDocumentUrl ?? warranty.invoiceDocumentUrl,
+        },
+      })
+    }
     return {
       ok: true,
       alreadyActive: true,
@@ -139,7 +166,10 @@ export async function activateWarrantyBySerial(
         warrantyStartDate: now,
         warrantyEndDate: warrantyEnd,
         soldDate: warranty.soldDate || now,
-        customerName: options?.customerName?.trim() || warranty.customerName,
+        customerName: customerPatch.customerName || warranty.customerName,
+        customerPhone: customerPatch.customerPhone || warranty.customerPhone,
+        customerAddress: customerPatch.customerAddress || warranty.customerAddress,
+        invoiceDocumentUrl: customerPatch.invoiceDocumentUrl || warranty.invoiceDocumentUrl,
         notes: `${warranty.notes || ""}\n${activationNote}`.trim(),
       },
     })
@@ -154,7 +184,10 @@ export async function activateWarrantyBySerial(
         warrantyStartDate: now,
         warrantyEndDate: warrantyEnd,
         activatedAt: now,
-        customerName: options?.customerName?.trim() || null,
+        customerName: customerPatch.customerName || null,
+        customerPhone: customerPatch.customerPhone || null,
+        customerAddress: customerPatch.customerAddress || null,
+        invoiceDocumentUrl: customerPatch.invoiceDocumentUrl || null,
         notes: activationNote,
         createdBy: options?.activatedBy || "branch",
       },
@@ -249,6 +282,8 @@ async function serializeWarrantyPublic(w: {
   customerName: string | null
   customerEmail: string | null
   customerPhone: string | null
+  customerAddress?: string | null
+  invoiceDocumentUrl?: string | null
   notes: string | null
   activatedAt: Date | null
 }) {
@@ -269,6 +304,8 @@ async function serializeWarrantyPublic(w: {
     customerName: w.customerName,
     customerEmail: w.customerEmail,
     customerPhone: w.customerPhone,
+    customerAddress: w.customerAddress ?? null,
+    invoiceDocumentUrl: w.invoiceDocumentUrl ?? null,
     notes: w.notes,
     activatedAt: w.activatedAt?.toISOString() ?? null,
     invoiceNumber,

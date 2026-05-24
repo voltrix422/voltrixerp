@@ -388,6 +388,8 @@ model ErpWarranty {
   customerName      String?  @map("customer_name")
   customerEmail     String?  @map("customer_email")
   customerPhone     String?  @map("customer_phone")
+  customerAddress   String?  @map("customer_address")
+  invoiceDocumentUrl String? @map("invoice_document_url")
   notes             String?  @default("")
   activatedAt       DateTime? @map("activated_at")
   createdAt         DateTime @default(now()) @map("created_at")

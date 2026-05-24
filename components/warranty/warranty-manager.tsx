@@ -16,6 +16,8 @@ interface Warranty {
   customerName?: string
   customerEmail?: string
   customerPhone?: string
+  customerAddress?: string
+  invoiceDocumentUrl?: string
   notes?: string
   createdAt: string
   updatedAt: string
@@ -697,6 +699,23 @@ export function WarrantyManager() {
                     <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer Phone</p>
                     <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerPhone || "-"}</p>
                   </div>
+                  <div>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Address</p>
+                    <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerAddress || "-"}</p>
+                  </div>
+                  {viewDetail.invoiceDocumentUrl && (
+                    <div>
+                      <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Invoice file</p>
+                      <a
+                        href={viewDetail.invoiceDocumentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-[#1a9f9a] underline"
+                      >
+                        View uploaded invoice
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
 

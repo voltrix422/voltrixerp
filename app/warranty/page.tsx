@@ -18,6 +18,10 @@ import {
   WarrantyPublicCardView,
   type PublicWarrantyCardData,
 } from "@/components/warranty/warranty-public-card"
+import {
+  WarrantyStartWizard,
+  type WarrantyStartFormData,
+} from "@/components/warranty/warranty-start-wizard"
 import { useSearchParams } from "next/navigation"
 
 type Flow = null | "start" | "check"
@@ -40,6 +44,8 @@ function toCardData(w: WarrantyData): PublicWarrantyCardData {
     customerName: w.customerName,
     customerEmail: w.customerEmail,
     customerPhone: w.customerPhone,
+    customerAddress: w.customerAddress,
+    invoiceDocumentUrl: w.invoiceDocumentUrl,
   }
 }
 
@@ -71,7 +77,7 @@ function WarrantyLookupContent() {
       void lookup(sn)
     } else {
       setFlow("start")
-      void activate(sn)
+      setScannerKey((k) => k + 1)
     }
   }, [searchParams])
 
@@ -108,12 +114,13 @@ function WarrantyLookupContent() {
 
       if (res.ok) {
         setWarranty(data)
+        setInfo("Your warranty details and certificate are below.")
         return
       }
 
       if (data.status === "pending_activation") {
         setError(
-          "Warranty has not been started yet. Tap Start warranty and scan your product QR.",
+          "Warranty has not been started yet. Tap Start warranty and complete the form after scanning your QR.",
         )
         return
       }
@@ -126,18 +133,23 @@ function WarrantyLookupContent() {
     }
   }
 
-  async function activate(scan: string) {
-    const key = scan.trim()
-    if (!key) return
-
+  async function completeStart(scan: string, form: WarrantyStartFormData) {
     setLoading(true)
-    resetResults()
+    setError("")
+    setInfo("")
 
     try {
       const res = await fetch("/api/warranty/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scan: key, activatedBy: "customer" }),
+        body: JSON.stringify({
+          scan,
+          activatedBy: "customer",
+          customerName: form.customerName,
+          customerPhone: form.customerPhone,
+          customerAddress: form.customerAddress,
+          invoiceDocumentUrl: form.invoiceDocumentUrl || undefined,
+        }),
       })
       const data = await res.json()
 
@@ -149,10 +161,10 @@ function WarrantyLookupContent() {
       setWarranty(data.warranty as WarrantyData)
       if (data.alreadyActive) {
         setAlreadyActive(true)
-        setInfo("This warranty was already activated. You can view and download your card below.")
+        setInfo("This warranty is already active. Your certificate is below.")
       } else {
         setJustActivated(true)
-        setInfo("Your 5-year warranty has started today. Save or download your warranty card below.")
+        setInfo("Your 5-year warranty has started. Download your certificate below.")
       }
     } catch {
       setError("Failed to start warranty. Please try again.")
@@ -174,7 +186,8 @@ function WarrantyLookupContent() {
     }
   }
 
-  const showScanner = flow !== null && !warranty
+  const showCheckScanner = flow === "check" && !warranty
+  const showStartWizard = flow === "start" && !warranty
 
   return (
     <div className="max-w-md mx-auto">
@@ -184,7 +197,7 @@ function WarrantyLookupContent() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Product warranty</h1>
         <p className="text-sm text-gray-600">
-          Start your 5-year warranty or check status and download your warranty card
+          Scan your product, upload invoice, and get your 5-year warranty certificate
         </p>
       </div>
 
@@ -209,7 +222,16 @@ function WarrantyLookupContent() {
         </div>
       )}
 
-      {showScanner && (
+      {showStartWizard && (
+        <WarrantyStartWizard
+          scannerKey={scannerKey}
+          busy={loading}
+          onBack={goBack}
+          onComplete={completeStart}
+        />
+      )}
+
+      {showCheckScanner && (
         <div className="mb-6 space-y-4">
           <button
             type="button"
@@ -219,21 +241,13 @@ function WarrantyLookupContent() {
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-
-          {flow === "start" ? (
-            <div className="rounded-xl bg-[#1a9f9a]/10 border border-[#1a9f9a]/20 px-4 py-3 text-sm text-gray-700 text-center">
-              Scan your product QR to <strong>start</strong> your 5-year warranty.
-            </div>
-          ) : (
-            <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
-              Scan your product QR to <strong>view</strong> your warranty card.
-            </div>
-          )}
-
+          <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
+            Scan your product QR to <strong>view</strong> warranty details and certificate
+          </div>
           <WarrantyQrScanner
-            key={`${flow}-${scannerKey}`}
-            readerId={flow === "start" ? "public-warranty-start-reader" : "public-warranty-check-reader"}
-            onScan={(p) => void (flow === "start" ? activate(p) : lookup(p))}
+            key={`check-${scannerKey}`}
+            readerId="public-warranty-check-reader"
+            onScan={(p) => void lookup(p)}
             busy={loading}
             autoStart
             hideStartButton
@@ -259,7 +273,7 @@ function WarrantyLookupContent() {
         <div className="space-y-4">
           {alreadyActive && flow === "start" && (
             <p className="text-sm text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              This QR was already scanned â€” warranty is active.
+              This product warranty was already started.
             </p>
           )}
           {justActivated && flow === "start" && (
@@ -271,7 +285,7 @@ function WarrantyLookupContent() {
           <button
             type="button"
             onClick={() => void handleDownload()}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a85]"
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] shadow-md"
           >
             <Download className="h-4 w-4" />
             Download warranty card
@@ -281,7 +295,7 @@ function WarrantyLookupContent() {
             onClick={goBack}
             className="w-full py-2.5 text-sm text-gray-600 hover:text-gray-900"
           >
-            Scan another product
+            Back to home
           </button>
         </div>
       )}
@@ -294,7 +308,7 @@ export default function WarrantyLookupPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 flex flex-col">
       <Navbar />
       <div className="flex-1 pt-24 pb-12 px-4">
-        <Suspense fallback={<div className="text-center text-sm text-gray-500">Loadingâ€¦</div>}>
+        <Suspense fallback={<div className="text-center text-sm text-gray-500">Loading…</div>}>
           <WarrantyLookupContent />
         </Suspense>
       </div>

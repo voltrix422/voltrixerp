@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
           customerName: body.customerName,
           customerEmail: body.customerEmail,
           customerPhone: body.customerPhone,
+          customerAddress: body.customerAddress,
+          invoiceDocumentUrl: body.invoiceDocumentUrl,
           notes: body.notes,
         },
       })
@@ -83,6 +85,8 @@ export async function POST(req: NextRequest) {
           customerName: body.customerName,
           customerEmail: body.customerEmail,
           customerPhone: body.customerPhone,
+          customerAddress: body.customerAddress,
+          invoiceDocumentUrl: body.invoiceDocumentUrl,
           notes: body.notes,
         },
       })

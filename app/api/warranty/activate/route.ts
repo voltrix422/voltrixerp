@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
     const result = await activateWarrantyBySerial(scan, {
       activatedBy: body.activatedBy ? String(body.activatedBy) : undefined,
       customerName: body.customerName ? String(body.customerName) : undefined,
+      customerPhone: body.customerPhone ? String(body.customerPhone) : undefined,
+      customerAddress: body.customerAddress ? String(body.customerAddress) : undefined,
+      invoiceDocumentUrl: body.invoiceDocumentUrl ? String(body.invoiceDocumentUrl) : undefined,
     })
 
     if (!result.ok) {

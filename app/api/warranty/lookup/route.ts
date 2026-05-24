@@ -26,6 +26,9 @@ export async function GET(req: NextRequest) {
         serialNumber: result.warranty.serialNumber,
         productName: result.warranty.productName,
         customerName: result.warranty.customerName,
+        customerPhone: result.warranty.customerPhone,
+        customerAddress: result.warranty.customerAddress,
+        invoiceNumber: result.warranty.invoiceNumber,
         message:
           "Warranty has not been started yet. Open Start warranty on voltrixbatteries.com/warranty and scan your product QR, or ask your dealer to start it.",
       })
