@@ -1,19 +1,7 @@
 ﻿"use client"
 
 import { forwardRef } from "react"
-import {
-  Shield,
-  CheckCircle,
-  AlertCircle,
-  User,
-  Phone,
-  MapPin,
-  Home,
-  FileText,
-  Package,
-  Calendar,
-  ExternalLink,
-} from "lucide-react"
+import { Shield, CheckCircle, AlertCircle } from "lucide-react"
 
 export type PublicWarrantyCardData = {
   invoiceNumber?: string | null
@@ -29,6 +17,18 @@ export type PublicWarrantyCardData = {
   installLocation?: string | null
   invoiceDocumentUrl?: string | null
 }
+
+export const VOLTRIX_WARRANTY_TERMS = [
+  "For indoor use only (IP21); keep away from water, moisture, and high humidity.",
+  "Install correctly with approved inverters and chargers as per guidelines.",
+  "Warranty covers manufacturing defects under normal use with valid proof of purchase.",
+  "Warranty excludes water damage, physical damage, misuse, or unauthorized repairs.",
+  "Avoid overloading, short-circuiting, or bypassing the BMS; monitor via the mobile app.",
+  "Company not liable for indirect damage, losses, or misuse-related issues.",
+  "Operate within -10°C to 60°C and rated voltage limits for safe performance.",
+  "Modification, tampering, or disassembly voids the warranty immediately.",
+  "Claims require lab inspection; non-covered damage voids replacement; confirmed defects serviced per policy.",
+] as const
 
 export function calculateRemainingWarranty(endDate: string): {
   days: number
@@ -50,164 +50,153 @@ export function formatWarrantyDate(dateStr: string): string {
   })
 }
 
-function StatusBadge({
-  remaining,
-}: {
-  remaining: ReturnType<typeof calculateRemainingWarranty>
-}) {
-  const cls =
+function StatusPill({ remaining }: { remaining: ReturnType<typeof calculateRemainingWarranty> }) {
+  const styles =
     remaining.status === "active"
-      ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/30"
+      ? "bg-emerald-400/25 text-white border-emerald-300/40"
       : remaining.status === "expiring"
-        ? "bg-amber-500/20 text-amber-100 border-amber-400/30"
-        : "bg-red-500/20 text-red-100 border-red-400/30"
+        ? "bg-amber-400/25 text-white border-amber-300/40"
+        : "bg-red-400/25 text-white border-red-300/40"
   const label =
     remaining.status === "expired"
-      ? `Expired ${remaining.days}d ago`
+      ? `Expired`
       : remaining.status === "expiring"
         ? `${remaining.days}d left`
-        : `${remaining.days} days left`
+        : "Active"
 
   return (
-    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${cls}`}>
-      {remaining.status === "active" && <CheckCircle className="h-3.5 w-3.5" />}
-      {remaining.status !== "active" && <AlertCircle className="h-3.5 w-3.5" />}
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${styles}`}
+    >
+      {remaining.status === "active" ? (
+        <CheckCircle className="h-3 w-3" />
+      ) : (
+        <AlertCircle className="h-3 w-3" />
+      )}
       {label}
-    </div>
+    </span>
   )
 }
 
-function DetailRow({
-  icon: Icon,
-  label,
-  value,
-  mono,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  mono?: boolean
-}) {
+function InfoCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-3 items-start">
-      <div className="w-8 h-8 rounded-lg bg-[#1a9f9a]/10 flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-[#1a9f9a]" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase tracking-wider text-gray-500 font-medium">{label}</p>
-        <p className={`text-sm text-gray-900 mt-0.5 break-words ${mono ? "font-mono text-xs" : "capitalize"}`}>
-          {value}
-        </p>
-      </div>
+    <div className="min-w-0">
+      <p className="text-[8px] uppercase tracking-wide text-gray-400 font-medium leading-none">{label}</p>
+      <p className="text-[11px] font-semibold text-gray-900 mt-0.5 leading-snug break-words">{value}</p>
     </div>
   )
 }
 
 export const WarrantyPublicCardView = forwardRef<
   HTMLDivElement,
-  { warranty: PublicWarrantyCardData; showCustomer?: boolean }
->(function WarrantyPublicCardView({ warranty, showCustomer = true }, ref) {
+  { warranty: PublicWarrantyCardData; showCustomer?: boolean; showInvoiceLink?: boolean }
+>(function WarrantyPublicCardView(
+  { warranty, showCustomer = true, showInvoiceLink = true },
+  ref,
+) {
   const remaining = calculateRemainingWarranty(warranty.warrantyEndDate)
   const invoiceIsPdf = warranty.invoiceDocumentUrl?.toLowerCase().endsWith(".pdf")
+
+  const hasCustomer =
+    showCustomer &&
+    (warranty.customerName ||
+      warranty.customerPhone ||
+      warranty.customerAddress ||
+      warranty.installLocation)
 
   return (
     <div
       ref={ref}
-      className="rounded-2xl overflow-hidden shadow-xl border border-gray-200/80 bg-white"
+      className="rounded-xl overflow-hidden shadow-lg border border-gray-200/90 bg-white max-w-md mx-auto"
     >
-      <div className="relative bg-gradient-to-br from-[#1a9f9a] via-[#179690] to-[#0f6f6b] px-6 py-6 text-white overflow-hidden">
-        <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10" />
-        <div className="absolute -left-4 bottom-0 w-24 h-24 rounded-full bg-white/5" />
-        <div className="relative flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shrink-0 border border-white/20">
-              <Shield className="h-6 w-6" />
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#1a9f9a] to-[#0d7a76] px-4 py-3 text-white">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+              <Shield className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-widest text-white/70 font-medium">
-                Voltrix Warranty Certificate
+              <p className="text-[9px] uppercase tracking-widest text-white/75 font-semibold">
+                Voltrix Batteries Pvt. Ltd.
               </p>
-              <h2 className="text-xl font-bold capitalize truncate leading-tight mt-0.5">
+              <h2 className="text-base font-bold capitalize leading-tight truncate">
                 {warranty.productName}
               </h2>
             </div>
           </div>
-          <StatusBadge remaining={remaining} />
+          <StatusPill remaining={remaining} />
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-white/90 font-mono">
+          {warranty.serialNumber && <span>SN: {warranty.serialNumber}</span>}
+          {warranty.invoiceNumber && <span>Inv: {warranty.invoiceNumber}</span>}
         </div>
       </div>
 
-      <div className="p-5 space-y-5 bg-gradient-to-b from-gray-50/80 to-white">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Sold", value: formatWarrantyDate(warranty.soldDate) },
-            { label: "Started", value: formatWarrantyDate(warranty.warrantyStartDate) },
-            { label: "Valid until", value: formatWarrantyDate(warranty.warrantyEndDate) },
-          ].map((d) => (
-            <div
-              key={d.label}
-              className="text-center rounded-xl border border-gray-100 bg-white py-3 px-1 shadow-sm"
-            >
-              <Calendar className="h-3.5 w-3.5 text-[#1a9f9a] mx-auto mb-1" />
-              <p className="text-[9px] uppercase tracking-wide text-gray-500">{d.label}</p>
-              <p className="text-[11px] font-bold text-gray-900 mt-0.5 leading-tight">{d.value}</p>
-            </div>
-          ))}
+      <div className="px-3 py-2.5 space-y-2.5 bg-white">
+        {/* Dates */}
+        <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-gray-50 border border-gray-100 p-2">
+          <InfoCell label="Sold" value={formatWarrantyDate(warranty.soldDate)} />
+          <InfoCell label="Started" value={formatWarrantyDate(warranty.warrantyStartDate)} />
+          <InfoCell label="Valid until" value={formatWarrantyDate(warranty.warrantyEndDate)} />
         </div>
 
-        <div className="rounded-xl border border-gray-100 bg-white p-4 space-y-3 shadow-sm">
-          <p className="text-xs font-semibold text-gray-800 flex items-center gap-2">
-            <Package className="h-4 w-4 text-[#1a9f9a]" />
-            Product & invoice
+        {/* Customer — compact grid */}
+        {hasCustomer && (
+          <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-2 grid grid-cols-2 gap-x-2 gap-y-1.5">
+            <p className="col-span-2 text-[9px] font-bold uppercase tracking-wide text-[#1a9f9a]">
+              Registered owner
+            </p>
+            {warranty.customerName && (
+              <div className="col-span-2">
+                <InfoCell label="Naam" value={warranty.customerName} />
+              </div>
+            )}
+            {warranty.customerPhone && <InfoCell label="Phone" value={warranty.customerPhone} />}
+            {warranty.installLocation && (
+              <InfoCell label="Install at" value={warranty.installLocation} />
+            )}
+            {warranty.customerAddress && (
+              <div className="col-span-2">
+                <InfoCell label="Address" value={warranty.customerAddress} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {showInvoiceLink && warranty.invoiceDocumentUrl && (
+          <a
+            href={warranty.invoiceDocumentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center text-[10px] font-medium text-[#1a9f9a] py-1.5 rounded-md border border-[#1a9f9a]/25 bg-[#1a9f9a]/5 hover:bg-[#1a9f9a]/10"
+          >
+            View uploaded invoice{invoiceIsPdf ? " (PDF)" : ""}
+          </a>
+        )}
+
+        {/* Terms */}
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+          <p className="text-[9px] font-bold uppercase tracking-wide text-gray-700 mb-1">
+            Terms &amp; Conditions
           </p>
-          {warranty.serialNumber && (
-            <DetailRow icon={Package} label="Serial number" value={warranty.serialNumber} mono />
-          )}
-          {warranty.invoiceNumber && (
-            <DetailRow icon={FileText} label="Invoice / order" value={warranty.invoiceNumber} />
-          )}
-          {warranty.invoiceDocumentUrl && (
-            <a
-              href={warranty.invoiceDocumentUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 text-[#158a85] text-sm font-medium hover:bg-[#1a9f9a]/10 transition-colors"
-            >
-              <ExternalLink className="h-4 w-4" />
-              View uploaded invoice{invoiceIsPdf ? " (PDF)" : ""}
-            </a>
-          )}
+          <ul className="space-y-0.5">
+            {VOLTRIX_WARRANTY_TERMS.map((term) => (
+              <li
+                key={term}
+                className="text-[8px] leading-[1.35] text-gray-600 flex gap-1"
+              >
+                <span className="text-[#1a9f9a] shrink-0 font-bold">➤</span>
+                <span>{term}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {showCustomer &&
-          (warranty.customerName ||
-            warranty.customerPhone ||
-            warranty.customerAddress ||
-            warranty.installLocation) && (
-            <div className="rounded-xl border border-gray-100 bg-white p-4 space-y-3 shadow-sm">
-              <p className="text-xs font-semibold text-gray-800 flex items-center gap-2">
-                <User className="h-4 w-4 text-[#1a9f9a]" />
-                Customer (Naam)
-              </p>
-              {warranty.customerName && (
-                <DetailRow icon={User} label="Name" value={warranty.customerName} />
-              )}
-              {warranty.customerPhone && (
-                <DetailRow icon={Phone} label="Phone" value={warranty.customerPhone} />
-              )}
-              {warranty.customerAddress && (
-                <DetailRow icon={MapPin} label="Address" value={warranty.customerAddress} />
-              )}
-              {warranty.installLocation && (
-                <DetailRow icon={Home} label="Install location" value={warranty.installLocation} />
-              )}
-            </div>
-          )}
-
-        <div className="text-center pt-1 border-t border-dashed border-gray-200">
-          <p className="text-[10px] text-gray-400 tracking-wide">
-            voltrixbatteries.com · 5-year product warranty
-          </p>
-        </div>
+        <p className="text-center text-[8px] text-gray-400 leading-tight">
+          Advanced lithium energy storage · voltrixbatteries.com · 5-year warranty
+        </p>
       </div>
     </div>
   )
