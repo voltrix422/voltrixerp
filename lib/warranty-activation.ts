@@ -11,15 +11,20 @@ export function addYears(date: Date, years: number) {
 
 export function isWarrantyPendingActivation(notes: string | null | undefined): boolean {
   const n = (notes || "").toLowerCase()
-  return n.includes("pending") && n.includes("scan")
+  if (n.includes("pending") && n.includes("scan")) return true
+  if (n.includes("dispatched on order") && !n.includes("warranty activated")) return true
+  return false
 }
 
 export function isWarrantyActivated(row: {
   activatedAt?: Date | string | null
   notes?: string | null
 }): boolean {
-  if (row.activatedAt) return true
   if (isWarrantyPendingActivation(row.notes)) return false
+  const n = (row.notes || "").toLowerCase()
+  if (n.includes("warranty activated")) return true
+  // Manual admin entries (not from dispatch flow) may have activatedAt only
+  if (row.activatedAt && !n.includes("dispatched on order")) return true
   return false
 }
 
@@ -108,7 +113,7 @@ export async function activateWarrantyBySerial(
     })
   }
 
-  if (warranty?.activatedAt) {
+  if (warranty?.activatedAt && isWarrantyActivated(warranty)) {
     return {
       ok: true,
       alreadyActive: true,
@@ -196,7 +201,7 @@ function serializeWarranty(w: {
     customerPhone: w.customerPhone,
     notes: w.notes,
     activatedAt: w.activatedAt?.toISOString() ?? null,
-    status: w.activatedAt ? "active" : "pending",
+    status: isWarrantyActivated(w) ? "active" : "pending",
   }
 }
 
@@ -217,7 +222,7 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
 
   return {
     warranty: serializeWarranty(warranty),
-    pending: !warranty.activatedAt && isWarrantyPendingActivation(warranty.notes),
-    active: !!warranty.activatedAt,
+    pending: !isWarrantyActivated(warranty),
+    active: isWarrantyActivated(warranty),
   }
 }
