@@ -705,3 +705,283 @@ model ErpPosSale {
   @@index([terminalId, createdAt])
   @@map("erp_pos_sales")
 }
+
+// ── Standalone Accounting (Odoo-style, independent of operational ERP) ──
+
+model AcctSettings {
+  id                String    @id @default("default")
+  companyName       String    @default("Voltrix Batteries") @map("company_name")
+  currency          String    @default("PKR")
+  fiscalYearStart   Int       @default(7) @map("fiscal_year_start")
+  lockDate          DateTime? @map("lock_date")
+  invoiceTerms      String    @default("") @map("invoice_terms")
+  seededAt          DateTime? @map("seeded_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("acct_settings")
+}
+
+model AcctAccount {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  accountType String   @map("account_type")
+  parentCode  String   @default("") @map("parent_code")
+  reconcile   Boolean  @default(false)
+  active      Boolean  @default(true)
+  notes       String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([accountType])
+  @@map("acct_accounts")
+}
+
+model AcctJournal {
+  id               String  @id @default(cuid())
+  code             String  @unique
+  name             String
+  journalType      String  @map("journal_type")
+  defaultAccountId String  @default("") @map("default_account_id")
+  sequencePrefix   String  @default("") @map("sequence_prefix")
+  active           Boolean @default(true)
+
+  @@map("acct_journals")
+}
+
+model AcctPartner {
+  id        String   @id @default(cuid())
+  name      String
+  partnerType String @map("partner_type")
+  email     String   @default("")
+  phone     String   @default("")
+  address   String   @default("")
+  taxId     String   @default("") @map("tax_id")
+  creditLimit Float  @default(0) @map("credit_limit")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([partnerType])
+  @@map("acct_partners")
+}
+
+model AcctTax {
+  id          String  @id @default(cuid())
+  name        String
+  rate        Float
+  taxType     String  @map("tax_type")
+  accountCode String  @default("") @map("account_code")
+  active      Boolean @default(true)
+
+  @@map("acct_taxes")
+}
+
+model AcctPaymentTerm {
+  id    String @id @default(cuid())
+  name  String
+  lines Json   @default("[]")
+
+  @@map("acct_payment_terms")
+}
+
+model AcctAnalyticAccount {
+  id   String @id @default(cuid())
+  code String @default("")
+  name String
+  plan String @default("Projects")
+
+  @@map("acct_analytic_accounts")
+}
+
+model AcctMove {
+  id          String   @id @default(cuid())
+  name        String
+  date        DateTime
+  journalId   String   @map("journal_id")
+  partnerId   String   @default("") @map("partner_id")
+  ref         String   @default("")
+  moveType    String   @default("entry") @map("move_type")
+  state       String   @default("draft")
+  amountTotal Float    @default(0) @map("amount_total")
+  narration   String   @default("")
+  invoiceId   String   @default("") @map("invoice_id")
+  createdBy   String   @default("") @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  postedAt    DateTime? @map("posted_at")
+
+  lines AcctMoveLine[]
+
+  @@index([journalId, date])
+  @@index([state])
+  @@map("acct_moves")
+}
+
+model AcctMoveLine {
+  id            String  @id @default(cuid())
+  moveId        String  @map("move_id")
+  accountId     String  @map("account_id")
+  partnerId     String  @default("") @map("partner_id")
+  name          String
+  debit         Float   @default(0)
+  credit        Float   @default(0)
+  analyticCode  String  @default("") @map("analytic_code")
+  taxId         String  @default("") @map("tax_id")
+  reconciled    Boolean @default(false)
+
+  move AcctMove @relation(fields: [moveId], references: [id], onDelete: Cascade)
+
+  @@index([moveId])
+  @@index([accountId])
+  @@map("acct_move_lines")
+}
+
+model AcctInvoice {
+  id            String   @id @default(cuid())
+  number        String   @default("")
+  invoiceType   String   @map("invoice_type")
+  partnerId     String   @map("partner_id")
+  journalId     String   @map("journal_id")
+  invoiceDate   DateTime @map("invoice_date")
+  dueDate       DateTime @map("due_date")
+  paymentTermId String   @default("") @map("payment_term_id")
+  state         String   @default("draft")
+  amountUntaxed Float    @default(0) @map("amount_untaxed")
+  amountTax     Float    @default(0) @map("amount_tax")
+  amountTotal   Float    @default(0) @map("amount_total")
+  amountResidual Float   @default(0) @map("amount_residual")
+  narration     String   @default("")
+  moveId        String   @default("") @map("move_id")
+  createdBy     String   @default("") @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  lines AcctInvoiceLine[]
+
+  @@index([invoiceType, state])
+  @@map("acct_invoices")
+}
+
+model AcctInvoiceLine {
+  id          String @id @default(cuid())
+  invoiceId   String @map("invoice_id")
+  productName String @default("") @map("product_name")
+  accountCode String @map("account_code")
+  quantity    Float  @default(1)
+  unitPrice   Float  @map("unit_price")
+  taxId       String @default("") @map("tax_id")
+  subtotal    Float  @default(0)
+
+  invoice AcctInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("acct_invoice_lines")
+}
+
+model AcctPayment {
+  id          String   @id @default(cuid())
+  name        String   @default("")
+  paymentType String   @map("payment_type")
+  partnerId   String   @map("partner_id")
+  amount      Float
+  date        DateTime
+  journalId   String   @map("journal_id")
+  memo        String   @default("")
+  state       String   @default("draft")
+  invoiceIds  Json     @default("[]") @map("invoice_ids")
+  moveId      String   @default("") @map("move_id")
+  createdBy   String   @default("") @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([paymentType, state])
+  @@map("acct_payments")
+}
+
+model AcctBankAccount {
+  id            String  @id @default(cuid())
+  name          String
+  accountNumber String  @default("") @map("account_number")
+  bankName      String  @default("") @map("bank_name")
+  journalId     String  @map("journal_id")
+  balance       Float   @default(0)
+  active        Boolean @default(true)
+
+  @@map("acct_bank_accounts")
+}
+
+model AcctBankStatement {
+  id             String   @id @default(cuid())
+  name           String
+  bankAccountId  String   @map("bank_account_id")
+  date           DateTime
+  balanceStart   Float    @map("balance_start")
+  balanceEnd     Float    @map("balance_end")
+  state          String   @default("open")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  lines AcctBankStatementLine[]
+
+  @@map("acct_bank_statements")
+}
+
+model AcctBankStatementLine {
+  id            String  @id @default(cuid())
+  statementId   String  @map("statement_id")
+  date          DateTime
+  paymentRef    String  @default("") @map("payment_ref")
+  partnerName   String  @default("") @map("partner_name")
+  amount        Float
+  reconciled    Boolean @default(false)
+  moveLineId    String  @default("") @map("move_line_id")
+
+  statement AcctBankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([statementId])
+  @@map("acct_bank_statement_lines")
+}
+
+model AcctAsset {
+  id              String   @id @default(cuid())
+  name            String
+  originalValue   Float    @map("original_value")
+  salvageValue    Float    @default(0) @map("salvage_value")
+  method          String   @default("linear")
+  durationMonths  Int      @default(36) @map("duration_months")
+  acquisitionDate DateTime @map("acquisition_date")
+  state           String   @default("draft")
+  depreciationAccountCode String @default("5610") @map("depreciation_account_code")
+  assetAccountCode      String @default("1510") @map("asset_account_code")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("acct_assets")
+}
+
+model AcctBudget {
+  id         String @id @default(cuid())
+  name       String
+  fiscalYear Int    @map("fiscal_year")
+  lines      Json   @default("[]")
+  state      String @default("draft")
+
+  @@map("acct_budgets")
+}
+
+model AcctDeferredEntry {
+  id          String   @id @default(cuid())
+  name        String
+  entryType   String   @map("entry_type")
+  totalAmount Float    @map("total_amount")
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  periods     Int      @default(12)
+  state       String   @default("draft")
+  accountCode String   @map("account_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("acct_deferred_entries")
+}
+
+model AcctSequence {
+  id      String @id
+  prefix  String
+  nextNum Int    @map("next_num")
+
+  @@map("acct_sequences")
+}
