@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { fmtMoney, fmtDate, todayISO } from "@/lib/accounting/format"
 import type { AcctView } from "@/components/accounting/menu"
-import { Loader2, Plus, CheckCircle, RefreshCw } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 
 const inputCls =
@@ -50,14 +50,39 @@ function StateBadge({ state }: { state: string }) {
   return <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${colors[state] ?? colors.draft}`}>{state}</span>
 }
 
+function asArray<T>(data: unknown): T[] {
+  return Array.isArray(data) ? data : []
+}
+
 async function acctFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`/api/accounting/${path}`, opts)
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || "Request failed")
+  const text = await res.text()
+  let data: Record<string, unknown> = {}
+  try {
+    data = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+  } catch {
+    throw new Error("Server error — run database migration and restart the app.")
+  }
+  if (!res.ok) {
+    const err = new Error(String(data.error || "Request failed")) as Error & { needsMigration?: boolean; hint?: string }
+    err.needsMigration = Boolean(data.needsMigration)
+    err.hint = String(data.hint ?? "")
+    throw err
+  }
   return data
 }
 
-export function AccountingViews({ view, refreshKey }: { view: AcctView; refreshKey: number }) {
+export function AccountingViews({
+  view,
+  refreshKey,
+  moduleSeeded,
+  onInitialize,
+}: {
+  view: AcctView
+  refreshKey: number
+  moduleSeeded: boolean
+  onInitialize: () => void
+}) {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -146,8 +171,17 @@ export function AccountingViews({ view, refreshKey }: { view: AcctView; refreshK
         case "customer_followup":
           result = await acctFetch("reports?report=aged_receivable")
           break
+        case "report_tax":
+          result = await acctFetch("taxes")
+          break
+        case "report_cash_flow":
+          result = await acctFetch("reports?report=general_ledger")
+          break
+        case "config_fiscal_positions":
+          result = { ok: true }
+          break
         default:
-          result = null
+          result = []
       }
       setData(result)
     } catch (e) {
@@ -169,10 +203,29 @@ export function AccountingViews({ view, refreshKey }: { view: AcctView; refreshK
     )
   }
   if (error) {
-    return <div className="rounded-lg border border-red-200 bg-red-500/5 p-4 text-sm text-red-700">{error}</div>
+    const err = error as string & { hint?: string }
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-500/5 p-4 text-sm text-red-700 space-y-2">
+        <p>{error}</p>
+        {!moduleSeeded && (
+          <Button size="sm" className="bg-[#1faca6] hover:bg-[#1faca6]/90" onClick={onInitialize}>
+            Initialize accounting data
+          </Button>
+        )}
+      </div>
+    )
   }
 
-  return <ViewContent view={view} data={data} userName={user?.name ?? "Accountant"} onRefresh={reload} />
+  if (!moduleSeeded && view !== "dashboard") {
+    return (
+      <div className="rounded-lg border border-dashed p-10 text-center space-y-4">
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">Initialize accounting before using this section.</p>
+        <Button className="bg-[#1faca6] hover:bg-[#1faca6]/90" onClick={onInitialize}>Initialize Accounting</Button>
+      </div>
+    )
+  }
+
+  return <ViewContent view={view} data={data} userName={user?.name ?? "Accountant"} onRefresh={reload} onInitialize={onInitialize} />
 }
 
 function ViewContent({
@@ -180,20 +233,22 @@ function ViewContent({
   data,
   userName,
   onRefresh,
+  onInitialize,
 }: {
   view: AcctView
   data: unknown
   userName: string
   onRefresh: () => void
+  onInitialize: () => void
 }) {
-  const d = data as Record<string, unknown>
+  const d = (data ?? {}) as Record<string, unknown>
 
   if (view === "dashboard") {
     if (!d.seeded) {
       return (
         <div className="rounded-lg border border-dashed p-10 text-center space-y-4">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">Initialize the accounting module with chart of accounts, journals, taxes, and sample data.</p>
-          <InitializeButton onDone={onRefresh} />
+          <Button className="bg-[#1faca6] hover:bg-[#1faca6]/90" onClick={onInitialize}>Initialize Accounting</Button>
         </div>
       )
     }
@@ -232,7 +287,7 @@ function ViewContent({
   }
 
   if (view === "chart_of_accounts") {
-    const rows = (data as { code: string; name: string; accountType: string; reconcile: boolean; active: boolean }[]).map(
+    const rows = asArray<{ code: string; name: string; accountType: string; reconcile: boolean; active: boolean }>(data).map(
       a => [a.code, a.name, a.accountType, a.reconcile ? "Yes" : "", a.active ? <StateBadge state="posted" /> : <StateBadge state="draft" />]
     )
     return (
@@ -244,12 +299,12 @@ function ViewContent({
   }
 
   if (view === "journals") {
-    const rows = (data as { code: string; name: string; journalType: string }[]).map(j => [j.code, j.name, j.journalType])
+    const rows = asArray<{ code: string; name: string; journalType: string }>(data).map(j => [j.code, j.name, j.journalType])
     return <Table headers={["Code", "Name", "Type"]} rows={rows} />
   }
 
   if (view === "journal_entries") {
-    const rows = (data as { id: string; name: string; date: string; state: string; amountTotal: number; moveType: string }[]).map(m => [
+    const rows = asArray<{ id: string; name: string; date: string; state: string; amountTotal: number; moveType: string }>(data).map(m => [
       m.name, fmtDate(m.date), m.moveType, fmtMoney(m.amountTotal), <StateBadge state={m.state} />,
       m.state === "draft" ? <PostMoveButton id={m.id} onDone={onRefresh} /> : null,
     ])
@@ -269,7 +324,7 @@ function ViewContent({
       vendor_refunds: "in_refund",
     }
     const invType = typeMap[view]
-    const rows = (data as { number: string; partnerName?: string; invoiceDate: string; amountTotal: number; amountResidual: number; state: string; id: string }[]).map(
+    const rows = asArray<{ number: string; partnerName?: string; invoiceDate: string; amountTotal: number; amountResidual: number; state: string; id: string }>(data).map(
       i => [
         i.number || "Draft",
         i.partnerName ?? "",
@@ -290,7 +345,7 @@ function ViewContent({
 
   if (view === "customer_payments" || view === "vendor_payments") {
     const pType = view === "customer_payments" ? "inbound" : "outbound"
-    const rows = (data as { name: string; date: string; amount: number; state: string; id: string }[]).map(p => [
+    const rows = asArray<{ name: string; date: string; amount: number; state: string; id: string }>(data).map(p => [
       p.name || "Draft",
       fmtDate(p.date),
       fmtMoney(p.amount),
@@ -333,14 +388,14 @@ function ViewContent({
   }
 
   if (view === "bank_accounts") {
-    const rows = (data as { name: string; bankName: string; accountNumber: string; balance: number }[]).map(b => [
+    const rows = asArray<{ name: string; bankName: string; accountNumber: string; balance: number }>(data).map(b => [
       b.name, b.bankName, b.accountNumber, fmtMoney(b.balance),
     ])
     return <Table headers={["Name", "Bank", "Account #", "Balance"]} rows={rows} />
   }
 
   if (view === "bank_statements" || view === "bank_reconciliation") {
-    const stmts = data as { name: string; date: string; balanceStart: number; balanceEnd: number; state: string; lines: { paymentRef: string; amount: number; reconciled: boolean }[] }[]
+    const stmts = asArray<{ name: string; date: string; balanceStart: number; balanceEnd: number; state: string; lines: { paymentRef: string; amount: number; reconciled: boolean }[] }>(data)
     return (
       <div className="space-y-4">
         {view === "bank_reconciliation" && (
@@ -397,7 +452,7 @@ function ViewContent({
   }
 
   if (view === "report_general_ledger" || view === "report_trial_balance") {
-    const lines = (data as { date: string; moveName: string; accountCode: string; accountName: string; label: string; debit: number; credit: number }[]) ?? []
+    const lines = asArray<{ date: string; moveName: string; accountCode: string; accountName: string; label: string; debit: number; credit: number }>(data)
     if (view === "report_trial_balance") {
       const byAcc: Record<string, { code: string; name: string; debit: number; credit: number }> = {}
       for (const l of lines) {
@@ -429,27 +484,37 @@ function ViewContent({
   }
 
   if (view === "report_tax") {
+    const rows = asArray<{ name: string; rate: number; taxType: string }>(data).map(t => [
+      t.name,
+      `${t.rate}%`,
+      t.taxType,
+      "Post invoices with tax to populate balances",
+    ])
     return (
       <ReportShell title="Tax Report">
-        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">Tax collected on sales vs tax paid on purchases (from posted invoice lines with tax accounts).</p>
-        <TaxReportLoader />
+        <Table headers={["Tax", "Rate", "Type", "Note"]} rows={rows} />
       </ReportShell>
     )
   }
 
   if (view === "report_cash_flow") {
+    const lines = asArray<{ accountCode: string; debit: number; credit: number }>(data).filter(
+      l => l.accountCode === "1010" || l.accountCode === "1020"
+    )
+    const net = lines.reduce((s, l) => s + l.debit - l.credit, 0)
     return (
       <ReportShell title="Cash Flow Statement">
-        <div className="space-y-3 text-sm">
-          <p className="text-[hsl(var(--muted-foreground))]">Operating, investing, and financing activities derived from cash/bank journal entries.</p>
-          <CashFlowLoader />
-        </div>
+        <p className="text-sm font-medium mb-2">Net cash movement (posted): {fmtMoney(net)}</p>
+        <Table
+          headers={["Account", "Debit", "Credit", "Net"]}
+          rows={lines.map(l => [l.accountCode, fmtMoney(l.debit), fmtMoney(l.credit), fmtMoney(l.debit - l.credit)])}
+        />
       </ReportShell>
     )
   }
 
   if (view === "config_taxes") {
-    const rows = (data as { name: string; rate: number; taxType: string }[]).map(t => [t.name, `${t.rate}%`, t.taxType])
+    const rows = asArray<{ name: string; rate: number; taxType: string }>(data).map(t => [t.name, `${t.rate}%`, t.taxType])
     return (
       <div className="space-y-3">
         <TaxForm onSaved={onRefresh} />
@@ -459,7 +524,7 @@ function ViewContent({
   }
 
   if (view === "config_payment_terms") {
-    const rows = (data as { name: string; lines: { days: number; percent: number }[] }[]).map(t => [
+    const rows = asArray<{ name: string; lines: { days: number; percent: number }[] }>(data).map(t => [
       t.name,
       (t.lines ?? []).map(l => `${l.percent}% in ${l.days}d`).join(", "),
     ])
@@ -467,7 +532,7 @@ function ViewContent({
   }
 
   if (view === "config_settings" || view === "lock_dates") {
-    const s = data as { companyName: string; currency: string; fiscalYearStart: number; lockDate: string | null; invoiceTerms: string }
+    const s = (data ?? {}) as { companyName?: string; currency?: string; fiscalYearStart?: number; lockDate?: string | null; invoiceTerms?: string }
     return <SettingsForm settings={s} lockOnly={view === "lock_dates"} onSaved={onRefresh} />
   }
 
@@ -486,7 +551,7 @@ function ViewContent({
   }
 
   if (view === "analytic_accounts") {
-    const rows = (data as { code: string; name: string; plan: string }[]).map(a => [a.code, a.name, a.plan])
+    const rows = asArray<{ code: string; name: string; plan: string }>(data).map(a => [a.code, a.name, a.plan])
     return (
       <div className="space-y-3">
         <AnalyticForm onSaved={onRefresh} />
@@ -496,7 +561,7 @@ function ViewContent({
   }
 
   if (view === "assets") {
-    const rows = (data as { name: string; originalValue: number; durationMonths: number; state: string }[]).map(a => [
+    const rows = asArray<{ name: string; originalValue: number; durationMonths: number; state: string }>(data).map(a => [
       a.name, fmtMoney(a.originalValue), `${a.durationMonths} mo`, <StateBadge state={a.state} />,
     ])
     return (
@@ -508,7 +573,7 @@ function ViewContent({
   }
 
   if (view === "deferred") {
-    const rows = (data as { name: string; entryType: string; totalAmount: number; periods: number; state: string }[]).map(e => [
+    const rows = asArray<{ name: string; entryType: string; totalAmount: number; periods: number; state: string }>(data).map(e => [
       e.name, e.entryType, fmtMoney(e.totalAmount), String(e.periods), <StateBadge state={e.state} />,
     ])
     return (
@@ -521,7 +586,7 @@ function ViewContent({
   }
 
   if (view === "budgets") {
-    const rows = (data as { name: string; fiscalYear: number; state: string }[]).map(b => [b.name, String(b.fiscalYear), <StateBadge state={b.state} />])
+    const rows = asArray<{ name: string; fiscalYear: number; state: string }>(data).map(b => [b.name, String(b.fiscalYear), <StateBadge state={b.state} />])
     return (
       <div className="space-y-3">
         <BudgetForm onSaved={onRefresh} />
@@ -539,21 +604,6 @@ function ReportShell({ title, children }: { title: string; children: React.React
       <h3 className="text-sm font-semibold mb-3">{title}</h3>
       {children}
     </div>
-  )
-}
-
-function InitializeButton({ onDone }: { onDone: () => void }) {
-  const [loading, setLoading] = useState(false)
-  return (
-    <Button disabled={loading} onClick={async () => {
-      setLoading(true)
-      await fetch("/api/accounting/init", { method: "POST" })
-      setLoading(false)
-      onDone()
-    }}>
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-      <span className="ml-2">Initialize Accounting</span>
-    </Button>
   )
 }
 
@@ -613,7 +663,7 @@ function ManualEntryForm({ userName, onSaved }: { userName: string; onSaved: () 
   useEffect(() => {
     if (open) {
       Promise.all([acctFetch("journals"), acctFetch("accounts")]).then(([j, a]) => {
-        setJournals(j); setAccounts(a)
+        setJournals(asArray(j)); setAccounts(asArray(a))
       })
     }
   }, [open])
@@ -665,8 +715,9 @@ function InvoiceForm({ invoiceType, userName, onSaved }: { invoiceType: string; 
         acctFetch(`partners?type=${isOut ? "customer" : "vendor"}`),
         acctFetch("journals"),
       ]).then(([p, j]) => {
-        setPartners(p)
-        setJournals(j.filter((x: { journalType: string }) => x.journalType === (isOut ? "sale" : "purchase")))
+        const jlist = asArray<{ id: string; name: string; journalType: string }>(j)
+        setPartners(asArray(p))
+        setJournals(jlist.filter(x => x.journalType === (isOut ? "sale" : "purchase")))
       })
     }
   }, [open, isOut])
@@ -696,7 +747,7 @@ function InvoiceForm({ invoiceType, userName, onSaved }: { invoiceType: string; 
           {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select name="journalId" className={inputCls} required>
-          {journals.map(j => <option key={j.id} value={j.id}>{j.id.slice(0, 8)}</option>)}
+          {journals.map(j => <option key={j.id} value={j.id}>{j.name ?? j.id}</option>)}
         </select>
         <input name="date" type="date" defaultValue={todayISO()} className={inputCls} />
         <input name="due" type="date" defaultValue={todayISO()} className={inputCls} />
@@ -718,8 +769,9 @@ function PaymentForm({ paymentType, userName, onSaved }: { paymentType: string; 
         acctFetch(`partners?type=${paymentType === "inbound" ? "customer" : "vendor"}`),
         acctFetch("journals"),
       ]).then(([p, j]) => {
-        setPartners(p)
-        setJournals(j.filter((x: { journalType: string }) => ["bank", "cash"].includes(x.journalType)))
+        const jlist = asArray<{ id: string; journalType: string }>(j)
+        setPartners(asArray(p))
+        setJournals(jlist.filter(x => ["bank", "cash"].includes(x.journalType)))
       })
     }
   }, [open, paymentType])
@@ -744,8 +796,14 @@ function PaymentForm({ paymentType, userName, onSaved }: { paymentType: string; 
       await acctFetch("payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "post", id: pay.id }) })
       setOpen(false); onSaved()
     }}>
-      <select name="partnerId" className={inputCls + " w-40"} required>{partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-      <select name="journalId" className={inputCls + " w-32"} required>{journals.map(j => <option key={j.id} value={j.id}>Journal</option>)}</select>
+      <select name="partnerId" className={inputCls + " w-40"} required>
+        <option value="">Partner…</option>
+        {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      <select name="journalId" className={inputCls + " w-32"} required>
+        <option value="">Journal…</option>
+        {journals.map(j => <option key={j.id} value={j.id}>{(j as { name?: string }).name ?? "Bank/Cash"}</option>)}
+      </select>
       <input name="date" type="date" defaultValue={todayISO()} className={inputCls + " w-32"} />
       <input name="amount" type="number" className={inputCls + " w-28"} required />
       <input name="memo" placeholder="Memo" className={inputCls + " w-40"} />
@@ -770,8 +828,24 @@ function TaxForm({ onSaved }: { onSaved: () => void }) {
   )
 }
 
-function SettingsForm({ settings, lockOnly, onSaved }: { settings: { companyName: string; currency: string; fiscalYearStart: number; lockDate: string | null; invoiceTerms: string }; lockOnly?: boolean; onSaved: () => void }) {
-  const [form, setForm] = useState(settings)
+const SETTINGS_DEFAULTS = {
+  companyName: "Voltrix Batteries",
+  currency: "PKR",
+  fiscalYearStart: 7,
+  lockDate: null as string | null,
+  invoiceTerms: "",
+}
+
+function SettingsForm({
+  settings,
+  lockOnly,
+  onSaved,
+}: {
+  settings: Partial<typeof SETTINGS_DEFAULTS>
+  lockOnly?: boolean
+  onSaved: () => void
+}) {
+  const [form, setForm] = useState({ ...SETTINGS_DEFAULTS, ...settings })
   return (
     <form className="max-w-md space-y-3 text-sm" onSubmit={async e => {
       e.preventDefault()
@@ -862,26 +936,4 @@ function BudgetForm({ onSaved }: { onSaved: () => void }) {
       <Button type="submit" size="sm">Create budget</Button>
     </form>
   )
-}
-
-function TaxReportLoader() {
-  const [rows, setRows] = useState<string[][]>([])
-  useEffect(() => {
-    acctFetch("taxes").then((taxes: { name: string; rate: number }[]) => {
-      setRows(taxes.map(t => [t.name, `${t.rate}%`, "Configure invoice lines to populate balances"]))
-    })
-  }, [])
-  return <Table headers={["Tax", "Rate", "Balance"]} rows={rows} />
-}
-
-function CashFlowLoader() {
-  const [text, setText] = useState("Loading…")
-  useEffect(() => {
-    acctFetch("reports?report=general_ledger").then((lines: { accountCode: string; debit: number; credit: number }[]) => {
-      const cash = lines.filter(l => l.accountCode === "1010" || l.accountCode === "1020")
-      const net = cash.reduce((s, l) => s + l.debit - l.credit, 0)
-      setText(`Net cash movement (posted): ${fmtMoney(net)}`)
-    })
-  }, [])
-  return <p className="font-medium">{text}</p>
 }

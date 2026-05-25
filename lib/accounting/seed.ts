@@ -120,15 +120,16 @@ export async function seedAccountingModule() {
     }).catch(() => {})
   }
 
-  await prisma.acctPartner.createMany({
-    data: [
-      { name: "Walk-in Customer", partnerType: "customer", email: "", phone: "" },
-      { name: "ABC Solar Pvt Ltd", partnerType: "customer", email: "accounts@abcsolar.pk", phone: "+92-300-0000001" },
-      { name: "Battery Supplier Co", partnerType: "vendor", email: "ap@batterysupplier.com", phone: "" },
-      { name: "Office Landlord", partnerType: "vendor", email: "", phone: "" },
-    ],
-    skipDuplicates: true,
-  })
+  const samplePartners = [
+    { name: "Walk-in Customer", partnerType: "customer", email: "", phone: "" },
+    { name: "ABC Solar Pvt Ltd", partnerType: "customer", email: "accounts@abcsolar.pk", phone: "+92-300-0000001" },
+    { name: "Battery Supplier Co", partnerType: "vendor", email: "ap@batterysupplier.com", phone: "" },
+    { name: "Office Landlord", partnerType: "vendor", email: "", phone: "" },
+  ]
+  for (const p of samplePartners) {
+    const exists = await prisma.acctPartner.findFirst({ where: { name: p.name } })
+    if (!exists) await prisma.acctPartner.create({ data: p })
+  }
 
   const sequences = [
     { id: "move_misc", prefix: "MISC", nextNum: 1 },

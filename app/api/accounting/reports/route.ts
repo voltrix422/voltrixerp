@@ -5,17 +5,18 @@ import {
   generalLedger,
   agedBalances,
 } from "@/lib/accounting/reports"
+import { withAcctApi } from "@/lib/accounting/api-route"
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const report = searchParams.get("report")
-  const from = searchParams.get("from")
-  const to = searchParams.get("to")
-  const accountId = searchParams.get("accountId")
-  const fromDate = from ? new Date(from) : undefined
-  const toDate = to ? new Date(to + "T23:59:59") : undefined
+  return withAcctApi(async () => {
+    const { searchParams } = new URL(req.url)
+    const report = searchParams.get("report")
+    const from = searchParams.get("from")
+    const to = searchParams.get("to")
+    const accountId = searchParams.get("accountId")
+    const fromDate = from ? new Date(from) : undefined
+    const toDate = to ? new Date(to + "T23:59:59") : undefined
 
-  try {
     switch (report) {
       case "pnl":
         return NextResponse.json(await profitAndLoss(fromDate, toDate))
@@ -30,7 +31,5 @@ export async function GET(req: NextRequest) {
       default:
         return NextResponse.json({ error: "Unknown report" }, { status: 400 })
     }
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
-  }
+  })
 }
