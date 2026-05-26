@@ -209,6 +209,22 @@ export async function updateInventorySerialUnit(data: {
   return mapSerialUnit(await res.json())
 }
 
+export async function findInventorySerialByNumber(
+  serialNumber: string,
+): Promise<InventorySerialUnit | null> {
+  const sn = normalizeInventorySerialNumber(serialNumber)
+  if (!sn) return null
+  const res = await fetch(
+    `/api/db/inventory-serial-units?serialNumber=${encodeURIComponent(sn)}`,
+    { cache: "no-store" },
+  )
+  if (!res.ok) return null
+  const data = await res.json()
+  const rows = Array.isArray(data) ? data : []
+  if (rows.length === 0) return null
+  return mapSerialUnit(rows[0] as Record<string, unknown>)
+}
+
 export async function getWarrantyClaims(serialNumber?: string): Promise<WarrantyClaim[]> {
   const url = serialNumber
     ? `/api/db/warranty-claims?serialNumber=${encodeURIComponent(serialNumber)}`

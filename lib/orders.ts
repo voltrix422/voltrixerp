@@ -26,7 +26,21 @@ export function resolveOrderItemModel(item: Pick<OrderItem, "model" | "inventory
     const model = id.slice(3).trim()
     return model || null
   }
+  if (id?.startsWith("man:")) {
+    return item.model?.trim() || null
+  }
   return null
+}
+
+export function isManualInventoryOrderItem(item: Pick<OrderItem, "inventoryItemId">): boolean {
+  return !!item.inventoryItemId?.trim().startsWith("man:")
+}
+
+export function parseManualInventoryOrderItemId(inventoryItemId?: string): string | null {
+  const id = inventoryItemId?.trim()
+  if (!id?.startsWith("man:")) return null
+  const manualId = id.slice(4).trim()
+  return manualId || null
 }
 
 export function orderHasInvoiceDetails(order: Pick<Order, "tax" | "transportCost" | "otherCost" | "dispatcher">): boolean {

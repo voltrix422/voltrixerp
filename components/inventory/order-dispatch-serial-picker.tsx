@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, ListChecks, ScanLine } from "lucide-react"
+import { DispatchSerialScanPanel } from "@/components/inventory/dispatch-serial-scan-panel"
 import {
   getInventorySerialUnits,
   type InventorySerialUnit,
@@ -31,6 +32,7 @@ export function OrderDispatchSerialPicker({
   const [units, setUnits] = useState<InventorySerialUnit[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [mode, setMode] = useState<"scan" | "pick">("scan")
 
   const lines = useMemo(() => orderLinesRequiringSerials(order), [order])
 
@@ -101,12 +103,54 @@ export function OrderDispatchSerialPicker({
 
   return (
     <div className="space-y-4">
+      <div className="flex gap-1 p-1 rounded-lg border bg-[hsl(var(--muted))]/20 w-fit">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setMode("scan")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer ${
+            mode === "scan"
+              ? "bg-[hsl(var(--background))] shadow-sm text-[hsl(var(--foreground))]"
+              : "text-[hsl(var(--muted-foreground))]"
+          }`}
+        >
+          <ScanLine className="h-3.5 w-3.5" />
+          Scan to dispatch
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setMode("pick")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer ${
+            mode === "pick"
+              ? "bg-[hsl(var(--background))] shadow-sm text-[hsl(var(--foreground))]"
+              : "text-[hsl(var(--muted-foreground))]"
+          }`}
+        >
+          <ListChecks className="h-3.5 w-3.5" />
+          Pick from list
+        </button>
+      </div>
+
+      {mode === "scan" && (
+        <DispatchSerialScanPanel
+          lines={lines}
+          value={value}
+          onChange={onChange}
+          units={units}
+          onUnitsChange={setUnits}
+          disabled={disabled}
+        />
+      )}
+
       <div className="rounded-lg border border-[#1faca6]/30 bg-[#1faca6]/5 px-3 py-2.5">
         <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">
-          Order items — select serial numbers
+          Order items — serial numbers
         </p>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Pick one serial number per unit ordered. Selected SNs are marked delivered (removed from available stock), linked to this order and invoice, and kept for warranty claims.
+          {mode === "scan"
+            ? "Use the scanner above, or switch to pick from list. Each unit needs one SN before dispatch."
+            : "Pick one serial number per unit ordered. SNs are marked delivered and linked to this order."}
         </p>
       </div>
 
@@ -141,7 +185,8 @@ export function OrderDispatchSerialPicker({
         })}
       </div>
 
-      {lines.map((item) => {
+      {mode === "pick" &&
+        lines.map((item) => {
         const model = resolveOrderItemModel(item)!
         const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
         const available = inStockUnitsForOrderLine(units, item)
@@ -220,6 +265,43 @@ export function OrderDispatchSerialPicker({
           </div>
         )
       })}
+
+      {mode === "scan" && (
+        <div className="rounded-lg border overflow-hidden text-xs divide-y">
+          {lines.map((item) => {
+            const model = resolveOrderItemModel(item)!
+            const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+            const selectedIds = value[item.id] ?? []
+            const selectedUnits = selectedIds
+              .map((id) => units.find((u) => u.id === id))
+              .filter(Boolean) as InventorySerialUnit[]
+            return (
+              <div key={`scan-summary-${item.id}`} className="px-3 py-2.5">
+                <div className="flex justify-between gap-2">
+                  <span className="font-semibold truncate">{item.description}</span>
+                  <span
+                    className={
+                      selectedUnits.length === needQty
+                        ? "text-green-700 dark:text-green-400 shrink-0"
+                        : "text-amber-700 dark:text-amber-300 shrink-0"
+                    }
+                  >
+                    {selectedUnits.length}/{needQty}
+                  </span>
+                </div>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">{model}</p>
+                {selectedUnits.length > 0 ? (
+                  <p className="mt-1 font-mono text-[11px]">
+                    {selectedUnits.map((u) => u.serialNumber).join(", ")}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">No SNs scanned yet</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {!validation.valid && validation.errors.length > 0 && (
         <ul className="text-xs text-red-600 dark:text-red-400 space-y-1 list-disc pl-4">

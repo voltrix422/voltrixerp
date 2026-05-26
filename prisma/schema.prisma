@@ -197,6 +197,22 @@ model ErpInventoryStock {
   @@map("erp_inventory_stock")
 }
 
+model ErpManualInventoryItem {
+  id               String   @id @default(cuid())
+  name             String
+  model            String   @unique
+  qty              Float
+  availableQty     Float    @map("available_qty")
+  unit             String   @default("pcs")
+  notes            String   @default("")
+  inventoryStockId String?  @map("inventory_stock_id")
+  createdBy        String   @default("") @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("erp_manual_inventory_item")
+}
+
 model ErpInventoryHistory {
   id              String   @id @default(cuid())
   itemDescription String   @map("item_description")

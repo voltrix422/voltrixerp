@@ -48,6 +48,10 @@ export function getOrderLineMatchKeys(item: OrderDeductLine): string[] {
       const modelFromId = inventoryItemId.slice(3).trim()
       if (modelFromId) keys.add(modelFromId)
     }
+    if (inventoryItemId.startsWith("man:")) {
+      const manualId = inventoryItemId.slice(4).trim()
+      if (manualId) keys.add(manualId)
+    }
   }
 
   return [...keys]

@@ -3,16 +3,18 @@ import { useState } from "react"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { InventoryList } from "@/components/inventory/inventory-list"
+import { ManualInventoryTab } from "@/components/inventory/manual-inventory-tab"
 import { ClientOrdersInventory } from "@/components/inventory/client-orders-inventory"
 import { BranchesTab } from "@/components/branches/branches-tab"
 import { History } from "lucide-react"
 
 export default function InventoryPage() {
-  const [tab, setTab] = useState<"orders" | "inventory" | "branches" | "history">("orders")
+  const [tab, setTab] = useState<"orders" | "inventory" | "manual" | "branches" | "history">("orders")
 
   const tabs = [
     { id: "orders" as const, label: "Client Orders" },
     { id: "inventory" as const, label: "Inventory" },
+    { id: "manual" as const, label: "Manual added inventory" },
     { id: "branches" as const, label: "Branches" },
     { id: "history" as const, label: "History" },
   ]
@@ -43,6 +45,7 @@ export default function InventoryPage() {
 
           {tab === "orders" && <ClientOrdersInventory />}
           {tab === "inventory" && <InventoryList />}
+          {tab === "manual" && <ManualInventoryTab />}
           {tab === "branches" && <BranchesTab />}
           {tab === "history" && (
             <div className="flex flex-col items-center justify-center py-24 text-center text-[hsl(var(--muted-foreground))]">
