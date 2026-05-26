@@ -17,7 +17,7 @@ export type FinanceOverviewActivity = {
   label: string
   amount: number
   category: string
-  source: "client" | "purchase" | "record" | "petty_cash"
+  source: "client" | "purchase" | "record" | "petty_cash" | "pos"
 }
 
 export function parseOrderPayments(payments: unknown): OrderPayment[] {

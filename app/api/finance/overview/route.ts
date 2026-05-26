@@ -1,39 +1,59 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import type { Order } from "@/lib/orders"
 import {
   parseOrderPayments,
   orderPaidTotal,
-  orderPendingPaymentCount,
   isFinanceRelevantOrder,
   type FinanceOverviewAction,
   type FinanceOverviewActivity,
 } from "@/lib/finance-overview"
 import { getPaymentSubmissionStatus } from "@/lib/orders"
 
-function monthStart() {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1)
+function periodRange(period: string) {
+  const now = new Date()
+  if (period === "last_month") {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
+    return { start, end, label: "Last month" }
+  }
+  if (period === "year") {
+    const start = new Date(now.getFullYear(), 0, 1)
+    return { start, end: now, label: "This year" }
+  }
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  return { start, end: now, label: "This month" }
 }
 
-export async function GET() {
+function inRange(d: Date, start: Date, end: Date) {
+  return d >= start && d <= end
+}
+
+export async function GET(req: NextRequest) {
   try {
-    const [orders, pos, records, pettyAllocations, pettyReceipts] = await Promise.all([
+    const period = new URL(req.url).searchParams.get("period") || "month"
+    const { start, end, label: periodLabel } = periodRange(period)
+
+    const [orders, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+      prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
       prisma.erpPettyCashAllocation.findMany({ where: { status: "active" } }),
-      prisma.erpPettyCashReceipt.findMany({
-        where: { status: { in: ["pending", "approved"] } },
-      }),
+      prisma.erpPettyCashReceipt.findMany({ where: { status: { in: ["pending", "approved"] } } }),
+      prisma.erpPosSale.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
+      prisma.erpPettyCashReceipt.count({ where: { status: "pending" } }),
     ])
 
-    const start = monthStart()
     let pendingClientPayments = 0
-    let clientReceivedThisMonth = 0
+    let clientReceivedInPeriod = 0
     let clientOutstanding = 0
     let ordersNeedingAction = 0
+    let confirmedOrderValueInPeriod = 0
+    let salesCommissionInPeriod = 0
+    let ordersConfirmedInPeriod = 0
     const actions: FinanceOverviewAction[] = []
+    const clientOutstandingList: { name: string; orderNumber: string; remaining: number; href: string }[] = []
+    const paymentMethodTotals: Record<string, number> = {}
 
     for (const row of orders) {
       const payments = parseOrderPayments(row.payments)
@@ -46,40 +66,46 @@ export async function GET() {
         id: row.id,
       }
 
-      if (!isFinanceRelevantOrder(order)) continue
-
       const pending = payments.filter(
         p => getPaymentSubmissionStatus(p, order.status) === "pending_approval"
       )
       pendingClientPayments += pending.length
       if (pending.length > 0) {
         ordersNeedingAction++
-        const sum = pending.reduce((s, p) => s + p.amount, 0)
         actions.push({
           id: `order-pending-${row.id}`,
           type: "client_payment",
           title: `Approve payments — ${row.orderNumber}`,
           subtitle: row.clientName,
-          amount: sum,
+          amount: pending.reduce((s, p) => s + p.amount, 0),
           href: "/finance?tab=client",
           priority: "high",
         })
       }
 
-      const paid = orderPaidTotal(order)
-      const remaining = Math.max(0, row.total - paid)
-      if (remaining > 0.01 && ["finalized", "payment_added", "approved", "confirmed"].includes(row.status)) {
-        clientOutstanding += remaining
-        if (actions.length < 12) {
-          actions.push({
-            id: `order-balance-${row.id}`,
-            type: "client_balance",
-            title: `Outstanding — ${row.orderNumber}`,
-            subtitle: `${row.clientName} · PKR ${remaining.toLocaleString()} due`,
-            amount: remaining,
+      if (isFinanceRelevantOrder(order)) {
+        const paid = orderPaidTotal(order)
+        const remaining = Math.max(0, row.total - paid)
+        if (remaining > 0.01 && ["finalized", "payment_added", "approved", "confirmed", "processing", "shipped", "delivered"].includes(row.status)) {
+          clientOutstanding += remaining
+          clientOutstandingList.push({
+            name: row.clientName,
+            orderNumber: row.orderNumber,
+            remaining,
             href: "/finance?tab=client",
-            priority: "medium",
           })
+        }
+      }
+
+      const confirmedStatuses = ["confirmed", "processing", "shipped", "delivered"]
+      if (confirmedStatuses.includes(row.status)) {
+        const created = new Date(row.createdAt)
+        if (inRange(created, start, end)) {
+          confirmedOrderValueInPeriod += row.total
+          ordersConfirmedInPeriod++
+          if (row.salesAgentCommissionAmount && row.salesAgentCommissionAmount > 0) {
+            salesCommissionInPeriod += row.salesAgentCommissionAmount
+          }
         }
       }
 
@@ -87,18 +113,25 @@ export async function GET() {
         const st = getPaymentSubmissionStatus(p, order.status)
         if (st === "approved") {
           const d = new Date(p.date || row.createdAt)
-          if (d >= start) clientReceivedThisMonth += p.amount
+          if (inRange(d, start, end)) {
+            clientReceivedInPeriod += p.amount
+            const method = p.method || "Other"
+            paymentMethodTotals[method] = (paymentMethodTotals[method] || 0) + p.amount
+          }
         }
       }
     }
 
-    let poPaidThisMonth = 0
+    clientOutstandingList.sort((a, b) => b.remaining - a.remaining)
+
+    let poPaidInPeriod = 0
     let importedAwaitingFinance = 0
+    let openPoCount = 0
     for (const po of pos) {
       const payments = Array.isArray(po.payments) ? (po.payments as { amount: number; date?: string }[]) : []
       for (const p of payments) {
         const d = new Date(p.date || po.createdAt)
-        if (d >= start) poPaidThisMonth += Number(p.amount) || 0
+        if (inRange(d, start, end)) poPaidInPeriod += Number(p.amount) || 0
       }
       if (po.status === "imp_finance_1" || po.status === "imp_finance_2") {
         importedAwaitingFinance++
@@ -112,20 +145,82 @@ export async function GET() {
           priority: "high",
         })
       }
+      if (["finalized", "direct", "imp_finance_2", "imp_purchase_final"].includes(po.status)) {
+        openPoCount++
+      }
     }
 
-    const recordsThisMonth = records.filter(r => new Date(r.createdAt) >= start)
-    const expensesThisMonth = recordsThisMonth
+    const recordsInPeriod = records.filter(r => inRange(new Date(r.createdAt), start, end))
+    const expensesInPeriod = recordsInPeriod
       .filter(r => ["Expense", "Payment", "Tax", "Salary"].includes(r.category))
       .reduce((s, r) => s + r.amount, 0)
+    const incomeRecordsInPeriod = recordsInPeriod
+      .filter(r => ["Payment", "Invoice", "Refund"].includes(r.category))
+      .reduce((s, r) => s + r.amount, 0)
+
+    const expensesByCategory: Record<string, number> = {}
+    for (const r of recordsInPeriod) {
+      expensesByCategory[r.category] = (expensesByCategory[r.category] || 0) + r.amount
+    }
+
+    let posSalesInPeriod = 0
+    let posTransactionsInPeriod = 0
+    for (const sale of posSales) {
+      const d = new Date(sale.createdAt)
+      if (inRange(d, start, end)) {
+        posSalesInPeriod += sale.total
+        posTransactionsInPeriod++
+      }
+    }
 
     const pettyUsed = pettyReceipts.reduce((s, r) => s + r.amount, 0)
     const pettyTotal = pettyAllocations.reduce((s, a) => s + a.amount, 0)
     const pettyRemaining = Math.max(0, pettyTotal - pettyUsed)
 
+    const moneyIn = clientReceivedInPeriod + posSalesInPeriod + incomeRecordsInPeriod
+    const moneyOut = expensesInPeriod + poPaidInPeriod + pettyUsed
+    const netCashFlow = moneyIn - moneyOut
+
+    // Last 6 months trend
+    const monthlyTrend: { month: string; moneyIn: number; moneyOut: number }[] = []
+    for (let i = 5; i >= 0; i--) {
+      const mStart = new Date(end.getFullYear(), end.getMonth() - i, 1)
+      const mEnd = new Date(end.getFullYear(), end.getMonth() - i + 1, 0, 23, 59, 59)
+      const monthLabel = mStart.toLocaleDateString(undefined, { month: "short", year: "2-digit" })
+
+      let mi = 0
+      let mo = 0
+      for (const row of orders) {
+        const payments = parseOrderPayments(row.payments)
+        for (const p of payments) {
+          if (getPaymentSubmissionStatus(p, row.status as Order["status"]) !== "approved") continue
+          const d = new Date(p.date || row.createdAt)
+          if (inRange(d, mStart, mEnd)) mi += p.amount
+        }
+      }
+      for (const sale of posSales) {
+        const d = new Date(sale.createdAt)
+        if (inRange(d, mStart, mEnd)) mi += sale.total
+      }
+      for (const r of records) {
+        const d = new Date(r.createdAt)
+        if (!inRange(d, mStart, mEnd)) continue
+        if (["Expense", "Payment", "Tax", "Salary"].includes(r.category)) mo += r.amount
+        else if (["Payment", "Invoice"].includes(r.category)) mi += r.amount
+      }
+      for (const po of pos) {
+        const payments = Array.isArray(po.payments) ? (po.payments as { amount: number; date?: string }[]) : []
+        for (const p of payments) {
+          const d = new Date(p.date || po.createdAt)
+          if (inRange(d, mStart, mEnd)) mo += Number(p.amount) || 0
+        }
+      }
+      monthlyTrend.push({ month: monthLabel, moneyIn: mi, moneyOut: mo })
+    }
+
     const activities: FinanceOverviewActivity[] = []
 
-    for (const r of records.slice(0, 15)) {
+    for (const r of records.slice(0, 20)) {
       activities.push({
         id: `rec-${r.id}`,
         date: r.createdAt.toISOString(),
@@ -135,39 +230,77 @@ export async function GET() {
         source: "record",
       })
     }
-
-    for (const row of orders.slice(0, 30)) {
+    for (const sale of posSales.slice(0, 15)) {
+      activities.push({
+        id: `pos-${sale.id}`,
+        date: sale.createdAt.toISOString(),
+        label: `POS — ${sale.receiptNumber}${sale.customerName ? ` · ${sale.customerName}` : ""}`,
+        amount: sale.total,
+        category: sale.paymentMethod,
+        source: "pos",
+      })
+    }
+    for (const row of orders.slice(0, 40)) {
       const payments = parseOrderPayments(row.payments)
       for (const p of payments) {
         if (getPaymentSubmissionStatus(p, row.status as Order["status"]) !== "approved") continue
         activities.push({
           id: `pay-${p.id}`,
           date: p.date || row.createdAt.toISOString(),
-          label: `Client payment — ${row.orderNumber}`,
+          label: `Client — ${row.orderNumber} (${row.clientName})`,
           amount: p.amount,
           category: p.method,
           source: "client",
         })
       }
     }
+    for (const r of pettyReceipts.slice(0, 10)) {
+      activities.push({
+        id: `pc-${r.id}`,
+        date: (r.submittedAt ?? new Date()).toISOString(),
+        label: `Petty cash — ${r.description}`,
+        amount: r.amount,
+        category: r.status,
+        source: "petty_cash",
+      })
+    }
 
     activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     return NextResponse.json({
+      periodLabel,
       summary: {
         pendingClientPayments,
         ordersNeedingAction,
-        clientReceivedThisMonth,
+        clientReceivedInPeriod,
         clientOutstanding,
-        poPaidThisMonth,
-        expensesThisMonth,
+        poPaidInPeriod,
+        expensesInPeriod,
         financeRecordsCount: records.length,
         importedAwaitingFinance,
         pettyCashActive: pettyAllocations.length,
         pettyCashRemaining: pettyRemaining,
+        pettyCashPendingReceipts: pettyPending,
+        posSalesInPeriod,
+        posTransactionsInPeriod,
+        salesCommissionInPeriod,
+        confirmedOrderValueInPeriod,
+        ordersConfirmedInPeriod,
+        openPoCount,
+        moneyIn,
+        moneyOut,
+        netCashFlow,
       },
+      expensesByCategory: Object.entries(expensesByCategory)
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((a, b) => b.amount - a.amount),
+      paymentMethods: Object.entries(paymentMethodTotals)
+        .map(([method, amount]) => ({ method, amount }))
+        .sort((a, b) => b.amount - a.amount),
+      topOutstandingClients: clientOutstandingList.slice(0, 8),
+      monthlyTrend,
       actions: actions.slice(0, 15),
-      recentActivity: activities.slice(0, 20),
+      recentActivity: activities.slice(0, 25),
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

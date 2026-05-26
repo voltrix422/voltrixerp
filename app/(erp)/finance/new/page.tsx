@@ -1,20 +1,16 @@
 "use client"
-import { Topbar } from "@/components/layout/topbar"
-import { ModuleGuard } from "@/components/layout/module-guard"
-import { FinanceHub } from "@/components/finance/finance-hub"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
-export default function FinanceOverviewPage() {
+/** Legacy URL — redirect to unified finance overview tab */
+export default function FinanceNewRedirectPage() {
+  const router = useRouter()
+  useEffect(() => {
+    router.replace("/finance?tab=overview")
+  }, [router])
   return (
-    <ModuleGuard module="finance">
-      <Topbar
-        title="Finance overview"
-        description="Your real ERP numbers — client orders, purchases, records, petty cash"
-      />
-      <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 max-w-6xl">
-          <FinanceHub />
-        </div>
-      </div>
-    </ModuleGuard>
+    <div className="flex items-center justify-center p-12 text-sm text-[hsl(var(--muted-foreground))]">
+      Opening finance overview…
+    </div>
   )
 }

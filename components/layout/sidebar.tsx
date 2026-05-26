@@ -44,7 +44,6 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
-  const [financeOpen, setFinanceOpen] = useState(pathname?.startsWith("/finance") || false)
 
   const visibleNav = user?.role === "superadmin"
     ? ALL_NAV
@@ -56,6 +55,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const showCrmSection = visibleNav.some(item => item.href === "/crm") && (showCrmMain || showSalesAgents)
   const showFinanceSection = visibleNav.some(item => item.href === "/finance")
   const primaryNav = visibleNav.filter(item => item.href !== "/crm" && item.href !== "/finance")
+  // Finance is a single sidebar link (overview + tabs inside /finance)
 
   return (
     <>
@@ -149,50 +149,19 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         )}
         {showFinanceSection && (
-          <div className="space-y-1">
-            <button
-              type="button"
-              onClick={() => setFinanceOpen(open => !open)}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors cursor-pointer",
-                pathname?.startsWith("/finance")
-                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-              )}
-            >
-              <DollarSign className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate text-left">Finance</span>
-              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", financeOpen && "rotate-180")} />
-            </button>
-            {financeOpen && (
-              <div className="ml-6 space-y-1">
-                <Link
-                  href="/finance"
-                  onClick={onNavigate}
-                  className={cn(
-                    "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                    pathname === "/finance"
-                      ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-                  )}
-                >
-                  Payments & records
-                </Link>
-                <Link
-                  href="/finance/new"
-                  onClick={onNavigate}
-                  className={cn(
-                    "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                    pathname?.startsWith("/finance/new")
-                      ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-                  )}
-                >
-                  Overview
-                </Link>
-              </div>
+          <Link
+            href="/finance"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+              pathname?.startsWith("/finance")
+                ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
             )}
-          </div>
+          >
+            <DollarSign className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">Finance</span>
+          </Link>
         )}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href) || false
