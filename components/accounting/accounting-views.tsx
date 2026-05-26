@@ -707,7 +707,7 @@ function ManualEntryForm({ userName, onSaved }: { userName: string; onSaved: () 
 function InvoiceForm({ invoiceType, userName, onSaved }: { invoiceType: string; userName: string; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
   const [partners, setPartners] = useState<{ id: string; name: string }[]>([])
-  const [journals, setJournals] = useState<{ id: string }[]>([])
+  const [journals, setJournals] = useState<{ id: string; name: string; journalType?: string }[]>([])
   const isOut = invoiceType.startsWith("out")
   useEffect(() => {
     if (open) {
@@ -762,14 +762,14 @@ function InvoiceForm({ invoiceType, userName, onSaved }: { invoiceType: string; 
 function PaymentForm({ paymentType, userName, onSaved }: { paymentType: string; userName: string; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
   const [partners, setPartners] = useState<{ id: string; name: string }[]>([])
-  const [journals, setJournals] = useState<{ id: string }[]>([])
+  const [journals, setJournals] = useState<{ id: string; name: string; journalType?: string }[]>([])
   useEffect(() => {
     if (open) {
       Promise.all([
         acctFetch(`partners?type=${paymentType === "inbound" ? "customer" : "vendor"}`),
         acctFetch("journals"),
       ]).then(([p, j]) => {
-        const jlist = asArray<{ id: string; journalType: string }>(j)
+        const jlist = asArray<{ id: string; name: string; journalType: string }>(j)
         setPartners(asArray(p))
         setJournals(jlist.filter(x => ["bank", "cash"].includes(x.journalType)))
       })
@@ -802,7 +802,7 @@ function PaymentForm({ paymentType, userName, onSaved }: { paymentType: string; 
       </select>
       <select name="journalId" className={inputCls + " w-32"} required>
         <option value="">Journal…</option>
-        {journals.map(j => <option key={j.id} value={j.id}>{(j as { name?: string }).name ?? "Bank/Cash"}</option>)}
+        {journals.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
       </select>
       <input name="date" type="date" defaultValue={todayISO()} className={inputCls + " w-32"} />
       <input name="amount" type="number" className={inputCls + " w-28"} required />
