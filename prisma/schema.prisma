@@ -561,9 +561,11 @@ model ErpRfidGateEvent {
 
 model ErpSalarySlip {
   id               String   @id @default(cuid())
+  userId           String?  @map("user_id")
   staffName        String   @map("staff_name")
   staffRole        String   @map("staff_role")
   staffDepartment  String   @map("staff_department")
+  staffCategory    String   @default("hrm") @map("staff_category")
   month            String
   baseSalary       Float    @map("base_salary")
   currency         String   @default("USD")
@@ -575,6 +577,8 @@ model ErpSalarySlip {
   bankAccountTitle String   @default("") @map("bank_account_title")
   createdAt        DateTime @default(now()) @map("created_at")
 
+  @@index([staffCategory, month])
+  @@index([userId, month])
   @@map("erp_salary_slips")
 }
 

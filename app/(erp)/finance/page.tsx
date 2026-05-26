@@ -9,10 +9,11 @@ import { ClientOrdersFinance } from "@/components/finance/client-orders-finance"
 import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
 import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
+import { FinanceSalesSalaries } from "@/components/finance/finance-sales-salaries"
 import { Button } from "@/components/ui/button"
 import { SlidersHorizontal, Search, Calendar } from "lucide-react"
 
-type Tab = "overview" | "manage" | "client" | "purchase" | "reports"
+type Tab = "overview" | "manage" | "client" | "purchase" | "sales-salaries" | "reports"
 type ManageSection = "finance" | "petty-cash"
 
 export default function FinancePage() {
@@ -29,7 +30,14 @@ export default function FinancePage() {
     if (!searchParams) return
     const tab = searchParams.get("tab")
     const section = searchParams.get("section")
-    if (tab === "overview" || tab === "client" || tab === "purchase" || tab === "manage" || tab === "reports") {
+    if (
+      tab === "overview" ||
+      tab === "client" ||
+      tab === "purchase" ||
+      tab === "manage" ||
+      tab === "sales-salaries" ||
+      tab === "reports"
+    ) {
       setActiveTab(tab)
     }
     if (section === "petty-cash" || section === "finance") setManageSection(section)
@@ -47,6 +55,7 @@ export default function FinancePage() {
     { id: "overview", label: "Overview" },
     { id: "client", label: "Client Orders" },
     { id: "purchase", label: "Purchase Orders" },
+    { id: "sales-salaries", label: "Sales Salaries" },
     { id: "manage", label: "Records & Petty Cash" },
     { id: "reports", label: "Reports" },
   ]
@@ -184,6 +193,7 @@ export default function FinancePage() {
           {activeTab === "purchase" && (
             <PurchaseOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />
           )}
+          {activeTab === "sales-salaries" && <FinanceSalesSalaries />}
         </div>
       </div>
     </ModuleGuard>
