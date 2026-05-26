@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { ClientOrdersFinance } from "@/components/finance/client-orders-finance"
@@ -15,8 +16,17 @@ type ManageSection = "finance" | "petty-cash"
 
 export default function FinancePage() {
   const { user, userRole } = useAuthWithRole()
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>("manage")
   const [manageSection, setManageSection] = useState<ManageSection>("finance")
+
+  useEffect(() => {
+    if (!searchParams) return
+    const tab = searchParams.get("tab")
+    const section = searchParams.get("section")
+    if (tab === "client" || tab === "purchase" || tab === "manage") setActiveTab(tab)
+    if (section === "petty-cash" || section === "finance") setManageSection(section)
+  }, [searchParams])
   const [showFilters, setShowFilters] = useState(false)
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -38,7 +48,7 @@ export default function FinancePage() {
 
   return (
     <ModuleGuard module="finance">
-      <Topbar title="Finance" description="Manage payments and finalized orders" />
+      <Topbar title="Payments & records" description="Client orders, purchase orders, expenses, petty cash" />
       <div className="flex-1 overflow-auto">
         <div className="p-6 max-w-6xl">
           {/* Tabs + Filter Button */}

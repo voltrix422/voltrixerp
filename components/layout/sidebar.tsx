@@ -176,7 +176,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
                       : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
                   )}
                 >
-                  Old Finance
+                  Payments & records
                 </Link>
                 <Link
                   href="/finance/new"
@@ -188,7 +188,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
                       : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
                   )}
                 >
-                  New Finance
+                  Overview
                 </Link>
               </div>
             )}
