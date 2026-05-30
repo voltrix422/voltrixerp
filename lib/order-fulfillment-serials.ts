@@ -1,9 +1,17 @@
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
+import type { ManualInventoryItem } from "@/lib/manual-inventory"
 import {
   type Order,
   type OrderItem,
+  isManualDispatchLine,
   resolveOrderItemModel,
 } from "@/lib/orders"
+
+export type ManualDispatchMeta = {
+  availableQty: number
+  inventoryStockId?: string | null
+  manualId?: string
+}
 
 export type OrderFulfillmentSerialAllocation = {
   orderItemId: string
@@ -40,8 +48,24 @@ export function orderHasSerialAllocations(order: Pick<Order, "fulfillmentSerialA
   return (order.fulfillmentSerialAllocations?.length ?? 0) > 0
 }
 
-function modelKey(model: string): string {
+export function modelKey(model: string): string {
   return model.trim().toLowerCase()
+}
+
+export function manualDispatchMetaByModel(
+  items: ManualInventoryItem[],
+): Record<string, ManualDispatchMeta> {
+  const map: Record<string, ManualDispatchMeta> = {}
+  for (const item of items) {
+    const model = item.model?.trim()
+    if (!model) continue
+    map[modelKey(model)] = {
+      availableQty: item.availableQty ?? 0,
+      inventoryStockId: item.inventoryStockId,
+      manualId: item.id,
+    }
+  }
+  return map
 }
 
 export function inStockUnitsForOrderLine(
@@ -85,6 +109,7 @@ export function validateSerialSelections(
   order: Pick<Order, "items">,
   selections: Record<string, string[]>,
   units: InventorySerialUnit[],
+  manualMeta: Record<string, ManualDispatchMeta> = {},
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = []
   const unitsById = new Map(units.map((u) => [u.id, u]))
@@ -95,10 +120,18 @@ export function validateSerialSelections(
     const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
     const selected = selections[item.id] ?? []
     const available = inStockUnitsForOrderLine(units, item)
+    const manual = isManualDispatchLine(item)
+    const manualAvail = manualMeta[modelKey(model)]?.availableQty
 
     if (needQty === 0) continue
 
-    if (available.length < needQty) {
+    if (manual) {
+      if (manualAvail !== undefined && needQty > manualAvail) {
+        errors.push(
+          `${model}: manual stock is ${manualAvail} (order needs ${needQty})`,
+        )
+      }
+    } else if (available.length < needQty) {
       errors.push(
         `${model}: only ${available.length} unit(s) in stock (order needs ${needQty})`,
       )
@@ -106,7 +139,9 @@ export function validateSerialSelections(
 
     if (selected.length !== needQty) {
       errors.push(
-        `${model}: select ${needQty} serial number(s) (selected ${selected.length})`,
+        manual
+          ? `${model}: scan ${needQty} serial number(s) at dispatch (scanned ${selected.length})`
+          : `${model}: select ${needQty} serial number(s) (selected ${selected.length})`,
       )
       continue
     }

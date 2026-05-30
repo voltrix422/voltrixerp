@@ -17,8 +17,10 @@ import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { getInventorySerialUnits } from "@/lib/inventory-serial-units"
+import { getManualInventoryItems } from "@/lib/manual-inventory"
 import {
   buildAllocationsFromSelections,
+  manualDispatchMetaByModel,
   orderHasSerialAllocations,
   orderLinesRequiringSerials,
   selectionsFromAllocations,
@@ -396,9 +398,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     let fulfillmentSerialAllocations = order.fulfillmentSerialAllocations ?? []
 
     if (linesNeedSerials.length > 0 && !order.inventoryDeductedAt) {
-      const units = await getInventorySerialUnits()
+      const [units, manualItems] = await Promise.all([
+        getInventorySerialUnits(),
+        getManualInventoryItems().catch(() => []),
+      ])
       const unitsById = new Map(units.map((u) => [u.id, u]))
-      const check = validateSerialSelections(order, serialSelections, units)
+      const manualMeta = manualDispatchMetaByModel(manualItems)
+      const check = validateSerialSelections(order, serialSelections, units, manualMeta)
       if (!check.valid) {
         setFulfillTab("products")
         alert(check.errors.join("\n"))

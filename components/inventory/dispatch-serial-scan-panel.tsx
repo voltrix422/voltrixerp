@@ -7,12 +7,11 @@ import {
   findInventorySerialByNumber,
   getInventorySerialUnits,
   saveInventorySerialUnit,
-  serialNumberKey,
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
-import { inStockUnitsForOrderLine } from "@/lib/order-fulfillment-serials"
+import { inStockUnitsForOrderLine, modelKey, type ManualDispatchMeta } from "@/lib/order-fulfillment-serials"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
-import { type OrderItem, resolveOrderItemModel } from "@/lib/orders"
+import { type OrderItem, isManualDispatchLine, resolveOrderItemModel } from "@/lib/orders"
 
 type Props = {
   lines: OrderItem[]
@@ -20,6 +19,7 @@ type Props = {
   onChange: (next: Record<string, string[]>) => void
   units: InventorySerialUnit[]
   onUnitsChange: (units: InventorySerialUnit[]) => void
+  manualMeta?: Record<string, ManualDispatchMeta>
   disabled?: boolean
 }
 
@@ -41,6 +41,7 @@ export function DispatchSerialScanPanel({
   onChange,
   units,
   onUnitsChange,
+  manualMeta = {},
   disabled,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -85,6 +86,16 @@ export function DispatchSerialScanPanel({
         return
       }
 
+      const isManual = isManualDispatchLine(activeLine)
+      const manualInfo = manualMeta[modelKey(model)]
+      if (isManual && manualInfo !== undefined && selected.length >= manualInfo.availableQty) {
+        setMessage({
+          type: "err",
+          text: `Manual stock exhausted (${manualInfo.availableQty} available).`,
+        })
+        return
+      }
+
       setBusy(true)
       setMessage(null)
       try {
@@ -96,7 +107,10 @@ export function DispatchSerialScanPanel({
             productName: activeLine.description,
             model,
             assignedName: activeLine.description,
-            notes: `Registered at dispatch scan`,
+            inventoryStockId: manualInfo?.inventoryStockId ?? undefined,
+            notes: manualInfo?.manualId
+              ? `manual:${manualInfo.manualId}`
+              : `Registered at dispatch scan`,
             scannedBy: "inventory-dispatch",
             createWarranty: false,
           })
@@ -111,8 +125,8 @@ export function DispatchSerialScanPanel({
           return
         }
 
-        const modelKey = serialNumberKey(model)
-        if (serialNumberKey(unit.model || "") !== modelKey) {
+        const expectedModelKey = modelKey(model)
+        if (modelKey(unit.model || "") !== expectedModelKey) {
           setMessage({
             type: "err",
             text: `${unit.serialNumber} is model "${unit.model}" — expected "${model}".`,
@@ -157,7 +171,7 @@ export function DispatchSerialScanPanel({
         inputRef.current?.focus()
       }
     },
-    [activeLine, disabled, lineProgress, onChange, onUnitsChange, units, value],
+    [activeLine, disabled, lineProgress, manualMeta, onChange, onUnitsChange, units, value],
   )
 
   if (lines.length === 0) return null
@@ -170,7 +184,9 @@ export function DispatchSerialScanPanel({
           <p className="text-sm font-semibold">Scan to dispatch</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
             Scan each unit&apos;s barcode or QR. Serial numbers are linked to this order and removed from stock.
-            Unknown SNs for this model are registered automatically.
+            {lines.some(isManualDispatchLine)
+              ? " Manual stock items: scan one SN per unit at dispatch — they are registered automatically."
+              : " Unknown SNs for this model are registered automatically."}
           </p>
         </div>
       </div>
@@ -251,14 +267,34 @@ export function DispatchSerialScanPanel({
         </p>
       )}
 
-      {activeLine && (
-        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-          In stock for this model:{" "}
-          <span className="font-medium text-[hsl(var(--foreground))]">
-            {inStockUnitsForOrderLine(units, activeLine).length}
-          </span>
-        </p>
-      )}
+      {activeLine && (() => {
+        const model = resolveOrderItemModel(activeLine)
+        const isManual = isManualDispatchLine(activeLine)
+        const manualInfo = model ? manualMeta[modelKey(model)] : undefined
+        const serialCount = inStockUnitsForOrderLine(units, activeLine).length
+        if (isManual && manualInfo !== undefined) {
+          return (
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              Manual stock:{" "}
+              <span className="font-medium text-[hsl(var(--foreground))]">
+                {manualInfo.availableQty} {activeLine.unit || "pcs"}
+              </span>
+              {serialCount > 0 && (
+                <>
+                  {" "}
+                  · <span className="font-medium">{serialCount}</span> pre-registered serial(s)
+                </>
+              )}
+            </p>
+          )
+        }
+        return (
+          <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+            In stock for this model:{" "}
+            <span className="font-medium text-[hsl(var(--foreground))]">{serialCount}</span>
+          </p>
+        )
+      })()}
 
       {recent.length > 0 && (
         <div className="text-xs">

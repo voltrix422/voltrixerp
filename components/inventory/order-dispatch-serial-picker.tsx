@@ -7,12 +7,15 @@ import {
   getInventorySerialUnits,
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
+import { getManualInventoryItems } from "@/lib/manual-inventory"
 import {
   inStockUnitsForOrderLine,
+  manualDispatchMetaByModel,
+  modelKey,
   orderLinesRequiringSerials,
   validateSerialSelections,
 } from "@/lib/order-fulfillment-serials"
-import { type Order, resolveOrderItemModel } from "@/lib/orders"
+import { type Order, isManualDispatchLine, resolveOrderItemModel } from "@/lib/orders"
 
 type Props = {
   order: Order
@@ -30,6 +33,7 @@ export function OrderDispatchSerialPicker({
   onValidationChange,
 }: Props) {
   const [units, setUnits] = useState<InventorySerialUnit[]>([])
+  const [manualMeta, setManualMeta] = useState(manualDispatchMetaByModel([]))
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [mode, setMode] = useState<"scan" | "pick">("scan")
@@ -42,8 +46,14 @@ export function OrderDispatchSerialPicker({
       setLoading(true)
       setLoadError(null)
       try {
-        const data = await getInventorySerialUnits()
-        if (!cancelled) setUnits(data)
+        const [serialData, manualItems] = await Promise.all([
+          getInventorySerialUnits(),
+          getManualInventoryItems().catch(() => []),
+        ])
+        if (!cancelled) {
+          setUnits(serialData)
+          setManualMeta(manualDispatchMetaByModel(manualItems))
+        }
       } catch {
         if (!cancelled) setLoadError("Could not load serial numbers from warehouse.")
       } finally {
@@ -56,8 +66,8 @@ export function OrderDispatchSerialPicker({
   }, [])
 
   const validation = useMemo(
-    () => validateSerialSelections(order, value, units),
-    [order, value, units],
+    () => validateSerialSelections(order, value, units, manualMeta),
+    [order, value, units, manualMeta],
   )
 
   useEffect(() => {
@@ -139,6 +149,7 @@ export function OrderDispatchSerialPicker({
           onChange={onChange}
           units={units}
           onUnitsChange={setUnits}
+          manualMeta={manualMeta}
           disabled={disabled}
         />
       )}
@@ -149,7 +160,9 @@ export function OrderDispatchSerialPicker({
         </p>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           {mode === "scan"
-            ? "Use the scanner above, or switch to pick from list. Each unit needs one SN before dispatch."
+            ? lines.some(isManualDispatchLine)
+              ? "Scan each unit's QR one by one. Manual stock uses qty from inventory — SNs are captured at dispatch."
+              : "Use the scanner above, or switch to pick from list. Each unit needs one SN before dispatch."
             : "Pick one serial number per unit ordered. SNs are marked delivered and linked to this order."}
         </p>
       </div>
@@ -224,7 +237,9 @@ export function OrderDispatchSerialPicker({
 
             {available.length === 0 ? (
               <p className="px-3 py-3 text-xs text-amber-800 dark:text-amber-200">
-                No in-stock serials for this model. Scan units into inventory first.
+                {isManualDispatchLine(item)
+                  ? `No pre-registered serials. Use Scan to dispatch — ${manualMeta[modelKey(model)]?.availableQty ?? "?"} unit(s) in manual stock.`
+                  : "No in-stock serials for this model. Scan units into inventory first."}
               </p>
             ) : (
               <ul className="max-h-40 overflow-y-auto divide-y">

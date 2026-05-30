@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { ensureInventoryStockForModel, findStockByModel } from "@/lib/ensure-model-stock-link"
+import { decrementManualInventoryByModel } from "@/lib/manual-inventory-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 
 export type OrderDeductLine = {
@@ -32,6 +33,13 @@ export type OrderDeductResult = {
 
 function normalizeKey(value: string): string {
   return value.trim().toLowerCase()
+}
+
+function isManualInventoryLine(item: OrderDeductLine): boolean {
+  const id = item.inventoryItemId?.trim()
+  if (id?.startsWith("man:")) return true
+  const model = item.model?.trim()
+  return !!model?.toUpperCase().startsWith("MAN-")
 }
 
 export function getOrderLineMatchKeys(item: OrderDeductLine): string[] {
@@ -427,12 +435,21 @@ export async function deductInventoryForOrderServer(
     serialUnitsDeducted += serial.count
 
     if (serial.ok) {
+      if (isManualInventoryLine(item) && serial.count > 0) {
+        const model = item.model?.trim()
+        if (model) await decrementManualInventoryByModel(model, serial.count)
+      }
       deductedLines += 1
       continue
     }
 
     const stock = await deductStockForLine(order, item)
     if (stock.ok) {
+      if (isManualInventoryLine(item)) {
+        const model = item.model?.trim()
+        const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
+        if (model && qty > 0) await decrementManualInventoryByModel(model, qty)
+      }
       deductedLines += 1
       continue
     }

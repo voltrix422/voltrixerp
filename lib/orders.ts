@@ -36,6 +36,15 @@ export function isManualInventoryOrderItem(item: Pick<OrderItem, "inventoryItemI
   return !!item.inventoryItemId?.trim().startsWith("man:")
 }
 
+/** Manual-added stock: qty tracked without pre-scanned serials; SNs are captured at dispatch. */
+export function isManualDispatchLine(
+  item: Pick<OrderItem, "inventoryItemId" | "model">,
+): boolean {
+  if (isManualInventoryOrderItem(item)) return true
+  const model = item.model?.trim()
+  return !!model?.toUpperCase().startsWith("MAN-")
+}
+
 export function parseManualInventoryOrderItemId(inventoryItemId?: string): string | null {
   const id = inventoryItemId?.trim()
   if (!id?.startsWith("man:")) return null
