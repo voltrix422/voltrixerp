@@ -1,7 +1,11 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { formatSerialListForLine, orderHasSerialAllocations } from "@/lib/order-fulfillment-serials"
-import type { Order } from "@/lib/orders"
+import {
+  getAllocationsForOrderItem,
+  orderHasSerialAllocations,
+} from "@/lib/order-fulfillment-serials"
+import type { Order, OrderItem } from "@/lib/orders"
+import { resolveOrderItemModel } from "@/lib/orders"
 
 type DispatchNoteOptions = {
   showPricing?: boolean
@@ -28,6 +32,69 @@ async function registerGeist(doc: jsPDF): Promise<string> {
   if (reg)  { doc.addFileToVFS("Geist-Regular.ttf", reg);  doc.addFont("Geist-Regular.ttf", "Geist", "normal") }
   if (bold) { doc.addFileToVFS("Geist-Bold.ttf",    bold); doc.addFont("Geist-Bold.ttf",    "Geist", "bold")   }
   return reg ? "Geist" : "helvetica"
+}
+
+function itemLabel(item: OrderItem, model?: string): string {
+  const m = model || resolveOrderItemModel(item)
+  if (m && m.trim() && m.trim().toLowerCase() !== item.description.trim().toLowerCase()) {
+    return `${item.description}\nModel: ${m}`
+  }
+  return item.description
+}
+
+/** One table row per scanned unit when serials exist — easier to read on paper. */
+function buildDispatchTableRows(
+  order: Order,
+  showSerialCol: boolean,
+  showPricing: boolean,
+): string[][] {
+  const rows: string[][] = []
+  let rowNum = 0
+
+  for (const item of order.items) {
+    const allocations = showSerialCol ? getAllocationsForOrderItem(order, item.id) : []
+    const serials = allocations.map((a) => a.serialNumber)
+    const model = allocations[0]?.model || resolveOrderItemModel(item) || ""
+
+    if (serials.length > 0) {
+      for (const sn of serials) {
+        rowNum += 1
+        const base = [
+          `${rowNum}`,
+          itemLabel(item, model),
+          "1",
+          item.unit || "pcs",
+        ]
+        if (showSerialCol) base.push(sn)
+        if (showPricing) {
+          base.push(
+            `PKR ${Number(item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+            `PKR ${Number(item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+          )
+        }
+        rows.push(base)
+      }
+      continue
+    }
+
+    rowNum += 1
+    const base = [
+      `${rowNum}`,
+      itemLabel(item, model),
+      item.qty.toString(),
+      item.unit || "pcs",
+    ]
+    if (showSerialCol) base.push("—")
+    if (showPricing) {
+      base.push(
+        `PKR ${Number(item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+        `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
+      )
+    }
+    rows.push(base)
+  }
+
+  return rows
 }
 
 export async function generateDispatchNotePDF(
@@ -153,29 +220,17 @@ export async function generateDispatchNotePDF(
 
   const showSerialCol = orderHasSerialAllocations(order)
 
-  const tableData = order.items.map((item, idx) => {
-    const base = [
-      `${idx + 1}`,
-      item.description,
-      item.qty.toString(),
-      item.unit,
-    ]
-    if (showSerialCol) base.push(formatSerialListForLine(order, item.id))
-    if (!showPricing) return base
-    return [
-      ...base,
-      `PKR ${Number(item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
-      `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`,
-    ]
-  })
+  const tableData = buildDispatchTableRows(order, showSerialCol, showPricing)
 
   const dispatchHead = showPricing
     ? ["#", "ITEM DESCRIPTION", "QTY", "UNIT", "UNIT PRICE", "TOTAL"]
     : ["#", "ITEM DESCRIPTION", "QTY", "UNIT"]
   if (showSerialCol) {
-    const insertAt = showPricing ? 4 : 4
+    const insertAt = 4
     dispatchHead.splice(insertAt, 0, "SERIAL NO.")
   }
+
+  const serialColIdx = showSerialCol ? 4 : -1
 
   autoTable(doc, {
     startY: y,
@@ -191,21 +246,38 @@ export async function generateDispatchNotePDF(
       cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
     },
     bodyStyles: {
-      fontSize: 9,
+      fontSize: 8.5,
       textColor: black,
       font: FONT,
       cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
+      valign: "middle",
     },
     alternateRowStyles: { fillColor: rowAlt },
     columnStyles: {
-      0: { cellWidth: 8,  halign: "center" },
-      1: { cellWidth: "auto" },
-      2: { cellWidth: 14, halign: "center" },
-      3: { cellWidth: 16, halign: "center" },
-      ...(showPricing ? {
-        4: { cellWidth: 36, halign: "right" as const },
-        5: { cellWidth: 36, halign: "right" as const, fontStyle: "bold" as const },
-      } : {}),
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: showSerialCol ? 58 : "auto" },
+      2: { cellWidth: 12, halign: "center" },
+      3: { cellWidth: 14, halign: "center" },
+      ...(showSerialCol
+        ? {
+            [serialColIdx]: {
+              cellWidth: 42,
+              fontSize: 8,
+              halign: "left" as const,
+              overflow: "linebreak" as const,
+            },
+          }
+        : {}),
+      ...(showPricing
+        ? {
+            [showSerialCol ? 5 : 4]: { cellWidth: 30, halign: "right" as const },
+            [showSerialCol ? 6 : 5]: {
+              cellWidth: 30,
+              halign: "right" as const,
+              fontStyle: "bold" as const,
+            },
+          }
+        : {}),
     },
     ...(showPricing ? {
       foot: [[
@@ -224,7 +296,7 @@ export async function generateDispatchNotePDF(
   const leftW  = showPricing ? 88 : pageW - mL - mR
   const rightW = 82
   const rightX = pageW - mR - rightW
-  const boxH   = 52
+  const boxH   = 58
 
   // Left box — Order Information
   doc.setFillColor(...lightBg)
@@ -241,11 +313,13 @@ export async function generateDispatchNotePDF(
   doc.text("ORDER INFORMATION", mL + leftW / 2, y + 5.5, { align: "center" })
 
   const totalQty = order.items.reduce((s, i) => s + i.qty, 0)
+  const totalSerials = (order.fulfillmentSerialAllocations ?? []).length
   const infoRows = [
-    ["Total Items:",    `${order.items.length}`],
+    ["Total Line Items:", `${order.items.length}`],
     ["Total Quantity:", `${totalQty} units`],
-    ["Order Status:",   order.status.replace(/_/g, " ").toUpperCase()],
-    ["Created By:",     order.createdBy || "—"],
+    ...(totalSerials > 0 ? [["Serial Numbers:", `${totalSerials} scanned`]] : []),
+    ["Order Status:", order.status.replace(/_/g, " ").toUpperCase()],
+    ["Created By:", order.createdBy || "—"],
   ]
   doc.setFontSize(8.5)
   infoRows.forEach(([label, val], i) => {
@@ -385,7 +459,17 @@ export async function generateDispatchNotePDF(
   doc.setFont(FONT, "normal")
   doc.setFontSize(8.5)
   doc.setTextColor(...black)
-  doc.text(`Name: ${recvName0 || "_______________________"}`, rx + 4, y + 12)
+  const recvLineY = y + 12
+  if (recvName0) {
+    doc.text(`Name: ${recvName0}`, rx + 4, recvLineY)
+  } else {
+    doc.setTextColor(...darkGray)
+    doc.text("Name:", rx + 4, recvLineY)
+    doc.setDrawColor(...darkGray)
+    doc.setLineWidth(0.3)
+    doc.line(rx + 16, recvLineY, rx + sigBoxW - 4, recvLineY)
+    doc.setTextColor(...black)
+  }
   if (recvCnic0) {
     doc.setFontSize(7.5)
     doc.text(`CNIC: ${recvCnic0}`, rx + 4, y + 17)
