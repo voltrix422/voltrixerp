@@ -9,6 +9,14 @@ import {
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
 import { getInventoryModelLabels, saveInventoryModelLabel } from "@/lib/inventory-model-labels"
+import { getManualInventoryItems } from "@/lib/manual-inventory"
+import {
+  buildUnifiedInventoryGroups,
+  filterUnifiedGroups,
+  unifiedGroupInStock,
+  unifiedGroupTotal,
+  type UnifiedInventoryModelGroup,
+} from "@/lib/unified-inventory-groups"
 import { downloadSerialUnitsExcel } from "@/lib/inventory-excel-export"
 import { InventoryModelGroup } from "@/components/inventory/inventory-model-group"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
@@ -46,6 +54,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deletingModel, setDeletingModel] = useState<string | null>(null)
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({})
+  const [inventoryGroups, setInventoryGroups] = useState<UnifiedInventoryModelGroup[]>([])
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
   const [savingModelLabel, setSavingModelLabel] = useState(false)
@@ -53,10 +62,14 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const loadUnits = useCallback(async () => {
     setLoading(true)
     try {
-      const [rows, labels] = await Promise.all([
+      const [rows, labels, manualItems, stockRes] = await Promise.all([
         getInventorySerialUnits(),
         getInventoryModelLabels().catch(() => []),
+        getManualInventoryItems().catch(() => []),
+        fetch("/api/db/inventory-stock", { cache: "no-store" }).catch(() => null),
       ])
+      const stockRows = stockRes?.ok ? await stockRes.json() : []
+
       setUnits(rows)
       const map: Record<string, string> = {}
       for (const label of labels) {
@@ -68,7 +81,25 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
         const name = unit.productName?.trim()
         if (name && name !== m) map[m] = name
       }
+      for (const manual of manualItems) {
+        if (manual.model && manual.name) map[manual.model] = manual.name
+      }
       setModelLabels(map)
+
+      const uniqueBySn = new Map<string, InventorySerialUnit>()
+      for (const unit of rows) {
+        const key = serialNumberKey(unit.serialNumber)
+        if (!key) continue
+        if (!uniqueBySn.has(key)) uniqueBySn.set(key, unit)
+      }
+      setInventoryGroups(
+        buildUnifiedInventoryGroups(
+          Array.from(uniqueBySn.values()),
+          manualItems,
+          Array.isArray(stockRows) ? stockRows : [],
+          map,
+        ),
+      )
     } catch {
       toast({ title: "Error", message: "Could not load inventory.", type: "error" })
     } finally {
@@ -146,29 +177,30 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     )
   }, [uniqueUnits, search])
 
-  const groupedByModel = useMemo(() => {
-    const map = new Map<string, InventorySerialUnit[]>()
-    for (const unit of filteredUnits) {
-      const key = unit.model?.trim() || "Unknown model"
-      const list = map.get(key) ?? []
-      list.push(unit)
-      map.set(key, list)
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [filteredUnits])
+  const filteredGroups = useMemo(
+    () => filterUnifiedGroups(inventoryGroups, search),
+    [inventoryGroups, search],
+  )
 
   useEffect(() => {
     const q = search.trim()
     if (!q) return
     setExpandedModels((prev) => {
       const next = { ...prev }
-      for (const [key] of groupedByModel) next[key] = true
+      for (const group of filteredGroups) next[group.modelKey] = true
       return next
     })
-  }, [search, groupedByModel])
+  }, [search, filteredGroups])
 
-  const totalBoxes = filteredUnits.length
-  const inStockCount = filteredUnits.filter((u) => u.status === "in_stock").length
+  const totalBoxes = useMemo(
+    () => filteredGroups.reduce((sum, g) => sum + unifiedGroupTotal(g), 0),
+    [filteredGroups],
+  )
+  const inStockCount = useMemo(
+    () => filteredGroups.reduce((sum, g) => sum + unifiedGroupInStock(g), 0),
+    [filteredGroups],
+  )
+  const modelCount = filteredGroups.length
 
   function exportExcel() {
     setExportingExcel(true)
@@ -202,7 +234,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     setDeletingId(unit.id)
     try {
       await deleteInventorySerialUnit(unit.id)
-      setUnits((prev) => prev.filter((u) => u.id !== unit.id))
+      await loadUnits()
       onUnitsChanged?.()
       toast({
         title: "Removed",
@@ -233,7 +265,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     setDeletingModel(modelKey)
     try {
       const deleted = await deleteInventorySerialUnitsByModel(modelKey)
-      setUnits((prev) => prev.filter((u) => (u.model?.trim() || "Unknown model") !== modelKey))
+      await loadUnits()
       setModelLabels((prev) => {
         const next = { ...prev }
         delete next[modelKey]
@@ -269,7 +301,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
 
   const statItems = [
     { label: "Boxes", value: totalBoxes, icon: Boxes },
-    { label: "Models", value: groupedByModel.length, icon: Layers3 },
+    { label: "Models", value: modelCount, icon: Layers3 },
     { label: "In stock", value: inStockCount, icon: CircleCheck },
   ]
 
@@ -326,7 +358,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
         </div>
       </div>
 
-      {totalBoxes === 0 ? (
+      {modelCount === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center text-[hsl(var(--muted-foreground))] rounded-xl border border-dashed bg-[hsl(var(--card))]/50">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--muted))]/30 mb-3">
             <Package className="h-7 w-7 opacity-40" />
@@ -353,25 +385,32 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
             </span>
           </div>
           <div className="divide-y">
-          {groupedByModel.map(([modelKey, modelUnits]) => (
+          {filteredGroups.map((group) => (
             <InventoryModelGroup
-              key={modelKey}
-              modelKey={modelKey}
-              modelUnits={modelUnits}
-              expanded={expandedModels[modelKey] === true}
-              onToggle={() => setExpandedModels((prev) => ({ ...prev, [modelKey]: !prev[modelKey] }))}
-              customName={getDisplayName(modelKey)}
-              isEditing={editingModel === modelKey}
+              key={group.modelKey}
+              modelKey={group.modelKey}
+              modelUnits={group.units}
+              stockOnly={group.stockOnly}
+              expanded={expandedModels[group.modelKey] === true}
+              onToggle={() =>
+                setExpandedModels((prev) => ({ ...prev, [group.modelKey]: !prev[group.modelKey] }))
+              }
+              customName={getDisplayName(group.modelKey) || group.displayName}
+              isEditing={editingModel === group.modelKey}
               editingName={editingName}
               savingModelLabel={savingModelLabel}
               deletingId={deletingId}
-              deletingModel={deletingModel === modelKey}
+              deletingModel={deletingModel === group.modelKey}
               onEditingNameChange={setEditingName}
-              onStartEdit={(e) => startEditModelName(modelKey, e)}
-              onSaveName={() => void saveModelName(modelKey)}
+              onStartEdit={(e) => startEditModelName(group.modelKey, e)}
+              onSaveName={() => void saveModelName(group.modelKey)}
               onCancelEdit={() => setEditingModel(null)}
               onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
-              onDeleteModel={() => handleDeleteModel(modelKey, modelUnits.length)}
+              onDeleteModel={() =>
+                group.units.length > 0
+                  ? handleDeleteModel(group.modelKey, group.units.length)
+                  : undefined
+              }
             />
           ))}
           </div>

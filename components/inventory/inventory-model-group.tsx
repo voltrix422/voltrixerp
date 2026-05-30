@@ -8,7 +8,9 @@ import {
   parseSerialOrderRef,
 } from "@/lib/parse-serial-order-ref"
 import { InventoryModelPricePanel } from "@/components/inventory/inventory-model-price-panel"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import type { StockOnlyMeta } from "@/lib/unified-inventory-groups"
 import { ChevronDown, ChevronRight, Loader2, Pencil, Trash2 } from "lucide-react"
 
 function formatDate(iso?: string) {
@@ -37,6 +39,7 @@ export function InventoryModelGroup({
   onCancelEdit,
   onDeleteUnit,
   onDeleteModel,
+  stockOnly,
 }: {
   modelKey: string
   modelUnits: InventorySerialUnit[]
@@ -54,10 +57,16 @@ export function InventoryModelGroup({
   onCancelEdit: () => void
   onDeleteUnit: (unit: InventorySerialUnit) => void
   onDeleteModel: () => void | Promise<boolean | void>
+  stockOnly?: StockOnlyMeta
 }) {
-  const count = modelUnits.length
-  const inStock = modelUnits.filter((u) => u.status === "in_stock").length
+  const count = modelUnits.length > 0 ? modelUnits.length : (stockOnly?.total ?? 0)
+  const inStock =
+    modelUnits.length > 0
+      ? modelUnits.filter((u) => u.status === "in_stock").length
+      : (stockOnly?.inStock ?? 0)
+  const unitLabel = stockOnly?.unit || "pcs"
   const title = customName || modelKey
+  const hasSerials = modelUnits.length > 0
 
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
 
@@ -129,7 +138,14 @@ export function InventoryModelGroup({
             onClick={openPricePanel}
             title="Click for prices"
           >
-            <span className="min-w-0 text-sm font-medium truncate">{title}</span>
+            <span className="min-w-0 text-sm font-medium truncate flex items-center gap-1.5">
+              {title}
+              {stockOnly?.isManual && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                  Manual
+                </Badge>
+              )}
+            </span>
             <span className="min-w-0 text-xs font-mono text-[hsl(var(--muted-foreground))] truncate hidden sm:block">
               {modelKey}
             </span>
@@ -137,7 +153,7 @@ export function InventoryModelGroup({
               {inStock}/{count}
             </span>
             <span className="text-sm font-semibold text-[#1faca6] tabular-nums text-right">
-              {count} {count === 1 ? "pc" : "pcs"}
+              {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}
             </span>
           </button>
           <button
@@ -153,6 +169,17 @@ export function InventoryModelGroup({
 
       {expanded && (
         <div className="overflow-x-auto border-t border-[hsl(var(--border))] bg-[hsl(var(--muted))]/5">
+          {!hasSerials ? (
+            <div className="px-4 py-4 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+              <p>
+                <span className="font-semibold text-[hsl(var(--foreground))]">{inStock}</span> of{" "}
+                <span className="font-semibold text-[hsl(var(--foreground))]">{count}</span>{" "}
+                {unitLabel} available
+                {stockOnly?.isManual ? " (manual inventory)" : ""}.
+              </p>
+              <p>Scan QR codes at dispatch or use Scan QR above to register serial numbers.</p>
+            </div>
+          ) : (
           <table className="w-full text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b border-[hsl(var(--border))]">
@@ -206,6 +233,7 @@ export function InventoryModelGroup({
               )})}
             </tbody>
           </table>
+          )}
         </div>
       )}
     </div>
