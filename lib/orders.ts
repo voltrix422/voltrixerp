@@ -249,11 +249,15 @@ export async function saveOrder(order: Order): Promise<void> {
 }
 
 export async function deleteOrder(id: string): Promise<void> {
-  await fetch("/api/db/orders", {
+  const res = await fetch("/api/db/orders", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
   })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || "Failed to delete order")
+  }
 }
 
 export async function generateOrderNumber(): Promise<string> {

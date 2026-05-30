@@ -112,6 +112,13 @@ export async function restoreManualInventoryByModel(model: string, qty: number) 
     where: { id: item.id },
     data: { availableQty: next },
   })
+
+  if (item.inventoryStockId) {
+    await prisma.erpInventoryStock.update({
+      where: { id: item.inventoryStockId },
+      data: { availableQty: next },
+    }).catch(() => {})
+  }
 }
 
 export function manualInventoryItemId(manualId: string) {

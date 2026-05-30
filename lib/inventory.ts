@@ -77,8 +77,18 @@ export async function deductInventoryForOrder(order: Order): Promise<InventoryDe
 /** Whether deleting/cancelling this order should try to put stock back. */
 export function orderMayHaveInventoryDeduction(order: Order): boolean {
   if (order.items.every((item) => item.isCustom)) return false
+  if (order.inventoryDeductedAt) return true
+  if ((order.fulfillmentSerialAllocations?.length ?? 0) > 0) return true
+  const hasInventoryLines = order.items.some(
+    (item) => !item.isCustom && !!item.inventoryItemId?.trim(),
+  )
+  if (
+    hasInventoryLines &&
+    ["processing", "shipped", "delivered"].includes(order.status)
+  ) {
+    return true
+  }
   return !!(
-    order.inventoryDeductedAt ||
     (order.dispatcher || "").trim() ||
     (order.fulfillmentDispatcher || "").trim() ||
     order.status === "processing" ||

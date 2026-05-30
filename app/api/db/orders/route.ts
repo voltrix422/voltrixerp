@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
+import {
+  restoreInventoryForOrderServer,
+  orderMayNeedInventoryRestore,
+  type OrderDeductInput,
+} from "@/lib/inventory-order-deduct-server"
+import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 
 function fulfillmentData(o: Record<string, unknown>) {
   return {
@@ -71,6 +77,41 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const { id } = await req.json()
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 })
+  }
+
+  const record = await prisma.erpOrder.findUnique({ where: { id } })
+  if (record) {
+    const order: OrderDeductInput = {
+      id: record.id,
+      orderNumber: record.orderNumber,
+      clientName: record.clientName,
+      createdBy: record.createdBy ?? undefined,
+      status: record.status,
+      dispatcher: record.dispatcher,
+      fulfillmentDispatcher: record.fulfillmentDispatcher,
+      inventoryDeductedAt: record.inventoryDeductedAt,
+      fulfillmentSerialAllocations: Array.isArray(record.fulfillmentSerialAllocations)
+        ? (record.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
+        : [],
+      items: Array.isArray(record.items)
+        ? (record.items as OrderDeductInput["items"])
+        : [],
+    }
+    if (orderMayNeedInventoryRestore(order)) {
+      try {
+        await restoreInventoryForOrderServer(order)
+      } catch (err) {
+        console.error("[orders DELETE] inventory restore failed:", err)
+        return NextResponse.json(
+          { error: "Could not restore inventory for this order. Order was not deleted." },
+          { status: 500 },
+        )
+      }
+    }
+  }
+
   await prisma.erpOrder.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db"
 import { ensureInventoryStockForModel, findStockByModel } from "@/lib/ensure-model-stock-link"
-import { decrementManualInventoryByModel } from "@/lib/manual-inventory-server"
+import { decrementManualInventoryByModel, restoreManualInventoryByModel } from "@/lib/manual-inventory-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 
 export type OrderDeductLine = {
@@ -18,6 +18,9 @@ export type OrderDeductInput = {
   orderNumber: string
   clientName: string
   createdBy?: string
+  status?: string
+  dispatcher?: string | null
+  fulfillmentDispatcher?: string | null
   inventoryDeductedAt?: string | null
   fulfillmentSerialAllocations?: OrderFulfillmentSerialAllocation[]
   items: OrderDeductLine[]
@@ -67,6 +70,34 @@ export function getOrderLineMatchKeys(item: OrderDeductLine): string[] {
 
 function orderUnitTag(orderId: string) {
   return `order:${orderId}`
+}
+
+function orderWasDispatched(order: OrderDeductInput): boolean {
+  return !!(
+    order.inventoryDeductedAt ||
+    (order.dispatcher || "").trim() ||
+    (order.fulfillmentDispatcher || "").trim() ||
+    order.status === "processing" ||
+    order.status === "shipped" ||
+    order.status === "delivered"
+  )
+}
+
+/** Whether deleting this order should restore inventory. */
+export function orderMayNeedInventoryRestore(order: OrderDeductInput): boolean {
+  if (order.items.every((item) => item.isCustom)) return false
+  if (order.inventoryDeductedAt) return true
+  if ((order.fulfillmentSerialAllocations?.length ?? 0) > 0) return true
+  const hasInventoryLines = order.items.some(
+    (item) => !item.isCustom && !!item.inventoryItemId?.trim(),
+  )
+  if (
+    hasInventoryLines &&
+    ["processing", "shipped", "delivered"].includes(order.status ?? "")
+  ) {
+    return true
+  }
+  return orderWasDispatched(order)
 }
 
 async function logHistory(
@@ -524,9 +555,14 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
     })
     for (const unit of allocatedUnits) {
       if (restoredIds.has(unit.id)) continue
+      const unitNotes = unit.notes || ""
+      const linkedToOrder =
+        unitNotes.includes(tag) ||
+        (unit.status === "delivered" && unitNotes.includes(order.orderNumber))
+      if (unit.status === "in_stock" && !linkedToOrder) continue
       restoredIds.add(unit.id)
       models.add(unit.model)
-      let notes = (unit.notes || "")
+      let notes = unitNotes
         .replace(tag, "")
         .replace(order.orderNumber, "")
         .replace(/→/g, "")
@@ -538,11 +574,16 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
     }
   }
 
-  async function restoreUnit(unit: { id: string; model: string; notes: string | null }) {
+  async function restoreUnit(unit: { id: string; model: string; notes: string | null; status?: string }) {
     if (restoredIds.has(unit.id)) return
+    const unitNotes = unit.notes || ""
+    const linkedToOrder =
+      unitNotes.includes(tag) ||
+      (unit.status === "delivered" && unitNotes.includes(order.orderNumber))
+    if (unit.status === "in_stock" && !linkedToOrder) return
     restoredIds.add(unit.id)
     models.add(unit.model)
-    let notes = (unit.notes || "")
+    let notes = unitNotes
       .replace(tag, "")
       .replace(order.orderNumber, "")
       .replace(/→/g, "")
@@ -594,14 +635,69 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
     }
   }
 
+  const restoredCountByLine = new Map<string, number>()
+  for (const alloc of order.fulfillmentSerialAllocations ?? []) {
+    if (restoredIds.has(alloc.unitId)) {
+      restoredCountByLine.set(
+        alloc.orderItemId,
+        (restoredCountByLine.get(alloc.orderItemId) ?? 0) + 1,
+      )
+    }
+  }
+
+  // Match restored serials without explicit allocation to order lines by model
+  if (restoredIds.size > 0) {
+    const restoredUnits = await prisma.erpInventorySerialUnit.findMany({
+      where: { id: { in: [...restoredIds] } },
+    })
+    for (const unit of restoredUnits) {
+      const fromAlloc = (order.fulfillmentSerialAllocations ?? []).some(
+        (a) => a.unitId === unit.id,
+      )
+      if (fromAlloc) continue
+      const unitModelKey = normalizeKey(unit.model || "")
+      for (const item of order.items) {
+        if (item.isCustom || !item.id) continue
+        const keys = getOrderLineMatchKeys(item).map(normalizeKey)
+        if (!keys.includes(unitModelKey)) continue
+        restoredCountByLine.set(item.id, (restoredCountByLine.get(item.id) ?? 0) + 1)
+        break
+      }
+    }
+  }
+
   for (const item of order.items) {
-    if (item.isCustom) continue
+    if (item.isCustom || !item.id) continue
+
+    const restoredQty = restoredCountByLine.get(item.id) ?? 0
+    const lineQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+
+    if (isManualInventoryLine(item)) {
+      const model = item.model?.trim()
+      if (!model) continue
+      const qtyToRestore =
+        restoredQty > 0
+          ? restoredQty
+          : orderWasDispatched(order)
+            ? lineQty
+            : 0
+      if (qtyToRestore > 0) {
+        await restoreManualInventoryByModel(model, qtyToRestore)
+      }
+      continue
+    }
+
+    // Warehouse lines with serials restored — stock synced via ensureInventoryStockForModel
+    if (restoredQty > 0) continue
+
+    // Stock-only deduction (no serial units) — put qty back on stock row
+    if (!orderWasDispatched(order)) continue
     for (const key of getOrderLineMatchKeys(item)) {
       const stock = await findStockByModel(key)
       if (!stock) continue
       await prisma.erpInventoryStock.update({
         where: { id: stock.id },
-        data: { availableQty: (stock.availableQty ?? 0) + item.qty },
+        data: { availableQty: (stock.availableQty ?? 0) + lineQty },
       })
       break
     }

@@ -12,7 +12,6 @@ import { CrmOrdersListCards } from "@/components/crm/crm-orders-list-cards"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
-import { restoreInventoryForOrder } from "@/lib/inventory"
 import { useAuth } from "@/components/auth-provider"
 // DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
@@ -293,7 +292,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           if (!target) return
           void (async () => {
             try {
-              await restoreInventoryForOrder(target)
               await deleteOrder(target.id)
               setOrders((prev) => prev.filter((x) => x.id !== target.id))
               if (selected?.id === target.id) setSelected(null)
@@ -302,7 +300,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               alert(
                 err instanceof Error
                   ? err.message
-                  : "Could not restore inventory. Order was not deleted.",
+                  : "Could not delete order.",
               )
             }
           })()
@@ -954,7 +952,6 @@ function OrderDetail({
   async function handleDelete() {
     setDeleting(true)
     try {
-      await restoreInventoryForOrder(detailOrder)
       await deleteOrder(detailOrder.id)
       onDelete(detailOrder.id)
       setShowDeleteConfirm(false)
@@ -963,7 +960,7 @@ function OrderDetail({
       alert(
         err instanceof Error
           ? err.message
-          : "Could not restore inventory. Order was not deleted.",
+          : "Could not delete order.",
       )
     } finally {
       setDeleting(false)
