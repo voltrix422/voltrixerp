@@ -1,6 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react"
 import { Camera, CheckCircle2, Loader2, ScanLine, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
@@ -15,10 +23,17 @@ import { parseProductQrPayload } from "@/lib/parse-product-qr"
 import { playScanRejectBeep, playScanSuccessBeep, prepareScanAudio } from "@/lib/scan-beep"
 import { type OrderItem, isManualDispatchLine, resolveOrderItemModel } from "@/lib/orders"
 
+type ScanRecord = {
+  unitId: string
+  serialNumber: string
+  model: string
+  productName: string
+}
+
 type Props = {
   lines: OrderItem[]
   value: Record<string, string[]>
-  onChange: (next: Record<string, string[]>) => void
+  onChange: Dispatch<SetStateAction<Record<string, string[]>>>
   units: InventorySerialUnit[]
   onUnitsChange: (units: InventorySerialUnit[]) => void
   manualMeta?: Record<string, ManualDispatchMeta>
@@ -37,6 +52,23 @@ function extractSerialFromScan(raw: string): string {
   return trimmed.split(/[\s,;]+/)[0]?.trim() ?? trimmed
 }
 
+function parseScanDetails(raw: string, fallbackModel: string, fallbackName: string) {
+  try {
+    const parsed = parseProductQrPayload(raw)
+    return {
+      serialNumber: parsed.serialNumber?.trim() || extractSerialFromScan(raw),
+      model: parsed.model?.trim() || fallbackModel,
+      productName: parsed.productName?.trim() || fallbackName,
+    }
+  } catch {
+    return {
+      serialNumber: extractSerialFromScan(raw),
+      model: fallbackModel,
+      productName: fallbackName,
+    }
+  }
+}
+
 export function DispatchSerialScanPanel({
   lines,
   value,
@@ -46,35 +78,53 @@ export function DispatchSerialScanPanel({
   manualMeta = {},
   disabled,
 }: Props) {
+  const valueRef = useRef(value)
+  valueRef.current = value
+
+  const scanLockRef = useRef(false)
   const wedgeRef = useRef<HTMLInputElement>(null)
+
   const [wedgeBuffer, setWedgeBuffer] = useState("")
   const [scannerOpen, setScannerOpen] = useState(false)
   const [busyLineId, setBusyLineId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null)
+  /** Local display cache so scans never disappear while units reload */
+  const [scanRecords, setScanRecords] = useState<Record<string, ScanRecord[]>>({})
 
   const lineStates = useMemo(() => {
     return lines.map((item) => {
       const model = resolveOrderItemModel(item)
       const need = Math.max(0, Math.floor(Number(item.qty) || 0))
       const selectedIds = value[item.id] ?? []
-      const selectedUnits = selectedIds
-        .map((id) => units.find((u) => u.id === id))
-        .filter(Boolean) as InventorySerialUnit[]
+      const records = scanRecords[item.id] ?? []
       const manualInfo = model ? manualMeta[modelKey(model)] : undefined
       return {
         item,
         model,
         need,
         selectedIds,
-        selectedUnits,
+        records,
         manualInfo,
         done: need > 0 && selectedIds.length >= need,
       }
     })
-  }, [lines, manualMeta, units, value])
+  }, [lines, manualMeta, scanRecords, value])
 
   const activeLine = useMemo(
     () => lineStates.find((l) => !l.done) ?? null,
+    [lineStates],
+  )
+
+  const allRecordsFlat = useMemo(
+    () =>
+      lineStates.flatMap((l) =>
+        l.records.map((record) => ({
+          record,
+          lineId: l.item.id,
+          lineDescription: l.item.description,
+          done: l.done,
+        })),
+      ),
     [lineStates],
   )
 
@@ -92,33 +142,66 @@ export function DispatchSerialScanPanel({
     }
   }, [disabled, allDone, scannerOpen, activeLine?.item.id])
 
+  useEffect(() => {
+    setScanRecords((prev) => {
+      let changed = false
+      const next: Record<string, ScanRecord[]> = { ...prev }
+      for (const item of lines) {
+        const ids = value[item.id] ?? []
+        if (ids.length === 0) continue
+        const model = resolveOrderItemModel(item) ?? ""
+        const merged = [...(prev[item.id] ?? [])]
+        for (const id of ids) {
+          if (merged.some((r) => r.unitId === id)) continue
+          const unit = units.find((u) => u.id === id)
+          if (!unit) continue
+          merged.push({
+            unitId: unit.id,
+            serialNumber: unit.serialNumber,
+            model: unit.model || model,
+            productName: unit.productName || item.description,
+          })
+          changed = true
+        }
+        if (changed || merged.length !== (prev[item.id]?.length ?? 0)) {
+          next[item.id] = merged
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [lines, units, value])
+
   const applyScan = useCallback(
     async (lineId: string, raw: string): Promise<boolean> => {
-      const lineState = lineStates.find((l) => l.item.id === lineId)
-      if (!lineState || disabled) return false
+      if (scanLockRef.current || disabled) return false
 
-      const { item, model, need, selectedIds, manualInfo } = lineState
+      const lineState = lineStates.find((l) => l.item.id === lineId)
+      if (!lineState) return false
+
+      const { item, model, need, manualInfo } = lineState
       if (!model) {
         setMessage({ type: "err", text: "This item has no model code." })
         playScanRejectBeep()
         return false
       }
 
-      const serialRaw = extractSerialFromScan(raw)
+      const currentIds = valueRef.current[lineId] ?? []
+      if (currentIds.length >= need) {
+        setMessage({ type: "err", text: `Order qty reached (${need}). No more scans.` })
+        playScanRejectBeep()
+        return false
+      }
+
+      const details = parseScanDetails(raw, model, item.description)
+      const serialRaw = details.serialNumber
       if (!serialRaw) {
         setMessage({ type: "err", text: "Could not read serial from scan." })
         playScanRejectBeep()
         return false
       }
 
-      if (selectedIds.length >= need) {
-        setMessage({ type: "err", text: `Already scanned ${need} unit(s) for this item.` })
-        playScanRejectBeep()
-        return false
-      }
-
       const isManual = isManualDispatchLine(item)
-      if (isManual && manualInfo !== undefined && selectedIds.length >= manualInfo.availableQty) {
+      if (isManual && manualInfo !== undefined && currentIds.length >= manualInfo.availableQty) {
         setMessage({
           type: "err",
           text: `Only ${manualInfo.availableQty} unit(s) available in stock.`,
@@ -127,15 +210,17 @@ export function DispatchSerialScanPanel({
         return false
       }
 
+      scanLockRef.current = true
       setBusyLineId(lineId)
       setMessage(null)
+
       try {
         let unit = await findInventorySerialByNumber(serialRaw)
 
         if (!unit) {
           unit = await saveInventorySerialUnit({
             serialNumber: serialRaw,
-            productName: item.description,
+            productName: details.productName || item.description,
             model,
             assignedName: item.description,
             inventoryStockId: manualInfo?.inventoryStockId ?? undefined,
@@ -145,47 +230,75 @@ export function DispatchSerialScanPanel({
             scannedBy: "inventory-dispatch",
             createWarranty: false,
           })
-          const refreshed = await getInventorySerialUnits()
-          onUnitsChange(refreshed)
-        } else if (units.every((u) => u.id !== unit!.id)) {
-          onUnitsChange([...units, unit])
         }
 
-        if (unit.status !== "in_stock") {
-          setMessage({ type: "err", text: `${unit.serialNumber} is not in stock (${unit.status}).` })
-          playScanRejectBeep()
-          return false
-        }
+        const refreshed = await getInventorySerialUnits()
+        onUnitsChange(refreshed)
 
-        if (modelKey(unit.model || "") !== modelKey(model)) {
+        const latestUnit = refreshed.find((u) => u.id === unit!.id) ?? unit!
+
+        if (latestUnit.status !== "in_stock") {
           setMessage({
             type: "err",
-            text: `${unit.serialNumber} belongs to "${unit.model}", not "${model}".`,
+            text: `${latestUnit.serialNumber} is not in stock (${latestUnit.status}).`,
           })
           playScanRejectBeep()
           return false
         }
 
-        if (selectedIds.includes(unit.id)) {
-          setMessage({ type: "err", text: `${unit.serialNumber} already scanned.` })
+        if (modelKey(latestUnit.model || "") !== modelKey(model)) {
+          setMessage({
+            type: "err",
+            text: `${latestUnit.serialNumber} is model "${latestUnit.model}" — expected "${model}".`,
+          })
           playScanRejectBeep()
           return false
         }
 
-        const usedElsewhere = Object.entries(value).some(
-          ([otherLineId, ids]) => otherLineId !== lineId && ids.includes(unit!.id),
+        const latestIds = valueRef.current[lineId] ?? []
+        if (latestIds.length >= need) {
+          setMessage({ type: "err", text: `Order qty reached (${need}).` })
+          playScanRejectBeep()
+          return false
+        }
+
+        if (latestIds.includes(latestUnit.id)) {
+          setMessage({ type: "err", text: `${latestUnit.serialNumber} already scanned.` })
+          playScanRejectBeep()
+          return false
+        }
+
+        const usedElsewhere = Object.entries(valueRef.current).some(
+          ([otherLineId, ids]) => otherLineId !== lineId && ids.includes(latestUnit.id),
         )
         if (usedElsewhere) {
-          setMessage({ type: "err", text: `${unit.serialNumber} is already on this order.` })
+          setMessage({ type: "err", text: `${latestUnit.serialNumber} is already on this order.` })
           playScanRejectBeep()
           return false
         }
 
-        onChange({
-          ...value,
-          [lineId]: [...selectedIds, unit.id],
+        const record: ScanRecord = {
+          unitId: latestUnit.id,
+          serialNumber: latestUnit.serialNumber,
+          model: latestUnit.model || model,
+          productName: latestUnit.productName || details.productName || item.description,
+        }
+
+        onChange((prev) => {
+          const cur = prev[lineId] ?? []
+          if (cur.length >= need || cur.includes(latestUnit.id)) return prev
+          return { ...prev, [lineId]: [...cur, latestUnit.id] }
         })
-        setMessage({ type: "ok", text: `Scanned ${unit.serialNumber}` })
+
+        setScanRecords((prev) => ({
+          ...prev,
+          [lineId]: [...(prev[lineId] ?? []), record],
+        }))
+
+        setMessage({
+          type: "ok",
+          text: `Scanned ${latestUnit.serialNumber} (${latestIds.length + 1}/${need})`,
+        })
         playScanSuccessBeep()
         return true
       } catch (e) {
@@ -196,21 +309,29 @@ export function DispatchSerialScanPanel({
         playScanRejectBeep()
         return false
       } finally {
+        scanLockRef.current = false
         setBusyLineId(null)
         wedgeRef.current?.focus()
       }
     },
-    [disabled, lineStates, onChange, onUnitsChange, units, value],
+    [disabled, lineStates, onChange, onUnitsChange],
   )
 
-  async function handleCameraScan(payload: string) {
-    if (!activeLine || busyLineId) return
-    prepareScanAudio()
-    await applyScan(activeLine.item.id, payload)
-  }
+  const handleCameraScan = useCallback(
+    async (payload: string) => {
+      if (!activeLine || busyLineId || scanLockRef.current) return
+      const currentIds = valueRef.current[activeLine.item.id] ?? []
+      if (currentIds.length >= activeLine.need) return
+      prepareScanAudio()
+      await applyScan(activeLine.item.id, payload)
+    },
+    [activeLine, applyScan, busyLineId],
+  )
 
   function handleWedgeSubmit(raw: string) {
-    if (!activeLine || busyLineId) return
+    if (!activeLine || busyLineId || scanLockRef.current) return
+    const currentIds = valueRef.current[activeLine.item.id] ?? []
+    if (currentIds.length >= activeLine.need) return
     prepareScanAudio()
     void applyScan(activeLine.item.id, raw)
     setWedgeBuffer("")
@@ -218,10 +339,14 @@ export function DispatchSerialScanPanel({
 
   function removeScan(lineId: string, unitId: string) {
     if (disabled) return
-    onChange({
-      ...value,
-      [lineId]: (value[lineId] ?? []).filter((id) => id !== unitId),
-    })
+    onChange((prev) => ({
+      ...prev,
+      [lineId]: (prev[lineId] ?? []).filter((id) => id !== unitId),
+    }))
+    setScanRecords((prev) => ({
+      ...prev,
+      [lineId]: (prev[lineId] ?? []).filter((r) => r.unitId !== unitId),
+    }))
     setMessage(null)
     wedgeRef.current?.focus()
   }
@@ -235,7 +360,7 @@ export function DispatchSerialScanPanel({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Scan QR codes</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            Open the camera scanner or use a USB barcode gun. Each scan adds one unit — stop at order qty.
+            Scan exactly {totalNeed} unit{totalNeed === 1 ? "" : "s"} for this order. Each scan is saved to the list below.
           </p>
           <div className="mt-3 flex items-center gap-3">
             <div className="flex-1 h-2 rounded-full bg-[hsl(var(--muted))]/50 overflow-hidden">
@@ -274,7 +399,7 @@ export function DispatchSerialScanPanel({
           </div>
 
           {!scannerOpen ? (
-            <div className="flex flex-col items-center gap-3 py-4">
+            <div className="flex flex-col items-center gap-3 py-2">
               <Button
                 type="button"
                 className="h-12 px-8 text-sm bg-[#1faca6] hover:bg-[#17857f] text-white"
@@ -296,7 +421,7 @@ export function DispatchSerialScanPanel({
               <WarrantyQrScanner
                 readerId="dispatch-qr-reader"
                 onScan={handleCameraScan}
-                disabled={disabled || !activeLine}
+                disabled={disabled || !activeLine || activeLine.selectedIds.length >= activeLine.need}
                 busy={!!busyLineId}
                 autoStart
                 hideStartButton
@@ -316,7 +441,6 @@ export function DispatchSerialScanPanel({
             </div>
           )}
 
-          {/* Hidden input for USB wedge scanners — not manual entry */}
           <input
             ref={wedgeRef}
             type="text"
@@ -357,87 +481,102 @@ export function DispatchSerialScanPanel({
         </p>
       )}
 
-      <div className="space-y-3">
-        {lineStates.map(({ item, model, need, selectedUnits, manualInfo, done }) => {
-          const isManual = isManualDispatchLine(item)
+      {/* Live scanned list — all items with code + details */}
+      <div className="rounded-xl border overflow-hidden">
+        <div className="px-4 py-3 border-b bg-[hsl(var(--muted))]/25 flex items-center justify-between gap-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+            Scanned for dispatch
+          </p>
+          <span
+            className={`text-xs font-bold tabular-nums ${
+              allDone ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-300"
+            }`}
+          >
+            {totalScanned}/{totalNeed}
+          </span>
+        </div>
 
+        {allRecordsFlat.length === 0 ? (
+          <p className="text-xs text-[hsl(var(--muted-foreground))] text-center py-6 px-4">
+            No scans yet — open scanner and scan {totalNeed} QR code{totalNeed === 1 ? "" : "s"}
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {allRecordsFlat.map(({ record, lineId, lineDescription, done }, index) => (
+              <li
+                key={record.unitId}
+                className="flex items-start gap-3 px-4 py-3 hover:bg-[hsl(var(--muted))]/10"
+              >
+                <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] w-5 pt-0.5 tabular-nums shrink-0">
+                  {index + 1}.
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-mono text-sm font-semibold break-all">{record.serialNumber}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
+                    {record.productName}
+                  </p>
+                  <p className="text-[11px] font-mono text-[#1faca6] mt-0.5">{record.model}</p>
+                </div>
+                <div className="shrink-0 text-right space-y-1">
+                  <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate max-w-[80px]">
+                    {lineDescription}
+                  </span>
+                  {!disabled && !done && (
+                    <button
+                      type="button"
+                      onClick={() => removeScan(lineId, record.unitId)}
+                      className="text-[10px] text-red-600 hover:underline cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {allDone && (
+          <div className="px-4 py-3 border-t bg-green-500/[0.06] text-center">
+            <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+              All {totalNeed} unit{totalNeed === 1 ? "" : "s"} scanned. Create the dispatch note.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Per-line summary */}
+      <div className="space-y-2">
+        {lineStates.map(({ item, model, need, selectedIds, manualInfo, done }) => {
+          const isManual = isManualDispatchLine(item)
           return (
             <div
               key={item.id}
-              className={`rounded-xl border overflow-hidden ${
-                done ? "border-green-500/40 bg-green-500/[0.04]" : "border-[hsl(var(--border))]"
+              className={`rounded-lg border px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs ${
+                done ? "border-green-500/30 bg-green-500/[0.04]" : "border-[hsl(var(--border))]"
               }`}
             >
-              <div className="px-4 py-3 border-b bg-[hsl(var(--muted))]/20 flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">{item.description}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] font-mono mt-0.5">
-                    {model}
-                    {isManual && manualInfo !== undefined && (
-                      <span className="font-sans ml-2">· {manualInfo.availableQty} in stock</span>
-                    )}
-                  </p>
-                </div>
-                <span
-                  className={`text-xs font-bold tabular-nums px-2.5 py-1 rounded-full shrink-0 ${
-                    done
-                      ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                      : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
-                  }`}
-                >
-                  {done ? (
-                    <span className="inline-flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> {selectedUnits.length}/{need}
-                    </span>
-                  ) : (
-                    `${selectedUnits.length}/${need} scanned`
-                  )}
-                </span>
-              </div>
-
-              <div className="p-4">
-                {selectedUnits.length > 0 ? (
-                  <ul className="space-y-1.5">
-                    {selectedUnits.map((unit, index) => (
-                      <li
-                        key={unit.id}
-                        className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2"
-                      >
-                        <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] w-5 tabular-nums">
-                          {index + 1}.
-                        </span>
-                        <span className="font-mono text-sm font-medium flex-1 truncate">
-                          {unit.serialNumber}
-                        </span>
-                        {!disabled && !done && (
-                          <button
-                            type="button"
-                            onClick={() => removeScan(item.id, unit.id)}
-                            className="shrink-0 p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
-                            aria-label={`Remove ${unit.serialNumber}`}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] text-center py-2">
-                    No scans yet — open scanner and scan {need} QR code{need === 1 ? "" : "s"}
-                  </p>
+              <div className="min-w-0">
+                <span className="font-semibold">{item.description}</span>
+                <span className="text-[hsl(var(--muted-foreground))] font-mono ml-2">{model}</span>
+                {isManual && manualInfo !== undefined && (
+                  <span className="text-[hsl(var(--muted-foreground))] ml-1">
+                    · {manualInfo.availableQty} in stock
+                  </span>
                 )}
               </div>
+              <span
+                className={`font-bold tabular-nums ${
+                  done ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {selectedIds.length}/{need}
+                {done && " ✓"}
+              </span>
             </div>
           )
         })}
       </div>
-
-      {allDone && (
-        <p className="text-xs text-center text-green-700 dark:text-green-400 font-medium">
-          All units scanned. Go back to dispatcher tab and create the dispatch note.
-        </p>
-      )}
     </div>
   )
 }

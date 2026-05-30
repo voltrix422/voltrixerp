@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Loader2 } from "lucide-react"
 import { DispatchSerialScanPanel } from "@/components/inventory/dispatch-serial-scan-panel"
 import {
@@ -18,7 +18,7 @@ import { type Order } from "@/lib/orders"
 type Props = {
   order: Order
   value: Record<string, string[]>
-  onChange: (next: Record<string, string[]>) => void
+  onChange: Dispatch<SetStateAction<Record<string, string[]>>>
   disabled?: boolean
   onValidationChange?: (valid: boolean, errors: string[]) => void
 }
