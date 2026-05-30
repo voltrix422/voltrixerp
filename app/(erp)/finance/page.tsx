@@ -9,11 +9,12 @@ import { ClientOrdersFinance } from "@/components/finance/client-orders-finance"
 import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
 import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
-import { FinanceSalesSalaries } from "@/components/finance/finance-sales-salaries"
+import { FinancePayroll } from "@/components/finance/finance-payroll"
 import { Button } from "@/components/ui/button"
 import { SlidersHorizontal, Search, Calendar } from "lucide-react"
 
-type Tab = "overview" | "manage" | "client" | "purchase" | "sales-salaries" | "reports"
+type Tab = "overview" | "manage" | "client" | "purchase" | "payroll" | "reports"
+type PayrollSection = "staff" | "sales"
 type ManageSection = "finance" | "petty-cash"
 
 export default function FinancePage() {
@@ -25,22 +26,27 @@ export default function FinancePage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [payrollSection, setPayrollSection] = useState<PayrollSection>("staff")
 
   useEffect(() => {
     if (!searchParams) return
     const tab = searchParams.get("tab")
     const section = searchParams.get("section")
+    const payroll = searchParams.get("payroll")
     if (
       tab === "overview" ||
       tab === "client" ||
       tab === "purchase" ||
       tab === "manage" ||
+      tab === "payroll" ||
       tab === "sales-salaries" ||
       tab === "reports"
     ) {
-      setActiveTab(tab)
+      setActiveTab(tab === "sales-salaries" ? "payroll" : (tab as Tab))
     }
     if (section === "petty-cash" || section === "finance") setManageSection(section)
+    if (payroll === "sales" || payroll === "staff") setPayrollSection(payroll)
+    else if (tab === "sales-salaries") setPayrollSection("sales")
   }, [searchParams])
 
   const hasFilters = search || dateFrom || dateTo
@@ -55,7 +61,7 @@ export default function FinancePage() {
     { id: "overview", label: "Overview" },
     { id: "client", label: "Client Orders" },
     { id: "purchase", label: "Purchase Orders" },
-    { id: "sales-salaries", label: "Sales Salaries" },
+    { id: "payroll", label: "Salaries & Payroll" },
     { id: "manage", label: "Records & Petty Cash" },
     { id: "reports", label: "Reports" },
   ]
@@ -193,7 +199,9 @@ export default function FinancePage() {
           {activeTab === "purchase" && (
             <PurchaseOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />
           )}
-          {activeTab === "sales-salaries" && <FinanceSalesSalaries />}
+          {activeTab === "payroll" && (
+            <FinancePayroll initialSection={payrollSection} />
+          )}
         </div>
       </div>
     </ModuleGuard>

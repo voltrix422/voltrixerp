@@ -68,7 +68,7 @@ const PERIODS = [
 const QUICK_LINKS = [
   { href: "/finance?tab=client", label: "Client order payments", desc: "Approve CRM payment proofs", icon: Users },
   { href: "/finance?tab=purchase", label: "Purchase order payments", desc: "Supplier & import PO payments", icon: ShoppingCart },
-  { href: "/finance?tab=sales-salaries", label: "Sales salaries", desc: "Agent payroll, commission & PDF slips", icon: Users },
+  { href: "/finance?tab=payroll", label: "Salaries & payroll", desc: "All staff & sales agents — PDF salary slips", icon: Users },
   { href: "/finance?tab=manage", label: "Finance records", desc: "Expenses, invoices, salary, tax", icon: FileText },
   { href: "/finance?tab=manage&section=petty-cash", label: "Petty cash", desc: "Staff allocations & receipts", icon: Wallet },
   { href: "/finance?tab=reports", label: "Reports & export", desc: "Trends, categories, CSV download", icon: TrendingUp },
