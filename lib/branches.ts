@@ -114,6 +114,7 @@ export interface BranchInventory {
   inStock?: number
   totalUnits?: number
   canDispatch?: boolean
+  isManual?: boolean
 }
 
 export async function getBranchInventory(branchId: string): Promise<BranchInventory[]> {
@@ -137,6 +138,7 @@ export async function getBranchInventory(branchId: string): Promise<BranchInvent
       inStock: r.inStock as number | undefined,
       totalUnits: r.totalUnits as number | undefined,
       canDispatch: r.canDispatch as boolean | undefined,
+      isManual: r.isManual as boolean | undefined,
     }))
   } catch { return [] }
 }

@@ -223,7 +223,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
         return {
           id: item.id,
           label: item.itemName || item.productDescription || item.model || "Item",
-          sublabel: item.model || item.productDescription,
+          sublabel: [item.model, item.isManual ? "Manual" : null].filter(Boolean).join(" · "),
           model: item.model,
           productName: item.itemName,
           maxQty: item.inStock ?? item.quantity,

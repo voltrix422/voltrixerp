@@ -3,8 +3,10 @@ import { prisma } from "@/lib/db"
 import { buildBatchTransferSummary } from "@/lib/branch-transfer-history-display"
 import {
   allocateSerialUnitsForBranchDispatch,
+  countInStockSerialsForModel,
   ensureInventoryStockForModel,
 } from "@/lib/ensure-model-stock-link"
+import { decrementManualInventoryByModel } from "@/lib/manual-inventory-server"
 
 export function buildBranchTransferNote(params: {
   quantity: number
@@ -193,18 +195,28 @@ export async function executeDispatchLine(params: {
     throw new Error(`Stock item not found: ${stockId}`)
   }
 
+  const manualItem = modelKey
+    ? await prisma.erpManualInventoryItem.findUnique({ where: { model: modelKey } })
+    : null
+  const serialInStock = modelKey ? await countInStockSerialsForModel(modelKey) : 0
+
+  let effectiveAvailable = inventory.availableQty
+  if (modelKey) {
+    if (serialInStock > 0) {
+      effectiveAvailable = serialInStock
+    } else if (manualItem) {
+      effectiveAvailable = manualItem.availableQty ?? 0
+    }
+  }
+
+  if (effectiveAvailable < quantity) {
+    throw new Error(
+      `Insufficient stock for "${inventory.description}" (available: ${effectiveAvailable})`,
+    )
+  }
+
   if (modelKey) {
     await ensureInventoryStockForModel(modelKey, line.productName || inventory.description, inventory.unit)
-    const fresh = await prisma.erpInventoryStock.findUnique({ where: { id: stockId } })
-    if (fresh && fresh.availableQty < quantity) {
-      throw new Error(
-        `Insufficient stock for "${inventory.description}" (available: ${fresh.availableQty})`,
-      )
-    }
-  } else if (inventory.availableQty < quantity) {
-    throw new Error(
-      `Insufficient stock for "${inventory.description}" (available: ${inventory.availableQty})`,
-    )
   }
 
   const destinationBranch = await prisma.erpBranch.findUnique({
@@ -238,16 +250,32 @@ export async function executeDispatchLine(params: {
     },
   })
 
-  if (modelKey) {
+  if (modelKey && serialInStock >= quantity) {
     await allocateSerialUnitsForBranchDispatch({
       model: modelKey,
       inventoryStockId: stockId,
       quantity,
       branchCode: destinationBranchCode || destinationBranch?.code || "",
     })
+    const remaining = await countInStockSerialsForModel(modelKey)
     await prisma.erpInventoryStock.update({
       where: { id: stockId },
-      data: { allocatedQty: { increment: quantity } },
+      data: {
+        availableQty: remaining,
+        allocatedQty: { increment: quantity },
+      },
+    })
+    if (manualItem) {
+      await decrementManualInventoryByModel(modelKey, quantity)
+    }
+  } else if (manualItem) {
+    await decrementManualInventoryByModel(modelKey, quantity)
+    await prisma.erpInventoryStock.update({
+      where: { id: stockId },
+      data: {
+        availableQty: { decrement: quantity },
+        allocatedQty: { increment: quantity },
+      },
     })
   } else {
     await prisma.erpInventoryStock.update({

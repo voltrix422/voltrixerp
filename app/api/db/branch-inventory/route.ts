@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { buildMainWarehouseItems, buildModelLabelMap } from "@/lib/main-warehouse-inventory"
+import { buildModelLabelMap } from "@/lib/main-warehouse-inventory"
 import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
+import {
+  buildUnifiedInventoryGroups,
+  unifiedGroupInStock,
+  unifiedGroupTotal,
+} from "@/lib/unified-inventory-groups"
 
 function buildBranchTransferNote(params: {
   quantity: number
@@ -61,90 +66,121 @@ export async function GET(req: NextRequest) {
     })
 
     if (branch?.type === "main_warehouse") {
-      const [units, labels, stock] = await Promise.all([
+      const [units, labels, stock, manualRows] = await Promise.all([
         prisma.erpInventorySerialUnit.findMany({ orderBy: { scannedAt: "desc" } }),
         prisma.erpInventoryModelLabel.findMany(),
         prisma.erpInventoryStock.findMany({ orderBy: { description: "asc" } }),
+        prisma.erpManualInventoryItem.findMany({ orderBy: { createdAt: "desc" } }),
       ])
+
+      const unitDtos = units.map((u) => ({
+        id: u.id,
+        serialNumber: u.serialNumber,
+        assignedName: u.assignedName,
+        productName: u.productName,
+        model: u.model,
+        specs: u.specs,
+        rawPayload: u.rawPayload,
+        inventoryStockId: u.inventoryStockId,
+        status: u.status,
+        notes: u.notes,
+        scannedBy: u.scannedBy,
+        scannedAt: u.scannedAt.toISOString(),
+        createdAt: u.createdAt.toISOString(),
+        updatedAt: u.updatedAt.toISOString(),
+      }))
 
       const labelMap = buildModelLabelMap(
         labels.map((l) => ({ model: l.model, displayName: l.displayName })),
-        units.map((u) => ({
-          id: u.id,
-          serialNumber: u.serialNumber,
-          assignedName: u.assignedName,
-          productName: u.productName,
-          model: u.model,
-          specs: u.specs,
-          rawPayload: u.rawPayload,
-          inventoryStockId: u.inventoryStockId,
-          status: u.status,
-          notes: u.notes,
-          scannedBy: u.scannedBy,
-          scannedAt: u.scannedAt.toISOString(),
-          createdAt: u.createdAt.toISOString(),
-          updatedAt: u.updatedAt.toISOString(),
-        })),
+        unitDtos,
       )
+      const labelMapObj: Record<string, string> = { ...labelMap }
+      for (const manual of manualRows) {
+        if (manual.model && manual.name) labelMapObj[manual.model] = manual.name
+      }
 
-      const items = buildMainWarehouseItems(
-        units.map((u) => ({
-          id: u.id,
-          serialNumber: u.serialNumber,
-          assignedName: u.assignedName,
-          productName: u.productName,
-          model: u.model,
-          specs: u.specs,
-          rawPayload: u.rawPayload,
-          inventoryStockId: u.inventoryStockId,
-          status: u.status,
-          notes: u.notes,
-          scannedBy: u.scannedBy,
-          scannedAt: u.scannedAt.toISOString(),
-          createdAt: u.createdAt.toISOString(),
-          updatedAt: u.updatedAt.toISOString(),
-        })),
-        labelMap,
+      const manualItems = manualRows.map((m) => ({
+        id: m.id,
+        name: m.name,
+        model: m.model,
+        qty: m.qty,
+        availableQty: m.availableQty,
+        unit: m.unit,
+        notes: m.notes,
+        inventoryStockId: m.inventoryStockId,
+        createdBy: m.createdBy,
+        createdAt: m.createdAt.toISOString(),
+        updatedAt: m.updatedAt.toISOString(),
+      }))
+
+      const groups = buildUnifiedInventoryGroups(
+        unitDtos,
+        manualItems,
         stock.map((s) => ({
-          id: s.id,
           description: s.description,
           name: s.name,
-          unit: s.unit,
           availableQty: s.availableQty,
+          receivedQty: s.receivedQty,
+          unit: s.unit,
+          poType: s.poType,
         })),
+        labelMapObj,
       )
 
-      const linkedItems = await Promise.all(
-        items.map(async (item) => {
-          let stockId = item.inventoryStockId
-          let inStock = item.inStock
+      const manualByModel = new Map(manualRows.map((m) => [m.model, m]))
 
-          if (item.inStock > 0) {
-            const ensured = await ensureInventoryStockForModel(
-              item.model,
-              item.itemName,
-              item.unit,
-            )
+      const linkedItems = await Promise.all(
+        groups.map(async (group) => {
+          const manual = manualByModel.get(group.modelKey)
+          const isManual = Boolean(manual || group.stockOnly?.isManual)
+          const unit = group.stockOnly?.unit || "pcs"
+          const itemName = group.displayName
+          const totalUnits = unifiedGroupTotal(group)
+          let inStock = unifiedGroupInStock(group)
+
+          let stockId =
+            group.units.find((u) => u.inventoryStockId)?.inventoryStockId ??
+            manual?.inventoryStockId ??
+            null
+
+          if (group.modelKey && (inStock > 0 || manual)) {
+            const ensured = await ensureInventoryStockForModel(group.modelKey, itemName, unit)
             stockId = ensured.stock.id
-            inStock = ensured.inStockCount
+            const serialInStock = group.units.filter((u) => u.status === "in_stock").length
+            if (serialInStock > 0) {
+              inStock = ensured.inStockCount
+            } else if (manual) {
+              inStock = manual.availableQty ?? 0
+              await prisma.erpInventoryStock.update({
+                where: { id: stockId },
+                data: { availableQty: inStock },
+              }).catch(() => {})
+            }
           }
 
+          const id =
+            manual && group.units.length === 0 ? `man:${manual.id}` : `wh:${group.modelKey}`
+
+          const productDescription =
+            itemName !== group.modelKey ? `${itemName} · ${group.modelKey}` : group.modelKey
+
           return {
-            id: item.id,
+            id,
             branchId,
-            inventoryId: stockId ?? item.id,
-            productDescription: item.productDescription,
+            inventoryId: stockId ?? id,
+            productDescription,
             quantity: inStock,
             inStock,
-            totalUnits: item.totalUnits,
-            unit: item.unit,
-            model: item.model,
-            itemName: item.itemName,
-            specs: item.specs,
+            totalUnits,
+            unit,
+            model: group.modelKey,
+            itemName,
+            specs: group.units.find((u) => u.specs?.trim())?.specs ?? "",
             assignedAt: "",
             assignedBy: "system",
-            notes: `${inStock}/${item.totalUnits} in stock`,
+            notes: `${inStock}/${totalUnits} in stock${isManual ? " · manual" : ""}`,
             canDispatch: inStock > 0 && Boolean(stockId),
+            isManual,
           }
         }),
       )
