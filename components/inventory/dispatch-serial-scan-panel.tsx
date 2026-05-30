@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
-import { Barcode, CheckCircle2, Loader2, ScanLine, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Camera, CheckCircle2, Loader2, ScanLine, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
 import {
   findInventorySerialByNumber,
   getInventorySerialUnits,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/inventory-serial-units"
 import { modelKey, type ManualDispatchMeta } from "@/lib/order-fulfillment-serials"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import { playScanRejectBeep, playScanSuccessBeep, prepareScanAudio } from "@/lib/scan-beep"
 import { type OrderItem, isManualDispatchLine, resolveOrderItemModel } from "@/lib/orders"
 
 type Props = {
@@ -44,8 +46,9 @@ export function DispatchSerialScanPanel({
   manualMeta = {},
   disabled,
 }: Props) {
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
-  const [scanValues, setScanValues] = useState<Record<string, string>>({})
+  const wedgeRef = useRef<HTMLInputElement>(null)
+  const [wedgeBuffer, setWedgeBuffer] = useState("")
+  const [scannerOpen, setScannerOpen] = useState(false)
   const [busyLineId, setBusyLineId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null)
 
@@ -70,30 +73,48 @@ export function DispatchSerialScanPanel({
     })
   }, [lines, manualMeta, units, value])
 
+  const activeLine = useMemo(
+    () => lineStates.find((l) => !l.done) ?? null,
+    [lineStates],
+  )
+
   const totalNeed = lineStates.reduce((s, l) => s + l.need, 0)
   const totalScanned = lineStates.reduce((s, l) => s + l.selectedIds.length, 0)
   const allDone = totalNeed > 0 && totalScanned >= totalNeed
 
+  useEffect(() => {
+    if (allDone) setScannerOpen(false)
+  }, [allDone])
+
+  useEffect(() => {
+    if (!disabled && !allDone && !scannerOpen && activeLine) {
+      wedgeRef.current?.focus()
+    }
+  }, [disabled, allDone, scannerOpen, activeLine?.item.id])
+
   const applyScan = useCallback(
-    async (lineId: string, raw: string) => {
+    async (lineId: string, raw: string): Promise<boolean> => {
       const lineState = lineStates.find((l) => l.item.id === lineId)
-      if (!lineState || disabled) return
+      if (!lineState || disabled) return false
 
       const { item, model, need, selectedIds, manualInfo } = lineState
       if (!model) {
         setMessage({ type: "err", text: "This item has no model code." })
-        return
+        playScanRejectBeep()
+        return false
       }
 
       const serialRaw = extractSerialFromScan(raw)
       if (!serialRaw) {
-        setMessage({ type: "err", text: "Scan or enter a serial number." })
-        return
+        setMessage({ type: "err", text: "Could not read serial from scan." })
+        playScanRejectBeep()
+        return false
       }
 
       if (selectedIds.length >= need) {
         setMessage({ type: "err", text: `Already scanned ${need} unit(s) for this item.` })
-        return
+        playScanRejectBeep()
+        return false
       }
 
       const isManual = isManualDispatchLine(item)
@@ -102,7 +123,8 @@ export function DispatchSerialScanPanel({
           type: "err",
           text: `Only ${manualInfo.availableQty} unit(s) available in stock.`,
         })
-        return
+        playScanRejectBeep()
+        return false
       }
 
       setBusyLineId(lineId)
@@ -131,7 +153,8 @@ export function DispatchSerialScanPanel({
 
         if (unit.status !== "in_stock") {
           setMessage({ type: "err", text: `${unit.serialNumber} is not in stock (${unit.status}).` })
-          return
+          playScanRejectBeep()
+          return false
         }
 
         if (modelKey(unit.model || "") !== modelKey(model)) {
@@ -139,12 +162,14 @@ export function DispatchSerialScanPanel({
             type: "err",
             text: `${unit.serialNumber} belongs to "${unit.model}", not "${model}".`,
           })
-          return
+          playScanRejectBeep()
+          return false
         }
 
         if (selectedIds.includes(unit.id)) {
-          setMessage({ type: "err", text: `${unit.serialNumber} already scanned for this item.` })
-          return
+          setMessage({ type: "err", text: `${unit.serialNumber} already scanned.` })
+          playScanRejectBeep()
+          return false
         }
 
         const usedElsewhere = Object.entries(value).some(
@@ -152,38 +177,44 @@ export function DispatchSerialScanPanel({
         )
         if (usedElsewhere) {
           setMessage({ type: "err", text: `${unit.serialNumber} is already on this order.` })
-          return
+          playScanRejectBeep()
+          return false
         }
 
         onChange({
           ...value,
           [lineId]: [...selectedIds, unit.id],
         })
-        setScanValues((prev) => ({ ...prev, [lineId]: "" }))
         setMessage({ type: "ok", text: `Scanned ${unit.serialNumber}` })
-
-        const newCount = selectedIds.length + 1
-        if (newCount >= need) {
-          const next = lineStates.find(
-            (l) => l.item.id !== lineId && l.selectedIds.length < l.need,
-          )
-          if (next) {
-            inputRefs.current[next.item.id]?.focus()
-          }
-        } else {
-          inputRefs.current[lineId]?.focus()
-        }
+        playScanSuccessBeep()
+        return true
       } catch (e) {
         setMessage({
           type: "err",
           text: e instanceof Error ? e.message : "Scan failed",
         })
+        playScanRejectBeep()
+        return false
       } finally {
         setBusyLineId(null)
+        wedgeRef.current?.focus()
       }
     },
     [disabled, lineStates, onChange, onUnitsChange, units, value],
   )
+
+  async function handleCameraScan(payload: string) {
+    if (!activeLine || busyLineId) return
+    prepareScanAudio()
+    await applyScan(activeLine.item.id, payload)
+  }
+
+  function handleWedgeSubmit(raw: string) {
+    if (!activeLine || busyLineId) return
+    prepareScanAudio()
+    void applyScan(activeLine.item.id, raw)
+    setWedgeBuffer("")
+  }
 
   function removeScan(lineId: string, unitId: string) {
     if (disabled) return
@@ -192,7 +223,7 @@ export function DispatchSerialScanPanel({
       [lineId]: (value[lineId] ?? []).filter((id) => id !== unitId),
     })
     setMessage(null)
-    inputRefs.current[lineId]?.focus()
+    wedgeRef.current?.focus()
   }
 
   if (lines.length === 0) return null
@@ -204,7 +235,7 @@ export function DispatchSerialScanPanel({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Scan QR codes</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            Scan one barcode per unit ordered. Stop when you reach the order quantity.
+            Open the camera scanner or use a USB barcode gun. Each scan adds one unit — stop at order qty.
           </p>
           <div className="mt-3 flex items-center gap-3">
             <div className="flex-1 h-2 rounded-full bg-[hsl(var(--muted))]/50 overflow-hidden">
@@ -224,6 +255,95 @@ export function DispatchSerialScanPanel({
         </div>
       </div>
 
+      {!allDone && activeLine && (
+        <div className="rounded-xl border border-[#1faca6]/30 bg-[hsl(var(--background))] p-4 space-y-4">
+          <div className="text-center space-y-1">
+            <p className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+              Now scanning
+            </p>
+            <p className="text-sm font-semibold">{activeLine.item.description}</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] font-mono">
+              {activeLine.model}
+              {isManualDispatchLine(activeLine.item) && activeLine.manualInfo !== undefined && (
+                <span className="font-sans ml-2">· {activeLine.manualInfo.availableQty} in stock</span>
+              )}
+            </p>
+            <p className="text-sm font-bold text-[#1faca6] tabular-nums">
+              Unit {activeLine.selectedIds.length + 1} of {activeLine.need}
+            </p>
+          </div>
+
+          {!scannerOpen ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <Button
+                type="button"
+                className="h-12 px-8 text-sm bg-[#1faca6] hover:bg-[#17857f] text-white"
+                disabled={disabled || !!busyLineId}
+                onClick={() => {
+                  prepareScanAudio()
+                  setScannerOpen(true)
+                }}
+              >
+                <Camera className="h-5 w-5 mr-2" />
+                Open QR scanner
+              </Button>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                USB barcode scanner also works — keep this page focused
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <WarrantyQrScanner
+                readerId="dispatch-qr-reader"
+                onScan={handleCameraScan}
+                disabled={disabled || !activeLine}
+                busy={!!busyLineId}
+                autoStart
+                hideStartButton
+              />
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
+                  onClick={() => setScannerOpen(false)}
+                  disabled={!!busyLineId}
+                >
+                  Close camera
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Hidden input for USB wedge scanners — not manual entry */}
+          <input
+            ref={wedgeRef}
+            type="text"
+            value={wedgeBuffer}
+            onChange={(e) => setWedgeBuffer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                const raw = wedgeBuffer.trim()
+                if (raw) handleWedgeSubmit(raw)
+              }
+            }}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            autoComplete="off"
+          />
+
+          {busyLineId && (
+            <div className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Saving scan…
+            </div>
+          )}
+        </div>
+      )}
+
       {message && (
         <p
           className={`text-xs flex items-center gap-1.5 px-1 ${
@@ -240,7 +360,6 @@ export function DispatchSerialScanPanel({
       <div className="space-y-3">
         {lineStates.map(({ item, model, need, selectedUnits, manualInfo, done }) => {
           const isManual = isManualDispatchLine(item)
-          const busy = busyLineId === item.id
 
           return (
             <div
@@ -276,76 +395,36 @@ export function DispatchSerialScanPanel({
                 </span>
               </div>
 
-              <div className="p-4 space-y-3">
-                {!done && (
-                  <form
-                    className="flex gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault()
-                      void applyScan(item.id, scanValues[item.id] ?? "")
-                    }}
-                  >
-                    <div className="relative flex-1">
-                      <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                      <input
-                        ref={(el) => {
-                          inputRefs.current[item.id] = el
-                        }}
-                        value={scanValues[item.id] ?? ""}
-                        onChange={(e) =>
-                          setScanValues((prev) => ({ ...prev, [item.id]: e.target.value }))
-                        }
-                        placeholder={`Scan unit ${selectedUnits.length + 1} of ${need}…`}
-                        className="w-full h-11 rounded-lg border bg-[hsl(var(--background))] pl-9 pr-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/50"
-                        disabled={disabled || busy}
-                        autoComplete="off"
-                        autoFocus={lineStates[0]?.item.id === item.id && selectedUnits.length === 0}
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="h-11 shrink-0 bg-[#1faca6] hover:bg-[#17857f] text-white"
-                      disabled={disabled || busy || !(scanValues[item.id] ?? "").trim()}
-                    >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
-                    </Button>
-                  </form>
-                )}
-
+              <div className="p-4">
                 {selectedUnits.length > 0 ? (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-                      Scanned serial numbers
-                    </p>
-                    <ul className="space-y-1.5">
-                      {selectedUnits.map((unit, index) => (
-                        <li
-                          key={unit.id}
-                          className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2"
-                        >
-                          <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] w-5 tabular-nums">
-                            {index + 1}.
-                          </span>
-                          <span className="font-mono text-sm font-medium flex-1 truncate">
-                            {unit.serialNumber}
-                          </span>
-                          {!disabled && !done && (
-                            <button
-                              type="button"
-                              onClick={() => removeScan(item.id, unit.id)}
-                              className="shrink-0 p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
-                              aria-label={`Remove ${unit.serialNumber}`}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <ul className="space-y-1.5">
+                    {selectedUnits.map((unit, index) => (
+                      <li
+                        key={unit.id}
+                        className="flex items-center gap-2 rounded-lg border bg-[hsl(var(--background))] px-3 py-2"
+                      >
+                        <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] w-5 tabular-nums">
+                          {index + 1}.
+                        </span>
+                        <span className="font-mono text-sm font-medium flex-1 truncate">
+                          {unit.serialNumber}
+                        </span>
+                        {!disabled && !done && (
+                          <button
+                            type="button"
+                            onClick={() => removeScan(item.id, unit.id)}
+                            className="shrink-0 p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                            aria-label={`Remove ${unit.serialNumber}`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 ) : (
                   <p className="text-xs text-[hsl(var(--muted-foreground))] text-center py-2">
-                    No scans yet — scan {need} QR code{need === 1 ? "" : "s"} for this item
+                    No scans yet — open scanner and scan {need} QR code{need === 1 ? "" : "s"}
                   </p>
                 )}
               </div>
