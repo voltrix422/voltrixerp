@@ -39,7 +39,38 @@ export async function GET() {
   const rows = await prisma.erpManualInventoryItem.findMany({
     orderBy: { createdAt: "desc" },
   })
-  return NextResponse.json(rows.map(mapRow))
+
+  const models = rows.map((r) => r.model).filter(Boolean)
+  const serialRows =
+    models.length > 0
+      ? await prisma.erpInventorySerialUnit.findMany({
+          where: { model: { in: models } },
+          orderBy: { scannedAt: "desc" },
+        })
+      : []
+
+  const serialsByModel = new Map<string, typeof serialRows>()
+  for (const unit of serialRows) {
+    const m = unit.model?.trim()
+    if (!m) continue
+    const list = serialsByModel.get(m) ?? []
+    list.push(unit)
+    serialsByModel.set(m, list)
+  }
+
+  return NextResponse.json(
+    rows.map((row) => ({
+      ...mapRow(row),
+      serialUnits: (serialsByModel.get(row.model) ?? []).map((u) => ({
+        id: u.id,
+        serialNumber: u.serialNumber,
+        status: u.status,
+        notes: u.notes,
+        specs: u.specs,
+        scannedAt: u.scannedAt.toISOString(),
+      })),
+    })),
+  )
 }
 
 export async function POST(req: NextRequest) {

@@ -1,3 +1,12 @@
+export type ManualInventorySerialUnit = {
+  id: string
+  serialNumber: string
+  status: string
+  notes: string
+  specs: string
+  scannedAt: string
+}
+
 export type ManualInventoryItem = {
   id: string
   name: string
@@ -10,6 +19,7 @@ export type ManualInventoryItem = {
   createdBy: string
   createdAt: string
   updatedAt: string
+  serialUnits?: ManualInventorySerialUnit[]
 }
 
 export function manualInventoryItemId(manualId: string) {

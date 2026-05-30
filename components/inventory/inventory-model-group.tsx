@@ -3,6 +3,10 @@
 import { useState, type MouseEvent } from "react"
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 import { formatGstPercent, formatRetailPricePkr } from "@/lib/format-inventory-price"
+import {
+  parseSerialDispatchClient,
+  parseSerialOrderRef,
+} from "@/lib/parse-serial-order-ref"
 import { InventoryModelPricePanel } from "@/components/inventory/inventory-model-price-panel"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronRight, Loader2, Pencil, Trash2 } from "lucide-react"
@@ -153,7 +157,8 @@ export function InventoryModelGroup({
             <thead>
               <tr className="border-b border-[hsl(var(--border))]">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">SN</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Item ref</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Retail</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">GST</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Received</th>
@@ -162,10 +167,14 @@ export function InventoryModelGroup({
               </tr>
             </thead>
             <tbody>
-              {modelUnits.map((unit) => (
+              {modelUnits.map((unit) => {
+                const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
+                const client = parseSerialDispatchClient(unit.notes)
+                return (
                 <tr key={unit.id} className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))]/8">
                   <td className="px-4 py-2.5 font-mono text-xs break-all">{unit.serialNumber}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-[hsl(var(--muted-foreground))]">{unit.specs || "—"}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{orderRef ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{client ?? "—"}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">
                     {formatRetailPricePkr(unit.retailPrice)}
                   </td>
@@ -194,7 +203,7 @@ export function InventoryModelGroup({
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

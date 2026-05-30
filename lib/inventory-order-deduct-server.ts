@@ -276,6 +276,7 @@ async function markSerialUnitsDelivered(
     data: {
       status: "delivered",
       notes: note,
+      specs: order.orderNumber,
     },
   })
 

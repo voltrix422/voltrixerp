@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { parseDecimalField } from "@/lib/format-inventory-price"
+import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
 
 function addYears(date: Date, years: number) {
   const next = new Date(date)
@@ -96,6 +97,13 @@ export async function POST(req: NextRequest) {
       scannedBy: scannedBy || "system",
     },
   })
+
+  if (model?.trim()) {
+    await ensureInventoryStockForModel(
+      model.trim(),
+      productName || assignedName || undefined,
+    ).catch(() => {})
+  }
 
   return NextResponse.json(unit, { status: 201 })
 }

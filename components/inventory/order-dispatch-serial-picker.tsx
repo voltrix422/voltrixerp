@@ -114,6 +114,8 @@ export function OrderDispatchSerialPicker({
         units={units}
         onUnitsChange={setUnits}
         manualMeta={manualMeta}
+        orderId={order.id}
+        orderNumber={order.orderNumber}
         disabled={disabled}
       />
 

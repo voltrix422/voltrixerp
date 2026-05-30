@@ -1,8 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, Fragment } from "react"
 import {
   ClipboardList,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   PackagePlus,
   ShoppingCart,
@@ -25,6 +27,11 @@ import {
   type ManualInventoryItem,
 } from "@/lib/manual-inventory"
 import { generateOrderNumber, saveOrder, type Order, type OrderItem } from "@/lib/orders"
+import {
+  parseSerialDispatchClient,
+  parseSerialOrderRef,
+  serialStatusLabel,
+} from "@/lib/parse-serial-order-ref"
 
 type Client = { id: string; name: string }
 
@@ -47,6 +54,7 @@ export function ManualInventoryTab() {
   const [orderLines, setOrderLines] = useState<Record<string, string>>({})
   const [orderNotes, setOrderNotes] = useState("")
   const [creatingOrder, setCreatingOrder] = useState(false)
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -287,43 +295,119 @@ export function ManualInventoryTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[hsl(var(--muted))]/40 text-left text-xs uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                <th className="px-4 py-3 font-semibold w-8" />
                 <th className="px-4 py-3 font-semibold">Item</th>
                 <th className="px-4 py-3 font-semibold">Model</th>
                 <th className="px-4 py-3 font-semibold text-right">Total qty</th>
                 <th className="px-4 py-3 font-semibold text-right">Available</th>
+                <th className="px-4 py-3 font-semibold text-right">Serials</th>
                 <th className="px-4 py-3 font-semibold w-16" />
               </tr>
             </thead>
             <tbody className="divide-y">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-[hsl(var(--muted))]/15">
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{item.name}</p>
-                    {item.notes && (
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{item.notes}</p>
+              {items.map((item) => {
+                const serials = item.serialUnits ?? []
+                const expanded = expandedItems[item.id] === true
+                const hasSerials = serials.length > 0
+                return (
+                  <Fragment key={item.id}>
+                    <tr className="hover:bg-[hsl(var(--muted))]/15">
+                      <td className="px-4 py-3">
+                        {hasSerials ? (
+                          <button
+                            type="button"
+                            className="p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
+                            onClick={() =>
+                              setExpandedItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                            }
+                            aria-expanded={expanded}
+                          >
+                            {expanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </button>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{item.name}</p>
+                        {item.notes && (
+                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{item.notes}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs tabular-nums">{item.model}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {item.qty} {item.unit}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Badge variant={item.availableQty > 0 ? "default" : "secondary"}>
+                          {item.availableQty} {item.unit}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-xs text-[hsl(var(--muted-foreground))]">
+                        {serials.length > 0 ? (
+                          <span>
+                            {serials.filter((s) => s.status === "in_stock").length}/{serials.length} in stock
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600 cursor-pointer"
+                          onClick={() => void handleDelete(item)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                    {expanded && hasSerials && (
+                      <tr className="bg-[hsl(var(--muted))]/10">
+                        <td colSpan={7} className="px-4 py-3">
+                          <div className="rounded-lg border overflow-hidden bg-[hsl(var(--background))]">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b bg-[hsl(var(--muted))]/20 text-[hsl(var(--muted-foreground))]">
+                                  <th className="px-3 py-2 text-left font-semibold">Serial number</th>
+                                  <th className="px-3 py-2 text-left font-semibold">Status</th>
+                                  <th className="px-3 py-2 text-left font-semibold">Order</th>
+                                  <th className="px-3 py-2 text-left font-semibold">Client</th>
+                                  <th className="px-3 py-2 text-left font-semibold">Scanned</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y">
+                                {serials.map((unit) => {
+                                  const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
+                                  const client = parseSerialDispatchClient(unit.notes)
+                                  return (
+                                    <tr key={unit.id}>
+                                      <td className="px-3 py-2 font-mono font-semibold break-all">
+                                        {unit.serialNumber}
+                                      </td>
+                                      <td className="px-3 py-2 capitalize">
+                                        {serialStatusLabel(unit.status)}
+                                      </td>
+                                      <td className="px-3 py-2 font-mono">{orderRef ?? "—"}</td>
+                                      <td className="px-3 py-2">{client ?? "—"}</td>
+                                      <td className="px-3 py-2 tabular-nums text-[hsl(var(--muted-foreground))]">
+                                        {new Date(unit.scannedAt).toLocaleDateString("en-PK")}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs tabular-nums">{item.model}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {item.qty} {item.unit}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Badge variant={item.availableQty > 0 ? "default" : "secondary"}>
-                      {item.availableQty} {item.unit}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-600 cursor-pointer"
-                      onClick={() => void handleDelete(item)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>

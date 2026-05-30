@@ -37,6 +37,8 @@ type Props = {
   units: InventorySerialUnit[]
   onUnitsChange: (units: InventorySerialUnit[]) => void
   manualMeta?: Record<string, ManualDispatchMeta>
+  orderId?: string
+  orderNumber?: string
   disabled?: boolean
 }
 
@@ -76,6 +78,8 @@ export function DispatchSerialScanPanel({
   units,
   onUnitsChange,
   manualMeta = {},
+  orderId,
+  orderNumber,
   disabled,
 }: Props) {
   const valueRef = useRef(value)
@@ -218,15 +222,18 @@ export function DispatchSerialScanPanel({
         let unit = await findInventorySerialByNumber(serialRaw)
 
         if (!unit) {
+          const noteParts = [
+            manualInfo?.manualId ? `manual:${manualInfo.manualId}` : "Registered at dispatch scan",
+            orderNumber ? `pending:${orderNumber}` : "",
+            orderId ? `order:${orderId}` : "",
+          ].filter(Boolean)
           unit = await saveInventorySerialUnit({
             serialNumber: serialRaw,
             productName: details.productName || item.description,
             model,
             assignedName: item.description,
             inventoryStockId: manualInfo?.inventoryStockId ?? undefined,
-            notes: manualInfo?.manualId
-              ? `manual:${manualInfo.manualId}`
-              : "Registered at dispatch scan",
+            notes: noteParts.join(" "),
             scannedBy: "inventory-dispatch",
             createWarranty: false,
           })
@@ -314,7 +321,7 @@ export function DispatchSerialScanPanel({
         wedgeRef.current?.focus()
       }
     },
-    [disabled, lineStates, onChange, onUnitsChange],
+    [disabled, lineStates, onChange, onUnitsChange, orderId, orderNumber],
   )
 
   const handleCameraScan = useCallback(
