@@ -58,7 +58,7 @@ export function CrmWarehouseInventoryPicker({
               <Package className="h-10 w-10 text-[hsl(var(--muted-foreground))] opacity-30 mb-2" />
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
                 {products.length === 0
-                  ? "No units in stock. Scan QR in Inventory first."
+                  ? "No stock available. Scan QR in Inventory or add manual stock first."
                   : "No models match your search."}
               </p>
             </div>
@@ -71,7 +71,14 @@ export function CrmWarehouseInventoryPicker({
                 className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-[#1faca6]/[0.06] active:bg-[#1faca6]/10 transition-colors"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold break-words">{product.displayName}</p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-sm font-semibold break-words">{product.displayName}</p>
+                    {product.source === "manual" && (
+                      <span className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                        Manual
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[hsl(var(--muted-foreground))] font-mono mt-0.5 break-all">
                     {product.model}
                   </p>

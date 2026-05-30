@@ -1,5 +1,10 @@
 import { getInventoryModelLabels } from "@/lib/inventory-model-labels"
 import { getInventorySerialUnits, type InventorySerialUnit } from "@/lib/inventory-serial-units"
+import {
+  getManualInventoryItems,
+  manualInventoryItemId,
+  type ManualInventoryItem,
+} from "@/lib/manual-inventory"
 
 export type CrmWarehouseProduct = {
   id: string
@@ -8,6 +13,7 @@ export type CrmWarehouseProduct = {
   description: string
   qty: number
   unit: string
+  source?: "scanned" | "manual"
 }
 
 export function warehouseProductId(model: string) {
@@ -42,14 +48,39 @@ export function buildCrmWarehouseProducts(
         description,
         qty: count,
         unit: "pc",
+        source: "scanned",
+      }
+    })
+}
+
+export function buildCrmManualInventoryProducts(
+  items: ManualInventoryItem[],
+): CrmWarehouseProduct[] {
+  return items
+    .filter((item) => (item.availableQty ?? 0) > 0)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((item) => {
+      const model = item.model?.trim() || item.name.trim()
+      const displayName = item.name.trim() || model
+      const description =
+        displayName !== model ? `${displayName} · ${model}` : model
+      return {
+        id: manualInventoryItemId(item.id),
+        model,
+        displayName,
+        description,
+        qty: item.availableQty ?? 0,
+        unit: item.unit?.trim() || "pcs",
+        source: "manual",
       }
     })
 }
 
 export async function loadCrmWarehouseProducts(): Promise<CrmWarehouseProduct[]> {
-  const [units, labels] = await Promise.all([
+  const [units, labels, manualItems] = await Promise.all([
     getInventorySerialUnits(),
     getInventoryModelLabels().catch(() => []),
+    getManualInventoryItems().catch(() => []),
   ])
   const labelMap: Record<string, string> = {}
   for (const label of labels) {
@@ -61,5 +92,9 @@ export async function loadCrmWarehouseProducts(): Promise<CrmWarehouseProduct[]>
     const name = unit.productName?.trim()
     if (name && name !== m) labelMap[m] = name
   }
-  return buildCrmWarehouseProducts(units, labelMap)
+  const scanned = buildCrmWarehouseProducts(units, labelMap)
+  const manual = buildCrmManualInventoryProducts(manualItems)
+  return [...scanned, ...manual].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName),
+  )
 }
