@@ -1176,7 +1176,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               <div>
                 <p className="text-base font-bold">Create dispatch note</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                  Tab 1: dispatcher details · Tab 2: select serial numbers for order items
+                  Step 1: dispatcher · Step 2: scan QR codes for order qty
                 </p>
               </div>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFulfillDialog(false)}>
@@ -1210,7 +1210,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 }`}
               >
                 <Package className="h-3.5 w-3.5 shrink-0" />
-                Products &amp; inventory
+                Scan QR
                 {linesNeedSerials && !serialSelectionValid && !order.inventoryDeductedAt && (
                   <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white">
                     !
@@ -1397,7 +1397,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   onClick={() => setFulfillTab("products")}
                   disabled={updating}
                 >
-                  Next: Select products
+                  Next: Scan QR codes
                 </Button>
               ) : null}
               <Button
