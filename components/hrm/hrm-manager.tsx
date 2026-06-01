@@ -4,6 +4,7 @@ import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard } from "lucide-react"
+import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 
 const STORAGE_KEY = "erp_hrm_staff"
 const DB_NAME = "erp_hrm_db"
@@ -1687,6 +1688,14 @@ export function HrmManager() {
                   </div>
                 </div>
               </div>
+
+              {/* Assigned KPIs & settlements */}
+              <StaffKpiSection
+                staffId={viewMember.id}
+                staffName={viewMember.name}
+                isAdmin={user?.role === "superadmin"}
+                actorName={user?.name ?? "Admin"}
+              />
 
               {/* Warnings History */}
               {viewMember.warnings && viewMember.warnings.length > 0 && (

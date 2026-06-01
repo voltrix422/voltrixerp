@@ -291,8 +291,81 @@ model ErpStaff {
   bankName          String?  @default("") @map("bank_name")
   bankAccountNumber String?  @default("") @map("bank_account_number")
   bankAccountTitle  String?  @default("") @map("bank_account_title")
+  erpUserId         String?  @map("erp_user_id")
 
+  staffKpis      HrmStaffKpi[]
+  kpiSettlements HrmKpiSettlement[]
+
+  @@index([email])
+  @@index([erpUserId])
   @@map("erp_staff")
+}
+
+/// Admin-defined KPI template (e.g. weekly sales target).
+model HrmKpiTemplate {
+  id             String   @id @default(cuid())
+  name           String
+  description    String   @default("")
+  unit           String   @default("count") // currency | count | percent
+  defaultTarget  Float    @default(0) @map("default_target")
+  defaultWeight  Float    @default(0) @map("default_weight")
+  periodType     String   @default("weekly") @map("period_type") // weekly | monthly
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdBy      String   @default("") @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  staffKpis HrmStaffKpi[]
+
+  @@map("hrm_kpi_templates")
+}
+
+/// KPI assigned to a staff member (from template or custom).
+model HrmStaffKpi {
+  id           String   @id @default(cuid())
+  staffId      String   @map("staff_id")
+  staff        ErpStaff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  templateId   String?  @map("template_id")
+  template     HrmKpiTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  name         String
+  unit         String   @default("count")
+  targetValue  Float    @default(0) @map("target_value")
+  weight       Float    @default(0)
+  periodType   String   @default("weekly") @map("period_type")
+  active       Boolean  @default(true)
+  notes        String   @default("")
+  assignedBy   String   @default("") @map("assigned_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([staffId])
+  @@index([templateId])
+  @@map("hrm_staff_kpis")
+}
+
+/// Employee weekly/monthly KPI settlement (actuals + submit).
+model HrmKpiSettlement {
+  id           String    @id @default(cuid())
+  staffId      String    @map("staff_id")
+  staff        ErpStaff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  periodType   String    @default("weekly") @map("period_type")
+  periodStart  String    @map("period_start") // YYYY-MM-DD
+  periodEnd    String    @map("period_end")
+  status       String    @default("draft") // draft | submitted | approved | rejected
+  entries      Json      @default("[]") // [{ staffKpiId, name, target, actual, weight, unit }]
+  weightedScore Float?   @map("weighted_score")
+  employeeNotes String   @default("") @map("employee_notes")
+  adminNotes   String    @default("") @map("admin_notes")
+  submittedAt  DateTime? @map("submitted_at")
+  submittedBy  String    @default("") @map("submitted_by")
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewedBy   String    @default("") @map("reviewed_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@unique([staffId, periodStart, periodEnd])
+  @@index([staffId, status])
+  @@map("hrm_kpi_settlements")
 }
 
 model ErpFinanceRecord {
