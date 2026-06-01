@@ -12,6 +12,7 @@ import {
   type KpiUnit,
   type KpiPeriodType,
 } from "@/lib/hrm-kpis"
+import { HrmKpiAssign } from "@/components/hrm/hrm-kpi-assign"
 
 const UNITS: { value: KpiUnit; label: string }[] = [
   { value: "currency", label: "Currency (Rs)" },
@@ -125,7 +126,7 @@ export function HrmKpiAdmin({ createdBy }: { createdBy: string }) {
         <div>
           <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">KPI Templates</h2>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-            Define weekly KPIs here, then assign them to employees on their staff profile.
+            Create KPIs, link them to a staff profile, then employees submit for approval.
             Active template weights: <span className="font-semibold">{totalWeight}%</span>
             {totalWeight > 0 && totalWeight !== 100 && (
               <span className="text-amber-600 ml-1">(should total 100%)</span>
@@ -195,6 +196,8 @@ export function HrmKpiAdmin({ createdBy }: { createdBy: string }) {
           </table>
         </div>
       )}
+
+      <HrmKpiAssign assignedBy={createdBy} />
 
       {showForm && (
         <div

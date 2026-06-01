@@ -13,6 +13,8 @@ function mapStaffKpi(k: {
   active: boolean
   notes: string
   assignedBy: string
+  approvedActual: number
+  lastApprovedPeriod: string
   createdAt: Date
 }) {
   return {
@@ -27,6 +29,8 @@ function mapStaffKpi(k: {
     active: k.active,
     notes: k.notes,
     assignedBy: k.assignedBy,
+    approvedActual: k.approvedActual,
+    lastApprovedPeriod: k.lastApprovedPeriod,
     createdAt: k.createdAt.toISOString(),
   }
 }

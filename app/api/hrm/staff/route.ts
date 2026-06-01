@@ -84,6 +84,9 @@ function mapToDB(data: Record<string, any>) {
   const bankAccountTitle = data.bankAccountTitle ?? data.bank_account_title
   if (bankAccountTitle !== undefined) mapped.bankAccountTitle = bankAccountTitle ?? ''
 
+  const erpUserId = data.erpUserId ?? data.erp_user_id
+  if (erpUserId !== undefined) mapped.erpUserId = erpUserId || null
+
   return mapped
 }
 
@@ -110,5 +113,6 @@ function mapToFrontend(s: any) {
     bank_name: s.bankName ?? '',
     bank_account_number: s.bankAccountNumber ?? '',
     bank_account_title: s.bankAccountTitle ?? '',
+    erp_user_id: s.erpUserId ?? null,
   }
 }

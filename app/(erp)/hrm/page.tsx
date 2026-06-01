@@ -4,10 +4,11 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { HrmManager } from "@/components/hrm/hrm-manager"
 import { HrmKpiAdmin } from "@/components/hrm/hrm-kpi-admin"
+import { HrmKpiApprovals } from "@/components/hrm/hrm-kpi-approvals"
 import { MyKpiPortal } from "@/components/hrm/my-kpi-portal"
 import { useAuth } from "@/components/auth-provider"
 
-type HrmTab = "staff" | "performance" | "my-kpis"
+type HrmTab = "staff" | "performance" | "approvals" | "my-kpis"
 
 export default function HrmPage() {
   const { user } = useAuth()
@@ -42,12 +43,16 @@ export default function HrmPage() {
           <div className="flex items-center gap-1 border-b mb-4 flex-wrap">
             {isAdmin && tabBtn("staff", "Staff Management")}
             {isAdmin && tabBtn("performance", "KPI Templates")}
+            {isAdmin && tabBtn("approvals", "Approvals")}
             {tabBtn("my-kpis", isAdmin ? "My KPIs" : "My KPIs & Settlement")}
           </div>
 
           {tab === "staff" && isAdmin && <HrmManager />}
           {tab === "performance" && isAdmin && (
             <HrmKpiAdmin createdBy={user?.name ?? "Admin"} />
+          )}
+          {tab === "approvals" && isAdmin && (
+            <HrmKpiApprovals reviewedBy={user?.name ?? "Admin"} />
           )}
           {tab === "my-kpis" && <MyKpiPortal />}
         </div>

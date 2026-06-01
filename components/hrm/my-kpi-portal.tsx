@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
-import { fetchStaffByEmail } from "@/lib/hrm-kpis"
+import { fetchStaffProfile } from "@/lib/hrm-kpis"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 
 export function MyKpiPortal() {
@@ -13,18 +13,18 @@ export function MyKpiPortal() {
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    if (!user?.email) {
+    if (!user?.email && !user?.id) {
       setLoading(false)
       return
     }
-    fetchStaffByEmail(user.email)
+    fetchStaffProfile({ email: user?.email, userId: user?.id })
       .then(s => {
         setStaff(s)
         setNotFound(!s)
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
-  }, [user?.email])
+  }, [user?.email, user?.id])
 
   if (loading) {
     return (
@@ -51,7 +51,7 @@ export function MyKpiPortal() {
       <div>
         <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">My KPIs — {staff.name}</h2>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-          Update your actual numbers and submit your weekly settlement every Saturday.
+          Update your actuals and send to admin for approval. Once approved, your KPI progress is updated on your profile.
         </p>
       </div>
       <StaffKpiSection

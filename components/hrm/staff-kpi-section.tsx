@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Plus, Loader2, CheckCircle2, Clock } from "lucide-react"
+import { Plus, Loader2, CheckCircle2, Clock, AlertCircle, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import {
@@ -26,8 +26,20 @@ type Props = {
   staffName: string
   isAdmin: boolean
   actorName: string
-  /** Employee can edit draft settlement */
   canSettle?: boolean
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case "approved":
+      return "Approved — KPIs updated"
+    case "submitted":
+      return "Pending admin approval"
+    case "rejected":
+      return "Rejected — please revise"
+    default:
+      return "Draft"
+  }
 }
 
 export function StaffKpiSection({
@@ -43,10 +55,15 @@ export function StaffKpiSection({
   const [settlement, setSettlement] = useState<KpiSettlement | null>(null)
   const [entries, setEntries] = useState<SettlementEntry[]>([])
   const [employeeNotes, setEmployeeNotes] = useState("")
+  const [adminReviewNote, setAdminReviewNote] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [assignTemplateId, setAssignTemplateId] = useState("")
+  const [customName, setCustomName] = useState("")
+  const [customTarget, setCustomTarget] = useState("")
+  const [customWeight, setCustomWeight] = useState("")
   const { periodStart, periodEnd } = weekBounds()
+  const periodKey = `${periodStart}_${periodEnd}`
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -63,6 +80,7 @@ export function StaffKpiSection({
       if (current) {
         setEntries(current.entries)
         setEmployeeNotes(current.employeeNotes)
+        setAdminReviewNote(current.adminNotes)
       } else {
         setEntries(
           kpiList
@@ -77,6 +95,7 @@ export function StaffKpiSection({
             }))
         )
         setEmployeeNotes("")
+        setAdminReviewNote("")
       }
     } catch {
       toast({ title: "Error", message: "Could not load KPIs.", type: "error" })
@@ -89,7 +108,7 @@ export function StaffKpiSection({
     load()
   }, [load])
 
-  async function handleAssign() {
+  async function handleAssignTemplate() {
     if (!assignTemplateId) return
     const tpl = templates.find(t => t.id === assignTemplateId)
     if (!tpl) return
@@ -104,7 +123,7 @@ export function StaffKpiSection({
         periodType: tpl.periodType,
         assignedBy: actorName,
       })
-      toast({ title: "Assigned", message: `${tpl.name} added to ${staffName}.`, type: "success" })
+      toast({ title: "Assigned", message: `${tpl.name} linked to ${staffName}.`, type: "success" })
       setAssignTemplateId("")
       load()
     } catch (err) {
@@ -116,8 +135,32 @@ export function StaffKpiSection({
     }
   }
 
+  async function handleAssignCustom() {
+    if (!customName.trim()) return
+    try {
+      await assignStaffKpi({
+        staffId,
+        name: customName.trim(),
+        targetValue: Number(customTarget) || 0,
+        weight: Number(customWeight) || 0,
+        assignedBy: actorName,
+      })
+      toast({ title: "Assigned", message: "Custom KPI added.", type: "success" })
+      setCustomName("")
+      setCustomTarget("")
+      setCustomWeight("")
+      load()
+    } catch (err) {
+      toast({
+        title: "Error",
+        message: err instanceof Error ? err.message : "Assign failed",
+        type: "error",
+      })
+    }
+  }
+
   async function handleRemove(kpiId: string) {
-    if (!confirm("Remove this KPI from the employee?")) return
+    if (!confirm("Remove this KPI from the profile?")) return
     try {
       await deleteStaffKpi(kpiId)
       load()
@@ -133,10 +176,13 @@ export function StaffKpiSection({
   }
 
   const liveScore = computeWeightedScore(entries)
-  const isDraft = !settlement || settlement.status === "draft"
-  const canEdit = (canSettle || isAdmin) && isDraft
+  const st = settlement?.status ?? "draft"
+  const canEdit = (canSettle || isAdmin) && (st === "draft" || st === "rejected")
+  const isPending = st === "submitted"
+  const isApproved = st === "approved"
+  const isRejected = st === "rejected"
 
-  async function persist(status: "draft" | "submitted") {
+  async function persist(opts: { status: "draft" | "submitted"; revise?: boolean }) {
     setSaving(true)
     try {
       const saved = await saveSettlement({
@@ -145,16 +191,17 @@ export function StaffKpiSection({
         periodEnd,
         entries,
         employeeNotes,
-        status,
-        submittedBy: status === "submitted" ? actorName : undefined,
+        status: opts.status,
+        revise: opts.revise,
+        submittedBy: opts.status === "submitted" ? actorName : undefined,
       })
       setSettlement(saved)
       toast({
-        title: status === "submitted" ? "Submitted" : "Saved",
+        title: opts.status === "submitted" ? "Sent for approval" : "Draft saved",
         message:
-          status === "submitted"
-            ? "Weekly KPI settlement submitted."
-            : "Draft saved.",
+          opts.status === "submitted"
+            ? "Admin will review and approve to update your KPIs."
+            : "You can continue editing.",
         type: "success",
       })
       load()
@@ -176,9 +223,17 @@ export function StaffKpiSection({
       await reviewSettlement({
         id: settlement.id,
         status: next,
+        adminNotes: adminReviewNote,
         reviewedBy: actorName,
       })
-      toast({ title: "Reviewed", message: `Settlement ${next}.`, type: "success" })
+      toast({
+        title: next === "approved" ? "Approved" : "Rejected",
+        message:
+          next === "approved"
+            ? "KPI progress updated on this profile."
+            : "Employee can revise and resubmit.",
+        type: "success",
+      })
       load()
     } catch (err) {
       toast({
@@ -204,67 +259,110 @@ export function StaffKpiSection({
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
-            Assigned KPIs
+            KPIs on profile
           </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
             Week {periodStart} → {periodEnd}
-            {settlement && (
-              <span
-                className={`ml-2 inline-flex items-center gap-1 font-medium ${
-                  settlement.status === "approved"
-                    ? "text-emerald-600"
-                    : settlement.status === "submitted"
-                      ? "text-blue-600"
-                      : "text-amber-600"
-                }`}
-              >
-                {settlement.status === "approved" ? (
-                  <CheckCircle2 className="h-3 w-3" />
-                ) : (
-                  <Clock className="h-3 w-3" />
-                )}
-                {settlement.status}
-              </span>
-            )}
           </p>
+          {settlement && (
+            <p
+              className={`text-xs font-medium mt-1 flex items-center gap-1 ${
+                isApproved
+                  ? "text-emerald-600"
+                  : isPending
+                    ? "text-blue-600"
+                    : isRejected
+                      ? "text-red-600"
+                      : "text-amber-600"
+              }`}
+            >
+              {isApproved ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : isRejected ? (
+                <AlertCircle className="h-3 w-3" />
+              ) : (
+                <Clock className="h-3 w-3" />
+              )}
+              {statusLabel(st)}
+            </p>
+          )}
         </div>
         <div className="text-right">
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">Score</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">Week score</p>
           <p className="text-xl font-bold text-[#1faca6] tabular-nums">{liveScore}%</p>
         </div>
       </div>
 
-      {isAdmin && templates.length > 0 && (
-        <div className="flex gap-2">
-          <select
-            className="flex-1 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
-            value={assignTemplateId}
-            onChange={e => setAssignTemplateId(e.target.value)}
+      {isAdmin && (
+        <div className="space-y-2 rounded-lg bg-[hsl(var(--muted))]/15 p-3">
+          <p className="text-xs font-medium">Admin: link KPI to this profile</p>
+          <div className="flex gap-2">
+            <select
+              className="flex-1 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
+              value={assignTemplateId}
+              onChange={e => setAssignTemplateId(e.target.value)}
+            >
+              <option value="">From template…</option>
+              {templates.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={handleAssignTemplate}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <input
+              className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm col-span-3 sm:col-span-1"
+              placeholder="Custom KPI name"
+              value={customName}
+              onChange={e => setCustomName(e.target.value)}
+            />
+            <input
+              type="number"
+              className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
+              placeholder="Target"
+              value={customTarget}
+              onChange={e => setCustomTarget(e.target.value)}
+            />
+            <input
+              type="number"
+              className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
+              placeholder="Weight %"
+              value={customWeight}
+              onChange={e => setCustomWeight(e.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 w-full"
+            disabled={!customName.trim()}
+            onClick={handleAssignCustom}
           >
-            <option value="">Assign KPI from template…</option>
-            {templates.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name} (target: {t.defaultTarget}, {t.defaultWeight}%)
-              </option>
-            ))}
-          </select>
-          <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={handleAssign}>
-            <Plus className="h-3.5 w-3.5" /> Add
+            Add custom KPI
           </Button>
         </div>
       )}
 
       {kpis.length === 0 ? (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          No KPIs assigned yet.
-          {isAdmin ? " Use the dropdown above to assign templates from Performance tab." : ""}
+          No KPIs on this profile yet.
+          {isAdmin ? " Assign templates above or from KPI Templates tab." : " Ask HR to assign KPIs."}
         </p>
       ) : (
         <div className="space-y-3">
           {kpis.map(k => {
             const entry = entries.find(e => e.staffKpiId === k.id)
             const actual = entry?.actual ?? 0
-            const pct = k.targetValue > 0 ? Math.min(100, (actual / k.targetValue) * 100) : 0
+            const showApproved =
+              k.lastApprovedPeriod === periodKey && isApproved
+            const displayActual = showApproved ? k.approvedActual : actual
+            const pct =
+              k.targetValue > 0 ? Math.min(100, (displayActual / k.targetValue) * 100) : 0
             return (
               <div key={k.id} className="rounded-lg border border-[hsl(var(--border))]/60 p-3">
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -273,6 +371,11 @@ export function StaffKpiSection({
                     <p className="text-xs text-[hsl(var(--muted-foreground))]">
                       Target: {formatKpiValue(k.targetValue, k.unit)} · Weight {k.weight}%
                     </p>
+                    {k.approvedActual > 0 && k.lastApprovedPeriod && k.lastApprovedPeriod !== periodKey && (
+                      <p className="text-[10px] text-emerald-600 mt-0.5">
+                        Last approved: {formatKpiValue(k.approvedActual, k.unit)}
+                      </p>
+                    )}
                   </div>
                   {isAdmin && (
                     <button
@@ -285,22 +388,20 @@ export function StaffKpiSection({
                   )}
                 </div>
                 <div className="h-1.5 rounded-full bg-[hsl(var(--muted))]/40 overflow-hidden mb-2">
-                  <div
-                    className="h-full bg-[#1faca6] transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
+                  <div className="h-full bg-[#1faca6] transition-all" style={{ width: `${pct}%` }} />
                 </div>
                 {canEdit ? (
                   <input
                     type="number"
                     className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
-                    placeholder="Actual achieved"
+                    placeholder="Enter actual achieved this week"
                     value={actual || ""}
                     onChange={e => updateActual(k.id, Number(e.target.value) || 0)}
                   />
                 ) : (
                   <p className="text-sm font-semibold tabular-nums">
-                    Achieved: {formatKpiValue(actual, k.unit)}
+                    {isApproved ? "Approved: " : "Submitted: "}
+                    {formatKpiValue(displayActual, k.unit)}
                   </p>
                 )}
               </div>
@@ -309,39 +410,70 @@ export function StaffKpiSection({
         </div>
       )}
 
+      {isRejected && adminReviewNote && (
+        <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">
+          Admin: {adminReviewNote}
+        </p>
+      )}
+
       {(canSettle || isAdmin) && kpis.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-[hsl(var(--border))]">
           <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">
-            Weekly settlement
+            Settlement & approval
           </p>
           {canEdit && (
             <textarea
               className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-sm min-h-[56px]"
-              placeholder="Notes for this week (optional)"
+              placeholder="Notes for admin (optional)"
               value={employeeNotes}
               onChange={e => setEmployeeNotes(e.target.value)}
             />
           )}
           {!canEdit && employeeNotes && (
-            <p className="text-sm text-[hsl(var(--foreground))]">{employeeNotes}</p>
+            <p className="text-sm">
+              <span className="text-[hsl(var(--muted-foreground))]">Note: </span>
+              {employeeNotes}
+            </p>
           )}
+
           <div className="flex flex-wrap gap-2">
             {canEdit && (
               <>
-                <Button size="sm" variant="outline" disabled={saving} onClick={() => persist("draft")}>
+                <Button size="sm" variant="outline" disabled={saving} onClick={() => persist({ status: "draft" })}>
                   Save draft
                 </Button>
-                <Button size="sm" disabled={saving} onClick={() => persist("submitted")}>
-                  Submit settlement
+                <Button
+                  size="sm"
+                  disabled={saving}
+                  className="gap-1.5"
+                  onClick={() => persist({ status: "submitted", revise: isRejected })}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {isRejected ? "Resubmit for approval" : "Send to admin for approval"}
                 </Button>
               </>
             )}
-            {isAdmin && settlement?.status === "submitted" && (
+            {isPending && canSettle && (
+              <p className="text-xs text-blue-600 w-full">Waiting for admin approval. You cannot edit until reviewed.</p>
+            )}
+            {isAdmin && isPending && settlement && (
               <>
-                <Button size="sm" variant="outline" disabled={saving} onClick={() => handleReview("approved")}>
-                  Approve
+                <textarea
+                  className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-sm min-h-[40px]"
+                  placeholder="Admin note (optional)"
+                  value={adminReviewNote}
+                  onChange={e => setAdminReviewNote(e.target.value)}
+                />
+                <Button size="sm" disabled={saving} onClick={() => handleReview("approved")}>
+                  Approve & update KPIs
                 </Button>
-                <Button size="sm" variant="outline" className="text-red-600" disabled={saving} onClick={() => handleReview("rejected")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600"
+                  disabled={saving}
+                  onClick={() => handleReview("rejected")}
+                >
                   Reject
                 </Button>
               </>

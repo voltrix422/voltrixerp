@@ -28,6 +28,8 @@ export type StaffKpi = {
   active: boolean
   notes: string
   assignedBy: string
+  approvedActual: number
+  lastApprovedPeriod: string
   createdAt: string
 }
 
@@ -43,6 +45,10 @@ export type SettlementEntry = {
 export type KpiSettlement = {
   id: string
   staffId: string
+  staffName?: string
+  staffEmail?: string
+  staffRole?: string
+  staffDepartment?: string
   periodType: KpiPeriodType
   periodStart: string
   periodEnd: string
@@ -170,14 +176,29 @@ export async function fetchSettlements(params: {
   staffId?: string
   periodStart?: string
   periodEnd?: string
+  status?: SettlementStatus
 }): Promise<KpiSettlement[]> {
   const sp = new URLSearchParams()
   if (params.staffId) sp.set("staffId", params.staffId)
   if (params.periodStart) sp.set("periodStart", params.periodStart)
   if (params.periodEnd) sp.set("periodEnd", params.periodEnd)
+  if (params.status) sp.set("status", params.status)
   const res = await fetch(`/api/hrm/kpi-settlements?${sp}`, { cache: "no-store" })
   if (!res.ok) throw new Error("Failed to load settlements")
   return res.json()
+}
+
+export async function fetchPendingSettlements(): Promise<KpiSettlement[]> {
+  return fetchSettlements({ status: "submitted" })
+}
+
+export async function linkStaffToUser(staffId: string, erpUserId: string | null): Promise<void> {
+  const res = await fetch("/api/hrm/staff/link-user", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ staffId, erpUserId }),
+  })
+  if (!res.ok) throw new Error("Failed to link user to profile")
 }
 
 export async function saveSettlement(body: {
@@ -190,6 +211,7 @@ export async function saveSettlement(body: {
   employeeNotes?: string
   status?: SettlementStatus
   submittedBy?: string
+  revise?: boolean
 }): Promise<KpiSettlement> {
   const res = await fetch("/api/hrm/kpi-settlements", {
     method: "POST",
@@ -217,11 +239,26 @@ export async function reviewSettlement(body: {
   return json
 }
 
-export async function fetchStaffByEmail(email: string): Promise<{ id: string; name: string; email: string } | null> {
-  const res = await fetch(`/api/hrm/staff/by-email?email=${encodeURIComponent(email)}`, {
-    cache: "no-store",
-  })
+export async function fetchStaffProfile(params: {
+  email?: string
+  userId?: string
+}): Promise<{
+  id: string
+  name: string
+  email: string
+  role?: string
+  department?: string
+  erpUserId?: string | null
+} | null> {
+  const sp = new URLSearchParams()
+  if (params.email) sp.set("email", params.email)
+  if (params.userId) sp.set("userId", params.userId)
+  const res = await fetch(`/api/hrm/staff/by-email?${sp}`, { cache: "no-store" })
   if (res.status === 404) return null
   if (!res.ok) throw new Error("Failed to lookup staff")
   return res.json()
+}
+
+export async function fetchStaffByEmail(email: string) {
+  return fetchStaffProfile({ email })
 }

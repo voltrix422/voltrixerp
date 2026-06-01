@@ -1,0 +1,2 @@
+ALTER TABLE "hrm_staff_kpis" ADD COLUMN IF NOT EXISTS "approved_actual" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "hrm_staff_kpis" ADD COLUMN IF NOT EXISTS "last_approved_period" TEXT NOT NULL DEFAULT '';
