@@ -13,7 +13,10 @@ import {
   type BranchInventoryTransfer,
 } from "@/lib/branches"
 import { downloadBranchTransferHistoryPDF } from "@/lib/generate-branch-transfer-history-pdf"
-import { groupTransferHistoryForDisplay } from "@/lib/branch-transfer-history-display"
+import {
+  groupTransferHistoryForDisplay,
+  type TransferHistoryDisplayEntry,
+} from "@/lib/branch-transfer-history-display"
 import { BulkBranchTransferModal, type BulkTransferProduct } from "@/components/branches/bulk-branch-transfer-modal"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -86,6 +89,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   const [transferHistory, setTransferHistory] = useState<BranchInventoryTransfer[]>([])
   const [loadingTransferHistory, setLoadingTransferHistory] = useState(true)
   const [clearingHistory, setClearingHistory] = useState(false)
+  const [downloadingTransferPdfId, setDownloadingTransferPdfId] = useState<string | null>(null)
   const [returningToMain, setReturningToMain] = useState(false)
   const [removingAll, setRemovingAll] = useState(false)
   const [deletingInvId, setDeletingInvId] = useState<string | null>(null)
@@ -304,6 +308,18 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
     [transferHistory],
   )
 
+  async function handleDownloadTransferPdf(entry: TransferHistoryDisplayEntry) {
+    setDownloadingTransferPdfId(entry.id)
+    try {
+      await downloadBranchTransferHistoryPDF(branch, groupedTransferHistory, { singleEntry: entry })
+      toast({ type: "success", title: "PDF downloaded", message: "Transfer slip saved." })
+    } catch {
+      toast({ type: "error", title: "Failed", message: "Could not generate transfer PDF." })
+    } finally {
+      setDownloadingTransferPdfId(null)
+    }
+  }
+
   const detailBits: string[] = []
   if (branch.manager) detailBits.push(`Mgr: ${branch.manager}`)
   if (branch.phone) detailBits.push(branch.phone)
@@ -460,7 +476,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                 onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
               >
                 <FileDown className="h-3 w-3 mr-1" />
-                PDF
+                All PDF
               </Button>
               <Button
                 size="sm"
@@ -592,6 +608,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                       <th className="px-3 py-2 font-medium text-right">Qty</th>
                       <th className="px-3 py-2 font-medium">Date</th>
                       <th className="px-3 py-2 font-medium">By</th>
+                      <th className="px-3 py-2 font-medium text-right w-[72px]">PDF</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -640,6 +657,25 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                           </td>
                           <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-[100px] truncate">
                             {entry.transferredBy}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px] cursor-pointer text-[#1faca6] border-[#1faca6]"
+                              disabled={downloadingTransferPdfId === entry.id}
+                              title="Download PDF for this transfer only"
+                              onClick={() => void handleDownloadTransferPdf(entry)}
+                            >
+                              {downloadingTransferPdfId === entry.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <FileDown className="h-3 w-3 mr-0.5" />
+                                  PDF
+                                </>
+                              )}
+                            </Button>
                           </td>
                         </tr>
                       )

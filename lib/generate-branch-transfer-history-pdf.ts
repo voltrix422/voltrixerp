@@ -42,6 +42,80 @@ function formatDateTime(value: string): string {
   })
 }
 
+function slugForFilename(value: string): string {
+  return value
+    .replace(/[^\w-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40)
+}
+
+export function transferHistoryPdfFilename(
+  branch: Branch,
+  entry: TransferHistoryDisplayEntry,
+): string {
+  const date = entry.transferredAt.slice(0, 10)
+  const peerCode =
+    entry.fromBranchId === branch.id ? entry.toBranchCode : entry.fromBranchCode
+  const route = `${branch.code}-to-${peerCode}-${date}`
+  if (entry.isBatch && entry.transferBatchId) {
+    return `Voltrix-Transfer-${route}-batch.pdf`
+  }
+  const itemSlug = slugForFilename(entry.productDescription.slice(0, 24))
+  return `Voltrix-Transfer-${route}-${itemSlug || entry.id.slice(0, 8)}.pdf`
+}
+
+function buildTransferTableRows(
+  branch: Branch,
+  transferHistory: TransferHistoryDisplayEntry[],
+): string[][] {
+  const rows: string[][] = []
+  let index = 0
+
+  for (const entry of transferHistory) {
+    const isOutgoing = entry.fromBranchId === branch.id
+    const isIncoming = entry.toBranchId === branch.id
+    const direction = isOutgoing ? "Outgoing" : isIncoming ? "Incoming" : "Transfer"
+    const route = `${entry.fromBranchName} (${entry.fromBranchCode}) -> ${entry.toBranchName} (${entry.toBranchCode})`
+
+    const pushRow = (
+      itemLabel: string,
+      qtyLabel: string,
+      remarks: string,
+    ) => {
+      index += 1
+      rows.push([
+        String(index),
+        formatDateTime(entry.transferredAt),
+        direction,
+        itemLabel,
+        qtyLabel,
+        route,
+        entry.transferredBy,
+        remarks,
+      ])
+    }
+
+    if (entry.isBatch && entry.lineItems.length > 0) {
+      for (const line of entry.lineItems) {
+        pushRow(
+          line.productDescription,
+          `${line.quantity} ${line.unit}`,
+          line.userNote?.trim() || entry.note || "—",
+        )
+      }
+    } else {
+      pushRow(
+        entry.productDescription,
+        `${entry.quantity} ${entry.unit}`,
+        entry.note?.trim() || "—",
+      )
+    }
+  }
+
+  return rows
+}
+
 function drawPageFooter(doc: jsPDF, page: number, pageCount: number, margin: number, pageW: number) {
   const pageHeight = doc.internal.pageSize.getHeight()
   doc.setDrawColor(230, 230, 230)
@@ -70,6 +144,7 @@ export async function generateBranchTransferHistoryPDF(
     minute: "2-digit",
   })
 
+  const isSingleSlip = transferHistory.length === 1
   const outgoingCount = transferHistory.filter((entry) => entry.fromBranchId === branch.id).length
   const incomingCount = transferHistory.filter((entry) => entry.toBranchId === branch.id).length
 
@@ -94,7 +169,7 @@ export async function generateBranchTransferHistoryPDF(
 
   doc.setFont("helvetica", "bold")
   doc.setFontSize(16)
-  doc.text("TRANSFER HISTORY", pageW - margin, 16, { align: "right" })
+  doc.text(isSingleSlip ? "TRANSFER SLIP" : "TRANSFER HISTORY", pageW - margin, 16, { align: "right" })
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8.5)
   doc.text(branch.code, pageW - margin, 23, { align: "right" })
@@ -157,31 +232,7 @@ export async function generateBranchTransferHistoryPDF(
   doc.line(margin, y, margin + 28, y)
   y += 6
 
-  const body = transferHistory.map((entry, index) => {
-    const isOutgoing = entry.fromBranchId === branch.id
-    const isIncoming = entry.toBranchId === branch.id
-    const direction = isOutgoing ? "Outgoing" : isIncoming ? "Incoming" : "Transfer"
-    const route = isOutgoing
-      ? `${entry.fromBranchName} (${entry.fromBranchCode}) -> ${entry.toBranchName} (${entry.toBranchCode})`
-      : isIncoming
-        ? `${entry.fromBranchName} (${entry.fromBranchCode}) -> ${entry.toBranchName} (${entry.toBranchCode})`
-        : `${entry.fromBranchName} (${entry.fromBranchCode}) -> ${entry.toBranchName} (${entry.toBranchCode})`
-
-    const remarks = entry.isBatch
-      ? entry.lineItems.map((line) => `${line.quantity} ${line.unit} × ${line.productDescription}`).join("; ")
-      : entry.note
-
-    return [
-      String(index + 1),
-      formatDateTime(entry.transferredAt),
-      direction,
-      entry.productDescription,
-      `${entry.quantity} ${entry.unit}`,
-      route,
-      entry.transferredBy,
-      remarks,
-    ]
-  })
+  const body = buildTransferTableRows(branch, transferHistory)
 
   autoTable(doc, {
     startY: y,
@@ -250,7 +301,7 @@ export async function downloadBranchTransferHistoryPDF(
   anchor.href = url
   const datePart = new Date().toISOString().slice(0, 10)
   anchor.download = options?.singleEntry
-    ? `Voltrix-Transfer-${branch.code}-${datePart}-${options.singleEntry.id.slice(0, 8)}.pdf`
+    ? transferHistoryPdfFilename(branch, options.singleEntry)
     : `Voltrix-Transfer-History-${branch.code}-${datePart}.pdf`
   document.body.appendChild(anchor)
   anchor.click()
