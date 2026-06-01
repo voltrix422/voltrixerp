@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, X } from "lucide-react"
 import type { Branch } from "@/lib/branches"
@@ -92,20 +92,88 @@ export function BulkBranchTransferModal({
     [branches, currentBranchId, destinationFilter],
   )
 
+  const wasOpenRef = useRef(false)
+
   useEffect(() => {
-    if (!open) return
-    const initial: Record<string, LineState> = {}
-    for (const p of products) {
-      const preselected = preselectedProductId === p.id
-      initial[p.id] = {
-        selected: preselected && p.selectable !== false,
-        qty: preselected && p.maxQty > 0 ? "1" : "",
-        note: "",
-      }
+    if (!open) {
+      wasOpenRef.current = false
+      return
     }
-    setLineState(initial)
-    setToBranchId("")
+
+    const justOpened = !wasOpenRef.current
+    wasOpenRef.current = true
+
+    if (justOpened) {
+      const initial: Record<string, LineState> = {}
+      for (const p of products) {
+        const preselected = preselectedProductId === p.id
+        initial[p.id] = {
+          selected: preselected && p.selectable !== false,
+          qty: preselected && p.maxQty > 0 ? "1" : "",
+          note: "",
+        }
+      }
+      setLineState(initial)
+      setToBranchId("")
+      return
+    }
+
+    // Parent re-rendered with new `products` reference — keep selections, sync new rows only
+    setLineState((prev) => {
+      const next: Record<string, LineState> = { ...prev }
+      for (const p of products) {
+        if (!next[p.id]) {
+          next[p.id] = { selected: false, qty: "", note: "" }
+        }
+      }
+      for (const id of Object.keys(next)) {
+        if (!products.some((p) => p.id === id)) delete next[id]
+      }
+      return next
+    })
   }, [open, products, preselectedProductId])
+
+  const selectableProducts = useMemo(
+    () => products.filter((p) => p.selectable !== false),
+    [products],
+  )
+
+  function selectAll() {
+    setLineState((prev) => {
+      const next = { ...prev }
+      for (const p of selectableProducts) {
+        const cur = next[p.id] ?? { selected: false, qty: "", note: "" }
+        next[p.id] = {
+          ...cur,
+          selected: true,
+          qty: cur.qty.trim() ? cur.qty : p.maxQty > 0 ? "1" : "",
+        }
+      }
+      return next
+    })
+  }
+
+  function clearSelection() {
+    setLineState((prev) => {
+      const next = { ...prev }
+      for (const p of products) {
+        if (next[p.id]) {
+          next[p.id] = { ...next[p.id], selected: false }
+        }
+      }
+      return next
+    })
+  }
+
+  function toggleLine(id: string, product: BulkTransferProduct) {
+    if (product.selectable === false) return
+    const state = lineState[id] ?? { selected: false, qty: "", note: "" }
+    const nextSelected = !state.selected
+    updateLine(id, {
+      selected: nextSelected,
+      qty: nextSelected && !state.qty.trim() ? (product.maxQty > 0 ? "1" : "") : state.qty,
+    })
+  }
 
   function updateLine(id: string, patch: Partial<LineState>) {
     setLineState((prev) => ({
@@ -196,7 +264,26 @@ export function BulkBranchTransferModal({
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-medium">Products ({selectedLines.length} selected)</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium">Products ({selectedLines.length} selected)</p>
+              {selectableProducts.length > 0 && (
+                <div className="flex gap-1.5">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-[10px] px-2" onClick={selectAll}>
+                    Select all
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[10px] px-2"
+                    onClick={clearSelection}
+                    disabled={selectedLines.length === 0}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+            </div>
             {products.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))]">No products available.</p>
             ) : (
@@ -211,18 +298,35 @@ export function BulkBranchTransferModal({
                   return (
                     <div
                       key={p.id}
-                      className={`rounded-lg border p-3 space-y-2 ${state.selected ? "border-[#1faca6] bg-[#1faca6]/5" : "bg-[hsl(var(--background))]"} ${disabled ? "opacity-60" : ""}`}
+                      role={disabled ? undefined : "button"}
+                      tabIndex={disabled ? undefined : 0}
+                      className={`rounded-lg border p-3 space-y-2 transition-colors ${
+                        state.selected ? "border-[#1faca6] bg-[#1faca6]/5" : "bg-[hsl(var(--background))]"
+                      } ${disabled ? "opacity-60" : "cursor-pointer hover:border-[#1faca6]/40"}`}
+                      onClick={() => !disabled && toggleLine(p.id, p)}
+                      onKeyDown={(e) => {
+                        if (!disabled && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault()
+                          toggleLine(p.id, p)
+                        }
+                      }}
                     >
                       <div className="flex items-start gap-2">
                         <input
                           type="checkbox"
-                          className="mt-1 h-4 w-4 rounded border cursor-pointer"
+                          className="mt-1 h-4 w-4 rounded border cursor-pointer shrink-0"
                           checked={state.selected}
                           disabled={disabled}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) =>
                             updateLine(p.id, {
                               selected: e.target.checked,
-                              qty: e.target.checked && !state.qty ? "1" : state.qty,
+                              qty:
+                                e.target.checked && !state.qty.trim()
+                                  ? p.maxQty > 0
+                                    ? "1"
+                                    : ""
+                                  : state.qty,
                             })
                           }
                         />
@@ -245,6 +349,7 @@ export function BulkBranchTransferModal({
                               max={p.maxQty}
                               step={1}
                               value={state.qty}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) =>
                                 updateLine(p.id, { qty: clampQtyInput(e.target.value, p.maxQty) })
                               }
@@ -260,7 +365,10 @@ export function BulkBranchTransferModal({
                               variant="outline"
                               size="sm"
                               className="h-8 text-[10px] px-2"
-                              onClick={() => updateLine(p.id, { qty: String(p.maxQty) })}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                updateLine(p.id, { qty: String(p.maxQty) })
+                              }}
                             >
                               Max
                             </Button>
@@ -280,6 +388,7 @@ export function BulkBranchTransferModal({
                           </label>
                           <textarea
                             value={state.note}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => updateLine(p.id, { note: e.target.value })}
                             rows={2}
                             placeholder={`Note for ${p.label}…`}
