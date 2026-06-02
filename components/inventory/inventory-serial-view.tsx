@@ -24,16 +24,7 @@ import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { useDialog } from "@/components/ui/dialog-provider"
-import {
-  Package,
-  Search,
-  X,
-  QrCode,
-  Loader2,
-  Boxes,
-  Layers3,
-  CircleCheck,
-} from "lucide-react"
+import { Package, Search, X, QrCode, Loader2 } from "lucide-react"
 
 type InventorySerialViewProps = {
   /** Renders after Export Excel / Scan QR (e.g. Send multiple on branch detail). */
@@ -355,20 +346,14 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     )
   }
 
-  const statItems = [
-    { label: "Boxes", value: totalBoxes, icon: Boxes },
-    { label: "Models", value: modelCount, icon: Layers3 },
-    { label: "In stock", value: inStockCount, icon: CircleCheck },
-  ]
-
   function renderGroupTable(title: string, groups: UnifiedInventoryModelGroup[]) {
     return (
-      <div className="rounded-xl border overflow-hidden bg-[hsl(var(--card))] shadow-sm">
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-[hsl(var(--muted))]/15">
-          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{title}</p>
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">{groups.length} model(s)</span>
+      <div className="rounded-lg border overflow-hidden bg-[hsl(var(--background))]">
+        <div className="flex items-center justify-between px-3 py-2 border-b">
+          <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{title}</p>
+          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{groups.length} models</span>
         </div>
-        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 px-4 py-3 border-b bg-[hsl(var(--muted))]/20 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
           <span>Model / product</span>
           <span>Model code</span>
           <span className="text-right">Stock</span>
@@ -409,60 +394,48 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   }
 
   return (
-    <div className={embedded ? "space-y-4" : "space-y-5"}>
-      <div
-        className={`rounded-xl border bg-[hsl(var(--card))] p-4 sm:p-5 ${embedded ? "" : "shadow-sm"}`}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          {statItems.map((s) => {
-            const Icon = s.icon
-            return (
-              <div
-                key={s.label}
-                className="flex items-center gap-3 rounded-lg border bg-[hsl(var(--background))] px-4 py-3.5"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1faca6]/10 text-[#1faca6]">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-2xl font-semibold tabular-nums text-[#1faca6] leading-none">{s.value}</p>
-                  <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mt-1">
-                    {s.label}
-                  </p>
-                </div>
-              </div>
-            )
-          })}
+    <div className={`flex flex-col gap-3 min-h-0 ${embedded ? "" : "h-[calc(100vh-11rem)]"}`}>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 shrink-0">
+        <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
+          <span className="tabular-nums">
+            <span className="font-semibold text-[hsl(var(--foreground))]">{totalBoxes}</span> boxes
+          </span>
+          <span className="text-[hsl(var(--border))]">·</span>
+          <span className="tabular-nums">
+            <span className="font-semibold text-[hsl(var(--foreground))]">{modelCount}</span> models
+          </span>
+          <span className="text-[hsl(var(--border))]">·</span>
+          <span className="tabular-nums">
+            <span className="font-semibold text-[#1faca6]">{inStockCount}</span> in stock
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-lg">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search model, SN…"
-              className="w-full h-10 rounded-lg border bg-[hsl(var(--background))] pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
-            />
-          </div>
-          <CrmExcelExportButton
-            onExport={exportExcel}
-            exporting={exportingExcel}
-            disabled={filteredUnits.length === 0}
-            className="h-10 px-4 text-sm gap-2 cursor-pointer shrink-0"
+        <div className="relative flex-1 min-w-[160px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search model, SN…"
+            className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
           />
-          <Button
-            className="h-10 px-4 text-sm bg-[#1faca6] hover:bg-[#17857f] text-white gap-2 shrink-0"
-            onClick={() => setShowQrModal(true)}
-          >
-            <QrCode className="h-4 w-4" />
-            Scan QR
-          </Button>
-          {toolbarEnd}
         </div>
+        <CrmExcelExportButton
+          onExport={exportExcel}
+          exporting={exportingExcel}
+          disabled={filteredUnits.length === 0}
+          className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer shrink-0"
+        />
+        <Button
+          className="h-8 px-2.5 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 shrink-0"
+          onClick={() => setShowQrModal(true)}
+        >
+          <QrCode className="h-3.5 w-3.5" />
+          Scan QR
+        </Button>
+        {toolbarEnd}
       </div>
 
       {modelCount === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center text-[hsl(var(--muted-foreground))] rounded-xl border border-dashed bg-[hsl(var(--card))]/50">
+        <div className="flex flex-col items-center justify-center py-16 text-center text-[hsl(var(--muted-foreground))] rounded-lg border border-dashed">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--muted))]/30 mb-3">
             <Package className="h-7 w-7 opacity-40" />
           </div>
@@ -477,7 +450,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5">
           {serialTrackedGroups.length > 0 && renderGroupTable("Inventory with SN numbers", serialTrackedGroups)}
           {nonSerialGroups.length > 0 && renderGroupTable("Inventory without SN numbers", nonSerialGroups)}
         </div>
@@ -489,7 +462,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           onClick={() => setShowQrModal(false)}
         >
           <div
-            className="w-full max-w-2xl max-h-[92vh] rounded-xl border bg-[hsl(var(--card))] shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-2xl max-h-[92vh] rounded-lg border bg-[hsl(var(--card))] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
