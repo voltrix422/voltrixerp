@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet, ChevronDown, Store, Shield,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet, ChevronDown, Store, Shield, Target,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -14,6 +14,7 @@ import { useAuth } from "@/components/auth-provider"
 import type { Module } from "@/lib/auth"
 
 const PERSONAL_NAV = [
+  { href: "/kpi-dashboard", label: "KPI Dashboard", icon: Target },
   { href: "/petty-cash", label: "Petty Cash", icon: Wallet },
 ]
 

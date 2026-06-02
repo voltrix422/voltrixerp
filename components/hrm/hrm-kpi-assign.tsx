@@ -70,13 +70,20 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
   }
 
   async function handleAssign() {
-    if (!staffId || !templateId) return
+    if (!selectedUserId || !templateId) return
     const tpl = templates.find(t => t.id === templateId)
     if (!tpl) return
     setSaving(true)
     try {
+      let targetStaffId = staffId
+      if (!targetStaffId) {
+        const created = await createStaffProfileFromUser(selectedUserId)
+        targetStaffId = created.id
+        await load()
+        setStaffId(created.id)
+      }
       await assignStaffKpi({
-        staffId,
+        staffId: targetStaffId,
         templateId: tpl.id,
         name: tpl.name,
         unit: tpl.unit,
@@ -231,7 +238,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
       <Button
         size="sm"
         className="gap-1.5"
-        disabled={!staffId || !templateId || saving}
+        disabled={!selectedUserId || !templateId || saving}
         onClick={handleAssign}
       >
         <Plus className="h-3.5 w-3.5" /> Assign KPI to profile
