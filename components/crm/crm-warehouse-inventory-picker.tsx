@@ -103,28 +103,28 @@ export function CrmWarehouseInventoryPicker({
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-h-0 p-3 sm:p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full min-h-0">
-              <div className="rounded-lg border bg-[hsl(var(--background))] flex flex-col min-h-0">
+          <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full min-h-0 overflow-hidden">
+              <div className="rounded-lg border bg-[hsl(var(--background))] flex flex-col min-h-0 overflow-hidden">
                 <div className="px-3 py-2 border-b flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                     Scanned inventory
                   </p>
                   <span className="text-[11px] font-semibold text-[#1faca6]">{scannedProducts.length}</span>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                <div className="h-[38vh] sm:h-[52vh] overflow-y-auto overscroll-contain">
                   {renderProductList(scannedProducts, "No scanned models match this search.")}
                 </div>
               </div>
 
-              <div className="rounded-lg border bg-[hsl(var(--background))] flex flex-col min-h-0">
+              <div className="rounded-lg border bg-[hsl(var(--background))] flex flex-col min-h-0 overflow-hidden">
                 <div className="px-3 py-2 border-b flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                     Manual inventory
                   </p>
                   <span className="text-[11px] font-semibold text-amber-600">{manualProducts.length}</span>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                <div className="h-[38vh] sm:h-[52vh] overflow-y-auto overscroll-contain">
                   {renderProductList(manualProducts, "No manual models match this search.")}
                 </div>
               </div>
