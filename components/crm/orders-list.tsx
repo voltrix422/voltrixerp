@@ -974,7 +974,10 @@ function OrderDetail({
     if (newStatus === "delivered" && status !== "delivered") {
       try {
         const { deductInventoryForOrder } = await import("@/lib/inventory")
-        await deductInventoryForOrder(updated)
+        const result = await deductInventoryForOrder(updated)
+        if (result.success || result.alreadyDeducted) {
+          updated.inventoryDeductedAt = updated.inventoryDeductedAt ?? new Date().toISOString()
+        }
       } catch (error) {
         console.error("Error deducting inventory:", error)
       }

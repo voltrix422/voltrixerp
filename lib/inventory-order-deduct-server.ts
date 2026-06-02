@@ -136,11 +136,43 @@ async function unitsAllocatedForLine(order: OrderDeductInput, keys: string[]) {
       OR: [
         { notes: { contains: tag } },
         { status: "delivered", notes: { contains: order.orderNumber } },
+        { status: "delivered", specs: order.orderNumber },
       ],
     },
   })
 
   return units.filter((u) => lowerKeys.includes(normalizeKey(u.model || ""))).length
+}
+
+/** Serials scanned for this order at dispatch but still marked in_stock. */
+async function findSerialsReservedForOrder(
+  order: OrderDeductInput,
+  keys: string[],
+  limit: number,
+) {
+  if (limit <= 0) return []
+
+  const tag = orderUnitTag(order.id)
+  const orderNum = order.orderNumber.trim()
+  const lowerKeys = keys.map(normalizeKey).filter(Boolean)
+  if (lowerKeys.length === 0 || !orderNum) return []
+
+  const units = await prisma.erpInventorySerialUnit.findMany({
+    where: {
+      status: "in_stock",
+      OR: [
+        { notes: { contains: tag } },
+        { notes: { contains: `pending:${orderNum}` } },
+        { specs: orderNum },
+        { notes: { contains: orderNum } },
+      ],
+    },
+    orderBy: { scannedAt: "asc" },
+  })
+
+  return units
+    .filter((u) => lowerKeys.includes(normalizeKey(u.model || "")))
+    .slice(0, limit)
 }
 
 async function findInStockSerials(keys: string[], qty: number) {
@@ -365,21 +397,34 @@ async function deductSerialsForLine(
   }
 
   const need = qty - allocated
-  const found = await findInStockSerials(keys, need)
-  if (!found) {
-    return { ok: false, count: 0, error: "no in-stock serial units" }
+  const reserved = await findSerialsReservedForOrder(order, keys, need)
+  if (reserved.length > 0) {
+    await markSerialUnitsDelivered(order, reserved, item)
+    if (reserved.length >= need) {
+      return { ok: true, count: reserved.length }
+    }
   }
 
-  if (found.units.length < need) {
+  const stillNeed = need - reserved.length
+  const found = await findInStockSerials(keys, stillNeed)
+  if (!found) {
     return {
       ok: false,
-      count: found.units.length,
-      error: `only ${found.units.length} serial unit(s) in stock`,
+      count: reserved.length,
+      error: reserved.length > 0 ? `only ${reserved.length} reserved serial(s) finalized` : "no in-stock serial units",
+    }
+  }
+
+  if (found.units.length < stillNeed) {
+    return {
+      ok: false,
+      count: reserved.length + found.units.length,
+      error: `only ${reserved.length + found.units.length} serial unit(s) available`,
     }
   }
 
   await markSerialUnitsDelivered(order, found.units, item)
-  return { ok: true, count: found.units.length }
+  return { ok: true, count: reserved.length + found.units.length }
 }
 
 async function deductStockForLine(
@@ -456,6 +501,20 @@ export async function deductInventoryForOrderServer(
       deductedLines: 0,
       failedLines: [],
       serialUnitsDeducted: 0,
+    }
+  }
+
+  // Delivered orders: finalize dispatch-scanned serials still stuck as in_stock.
+  if (order.status === "delivered") {
+    for (const item of nonCustom) {
+      const keys = getOrderLineMatchKeys(item)
+      const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+      const allocated = await unitsAllocatedForLine(order, keys)
+      const pending = await findSerialsReservedForOrder(order, keys, needQty - allocated)
+      if (pending.length > 0) {
+        await markSerialUnitsDelivered(order, pending, item)
+        serialUnitsDeducted += pending.length
+      }
     }
   }
 

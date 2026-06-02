@@ -2,11 +2,41 @@ import { NextRequest, NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import {
+  deductInventoryForOrderServer,
+  orderNeedsInventoryDeductionServer,
   restoreInventoryForOrderServer,
   orderMayNeedInventoryRestore,
   type OrderDeductInput,
 } from "@/lib/inventory-order-deduct-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
+
+function toOrderDeductInput(record: {
+  id: string
+  orderNumber: string
+  clientName: string
+  createdBy: string | null
+  status: string
+  dispatcher: string | null
+  fulfillmentDispatcher: string | null
+  inventoryDeductedAt: string | null
+  fulfillmentSerialAllocations: unknown
+  items: unknown
+}): OrderDeductInput {
+  return {
+    id: record.id,
+    orderNumber: record.orderNumber,
+    clientName: record.clientName,
+    createdBy: record.createdBy ?? undefined,
+    status: record.status,
+    dispatcher: record.dispatcher,
+    fulfillmentDispatcher: record.fulfillmentDispatcher,
+    inventoryDeductedAt: record.inventoryDeductedAt,
+    fulfillmentSerialAllocations: Array.isArray(record.fulfillmentSerialAllocations)
+      ? (record.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
+      : [],
+    items: Array.isArray(record.items) ? (record.items as OrderDeductInput["items"]) : [],
+  }
+}
 
 function fulfillmentData(o: Record<string, unknown>) {
   return {
@@ -64,8 +94,30 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  let responseRecord = record
+
+  if (record.status === "delivered") {
+    const deductInput = toOrderDeductInput(record)
+    try {
+      const needsDeduction = await orderNeedsInventoryDeductionServer(deductInput)
+      if (needsDeduction) {
+        const result = await deductInventoryForOrderServer(deductInput)
+        if (result.success || result.alreadyDeducted) {
+          const inventoryDeductedAt =
+            record.inventoryDeductedAt ?? new Date().toISOString()
+          responseRecord = await prisma.erpOrder.update({
+            where: { id: record.id },
+            data: { inventoryDeductedAt },
+          })
+        }
+      }
+    } catch (err) {
+      console.error("[orders POST] inventory deduction failed:", err)
+    }
+  }
+
   return NextResponse.json({
-    ...record,
+    ...responseRecord,
     discountIsPercentage: o.discountIsPercentage,
     discountValue: o.discountValue,
     transportIsPercentage: o.transportIsPercentage,

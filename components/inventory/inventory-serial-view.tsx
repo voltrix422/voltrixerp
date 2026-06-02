@@ -74,7 +74,8 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
       ])
       const stockRows = stockRes?.ok ? await stockRes.json() : []
 
-      setUnits(rows)
+      const warehouseUnits = rows.filter((u) => u.status === "in_stock")
+      setUnits(warehouseUnits)
       const map: Record<string, string> = {}
       for (const label of labels) {
         if (label.model && label.displayName) map[label.model] = label.displayName
@@ -91,7 +92,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
       setModelLabels(map)
 
       const uniqueBySn = new Map<string, InventorySerialUnit>()
-      for (const unit of rows) {
+      for (const unit of warehouseUnits) {
         const key = serialNumberKey(unit.serialNumber)
         if (!key) continue
         if (!uniqueBySn.has(key)) uniqueBySn.set(key, unit)
