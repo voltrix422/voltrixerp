@@ -375,7 +375,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
         </div>
       ) : (
         <div className="rounded-xl border overflow-hidden bg-[hsl(var(--card))] shadow-sm">
-          <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] gap-3 px-4 py-3 border-b bg-[hsl(var(--muted))]/20 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+          <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 px-4 py-3 border-b bg-[hsl(var(--muted))]/20 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
             <span>Model / product</span>
             <span>Model code</span>
             <span className="text-right">Stock</span>
@@ -383,6 +383,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
             <span className="text-right text-[10px] font-normal normal-case tracking-normal text-[#1faca6]/90">
               Click for prices
             </span>
+            <span className="text-right">Delete</span>
           </div>
           <div className="divide-y">
           {filteredGroups.map((group) => (

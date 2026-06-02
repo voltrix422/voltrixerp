@@ -117,7 +117,7 @@ export function InventoryModelGroup({
         </div>
       ) : (
         <div
-          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px] gap-3 items-center px-4 py-3.5 hover:bg-[hsl(var(--muted))]/12 transition-colors"
+          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 items-center px-4 py-3.5 hover:bg-[hsl(var(--muted))]/12 transition-colors"
         >
           <button
             type="button"
@@ -163,6 +163,18 @@ export function InventoryModelGroup({
             title="Edit name"
           >
             <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="flex justify-end p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-red-600 disabled:opacity-50 sm:col-start-7 col-start-6"
+            onClick={(e) => {
+              e.stopPropagation()
+              void onDeleteModel()
+            }}
+            disabled={deletingModel || count === 0}
+            title="Delete model and all serial numbers"
+          >
+            {deletingModel ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
           </button>
         </div>
       )}
