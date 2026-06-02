@@ -9,7 +9,7 @@ import {
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
 import { getInventoryModelLabels, saveInventoryModelLabel } from "@/lib/inventory-model-labels"
-import { getManualInventoryItems } from "@/lib/manual-inventory"
+import { deleteManualInventoryItem, getManualInventoryItems } from "@/lib/manual-inventory"
 import {
   buildUnifiedInventoryGroups,
   filterUnifiedGroups,
@@ -55,6 +55,8 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [deletingModel, setDeletingModel] = useState<string | null>(null)
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({})
   const [inventoryGroups, setInventoryGroups] = useState<UnifiedInventoryModelGroup[]>([])
+  const [manualItemsCache, setManualItemsCache] = useState<any[]>([])
+  const [stockRowsCache, setStockRowsCache] = useState<any[]>([])
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
   const [savingModelLabel, setSavingModelLabel] = useState(false)
@@ -100,6 +102,8 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           map,
         ),
       )
+      setManualItemsCache(Array.isArray(manualItems) ? manualItems : [])
+      setStockRowsCache(Array.isArray(stockRows) ? stockRows : [])
     } catch {
       toast({ title: "Error", message: "Could not load inventory.", type: "error" })
     } finally {
@@ -252,11 +256,15 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     }
   }
 
-  async function handleDeleteModel(modelKey: string, unitCount: number) {
-    const display = getDisplayName(modelKey) || modelKey
+  async function handleDeleteModel(group: UnifiedInventoryModelGroup) {
+    const modelKey = group.modelKey
+    const unitCount = group.units.length
+    const display = getDisplayName(modelKey) || group.displayName || modelKey
     if (
       !confirm(
-        `Delete all ${unitCount} unit(s) for “${display}” (${modelKey})?\n\nThis removes every serial number for this model from inventory. This cannot be undone.`,
+        unitCount > 0
+          ? `Delete all ${unitCount} serial unit(s) for “${display}” (${modelKey})?\n\nThis removes every serial number for this model.`
+          : `Delete inventory model “${display}” (${modelKey})?\n\nThis removes this product/model row.`,
       )
     ) {
       return
@@ -264,7 +272,30 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
 
     setDeletingModel(modelKey)
     try {
-      const deleted = await deleteInventorySerialUnitsByModel(modelKey)
+      let deleted = 0
+      if (unitCount > 0) {
+        deleted = await deleteInventorySerialUnitsByModel(modelKey)
+      } else if (group.stockOnly?.isManual) {
+        const manual = manualItemsCache.find((m) => String(m?.model || "").trim() === modelKey.trim())
+        if (!manual?.id) throw new Error("Manual inventory record not found.")
+        await deleteManualInventoryItem(manual.id)
+        deleted = Number(manual.qty || 0)
+      } else {
+        const stockRow = stockRowsCache.find(
+          (row) =>
+            String(row?.description || row?.name || "")
+              .trim()
+              .toLowerCase() === modelKey.trim().toLowerCase(),
+        )
+        if (!stockRow?.id) throw new Error("Stock record not found.")
+        const res = await fetch("/api/db/inventory-stock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete", data: { itemId: stockRow.id } }),
+        })
+        if (!res.ok) throw new Error("Could not delete stock record.")
+        deleted = Number(stockRow.availableQty ?? stockRow.receivedQty ?? 0) || 0
+      }
       await loadUnits()
       setModelLabels((prev) => {
         const next = { ...prev }
@@ -274,7 +305,10 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
       onUnitsChanged?.()
       toast({
         title: "Model removed",
-        message: `${deleted} unit(s) deleted for ${modelKey}.`,
+        message:
+          unitCount > 0
+            ? `${deleted} unit(s) deleted for ${modelKey}.`
+            : `${modelKey} removed from inventory.`,
         type: "success",
       })
       return true
@@ -407,11 +441,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
               onSaveName={() => void saveModelName(group.modelKey)}
               onCancelEdit={() => setEditingModel(null)}
               onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
-              onDeleteModel={() =>
-                group.units.length > 0
-                  ? handleDeleteModel(group.modelKey, group.units.length)
-                  : undefined
-              }
+              onDeleteModel={() => handleDeleteModel(group)}
             />
           ))}
           </div>
