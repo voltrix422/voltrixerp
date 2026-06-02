@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, Fragment } from "react"
 import {
+  Plus,
   ClipboardList,
   ChevronDown,
   ChevronRight,
@@ -19,6 +20,7 @@ const fieldClass =
 import { useToast } from "@/components/ui/toast"
 import { getSession } from "@/lib/auth"
 import {
+  addManualInventoryQty,
   createManualInventoryItem,
   deleteManualInventoryItem,
   getManualInventoryItems,
@@ -55,6 +57,11 @@ export function ManualInventoryTab() {
   const [orderNotes, setOrderNotes] = useState("")
   const [creatingOrder, setCreatingOrder] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
+  const [showAddQty, setShowAddQty] = useState(false)
+  const [restockItem, setRestockItem] = useState<ManualInventoryItem | null>(null)
+  const [restockQty, setRestockQty] = useState("")
+  const [restockNotes, setRestockNotes] = useState("")
+  const [restocking, setRestocking] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -134,6 +141,47 @@ export function ManualInventoryTab() {
         message: err instanceof Error ? err.message : undefined,
         type: "error",
       })
+    }
+  }
+
+  function openAddQty(item: ManualInventoryItem) {
+    setRestockItem(item)
+    setRestockQty("")
+    setRestockNotes("")
+    setShowAddQty(true)
+  }
+
+  async function handleAddQty(e: React.FormEvent) {
+    e.preventDefault()
+    if (!restockItem) return
+    const q = Math.floor(Number(restockQty))
+    if (!Number.isFinite(q) || q <= 0) {
+      toast({ title: "Enter a valid quantity", type: "error" })
+      return
+    }
+    setRestocking(true)
+    try {
+      const user = getSession()?.name || "Inventory"
+      await addManualInventoryQty({
+        manualId: restockItem.id,
+        qty: q,
+        addedBy: user,
+        notes: restockNotes.trim() || undefined,
+      })
+      toast({ title: "Quantity added", type: "success" })
+      setShowAddQty(false)
+      setRestockItem(null)
+      setRestockQty("")
+      setRestockNotes("")
+      await load()
+    } catch (err) {
+      toast({
+        title: "Could not add quantity",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+    } finally {
+      setRestocking(false)
     }
   }
 
@@ -300,8 +348,9 @@ export function ManualInventoryTab() {
                 <th className="px-4 py-3 font-semibold">Model</th>
                 <th className="px-4 py-3 font-semibold text-right">Total qty</th>
                 <th className="px-4 py-3 font-semibold text-right">Available</th>
+                <th className="px-4 py-3 font-semibold">Last added</th>
                 <th className="px-4 py-3 font-semibold text-right">Serials</th>
-                <th className="px-4 py-3 font-semibold w-16" />
+                <th className="px-4 py-3 font-semibold w-28" />
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -345,6 +394,9 @@ export function ManualInventoryTab() {
                           {item.availableQty} {item.unit}
                         </Badge>
                       </td>
+                      <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                        {new Date(item.lastAddedAt || item.createdAt).toLocaleDateString("en-PK")}
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums text-xs text-[hsl(var(--muted-foreground))]">
                         {serials.length > 0 ? (
                           <span>
@@ -355,19 +407,31 @@ export function ManualInventoryTab() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-600 cursor-pointer"
-                          onClick={() => void handleDelete(item)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-[#1faca6] cursor-pointer"
+                            onClick={() => openAddQty(item)}
+                            title="Add quantity"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 cursor-pointer"
+                            onClick={() => void handleDelete(item)}
+                            title="Delete item"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                     {expanded && hasSerials && (
                       <tr className="bg-[hsl(var(--muted))]/10">
-                        <td colSpan={7} className="px-4 py-3">
+                        <td colSpan={8} className="px-4 py-3">
                           <div className="rounded-lg border overflow-hidden bg-[hsl(var(--background))]">
                             <table className="w-full text-xs">
                               <thead>
@@ -567,6 +631,62 @@ export function ManualInventoryTab() {
               ) : (
                 "Create order"
               )}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {showAddQty && restockItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          onClick={() => !restocking && setShowAddQty(false)}
+        >
+          <form
+            className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] p-6 shadow-xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => void handleAddQty(e)}
+          >
+            <div className="flex items-center justify-between">
+              <p className="font-semibold">Add quantity</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="cursor-pointer"
+                onClick={() => setShowAddQty(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              {restockItem.name} ({restockItem.model})
+            </p>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold">Quantity to add *</label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                className={fieldClass}
+                value={restockQty}
+                onChange={(e) => setRestockQty(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold">Notes (optional)</label>
+              <input
+                className={fieldClass}
+                value={restockNotes}
+                onChange={(e) => setRestockNotes(e.target.value)}
+                placeholder="e.g. New lot received"
+              />
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Addition date is tracked automatically.
+            </p>
+            <Button type="submit" className="w-full cursor-pointer" disabled={restocking}>
+              {restocking ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Add quantity"}
             </Button>
           </form>
         </div>

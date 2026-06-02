@@ -19,6 +19,7 @@ export type ManualInventoryItem = {
   createdBy: string
   createdAt: string
   updatedAt: string
+  lastAddedAt?: string | null
   serialUnits?: ManualInventorySerialUnit[]
 }
 
@@ -86,4 +87,26 @@ export async function reserveManualInventoryQty(
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error || "Could not reserve stock")
+}
+
+export async function addManualInventoryQty(input: {
+  manualId: string
+  qty: number
+  addedBy?: string
+  notes?: string
+}): Promise<ManualInventoryItem> {
+  const res = await fetch("/api/db/manual-inventory", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "add_qty",
+      manualId: input.manualId,
+      qty: input.qty,
+      addedBy: input.addedBy,
+      notes: input.notes,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Could not add quantity")
+  return data
 }

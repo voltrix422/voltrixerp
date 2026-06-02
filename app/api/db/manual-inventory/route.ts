@@ -19,6 +19,7 @@ function mapRow(row: {
   createdBy: string
   createdAt: Date
   updatedAt: Date
+  lastAddedAt?: Date | null
 }) {
   return {
     id: row.id,
@@ -32,6 +33,7 @@ function mapRow(row: {
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    lastAddedAt: row.lastAddedAt ? row.lastAddedAt.toISOString() : null,
   }
 }
 
@@ -58,9 +60,24 @@ export async function GET() {
     serialsByModel.set(m, list)
   }
 
+  const restockHistory = await prisma.erpInventoryHistory.findMany({
+    where: { referenceType: "manual_add" },
+    orderBy: { createdAt: "desc" },
+    select: { referenceId: true, createdAt: true },
+  })
+  const lastAddedByManualId = new Map<string, Date>()
+  for (const row of restockHistory) {
+    const manualId = row.referenceId?.trim()
+    if (!manualId || lastAddedByManualId.has(manualId)) continue
+    lastAddedByManualId.set(manualId, row.createdAt)
+  }
+
   return NextResponse.json(
     rows.map((row) => ({
-      ...mapRow(row),
+      ...mapRow({
+        ...row,
+        lastAddedAt: lastAddedByManualId.get(row.id) ?? row.createdAt,
+      }),
       serialUnits: (serialsByModel.get(row.model) ?? []).map((u) => ({
         id: u.id,
         serialNumber: u.serialNumber,
@@ -260,6 +277,65 @@ export async function PATCH(req: NextRequest) {
       }
     }
     return NextResponse.json({ ok: true })
+  }
+
+  if (action === "add_qty") {
+    const manualId = String(body.manualId ?? "").trim()
+    const qty = Number(body.qty)
+    const addedBy = String(body.addedBy ?? "system").trim() || "system"
+    const notes = String(body.notes ?? "").trim()
+
+    if (!manualId) {
+      return NextResponse.json({ error: "manualId is required" }, { status: 400 })
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return NextResponse.json({ error: "Quantity must be greater than zero" }, { status: 400 })
+    }
+
+    const item = await prisma.erpManualInventoryItem.findUnique({ where: { id: manualId } })
+    if (!item) return NextResponse.json({ error: "Manual item not found" }, { status: 404 })
+
+    const nextQty = (item.qty ?? 0) + qty
+    const nextAvailableQty = (item.availableQty ?? 0) + qty
+
+    const updated = await prisma.erpManualInventoryItem.update({
+      where: { id: manualId },
+      data: {
+        qty: nextQty,
+        availableQty: nextAvailableQty,
+      },
+    })
+
+    if (item.inventoryStockId) {
+      await prisma.erpInventoryStock.update({
+        where: { id: item.inventoryStockId },
+        data: {
+          receivedQty: nextQty,
+          availableQty: nextAvailableQty,
+        },
+      })
+    }
+
+    await prisma.erpInventoryHistory.create({
+      data: {
+        itemDescription: item.name,
+        transactionType: "in",
+        quantity: qty,
+        unit: item.unit || "pcs",
+        referenceType: "manual_add",
+        referenceId: item.id,
+        referenceNumber: item.model,
+        notes: notes || undefined,
+        createdBy: addedBy,
+      },
+    })
+
+    return NextResponse.json(
+      mapRow({
+        ...updated,
+        lastAddedAt: new Date(),
+      }),
+    )
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })
