@@ -214,16 +214,15 @@ function addYears(date: Date, years: number) {
   return next
 }
 
-async function ensureWarrantyForDispatch(
-  unit: {
-    id: string
-    warrantyId: string | null
-    serialNumber: string
-    model: string
-    productName?: string
-  },
+async function ensureWarrantyForDispatchBySerial(
+  serialNumber: string,
+  model: string,
+  productName: string,
   order: OrderDeductInput,
 ) {
+  const sn = serialNumber.trim()
+  if (!sn) return null
+
   const soldDate = order.inventoryDeductedAt
     ? new Date(order.inventoryDeductedAt)
     : new Date()
@@ -231,23 +230,8 @@ async function ensureWarrantyForDispatch(
   const dispatchNote = `Dispatched on order ${order.orderNumber}. Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty.`
 
   try {
-    if (unit.warrantyId?.trim()) {
-      await prisma.erpWarranty.updateMany({
-        where: { warrantyId: unit.warrantyId },
-        data: {
-          customerName: order.clientName,
-          soldDate,
-          warrantyStartDate: soldDate,
-          warrantyEndDate: placeholderEnd,
-          activatedAt: null,
-          notes: dispatchNote,
-        },
-      })
-      return
-    }
-
     const bySerial = await prisma.erpWarranty.findFirst({
-      where: { serialNumber: unit.serialNumber },
+      where: { serialNumber: { equals: sn, mode: "insensitive" } },
     })
     if (bySerial) {
       await prisma.erpWarranty.update({
@@ -259,23 +243,19 @@ async function ensureWarrantyForDispatch(
           warrantyEndDate: placeholderEnd,
           activatedAt: null,
           notes: dispatchNote,
+          productName: model || productName || bySerial.productName,
+          serialNumber: sn,
         },
       })
-      if (bySerial.warrantyId) {
-        await prisma.erpInventorySerialUnit.update({
-          where: { id: unit.id },
-          data: { warrantyId: bySerial.warrantyId },
-        })
-      }
-      return
+      return bySerial.warrantyId
     }
 
     const generatedWarrantyId = `vol-${Math.floor(10000 + Math.random() * 90000)}`
     const created = await prisma.erpWarranty.create({
       data: {
         warrantyId: generatedWarrantyId,
-        serialNumber: unit.serialNumber,
-        productName: unit.model || unit.productName || unit.serialNumber,
+        serialNumber: sn,
+        productName: model || productName || sn,
         soldDate,
         warrantyStartDate: soldDate,
         warrantyEndDate: placeholderEnd,
@@ -285,12 +265,37 @@ async function ensureWarrantyForDispatch(
         createdBy: order.createdBy || "system",
       },
     })
-    await prisma.erpInventorySerialUnit.update({
-      where: { id: unit.id },
-      data: { warrantyId: created.warrantyId },
-    })
+    return created.warrantyId
   } catch {
-    // non-blocking
+    return null
+  }
+}
+
+async function ensureWarrantyForDispatch(
+  unit: {
+    id: string
+    warrantyId: string | null
+    serialNumber: string
+    model: string
+    productName?: string
+  },
+  order: OrderDeductInput,
+) {
+  const warrantyId = await ensureWarrantyForDispatchBySerial(
+    unit.serialNumber,
+    unit.model,
+    unit.productName || unit.model,
+    order,
+  )
+  if (warrantyId && !unit.warrantyId?.trim()) {
+    try {
+      await prisma.erpInventorySerialUnit.update({
+        where: { id: unit.id },
+        data: { warrantyId },
+      })
+    } catch {
+      // non-blocking
+    }
   }
 }
 
@@ -327,6 +332,102 @@ async function markSerialUnitsDelivered(
   }
 }
 
+/** Dispatch scans: warranty + qty deduction only — do not create inventory serial rows. */
+async function processDispatchAllocationsForLine(
+  order: OrderDeductInput,
+  item: OrderDeductLine & { id?: string },
+): Promise<{ ok: boolean; count: number; error?: string }> {
+  const lineId = item.id
+  if (!lineId) return { ok: false, count: 0, error: "missing order line id" }
+
+  const explicit = (order.fulfillmentSerialAllocations ?? []).filter(
+    (a) => a.orderItemId === lineId,
+  )
+  if (explicit.length === 0) return { ok: false, count: 0, error: "no dispatch scans" }
+
+  const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
+  if (explicit.length !== qty) {
+    return {
+      ok: false,
+      count: 0,
+      error: `expected ${qty} serial(s), got ${explicit.length}`,
+    }
+  }
+
+  const alreadyProcessed = await Promise.all(
+    explicit.map(async (alloc) => {
+      const w = await prisma.erpWarranty.findFirst({
+        where: {
+          serialNumber: { equals: alloc.serialNumber.trim(), mode: "insensitive" },
+          notes: { contains: order.orderNumber },
+        },
+      })
+      return !!w
+    }),
+  )
+  if (alreadyProcessed.every(Boolean)) {
+    return { ok: true, count: explicit.length }
+  }
+
+  const keys = getOrderLineMatchKeys(item).map(normalizeKey)
+  const tag = orderUnitTag(order.id)
+  const note = `${tag} ${order.orderNumber} → ${order.clientName}`
+
+  for (const alloc of explicit) {
+    const sn = alloc.serialNumber.trim()
+    if (!sn) {
+      return { ok: false, count: 0, error: "empty serial in dispatch scan" }
+    }
+    if (!keys.includes(normalizeKey(alloc.model || ""))) {
+      return { ok: false, count: 0, error: "serial model does not match order line" }
+    }
+
+    await ensureWarrantyForDispatchBySerial(
+      sn,
+      alloc.model,
+      item.description,
+      order,
+    )
+
+    const existingUnit = await prisma.erpInventorySerialUnit.findFirst({
+      where: {
+        serialNumber: { equals: sn, mode: "insensitive" },
+        status: "in_stock",
+      },
+    })
+    if (existingUnit) {
+      await prisma.erpInventorySerialUnit.update({
+        where: { id: existingUnit.id },
+        data: {
+          status: "delivered",
+          notes: note,
+          specs: order.orderNumber,
+        },
+      })
+    }
+  }
+
+  if (isManualInventoryLine(item)) {
+    const model = item.model?.trim()
+    if (model) await decrementManualInventoryByModel(model, qty)
+  } else {
+    const stock = await deductStockForLine(order, item)
+    if (!stock.ok) {
+      return { ok: false, count: 0, error: stock.error || "stock deduction failed" }
+    }
+  }
+
+  await logHistory(
+    item.model?.trim() || item.description,
+    qty,
+    item.unit || "pcs",
+    order,
+    `Dispatch scan: ${explicit.map((a) => a.serialNumber).join(", ")} → ${order.clientName}`,
+  )
+
+  return { ok: true, count: explicit.length }
+}
+
 async function deductExplicitSerialsForLine(
   order: OrderDeductInput,
   item: OrderDeductLine & { id?: string },
@@ -339,6 +440,16 @@ async function deductExplicitSerialsForLine(
   )
   if (explicit.length === 0) return { ok: false, count: 0, error: "no explicit serials" }
 
+  const hasDispatchScans = explicit.some((a) => a.serialNumber?.trim())
+  if (hasDispatchScans) {
+    return processDispatchAllocationsForLine(order, item)
+  }
+
+  const unitIds = explicit.map((a) => a.unitId).filter(Boolean) as string[]
+  if (unitIds.length !== explicit.length) {
+    return { ok: false, count: 0, error: "invalid serial allocation" }
+  }
+
   const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
   if (explicit.length !== qty) {
     return {
@@ -349,7 +460,7 @@ async function deductExplicitSerialsForLine(
   }
 
   const units = await prisma.erpInventorySerialUnit.findMany({
-    where: { id: { in: explicit.map((a) => a.unitId) } },
+    where: { id: { in: unitIds } },
   })
   if (units.length !== explicit.length) {
     return { ok: false, count: 0, error: "one or more serial units not found" }
@@ -522,6 +633,20 @@ export async function deductInventoryForOrderServer(
     const label =
       item.model?.trim() || item.description?.trim() || item.inventoryItemId || "item"
 
+    const lineAllocations = (order.fulfillmentSerialAllocations ?? []).filter(
+      (a) => item.id && a.orderItemId === item.id,
+    )
+    if (lineAllocations.length > 0) {
+      const dispatch = await processDispatchAllocationsForLine(order, item)
+      serialUnitsDeducted += dispatch.count
+      if (dispatch.ok) {
+        deductedLines += 1
+        continue
+      }
+      failedLines.push(`${label} (${dispatch.error || "dispatch scan failed"})`)
+      continue
+    }
+
     const serial = await deductSerialsForLine(order, item)
     serialUnitsDeducted += serial.count
 
@@ -608,7 +733,9 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
   const restoredIds = new Set<string>()
   const models = new Set<string>()
 
-  const allocationIds = (order.fulfillmentSerialAllocations ?? []).map((a) => a.unitId)
+  const allocationIds = (order.fulfillmentSerialAllocations ?? [])
+    .map((a) => a.unitId?.trim())
+    .filter((id): id is string => !!id)
   if (allocationIds.length > 0) {
     const allocatedUnits = await prisma.erpInventorySerialUnit.findMany({
       where: { id: { in: allocationIds } },
@@ -697,7 +824,13 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
 
   const restoredCountByLine = new Map<string, number>()
   for (const alloc of order.fulfillmentSerialAllocations ?? []) {
-    if (restoredIds.has(alloc.unitId)) {
+    const unitId = alloc.unitId?.trim()
+    if (unitId && restoredIds.has(unitId)) {
+      restoredCountByLine.set(
+        alloc.orderItemId,
+        (restoredCountByLine.get(alloc.orderItemId) ?? 0) + 1,
+      )
+    } else if (alloc.serialNumber?.trim()) {
       restoredCountByLine.set(
         alloc.orderItemId,
         (restoredCountByLine.get(alloc.orderItemId) ?? 0) + 1,

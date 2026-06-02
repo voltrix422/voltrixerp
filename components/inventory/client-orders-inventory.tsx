@@ -16,7 +16,6 @@ import { useToast } from "@/components/ui/toast"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
-import { getInventorySerialUnits } from "@/lib/inventory-serial-units"
 import { getManualInventoryItems } from "@/lib/manual-inventory"
 import {
   buildAllocationsFromSelections,
@@ -25,6 +24,7 @@ import {
   orderLinesRequiringSerials,
   selectionsFromAllocations,
   validateSerialSelections,
+  warehouseStockByModelFromRows,
 } from "@/lib/order-fulfillment-serials"
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 
@@ -398,23 +398,25 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     let fulfillmentSerialAllocations = order.fulfillmentSerialAllocations ?? []
 
     if (linesNeedSerials.length > 0 && !order.inventoryDeductedAt) {
-      const [units, manualItems] = await Promise.all([
-        getInventorySerialUnits(),
+      const [manualItems, stockRes] = await Promise.all([
         getManualInventoryItems().catch(() => []),
+        fetch("/api/db/inventory-stock", { cache: "no-store" }),
       ])
-      const unitsById = new Map(units.map((u) => [u.id, u]))
+      const stockRows = stockRes.ok ? await stockRes.json() : []
       const manualMeta = manualDispatchMetaByModel(manualItems)
-      const check = validateSerialSelections(order, serialSelections, units, manualMeta)
+      const warehouseStockByModel = warehouseStockByModelFromRows(stockRows)
+      const check = validateSerialSelections(
+        order,
+        serialSelections,
+        manualMeta,
+        warehouseStockByModel,
+      )
       if (!check.valid) {
         setFulfillTab("products")
         alert(check.errors.join("\n"))
         return
       }
-      fulfillmentSerialAllocations = buildAllocationsFromSelections(
-        order,
-        serialSelections,
-        unitsById,
-      )
+      fulfillmentSerialAllocations = buildAllocationsFromSelections(order, serialSelections)
     }
 
     setUpdating(true)

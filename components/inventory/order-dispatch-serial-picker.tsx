@@ -3,15 +3,12 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Loader2 } from "lucide-react"
 import { DispatchSerialScanPanel } from "@/components/inventory/dispatch-serial-scan-panel"
-import {
-  getInventorySerialUnits,
-  type InventorySerialUnit,
-} from "@/lib/inventory-serial-units"
 import { getManualInventoryItems } from "@/lib/manual-inventory"
 import {
   manualDispatchMetaByModel,
   orderLinesRequiringSerials,
   validateSerialSelections,
+  warehouseStockByModelFromRows,
 } from "@/lib/order-fulfillment-serials"
 import { type Order } from "@/lib/orders"
 
@@ -38,8 +35,8 @@ export function OrderDispatchSerialPicker({
   disabled,
   onValidationChange,
 }: Props) {
-  const [units, setUnits] = useState<InventorySerialUnit[]>([])
   const [manualMeta, setManualMeta] = useState(manualDispatchMetaByModel([]))
+  const [warehouseStockByModel, setWarehouseStockByModel] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -51,13 +48,14 @@ export function OrderDispatchSerialPicker({
       setLoading(true)
       setLoadError(null)
       try {
-        const [serialData, manualItems] = await Promise.all([
-          getInventorySerialUnits(),
+        const [manualItems, stockRes] = await Promise.all([
           getManualInventoryItems().catch(() => []),
+          fetch("/api/db/inventory-stock", { cache: "no-store" }),
         ])
+        const stockRows = stockRes.ok ? await stockRes.json() : []
         if (!cancelled) {
-          setUnits(serialData)
           setManualMeta(manualDispatchMetaByModel(manualItems))
+          setWarehouseStockByModel(warehouseStockByModelFromRows(stockRows))
         }
       } catch {
         if (!cancelled) setLoadError("Could not load inventory.")
@@ -71,8 +69,8 @@ export function OrderDispatchSerialPicker({
   }, [])
 
   const validation = useMemo(
-    () => validateSerialSelections(order, value, units, manualMeta),
-    [order, value, units, manualMeta],
+    () => validateSerialSelections(order, value, manualMeta, warehouseStockByModel),
+    [order, value, manualMeta, warehouseStockByModel],
   )
 
   const blockingErrors = useMemo(
@@ -86,7 +84,7 @@ export function OrderDispatchSerialPicker({
 
   if (lines.length === 0) {
     return (
-      <p className="text-xs text-[hsl(var(--muted-foreground))] rounded-lg border px-3 py-2 bg-[hsl(var(--muted))]/30">
+      <p className="text-xs text-[hsl(var(--muted-foreground))] rounded-lg border px-3 py-2">
         No inventory items on this order — scanning not required.
       </p>
     )
@@ -111,9 +109,8 @@ export function OrderDispatchSerialPicker({
         lines={lines}
         value={value}
         onChange={onChange}
-        units={units}
-        onUnitsChange={setUnits}
         manualMeta={manualMeta}
+        warehouseStockByModel={warehouseStockByModel}
         orderId={order.id}
         orderNumber={order.orderNumber}
         disabled={disabled}

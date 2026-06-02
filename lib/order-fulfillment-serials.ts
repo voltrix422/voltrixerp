@@ -1,4 +1,5 @@
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
+import { serialNumberKey } from "@/lib/inventory-serial-units"
 import type { ManualInventoryItem } from "@/lib/manual-inventory"
 import {
   type Order,
@@ -17,14 +18,13 @@ export type OrderFulfillmentSerialAllocation = {
   orderItemId: string
   model: string
   serialNumber: string
-  unitId: string
+  unitId?: string
 }
 
-/** Order lines that should pick serial numbers at dispatch (warehouse stock). */
+/** Order lines that need QR scans at dispatch (manual + warehouse). */
 export function orderLinesRequiringSerials(order: Pick<Order, "items">): OrderItem[] {
   return order.items.filter((item) => {
     if (item.isCustom) return false
-    if (isManualDispatchLine(item)) return false
     return !!resolveOrderItemModel(item)
   })
 }
@@ -69,6 +69,19 @@ export function manualDispatchMetaByModel(
   return map
 }
 
+export function warehouseStockByModelFromRows(
+  rows: Array<{ model?: string | null; availableQty?: number | null }>,
+): Record<string, number> {
+  const map: Record<string, number> = {}
+  for (const row of rows) {
+    const model = row.model?.trim()
+    if (!model) continue
+    const key = modelKey(model)
+    map[key] = (map[key] ?? 0) + Math.max(0, Math.floor(Number(row.availableQty) || 0))
+  }
+  return map
+}
+
 export function inStockUnitsForOrderLine(
   units: InventorySerialUnit[],
   item: OrderItem,
@@ -84,21 +97,19 @@ export function inStockUnitsForOrderLine(
 export function buildAllocationsFromSelections(
   order: Pick<Order, "items">,
   selections: Record<string, string[]>,
-  unitsById: Map<string, InventorySerialUnit>,
 ): OrderFulfillmentSerialAllocation[] {
   const allocations: OrderFulfillmentSerialAllocation[] = []
 
   for (const item of orderLinesRequiringSerials(order)) {
-    const unitIds = selections[item.id] ?? []
-    for (const unitId of unitIds) {
-      const unit = unitsById.get(unitId)
-      if (!unit) continue
-      const model = resolveOrderItemModel(item) || unit.model
+    const model = resolveOrderItemModel(item) || ""
+    const serials = selections[item.id] ?? []
+    for (const serialNumber of serials) {
+      const sn = serialNumber.trim()
+      if (!sn) continue
       allocations.push({
         orderItemId: item.id,
         model,
-        serialNumber: unit.serialNumber,
-        unitId: unit.id,
+        serialNumber: sn,
       })
     }
   }
@@ -109,52 +120,53 @@ export function buildAllocationsFromSelections(
 export function validateSerialSelections(
   order: Pick<Order, "items">,
   selections: Record<string, string[]>,
-  units: InventorySerialUnit[],
   manualMeta: Record<string, ManualDispatchMeta> = {},
+  warehouseStockByModel: Record<string, number> = {},
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = []
-  const unitsById = new Map(units.map((u) => [u.id, u]))
-  const usedUnitIds = new Set<string>()
+  const usedSerials = new Set<string>()
 
   for (const item of orderLinesRequiringSerials(order)) {
     const model = resolveOrderItemModel(item)!
     const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
     const selected = selections[item.id] ?? []
-    const available = inStockUnitsForOrderLine(units, item)
 
     if (needQty === 0) continue
 
-    if (available.length < needQty) {
-      errors.push(
-        `${model}: only ${available.length} unit(s) in stock (order needs ${needQty})`,
-      )
-    }
-
     if (selected.length !== needQty) {
       errors.push(
-        `${model}: select ${needQty} serial number(s) (selected ${selected.length})`,
+        `${model}: scan ${needQty} serial number(s) (scanned ${selected.length})`,
       )
       continue
     }
 
-    for (const unitId of selected) {
-      if (usedUnitIds.has(unitId)) {
-        errors.push(`${model}: duplicate serial selection`)
+    for (const serial of selected) {
+      const key = serialNumberKey(serial)
+      if (!key) {
+        errors.push(`${model}: invalid serial number`)
         continue
       }
-      usedUnitIds.add(unitId)
+      if (usedSerials.has(key)) {
+        errors.push(`${model}: duplicate serial ${serial}`)
+        continue
+      }
+      usedSerials.add(key)
+    }
 
-      const unit = unitsById.get(unitId)
-      if (!unit) {
-        errors.push(`${model}: invalid unit selected`)
-        continue
+    if (isManualDispatchLine(item)) {
+      const meta = manualMeta[modelKey(model)]
+      const available = meta?.availableQty ?? 0
+      if (available < needQty) {
+        errors.push(
+          `${model}: only ${available} unit(s) available (order needs ${needQty})`,
+        )
       }
-      if (unit.status !== "in_stock") {
-        errors.push(`${model}: ${unit.serialNumber} is not in stock`)
-        continue
-      }
-      if (modelKey(unit.model || "") !== modelKey(model)) {
-        errors.push(`${model}: ${unit.serialNumber} does not match model`)
+    } else {
+      const available = warehouseStockByModel[modelKey(model)] ?? 0
+      if (available < needQty) {
+        errors.push(
+          `${model}: only ${available} unit(s) in stock (order needs ${needQty})`,
+        )
       }
     }
   }
@@ -168,7 +180,7 @@ export function selectionsFromAllocations(
   const map: Record<string, string[]> = {}
   for (const a of allocations ?? []) {
     if (!map[a.orderItemId]) map[a.orderItemId] = []
-    map[a.orderItemId].push(a.unitId)
+    map[a.orderItemId].push(a.serialNumber)
   }
   return map
 }
