@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
-import { computeWeightedScore, fetchSettlements, fetchStaffKpis, fetchStaffProfile } from "@/lib/hrm-kpis"
+import {
+  computeWeightedScore,
+  createStaffProfileFromUser,
+  fetchSettlements,
+  fetchStaffKpis,
+  fetchStaffProfile,
+} from "@/lib/hrm-kpis"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 
 export function MyKpiPortal() {
@@ -22,12 +28,20 @@ export function MyKpiPortal() {
     }
     fetchStaffProfile({ email: user?.email, userId: user?.id })
       .then(async (s) => {
-        setStaff(s)
-        setNotFound(!s)
-        if (!s) return
+        let resolved = s
+        if (!resolved && user?.id) {
+          const created = await createStaffProfileFromUser(user.id)
+          resolved = await fetchStaffProfile({ userId: user.id })
+          if (!resolved && created?.id) {
+            resolved = { id: created.id, name: user.name || user.email || "User", email: user.email || "" }
+          }
+        }
+        setStaff(resolved)
+        setNotFound(!resolved)
+        if (!resolved) return
         const [kpis, settlements] = await Promise.all([
-          fetchStaffKpis(s.id),
-          fetchSettlements({ staffId: s.id }),
+          fetchStaffKpis(resolved.id),
+          fetchSettlements({ staffId: resolved.id }),
         ])
         const active = kpis.filter(k => k.active)
         setKpiCount(active.length)
@@ -62,9 +76,9 @@ export function MyKpiPortal() {
   if (notFound || !staff) {
     return (
       <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center max-w-lg mx-auto">
-        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">No staff profile linked</p>
+        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Could not load your KPI dashboard</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
-          Ask HR to add you in Staff Management with the same email as your login (
+          Please contact admin if this continues for login (
           <span className="font-medium">{user?.email}</span>).
         </p>
       </div>

@@ -4,41 +4,34 @@ import { useCallback, useEffect, useState } from "react"
 import { Link2, Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
-import { getStaff, type Staff } from "@/lib/staff"
 import {
   assignStaffKpi,
   createStaffProfileFromUser,
   fetchKpiTemplates,
-  linkStaffToUser,
   type KpiTemplate,
 } from "@/lib/hrm-kpis"
 import { getUsers, type User } from "@/lib/auth"
 
 export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
   const { toast } = useToast()
-  const [staff, setStaff] = useState<Staff[]>([])
   const [templates, setTemplates] = useState<KpiTemplate[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedUserId, setSelectedUserId] = useState("")
-  const [staffId, setStaffId] = useState("")
   const [templateId, setTemplateId] = useState("")
-  const [linkUserId, setLinkUserId] = useState("")
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [staffList, tpls, userList] = await Promise.all([
-        getStaff(),
+      const [tpls, userList] = await Promise.all([
         fetchKpiTemplates(),
         getUsers(),
       ])
-      setStaff(staffList.filter(s => s.status === "active"))
       setTemplates(tpls.filter(t => t.active))
       setUsers(userList)
     } catch {
-      toast({ title: "Error", message: "Could not load staff or KPIs.", type: "error" })
+      toast({ title: "Error", message: "Could not load users or KPIs.", type: "error" })
     } finally {
       setLoading(false)
     }
@@ -48,25 +41,9 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
     load()
   }, [load])
 
-  const selectedStaff = staff.find(s => s.id === staffId)
-
-  function findStaffForUser(user: User): Staff | null {
-    const byId = staff.find(s => s.erp_user_id && s.erp_user_id === user.id)
-    if (byId) return byId
-    const byEmail = staff.find(s => s.email?.trim().toLowerCase() === user.email?.trim().toLowerCase())
-    return byEmail ?? null
-  }
-
   function selectUser(userId: string) {
     setSelectedUserId(userId)
-    const user = users.find(u => u.id === userId)
-    if (!user) {
-      setStaffId("")
-      return
-    }
-    const mapped = findStaffForUser(user)
-    setStaffId(mapped?.id ?? "")
-    setLinkUserId("")
+    if (!userId) setTemplateId("")
   }
 
   async function handleAssign() {
@@ -75,15 +52,9 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
     if (!tpl) return
     setSaving(true)
     try {
-      let targetStaffId = staffId
-      if (!targetStaffId) {
-        const created = await createStaffProfileFromUser(selectedUserId)
-        targetStaffId = created.id
-        await load()
-        setStaffId(created.id)
-      }
+      const created = await createStaffProfileFromUser(selectedUserId)
       await assignStaffKpi({
-        staffId: targetStaffId,
+        staffId: created.id,
         templateId: tpl.id,
         name: tpl.name,
         unit: tpl.unit,
@@ -94,7 +65,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
       })
       toast({
         title: "Linked",
-        message: `${tpl.name} assigned to profile. Employee will see it under My KPIs.`,
+        message: `${tpl.name} assigned to this user. They will see it in KPI Dashboard.`,
         type: "success",
       })
       setTemplateId("")
@@ -104,38 +75,6 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
         message: err instanceof Error ? err.message : "Assign failed",
         type: "error",
       })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleCreateProfileFromUser() {
-    if (!selectedUserId) return
-    setSaving(true)
-    try {
-      const created = await createStaffProfileFromUser(selectedUserId)
-      await load()
-      setStaffId(created.id)
-      toast({ title: "Profile created", message: "Staff profile created and linked to user.", type: "success" })
-    } catch (err) {
-      toast({
-        title: "Error",
-        message: err instanceof Error ? err.message : "Could not create profile",
-        type: "error",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleLinkUser() {
-    if (!staffId) return
-    setSaving(true)
-    try {
-      await linkStaffToUser(staffId, linkUserId || null)
-      toast({ title: "Linked", message: "ERP login linked to staff profile.", type: "success" })
-    } catch {
-      toast({ title: "Error", message: "Could not link user.", type: "error" })
     } finally {
       setSaving(false)
     }
@@ -156,8 +95,8 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
         <h3 className="text-sm font-semibold">Link KPI to employee profile</h3>
       </div>
       <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Select from <strong>User Accounts</strong>, map to a profile, then assign KPI templates. Users update and
-        submit from their own KPI dashboard for your approval.
+        Select from <strong>User Accounts</strong> and assign KPI templates directly. Profile linking is automatic in
+        backend, so no separate profile step is needed.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -169,52 +108,20 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
             onChange={e => selectUser(e.target.value)}
           >
             <option value="">Select user ID/email…</option>
-            {users.map(u => {
-              const mapped = findStaffForUser(u)
-              return (
-                <option key={u.id} value={u.id}>
-                  {u.id.slice(0, 8)} — {u.name} ({u.email}) {mapped ? `→ ${mapped.name}` : "→ no profile"}
-                </option>
-              )
-            })}
+            {users.map(u => (
+              <option key={u.id} value={u.id}>
+                {u.id.slice(0, 8)} — {u.name} ({u.email}) [{u.role}]
+              </option>
+            ))}
           </select>
         </div>
         <div>
           <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Staff profile (linked)</label>
-          <select
-            className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
-            value={staffId}
-            onChange={e => setStaffId(e.target.value)}
-            disabled={!selectedUserId}
-          >
-            <option value="">
-              {selectedUserId ? "Select linked profile…" : "Pick a user first"}
-            </option>
-            {staff
-              .filter(s => !selectedUserId || s.id === staffId || s.erp_user_id === selectedUserId)
-              .map(s => (
-              <option key={s.id} value={s.id}>
-                {s.name} — {s.role} ({s.email})
-              </option>
-              ))}
-          </select>
+          <div className="h-[42px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-3 text-sm flex items-center text-[hsl(var(--muted-foreground))]">
+            Auto-linked from selected User Account
+          </div>
         </div>
       </div>
-
-      {selectedUserId && !staffId && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          No staff profile is linked for this user yet.
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-2 h-7 text-[11px]"
-            disabled={saving}
-            onClick={handleCreateProfileFromUser}
-          >
-            Create profile from this user
-          </Button>
-        </div>
-      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -223,7 +130,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
             className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
             value={templateId}
             onChange={e => setTemplateId(e.target.value)}
-            disabled={!staffId}
+            disabled={!selectedUserId}
           >
             <option value="">Select KPI…</option>
             {templates.map(t => (
@@ -241,33 +148,8 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
         disabled={!selectedUserId || !templateId || saving}
         onClick={handleAssign}
       >
-        <Plus className="h-3.5 w-3.5" /> Assign KPI to profile
+        <Plus className="h-3.5 w-3.5" /> Assign KPI to selected user
       </Button>
-
-      {staffId && (
-        <div className="pt-3 border-t border-[hsl(var(--border))] space-y-2">
-          <label className="text-xs text-[hsl(var(--muted-foreground))] block">
-            Link ERP login user {selectedStaff ? `(${selectedStaff.email})` : ""} (optional override)
-          </label>
-          <div className="flex gap-2">
-            <select
-              className="flex-1 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
-              value={linkUserId}
-              onChange={e => setLinkUserId(e.target.value)}
-            >
-              <option value="">Match by email only</option>
-              {users.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.email})
-                </option>
-              ))}
-            </select>
-            <Button size="sm" variant="outline" disabled={saving} onClick={handleLinkUser}>
-              Link user
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

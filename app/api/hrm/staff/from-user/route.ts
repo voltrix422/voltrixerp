@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   })
   if (existingByUserId) {
-    return NextResponse.json({ error: "Staff profile already exists for this user" }, { status: 409 })
+    return NextResponse.json({ id: existingByUserId.id, linked: true, existing: true })
   }
 
   const existingByEmail = await prisma.erpStaff.findFirst({
