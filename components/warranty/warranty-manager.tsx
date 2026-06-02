@@ -263,6 +263,7 @@ export function WarrantyManager() {
     const matchesSearch = 
       w.productName.toLowerCase().includes(search.toLowerCase()) ||
       (w.serialNumber && w.serialNumber.toLowerCase().includes(search.toLowerCase())) ||
+      (w.warrantyId && w.warrantyId.toLowerCase().includes(search.toLowerCase())) ||
       (w.customerName && w.customerName.toLowerCase().includes(search.toLowerCase())) ||
       (w.customerEmail && w.customerEmail.toLowerCase().includes(search.toLowerCase()))
     
@@ -436,6 +437,9 @@ export function WarrantyManager() {
                         <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{warranty.productName}</p>
                         {warranty.serialNumber && warranty.serialNumber !== warranty.productName && (
                           <p className="text-xs font-mono text-[hsl(var(--muted-foreground))] mt-0.5">{warranty.serialNumber}</p>
+                        )}
+                        {listTab === "started" && warranty.warrantyId && (
+                          <p className="text-xs font-mono text-[#1a9f9a] mt-0.5">{warranty.warrantyId}</p>
                         )}
                       </td>
                       <td className="px-4 py-3.5">

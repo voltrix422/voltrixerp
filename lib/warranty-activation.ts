@@ -9,6 +9,25 @@ import {
 
 const WARRANTY_YEARS = 5
 
+export async function generatePublicWarrantyNumber(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const id = `vol-${Math.floor(10000 + Math.random() * 90000)}`
+    const exists = await prisma.erpWarranty.findFirst({
+      where: { warrantyId: { equals: id, mode: "insensitive" } },
+    })
+    if (!exists) return id
+  }
+  return `vol-${Date.now().toString().slice(-8)}`
+}
+
+export function normalizeWarrantyNumberInput(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ""
+  if (/^vol-/i.test(trimmed)) return trimmed.toLowerCase()
+  if (/^\d{4,6}$/.test(trimmed)) return `vol-${trimmed}`
+  return trimmed
+}
+
 export function addYears(date: Date, years: number) {
   const next = new Date(date)
   next.setFullYear(next.getFullYear() + years)
@@ -167,9 +186,12 @@ export async function activateWarrantyBySerial(
   }`
 
   if (warranty) {
+    const assignedWarrantyId =
+      warranty.warrantyId?.trim() || (await generatePublicWarrantyNumber())
     warranty = await prisma.erpWarranty.update({
       where: { id: warranty.id },
       data: {
+        warrantyId: assignedWarrantyId,
         activatedAt: now,
         warrantyStartDate: now,
         warrantyEndDate: warrantyEnd,
@@ -184,7 +206,7 @@ export async function activateWarrantyBySerial(
       },
     })
   } else if (unit) {
-    const generatedWarrantyId = `vol-${Math.floor(10000 + Math.random() * 90000)}`
+    const generatedWarrantyId = await generatePublicWarrantyNumber()
     warranty = await prisma.erpWarranty.create({
       data: {
         warrantyId: generatedWarrantyId,
@@ -341,15 +363,16 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
   const trimmed = idOrSerial.trim()
   if (!trimmed) return null
 
+  const normalizedWarrantyNo = normalizeWarrantyNumberInput(trimmed)
   const resolvedSerial = resolveSerialFromWarrantyScan(trimmed)
-  const lookupKeys = [...new Set([trimmed, resolvedSerial].filter(Boolean))]
+  const lookupKeys = [...new Set([trimmed, normalizedWarrantyNo, resolvedSerial].filter(Boolean))]
 
   let warranty = null as Awaited<ReturnType<typeof prisma.erpWarranty.findFirst>>
   for (const key of lookupKeys) {
     warranty = await prisma.erpWarranty.findFirst({
       where: {
         OR: [
-          { warrantyId: key },
+          { warrantyId: { equals: key, mode: "insensitive" } },
           { serialNumber: { equals: key, mode: "insensitive" } },
         ],
       },
@@ -377,6 +400,13 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
   }
 
   if (!warranty) return null
+
+  if (isWarrantyActivated(warranty) && !warranty.warrantyId?.trim()) {
+    warranty = await prisma.erpWarranty.update({
+      where: { id: warranty.id },
+      data: { warrantyId: await generatePublicWarrantyNumber() },
+    })
+  }
 
   return {
     warranty: await serializeWarrantyPublic(warranty),

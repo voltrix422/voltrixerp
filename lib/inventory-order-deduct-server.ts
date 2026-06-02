@@ -250,10 +250,8 @@ async function ensureWarrantyForDispatchBySerial(
       return bySerial.warrantyId
     }
 
-    const generatedWarrantyId = `vol-${Math.floor(10000 + Math.random() * 90000)}`
     const created = await prisma.erpWarranty.create({
       data: {
-        warrantyId: generatedWarrantyId,
         serialNumber: sn,
         productName: model || productName || sn,
         soldDate,
@@ -265,7 +263,7 @@ async function ensureWarrantyForDispatchBySerial(
         createdBy: order.createdBy || "system",
       },
     })
-    return created.warrantyId
+    return null
   } catch {
     return null
   }

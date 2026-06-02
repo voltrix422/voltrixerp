@@ -36,6 +36,7 @@ type WarrantyData = PublicWarrantyCardData & {
 
 function toCardData(w: WarrantyData): PublicWarrantyCardData {
   return {
+    warrantyId: w.warrantyId,
     invoiceNumber: w.invoiceNumber,
     serialNumber: w.serialNumber,
     productName: w.productName,
@@ -54,6 +55,8 @@ function toCardData(w: WarrantyData): PublicWarrantyCardData {
 function WarrantyLookupContent() {
   const searchParams = useSearchParams()
   const [flow, setFlow] = useState<Flow>(null)
+  const [checkMode, setCheckMode] = useState<"scan" | "number">("scan")
+  const [warrantyNumberInput, setWarrantyNumberInput] = useState("")
   const [scannerKey, setScannerKey] = useState(0)
   const [warranty, setWarranty] = useState<WarrantyData | null>(null)
   const [alreadyActive, setAlreadyActive] = useState(false)
@@ -76,6 +79,8 @@ function WarrantyLookupContent() {
     const action = searchParams.get("action")
     if (action === "check") {
       setFlow("check")
+      setCheckMode(sn.toLowerCase().startsWith("vol-") ? "number" : "scan")
+      if (sn.toLowerCase().startsWith("vol-")) setWarrantyNumberInput(sn)
       void lookup(sn)
     } else {
       setFlow("start")
@@ -94,6 +99,8 @@ function WarrantyLookupContent() {
   function openFlow(next: Exclude<Flow, null>) {
     resetResults()
     setFlow(next)
+    setCheckMode("scan")
+    setWarrantyNumberInput("")
     setScannerKey((k) => k + 1)
   }
 
@@ -157,10 +164,20 @@ function WarrantyLookupContent() {
       setWarranty(data.warranty as WarrantyData)
       if (data.alreadyActive) {
         setAlreadyActive(true)
-        setInfo("This warranty is already active. Your certificate is below.")
+        const wn = (data.warranty as WarrantyData)?.warrantyId
+        setInfo(
+          wn
+            ? `This warranty is already active. Your warranty number is ${wn}.`
+            : "This warranty is already active. Your certificate is below.",
+        )
       } else {
         setJustActivated(true)
-        setInfo("Your 5-year warranty has started. Download your certificate below.")
+        const wn = (data.warranty as WarrantyData)?.warrantyId
+        setInfo(
+          wn
+            ? `Your 5-year warranty has started. Warranty number: ${wn}. Save this number to check warranty later.`
+            : "Your 5-year warranty has started. Download your certificate below.",
+        )
       }
     } catch {
       setError("Failed to start warranty. Please try again.")
@@ -174,7 +191,7 @@ function WarrantyLookupContent() {
     try {
       const dataUrl = await toPng(cardRef.current, { quality: 1, pixelRatio: 2 })
       const link = document.createElement("a")
-      link.download = `warranty-${warranty?.invoiceNumber || warranty?.serialNumber || "card"}.png`
+      link.download = `warranty-${warranty?.warrantyId || warranty?.invoiceNumber || warranty?.serialNumber || "card"}.png`
       link.href = dataUrl
       link.click()
     } catch (err) {
@@ -237,17 +254,67 @@ function WarrantyLookupContent() {
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-          <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
-            Scan your product QR to <strong>view</strong> warranty details and certificate
+
+          <div className="flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+            <button
+              type="button"
+              onClick={() => setCheckMode("scan")}
+              className={`flex-1 py-2 text-xs font-semibold rounded-md transition-colors ${
+                checkMode === "scan"
+                  ? "bg-white text-[#1a9f9a] shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Scan QR
+            </button>
+            <button
+              type="button"
+              onClick={() => setCheckMode("number")}
+              className={`flex-1 py-2 text-xs font-semibold rounded-md transition-colors ${
+                checkMode === "number"
+                  ? "bg-white text-[#1a9f9a] shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Warranty number
+            </button>
           </div>
-          <WarrantyQrScanner
-            key={`check-${scannerKey}`}
-            readerId="public-warranty-check-reader"
-            onScan={(p) => void lookup(p)}
-            busy={loading}
-            autoStart
-            hideStartButton
-          />
+
+          {checkMode === "scan" ? (
+            <>
+              <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
+                Scan your product QR to <strong>view</strong> warranty details and certificate
+              </div>
+              <WarrantyQrScanner
+                key={`check-${scannerKey}`}
+                readerId="public-warranty-check-reader"
+                onScan={(p) => void lookup(p)}
+                busy={loading}
+                autoStart
+                hideStartButton
+              />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
+                Enter your <strong>warranty number</strong> from your certificate (e.g. vol-12345)
+              </div>
+              <input
+                value={warrantyNumberInput}
+                onChange={(e) => setWarrantyNumberInput(e.target.value)}
+                placeholder="vol-12345"
+                className="w-full h-11 rounded-lg border border-gray-200 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+              />
+              <button
+                type="button"
+                disabled={loading || !warrantyNumberInput.trim()}
+                onClick={() => void lookup(warrantyNumberInput)}
+                className="w-full py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] disabled:opacity-50"
+              >
+                {loading ? "Looking up…" : "Check warranty"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -273,9 +340,17 @@ function WarrantyLookupContent() {
             </p>
           )}
           {justActivated && flow === "start" && (
-            <p className="text-sm text-center text-[#1a9f9a] font-semibold">
-              Warranty started successfully!
-            </p>
+            <div className="text-center space-y-1">
+              <p className="text-sm text-[#1a9f9a] font-semibold">Warranty started successfully!</p>
+              {warranty.warrantyId && (
+                <>
+                  <p className="text-sm font-mono font-bold text-gray-900">{warranty.warrantyId}</p>
+                  <p className="text-xs text-gray-600 px-2">
+                    Save this warranty number — use Check warranty → Warranty number anytime.
+                  </p>
+                </>
+              )}
+            </div>
           )}
           <WarrantyPublicCardView ref={cardRef} warranty={toCardData(warranty)} />
           <button

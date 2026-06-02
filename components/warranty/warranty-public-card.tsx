@@ -5,6 +5,7 @@ import { Shield, CheckCircle, AlertCircle } from "lucide-react"
 import { VOLTRIX_COMPREHENSIVE_WARRANTY } from "@/lib/warranty-comprehensive-terms"
 
 export type PublicWarrantyCardData = {
+  warrantyId?: string | null
   invoiceNumber?: string | null
   serialNumber?: string | null
   productName: string
@@ -118,6 +119,9 @@ export const WarrantyPublicCardView = forwardRef<
         </div>
 
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-white/90 font-mono">
+          {warranty.warrantyId && (
+            <span className="font-bold text-white">Warranty: {warranty.warrantyId}</span>
+          )}
           {warranty.serialNumber && <span>SN: {warranty.serialNumber}</span>}
           {warranty.invoiceNumber && <span>Inv: {warranty.invoiceNumber}</span>}
         </div>

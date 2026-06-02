@@ -7,6 +7,8 @@ export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
   const raw =
     searchParams.get("id") ||
+    searchParams.get("wn") ||
+    searchParams.get("warranty") ||
     searchParams.get("sn") ||
     searchParams.get("serial") ||
     searchParams.get("scan")
