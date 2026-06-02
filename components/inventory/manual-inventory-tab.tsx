@@ -1,22 +1,17 @@
 "use client"
 
-import { useCallback, useEffect, useState, Fragment } from "react"
+import { useCallback, useEffect, useMemo, useState, Fragment } from "react"
 import {
   Plus,
-  ClipboardList,
   ChevronDown,
   ChevronRight,
   Loader2,
   PackagePlus,
-  ShoppingCart,
   Trash2,
   X,
+  Search,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-
-const fieldClass =
-  "w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
 import { useToast } from "@/components/ui/toast"
 import { getSession } from "@/lib/auth"
 import {
@@ -24,24 +19,23 @@ import {
   createManualInventoryItem,
   deleteManualInventoryItem,
   getManualInventoryItems,
-  manualInventoryItemId,
-  reserveManualInventoryQty,
   type ManualInventoryItem,
 } from "@/lib/manual-inventory"
-import { generateOrderNumber, saveOrder, type Order, type OrderItem } from "@/lib/orders"
 import {
   parseSerialDispatchClient,
   parseSerialOrderRef,
   serialStatusLabel,
 } from "@/lib/parse-serial-order-ref"
 
-type Client = { id: string; name: string }
+const fieldClass =
+  "w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
 
 export function ManualInventoryTab() {
   const { toast } = useToast()
   const [items, setItems] = useState<ManualInventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState("")
 
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState("")
@@ -50,12 +44,6 @@ export function ManualInventoryTab() {
   const [notes, setNotes] = useState("")
   const [serialText, setSerialText] = useState("")
 
-  const [showOrder, setShowOrder] = useState(false)
-  const [clients, setClients] = useState<Client[]>([])
-  const [clientId, setClientId] = useState("")
-  const [orderLines, setOrderLines] = useState<Record<string, string>>({})
-  const [orderNotes, setOrderNotes] = useState("")
-  const [creatingOrder, setCreatingOrder] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [showAddQty, setShowAddQty] = useState(false)
   const [restockItem, setRestockItem] = useState<ManualInventoryItem | null>(null)
@@ -82,6 +70,21 @@ export function ManualInventoryTab() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return items
+    return items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        item.model.toLowerCase().includes(q) ||
+        (item.notes || "").toLowerCase().includes(q),
+    )
+  }, [items, search])
+
+  const itemCount = items.length
+  const totalQty = items.reduce((sum, i) => sum + i.qty, 0)
+  const availableTotal = items.reduce((sum, i) => sum + i.availableQty, 0)
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -185,295 +188,211 @@ export function ManualInventoryTab() {
     }
   }
 
-  function openCreateOrder() {
-    const initial: Record<string, string> = {}
-    for (const item of items.filter((i) => i.availableQty > 0)) {
-      initial[item.id] = "1"
-    }
-    setOrderLines(initial)
-    setClientId("")
-    setOrderNotes("Created from manual inventory")
-    setShowOrder(true)
-    void fetch("/api/db/clients")
-      .then((r) => r.json())
-      .then((data) => setClients(Array.isArray(data) ? data : []))
-      .catch(() => setClients([]))
-  }
-
-  async function handleCreateOrder(e: React.FormEvent) {
-    e.preventDefault()
-    if (!clientId) {
-      toast({ title: "Select a client", type: "error" })
-      return
-    }
-
-    const client = clients.find((c) => c.id === clientId)
-    const lineItems: Array<{ manual: ManualInventoryItem; qty: number }> = []
-
-    for (const item of items) {
-      const raw = orderLines[item.id]
-      if (!raw?.trim()) continue
-      const q = Math.floor(Number(raw))
-      if (!Number.isFinite(q) || q <= 0) continue
-      if (q > item.availableQty) {
-        toast({
-          title: "Not enough stock",
-          message: `"${item.name}" has only ${item.availableQty} available`,
-          type: "error",
-        })
-        return
-      }
-      lineItems.push({ manual: item, qty: q })
-    }
-
-    if (lineItems.length === 0) {
-      toast({ title: "Select at least one item with quantity", type: "error" })
-      return
-    }
-
-    setCreatingOrder(true)
-    try {
-      const user = getSession()?.name || "Inventory"
-      const orderItems: OrderItem[] = lineItems.map(({ manual, qty: lineQty }) => ({
-        id: crypto.randomUUID(),
-        description: manual.name,
-        qty: lineQty,
-        unit: manual.unit || "pcs",
-        unitPrice: 0,
-        isCustom: false,
-        inventoryItemId: manualInventoryItemId(manual.id),
-        model: manual.model,
-        availableQty: manual.availableQty,
-      }))
-
-      await reserveManualInventoryQty(
-        lineItems.map(({ manual, qty: lineQty }) => ({ manualId: manual.id, qty: lineQty })),
-      )
-
-      const order: Order = {
-        id: crypto.randomUUID(),
-        orderNumber: await generateOrderNumber(),
-        clientId,
-        clientName: client?.name || "",
-        items: orderItems,
-        subtotal: 0,
-        taxPercent: 0,
-        tax: 0,
-        transportCost: 0,
-        transportLabel: "",
-        otherCost: 0,
-        otherCostLabel: "",
-        shipping: 0,
-        discount: 0,
-        total: 0,
-        status: "pending_approval",
-        notes: orderNotes.trim() || "Created from manual inventory",
-        createdAt: new Date().toISOString(),
-        createdBy: user,
-        deliveryAddress: "",
-        deliveryDate: "",
-        payments: [],
-      }
-
-      await saveOrder(order)
-      toast({
-        title: "Order created",
-        message: `${order.orderNumber} — approve in CRM/Finance, then fulfill from Client Orders with scan.`,
-        type: "success",
-      })
-      setShowOrder(false)
-      await load()
-    } catch (err) {
-      toast({
-        title: "Order failed",
-        message: err instanceof Error ? err.message : undefined,
-        type: "error",
-      })
-    } finally {
-      setCreatingOrder(false)
-    }
-  }
-
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-[#1faca6]" />
-            Manual added inventory
-          </h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
-            Enter items and quantities by hand. Create client orders from this stock, then scan serial
-            numbers when dispatching under Client Orders.
-          </p>
+    <div className="flex flex-col gap-3 min-h-0 h-[calc(100vh-11rem)]">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 shrink-0">
+        <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
+          <span className="tabular-nums">
+            <span className="font-semibold text-[hsl(var(--foreground))]">{itemCount}</span> items
+          </span>
+          <span className="text-[hsl(var(--border))]">·</span>
+          <span className="tabular-nums">
+            <span className="font-semibold text-[hsl(var(--foreground))]">{totalQty}</span> total qty
+          </span>
+          <span className="text-[hsl(var(--border))]">·</span>
+          <span className="tabular-nums">
+            <span className="font-semibold text-[#1faca6]">{availableTotal}</span> available
+          </span>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => setShowAdd(true)}
-          >
-            <PackagePlus className="h-4 w-4 mr-1.5" />
-            Add item
-          </Button>
-          <Button
-            className="cursor-pointer bg-[#1faca6] hover:bg-[#1a9a95] text-white"
-            disabled={items.every((i) => i.availableQty <= 0)}
-            onClick={openCreateOrder}
-          >
-            <ShoppingCart className="h-4 w-4 mr-1.5" />
-            Create order
-          </Button>
+        <div className="relative flex-1 min-w-[160px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search item, model…"
+            className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+          />
         </div>
+        <Button
+          className="h-8 px-2.5 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 shrink-0 cursor-pointer"
+          onClick={() => setShowAdd(true)}
+        >
+          <PackagePlus className="h-3.5 w-3.5" />
+          Add item
+        </Button>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
-          <Loader2 className="h-6 w-6 animate-spin mr-2" />
-          Loading…
+        <div className="flex flex-1 items-center justify-center text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+          <span className="text-sm">Loading…</span>
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-16 text-center text-[hsl(var(--muted-foreground))]">
-          <PackagePlus className="h-10 w-10 mx-auto opacity-30 mb-3" />
+        <div className="flex flex-1 flex-col items-center justify-center py-16 text-center text-[hsl(var(--muted-foreground))] rounded-lg border border-dashed">
+          <PackagePlus className="h-9 w-9 opacity-30 mb-3" />
           <p className="text-sm font-medium text-[hsl(var(--foreground))]">No manual items yet</p>
           <p className="text-xs mt-1">Add your first item with name and quantity.</p>
+          <Button
+            className="mt-4 h-8 px-3 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 cursor-pointer"
+            onClick={() => setShowAdd(true)}
+          >
+            <PackagePlus className="h-3.5 w-3.5" />
+            Add item
+          </Button>
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center text-sm text-[hsl(var(--muted-foreground))] rounded-lg border border-dashed">
+          No items match &ldquo;{search.trim()}&rdquo;
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[hsl(var(--muted))]/40 text-left text-xs uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                <th className="px-4 py-3 font-semibold w-8" />
-                <th className="px-4 py-3 font-semibold">Item</th>
-                <th className="px-4 py-3 font-semibold">Model</th>
-                <th className="px-4 py-3 font-semibold text-right">Total qty</th>
-                <th className="px-4 py-3 font-semibold text-right">Available</th>
-                <th className="px-4 py-3 font-semibold">Last added</th>
-                <th className="px-4 py-3 font-semibold text-right">Serials</th>
-                <th className="px-4 py-3 font-semibold w-28" />
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {items.map((item) => {
-                const serials = item.serialUnits ?? []
-                const expanded = expandedItems[item.id] === true
-                const hasSerials = serials.length > 0
-                return (
-                  <Fragment key={item.id}>
-                    <tr className="hover:bg-[hsl(var(--muted))]/15">
-                      <td className="px-4 py-3">
-                        {hasSerials ? (
-                          <button
-                            type="button"
-                            className="p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
-                            onClick={() =>
-                              setExpandedItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+        <div className="flex-1 min-h-0 overflow-hidden rounded-lg border">
+          <div className="h-full overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 z-10 bg-[hsl(var(--background))] border-b">
+                <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  <th className="w-8 px-3 py-2" />
+                  <th className="px-3 py-2 min-w-[140px]">Item</th>
+                  <th className="px-3 py-2 min-w-[120px]">Model</th>
+                  <th className="px-3 py-2 text-right w-24">Total</th>
+                  <th className="px-3 py-2 text-right w-24">Available</th>
+                  <th className="px-3 py-2 w-24">Last added</th>
+                  <th className="px-3 py-2 text-right w-20">Serials</th>
+                  <th className="px-3 py-2 w-16" />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => {
+                  const serials = item.serialUnits ?? []
+                  const expanded = expandedItems[item.id] === true
+                  const hasSerials = serials.length > 0
+                  const lowStock = item.availableQty > 0 && item.availableQty < item.qty * 0.2
+                  return (
+                    <Fragment key={item.id}>
+                      <tr className="border-b last:border-b-0 hover:bg-[hsl(var(--muted))]/10">
+                        <td className="px-3 py-2.5 align-top">
+                          {hasSerials ? (
+                            <button
+                              type="button"
+                              className="p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                              onClick={() =>
+                                setExpandedItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                              }
+                              aria-expanded={expanded}
+                            >
+                              {expanded ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <p className="font-medium text-[hsl(var(--foreground))] leading-snug">{item.name}</p>
+                          {item.notes ? (
+                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-1">
+                              {item.notes}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2.5 align-top font-mono text-[11px] text-[hsl(var(--muted-foreground))] break-all">
+                          {item.model}
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap">
+                          {item.qty} {item.unit}
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap">
+                          <span
+                            className={
+                              item.availableQty <= 0
+                                ? "text-[hsl(var(--muted-foreground))]"
+                                : lowStock
+                                  ? "font-semibold text-amber-600"
+                                  : "font-semibold text-[#1faca6]"
                             }
-                            aria-expanded={expanded}
                           >
-                            {expanded ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </button>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{item.name}</p>
-                        {item.notes && (
-                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{item.notes}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs tabular-nums">{item.model}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {item.qty} {item.unit}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Badge variant={item.availableQty > 0 ? "default" : "secondary"}>
-                          {item.availableQty} {item.unit}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
-                        {new Date(item.lastAddedAt || item.createdAt).toLocaleDateString("en-PK")}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-xs text-[hsl(var(--muted-foreground))]">
-                        {serials.length > 0 ? (
-                          <span>
-                            {serials.filter((s) => s.status === "in_stock").length}/{serials.length} in stock
+                            {item.availableQty} {item.unit}
                           </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-[#1faca6] cursor-pointer"
-                            onClick={() => openAddQty(item)}
-                            title="Add quantity"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-600 cursor-pointer"
-                            onClick={() => void handleDelete(item)}
-                            title="Delete item"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                    {expanded && hasSerials && (
-                      <tr className="bg-[hsl(var(--muted))]/10">
-                        <td colSpan={8} className="px-4 py-3">
-                          <div className="rounded-lg border overflow-hidden bg-[hsl(var(--background))]">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="border-b bg-[hsl(var(--muted))]/20 text-[hsl(var(--muted-foreground))]">
-                                  <th className="px-3 py-2 text-left font-semibold">Serial number</th>
-                                  <th className="px-3 py-2 text-left font-semibold">Status</th>
-                                  <th className="px-3 py-2 text-left font-semibold">Order</th>
-                                  <th className="px-3 py-2 text-left font-semibold">Client</th>
-                                  <th className="px-3 py-2 text-left font-semibold">Scanned</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y">
-                                {serials.map((unit) => {
-                                  const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
-                                  const client = parseSerialDispatchClient(unit.notes)
-                                  return (
-                                    <tr key={unit.id}>
-                                      <td className="px-3 py-2 font-mono font-semibold break-all">
-                                        {unit.serialNumber}
-                                      </td>
-                                      <td className="px-3 py-2 capitalize">
-                                        {serialStatusLabel(unit.status)}
-                                      </td>
-                                      <td className="px-3 py-2 font-mono">{orderRef ?? "—"}</td>
-                                      <td className="px-3 py-2">{client ?? "—"}</td>
-                                      <td className="px-3 py-2 tabular-nums text-[hsl(var(--muted-foreground))]">
-                                        {new Date(unit.scannedAt).toLocaleDateString("en-PK")}
-                                      </td>
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-[11px] text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                          {new Date(item.lastAddedAt || item.createdAt).toLocaleDateString("en-PK")}
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-right tabular-nums text-[11px] text-[hsl(var(--muted-foreground))]">
+                          {serials.length > 0 ? (
+                            <span>
+                              {serials.filter((s) => s.status === "in_stock").length}/{serials.length}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <div className="flex items-center justify-end gap-0.5">
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-md text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
+                              onClick={() => openAddQty(item)}
+                              title="Add quantity"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-md text-red-600 hover:bg-red-500/10 cursor-pointer"
+                              onClick={() => void handleDelete(item)}
+                              title="Delete item"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
+                      {expanded && hasSerials && (
+                        <tr className="border-b bg-[hsl(var(--muted))]/5">
+                          <td colSpan={8} className="px-3 py-2">
+                            <div className="rounded-md border overflow-hidden">
+                              <table className="w-full text-[11px]">
+                                <thead>
+                                  <tr className="border-b text-[hsl(var(--muted-foreground))]">
+                                    <th className="px-2.5 py-1.5 text-left font-semibold">Serial</th>
+                                    <th className="px-2.5 py-1.5 text-left font-semibold">Status</th>
+                                    <th className="px-2.5 py-1.5 text-left font-semibold">Order</th>
+                                    <th className="px-2.5 py-1.5 text-left font-semibold">Client</th>
+                                    <th className="px-2.5 py-1.5 text-left font-semibold">Scanned</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {serials.map((unit) => {
+                                    const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
+                                    const client = parseSerialDispatchClient(unit.notes)
+                                    return (
+                                      <tr key={unit.id} className="border-b last:border-b-0">
+                                        <td className="px-2.5 py-1.5 font-mono font-medium break-all">
+                                          {unit.serialNumber}
+                                        </td>
+                                        <td className="px-2.5 py-1.5 capitalize">
+                                          {serialStatusLabel(unit.status)}
+                                        </td>
+                                        <td className="px-2.5 py-1.5 font-mono">{orderRef ?? "—"}</td>
+                                        <td className="px-2.5 py-1.5">{client ?? "—"}</td>
+                                        <td className="px-2.5 py-1.5 tabular-nums text-[hsl(var(--muted-foreground))]">
+                                          {new Date(unit.scannedAt).toLocaleDateString("en-PK")}
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -483,24 +402,24 @@ export function ManualInventoryTab() {
           onClick={() => !saving && setShowAdd(false)}
         >
           <form
-            className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] p-6 shadow-xl space-y-4"
+            className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleAdd(e)}
           >
-            <div className="flex items-center justify-between">
-              <p className="font-semibold">Add manual inventory</p>
+            <div className="flex items-center justify-between border-b pb-3">
+              <p className="text-sm font-semibold">Add manual inventory</p>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="cursor-pointer"
+                className="h-8 w-8 cursor-pointer"
                 onClick={() => setShowAdd(false)}
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Item name *</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Item name *</label>
               <input
                 className={fieldClass}
                 value={name}
@@ -510,8 +429,8 @@ export function ManualInventoryTab() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold">Quantity *</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">Quantity *</label>
                 <input
                   type="number"
                   min={1}
@@ -522,115 +441,30 @@ export function ManualInventoryTab() {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold">Unit</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">Unit</label>
                 <input className={fieldClass} value={unit} onChange={(e) => setUnit(e.target.value)} />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Notes</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Notes</label>
               <input className={fieldClass} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Serial numbers (optional)</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Serial numbers (optional)</label>
               <textarea
-                className="w-full min-h-[80px] rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm font-mono"
-                placeholder="One SN per line — or leave empty and scan at dispatch"
+                className="w-full min-h-[72px] rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+                placeholder="One SN per line — or leave empty"
                 value={serialText}
                 onChange={(e) => setSerialText(e.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full cursor-pointer" disabled={saving}>
+            <Button
+              type="submit"
+              className="w-full h-9 text-sm cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+              disabled={saving}
+            >
               {saving ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Save item"}
-            </Button>
-          </form>
-        </div>
-      )}
-
-      {showOrder && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
-          onClick={() => !creatingOrder && setShowOrder(false)}
-        >
-          <form
-            className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => void handleCreateOrder(e)}
-          >
-            <div className="flex items-center justify-between">
-              <p className="font-semibold">Create order from manual stock</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="cursor-pointer"
-                onClick={() => setShowOrder(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Client *</label>
-              <select
-                className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3 text-sm"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                required
-              >
-                <option value="">Choose client…</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Order lines</label>
-              <div className="rounded-lg border divide-y max-h-48 overflow-y-auto">
-                {items
-                  .filter((i) => i.availableQty > 0)
-                  .map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 px-3 py-2 text-sm"
-                    >
-                      <span className="flex-1 truncate">{item.name}</span>
-                      <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">
-                        max {item.availableQty}
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={item.availableQty}
-                        className="w-20 h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-sm text-right"
-                        value={orderLines[item.id] ?? ""}
-                        onChange={(e) =>
-                          setOrderLines((prev) => ({ ...prev, [item.id]: e.target.value }))
-                        }
-                      />
-                    </div>
-                  ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Notes</label>
-              <input
-                className={fieldClass}
-                value={orderNotes}
-                onChange={(e) => setOrderNotes(e.target.value)}
-              />
-            </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Order goes to pending approval. After finance confirms, fulfill under Client Orders and
-              use <strong>Scan to dispatch</strong> for serial numbers.
-            </p>
-            <Button type="submit" className="w-full cursor-pointer" disabled={creatingOrder}>
-              {creatingOrder ? (
-                <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-              ) : (
-                "Create order"
-              )}
             </Button>
           </form>
         </div>
@@ -642,27 +476,28 @@ export function ManualInventoryTab() {
           onClick={() => !restocking && setShowAddQty(false)}
         >
           <form
-            className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] p-6 shadow-xl space-y-4"
+            className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleAddQty(e)}
           >
-            <div className="flex items-center justify-between">
-              <p className="font-semibold">Add quantity</p>
+            <div className="flex items-center justify-between border-b pb-3">
+              <p className="text-sm font-semibold">Add quantity</p>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="cursor-pointer"
+                className="h-8 w-8 cursor-pointer"
                 onClick={() => setShowAddQty(false)}
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {restockItem.name} ({restockItem.model})
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {restockItem.name}{" "}
+              <span className="font-mono">({restockItem.model})</span>
             </p>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Quantity to add *</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Quantity to add *</label>
               <input
                 type="number"
                 min={1}
@@ -673,8 +508,8 @@ export function ManualInventoryTab() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold">Notes (optional)</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Notes (optional)</label>
               <input
                 className={fieldClass}
                 value={restockNotes}
@@ -682,10 +517,11 @@ export function ManualInventoryTab() {
                 placeholder="e.g. New lot received"
               />
             </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Addition date is tracked automatically.
-            </p>
-            <Button type="submit" className="w-full cursor-pointer" disabled={restocking}>
+            <Button
+              type="submit"
+              className="w-full h-9 text-sm cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+              disabled={restocking}
+            >
               {restocking ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Add quantity"}
             </Button>
           </form>
