@@ -19,6 +19,7 @@ export interface Staff {
   bankName?: string
   bankAccountNumber?: string
   bankAccountTitle?: string
+  erp_user_id?: string | null
 }
 
 export async function getStaff(): Promise<Staff[]> {

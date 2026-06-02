@@ -201,6 +201,17 @@ export async function linkStaffToUser(staffId: string, erpUserId: string | null)
   if (!res.ok) throw new Error("Failed to link user to profile")
 }
 
+export async function createStaffProfileFromUser(userId: string): Promise<{ id: string }> {
+  const res = await fetch("/api/hrm/staff/from-user", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((json as { error?: string }).error || "Could not create staff profile")
+  return json as { id: string }
+}
+
 export async function saveSettlement(body: {
   id?: string
   staffId: string
