@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { getClients, saveClient, deleteClient, type Client, CLIENT_STATUS_COLORS, CLIENT_STATUS_LABELS } from "@/lib/crm"
 import { initialClientStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { matchesOwnerRecord, resolveOwnerUserId } from "@/lib/crm-workspace"
@@ -9,9 +9,12 @@ import { useToast } from "@/components/ui/toast"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Plus, Search, X, Upload, Trash2, User, ShoppingCart } from "lucide-react"
+import { Plus, Search, X, Upload, Trash2, User, Mail, Phone, Globe, MapPin, Building2, Calendar, Truck, Loader2, Package } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadClientsExcel } from "@/lib/crm-excel-export"
+import { getOrders, type Order } from "@/lib/orders"
+import { formatCurrency } from "@/lib/pos"
+import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 
 export function ClientsList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
   const { toast } = useToast()
@@ -391,6 +394,18 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
   )
 }
 
+function orderDeliveredAt(order: Order): Date | null {
+  const raw = order.fulfillmentDate || order.deliveryDate || order.createdAt
+  if (!raw) return null
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function formatDetailDate(d: Date | null): string {
+  if (!d) return "—"
+  return d.toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" })
+}
+
 function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onRequestDelete }: {
   client: Client
   workspace?: CrmWorkspaceScope
@@ -404,9 +419,60 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
   const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState(false)
   const [reviewing, setReviewing] = useState(false)
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const [clientOrders, setClientOrders] = useState<Order[]>([])
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const readOnly = !!workspace?.readOnly
   const isAdmin = user?.role === "superadmin"
   const canReview = isAdmin && client.status === "pending_approval" && !!client.ownerUserId
+
+  useEffect(() => {
+    let cancelled = false
+    setOrdersLoading(true)
+    getOrders()
+      .then((rows) => {
+        if (cancelled) return
+        setClientOrders(
+          rows.filter((o) => o.clientId === client.id && o.status === "delivered"),
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setOrdersLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [client.id])
+
+  const filteredOrders = useMemo(() => {
+    return clientOrders
+      .filter((order) => {
+        const delivered = orderDeliveredAt(order)
+        if (!delivered) return true
+        if (dateFrom) {
+          const from = new Date(dateFrom)
+          from.setHours(0, 0, 0, 0)
+          if (delivered < from) return false
+        }
+        if (dateTo) {
+          const to = new Date(dateTo)
+          to.setHours(23, 59, 59, 999)
+          if (delivered > to) return false
+        }
+        return true
+      })
+      .sort((a, b) => {
+        const da = orderDeliveredAt(a)?.getTime() ?? 0
+        const db = orderDeliveredAt(b)?.getTime() ?? 0
+        return db - da
+      })
+  }, [clientOrders, dateFrom, dateTo])
+
+  const ordersTotal = useMemo(
+    () => filteredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0),
+    [filteredOrders],
+  )
 
   async function reviewClient(nextStatus: "active" | "rejected") {
     setReviewing(true)
@@ -432,6 +498,15 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
     onDelete(client.id)
   }
 
+  const infoItems = [
+    { icon: Mail, label: "Email", value: client.email },
+    { icon: Phone, label: "Phone", value: client.phone },
+    { icon: User, label: "Contact", value: client.contactPerson },
+    { icon: MapPin, label: "City", value: client.city },
+    { icon: Globe, label: "Website", value: client.website, link: client.website },
+    { icon: Building2, label: "Tax ID", value: client.taxId },
+  ]
+
   return (
     <>
       {editing ? (
@@ -446,147 +521,230 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
           }}
         />
       ) : (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-          <div className="w-full max-w-3xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <p className="text-sm font-semibold">Client Details</p>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+          onClick={onClose}
+        >
+          <div
+            className="w-full sm:max-w-4xl max-h-[92vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-lg border bg-[hsl(var(--card))] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start gap-3 px-4 sm:px-5 py-4 border-b shrink-0">
+              {client.imageUrl ? (
+                <img
+                  src={client.imageUrl}
+                  alt={client.name}
+                  className="h-12 w-12 rounded-full object-cover border shrink-0"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-full border bg-[#1faca6]/10 flex items-center justify-center shrink-0">
+                  <User className="h-6 w-6 text-[#1faca6]" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold capitalize truncate">{client.name}</h2>
+                  {client.ownerUserId && (
+                    <SalesAgentSourceBadge agentName={client.createdBy} kind="client" />
+                  )}
+                  {client.status !== "active" && (
+                    <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${CLIENT_STATUS_COLORS[client.status]}`}>
+                      {CLIENT_STATUS_LABELS[client.status]}
+                    </span>
+                  )}
+                </div>
+                {client.company && (
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 truncate">{client.company}</p>
+                )}
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                  Added {new Date(client.createdAt).toLocaleDateString("en-PK")} by {client.createdBy}
+                  {client.industry ? ` · ${client.industry}` : ""}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-              {/* Header with Avatar */}
-              <div className="flex items-start gap-4 pb-5 border-b">
-                {client.imageUrl ? (
-                  <img src={client.imageUrl} alt={client.name} className="h-20 w-20 rounded-full object-cover border-2 border-[hsl(var(--border))] shadow-sm" />
-                ) : (
-                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-[hsl(var(--primary))]/20 to-[hsl(var(--primary))]/5 flex items-center justify-center border-2 border-[hsl(var(--border))] shadow-sm">
-                    <User className="h-10 w-10 text-[hsl(var(--primary))]" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-bold">{client.name}</p>
-                    {client.ownerUserId && <SalesAgentSourceBadge agentName={client.createdBy} kind="client" />}
-                    {client.status !== "active" && (
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${CLIENT_STATUS_COLORS[client.status]}`}>
-                        {CLIENT_STATUS_LABELS[client.status]}
-                      </span>
-                    )}
-                  </div>
-                  {client.company && <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">{client.company}</p>}
-                  {client.industry && (
-                    <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-[hsl(var(--muted))]/40 text-[10px] font-medium">
-                      {client.industry}
-                    </span>
-                  )}
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2">
-                    Added {new Date(client.createdAt).toLocaleDateString()} by {client.createdBy}
-                  </p>
-                </div>
-              </div>
-
-              {/* Contact Information Grid */}
-              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                {client.ownerUserId && (
-                  <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40 col-span-2">
-                    <div className="flex-1">
-                      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Added by</p>
-                      <p className="text-sm font-medium">{client.createdBy}</p>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {/* Contact strip */}
+              <div className="px-4 sm:px-5 py-3 border-b">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {infoItems.map(({ icon: Icon, label, value, link }) => (
+                    <div key={label} className="rounded-md border px-2.5 py-2 min-w-0">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] flex items-center gap-1">
+                        <Icon className="h-3 w-3 shrink-0" />
+                        {label}
+                      </p>
+                      {link && value ? (
+                        <a
+                          href={link.startsWith("http") ? link : `https://${link}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-[#1faca6] hover:underline truncate block mt-0.5"
+                        >
+                          {value}
+                        </a>
+                      ) : (
+                        <p className="text-xs font-medium truncate mt-0.5">{value?.trim() || "—"}</p>
+                      )}
                     </div>
+                  ))}
+                </div>
+                {(client.address || client.notes) && (
+                  <div className="mt-2 space-y-1.5 text-xs text-[hsl(var(--muted-foreground))]">
+                    {client.address && (
+                      <p>
+                        <span className="font-medium text-[hsl(var(--foreground))]">Address: </span>
+                        {client.address}
+                        {client.country ? `, ${client.country}` : ""}
+                      </p>
+                    )}
+                    {client.notes && (
+                      <p className="line-clamp-2">
+                        <span className="font-medium text-[hsl(var(--foreground))]">Notes: </span>
+                        {client.notes}
+                      </p>
+                    )}
                   </div>
                 )}
-                <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Email</p>
-                    <p className="text-sm">{client.email || "—"}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Phone</p>
-                    <p className="text-sm">{client.phone || "—"}</p>
-                  </div>
-                </div>
+              </div>
 
-                <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Website</p>
-                    {client.website ? (
-                      <a href={client.website} target="_blank" rel="noreferrer" className="text-sm text-[hsl(var(--primary))] hover:underline">
-                        {client.website}
-                      </a>
-                    ) : (
-                      <p className="text-sm">—</p>
+              {/* Delivered orders */}
+              <div className="px-4 sm:px-5 py-3">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold shrink-0">
+                    <Truck className="h-3.5 w-3.5 text-[#1faca6]" />
+                    Delivered orders
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[200px]">
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+                      title="From date"
+                    />
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">to</span>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+                      title="To date"
+                    />
+                    {(dateFrom || dateTo) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDateFrom("")
+                          setDateTo("")
+                        }}
+                        className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0 tabular-nums">
+                    <span className="font-semibold text-[hsl(var(--foreground))]">{filteredOrders.length}</span> orders
+                    {filteredOrders.length > 0 && (
+                      <> · <span className="font-semibold text-[#1faca6]">{formatCurrency(ordersTotal)}</span></>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Tax ID / VAT</p>
-                    <p className="text-sm">{client.taxId || "—"}</p>
+                {ordersLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-10 text-sm text-[hsl(var(--muted-foreground))]">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading orders…
                   </div>
-                </div>
-
-                <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Contact Person</p>
-                    <p className="text-sm">{client.contactPerson || "—"}</p>
+                ) : filteredOrders.length === 0 ? (
+                  <div className="rounded-lg border border-dashed py-10 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    <Package className="h-8 w-8 mx-auto opacity-30 mb-2" />
+                    {clientOrders.length === 0
+                      ? "No delivered orders for this client yet."
+                      : "No delivered orders in this date range."}
                   </div>
-                </div>
-
-                <div className="flex items-start gap-3 py-2 border-b border-[hsl(var(--border))]/40">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">City</p>
-                    <p className="text-sm">{client.city || "—"}</p>
+                ) : (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_88px_72px_minmax(0,1.2fr)_88px] gap-2 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      <span>Order</span>
+                      <span>Delivered</span>
+                      <span className="text-right">Items</span>
+                      <span>Products</span>
+                      <span className="text-right">Total</span>
+                    </div>
+                    <ul className="divide-y max-h-[280px] overflow-y-auto">
+                      {filteredOrders.map((order) => {
+                        const delivered = orderDeliveredAt(order)
+                        const itemSummary = order.items
+                          .slice(0, 2)
+                          .map((i) => i.description)
+                          .join(", ")
+                        const extra = order.items.length > 2 ? ` +${order.items.length - 2} more` : ""
+                        return (
+                          <li
+                            key={order.id}
+                            className="px-3 py-2.5 hover:bg-[hsl(var(--muted))]/10 sm:grid sm:grid-cols-[minmax(0,1fr)_88px_72px_minmax(0,1.2fr)_88px] sm:gap-2 sm:items-center"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#1faca6] font-mono">{order.orderNumber}</p>
+                              {(order.fulfillmentDispatcher || order.dispatcher) && (
+                                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
+                                  {order.fulfillmentDispatcher || order.dispatcher}
+                                </p>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] sm:text-xs tabular-nums flex items-center gap-1 mt-1 sm:mt-0">
+                              <Calendar className="h-3 w-3 sm:hidden shrink-0" />
+                              {formatDetailDate(delivered)}
+                            </p>
+                            <p className="text-[11px] text-right tabular-nums mt-0.5 sm:mt-0">
+                              {formatCrmItemsQtyLabel(order.items)}
+                            </p>
+                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate mt-0.5 sm:mt-0 col-span-2 sm:col-span-1">
+                              {itemSummary}
+                              {extra}
+                            </p>
+                            <p className="text-xs font-semibold text-right tabular-nums mt-1 sm:mt-0">
+                              {formatCurrency(order.total || 0)}
+                            </p>
+                          </li>
+                        )
+                      })}
+                    </ul>
                   </div>
-                </div>
+                )}
               </div>
-
-              {/* Full Width Fields */}
-              {client.address && (
-                <div className="pt-3">
-                  <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Address</p>
-                  <p className="text-sm">{client.address}</p>
-                  {client.country && (
-                    <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">{client.country}</p>
-                  )}
-                </div>
-              )}
-
-              {client.notes && (
-                <div className="pt-3 border-t">
-                  <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Notes</p>
-                  <p className="text-sm whitespace-pre-wrap">{client.notes}</p>
-                </div>
-              )}
             </div>
 
-            <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20">
+            <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 border-t shrink-0">
               {canReview && (
                 <>
                   <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => reviewClient("active")} disabled={reviewing}>
-                    Approve Client
+                    Approve
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => reviewClient("rejected")} disabled={reviewing}>
-                    Reject Client
+                    Reject
                   </Button>
                 </>
               )}
               {!readOnly && (
-                <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setEditing(true)}>
+                <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setEditing(true)}>
                   Edit
                 </Button>
               )}
               {!readOnly && (
                 <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" onClick={handleDelete} disabled={deleting}>
-                  <Trash2 className="h-3 w-3 mr-1.5" /> {deleting ? "Deleting..." : "Delete"}
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  {deleting ? "Deleting…" : "Delete"}
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>Close</Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>
+                Close
+              </Button>
             </div>
           </div>
         </div>
