@@ -288,12 +288,15 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
       let deleted = 0
       if (unitCount > 0) {
         deleted = await deleteInventorySerialUnitsByModel(modelKey)
-      } else if (group.stockOnly?.isManual) {
-        const manual = manualItemsCache.find((m) => String(m?.model || "").trim() === modelKey.trim())
-        if (!manual?.id) throw new Error("Manual inventory record not found.")
+      }
+
+      const manual = manualItemsCache.find(
+        (m) => String(m?.model || "").trim() === modelKey.trim(),
+      )
+      if (manual?.id) {
         await deleteManualInventoryItem(manual.id)
-        deleted = Number(manual.qty || 0)
-      } else {
+        if (deleted === 0) deleted = Number(manual.qty || 0)
+      } else if (unitCount === 0) {
         const stockRow = stockRowsCache.find(
           (row) =>
             String(row?.description || row?.name || "")

@@ -343,6 +343,28 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })
 }
 
+async function deleteSerialUnitsForModel(model: string): Promise<number> {
+  const trimmed = model.trim()
+  if (!trimmed) return 0
+
+  const units = await prisma.erpInventorySerialUnit.findMany({
+    where: { model: trimmed },
+  })
+
+  for (const unit of units) {
+    await prisma.erpWarrantyClaim.deleteMany({ where: { unitId: unit.id } })
+    if (unit.warrantyId) {
+      await prisma.erpWarranty.deleteMany({ where: { warrantyId: unit.warrantyId } })
+    }
+    if (unit.serialNumber) {
+      await prisma.erpWarranty.deleteMany({ where: { serialNumber: unit.serialNumber } })
+    }
+    await prisma.erpInventorySerialUnit.delete({ where: { id: unit.id } })
+  }
+
+  return units.length
+}
+
 export async function DELETE(req: NextRequest) {
   const body = await req.json()
   const id = String(body.id ?? "").trim()
@@ -351,20 +373,12 @@ export async function DELETE(req: NextRequest) {
   const item = await prisma.erpManualInventoryItem.findUnique({ where: { id } })
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const inStockSerials = await prisma.erpInventorySerialUnit.count({
-    where: { model: item.model, status: "in_stock" },
-  })
-  if (inStockSerials > 0) {
-    return NextResponse.json(
-      { error: "Remove or reassign serial units before deleting this item" },
-      { status: 400 },
-    )
-  }
+  const deletedSerials = await deleteSerialUnitsForModel(item.model)
 
   if (item.inventoryStockId) {
     await prisma.erpInventoryStock.delete({ where: { id: item.inventoryStockId } }).catch(() => {})
   }
 
   await prisma.erpManualInventoryItem.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, deletedSerials })
 }
