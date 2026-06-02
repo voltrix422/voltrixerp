@@ -42,7 +42,9 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   })
 
-  const models = rows.map((r) => r.model).filter(Boolean)
+  const models = rows
+    .map((r) => r.model)
+    .filter((model) => Boolean(model) && !String(model).toUpperCase().startsWith("MAN-"))
   const serialRows =
     models.length > 0
       ? await prisma.erpInventorySerialUnit.findMany({

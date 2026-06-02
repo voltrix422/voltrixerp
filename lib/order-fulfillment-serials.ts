@@ -24,6 +24,7 @@ export type OrderFulfillmentSerialAllocation = {
 export function orderLinesRequiringSerials(order: Pick<Order, "items">): OrderItem[] {
   return order.items.filter((item) => {
     if (item.isCustom) return false
+    if (isManualDispatchLine(item)) return false
     return !!resolveOrderItemModel(item)
   })
 }
@@ -120,18 +121,10 @@ export function validateSerialSelections(
     const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
     const selected = selections[item.id] ?? []
     const available = inStockUnitsForOrderLine(units, item)
-    const manual = isManualDispatchLine(item)
-    const manualAvail = manualMeta[modelKey(model)]?.availableQty
 
     if (needQty === 0) continue
 
-    if (manual) {
-      if (manualAvail !== undefined && needQty > manualAvail) {
-        errors.push(
-          `${model}: manual stock is ${manualAvail} (order needs ${needQty})`,
-        )
-      }
-    } else if (available.length < needQty) {
+    if (available.length < needQty) {
       errors.push(
         `${model}: only ${available.length} unit(s) in stock (order needs ${needQty})`,
       )
@@ -139,9 +132,7 @@ export function validateSerialSelections(
 
     if (selected.length !== needQty) {
       errors.push(
-        manual
-          ? `${model}: scan ${needQty} serial number(s) at dispatch (scanned ${selected.length})`
-          : `${model}: select ${needQty} serial number(s) (selected ${selected.length})`,
+        `${model}: select ${needQty} serial number(s) (selected ${selected.length})`,
       )
       continue
     }
