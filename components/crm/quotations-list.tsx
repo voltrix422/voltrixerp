@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
 import { getClients, type Client } from "@/lib/crm"
-import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, orderStatusForQuotationConversion, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
@@ -17,9 +17,6 @@ import { useToast } from "@/components/ui/toast"
 import { Plus, X, Trash2, FileText, Edit, ShoppingCart } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadQuotationsExcel } from "@/lib/crm-excel-export"
-import { saveOrder, generateOrderNumber } from "@/lib/orders"
-import type { Order } from "@/lib/orders"
-
 function defaultFromDate() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
@@ -288,7 +285,7 @@ export function QuotationsList({
       )}
       {showForm&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}
       {editingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} existing={editingQuotation} onClose={()=>setEditingQuotation(null)} onSave={q=>{setQuotations(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQuotation(null)}}/>}
-      {selected&&!editingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}} onUpdate={updated=>{setQuotations(prev=>prev.map(x=>x.id===updated.id?updated:x));setSelected(updated)}}/>}
+      {selected&&!editingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}}/>}
       <ConfirmDialog isOpen={!!deleteConfirm} title="Delete Quotation" message={`Delete ${deleteConfirm?.quotationNumber}?`} confirmText="Delete" cancelText="Cancel" variant="danger"
         onConfirm={()=>{if(deleteConfirm){deleteQuotation(deleteConfirm.id);setQuotations(prev=>prev.filter(x=>x.id!==deleteConfirm.id))}setDeleteConfirm(null)}}
         onCancel={()=>setDeleteConfirm(null)}/>
@@ -364,6 +361,20 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
     setInvSearch("")
   }
 
+  function addCustomProduct() {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        description: "",
+        qty: 1,
+        unit: "pcs",
+        unitPrice: 0,
+        isCustom: true,
+      },
+    ])
+  }
+
   function updateItem(id: string, key: keyof QuotationItem, value: any) {
     setItems(prev => prev.map(i => {
       if (i.id !== id) return i
@@ -376,7 +387,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   }
 
   async function submit() {
-    if (!clientId || items.length === 0) return
+    if (!clientId || items.length === 0 || items.some((i) => !i.description.trim())) return
     setSaving(true)
     const client = clients.find(c => c.id === clientId)
     const quotationNumber = existing?.quotationNumber || await generateQuotationNumber()
@@ -449,9 +460,14 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
           <div className="pt-3 border-t">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Items *</p>
-              <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowInventory(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1"/>Add from inventory
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full sm:w-auto">
+                <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowInventory(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1"/>Add from inventory
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-9 w-full sm:w-auto text-xs cursor-pointer" onClick={addCustomProduct}>
+                  <Plus className="h-3.5 w-3.5 mr-1"/>Add custom product
+                </Button>
+              </div>
             </div>
             {qtyError && <p className="text-xs text-orange-600 mb-2">{qtyError}</p>}
             {items.length === 0 ? (
@@ -532,7 +548,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
         </div>
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button size="sm" variant="outline" className="h-10 sm:h-8 text-xs cursor-pointer w-full sm:w-auto" onClick={onClose}>Cancel</Button>
-          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer w-full sm:w-auto bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={submit} disabled={saving||!clientId||items.length===0}>
+          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer w-full sm:w-auto bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={submit} disabled={saving||!clientId||items.length===0||items.some(i=>!i.description.trim())}>
             {saving?"Saving...":existing?"Update Quotation":"Create Quotation"}
           </Button>
         </div>
@@ -550,10 +566,9 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
 }
 
 // ─── Detail View ──────────────────────────────────────────────────────────────
-function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly, onUpdate }: {
-  quotation: Quotation; onClose: () => void; onEdit: () => void; onDelete: (id: string) => void; readOnly?: boolean; onUpdate?: (q: Quotation) => void
+function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly }: {
+  quotation: Quotation; onClose: () => void; onEdit: () => void; onDelete: (id: string) => void; readOnly?: boolean
 }) {
-  const { toast } = useToast()
   const [deleting, setDeleting] = useState(false)
 
   async function handleDelete() {
@@ -639,14 +654,7 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly, onUpd
           {!readOnly && (
             <>
               <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
-              <ConvertToOrderButton
-                quotation={quotation}
-                onConverted={updated => {
-                  onUpdate?.(updated)
-                  toast({ title: "Order submitted", message: "The converted order was sent to admin for approval.", type: "success" })
-                }}
-              />
-              <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
+              <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer sm:ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
             </>
           )}
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => downloadQuotationPDF(quotation)}><FileText className="h-3.5 w-3.5 mr-1"/>Download PDF</Button>
@@ -654,90 +662,5 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly, onUpd
         </div>
       </div>
     </div>
-  )
-}
-
-// ─── Convert to Order Button ──────────────────────────────────────────────────
-function ConvertToOrderButton({ quotation, onConverted }: { quotation: Quotation; onConverted: (updated: Quotation) => void }) {
-  const [converting, setConverting] = useState(false)
-  const [done, setDone] = useState(false)
-
-  async function convert() {
-    if (quotation.status === "converted") return
-    setConverting(true)
-    try {
-      const orderNumber = await generateOrderNumber()
-      const order: Order = {
-        id: Date.now().toString(),
-        orderNumber,
-        clientId: quotation.clientId,
-        clientName: quotation.clientName,
-        items: quotation.items.map(i => ({
-          id: i.id,
-          description: i.description,
-          qty: i.qty,
-          unit: i.unit,
-          unitPrice: i.unitPrice,
-          isCustom: i.isCustom,
-          inventoryItemId: i.inventoryItemId,
-          model: i.model,
-        })),
-        subtotal: quotation.subtotal,
-        taxPercent: quotation.taxPercent,
-        tax: quotation.tax,
-        transportCost: quotation.transportCost,
-        transportLabel: quotation.transportLabel,
-        transportIsPercentage: quotation.transportIsPercentage,
-        transportCostValue: quotation.transportCostValue,
-        otherCost: quotation.otherCost,
-        otherCostLabel: quotation.otherCostLabel,
-        otherCostIsPercentage: quotation.otherCostIsPercentage,
-        otherCostValue: quotation.otherCostValue,
-        shipping: 0,
-        discount: quotation.discount,
-        discountIsPercentage: quotation.discountIsPercentage,
-        discountValue: quotation.discountValue,
-        total: quotation.total,
-        status: orderStatusForQuotationConversion(),
-        notes: quotation.notes,
-        createdAt: new Date().toISOString(),
-        createdBy: quotation.createdBy,
-        deliveryAddress: quotation.deliveryAddress,
-        deliveryDate: quotation.validUntil || "",
-        payments: [],
-        ownerUserId: quotation.ownerUserId,
-      }
-      await saveOrder(order)
-      const updatedQuotation: Quotation = {
-        ...quotation,
-        status: "converted",
-        convertedToOrderId: order.id,
-      }
-      await saveQuotation(updatedQuotation)
-      setDone(true)
-      onConverted(updatedQuotation)
-    } catch (e) {
-      console.error("Convert failed", e)
-    }
-    setConverting(false)
-  }
-
-  if (done) return (
-    <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
-      <ShoppingCart className="h-3 w-3"/> Converted to Order
-    </span>
-  )
-
-  if (quotation.status === "converted") return (
-    <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
-      <ShoppingCart className="h-3 w-3"/> Already Converted
-    </span>
-  )
-
-  return (
-    <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer bg-green-600 hover:bg-green-700 text-white" onClick={convert} disabled={converting}>
-      <ShoppingCart className="h-3.5 w-3.5 mr-1"/>
-      {converting ? "Converting..." : "Convert to Order"}
-    </Button>
   )
 }
