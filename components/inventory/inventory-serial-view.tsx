@@ -23,6 +23,7 @@ import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-p
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
+import { useDialog } from "@/components/ui/dialog-provider"
 import {
   Package,
   Search,
@@ -45,6 +46,7 @@ type InventorySerialViewProps = {
 
 export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: InventorySerialViewProps = {}) {
   const { toast } = useToast()
+  const { confirm: confirmDialog } = useDialog()
   const [units, setUnits] = useState<InventorySerialUnit[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -231,9 +233,16 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     const label = unit.serialNumber || unit.model || "this unit"
     const statusNote =
       unit.status && unit.status !== "in_stock"
-        ? `\n\nThis unit is currently “${unit.status.replace(/_/g, " ")}”.`
+        ? ` Current status: ${unit.status.replace(/_/g, " ")}.`
         : ""
-    if (!confirm(`Remove SN ${label} from inventory? This cannot be undone.${statusNote}`)) return
+    const ok = await confirmDialog({
+      type: "confirm",
+      title: "Delete serial number?",
+      message: `Deleting SN ${label} is permanent.${statusNote}`,
+      confirmLabel: "Delete SN",
+      cancelLabel: "Cancel",
+    })
+    if (!ok) return
 
     setDeletingId(unit.id)
     try {
@@ -260,15 +269,17 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     const modelKey = group.modelKey
     const unitCount = group.units.length
     const display = getDisplayName(modelKey) || group.displayName || modelKey
-    if (
-      !confirm(
+    const ok = await confirmDialog({
+      type: "confirm",
+      title: "Delete product/model?",
+      message:
         unitCount > 0
-          ? `Delete all ${unitCount} serial unit(s) for “${display}” (${modelKey})?\n\nThis removes every serial number for this model.`
-          : `Delete inventory model “${display}” (${modelKey})?\n\nThis removes this product/model row.`,
-      )
-    ) {
-      return
-    }
+          ? `Deleting "${display}" will also delete all related serial numbers and quantities (${unitCount} SN). This cannot be undone.`
+          : `Deleting "${display}" will remove this product/model row and related quantity. This cannot be undone.`,
+      confirmLabel: "Delete product",
+      cancelLabel: "Cancel",
+    })
+    if (!ok) return
 
     setDeletingModel(modelKey)
     try {
