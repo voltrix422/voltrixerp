@@ -53,6 +53,36 @@ export function modelKey(model: string): string {
   return model.trim().toLowerCase()
 }
 
+/** Match BarTender-style QR (prefix + SN) against inventory model codes. */
+export function dispatchScanModelMatches(
+  orderModel: string,
+  scannedModel: string,
+  serialNumber: string,
+  rawPayload: string,
+): boolean {
+  const order = modelKey(orderModel)
+  if (!order) return true
+
+  const raw = modelKey(rawPayload.trim())
+  if (raw === order) return true
+
+  const scanned = modelKey(scannedModel.trim())
+  if (scanned && scanned === order) return true
+
+  const serial = serialNumber.trim()
+  if (scanned && serial && modelKey(`${scannedModel.trim()}-${serial}`) === order) return true
+
+  if (serial) {
+    const serialKey = serialNumberKey(serial)
+    if (order.endsWith(`-${serialKey}`)) {
+      const prefix = orderModel.trim().slice(0, orderModel.trim().length - serial.length - 1)
+      if (scanned && modelKey(prefix) === scanned) return true
+    }
+  }
+
+  return !scanned
+}
+
 export function manualDispatchMetaByModel(
   items: ManualInventoryItem[],
 ): Record<string, ManualDispatchMeta> {

@@ -13,7 +13,11 @@ import { Camera, CheckCircle2, ScanLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
 import { normalizeInventorySerialNumber, serialNumberKey } from "@/lib/inventory-serial-units"
-import { modelKey, type ManualDispatchMeta } from "@/lib/order-fulfillment-serials"
+import {
+  dispatchScanModelMatches,
+  modelKey,
+  type ManualDispatchMeta,
+} from "@/lib/order-fulfillment-serials"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
 import { playScanRejectBeep, playScanSuccessBeep, prepareScanAudio } from "@/lib/scan-beep"
 import { type OrderItem, isManualDispatchLine, resolveOrderItemModel } from "@/lib/orders"
@@ -47,18 +51,40 @@ function extractSerialFromScan(raw: string): string {
   return trimmed.split(/[\s,;]+/)[0]?.trim() ?? trimmed
 }
 
-function parseScanDetails(raw: string, fallbackModel: string, fallbackName: string) {
-  try {
-    const parsed = parseProductQrPayload(raw)
+function parseScanDetails(raw: string, orderModel: string, fallbackName: string) {
+  const trimmed = raw.trim()
+  if (orderModel && modelKey(trimmed) === modelKey(orderModel)) {
+    const lastHyphen = orderModel.lastIndexOf("-")
+    const serialFromModel =
+      lastHyphen > 0 && lastHyphen < orderModel.length - 1
+        ? orderModel.slice(lastHyphen + 1)
+        : trimmed
     return {
-      serialNumber: parsed.serialNumber?.trim() || extractSerialFromScan(raw),
-      model: parsed.model?.trim() || fallbackModel,
+      serialNumber: serialFromModel,
+      model: orderModel,
+      productName: fallbackName,
+    }
+  }
+
+  try {
+    const parsed = parseProductQrPayload(trimmed)
+    const serialNumber = parsed.serialNumber?.trim() || extractSerialFromScan(raw)
+    let model = parsed.model?.trim() || orderModel
+    if (parsed.model?.trim() && serialNumber && orderModel) {
+      const glued = `${parsed.model.trim()}-${serialNumber}`
+      if (modelKey(glued) === modelKey(orderModel)) {
+        model = orderModel
+      }
+    }
+    return {
+      serialNumber,
+      model,
       productName: parsed.productName?.trim() || fallbackName,
     }
   } catch {
     return {
       serialNumber: extractSerialFromScan(raw),
-      model: fallbackModel,
+      model: orderModel,
       productName: fallbackName,
     }
   }
@@ -182,7 +208,10 @@ export function DispatchSerialScanPanel({
       }
 
       const scannedModel = details.model?.trim()
-      if (scannedModel && modelKey(scannedModel) !== modelKey(model)) {
+      if (
+        scannedModel &&
+        !dispatchScanModelMatches(model, scannedModel, serialRaw, raw)
+      ) {
         setMessage({
           type: "err",
           text: `QR model "${scannedModel}" does not match order model "${model}".`,
