@@ -13,8 +13,10 @@ import {
   formatKpiValue,
   reviewSettlement,
   saveSettlement,
-  weekBounds,
   computeWeightedScore,
+  periodBounds,
+  periodLabel,
+  type KpiPeriodType,
   type KpiTemplate,
   type StaffKpi,
   type SettlementEntry,
@@ -62,7 +64,12 @@ export function StaffKpiSection({
   const [customName, setCustomName] = useState("")
   const [customTarget, setCustomTarget] = useState("")
   const [customWeight, setCustomWeight] = useState("")
-  const { periodStart, periodEnd } = weekBounds()
+  const [activePeriodType, setActivePeriodType] = useState<KpiPeriodType>("weekly")
+  const [customRangeStart, setCustomRangeStart] = useState("")
+  const [customRangeEnd, setCustomRangeEnd] = useState("")
+  const autoBounds = periodBounds(activePeriodType)
+  const periodStart = activePeriodType === "custom" ? customRangeStart : autoBounds.periodStart
+  const periodEnd = activePeriodType === "custom" ? customRangeEnd : autoBounds.periodEnd
   const periodKey = `${periodStart}_${periodEnd}`
 
   const load = useCallback(async () => {
@@ -71,9 +78,17 @@ export function StaffKpiSection({
       const [kpiList, tpls, settlements] = await Promise.all([
         fetchStaffKpis(staffId),
         isAdmin ? fetchKpiTemplates() : Promise.resolve([]),
-        fetchSettlements({ staffId, periodStart, periodEnd }),
+        periodStart && periodEnd
+          ? fetchSettlements({ staffId, periodStart, periodEnd })
+          : Promise.resolve([]),
       ])
-      setKpis(kpiList.filter(k => k.active))
+      const activeKpis = kpiList.filter(k => k.active)
+      const availableTypes = Array.from(new Set(activeKpis.map(k => (k.periodType as KpiPeriodType))))
+      if (!availableTypes.includes(activePeriodType) && availableTypes.length > 0) {
+        setActivePeriodType(availableTypes[0])
+      }
+      const filteredKpis = activeKpis.filter(k => k.periodType === activePeriodType)
+      setKpis(filteredKpis)
       setTemplates(tpls.filter(t => t.active))
       const current = settlements[0] ?? null
       setSettlement(current)
@@ -83,8 +98,7 @@ export function StaffKpiSection({
         setAdminReviewNote(current.adminNotes)
       } else {
         setEntries(
-          kpiList
-            .filter(k => k.active)
+          filteredKpis
             .map(k => ({
               staffKpiId: k.id,
               name: k.name,
@@ -102,7 +116,7 @@ export function StaffKpiSection({
     } finally {
       setLoading(false)
     }
-  }, [staffId, periodStart, periodEnd, isAdmin, toast])
+  }, [staffId, periodStart, periodEnd, isAdmin, toast, activePeriodType])
 
   useEffect(() => {
     load()
@@ -183,12 +197,17 @@ export function StaffKpiSection({
   const isRejected = st === "rejected"
 
   async function persist(opts: { status: "draft" | "submitted"; revise?: boolean }) {
+    if (!periodStart || !periodEnd) {
+      toast({ title: "Select period", message: "Please select start/end date.", type: "error" })
+      return
+    }
     setSaving(true)
     try {
       const saved = await saveSettlement({
         staffId,
         periodStart,
         periodEnd,
+        periodType: activePeriodType,
         entries,
         employeeNotes,
         status: opts.status,
@@ -262,7 +281,7 @@ export function StaffKpiSection({
             KPIs on profile
           </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Week {periodStart} → {periodEnd}
+            {periodLabel(activePeriodType)} period {periodStart || "—"} → {periodEnd || "—"}
           </p>
           {settlement && (
             <p
@@ -348,6 +367,39 @@ export function StaffKpiSection({
         </div>
       )}
 
+      <div className="rounded-lg border border-[hsl(var(--border))]/70 p-3 space-y-2">
+        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">Period cycle</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <select
+            className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
+            value={activePeriodType}
+            onChange={e => setActivePeriodType(e.target.value as KpiPeriodType)}
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="custom">Specific date range</option>
+          </select>
+          {activePeriodType === "custom" && (
+            <>
+              <input
+                type="date"
+                value={customRangeStart}
+                onChange={e => setCustomRangeStart(e.target.value)}
+                className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
+              />
+              <input
+                type="date"
+                value={customRangeEnd}
+                onChange={e => setCustomRangeEnd(e.target.value)}
+                className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
+              />
+            </>
+          )}
+        </div>
+      </div>
+
       {kpis.length === 0 ? (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           No KPIs on this profile yet.
@@ -369,7 +421,7 @@ export function StaffKpiSection({
                   <div>
                     <p className="text-sm font-medium">{k.name}</p>
                     <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                      Target: {formatKpiValue(k.targetValue, k.unit)} · Weight {k.weight}%
+                      Target: {formatKpiValue(k.targetValue, k.unit)} · Weight {k.weight}% · {periodLabel(k.periodType as KpiPeriodType)}
                     </p>
                     {k.approvedActual > 0 && k.lastApprovedPeriod && k.lastApprovedPeriod !== periodKey && (
                       <p className="text-[10px] text-emerald-600 mt-0.5">

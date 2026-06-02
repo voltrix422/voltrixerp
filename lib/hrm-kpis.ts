@@ -1,5 +1,5 @@
 export type KpiUnit = "currency" | "count" | "percent"
-export type KpiPeriodType = "weekly" | "monthly"
+export type KpiPeriodType = "daily" | "weekly" | "monthly" | "yearly" | "custom"
 export type SettlementStatus = "draft" | "submitted" | "approved" | "rejected"
 
 export type KpiTemplate = {
@@ -88,6 +88,43 @@ export function weekBounds(date = new Date()): { periodStart: string; periodEnd:
   end.setDate(start.getDate() + 6)
   const fmt = (x: Date) => x.toISOString().slice(0, 10)
   return { periodStart: fmt(start), periodEnd: fmt(end) }
+}
+
+export function dayBounds(date = new Date()): { periodStart: string; periodEnd: string } {
+  const d = new Date(date)
+  const fmt = (x: Date) => x.toISOString().slice(0, 10)
+  return { periodStart: fmt(d), periodEnd: fmt(d) }
+}
+
+export function monthBounds(date = new Date()): { periodStart: string; periodEnd: string } {
+  const d = new Date(date)
+  const start = new Date(d.getFullYear(), d.getMonth(), 1)
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+  const fmt = (x: Date) => x.toISOString().slice(0, 10)
+  return { periodStart: fmt(start), periodEnd: fmt(end) }
+}
+
+export function yearBounds(date = new Date()): { periodStart: string; periodEnd: string } {
+  const d = new Date(date)
+  const start = new Date(d.getFullYear(), 0, 1)
+  const end = new Date(d.getFullYear(), 11, 31)
+  const fmt = (x: Date) => x.toISOString().slice(0, 10)
+  return { periodStart: fmt(start), periodEnd: fmt(end) }
+}
+
+export function periodBounds(periodType: KpiPeriodType, date = new Date()) {
+  if (periodType === "daily") return dayBounds(date)
+  if (periodType === "monthly") return monthBounds(date)
+  if (periodType === "yearly") return yearBounds(date)
+  return weekBounds(date)
+}
+
+export function periodLabel(periodType: KpiPeriodType): string {
+  if (periodType === "daily") return "Daily"
+  if (periodType === "weekly") return "Weekly"
+  if (periodType === "monthly") return "Monthly"
+  if (periodType === "yearly") return "Yearly"
+  return "Custom range"
 }
 
 export function formatKpiValue(value: number, unit: KpiUnit): string {

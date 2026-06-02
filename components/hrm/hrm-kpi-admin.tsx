@@ -240,8 +240,11 @@ export function HrmKpiAdmin({ createdBy }: { createdBy: string }) {
                 value={form.periodType}
                 onChange={e => setForm(f => ({ ...f, periodType: e.target.value as KpiPeriodType }))}
               >
+                <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+                <option value="custom">Specific Date Range</option>
               </select>
             </div>
             <div className="grid grid-cols-2 gap-2">

@@ -8,6 +8,7 @@ import {
   assignStaffKpi,
   createStaffProfileFromUser,
   fetchKpiTemplates,
+  type KpiPeriodType,
   type KpiTemplate,
 } from "@/lib/hrm-kpis"
 import { getUsers, type User } from "@/lib/auth"
@@ -19,6 +20,9 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
   const [loading, setLoading] = useState(true)
   const [selectedUserId, setSelectedUserId] = useState("")
   const [templateId, setTemplateId] = useState("")
+  const [customPeriodType, setCustomPeriodType] = useState<KpiPeriodType>("weekly")
+  const [customStartDate, setCustomStartDate] = useState("")
+  const [customEndDate, setCustomEndDate] = useState("")
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -69,6 +73,47 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
         type: "success",
       })
       setTemplateId("")
+    } catch (err) {
+      toast({
+        title: "Error",
+        message: err instanceof Error ? err.message : "Assign failed",
+        type: "error",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAssignCustomRangeKpi() {
+    if (!selectedUserId || !templateId || !customStartDate || !customEndDate) return
+    const tpl = templates.find(t => t.id === templateId)
+    if (!tpl) return
+    if (customEndDate < customStartDate) {
+      toast({ title: "Invalid date range", message: "End date must be after start date.", type: "error" })
+      return
+    }
+    setSaving(true)
+    try {
+      const created = await createStaffProfileFromUser(selectedUserId)
+      await assignStaffKpi({
+        staffId: created.id,
+        templateId: tpl.id,
+        name: tpl.name,
+        unit: tpl.unit,
+        targetValue: tpl.defaultTarget,
+        weight: tpl.defaultWeight,
+        periodType: customPeriodType === "custom" ? "custom" : tpl.periodType,
+        notes: `Range: ${customStartDate} to ${customEndDate}`,
+        assignedBy,
+      })
+      toast({
+        title: "Assigned",
+        message: `${tpl.name} assigned with date range ${customStartDate} to ${customEndDate}.`,
+        type: "success",
+      })
+      setTemplateId("")
+      setCustomStartDate("")
+      setCustomEndDate("")
     } catch (err) {
       toast({
         title: "Error",
@@ -140,6 +185,21 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
             ))}
           </select>
         </div>
+        <div>
+          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Period type override</label>
+          <select
+            className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
+            value={customPeriodType}
+            onChange={e => setCustomPeriodType(e.target.value as KpiPeriodType)}
+            disabled={!selectedUserId}
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="custom">Specific date range</option>
+          </select>
+        </div>
       </div>
 
       <Button
@@ -150,6 +210,34 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
       >
         <Plus className="h-3.5 w-3.5" /> Assign KPI to selected user
       </Button>
+
+      {customPeriodType === "custom" && (
+        <div className="rounded-md border border-[hsl(var(--border))] p-3 space-y-2">
+          <p className="text-xs font-medium">Specific date range KPI</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={e => setCustomStartDate(e.target.value)}
+              className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
+            />
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={e => setCustomEndDate(e.target.value)}
+              className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!selectedUserId || !templateId || !customStartDate || !customEndDate || saving}
+            onClick={handleAssignCustomRangeKpi}
+          >
+            Assign with date range
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

@@ -69,6 +69,37 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const normalizedName = name.trim()
+  if (body.templateId) {
+    const existingByTemplate = await prisma.hrmStaffKpi.findFirst({
+      where: {
+        staffId: body.staffId,
+        templateId: body.templateId,
+        active: true,
+      },
+      select: { id: true },
+    })
+    if (existingByTemplate) {
+      return NextResponse.json({ error: "This KPI template is already assigned to this user." }, { status: 409 })
+    }
+  }
+
+  const existingByName = await prisma.hrmStaffKpi.findFirst({
+    where: {
+      staffId: body.staffId,
+      periodType,
+      active: true,
+      name: {
+        equals: normalizedName,
+        mode: "insensitive",
+      },
+    },
+    select: { id: true },
+  })
+  if (existingByName) {
+    return NextResponse.json({ error: "This KPI is already assigned for the same period." }, { status: 409 })
+  }
+
   const row = await prisma.hrmStaffKpi.create({
     data: {
       staffId: body.staffId,
