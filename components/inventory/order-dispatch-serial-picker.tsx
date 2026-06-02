@@ -17,6 +17,7 @@ type Props = {
   value: Record<string, string[]>
   onChange: Dispatch<SetStateAction<Record<string, string[]>>>
   disabled?: boolean
+  allowFocus?: boolean
   onValidationChange?: (valid: boolean, errors: string[]) => void
 }
 
@@ -33,6 +34,7 @@ export function OrderDispatchSerialPicker({
   value,
   onChange,
   disabled,
+  allowFocus = true,
   onValidationChange,
 }: Props) {
   const [manualMeta, setManualMeta] = useState(manualDispatchMetaByModel([]))
@@ -114,6 +116,7 @@ export function OrderDispatchSerialPicker({
         orderId={order.id}
         orderNumber={order.orderNumber}
         disabled={disabled}
+        allowFocus={allowFocus}
       />
 
       {blockingErrors.length > 0 && (

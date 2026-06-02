@@ -1369,14 +1369,17 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </>
               )}
 
-              {fulfillTab === "products" && (
-                <OrderDispatchSerialPicker
-                  order={order}
-                  value={serialSelections}
-                  onChange={setSerialSelections}
-                  disabled={!!order.inventoryDeductedAt}
-                  onValidationChange={(valid) => setSerialSelectionValid(valid)}
-                />
+              {showFulfillDialog && (
+                <div className={fulfillTab === "products" ? "" : "hidden"} aria-hidden={fulfillTab !== "products"}>
+                  <OrderDispatchSerialPicker
+                    order={order}
+                    value={serialSelections}
+                    onChange={setSerialSelections}
+                    disabled={!!order.inventoryDeductedAt}
+                    allowFocus={fulfillTab === "products"}
+                    onValidationChange={(valid) => setSerialSelectionValid(valid)}
+                  />
+                </div>
               )}
             </div>
 

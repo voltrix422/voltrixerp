@@ -37,6 +37,8 @@ type Props = {
   orderId?: string
   orderNumber?: string
   disabled?: boolean
+  /** When false, skip USB wedge auto-focus (e.g. scan tab hidden). */
+  allowFocus?: boolean
 }
 
 function extractSerialFromScan(raw: string): string {
@@ -97,6 +99,7 @@ export function DispatchSerialScanPanel({
   manualMeta = {},
   warehouseStockByModel = {},
   disabled,
+  allowFocus = true,
 }: Props) {
   const valueRef = useRef(value)
   valueRef.current = value
@@ -157,10 +160,9 @@ export function DispatchSerialScanPanel({
   }, [allDone])
 
   useEffect(() => {
-    if (!disabled && !allDone && !scannerOpen && activeLine) {
-      wedgeRef.current?.focus()
-    }
-  }, [disabled, allDone, scannerOpen, activeLine?.item.id])
+    if (!allowFocus || disabled || allDone || scannerOpen || !activeLine) return
+    wedgeRef.current?.focus()
+  }, [allowFocus, disabled, allDone, scannerOpen, activeLine?.item.id])
 
   useEffect(() => {
     setScanRecords(() => {

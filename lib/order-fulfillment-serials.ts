@@ -192,11 +192,15 @@ export function validateSerialSelections(
         )
       }
     } else {
-      const available = warehouseStockByModel[modelKey(model)] ?? 0
-      if (available < needQty) {
-        errors.push(
-          `${model}: only ${available} unit(s) in stock (order needs ${needQty})`,
-        )
+      const key = modelKey(model)
+      // Only enforce when stock row exists — serial-tracked models may not have a stock row.
+      if (key in warehouseStockByModel) {
+        const available = warehouseStockByModel[key]
+        if (available < needQty) {
+          errors.push(
+            `${model}: only ${available} unit(s) in stock (order needs ${needQty})`,
+          )
+        }
       }
     }
   }
