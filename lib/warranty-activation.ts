@@ -86,6 +86,18 @@ export type ActivateWarrantyOptions = {
   invoiceDocumentUrl?: string
 }
 
+async function findWarrantyBySerial(serialNumber: string) {
+  return prisma.erpWarranty.findFirst({
+    where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
+  })
+}
+
+async function findUnitBySerial(serialNumber: string) {
+  return prisma.erpInventorySerialUnit.findFirst({
+    where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
+  })
+}
+
 export async function activateWarrantyBySerial(
   rawScan: string,
   options?: ActivateWarrantyOptions,
@@ -95,19 +107,9 @@ export async function activateWarrantyBySerial(
     return { ok: false, error: "Could not read serial number from scan.", code: "INVALID_SCAN" }
   }
 
-  const unit = await prisma.erpInventorySerialUnit.findFirst({
-    where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
-  })
+  const unit = await findUnitBySerial(serialNumber)
 
-  if (!unit) {
-    return {
-      ok: false,
-      error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
-      code: "NOT_FOUND",
-    }
-  }
-
-  if (unit.status === "in_stock") {
+  if (unit?.status === "in_stock") {
     return {
       ok: false,
       error: "This unit is still in warehouse stock. Dispatch the order first, then start warranty at the branch.",
@@ -118,14 +120,17 @@ export async function activateWarrantyBySerial(
   const now = new Date()
   const warrantyEnd = addYears(now, WARRANTY_YEARS)
 
-  let warranty = unit.warrantyId
-    ? await prisma.erpWarranty.findFirst({ where: { warrantyId: unit.warrantyId } })
-    : null
+  let warranty =
+    (unit?.warrantyId
+      ? await prisma.erpWarranty.findFirst({ where: { warrantyId: unit.warrantyId } })
+      : null) || (await findWarrantyBySerial(serialNumber))
 
-  if (!warranty) {
-    warranty = await prisma.erpWarranty.findFirst({
-      where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
-    })
+  if (!warranty && !unit) {
+    return {
+      ok: false,
+      error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
+      code: "NOT_FOUND",
+    }
   }
 
   const customerPatch = {
@@ -169,6 +174,7 @@ export async function activateWarrantyBySerial(
         warrantyStartDate: now,
         warrantyEndDate: warrantyEnd,
         soldDate: warranty.soldDate || now,
+        serialNumber: warranty.serialNumber || serialNumber,
         customerName: customerPatch.customerName || warranty.customerName,
         customerPhone: customerPatch.customerPhone || warranty.customerPhone,
         customerAddress: customerPatch.customerAddress || warranty.customerAddress,
@@ -177,7 +183,7 @@ export async function activateWarrantyBySerial(
         notes: `${warranty.notes || ""}\n${activationNote}`.trim(),
       },
     })
-  } else {
+  } else if (unit) {
     const generatedWarrantyId = `vol-${Math.floor(10000 + Math.random() * 90000)}`
     warranty = await prisma.erpWarranty.create({
       data: {
@@ -199,15 +205,25 @@ export async function activateWarrantyBySerial(
     })
   }
 
+  if (!warranty) {
+    return {
+      ok: false,
+      error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
+      code: "NOT_FOUND",
+    }
+  }
+
   const warrantyId = warranty.warrantyId
-  await prisma.erpInventorySerialUnit.update({
-    where: { id: unit.id },
-    data: {
-      warrantyId,
-      warrantyStartDate: now,
-      warrantyEndDate: warrantyEnd,
-    },
-  })
+  if (unit) {
+    await prisma.erpInventorySerialUnit.update({
+      where: { id: unit.id },
+      data: {
+        warrantyId,
+        warrantyStartDate: now,
+        warrantyEndDate: warrantyEnd,
+      },
+    })
+  }
 
   return {
     ok: true,
@@ -396,27 +412,6 @@ export async function previewWarrantyStart(rawScan: string): Promise<WarrantySta
     return { ok: false, error: "Could not read serial number from scan.", code: "INVALID_SCAN" }
   }
 
-  const unit = await prisma.erpInventorySerialUnit.findFirst({
-    where: { serialNumber: { equals: serialNumber, mode: "insensitive" } },
-  })
-
-  if (!unit) {
-    return {
-      ok: false,
-      error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
-      code: "NOT_FOUND",
-    }
-  }
-
-  if (unit.status === "in_stock") {
-    return {
-      ok: false,
-      error:
-        "This unit is still in warehouse stock. Warranty can be started after your dealer dispatches the order.",
-      code: "NOT_DISPATCHED",
-    }
-  }
-
   const existing = await lookupWarrantyForPublic(rawScan)
   if (existing?.active) {
     return {
@@ -426,13 +421,24 @@ export async function previewWarrantyStart(rawScan: string): Promise<WarrantySta
     }
   }
 
+  const unit = await findUnitBySerial(serialNumber)
+
+  if (unit?.status === "in_stock") {
+    return {
+      ok: false,
+      error:
+        "This unit is still in warehouse stock. Warranty can be started after your dealer dispatches the order.",
+      code: "NOT_DISPATCHED",
+    }
+  }
+
   if (existing?.pending) {
     const w = existing.warranty
     return {
       ok: true,
       status: "delivered_pending",
       serialNumber: String(w.serialNumber || serialNumber),
-      productName: String(w.productName || unit.model || unit.productName),
+      productName: String(w.productName || unit?.model || unit?.productName || serialNumber),
       customerName: w.customerName as string | null,
       customerPhone: w.customerPhone as string | null,
       customerAddress: w.customerAddress as string | null,
@@ -442,22 +448,30 @@ export async function previewWarrantyStart(rawScan: string): Promise<WarrantySta
     }
   }
 
-  const invoiceNumber = await resolveInvoiceNumberForWarranty({
-    serialNumber: unit.serialNumber,
-    warrantyId: unit.warrantyId,
-    notes: null,
-  })
+  if (unit) {
+    const invoiceNumber = await resolveInvoiceNumberForWarranty({
+      serialNumber: unit.serialNumber,
+      warrantyId: unit.warrantyId,
+      notes: null,
+    })
+
+    return {
+      ok: true,
+      status: "delivered_pending",
+      serialNumber: unit.serialNumber,
+      productName: unit.model || unit.productName || unit.serialNumber,
+      customerName: null,
+      customerPhone: null,
+      customerAddress: null,
+      installLocation: null,
+      invoiceNumber,
+      message: "Product found and delivered. Please enter your details to start warranty.",
+    }
+  }
 
   return {
-    ok: true,
-    status: "delivered_pending",
-    serialNumber: unit.serialNumber,
-    productName: unit.model || unit.productName || unit.serialNumber,
-    customerName: null,
-    customerPhone: null,
-    customerAddress: null,
-    installLocation: null,
-    invoiceNumber,
-    message: "Product found and delivered. Please enter your details to start warranty.",
+    ok: false,
+    error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
+    code: "NOT_FOUND",
   }
 }
