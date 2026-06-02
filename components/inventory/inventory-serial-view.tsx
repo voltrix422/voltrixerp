@@ -207,6 +207,14 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     [filteredGroups],
   )
   const modelCount = filteredGroups.length
+  const serialTrackedGroups = useMemo(
+    () => filteredGroups.filter((group) => group.units.length > 0),
+    [filteredGroups],
+  )
+  const nonSerialGroups = useMemo(
+    () => filteredGroups.filter((group) => group.units.length === 0),
+    [filteredGroups],
+  )
 
   function exportExcel() {
     setExportingExcel(true)
@@ -350,6 +358,53 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     { label: "In stock", value: inStockCount, icon: CircleCheck },
   ]
 
+  function renderGroupTable(title: string, groups: UnifiedInventoryModelGroup[]) {
+    return (
+      <div className="rounded-xl border overflow-hidden bg-[hsl(var(--card))] shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-[hsl(var(--muted))]/15">
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{title}</p>
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">{groups.length} model(s)</span>
+        </div>
+        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 px-4 py-3 border-b bg-[hsl(var(--muted))]/20 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+          <span>Model / product</span>
+          <span>Model code</span>
+          <span className="text-right">Stock</span>
+          <span className="text-right">Units</span>
+          <span className="text-right text-[10px] font-normal normal-case tracking-normal text-[#1faca6]/90">
+            Click for prices
+          </span>
+          <span className="text-right">Delete</span>
+        </div>
+        <div className="divide-y">
+          {groups.map((group) => (
+            <InventoryModelGroup
+              key={group.modelKey}
+              modelKey={group.modelKey}
+              modelUnits={group.units}
+              stockOnly={group.stockOnly}
+              expanded={expandedModels[group.modelKey] === true}
+              onToggle={() =>
+                setExpandedModels((prev) => ({ ...prev, [group.modelKey]: !prev[group.modelKey] }))
+              }
+              customName={getDisplayName(group.modelKey) || group.displayName}
+              isEditing={editingModel === group.modelKey}
+              editingName={editingName}
+              savingModelLabel={savingModelLabel}
+              deletingId={deletingId}
+              deletingModel={deletingModel === group.modelKey}
+              onEditingNameChange={setEditingName}
+              onStartEdit={(e) => startEditModelName(group.modelKey, e)}
+              onSaveName={() => void saveModelName(group.modelKey)}
+              onCancelEdit={() => setEditingModel(null)}
+              onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
+              onDeleteModel={() => handleDeleteModel(group)}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={embedded ? "space-y-4" : "space-y-5"}>
       <div
@@ -419,43 +474,9 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           </Button>
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden bg-[hsl(var(--card))] shadow-sm">
-          <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 px-4 py-3 border-b bg-[hsl(var(--muted))]/20 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-            <span>Model / product</span>
-            <span>Model code</span>
-            <span className="text-right">Stock</span>
-            <span className="text-right">Units</span>
-            <span className="text-right text-[10px] font-normal normal-case tracking-normal text-[#1faca6]/90">
-              Click for prices
-            </span>
-            <span className="text-right">Delete</span>
-          </div>
-          <div className="divide-y">
-          {filteredGroups.map((group) => (
-            <InventoryModelGroup
-              key={group.modelKey}
-              modelKey={group.modelKey}
-              modelUnits={group.units}
-              stockOnly={group.stockOnly}
-              expanded={expandedModels[group.modelKey] === true}
-              onToggle={() =>
-                setExpandedModels((prev) => ({ ...prev, [group.modelKey]: !prev[group.modelKey] }))
-              }
-              customName={getDisplayName(group.modelKey) || group.displayName}
-              isEditing={editingModel === group.modelKey}
-              editingName={editingName}
-              savingModelLabel={savingModelLabel}
-              deletingId={deletingId}
-              deletingModel={deletingModel === group.modelKey}
-              onEditingNameChange={setEditingName}
-              onStartEdit={(e) => startEditModelName(group.modelKey, e)}
-              onSaveName={() => void saveModelName(group.modelKey)}
-              onCancelEdit={() => setEditingModel(null)}
-              onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
-              onDeleteModel={() => handleDeleteModel(group)}
-            />
-          ))}
-          </div>
+        <div className="space-y-4">
+          {serialTrackedGroups.length > 0 && renderGroupTable("Inventory with SN numbers", serialTrackedGroups)}
+          {nonSerialGroups.length > 0 && renderGroupTable("Inventory without SN numbers", nonSerialGroups)}
         </div>
       )}
 
