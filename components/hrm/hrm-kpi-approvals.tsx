@@ -76,7 +76,7 @@ export function HrmKpiApprovals({ reviewedBy }: { reviewedBy: string }) {
       <div>
         <h2 className="text-sm font-semibold">Pending KPI approvals</h2>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-          Employees submit from their profile or My KPIs. Approve to update their official KPI progress.
+          Review and approve submitted KPI updates.
         </p>
       </div>
 
@@ -99,7 +99,7 @@ export function HrmKpiApprovals({ reviewedBy }: { reviewedBy: string }) {
                     {s.staffDepartment ? ` · ${s.staffDepartment}` : ""} · {s.staffEmail}
                   </p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                    Week {s.periodStart} → {s.periodEnd}
+                    {s.periodType || "weekly"} {s.periodStart} → {s.periodEnd}
                     {s.submittedAt && (
                       <span> · Submitted {new Date(s.submittedAt).toLocaleString()}</span>
                     )}
@@ -136,7 +136,7 @@ export function HrmKpiApprovals({ reviewedBy }: { reviewedBy: string }) {
 
               <textarea
                 className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-sm min-h-[48px]"
-                placeholder="Admin note (optional, shown if rejected)"
+                placeholder="Optional note"
                 value={notes[s.id] ?? ""}
                 onChange={e => setNotes(n => ({ ...n, [s.id]: e.target.value }))}
               />
@@ -149,7 +149,7 @@ export function HrmKpiApprovals({ reviewedBy }: { reviewedBy: string }) {
                   onClick={() => handleReview(s, "approved")}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Approve & update KPIs
+                  Approve
                 </Button>
                 <Button
                   size="sm"

@@ -126,10 +126,10 @@ export function HrmKpiAdmin({ createdBy }: { createdBy: string }) {
         <div>
           <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">KPI Templates</h2>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-            Create KPIs, link them to a staff profile, then employees submit for approval.
-            Active template weights: <span className="font-semibold">{totalWeight}%</span>
+            Keep total active weight near 100%.
+            <span className="font-semibold ml-1">{totalWeight}%</span>
             {totalWeight > 0 && totalWeight !== 100 && (
-              <span className="text-amber-600 ml-1">(should total 100%)</span>
+              <span className="text-amber-600 ml-1">target: 100%</span>
             )}
           </p>
         </div>
@@ -144,7 +144,7 @@ export function HrmKpiAdmin({ createdBy }: { createdBy: string }) {
         </div>
       ) : templates.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          No KPI templates yet. Create templates for sales targets, visits, calls, etc.
+          No templates yet.
         </div>
       ) : (
         <div className="rounded-xl border border-[hsl(var(--border))] overflow-hidden">

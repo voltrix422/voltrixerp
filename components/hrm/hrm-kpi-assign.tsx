@@ -137,11 +137,10 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
     <div className="rounded-xl border border-[hsl(var(--border))] p-4 space-y-4 mt-6">
       <div className="flex items-center gap-2">
         <Link2 className="h-4 w-4 text-[#1faca6]" />
-        <h3 className="text-sm font-semibold">Link KPI to employee profile</h3>
+        <h3 className="text-sm font-semibold">Assign KPI</h3>
       </div>
       <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Select from <strong>User Accounts</strong> and assign KPI templates directly. Profile linking is automatic in
-        backend, so no separate profile step is needed.
+        Pick user + template, then assign.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -161,9 +160,9 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
           </select>
         </div>
         <div>
-          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Staff profile (linked)</label>
+          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Profile</label>
           <div className="h-[42px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-3 text-sm flex items-center text-[hsl(var(--muted-foreground))]">
-            Auto-linked from selected User Account
+            Auto-linked
           </div>
         </div>
       </div>
@@ -186,7 +185,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
           </select>
         </div>
         <div>
-          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Period type override</label>
+          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Cycle</label>
           <select
             className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
             value={customPeriodType}
@@ -208,12 +207,12 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
         disabled={!selectedUserId || !templateId || saving}
         onClick={handleAssign}
       >
-        <Plus className="h-3.5 w-3.5" /> Assign KPI to selected user
+        <Plus className="h-3.5 w-3.5" /> Assign
       </Button>
 
       {customPeriodType === "custom" && (
         <div className="rounded-md border border-[hsl(var(--border))] p-3 space-y-2">
-          <p className="text-xs font-medium">Specific date range KPI</p>
+          <p className="text-xs font-medium">Date range</p>
           <div className="grid gap-2 sm:grid-cols-2">
             <input
               type="date"
@@ -234,7 +233,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
             disabled={!selectedUserId || !templateId || !customStartDate || !customEndDate || saving}
             onClick={handleAssignCustomRangeKpi}
           >
-            Assign with date range
+            Assign range KPI
           </Button>
         </div>
       )}

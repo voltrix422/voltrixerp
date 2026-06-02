@@ -41,10 +41,10 @@ export default function HrmPage() {
       <div className="flex-1 overflow-auto">
         <div className="p-6 max-w-6xl">
           <div className="flex items-center gap-1 border-b mb-4 flex-wrap">
-            {isAdmin && tabBtn("staff", "Staff Management")}
-            {isAdmin && tabBtn("performance", "KPI Templates")}
+            {isAdmin && tabBtn("staff", "Staff")}
+            {isAdmin && tabBtn("performance", "Templates")}
             {isAdmin && tabBtn("approvals", "Approvals")}
-            {tabBtn("my-kpis", isAdmin ? "My KPIs" : "My KPIs & Settlement")}
+            {tabBtn("my-kpis", "My KPIs")}
           </div>
 
           {tab === "staff" && isAdmin && <HrmManager />}

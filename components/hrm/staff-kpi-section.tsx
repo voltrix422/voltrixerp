@@ -34,11 +34,11 @@ type Props = {
 function statusLabel(status: string) {
   switch (status) {
     case "approved":
-      return "Approved — KPIs updated"
+      return "Approved"
     case "submitted":
-      return "Pending admin approval"
+      return "Pending approval"
     case "rejected":
-      return "Rejected — please revise"
+      return "Rejected"
     default:
       return "Draft"
   }
@@ -274,15 +274,11 @@ export function StaffKpiSection({
   }
 
   return (
-    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-4">
+    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
-            KPIs on profile
-          </p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            {periodLabel(activePeriodType)} period {periodStart || "—"} → {periodEnd || "—"}
-          </p>
+          <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">My KPIs</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">{periodLabel(activePeriodType)} {periodStart || "—"} → {periodEnd || "—"}</p>
           {settlement && (
             <p
               className={`text-xs font-medium mt-1 flex items-center gap-1 ${
@@ -307,14 +303,14 @@ export function StaffKpiSection({
           )}
         </div>
         <div className="text-right">
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">Week score</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">Score</p>
           <p className="text-xl font-bold text-[#1faca6] tabular-nums">{liveScore}%</p>
         </div>
       </div>
 
       {isAdmin && (
         <div className="space-y-2 rounded-lg bg-[hsl(var(--muted))]/15 p-3">
-          <p className="text-xs font-medium">Admin: link KPI to this profile</p>
+          <p className="text-xs font-medium">Assign KPI to this user</p>
           <div className="flex gap-2">
             <select
               className="flex-1 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
@@ -368,7 +364,7 @@ export function StaffKpiSection({
       )}
 
       <div className="rounded-lg border border-[hsl(var(--border))]/70 p-3 space-y-2">
-        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">Period cycle</p>
+        <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">Cycle</p>
         <div className="grid gap-2 sm:grid-cols-3">
           <select
             className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-sm"
@@ -402,8 +398,8 @@ export function StaffKpiSection({
 
       {kpis.length === 0 ? (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          No KPIs on this profile yet.
-          {isAdmin ? " Assign templates above or from KPI Templates tab." : " Ask HR to assign KPIs."}
+          No KPIs for this cycle.
+          {isAdmin ? " Assign one above." : " Ask admin to assign KPI."}
         </p>
       ) : (
         <div className="space-y-3">
@@ -470,13 +466,11 @@ export function StaffKpiSection({
 
       {(canSettle || isAdmin) && kpis.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-[hsl(var(--border))]">
-          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">
-            Settlement & approval
-          </p>
+          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase">Submit</p>
           {canEdit && (
             <textarea
               className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-3 py-2 text-sm min-h-[56px]"
-              placeholder="Notes for admin (optional)"
+              placeholder="Optional note"
               value={employeeNotes}
               onChange={e => setEmployeeNotes(e.target.value)}
             />
@@ -501,12 +495,12 @@ export function StaffKpiSection({
                   onClick={() => persist({ status: "submitted", revise: isRejected })}
                 >
                   <Send className="h-3.5 w-3.5" />
-                  {isRejected ? "Resubmit for approval" : "Send to admin for approval"}
+                  {isRejected ? "Resubmit" : "Submit"}
                 </Button>
               </>
             )}
             {isPending && canSettle && (
-              <p className="text-xs text-blue-600 w-full">Waiting for admin approval. You cannot edit until reviewed.</p>
+              <p className="text-xs text-blue-600 w-full">Waiting for admin review.</p>
             )}
             {isAdmin && isPending && settlement && (
               <>

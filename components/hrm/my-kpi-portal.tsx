@@ -58,11 +58,11 @@ export function MyKpiPortal() {
       .finally(() => setLoading(false))
   }, [user?.email, user?.id])
 
-  const statusLabel = useMemo(() => {
-    if (currentStatus === "approved") return "Approved"
-    if (currentStatus === "submitted") return "Waiting approval"
-    if (currentStatus === "rejected") return "Needs revision"
-    return "Draft"
+  const statusMeta = useMemo(() => {
+    if (currentStatus === "approved") return { label: "Approved", tone: "text-emerald-600" }
+    if (currentStatus === "submitted") return { label: "Pending", tone: "text-blue-600" }
+    if (currentStatus === "rejected") return { label: "Revise", tone: "text-red-600" }
+    return { label: "Draft", tone: "text-amber-600" }
   }, [currentStatus])
 
   if (loading) {
@@ -86,24 +86,25 @@ export function MyKpiPortal() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">My KPI Dashboard — {staff.name}</h2>
-        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-          Update your actuals and send to admin for approval. Once approved, your KPI progress is updated on your profile.
-        </p>
+    <div className="max-w-3xl mx-auto space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">My KPI Dashboard</h2>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{staff.name}</p>
+        </div>
+        <p className={`text-xs font-semibold ${statusMeta.tone}`}>{statusMeta.label}</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Assigned KPIs</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Assigned</p>
           <p className="text-xl font-bold tabular-nums">{kpiCount}</p>
         </div>
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Current status</p>
-          <p className="text-xl font-bold">{statusLabel}</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Status</p>
+          <p className={`text-xl font-bold ${statusMeta.tone}`}>{statusMeta.label}</p>
         </div>
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Latest score</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Score</p>
           <p className="text-xl font-bold tabular-nums">{currentScore}%</p>
         </div>
       </div>
