@@ -30,6 +30,8 @@ import {
 
 import { useToast } from "@/components/ui/toast"
 import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
+import { DashboardBranchTransferApprovals, useBranchTransferPendingCount } from "@/components/dashboard/branch-transfer-approvals-panel"
+import { DashboardPettyCashApprovals, usePettyCashPendingCount } from "@/components/dashboard/petty-cash-approvals"
 
 function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilters: boolean, setShowFilters: (value: boolean) => void, onPendingChange?: (count: number, openFirst: () => void) => void }) {
   const { user } = useAuth()
@@ -865,9 +867,12 @@ function FinanceAndOpsMiniCharts() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const [approvalTab, setApprovalTab] = useState<"po" | "orders">("orders")
+  const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
   const [showApprovals, setShowApprovals] = useState(false)
+  const branchTransferPending = useBranchTransferPendingCount()
+  const pettyCashPending = usePettyCashPendingCount()
+  const extraPendingCount = branchTransferPending + pettyCashPending
 
   if (!user) return null
 
@@ -896,9 +901,18 @@ export default function DashboardPage() {
 
           <div className="mt-2 rounded-xl border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] p-3">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Approvals</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">PO and CRM order confirmations</p>
+              <div className="flex items-center gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Approvals</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                    CRM orders, purchase orders, branch transfers, and petty cash
+                  </p>
+                </div>
+                {extraPendingCount > 0 && !showApprovals && (
+                  <span className="shrink-0 text-[10px] font-bold rounded-full bg-amber-500 text-white px-2 py-0.5">
+                    {extraPendingCount} pending
+                  </span>
+                )}
               </div>
               <Button
                 size="sm"
@@ -914,36 +928,45 @@ export default function DashboardPage() {
           {/* Approval Flow Section */}
           {showApprovals && (
             <div className="bg-[hsl(var(--card))] p-4 rounded-xl mt-2">
-              <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] pb-2 mb-4">
-                <button
-                  onClick={() => setApprovalTab("orders")}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                    approvalTab === "orders"
-                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  Order CRM Confirmation
-                </button>
-                <button
-                  onClick={() => setApprovalTab("po")}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                    approvalTab === "po"
-                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  PO Confirmation
-                </button>
+              <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] pb-2 mb-4 overflow-x-auto">
+                {(
+                  [
+                    { id: "orders" as const, label: "CRM Orders" },
+                    { id: "po" as const, label: "Purchase Orders" },
+                    { id: "transfers" as const, label: "Branch Transfers", count: branchTransferPending },
+                    { id: "petty" as const, label: "Petty Cash", count: pettyCashPending },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setApprovalTab(tab.id)}
+                    className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                      approvalTab === tab.id
+                        ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                        : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                    }`}
+                  >
+                    {tab.label}
+                    {"count" in tab && tab.count > 0 && (
+                      <span className="rounded-full bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 min-w-[18px] text-center">
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
 
               {approvalTab === "orders" ? (
                 <ClientOrdersApproval />
-              ) : (
+              ) : approvalTab === "po" ? (
                 <POsWidget
                   showFilters={showPOFilters}
                   setShowFilters={setShowPOFilters}
                 />
+              ) : approvalTab === "transfers" ? (
+                <DashboardBranchTransferApprovals />
+              ) : (
+                <DashboardPettyCashApprovals />
               )}
             </div>
           )}

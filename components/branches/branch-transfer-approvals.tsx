@@ -18,11 +18,13 @@ export function BranchTransferApprovals({
   branches,
   currentUser,
   branchId,
+  variant = "panel",
   onReviewed,
 }: {
   branches: Branch[]
   currentUser: string
   branchId?: string
+  variant?: "panel" | "embedded"
   onReviewed?: () => void
 }) {
   const { toast } = useToast()
@@ -120,6 +122,14 @@ export function BranchTransferApprovals({
   }
 
   if (loading) {
+    if (variant === "embedded") {
+      return (
+        <div className="flex items-center justify-center py-12 gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading branch transfer approvals…
+        </div>
+      )
+    }
     return (
       <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 dark:bg-amber-950/20 p-4 flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
         <Loader2 className="h-4 w-4 animate-spin shrink-0" />
@@ -128,7 +138,75 @@ export function BranchTransferApprovals({
     )
   }
 
-  if (requests.length === 0) return null
+  if (requests.length === 0) {
+    if (variant === "embedded") {
+      return (
+        <p className="text-sm text-[hsl(var(--muted-foreground))] py-8 text-center">
+          No branch transfers pending approval.
+        </p>
+      )
+    }
+    return null
+  }
+
+  const list = (
+    <ul className={`divide-y ${variant === "panel" ? "divide-amber-200/50 max-h-[320px] overflow-y-auto" : "divide-[hsl(var(--border))]"}`}>
+      {requests.map((req) => (
+        <li key={req.id} className={`${variant === "panel" ? "px-4 py-3" : "px-0 py-3"} space-y-2`}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold capitalize">
+                {req.mode === "dispatch" ? "Dispatch" : "Transfer"} · {req.lineCount} line
+                {req.lineCount === 1 ? "" : "s"}
+              </p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                {req.fromBranchName} ({req.fromBranchCode}) → {req.toBranchName} ({req.toBranchCode})
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                By {req.requestedBy} · {new Date(req.requestedAt).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[10px] text-red-600 border-red-200 hover:bg-red-50"
+                disabled={busyId === req.id}
+                onClick={() => handleReject(req)}
+              >
+                {busyId === req.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    <X className="h-3 w-3 mr-0.5" />
+                    Reject
+                  </>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-[10px] bg-[#1faca6] hover:bg-[#17857f] text-white"
+                disabled={busyId === req.id}
+                onClick={() => handleApprove(req)}
+              >
+                {busyId === req.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    <Check className="h-3 w-3 mr-0.5" />
+                    Approve
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          <p className="text-[11px] text-[hsl(var(--foreground))]/80">{req.summary}</p>
+        </li>
+      ))}
+    </ul>
+  )
+
+  if (variant === "embedded") return list
 
   return (
     <div className="rounded-lg border border-amber-300/70 bg-amber-50/80 dark:bg-amber-950/30 overflow-hidden">
@@ -146,60 +224,7 @@ export function BranchTransferApprovals({
           {requests.length}
         </span>
       </div>
-      <ul className="divide-y divide-amber-200/50 max-h-[320px] overflow-y-auto">
-        {requests.map((req) => (
-          <li key={req.id} className="px-4 py-3 space-y-2">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold capitalize">
-                  {req.mode === "dispatch" ? "Dispatch" : "Transfer"} · {req.lineCount} line
-                  {req.lineCount === 1 ? "" : "s"}
-                </p>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                  {req.fromBranchName} ({req.fromBranchCode}) → {req.toBranchName} ({req.toBranchCode})
-                </p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                  By {req.requestedBy} · {new Date(req.requestedAt).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex gap-1.5 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-[10px] text-red-600 border-red-200 hover:bg-red-50"
-                  disabled={busyId === req.id}
-                  onClick={() => handleReject(req)}
-                >
-                  {busyId === req.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <>
-                      <X className="h-3 w-3 mr-0.5" />
-                      Reject
-                    </>
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-8 text-[10px] bg-[#1faca6] hover:bg-[#17857f] text-white"
-                  disabled={busyId === req.id}
-                  onClick={() => handleApprove(req)}
-                >
-                  {busyId === req.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="h-3 w-3 mr-0.5" />
-                      Approve
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-            <p className="text-[11px] text-[hsl(var(--foreground))]/80">{req.summary}</p>
-          </li>
-        ))}
-      </ul>
+      {list}
     </div>
   )
 }

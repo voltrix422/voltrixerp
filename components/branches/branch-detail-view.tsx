@@ -18,7 +18,6 @@ import {
   type TransferHistoryDisplayEntry,
 } from "@/lib/branch-transfer-history-display"
 import { BulkBranchTransferModal, type BulkTransferProduct } from "@/components/branches/bulk-branch-transfer-modal"
-import { BranchTransferApprovals } from "@/components/branches/branch-transfer-approvals"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -423,20 +422,6 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
             <span className="font-medium text-[hsl(var(--foreground))]">Notes: </span>
             {branch.notes}
           </p>
-        )}
-
-        {isSuperAdmin && (
-          <div className="mb-3">
-            <BranchTransferApprovals
-              branches={branches}
-              currentUser={user?.name || "Super admin"}
-              branchId={branch.id}
-              onReviewed={() => {
-                reloadInventory()
-                loadTransferHistory()
-              }}
-            />
-          </div>
         )}
 
         <div className="flex items-center justify-between gap-2 border-b">
