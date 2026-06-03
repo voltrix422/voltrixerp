@@ -142,6 +142,18 @@ function applyLeadFilters(
   })
 }
 
+function isLeadFiltersActive(
+  statusFilter: LeadStatusFilter,
+  contactFilter: ContactDateFilter,
+  contactFrom: string,
+  contactTo: string,
+) {
+  if (statusFilter !== "all") return true
+  if (contactFilter === "today" || contactFilter === "never") return true
+  if (contactFilter === "range" && (contactFrom || contactTo)) return true
+  return false
+}
+
 function LeadFiltersPanel({
   statusFilter,
   contactFilter,
@@ -171,10 +183,7 @@ function LeadFiltersPanel({
   onContactTo: (v: string) => void
   onClear: () => void
 }) {
-  const filtersActive =
-    statusFilter !== "all" ||
-    contactFilter !== "all" ||
-    (contactFilter === "range" && (contactFrom || contactTo))
+  const filtersActive = isLeadFiltersActive(statusFilter, contactFilter, contactFrom, contactTo)
 
   const statusLabel =
     LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label ?? "All leads"
@@ -785,11 +794,6 @@ export function LeadsManager({
     [leads, search, statusFilter, contactFilter, contactFrom, contactTo],
   )
 
-  const filtersActive =
-    statusFilter !== "all" ||
-    contactFilter !== "all" ||
-    (contactFilter === "range" && (contactFrom || contactTo))
-
   function clearLeadFilters() {
     setStatusFilter("all")
     setContactFilter("all")
@@ -1205,7 +1209,7 @@ export function LeadsManager({
           <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
           {leads.length === 0
             ? "No leads yet. Import a CSV or add a lead manually."
-            : filtersActive || search.trim()
+            : isLeadFiltersActive(statusFilter, contactFilter, contactFrom, contactTo) || search.trim()
               ? "No leads match your filters."
               : "No leads match your search."}
         </div>
