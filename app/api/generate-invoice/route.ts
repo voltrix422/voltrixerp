@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { formatSerialListForLine, orderHasSerialAllocations } from '@/lib/order-fulfillment-serials'
 import { getOrderSourcePdfLabel, resolveOrderItemModel } from '@/lib/orders'
+import { formatInvoiceMoney, getInvoicePaymentSummary } from '@/lib/invoice-payment-summary'
 
 function loadFont(filename: string): string {
   try {
@@ -82,12 +83,14 @@ export async function POST(request: NextRequest) {
     doc.setFillColor(...tealDark)
     doc.rect(0, 44, pageW, 15, 'F')
 
+    const pay = getInvoicePaymentSummary(order)
     const metaItems = [
       { label: 'CLIENT',        value: (order.clientName || '—').substring(0, 22) },
       { label: 'INVOICE DATE',  value: new Date(order.createdAt).toLocaleDateString('en-PK') },
       ...(order.deliveryDate ? [{ label: 'DELIVERY DATE', value: new Date(order.deliveryDate).toLocaleDateString('en-PK') }] : []),
       { label: 'ORDER SOURCE',  value: getOrderSourcePdfLabel(order).substring(0, 24) },
       { label: 'PREPARED BY',   value: order.createdBy || '—' },
+      ...(pay.showPaymentSection ? [{ label: 'PAYMENT', value: pay.paymentStatusLabel.substring(0, 18) }] : []),
     ]
     const colW = (pageW - mL - mR) / metaItems.length
     metaItems.forEach((m, i) => {
@@ -266,9 +269,8 @@ export async function POST(request: NextRequest) {
 
     const rowH   = 7
     const totBoxH = totRows.length * rowH + 18
-    const payments: any[] = order.payments || []
-    const totalPaid = payments.reduce((s: number, p: any) => s + (p.amount || 0), 0)
-    const balance   = Number(order.total) - totalPaid
+    const payments: { id?: string; amount?: number; method?: string; date?: string; notes?: string }[] =
+      order.payments || []
 
     // Notes box (left)
     if (order.notes) {
@@ -324,22 +326,82 @@ export async function POST(request: NextRequest) {
     doc.text('TOTAL', totX + 6, ry + 4.5)
     doc.text(`PKR ${Number(order.total).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, totX + totW - 6, ry + 4.5, { align: 'right' })
 
-    // ── Payment badge ─────────────────────────────────────────────────────────
-    if (payments.length > 0) {
-      const badgeY = y + totBoxH + 6
-      if (balance <= 0) {
-        doc.setFillColor(34, 139, 34)
-      } else {
-        doc.setFillColor(230, 100, 30)
-      }
-      doc.roundedRect(mL, badgeY, 72, 9, 2, 2, 'F')
+    // ── Payment / credit block ────────────────────────────────────────────────
+    if (pay.showPaymentSection) {
+      const payY = y + totBoxH + 6
+      const payW = pageW - mL - mR
+      const detailLines = payments.length
+      const payBoxH = 28 + (detailLines > 0 ? Math.min(detailLines, 4) * 5 : 0)
+
+      doc.setFillColor(255, 248, 235)
+      doc.setDrawColor(230, 170, 80)
+      doc.setLineWidth(0.3)
+      doc.roundedRect(mL, payY, payW, payBoxH, 2, 2, 'FD')
+
+      doc.setFillColor(...teal)
+      doc.roundedRect(mL, payY, payW, 7, 2, 2, 'F')
+      doc.rect(mL, payY + 3, payW, 4, 'F')
+      doc.setFont(FONT, 'bold')
+      doc.setFontSize(7)
+      doc.setTextColor(...white)
+      doc.text('PAYMENT INFORMATION', mL + 4, payY + 5)
+
+      let py = payY + 12
+      const col1 = mL + 4
+      const col2 = mL + payW * 0.38
+      const col3 = mL + payW * 0.68
+
+      doc.setFont(FONT, 'bold')
+      doc.setFontSize(6.5)
+      doc.setTextColor(120, 120, 120)
+      doc.text('TERMS', col1, py)
+      doc.text('AMOUNT PAID', col2, py)
+      doc.text('AMOUNT TO PAY', col3, py)
+      py += 4
       doc.setFont(FONT, 'bold')
       doc.setFontSize(8.5)
-      doc.setTextColor(...white)
-      const badgeText = balance <= 0
-        ? '✓  PAID IN FULL'
-        : `Balance Due: PKR ${balance.toLocaleString('en-PK', { minimumFractionDigits: 2 })}`
-      doc.text(badgeText, mL + 4, badgeY + 6)
+      doc.setTextColor(...black)
+      doc.text(pay.paymentStatusLabel, col1, py)
+      doc.text(formatInvoiceMoney(pay.amountPaid).replace('PKR ', 'PKR '), col2, py)
+      if (pay.hasOutstanding) doc.setTextColor(180, 90, 20)
+      else if (pay.isPaidInFull) doc.setTextColor(34, 120, 60)
+      doc.text(
+        pay.isPaidInFull ? formatInvoiceMoney(0) : formatInvoiceMoney(pay.balanceDue),
+        col3,
+        py,
+      )
+      py += 7
+
+      if (payments.length > 0) {
+        doc.setFont(FONT, 'bold')
+        doc.setFontSize(6.5)
+        doc.setTextColor(120, 120, 120)
+        doc.text('PAYMENT DETAILS', col1, py)
+        py += 4
+        doc.setFont(FONT, 'normal')
+        doc.setFontSize(7.5)
+        doc.setTextColor(...gray)
+        payments.slice(0, 4).forEach((p) => {
+          const line = `${p.method || 'Payment'} · ${p.date ? new Date(p.date).toLocaleDateString('en-PK') : '—'} — PKR ${Number(p.amount || 0).toLocaleString('en-PK')}`
+          doc.text(line.substring(0, 95), col1, py)
+          py += 5
+        })
+      }
+
+      if (pay.isPaidInFull) {
+        doc.setFillColor(34, 139, 34)
+        doc.roundedRect(mL, payY + payBoxH - 10, 52, 8, 1.5, 1.5, 'F')
+        doc.setFont(FONT, 'bold')
+        doc.setFontSize(8)
+        doc.setTextColor(...white)
+        doc.text('PAID IN FULL', mL + 4, payY + payBoxH - 4.5)
+      } else if (pay.hasOutstanding && pay.isOnCredit) {
+        doc.setFont(FONT, 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(140, 80, 10)
+        const note = `Credit invoice — balance ${formatInvoiceMoney(pay.balanceDue)} payable to Voltrix Batteries.`
+        doc.text(note, col1, payY + payBoxH - 3)
+      }
     }
 
     // ── Footer ────────────────────────────────────────────────────────────────

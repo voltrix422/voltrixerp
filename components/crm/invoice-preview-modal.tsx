@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import type { Order } from "@/lib/orders"
 import { getOrderSourcePdfLabel, resolveOrderItemModel } from "@/lib/orders"
+import { formatInvoiceMoney, getInvoicePaymentSummary } from "@/lib/invoice-payment-summary"
 import Image from "next/image"
 
 interface InvoicePreviewModalProps {
@@ -32,10 +33,8 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
   }
 
   const total = order.total ?? 0
-  const totalPaid = (order.payments || []).reduce((s, p) => s + p.amount, 0)
-  const remaining = total - totalPaid
-
-  const fmt = (n: number) => `PKR ${n.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`
+  const pay = getInvoicePaymentSummary(order)
+  const fmt = formatInvoiceMoney
 
   const itemRows = order.items.map((item, i) => ({
     item,
@@ -53,6 +52,9 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
       : []),
     { label: "ORDER SOURCE", value: getOrderSourcePdfLabel(order) },
     { label: "PREPARED BY", value: order.createdBy || "—" },
+    ...(pay.showPaymentSection
+      ? [{ label: "PAYMENT", value: pay.paymentStatusLabel }]
+      : []),
   ]
 
   async function handleDownload() {
@@ -279,40 +281,68 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                 </div>
               </div>
 
-              {totalPaid > 0 && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#1a9f9a] border-b border-[#1a9f9a]/30 pb-1 mb-2">
-                    Payments Received
+              {pay.showPaymentSection && (
+                <div
+                  className={`rounded-lg border p-3 sm:p-4 space-y-2 ${
+                    pay.hasOutstanding
+                      ? "border-amber-300 bg-amber-50/80"
+                      : "border-gray-200 bg-gray-50/50"
+                  }`}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#1a9f9a] border-b border-[#1a9f9a]/30 pb-1">
+                    Payment information
                   </p>
-                  <div className="space-y-1.5">
-                    {order.payments?.map((p) => (
-                      <div key={p.id} className="flex justify-between gap-2 text-xs text-gray-700">
-                        <span className="min-w-0 break-words">
-                          {p.method} · {new Date(p.date).toLocaleDateString("en-PK")}
-                          {p.notes ? ` · ${p.notes}` : ""}
-                        </span>
-                        <span className="font-semibold tabular-nums shrink-0">
-                          PKR {p.amount.toLocaleString("en-PK")}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between text-xs font-bold text-gray-800 border-t pt-1.5 gap-2">
-                      <span>Total Paid</span>
-                      <span className="tabular-nums">{fmt(totalPaid)}</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase text-gray-500">Terms</p>
+                      <p className="font-bold text-gray-900 mt-0.5">{pay.paymentStatusLabel}</p>
                     </div>
-                    {remaining > 0 && (
-                      <div className="flex justify-between text-xs font-bold text-orange-600 gap-2">
-                        <span>Balance Due</span>
-                        <span className="tabular-nums">{fmt(remaining)}</span>
-                      </div>
-                    )}
-                    {remaining <= 0 && (
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 mt-1">
-                        <div className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
-                        <span>Paid in Full</span>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase text-gray-500">Amount paid</p>
+                      <p className="font-bold text-gray-900 tabular-nums mt-0.5">{fmt(pay.amountPaid)}</p>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <p className="text-[10px] font-semibold uppercase text-gray-500">Amount to pay</p>
+                      <p
+                        className={`font-bold tabular-nums mt-0.5 ${
+                          pay.hasOutstanding ? "text-amber-700" : "text-emerald-700"
+                        }`}
+                      >
+                        {pay.isPaidInFull ? fmt(0) : fmt(pay.balanceDue)}
+                      </p>
+                    </div>
                   </div>
+                  {(order.payments?.length ?? 0) > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-gray-200">
+                      <p className="text-[10px] font-semibold uppercase text-gray-500">Payment details</p>
+                      {order.payments?.map((p) => (
+                        <div key={p.id} className="flex justify-between gap-2 text-xs text-gray-700">
+                          <span className="min-w-0 break-words">
+                            {p.method} · {new Date(p.date).toLocaleDateString("en-PK")}
+                            {p.notes ? ` · ${p.notes}` : ""}
+                          </span>
+                          <span className="font-semibold tabular-nums shrink-0">
+                            PKR {p.amount.toLocaleString("en-PK")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {pay.isPaidInFull ? (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 pt-1">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span>Paid in full</span>
+                    </div>
+                  ) : pay.hasOutstanding && pay.isOnCredit ? (
+                    <p className="text-[11px] text-amber-800 leading-snug pt-1">
+                      This invoice is on <span className="font-semibold">credit</span>. The balance shown above
+                      remains payable to Voltrix Batteries.
+                    </p>
+                  ) : pay.balanceDue > 0.004 ? (
+                    <p className="text-[11px] text-amber-800 leading-snug pt-1">
+                      Balance due: <span className="font-semibold">{fmt(pay.balanceDue)}</span>
+                    </p>
+                  ) : null}
                 </div>
               )}
 
