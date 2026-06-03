@@ -24,10 +24,13 @@ import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-displ
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { Loader2, X } from "lucide-react"
 
+export type ClientOrdersCreditFilter = "all" | "outstanding" | "on_credit"
+
 interface ClientOrdersFinanceProps {
   search: string
   dateFrom: string
   dateTo: string
+  creditFilter?: ClientOrdersCreditFilter
 }
 
 function orderPaymentTotals(order: Order) {
@@ -36,7 +39,13 @@ function orderPaymentTotals(order: Order) {
   return { totalPaid, remaining }
 }
 
-export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFinanceProps) {
+function matchesCreditFilter(order: Order, creditFilter: ClientOrdersCreditFilter) {
+  if (creditFilter === "outstanding") return hasOutstandingCredit(order)
+  if (creditFilter === "on_credit") return isOrderOnCredit(order)
+  return true
+}
+
+export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "all" }: ClientOrdersFinanceProps) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -63,24 +72,41 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
     const matchFrom = !dateFrom || orderDate >= new Date(dateFrom)
     const matchTo = !dateTo || orderDate <= new Date(dateTo + "T23:59:59")
 
-    return matchSearch && matchFrom && matchTo
+    return matchSearch && matchFrom && matchTo && matchesCreditFilter(order, creditFilter)
   })
 
-  const totalPayments = filteredOrders.reduce((sum, order) => {
-    return sum + getSubmittedPayments(order.payments, order.status).reduce((s, p) => s + p.amount, 0)
-  }, 0)
+  const totalPayments = filteredOrders.reduce((sum, order) => sum + getOrderAmountPaid(order), 0)
 
-  const hasFilters = search || dateFrom || dateTo
+  const totalCreditOutstanding = filteredOrders.reduce(
+    (sum, order) => (hasOutstandingCredit(order) ? sum + getOrderCreditBalance(order) : sum),
+    0,
+  )
+
+  const creditOrdersInView = filteredOrders.filter(hasOutstandingCredit).length
+
+  const hasFilters = search || dateFrom || dateTo || creditFilter !== "all"
+
+  const emptyMessage =
+    creditFilter === "outstanding"
+      ? "No orders with outstanding credit match your filters"
+      : creditFilter === "on_credit"
+        ? "No credit-based orders match your filters"
+        : hasFilters
+          ? "No orders match your filters"
+          : "No orders found"
 
   return (
     <div className="space-y-3">
-      {filteredOrders.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 sm:flex sm:items-center sm:gap-6 sm:p-0 sm:border-0 sm:bg-transparent">
+      {(filteredOrders.length > 0 || orders.length > 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 sm:flex sm:flex-wrap sm:items-center sm:gap-6 sm:p-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-              Orders
+              {hasFilters ? "Filtered" : ""} Orders
             </p>
             <p className="text-lg sm:text-xl font-bold tabular-nums leading-tight">{filteredOrders.length}</p>
+            {creditFilter === "outstanding" && creditOrdersInView > 0 && (
+              <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">with balance due</p>
+            )}
           </div>
           <div className="sm:border-l sm:pl-6">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
@@ -89,6 +115,19 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
             <p className="text-sm sm:text-xl font-bold tabular-nums leading-tight break-words">
               PKR {totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </p>
+          </div>
+          <div className="col-span-2 sm:col-span-1 sm:border-l sm:pl-6 border-t sm:border-t-0 pt-2 sm:pt-0">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+              Credit outstanding
+            </p>
+            <p className="text-sm sm:text-xl font-bold tabular-nums leading-tight text-amber-700 dark:text-amber-300 break-words">
+              PKR {totalCreditOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+            {totalCreditOutstanding > 0.004 && (
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                {creditOrdersInView} order{creditOrdersInView === 1 ? "" : "s"} on credit
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -102,9 +141,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
 
       {!loading && filteredOrders.length === 0 && (
         <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {hasFilters ? "No orders match your filters" : "No orders found"}
-          </p>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">{emptyMessage}</p>
         </div>
       )}
 
@@ -199,7 +236,12 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
                         className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer"
                       >
                         <td className="px-4 py-2.5 font-medium text-[hsl(var(--primary))] whitespace-nowrap">
-                          {order.orderNumber}
+                          <span className="inline-flex items-center gap-1.5">
+                            {order.orderNumber}
+                            {hasOutstandingCredit(order) && (
+                              <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
+                            )}
+                          </span>
                         </td>
                         <td className="px-4 py-2.5 text-xs">{order.clientName}</td>
                         <td className="px-4 py-2.5 text-xs">{formatCrmItemsQtyLabel(order.items)}</td>
@@ -210,10 +252,10 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
                           PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-2.5 text-xs font-medium whitespace-nowrap">
-                          {remaining <= 0 ? (
+                          {remaining <= 0.004 ? (
                             <span className="text-emerald-600">Paid</span>
                           ) : (
-                            <span className="tabular-nums">
+                            <span className={`tabular-nums ${hasOutstandingCredit(order) ? "text-amber-700 dark:text-amber-300 font-semibold" : ""}`}>
                               PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                           )}

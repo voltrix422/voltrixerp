@@ -5,7 +5,7 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { FinanceHub } from "@/components/finance/finance-hub"
 import { FinanceReports } from "@/components/finance/finance-reports"
-import { ClientOrdersFinance } from "@/components/finance/client-orders-finance"
+import { ClientOrdersFinance, type ClientOrdersCreditFilter } from "@/components/finance/client-orders-finance"
 import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
 import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
@@ -16,7 +16,6 @@ import { SlidersHorizontal, Search, Calendar } from "lucide-react"
 type Tab = "overview" | "manage" | "client" | "purchase" | "payroll" | "reports"
 type PayrollSection = "staff" | "sales"
 type ManageSection = "finance" | "petty-cash"
-
 export default function FinancePage() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>("overview")
@@ -26,6 +25,7 @@ export default function FinancePage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [clientCreditFilter, setClientCreditFilter] = useState<ClientOrdersCreditFilter>("all")
   const [payrollSection, setPayrollSection] = useState<PayrollSection>("staff")
 
   useEffect(() => {
@@ -49,12 +49,13 @@ export default function FinancePage() {
     else if (tab === "sales-salaries") setPayrollSection("sales")
   }, [searchParams])
 
-  const hasFilters = search || dateFrom || dateTo
+  const hasFilters = search || dateFrom || dateTo || clientCreditFilter !== "all"
 
   function clearFilters() {
     setSearch("")
     setDateFrom("")
     setDateTo("")
+    setClientCreditFilter("all")
   }
 
   const tabs: { id: Tab; label: string }[] = [
@@ -129,6 +130,18 @@ export default function FinancePage() {
                   className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs w-32"
                 />
               </div>
+              {activeTab === "client" && (
+                <select
+                  value={clientCreditFilter}
+                  onChange={e => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
+                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs min-w-[10rem] cursor-pointer"
+                  aria-label="Credit filter"
+                >
+                  <option value="all">All orders</option>
+                  <option value="outstanding">Outstanding credit</option>
+                  <option value="on_credit">On credit (any)</option>
+                </select>
+              )}
               {hasFilters && (
                 <button
                   onClick={clearFilters}
@@ -194,7 +207,12 @@ export default function FinancePage() {
           )}
 
           {activeTab === "client" && (
-            <ClientOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />
+            <ClientOrdersFinance
+              search={search}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              creditFilter={clientCreditFilter}
+            />
           )}
           {activeTab === "purchase" && (
             <PurchaseOrdersFinance search={search} dateFrom={dateFrom} dateTo={dateTo} />
