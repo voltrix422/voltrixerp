@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, resetBranchInventory, type Branch } from "@/lib/branches"
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
+import { BranchTransferApprovals } from "@/components/branches/branch-transfer-approvals"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search } from "lucide-react"
@@ -177,6 +178,7 @@ export function BranchesTab() {
   const { confirm } = useDialog()
   const { toast } = useToast()
   const { user } = useAuth()
+  const isSuperAdmin = user?.role === "superadmin"
 
   useEffect(() => {
     getBranches().then(b => { setBranches(b); setLoading(false) })
@@ -378,6 +380,12 @@ export function BranchesTab() {
 
   return (
     <div className="flex flex-col gap-3 min-h-0">
+      {isSuperAdmin && !viewBranch && (
+        <BranchTransferApprovals
+          branches={branches}
+          currentUser={user?.name || "Super admin"}
+        />
+      )}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-2">
           <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />

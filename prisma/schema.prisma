@@ -448,6 +448,33 @@ model ErpBranchInventoryTransfer {
   @@map("erp_branch_inventory_transfers")
 }
 
+model ErpBranchTransferRequest {
+  id              String    @id @default(cuid())
+  status          String    @default("pending")
+  mode            String
+  fromBranchId    String?   @map("from_branch_id")
+  fromBranchName  String    @map("from_branch_name")
+  fromBranchCode  String    @default("") @map("from_branch_code")
+  toBranchId      String    @map("to_branch_id")
+  toBranchName    String    @map("to_branch_name")
+  toBranchCode    String    @default("") @map("to_branch_code")
+  payloadJson     String    @map("payload_json") @db.Text
+  lineCount       Int       @default(0) @map("line_count")
+  totalQuantity   Float     @default(0) @map("total_quantity")
+  summary         String    @default("")
+  requestedBy     String    @map("requested_by")
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  reviewedBy      String?   @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNote      String    @default("") @map("review_note")
+  transferBatchId String?   @map("transfer_batch_id")
+
+  @@index([status])
+  @@index([fromBranchId])
+  @@index([toBranchId])
+  @@map("erp_branch_transfer_requests")
+}
+
 model ErpTicket {
   id          String   @id @default(cuid())
   ticketNumber String  @unique @map("ticket_number")

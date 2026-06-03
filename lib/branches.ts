@@ -242,6 +242,27 @@ export type BatchTransferLine = {
   userNote?: string
 }
 
+export type BranchTransferRequest = {
+  id: string
+  status: "pending" | "approved" | "rejected"
+  mode: "dispatch" | "transfer"
+  fromBranchId: string | null
+  fromBranchName: string
+  fromBranchCode: string
+  toBranchId: string
+  toBranchName: string
+  toBranchCode: string
+  lineCount: number
+  totalQuantity: number
+  summary: string
+  requestedBy: string
+  requestedAt: string
+  reviewedBy: string | null
+  reviewedAt: string | null
+  reviewNote: string
+  transferBatchId: string | null
+}
+
 export async function batchBranchInventoryTransfer(data: {
   mode: "dispatch" | "transfer"
   toBranchId: string
@@ -252,11 +273,16 @@ export async function batchBranchInventoryTransfer(data: {
   assignedBy: string
   systemNotes?: string
   lines: BatchTransferLine[]
+  requesterRole?: string
 }): Promise<{
   ok: boolean
-  succeeded: number
-  failed: number
-  results: Array<{ ok: boolean; productDescription?: string; error?: string }>
+  pendingApproval?: boolean
+  requestId?: string
+  request?: BranchTransferRequest
+  succeeded?: number
+  failed?: number
+  transferBatchId?: string | null
+  results?: Array<{ ok: boolean; productDescription?: string; error?: string }>
 }> {
   const res = await fetch("/api/db/branch-inventory-batch", {
     method: "POST",
@@ -266,6 +292,46 @@ export async function batchBranchInventoryTransfer(data: {
   const payload = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(payload?.error || "Batch transfer failed")
+  }
+  return payload
+}
+
+export async function fetchBranchTransferRequests(options?: {
+  status?: string
+  branchId?: string
+}): Promise<BranchTransferRequest[]> {
+  const params = new URLSearchParams()
+  if (options?.status) params.set("status", options.status)
+  if (options?.branchId) params.set("branchId", options.branchId)
+  const qs = params.toString()
+  const res = await fetch(`/api/db/branch-transfer-requests${qs ? `?${qs}` : ""}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function reviewBranchTransferRequest(data: {
+  id: string
+  action: "approve" | "reject"
+  reviewedBy: string
+  reviewNote?: string
+}): Promise<{
+  ok: boolean
+  request: BranchTransferRequest
+  result?: {
+    ok: boolean
+    succeeded: number
+    failed: number
+    transferBatchId?: string | null
+  }
+}> {
+  const res = await fetch("/api/db/branch-transfer-requests", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(payload?.error || "Could not review request")
   }
   return payload
 }

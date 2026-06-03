@@ -53,6 +53,7 @@ type Props = {
   destinationFilter?: (branch: Branch) => boolean
   preselectedProductId?: string | null
   submitting?: boolean
+  requiresApproval?: boolean
   onSubmit: (payload: {
     toBranchId: string
     lines: Array<{
@@ -76,6 +77,7 @@ export function BulkBranchTransferModal({
   destinationFilter,
   preselectedProductId,
   submitting = false,
+  requiresApproval = false,
   onSubmit,
 }: Props) {
   const [toBranchId, setToBranchId] = useState("")
@@ -238,7 +240,9 @@ export function BulkBranchTransferModal({
           <div>
             <p className="text-sm font-semibold">{title}</p>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-              Select products, set qty and a note for each. Scanned inventory is linked automatically — each line saves its own transfer history record.
+              {requiresApproval
+                ? "Stock will not move until a super admin approves. A transfer / dispatch note is generated after approval."
+                : "Select products, set qty and a note for each. Scanned inventory is linked automatically — each line saves its own transfer history record."}
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
@@ -419,6 +423,8 @@ export function BulkBranchTransferModal({
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                 Saving…
               </>
+            ) : requiresApproval ? (
+              `Submit ${selectedLines.length} for approval`
             ) : (
               `${mode === "dispatch" ? "Send" : "Transfer"} ${selectedLines.length} product${selectedLines.length === 1 ? "" : "s"}`
             )}

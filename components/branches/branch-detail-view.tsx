@@ -18,6 +18,7 @@ import {
   type TransferHistoryDisplayEntry,
 } from "@/lib/branch-transfer-history-display"
 import { BulkBranchTransferModal, type BulkTransferProduct } from "@/components/branches/bulk-branch-transfer-modal"
+import { BranchTransferApprovals } from "@/components/branches/branch-transfer-approvals"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -97,6 +98,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   const { toast } = useToast()
   const { confirm } = useDialog()
   const { user } = useAuth()
+  const isSuperAdmin = user?.role === "superadmin"
   const isMainWarehouse = branch.type === "main_warehouse"
 
   useEffect(() => {
@@ -276,14 +278,25 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
         fromBranchCode: branch.code,
         destinationBranchCode: destination?.code,
         assignedBy: user?.name || "system",
+        requesterRole: user?.role,
         systemNotes: isMainWarehouse ? `Dispatched from main warehouse ${branch.code}` : undefined,
         lines: payload.lines,
       })
-      await reloadInventory()
-      await loadTransferHistory()
       setShowBulkTransfer(false)
       setBulkPreselectId(null)
-      if (result.failed > 0) {
+
+      if (result.pendingApproval) {
+        toast({
+          type: "success",
+          title: "Submitted for approval",
+          message: "A super admin must approve before stock moves and the transfer note is generated.",
+        })
+        return
+      }
+
+      await reloadInventory()
+      await loadTransferHistory()
+      if ((result.failed ?? 0) > 0) {
         toast({
           type: "error",
           title: "Partial transfer",
@@ -410,6 +423,20 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
             <span className="font-medium text-[hsl(var(--foreground))]">Notes: </span>
             {branch.notes}
           </p>
+        )}
+
+        {isSuperAdmin && (
+          <div className="mb-3">
+            <BranchTransferApprovals
+              branches={branches}
+              currentUser={user?.name || "Super admin"}
+              branchId={branch.id}
+              onReviewed={() => {
+                reloadInventory()
+                loadTransferHistory()
+              }}
+            />
+          </div>
         )}
 
         <div className="flex items-center justify-between gap-2 border-b">
@@ -704,6 +731,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
         destinationFilter={
           bulkTransferMode === "dispatch" ? (b) => b.type === "branch_warehouse" || b.type === "warehouse" : undefined
         }
+        requiresApproval={!isSuperAdmin}
         onSubmit={handleBulkTransferSubmit}
       />
     </div>
