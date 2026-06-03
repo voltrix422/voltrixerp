@@ -10,6 +10,7 @@ import {
   getSubmittedPayments,
   getDraftPayments,
   canCapturePaymentsForOrder,
+  orderHasPendingFinancePayments,
   isOrderPaymentLocked,
   getOrderAmountPaid,
   getOrderCreditBalance,
@@ -105,8 +106,8 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
   }
 
   function validatePaymentAmount(amount: number, excludePaymentId?: string) {
-    if (!amount || amount <= 0) {
-      setError("Please enter a valid payment amount")
+    if (Number.isNaN(amount) || amount < 0) {
+      setError("Please enter a valid payment amount (0 or greater)")
       return false
     }
     const otherSubmitted = payments
@@ -179,14 +180,15 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     const amount = Number(paymentAmount)
     if (!validateNewPaymentAmount(amount)) return
 
-    if (paymentProofFiles.length === 0) {
+    if (amount > 0.004 && paymentProofFiles.length === 0) {
       setError("At least one payment proof is required before submitting for approval")
       return
     }
 
     setSaving(true)
     try {
-      const proofUrls = await uploadProofFiles(paymentProofFiles)
+      const proofUrls =
+        paymentProofFiles.length > 0 ? await uploadProofFiles(paymentProofFiles) : []
 
       const payment: OrderPayment = {
         id: Date.now().toString(),
@@ -194,7 +196,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
         method: paymentMethod,
         date: paymentDate,
         notes: paymentNotes,
-        proofUrls,
+        proofUrls: proofUrls.length > 0 ? proofUrls : undefined,
         proofUrl: proofUrls[0],
         createdAt: new Date().toISOString(),
         createdBy: currentUser,
@@ -210,11 +212,28 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     }
   }
 
+  async function handleSubmitFullCreditForApproval() {
+    setError(null)
+    setSaving(true)
+    try {
+      await persistOrder(payments, "payment_added")
+      onClose()
+    } catch {
+      setError("Failed to submit order for approval")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const canSubmitNewPayment = paymentAmount !== "" && !Number.isNaN(Number(paymentAmount))
+  const newPaymentAmount = Number(paymentAmount)
+  const isZeroAmountSubmit = canSubmitNewPayment && newPaymentAmount <= 0.004
+
   async function handleSubmitDraft(paymentId: string) {
     const payment = payments.find(p => p.id === paymentId)
     if (!payment) return
 
-    if (getOrderPaymentProofUrls(payment).length === 0) {
+    if (payment.amount > 0.004 && getOrderPaymentProofUrls(payment).length === 0) {
       setError("Add at least one payment proof before submitting this draft for approval")
       return
     }
@@ -462,7 +481,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             ) : (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-3 sm:p-4">
                 <p className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-100 leading-snug">
-                  Add multiple payments (Payment 1, Payment 2, …). Each payment you submit is sent to Finance with its proofs. Finance can approve full payment or send the order on credit to inventory.
+                  Add multiple payments (Payment 1, Payment 2, …). Each payment you submit is sent to Finance with its proofs. Use amount 0 for full credit (no proof required). Finance can approve full payment or send the order on credit to inventory.
                 </p>
               </div>
             )}
@@ -474,10 +493,12 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
               </div>
             )}
 
-            {canAddPayments && remaining > 0 && (
+            {canAddPayments && (
               <>
                 <div className="border-t pt-4">
-                  <p className="text-sm font-semibold mb-4">Add another payment</p>
+                  <p className="text-sm font-semibold mb-4">
+                    {payments.length > 0 ? "Add another payment" : "Add payment"}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -544,7 +565,9 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                     />
                   </label>
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                    Required to submit for approval. You can add more proofs later before finance approves.
+                    {isZeroAmountSubmit
+                      ? "Not required for amount 0 (full credit request)."
+                      : "Required to submit for approval. You can add more proofs later before finance approves."}
                   </p>
                   {paymentProofFiles.length > 0 && (
                     <div className="space-y-2">
@@ -570,22 +593,33 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            {canAddPayments && remaining > 0 && (
+            {canAddPayments && payments.length === 0 && !orderHasPendingFinancePayments({ ...order, payments }) && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-10 w-full sm:w-auto text-sm border-amber-500 text-amber-800 hover:bg-amber-50 dark:text-amber-200 dark:hover:bg-amber-950/40 cursor-pointer"
+                onClick={handleSubmitFullCreditForApproval}
+                disabled={saving || uploadingProof}
+              >
+                {saving ? "Submitting..." : "Submit for approval (full credit, no payment)"}
+              </Button>
+            )}
+            {canAddPayments && (
               <>
                 <Button
                   size="sm"
                   className="h-10 w-full sm:w-auto text-sm bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
                   onClick={handleSubmitNewForApproval}
-                  disabled={saving || uploadingProof || !paymentAmount}
+                  disabled={saving || uploadingProof || !canSubmitNewPayment}
                 >
-                  {saving ? "Processing..." : uploadingProof ? "Uploading..." : "Submit for approval"}
+                  {saving ? "Processing..." : uploadingProof ? "Uploading..." : isZeroAmountSubmit ? "Submit for approval (amount 0)" : "Submit for approval"}
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-10 w-full sm:w-auto text-sm cursor-pointer"
                   onClick={handleSaveDraft}
-                  disabled={saving || uploadingProof || !paymentAmount}
+                  disabled={saving || uploadingProof || !canSubmitNewPayment}
                 >
                   {saving ? "Saving..." : "Save as draft"}
                 </Button>

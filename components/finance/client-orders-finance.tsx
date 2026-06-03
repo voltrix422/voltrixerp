@@ -506,8 +506,9 @@ function ClientOrderDetail({
               ) : (
                 <>
                   <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
-                    Partial payment received (PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}).
-                    Remaining PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} can go on credit.
+                    {totalPaid <= 0.004
+                      ? `No payment received. Full order balance PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} can be sent on credit.`
+                      : `Partial payment received (PKR ${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}). Remaining PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} can go on credit.`}
                   </p>
                   <Button
                     size="sm"
