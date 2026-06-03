@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from 'react'
-import Image from "next/image"
 import Link from "next/link"
+import { ProductThumbnail } from "@/components/products/product-thumbnail"
+import { getProductImageList } from "@/lib/product-image"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLeft, ChevronRight, FileText } from "lucide-react"
 import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductBrochurePanel from "@/components/products/product-brochure-panel"
@@ -19,6 +20,9 @@ function StockBadge({ stock }: { stock: any }) {
 
 function ProductImages({ images, productName }: { images: string[], productName: string }) {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [failed, setFailed] = useState<Set<number>>(() => new Set())
+  const activeSrc = images[currentIndex]
+  const activeFailed = failed.has(currentIndex)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [touchStart, setTouchStart] = useState(0)
@@ -96,8 +100,8 @@ function ProductImages({ images, productName }: { images: string[], productName:
 
   if (images.length === 0) {
     return (
-      <div className="relative w-full h-[400px] rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200 flex items-center justify-center">
-        <span className="text-sm text-neutral-300">No image</span>
+      <div className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-neutral-200">
+        <ProductThumbnail src={null} alt={productName} fill />
       </div>
     )
   }
@@ -113,17 +117,20 @@ function ProductImages({ images, productName }: { images: string[], productName:
           onMouseLeave={() => setIsHovering(false)}
           onClick={() => openLightbox(currentIndex)}
         >
-          {/* Base Image */}
-          <Image 
-            src={images[currentIndex]} 
-            alt={productName} 
-            fill 
-            className="object-contain p-8" 
-            priority 
-          />
-          
+          {activeFailed ? (
+            <ProductThumbnail src={null} alt={productName} fill />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={activeSrc}
+              alt={productName}
+              className="absolute inset-0 w-full h-full object-contain p-8"
+              onError={() => setFailed((prev) => new Set(prev).add(currentIndex))}
+            />
+          )}
+
           {/* Zoomed Image Overlay */}
-          {isHovering && (
+          {isHovering && !activeFailed && (
             <div 
               className="absolute inset-0 overflow-hidden pointer-events-none"
               style={
@@ -135,21 +142,20 @@ function ProductImages({ images, productName }: { images: string[], productName:
                 } as React.CSSProperties
               }
             >
-              <Image
-                src={images[currentIndex]}
-                alt={productName}
-                fill
-                className="object-contain p-8 scale-200 origin-center"
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={activeSrc}
+                alt=""
+                className="absolute inset-0 w-full h-full object-contain p-8 scale-200 origin-center"
                 style={{
-                  transformOrigin: `${mousePosition}px ${mousePosition}px`
+                  transformOrigin: `${mousePosition.x}px ${mousePosition.y}px`,
                 }}
-                priority
               />
             </div>
           )}
 
           {/* Magnifying Lens */}
-          {isHovering && (
+          {isHovering && !activeFailed && (
             <div 
               className="absolute pointer-events-none rounded-full border-4 border-white shadow-2xl overflow-hidden"
               style={{
@@ -161,16 +167,15 @@ function ProductImages({ images, productName }: { images: string[], productName:
               }}
             >
               <div className="w-full h-full bg-white">
-                <Image
-                  src={images[currentIndex]}
-                  alt={productName}
-                  fill
-                  className="object-contain p-4"
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={activeSrc}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-contain p-4"
                   style={{
-                    transform: 'scale(2.5)',
-                    transformOrigin: `${(mousePosition.x / 600) * 100}% ${(mousePosition.y / 600) * 100}%`
+                    transform: "scale(2.5)",
+                    transformOrigin: `${(mousePosition.x / 600) * 100}% ${(mousePosition.y / 600) * 100}%`,
                   }}
-                  priority
                 />
               </div>
             </div>
@@ -214,7 +219,7 @@ function ProductImages({ images, productName }: { images: string[], productName:
                     : 'border-neutral-200 hover:border-neutral-300'
                 }`}
               >
-                <Image src={img} alt="" fill className="object-contain p-2" />
+                <ProductThumbnail src={img} alt="" fill imgClassName="p-2" />
               </button>
             ))}
           </div>
@@ -242,13 +247,17 @@ function ProductImages({ images, productName }: { images: string[], productName:
             onTouchEnd={handleTouchEnd}
           >
             <div className="relative w-full max-w-5xl h-[80vh]">
-              <Image
-                src={images[lightboxIndex]}
-                alt={productName}
-                fill
-                className="object-contain"
-                priority
-              />
+              {failed.has(lightboxIndex) ? (
+                <ProductThumbnail src={null} alt={productName} fill />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={images[lightboxIndex]}
+                  alt={productName}
+                  className="absolute inset-0 w-full h-full object-contain"
+                  onError={() => setFailed((prev) => new Set(prev).add(lightboxIndex))}
+                />
+              )}
             </div>
 
             {images.length > 1 && (
@@ -303,7 +312,7 @@ export default function ProductDetailClient({
   categoryColors: Record<string, string>
   termsDisplay: { content: string; fileUrl?: string | null }
 }) {
-  const images = Array.isArray(product.images) ? product.images : []
+  const images = getProductImageList(product)
   const [activeTab, setActiveTab] = useState<TabType>("description")
   const [termsOpen, setTermsOpen] = useState(false)
   const requestQuote = shouldRequestQuote(product)
@@ -448,15 +457,12 @@ export default function ProductDetailClient({
             <h2 className="text-xl font-bold text-neutral-900">Related products</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {related.map((r: any) => {
-                const rImgs = Array.isArray(r.images) ? r.images : []
-                const rThumb = rImgs[0]
+                const rThumb = getProductImageList(r)[0] ?? null
                 return (
                   <Link key={r.id} href={`/products/${r.id}`} className="group flex flex-col gap-3 p-5 rounded-2xl border border-neutral-200 bg-white hover:border-[#1a9f9a]/30 hover:shadow-xl hover:shadow-neutral-100 transition-all duration-300">
                     <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg border w-fit ${categoryColors[r.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{r.category}</span>
-                    <div className="relative w-full h-40 rounded-2xl overflow-hidden bg-gradient-to-br from-neutral-50 to-neutral-100 flex items-center justify-center">
-                      {rThumb
-                        ? <Image src={rThumb} alt={r.name} fill className="object-contain p-4 group-hover:scale-110 transition-transform duration-300" />
-                        : <span className="text-xs text-neutral-300">No image</span>}
+                    <div className="relative w-full h-40 rounded-2xl overflow-hidden bg-neutral-50">
+                      <ProductThumbnail src={rThumb} alt={r.name} fill imgClassName="p-4 group-hover:scale-110 transition-transform duration-300" />
                     </div>
                     <p className="font-bold text-neutral-900 text-base">{r.name}</p>
                     <p className="text-sm text-neutral-500 leading-relaxed line-clamp-2">{r.description}</p>

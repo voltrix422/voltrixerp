@@ -1,6 +1,7 @@
 import { Space_Grotesk } from "next/font/google"
-import Image from "next/image"
 import Navbar from "@/components/landing/navbar"
+import { ProductThumbnail } from "@/components/products/product-thumbnail"
+import { getProductImageList } from "@/lib/product-image"
 import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, FileText } from "lucide-react"
@@ -58,18 +59,15 @@ export default async function ProductsPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {products.map((p: any) => {
-                const images = Array.isArray(p.images) ? p.images : []
-                const thumb = images[0]
+                const thumb = getProductImageList(p)[0] ?? null
                 return (
                   <Link key={p.id} href={`/products/${p.id}`} className="group flex flex-col gap-4 p-6 rounded-2xl border border-neutral-100 bg-white hover:border-neutral-200 hover:shadow-lg hover:shadow-neutral-100 transition-all duration-200">
                     <div className="flex items-start justify-between gap-2">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${categoryColors[p.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{p.category}</span>
                       <StockBadge stock={p.stock} />
                     </div>
-                    <div className="relative w-full h-44 rounded-xl overflow-hidden bg-neutral-50 flex items-center justify-center">
-                      {thumb
-                        ? <Image src={thumb} alt={p.name} fill className="object-contain p-3" />
-                        : <span className="text-xs text-neutral-300">No image</span>}
+                    <div className="relative w-full h-44 rounded-xl overflow-hidden bg-neutral-50">
+                      <ProductThumbnail src={thumb} alt={p.name} fill priority={false} />
                     </div>
                     <div className="flex-1 space-y-1">
                       <h3 className="font-bold text-neutral-900 text-base">{p.name}</h3>

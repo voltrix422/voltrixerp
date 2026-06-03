@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { existsSync } from "fs"
-import { readFile, stat } from "fs/promises"
+import { readFile, readdir, stat } from "fs/promises"
 import path from "path"
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -42,19 +42,32 @@ export async function GET(
     return new NextResponse("Not found", { status: 404 })
   }
 
-  if (!existsSync(resolved)) {
+  let fileToServe = resolved
+  if (!existsSync(fileToServe)) {
+    try {
+      const dir = path.dirname(resolved)
+      const base = path.basename(resolved)
+      const entries = await readdir(dir)
+      const match = entries.find((name) => name.toLowerCase() === base.toLowerCase())
+      if (match) fileToServe = path.join(dir, match)
+    } catch {
+      /* directory missing */
+    }
+  }
+
+  if (!existsSync(fileToServe)) {
     return new NextResponse("Not found", { status: 404 })
   }
 
   try {
-    const info = await stat(resolved)
+    const info = await stat(fileToServe)
     if (!info.isFile()) {
       return new NextResponse("Not found", { status: 404 })
     }
 
-    const ext = path.extname(resolved).toLowerCase()
+    const ext = path.extname(fileToServe).toLowerCase()
     const contentType = MIME_BY_EXT[ext] || "application/octet-stream"
-    const buf = await readFile(resolved)
+    const buf = await readFile(fileToServe)
 
     return new NextResponse(buf, {
       headers: {

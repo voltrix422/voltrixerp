@@ -2,9 +2,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowRight, CheckCircle2, XCircle, AlertCircle, FileText, Box } from "lucide-react"
-import Image from "next/image"
+import { ArrowRight, CheckCircle2, XCircle, AlertCircle, FileText } from "lucide-react"
 import Link from "next/link"
+import { ProductThumbnail } from "@/components/products/product-thumbnail"
+import { getProductImageList } from "@/lib/product-image"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import {
   INVERTER_SUBCATEGORIES,
@@ -82,8 +83,7 @@ export default function Products() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((p) => {
-              const images = Array.isArray(p.images) ? p.images : []
-              const thumb = images[0]
+              const thumb = getProductImageList(p)[0] ?? null
               return (
                 <Link
                   key={p.id}
@@ -91,10 +91,8 @@ export default function Products() {
                   className="group bg-white rounded-3xl border border-neutral-200 shadow-sm hover:shadow-xl hover:shadow-neutral-100 transition-all duration-300 overflow-hidden flex flex-col"
                 >
                   {/* Image Section */}
-                  <div className="relative w-full h-64 bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 flex items-center justify-center group-hover:from-neutral-100 group-hover:to-neutral-150 transition-colors">
-                    {thumb
-                      ? <Image src={thumb} alt={p.name} fill className="object-contain p-4" />
-                      : <Box className="w-16 h-16 text-neutral-300" />}
+                  <div className="relative w-full h-64 bg-neutral-50 group-hover:bg-neutral-100 transition-colors">
+                    <ProductThumbnail src={thumb} alt={p.name} fill imgClassName="p-4" />
                   </div>
 
                   {/* Content Section */}
