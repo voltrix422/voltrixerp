@@ -138,10 +138,10 @@ export function DashboardPettyCashApprovals() {
           <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
             Expense receipts ({pendingReceipts.length})
           </p>
-          <div className="rounded-lg border overflow-x-auto">
+          <div className="rounded-xl border border-[hsl(var(--border))]/70 overflow-x-auto shadow-sm">
             <table className="w-full min-w-[520px]">
               <thead>
-                <tr className="border-b bg-[hsl(var(--muted))]/40">
+                <tr className="border-b bg-[hsl(var(--muted))]/30">
                   <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                     Employee
                   </th>
@@ -156,10 +156,10 @@ export function DashboardPettyCashApprovals() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-[hsl(var(--border))]/60">
                 {pendingReceipts.map((receipt) => (
-                  <tr key={receipt.id}>
-                    <td className="px-3 py-2 text-xs font-medium">{receipt.employeeName}</td>
+                  <tr key={receipt.id} className="hover:bg-[hsl(var(--muted))]/20 transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-medium">{receipt.employeeName}</td>
                     <td className="px-3 py-2 text-xs">{receipt.description}</td>
                     <td className="px-3 py-2 text-xs font-semibold text-red-600">
                       PKR {receipt.amount.toLocaleString()}
