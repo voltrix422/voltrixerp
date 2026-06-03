@@ -6,6 +6,8 @@ export type { OrderFulfillmentSerialAllocation }
 
 export type OrderStatus = "draft" | "pending_approval" | "approved" | "rejected" | "finalized" | "payment_added" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
 
+export type OrderPaymentTerms = "full" | "credit"
+
 export interface OrderItem {
   id: string
   description: string
@@ -100,6 +102,10 @@ export interface Order {
   dispatcher?: string // Assigned dispatcher
   pdfUrl?: string // URL to generated PDF
   payments?: OrderPayment[] // Payment records
+  paymentTerms?: OrderPaymentTerms
+  creditApprovedAt?: string
+  creditApprovedBy?: string
+  creditNote?: string
   // Fulfillment details (saved when order is fulfilled)
   fulfillmentDispatcher?: string
   fulfillmentReceiverName?: string
@@ -144,8 +150,41 @@ export function isPaymentEditable(payment: OrderPayment, orderStatus?: Order["st
   return status === "draft" || status === "pending_approval"
 }
 
-export function canCapturePaymentsForOrder(order: Pick<Order, "status">) {
-  return order.status === "approved" || order.status === "finalized" || order.status === "payment_added"
+export function getOrderAmountPaid(order: Pick<Order, "payments" | "status">) {
+  return getSubmittedPayments(order.payments, order.status).reduce((sum, p) => sum + p.amount, 0)
+}
+
+export function getOrderCreditBalance(order: Pick<Order, "total" | "payments" | "status">) {
+  return Math.max(0, Number(order.total) - getOrderAmountPaid(order))
+}
+
+export function isOrderOnCredit(order: Pick<Order, "paymentTerms" | "creditApprovedAt">) {
+  return order.paymentTerms === "credit" || !!order.creditApprovedAt
+}
+
+export function isCreditCleared(order: Pick<Order, "total" | "payments" | "status" | "paymentTerms">) {
+  if (!isOrderOnCredit(order)) return true
+  return getOrderCreditBalance(order) <= 0.004
+}
+
+export function hasOutstandingCredit(order: Pick<Order, "total" | "payments" | "status" | "paymentTerms" | "creditApprovedAt">) {
+  return isOrderOnCredit(order) && getOrderCreditBalance(order) > 0.004
+}
+
+export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymentTerms" | "creditApprovedAt" | "total" | "payments">) {
+  if (order.status === "approved" || order.status === "finalized" || order.status === "payment_added") {
+    return true
+  }
+  if (["confirmed", "processing", "shipped", "delivered"].includes(order.status)) {
+    return hasOutstandingCredit(order)
+  }
+  return false
+}
+
+export function isOrderPaymentLocked(order: Pick<Order, "status" | "paymentTerms" | "total" | "payments" | "creditApprovedAt">) {
+  if (["cancelled", "rejected", "draft", "pending_approval"].includes(order.status)) return true
+  if (hasOutstandingCredit(order)) return false
+  return ["confirmed", "processing", "shipped", "delivered"].includes(order.status)
 }
 
 export function orderHasPendingFinancePayments(order: Pick<Order, "payments" | "status">) {
@@ -227,6 +266,21 @@ function rowToOrder(r: Record<string, unknown>): Order {
       ? (r.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
       : undefined,
     inventoryDeductedAt: (r.inventoryDeductedAt as string) ?? undefined,
+    paymentTerms: (r.paymentTerms as OrderPaymentTerms) ?? "full",
+    creditApprovedAt: (r.creditApprovedAt as string) ?? undefined,
+    creditApprovedBy: (r.creditApprovedBy as string) ?? undefined,
+    creditNote: (r.creditNote as string) ?? undefined,
+  }
+}
+
+/** After save: clear credit flag when balance is fully paid. */
+export function normalizeOrderPaymentTerms(order: Order): Order {
+  if (!isOrderOnCredit(order)) return order
+  if (!isCreditCleared(order)) return order
+  return {
+    ...order,
+    paymentTerms: "full",
+    creditNote: order.creditNote,
   }
 }
 
@@ -240,10 +294,11 @@ export async function getOrders(): Promise<Order[]> {
 }
 
 export async function saveOrder(order: Order): Promise<void> {
+  const payload = normalizeOrderPaymentTerms(order)
   const res = await fetch("/api/db/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(order),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) console.error("saveOrder error:", res.statusText)
 }

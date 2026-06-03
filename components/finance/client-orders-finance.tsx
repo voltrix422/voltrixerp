@@ -7,10 +7,16 @@ import {
   getPaymentSubmissionStatus,
   getSubmittedPayments,
   shouldShowOrderInFinance,
+  getOrderAmountPaid,
+  getOrderCreditBalance,
+  hasOutstandingCredit,
+  isOrderOnCredit,
+  normalizeOrderPaymentTerms,
   type Order,
   STATUS_LABELS,
   STATUS_COLORS,
 } from "@/lib/orders"
+import { useAuth } from "@/components/auth-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
@@ -25,8 +31,8 @@ interface ClientOrdersFinanceProps {
 }
 
 function orderPaymentTotals(order: Order) {
-  const totalPaid = getSubmittedPayments(order.payments, order.status).reduce((s, p) => s + p.amount, 0)
-  const remaining = order.total - totalPaid
+  const totalPaid = getOrderAmountPaid(order)
+  const remaining = getOrderCreditBalance(order)
   return { totalPaid, remaining }
 }
 
@@ -119,11 +125,18 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo }: ClientOrdersFi
                       <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber}</p>
                       <p className="text-sm font-medium truncate mt-0.5">{order.clientName}</p>
                     </div>
-                    <span
-                      className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium max-w-[45%] text-right leading-tight ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}
-                    >
-                      {STATUS_LABELS[order.status] || order.status}
-                    </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0 max-w-[45%]">
+                      {hasOutstandingCredit(order) && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                          Credit
+                        </span>
+                      )}
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium text-right leading-tight ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}
+                      >
+                        {STATUS_LABELS[order.status] || order.status}
+                      </span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
                     <div>
@@ -243,6 +256,12 @@ function financeStatusBadge(order: Order) {
   if (order.status === "payment_added") {
     return { label: "Payment Added — Pending Approval", variant: "warning" as const }
   }
+  if (hasOutstandingCredit(order)) {
+    return { label: "On credit — balance outstanding", variant: "warning" as const }
+  }
+  if (isOrderOnCredit(order)) {
+    return { label: "Credit cleared", variant: "success" as const }
+  }
   if (order.status === "confirmed") {
     return { label: "Confirmed — Sent to Inventory", variant: "success" as const }
   }
@@ -261,34 +280,52 @@ function ClientOrderDetail({
   onClose: () => void
   onUpdate: (order: Order) => void
 }) {
+  const { user } = useAuth()
   const [approvingPayment, setApprovingPayment] = useState(false)
+  const [approvingCredit, setApprovingCredit] = useState(false)
 
-  async function approvePaymentForInventory() {
-    setApprovingPayment(true)
-
-    const updated: Order = {
-      ...order,
+  function approvePaymentsOnOrder(base: Order): Order {
+    return {
+      ...base,
       status: "confirmed",
-      payments: (order.payments || []).map((p) => ({
+      payments: (base.payments || []).map((p) => ({
         ...p,
         submissionStatus:
-          getPaymentSubmissionStatus(p, order.status) === "pending_approval"
+          getPaymentSubmissionStatus(p, base.status) === "pending_approval"
             ? ("approved" as const)
             : p.submissionStatus,
       })),
     }
+  }
 
+  async function approvePaymentForInventory() {
+    setApprovingPayment(true)
+    const updated = normalizeOrderPaymentTerms(approvePaymentsOnOrder({ ...order, paymentTerms: "full" }))
     await saveOrder(updated)
-
     setApprovingPayment(false)
     onUpdate(updated)
     onClose()
   }
 
-  const submittedPayments = getSubmittedPayments(order.payments, order.status)
-  const totalPaid = submittedPayments.reduce((s, p) => s + p.amount, 0)
-  const remaining = order.total - totalPaid
-  const isFullyPaid = remaining <= 0
+  async function approveOnCreditForInventory() {
+    setApprovingCredit(true)
+    const approver = user?.name || user?.email || "Finance"
+    const updated = normalizeOrderPaymentTerms({
+      ...approvePaymentsOnOrder(order),
+      paymentTerms: "credit",
+      creditApprovedAt: new Date().toISOString(),
+      creditApprovedBy: approver,
+    })
+    await saveOrder(updated)
+    setApprovingCredit(false)
+    onUpdate(updated)
+    onClose()
+  }
+
+  const totalPaid = getOrderAmountPaid(order)
+  const remaining = getOrderCreditBalance(order)
+  const isFullyPaid = remaining <= 0.004
+  const onCredit = isOrderOnCredit(order)
   const statusBadge = financeStatusBadge(order)
 
   return (
@@ -414,22 +451,47 @@ function ClientOrderDetail({
 
         <div className="flex flex-col gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {order.status === "payment_added" ? (
-            <Button
-              size="sm"
-              className="h-11 w-full text-sm bg-green-600 hover:bg-green-700 cursor-pointer"
-              onClick={approvePaymentForInventory}
-              disabled={approvingPayment || !isFullyPaid}
-            >
-              {approvingPayment ? "Approving..." : "Approve Payment & Send to Inventory"}
-            </Button>
+            <>
+              {isFullyPaid ? (
+                <Button
+                  size="sm"
+                  className="h-11 w-full text-sm bg-green-600 hover:bg-green-700 cursor-pointer"
+                  onClick={approvePaymentForInventory}
+                  disabled={approvingPayment || approvingCredit}
+                >
+                  {approvingPayment ? "Approving..." : "Approve Payment & Send to Inventory"}
+                </Button>
+              ) : (
+                <>
+                  <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
+                    Partial payment received (PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}).
+                    Remaining PKR {remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} can go on credit.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="h-11 w-full text-sm bg-amber-600 hover:bg-amber-700 cursor-pointer"
+                    onClick={approveOnCreditForInventory}
+                    disabled={approvingPayment || approvingCredit}
+                  >
+                    {approvingCredit ? "Approving..." : "Approve on Credit & Send to Inventory"}
+                  </Button>
+                </>
+              )}
+            </>
           ) : order.status === "confirmed" ||
             order.status === "processing" ||
             order.status === "shipped" ? (
             <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">
-              Sent to inventory
+              {hasOutstandingCredit(order)
+                ? `Sent to inventory on credit — PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} outstanding`
+                : "Sent to inventory"}
             </p>
           ) : order.status === "delivered" ? (
-            <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">Delivered</p>
+            <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">
+              {onCredit && remaining > 0.004
+                ? `Delivered — PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} credit balance`
+                : "Delivered"}
+            </p>
           ) : (
             <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">Awaiting payment</p>
           )}

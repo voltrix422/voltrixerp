@@ -76,6 +76,10 @@ export async function POST(req: NextRequest) {
       dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
       salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
       salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
+      paymentTerms: o.paymentTerms ?? "full",
+      creditApprovedAt: o.creditApprovedAt ?? null,
+      creditApprovedBy: o.creditApprovedBy ?? null,
+      creditNote: o.creditNote ?? null,
       ...fulfillment,
     },
     create: {
@@ -90,6 +94,10 @@ export async function POST(req: NextRequest) {
       dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
       salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
       salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
+      paymentTerms: o.paymentTerms ?? "full",
+      creditApprovedAt: o.creditApprovedAt ?? null,
+      creditApprovedBy: o.creditApprovedBy ?? null,
+      creditNote: o.creditNote ?? null,
       ...fulfillment,
     },
   })

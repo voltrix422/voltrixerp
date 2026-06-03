@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, hasOutstandingCredit, isOrderOnCredit, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
@@ -997,8 +997,9 @@ function OrderDetail({
   const hasInvoiceDetails = orderHasInvoiceDetails(detailOrder)
   const showInvoiceActions = canShowOrderInvoiceActions(detailOrder)
   const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
-  const canManagePayments = canCapturePaymentsForOrder(detailOrder) &&
-    !["confirmed", "processing", "shipped", "delivered", "cancelled", "rejected", "draft", "pending_approval"].includes(detailOrder.status)
+  const canManagePayments = canCapturePaymentsForOrder(detailOrder)
+  const creditBalance = getOrderCreditBalance(detailOrder)
+  const amountPaid = getOrderAmountPaid(detailOrder)
 
   async function downloadInvoice() {
     if (invoiceLoading) return
@@ -1138,8 +1139,16 @@ function OrderDetail({
           <CrmOrderSummaryDisplay order={detailOrder} />
 
           <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100">Payment</p>
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-blue-900 dark:text-blue-100">Payment</p>
+                {hasOutstandingCredit(detailOrder) && (
+                  <Badge variant="warning" className="text-[10px]">On credit</Badge>
+                )}
+                {isOrderOnCredit(detailOrder) && creditBalance <= 0.004 && (
+                  <Badge variant="success" className="text-[10px]">Credit cleared</Badge>
+                )}
+              </div>
               {canManagePayments && (
                 <Button size="sm" className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
@@ -1151,6 +1160,14 @@ function OrderDetail({
               <p className="font-medium text-blue-900 dark:text-blue-100">
                 Total Amount: PKR {detailOrder.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
+              {(detailOrder.payments?.length ?? 0) > 0 && (
+                <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
+                  Paid PKR {amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {creditBalance > 0.004 && (
+                    <> · Balance PKR {creditBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
+                  )}
+                </p>
+              )}
               {detailOrder.payments && detailOrder.payments.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {detailOrder.payments.map((p, i) => {

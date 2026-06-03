@@ -130,6 +130,10 @@ model ErpOrder {
   fulfillmentProductImageUrls      Json    @default("[]") @map("fulfillment_product_image_urls")
   fulfillmentSerialAllocations   Json    @default("[]") @map("fulfillment_serial_allocations")
   inventoryDeductedAt              String? @map("inventory_deducted_at")
+  paymentTerms                     String  @default("full") @map("payment_terms")
+  creditApprovedAt               String? @map("credit_approved_at")
+  creditApprovedBy               String? @map("credit_approved_by")
+  creditNote                     String? @map("credit_note")
 
   @@map("erp_orders")
 }

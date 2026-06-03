@@ -10,6 +10,11 @@ import {
   getSubmittedPayments,
   getDraftPayments,
   canCapturePaymentsForOrder,
+  isOrderPaymentLocked,
+  getOrderAmountPaid,
+  getOrderCreditBalance,
+  isOrderOnCredit,
+  normalizeOrderPaymentTerms,
 } from "@/lib/orders"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
@@ -62,7 +67,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
   const [editMethod, setEditMethod] = useState("Bank Transfer")
   const [editDate, setEditDate] = useState("")
   const [editNotes, setEditNotes] = useState("")
-  const financeLocked = order.status === "confirmed" || order.status === "processing" || order.status === "shipped" || order.status === "delivered"
+  const financeLocked = isOrderPaymentLocked(order)
   const canAddPayments = canCapturePaymentsForOrder(order) && !financeLocked
 
   useEffect(() => {
@@ -71,17 +76,19 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
   const submittedPayments = getSubmittedPayments(payments, order.status)
   const draftPayments = getDraftPayments(payments, order.status)
-  const totalSubmitted = submittedPayments.reduce((sum, p) => sum + p.amount, 0)
+  const totalSubmitted = getOrderAmountPaid({ ...order, payments })
   const totalDraft = draftPayments.reduce((sum, p) => sum + p.amount, 0)
-  const remaining = order.total - totalSubmitted
+  const remaining = getOrderCreditBalance({ ...order, payments })
+  const onCredit = isOrderOnCredit(order)
 
   async function persistOrder(nextPayments: OrderPayment[], nextStatus?: Order["status"]) {
-    const updated: Order = {
+    let updated: Order = normalizeOrderPaymentTerms({
       ...order,
       payments: nextPayments,
       status: nextStatus ?? order.status,
-    }
+    })
     await saveOrder(updated)
+    updated = normalizeOrderPaymentTerms(updated)
     setPayments(nextPayments)
     onUpdate(updated)
     return updated
@@ -441,13 +448,21 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             {financeLocked ? (
               <div className="rounded-lg border bg-green-50 dark:bg-green-950 p-4">
                 <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                  Finance has approved this payment. You can no longer add or edit payment proofs.
+                  {onCredit && remaining > 0
+                    ? "This order is fully paid in the system. No further payments can be added."
+                    : "Finance has approved this order. You can no longer add or edit payment proofs."}
+                </p>
+              </div>
+            ) : onCredit && remaining > 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/40 p-3 sm:p-4">
+                <p className="text-xs sm:text-sm font-medium text-amber-900 dark:text-amber-100 leading-snug">
+                  This order was sent to inventory on credit. Add further payments here; Finance tracks the outstanding balance until cleared.
                 </p>
               </div>
             ) : (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-3 sm:p-4">
                 <p className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-100 leading-snug">
-                  Add multiple payments (Payment 1, Payment 2, …). Each payment you submit is sent to Finance with its proofs. You can edit or add proofs until Finance approves the order.
+                  Add multiple payments (Payment 1, Payment 2, …). Each payment you submit is sent to Finance with its proofs. Finance can approve full payment or send the order on credit to inventory.
                 </p>
               </div>
             )}

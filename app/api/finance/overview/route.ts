@@ -8,7 +8,7 @@ import {
   type FinanceOverviewAction,
   type FinanceOverviewActivity,
 } from "@/lib/finance-overview"
-import { getPaymentSubmissionStatus } from "@/lib/orders"
+import { getPaymentSubmissionStatus, getOrderCreditBalance, hasOutstandingCredit } from "@/lib/orders"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -64,6 +64,8 @@ export async function GET(req: NextRequest) {
         orderNumber: row.orderNumber,
         clientName: row.clientName,
         id: row.id,
+        paymentTerms: (row.paymentTerms as Order["paymentTerms"]) ?? "full",
+        creditApprovedAt: row.creditApprovedAt ?? undefined,
       }
 
       const pending = payments.filter(
@@ -84,8 +86,7 @@ export async function GET(req: NextRequest) {
       }
 
       if (isFinanceRelevantOrder(order)) {
-        const paid = orderPaidTotal(order)
-        const remaining = Math.max(0, row.total - paid)
+        const remaining = getOrderCreditBalance(order)
         if (remaining > 0.01 && ["finalized", "payment_added", "approved", "confirmed", "processing", "shipped", "delivered"].includes(row.status)) {
           clientOutstanding += remaining
           clientOutstandingList.push({
@@ -94,6 +95,17 @@ export async function GET(req: NextRequest) {
             remaining,
             href: "/finance?tab=client",
           })
+          if (hasOutstandingCredit(order) && ["confirmed", "processing", "shipped", "delivered"].includes(row.status)) {
+            actions.push({
+              id: `order-credit-${row.id}`,
+              type: "client_balance",
+              title: `Collect credit — ${row.orderNumber}`,
+              subtitle: row.clientName,
+              amount: remaining,
+              href: "/finance?tab=client",
+              priority: "medium",
+            })
+          }
         }
       }
 

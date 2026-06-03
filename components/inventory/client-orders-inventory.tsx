@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
-import { getOrders, saveOrder, type Order } from "@/lib/orders"
+import { getOrders, saveOrder, hasOutstandingCredit, type Order } from "@/lib/orders"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -217,7 +217,12 @@ export function ClientOrdersInventory() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber}</p>
+                        {hasOutstandingCredit(order) && (
+                          <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
+                        )}
+                      </div>
                       <p className="text-sm font-medium truncate mt-0.5">{order.clientName}</p>
                     </div>
                     <Badge variant={status.variant} className="text-[10px] px-1.5 py-0 shrink-0 max-w-[42%] text-right leading-tight">
@@ -270,7 +275,12 @@ export function ClientOrdersInventory() {
                         className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
                       >
                         <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] whitespace-nowrap">
-                          {order.orderNumber}
+                          <span className="inline-flex items-center gap-1.5">
+                            {order.orderNumber}
+                            {hasOutstandingCredit(order) && (
+                              <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
+                            )}
+                          </span>
                         </td>
                         <td className="px-4 py-2.5 text-xs font-medium">{order.clientName}</td>
                         <td className="px-4 py-2.5 text-xs">{formatCrmItemsQtyLabel(order.items)}</td>
