@@ -9,7 +9,8 @@
     "lint": "eslint",
     "rfid:bridge": "node scripts/rfid-bridge.js",
     "deploy:vps": "bash scripts/vps-deploy.sh",
-    "sync-lead-phones": "node scripts/sync-all-lead-phones.mjs"
+    "sync-lead-phones": "node scripts/sync-all-lead-phones.mjs",
+    "check-product-images": "node scripts/check-product-images.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
