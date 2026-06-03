@@ -1,8 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import type { LucideIcon } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+export type MetricStripItem = {
+  label: string
+  value: string | number
+  href?: string
+  /** Currency fields — masked when showMoney is false */
+  isMoney?: boolean
+}
 
 export function formatRsAxis(value: number) {
   const n = Number(value)
@@ -77,68 +85,72 @@ export function RangeToggle({
   )
 }
 
-type StatCardConfig = {
-  label: string
-  value: string | number
-  icon: LucideIcon
-  href: string
-  accent?: string
-  iconBg?: string
-}
-
-export function StatCardGrid({
-  cards,
+export function DashboardMetricsStrip({
+  items,
   loading,
+  showMoney,
+  onToggleMoney,
 }: {
-  cards: StatCardConfig[]
+  items: MetricStripItem[]
   loading: boolean
+  showMoney: boolean
+  onToggleMoney: () => void
 }) {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-      {cards.slice(0, 6).map((card) => (
-        <StatCard key={card.label} {...card} loading={loading} />
-      ))}
-    </div>
-  )
-}
+  const hasMoney = items.some((i) => i.isMoney)
 
-export function StatCard({
-  label,
-  value,
-  href,
-  loading,
-}: StatCardConfig & { loading?: boolean }) {
   return (
-    <Link href={href} className="block rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2.5 hover:bg-[hsl(var(--muted))]/20 transition-colors">
-      <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{label}</p>
-      <p className="text-xl font-semibold tabular-nums tracking-tight text-[hsl(var(--foreground))] mt-0.5">
-        {loading ? (
-          <span className="inline-block h-6 w-12 rounded bg-[hsl(var(--muted))]/50 animate-pulse" />
-        ) : (
-          value
-        )}
-      </p>
-    </Link>
-  )
-}
+    <div className="flex items-stretch rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-x-auto">
+      <div className="flex items-center min-w-0 flex-1">
+        {items.map((item, index) => {
+          const displayValue =
+            loading
+              ? "—"
+              : item.isMoney && !showMoney
+                ? "••••"
+                : item.value
 
-export function FinanceHighlightGrid({
-  cards,
-  loading,
-}: {
-  cards: StatCardConfig[]
-  loading: boolean
-}) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-      {cards.map((card) => (
-        <Link key={card.label} href={card.href} className="block rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2.5 hover:bg-[hsl(var(--muted))]/20 transition-colors">
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{card.label}</p>
-          <p className="text-lg font-semibold tabular-nums tracking-tight mt-0.5 truncate">
-            {loading ? "—" : card.value}
-          </p>
-        </Link>
-      ))}
+          const inner = (
+            <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap px-3 py-2">
+              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{item.label}</span>
+              <span
+                className={cn(
+                  "text-sm font-semibold tabular-nums text-[hsl(var(--foreground))]",
+                  item.isMoney && "tracking-tight",
+                )}
+              >
+                {displayValue}
+              </span>
+            </span>
+          )
+
+          return (
+            <div key={item.label} className="flex items-center shrink-0">
+              {index > 0 && <span className="w-px self-stretch my-2 bg-[hsl(var(--border))]" aria-hidden />}
+              {item.href ? (
+                <Link href={item.href} className="hover:bg-[hsl(var(--muted))]/25 transition-colors">
+                  {inner}
+                </Link>
+              ) : (
+                inner
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {hasMoney && (
+        <>
+          <span className="w-px self-stretch my-2 bg-[hsl(var(--border))] shrink-0" aria-hidden />
+          <button
+            type="button"
+            onClick={onToggleMoney}
+            className="shrink-0 px-3 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+            title={showMoney ? "Hide amounts" : "Show amounts"}
+            aria-label={showMoney ? "Hide amounts" : "Show amounts"}
+          >
+            {showMoney ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          </button>
+        </>
+      )}
     </div>
   )
 }

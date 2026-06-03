@@ -9,7 +9,6 @@ import { PODetail } from "@/components/purchase/po-detail"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ComingSoon } from "@/components/layout/coming-soon"
-import { Users, Building2, Package, FileText, ShoppingCart, BarChart3, DollarSign } from "lucide-react"
 import Link from "next/link"
 import {
   Area,
@@ -20,8 +19,6 @@ import {
   Cell,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -39,12 +36,11 @@ import {
   ChartLoading,
   CHART_TOOLTIP_STYLE,
   DashboardBlock,
+  DashboardMetricsStrip,
   DashboardShell,
-  FinanceHighlightGrid,
   formatRsAxis,
   formatRsFull,
   RangeToggle,
-  StatCardGrid,
 } from "@/components/dashboard/dashboard-ui"
 
 function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilters: boolean, setShowFilters: (value: boolean) => void, onPendingChange?: (count: number, openFirst: () => void) => void }) {
@@ -268,9 +264,31 @@ function ERPStats() {
     inventoryItems: 0,
     financeTotal: 0,
     totalPOValue: 0,
-    totalOrdersValue: 0,
+    deliveredValue: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [showMoney, setShowMoney] = useState(true)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("dashboard-show-money")
+      if (stored === "0") setShowMoney(false)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  function toggleShowMoney() {
+    setShowMoney((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem("dashboard-show-money", next ? "1" : "0")
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     async function fetchStats() {
@@ -311,7 +329,10 @@ function ERPStats() {
             }, 0)
           : 0
 
-        const totalOrdersValue = ordersList.reduce(
+        const deliveredOrders = ordersList.filter(
+          (o: any) => String(o.status || "").toLowerCase() === "delivered",
+        )
+        const deliveredValue = deliveredOrders.reduce(
           (sum: number, order: any) => sum + (Number(order.total) || Number(order.totalAmount) || 0),
           0,
         )
@@ -325,7 +346,7 @@ function ERPStats() {
           inventoryItems: inventoryItems.length,
           financeTotal,
           totalPOValue,
-          totalOrdersValue,
+          deliveredValue,
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
@@ -337,30 +358,33 @@ function ERPStats() {
     fetchStats()
   }, [])
 
-  const formatCurrency = (value: number) => {
-    return `Rs. ${value.toLocaleString()}`
-  }
+  const formatCurrency = (value: number) =>
+    `Rs. ${value.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
 
-  const coreCards = [
-    { label: "Staff", value: stats.staff, icon: Users, href: "/hrm" },
-    { label: "Clients", value: stats.clients, icon: Building2, href: "/crm" },
-    { label: "Products", value: stats.products, icon: Package, href: "/website" },
-    { label: "Quotations", value: stats.quotations, icon: FileText, href: "/crm" },
-    { label: "Orders", value: stats.orders, icon: ShoppingCart, href: "/crm" },
-    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, href: "/inventory" },
-  ]
-
-  const financeCards = [
-    { label: "Expenses this month", value: formatCurrency(stats.financeTotal), icon: DollarSign, href: "/finance" },
-    { label: "Total PO value", value: formatCurrency(stats.totalPOValue), icon: DollarSign, href: "/purchase" },
-    { label: "Total orders value", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, href: "/crm" },
+  const stripItems = [
+    { label: "Staff", value: stats.staff, href: "/hrm" },
+    { label: "Clients", value: stats.clients, href: "/crm" },
+    { label: "Products", value: stats.products, href: "/website" },
+    { label: "Quotations", value: stats.quotations, href: "/crm" },
+    { label: "Orders", value: stats.orders, href: "/crm" },
+    { label: "Inventory", value: stats.inventoryItems, href: "/inventory" },
+    { label: "Expenses", value: formatCurrency(stats.financeTotal), href: "/finance", isMoney: true },
+    { label: "PO value", value: formatCurrency(stats.totalPOValue), href: "/purchase", isMoney: true },
+    {
+      label: "Delivered",
+      value: formatCurrency(stats.deliveredValue),
+      href: "/crm",
+      isMoney: true,
+    },
   ]
 
   return (
-    <DashboardBlock>
-      <StatCardGrid cards={coreCards} loading={loading} />
-      <FinanceHighlightGrid cards={financeCards} loading={loading} />
-    </DashboardBlock>
+    <DashboardMetricsStrip
+      items={stripItems}
+      loading={loading}
+      showMoney={showMoney}
+      onToggleMoney={toggleShowMoney}
+    />
   )
 }
 
@@ -372,7 +396,6 @@ function FinanceAndOpsMiniCharts() {
   const [deliveredTotal, setDeliveredTotal] = useState(0)
   const [deliveredCount, setDeliveredCount] = useState(0)
   const [inventoryTrend, setInventoryTrend] = useState<Array<{ day: string; quantity: number; names: string[] }>>([])
-  const [poStatusData, setPOStatusData] = useState<Array<{ name: string; count: number }>>([])
   const [ticketTrend, setTicketTrend] = useState<Array<{ day: string; opened: number; closed: number }>>([])
   const chartPalette = ["#93c5fd", "#86efac", "#fde68a", "#c4b5fd", "#fbcfe8", "#99f6e4", "#bfdbfe"]
 
@@ -381,11 +404,10 @@ function FinanceAndOpsMiniCharts() {
 
     async function loadData() {
       try {
-        const [allocationsRes, ordersRes, ticketsRes, poList, inventoryRes] = await Promise.all([
+        const [allocationsRes, ordersRes, ticketsRes, inventoryRes] = await Promise.all([
           fetch("/api/db/petty-cash-allocations").then(r => r.json()).catch(() => []),
           fetch("/api/db/orders").then(r => r.json()).catch(() => []),
           fetch("/api/db/tickets").then(r => r.json()).catch(() => []),
-          getPOs().catch(() => []),
           fetch("/api/inventory/stock").then(r => r.json()).catch(() => []),
         ])
 
@@ -476,15 +498,6 @@ function FinanceAndOpsMiniCharts() {
             names: value.names,
           }))
         )
-
-        const poStatus = Array.isArray(poList) ? poList : []
-        setPOStatusData([
-          { name: "Pending", count: poStatus.filter((p: any) => p.status === "sent_to_admin" || p.status === "imp_pending_approval").length },
-          { name: "Approved", count: poStatus.filter((p: any) => p.status === "approved" || p.status === "finalized" || p.status === "imp_approved").length },
-          { name: "Received", count: poStatus.filter((p: any) => p.status === "in_inventory" || p.status === "imp_inventory").length },
-          { name: "Draft", count: poStatus.filter((p: any) => p.status === "draft" || p.status === "imp_admin_draft").length },
-          { name: "Rejected", count: poStatus.filter((p: any) => p.status === "rejected" || p.status === "imp_rejected").length },
-        ])
 
         for (const ticket of Array.isArray(ticketsRes) ? ticketsRes : []) {
           const created = new Date(ticket.createdAt || ticket.created_at)
@@ -592,7 +605,7 @@ function FinanceAndOpsMiniCharts() {
         </ChartCard>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <ChartCard title="Petty cash">
           {loading ? (
             <ChartLoading />
@@ -609,23 +622,6 @@ function FinanceAndOpsMiniCharts() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        <ChartCard title="PO status">
-          {loading ? (
-            <ChartLoading />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={poStatusData} dataKey="count" nameKey="name" innerRadius={36} outerRadius={72} paddingAngle={3} onClick={() => { window.location.href = "/purchase" }}>
-                  {poStatusData.map((entry, idx) => (
-                    <Cell key={`${entry.name}-${idx}`} fill={chartPalette[idx % chartPalette.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-              </PieChart>
             </ResponsiveContainer>
           )}
         </ChartCard>
