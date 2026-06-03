@@ -371,7 +371,7 @@ export default function ProductsManager() {
                 <GripVertical className="w-4 h-4 text-neutral-300 shrink-0" />
                 <div className="w-10 h-10 rounded-lg border bg-neutral-50 shrink-0 overflow-hidden flex items-center justify-center">
                   {p.images?.[0]
-                    ? <img src={p.images[0]} alt="" className="w-full h-full object-contain p-1" />
+                    ? <img src={p.images[0]} alt="" className="w-full h-full object-contain p-1" onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
                     : <ImageIcon className="w-4 h-4 text-muted-foreground opacity-30" />}
                 </div>
                 <div className="min-w-0 flex-1">
