@@ -53,6 +53,17 @@ export function modelKey(model: string): string {
   return model.trim().toLowerCase()
 }
 
+/**
+ * QR label base model vs order variant (e.g. MAN-LITHIUM-IRON-PHOSPHATE on label,
+ * MAN-LITHIUM-IRON-PHOSPHATE-B on order).
+ */
+function orderAcceptsScannedModelVariant(order: string, scanned: string): boolean {
+  if (!scanned || scanned === order) return scanned === order
+  if (!order.startsWith(`${scanned}-`)) return false
+  const variantTail = order.slice(scanned.length + 1)
+  return /^[a-z0-9]{1,8}$/i.test(variantTail)
+}
+
 /** Match BarTender-style QR (prefix + SN) against inventory model codes. */
 export function dispatchScanModelMatches(
   orderModel: string,
@@ -68,6 +79,7 @@ export function dispatchScanModelMatches(
 
   const scanned = modelKey(scannedModel.trim())
   if (scanned && scanned === order) return true
+  if (scanned && orderAcceptsScannedModelVariant(order, scanned)) return true
 
   const serial = serialNumber.trim()
   if (scanned && serial && modelKey(`${scannedModel.trim()}-${serial}`) === order) return true
@@ -77,6 +89,7 @@ export function dispatchScanModelMatches(
     if (order.endsWith(`-${serialKey}`)) {
       const prefix = orderModel.trim().slice(0, orderModel.trim().length - serial.length - 1)
       if (scanned && modelKey(prefix) === scanned) return true
+      if (scanned && orderAcceptsScannedModelVariant(modelKey(prefix), scanned)) return true
     }
   }
 
