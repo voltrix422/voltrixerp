@@ -108,26 +108,27 @@ export function ClientOrdersApproval() {
 
   return (
     <>
-      <div className="space-y-3">
-        <div className="flex gap-1 border-b border-[hsl(var(--border))]/50">
+      <div className="space-y-2">
+        <div className="flex gap-1 border-b border-[hsl(var(--border))]">
           {(["pending", "approved"] as const).map(t => (
             <button
               key={t}
+              type="button"
               onClick={() => setTab(t)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`relative px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
                 tab === t
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
             >
-              {t === "pending" ? "Pending Approval" : "Approved Orders"}
-              {tab === t && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
+              {t === "pending" ? `Pending (${pendingOrders.length})` : `Approved (${approvedOrders.length})`}
+              {tab === t && <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#1faca6] rounded-full" />}
             </button>
           ))}
         </div>
 
         {displayOrders.length === 0 ? (
-          <p className="text-xs text-[hsl(var(--muted-foreground))] py-4 text-center">
+          <p className="text-xs text-[hsl(var(--muted-foreground))] py-3">
             {tab === "pending" ? "No orders pending approval." : "No approved orders yet."}
           </p>
         ) : (

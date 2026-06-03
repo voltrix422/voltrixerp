@@ -93,7 +93,7 @@ export function DashboardPettyCashApprovals() {
             {pendingRequests.map((allocation) => (
               <div
                 key={allocation.id}
-                className="flex flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-2 rounded-lg border border-[hsl(var(--border))] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{allocation.employeeName}</p>
@@ -138,7 +138,7 @@ export function DashboardPettyCashApprovals() {
           <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
             Expense receipts ({pendingReceipts.length})
           </p>
-          <div className="rounded-xl border border-[hsl(var(--border))]/70 overflow-x-auto shadow-sm">
+          <div className="rounded-lg border border-[hsl(var(--border))] overflow-x-auto">
             <table className="w-full min-w-[520px]">
               <thead>
                 <tr className="border-b bg-[hsl(var(--muted))]/30">

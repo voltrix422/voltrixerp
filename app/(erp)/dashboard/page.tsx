@@ -9,7 +9,7 @@ import { PODetail } from "@/components/purchase/po-detail"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ComingSoon } from "@/components/layout/coming-soon"
-import { Users, Building2, Package, FileText, ShoppingCart, BarChart3, DollarSign, ClipboardCheck, LayoutDashboard } from "lucide-react"
+import { Users, Building2, Package, FileText, ShoppingCart, BarChart3, DollarSign } from "lucide-react"
 import Link from "next/link"
 import {
   Area,
@@ -33,10 +33,12 @@ import { ClientOrdersApproval } from "@/components/dashboard/client-orders-appro
 import { DashboardBranchTransferApprovals, useBranchTransferPendingCount } from "@/components/dashboard/branch-transfer-approvals-panel"
 import { DashboardPettyCashApprovals, usePettyCashPendingCount } from "@/components/dashboard/petty-cash-approvals"
 import {
+  ApprovalTabs,
   ChartCard,
+  chartAmountDomain,
   ChartLoading,
   CHART_TOOLTIP_STYLE,
-  DashboardSection,
+  DashboardBlock,
   DashboardShell,
   FinanceHighlightGrid,
   formatRsAxis,
@@ -273,7 +275,7 @@ function ERPStats() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [staffRes, clientsRes, productsRes, quotationsRes, ordersRes, inventoryRes, financeRes, poRes, clientOrdersRes] = await Promise.all([
+        const [staffRes, clientsRes, productsRes, quotationsRes, ordersRes, inventoryRes, financeRes, poRes] = await Promise.all([
           fetch('/api/hrm/staff').then(r => r.json()).catch(() => []),
           fetch('/api/db/clients').then(r => r.json()).catch(() => []),
           fetch('/api/products').then(r => r.json()).catch(() => []),
@@ -282,8 +284,9 @@ function ERPStats() {
           fetch('/api/inventory/stock').then(r => r.json()).catch(() => []),
           fetch('/api/finance/records').then(r => r.json()).catch(() => []),
           getPOs().catch(() => []),
-          fetch('/api/db/client-orders').then(r => r.json()).catch(() => []),
         ])
+
+        const ordersList = Array.isArray(ordersRes) ? ordersRes : []
 
         const inventoryItems = Array.isArray(inventoryRes)
           ? inventoryRes
@@ -308,19 +311,17 @@ function ERPStats() {
             }, 0)
           : 0
 
-        // Calculate total client orders value
-        const totalOrdersValue = Array.isArray(clientOrdersRes)
-          ? clientOrdersRes.reduce((sum: number, order: any) => {
-              return sum + (Number(order.totalAmount) || Number(order.total) || 0)
-            }, 0)
-          : 0
+        const totalOrdersValue = ordersList.reduce(
+          (sum: number, order: any) => sum + (Number(order.total) || Number(order.totalAmount) || 0),
+          0,
+        )
 
         setStats({
           staff: Array.isArray(staffRes) ? staffRes.length : 0,
           clients: Array.isArray(clientsRes) ? clientsRes.length : 0,
           products: Array.isArray(productsRes) ? productsRes.length : 0,
           quotations: Array.isArray(quotationsRes) ? quotationsRes.length : 0,
-          orders: Array.isArray(ordersRes) ? ordersRes.length : 0,
+          orders: ordersList.length,
           inventoryItems: inventoryItems.length,
           financeTotal,
           totalPOValue,
@@ -341,28 +342,25 @@ function ERPStats() {
   }
 
   const coreCards = [
-    { label: "Staff", value: stats.staff, icon: Users, href: "/hrm", accent: "bg-blue-500", iconBg: "bg-blue-500/10" },
-    { label: "Clients", value: stats.clients, icon: Building2, href: "/crm", accent: "bg-violet-500", iconBg: "bg-violet-500/10" },
-    { label: "Products", value: stats.products, icon: Package, href: "/website", accent: "bg-orange-500", iconBg: "bg-orange-500/10" },
-    { label: "Quotations", value: stats.quotations, icon: FileText, href: "/crm", accent: "bg-emerald-500", iconBg: "bg-emerald-500/10" },
-    { label: "Orders", value: stats.orders, icon: ShoppingCart, href: "/crm", accent: "bg-pink-500", iconBg: "bg-pink-500/10" },
-    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, href: "/inventory", accent: "bg-cyan-500", iconBg: "bg-cyan-500/10" },
+    { label: "Staff", value: stats.staff, icon: Users, href: "/hrm" },
+    { label: "Clients", value: stats.clients, icon: Building2, href: "/crm" },
+    { label: "Products", value: stats.products, icon: Package, href: "/website" },
+    { label: "Quotations", value: stats.quotations, icon: FileText, href: "/crm" },
+    { label: "Orders", value: stats.orders, icon: ShoppingCart, href: "/crm" },
+    { label: "Inventory", value: stats.inventoryItems, icon: BarChart3, href: "/inventory" },
   ]
 
   const financeCards = [
-    { label: "Expenses this month", value: formatCurrency(stats.financeTotal), icon: DollarSign, href: "/finance", accent: "bg-emerald-500", iconBg: "bg-emerald-500/10 text-emerald-700" },
-    { label: "Total PO value", value: formatCurrency(stats.totalPOValue), icon: DollarSign, href: "/purchase", accent: "bg-amber-500", iconBg: "bg-amber-500/10 text-amber-700" },
-    { label: "Total orders value", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, href: "/crm", accent: "bg-rose-500", iconBg: "bg-rose-500/10 text-rose-700" },
+    { label: "Expenses this month", value: formatCurrency(stats.financeTotal), icon: DollarSign, href: "/finance" },
+    { label: "Total PO value", value: formatCurrency(stats.totalPOValue), icon: DollarSign, href: "/purchase" },
+    { label: "Total orders value", value: formatCurrency(stats.totalOrdersValue), icon: DollarSign, href: "/crm" },
   ]
 
   return (
-    <DashboardSection
-      title="Overview"
-      description="Key counts and financial snapshot across Voltrix ERP"
-    >
+    <DashboardBlock>
       <StatCardGrid cards={coreCards} loading={loading} />
       <FinanceHighlightGrid cards={financeCards} loading={loading} />
-    </DashboardSection>
+    </DashboardBlock>
   )
 }
 
@@ -439,7 +437,7 @@ function FinanceAndOpsMiniCharts() {
           if (String(order.status || "").toLowerCase() === "delivered") {
             const prev = deliveredDayMap.get(key) || { amount: 0, orderIds: [] }
             deliveredDayMap.set(key, {
-              amount: prev.amount + (Number(order.total) || 0),
+              amount: prev.amount + (Number(order.total) || Number(order.totalAmount) || 0),
               orderIds: [...prev.orderIds, String(order.orderNumber || order.id || "—")],
             })
           }
@@ -531,16 +529,13 @@ function FinanceAndOpsMiniCharts() {
     }
   }, [rangeDays])
 
+  const deliveredYDomain = chartAmountDomain(deliveredTrend.map((d) => d.amount))
+
   return (
-    <DashboardSection
-      title="Analytics"
-      description={`Trends and activity for the last ${rangeDays} days`}
-      action={<RangeToggle value={rangeDays} onChange={setRangeDays} />}
-    >
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    <DashboardBlock action={<RangeToggle value={rangeDays} onChange={setRangeDays} />}>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
         <ChartCard
           title="Delivered order amount"
-          subtitle={`Revenue from delivered orders`}
           tall
           footer={
             <span className="flex flex-wrap gap-4 justify-between">
@@ -562,7 +557,7 @@ function FinanceAndOpsMiniCharts() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
                 <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={formatRsAxis} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={42} />
+                <YAxis domain={deliveredYDomain} tickFormatter={formatRsAxis} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={42} />
                 <Tooltip
                   contentStyle={CHART_TOOLTIP_STYLE}
                   formatter={(value) => formatRsFull(Number(value ?? 0))}
@@ -580,7 +575,7 @@ function FinanceAndOpsMiniCharts() {
           )}
         </ChartCard>
 
-        <ChartCard title="Inventory added" subtitle="Stock received over time" tall>
+        <ChartCard title="Inventory added" tall>
           {loading ? (
             <ChartLoading />
           ) : (
@@ -597,8 +592,8 @@ function FinanceAndOpsMiniCharts() {
         </ChartCard>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ChartCard title="Petty cash" subtitle="Allocations this month">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <ChartCard title="Petty cash">
           {loading ? (
             <ChartLoading />
           ) : (
@@ -618,7 +613,7 @@ function FinanceAndOpsMiniCharts() {
           )}
         </ChartCard>
 
-        <ChartCard title="PO status" subtitle="Distribution by status">
+        <ChartCard title="PO status">
           {loading ? (
             <ChartLoading />
           ) : (
@@ -635,7 +630,7 @@ function FinanceAndOpsMiniCharts() {
           )}
         </ChartCard>
 
-        <ChartCard title="Support tickets" subtitle="Opened vs closed">
+        <ChartCard title="Support tickets">
           {loading ? (
             <ChartLoading />
           ) : (
@@ -652,7 +647,7 @@ function FinanceAndOpsMiniCharts() {
           )}
         </ChartCard>
       </div>
-    </DashboardSection>
+    </DashboardBlock>
   )
 }
 
@@ -660,7 +655,6 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
-  const [showApprovals, setShowApprovals] = useState(true)
   const branchTransferPending = useBranchTransferPendingCount()
   const pettyCashPending = usePettyCashPendingCount()
 
@@ -683,98 +677,46 @@ export default function DashboardPage() {
         action={<UsersPanel />}
       />
       <DashboardShell>
-        <div className="flex items-center gap-3 rounded-2xl border border-[#1faca6]/20 bg-gradient-to-r from-[#1faca6]/10 via-[hsl(var(--card))] to-[hsl(var(--card))] px-4 py-3 shadow-sm">
-          <div className="rounded-xl bg-[#1faca6]/15 p-2.5">
-            <LayoutDashboard className="h-5 w-5 text-[#1faca6]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Executive overview</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Live metrics, trends, and pending approvals for Voltrix Batteries
-            </p>
-          </div>
-        </div>
-
         <ERPStats />
         <FinanceAndOpsMiniCharts />
 
-        <section className="rounded-2xl border border-[hsl(var(--border))]/70 bg-[hsl(var(--card))] shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/[0.12]">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="rounded-xl bg-amber-500/15 p-2.5 shrink-0">
-                <ClipboardCheck className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-base font-semibold text-[hsl(var(--foreground))]">Approvals</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                  CRM orders · Purchase orders · Branch transfers · Petty cash
-                </p>
-              </div>
-              {pettyCashPending > 0 && (
-                <span className="shrink-0 text-[11px] font-bold rounded-full bg-amber-500 text-white px-2.5 py-1">
-                  {pettyCashPending} petty cash
-                </span>
-              )}
-              {branchTransferPending > 0 && (
-                <span className="shrink-0 text-[11px] font-bold rounded-full bg-[#1faca6] text-white px-2.5 py-1">
-                  {branchTransferPending} transfers
-                </span>
-              )}
-            </div>
-            <Button
-              size="sm"
-              variant={showApprovals ? "outline" : "default"}
-              className="h-9 px-4 text-xs shrink-0"
-              onClick={() => setShowApprovals((prev) => !prev)}
-            >
-              {showApprovals ? "Collapse" : "Expand"}
-            </Button>
+        <section className="pt-4 border-t border-[hsl(var(--border))] space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Approvals</h2>
+            {pettyCashPending > 0 && (
+              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                · {pettyCashPending} petty cash
+              </span>
+            )}
+            {branchTransferPending > 0 && (
+              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                · {branchTransferPending} transfers
+              </span>
+            )}
           </div>
 
-          {showApprovals && (
-            <div className="p-4 sm:p-5">
-              <div className="flex flex-wrap gap-1.5 p-1 rounded-xl bg-[hsl(var(--muted))]/30 border border-[hsl(var(--border))]/50 mb-5">
-                {(
-                  [
-                    { id: "orders" as const, label: "CRM Orders" },
-                    { id: "po" as const, label: "Purchase Orders" },
-                    { id: "transfers" as const, label: "Branch Transfers", count: branchTransferPending },
-                    { id: "petty" as const, label: "Petty Cash", count: pettyCashPending },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setApprovalTab(tab.id)}
-                    className={`shrink-0 px-3 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                      approvalTab === tab.id
-                        ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm ring-1 ring-[#1faca6]/30"
-                        : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                    }`}
-                  >
-                    {tab.label}
-                    {"count" in tab && tab.count > 0 && (
-                      <span className="rounded-full bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 min-w-[18px] text-center">
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+          <ApprovalTabs
+            active={approvalTab}
+            onChange={(id) => setApprovalTab(id as typeof approvalTab)}
+            tabs={[
+              { id: "orders", label: "CRM Orders" },
+              { id: "po", label: "Purchase Orders" },
+              { id: "transfers", label: "Branch Transfers", count: branchTransferPending },
+              { id: "petty", label: "Petty Cash", count: pettyCashPending },
+            ]}
+          />
 
-              <div className="rounded-xl border border-[hsl(var(--border))]/50 bg-[hsl(var(--background))]/50 p-3 sm:p-4 min-h-[200px]">
-                {approvalTab === "orders" ? (
-                  <ClientOrdersApproval />
-                ) : approvalTab === "po" ? (
-                  <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
-                ) : approvalTab === "transfers" ? (
-                  <DashboardBranchTransferApprovals />
-                ) : (
-                  <DashboardPettyCashApprovals />
-                )}
-              </div>
-            </div>
-          )}
+          <div className="min-h-[120px]">
+            {approvalTab === "orders" ? (
+              <ClientOrdersApproval />
+            ) : approvalTab === "po" ? (
+              <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
+            ) : approvalTab === "transfers" ? (
+              <DashboardBranchTransferApprovals />
+            ) : (
+              <DashboardPettyCashApprovals />
+            )}
+          </div>
         </section>
       </DashboardShell>
     </>
