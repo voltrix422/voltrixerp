@@ -63,6 +63,54 @@ John Smith,,john@smith.com,,Follow up next week
 
 const CRM_LEAD_DETAIL_KEY = "crm-lead-detail-id"
 
+function toWhatsAppDigits(phone: string) {
+  let digits = phone.replace(/\D/g, "")
+  if (digits.startsWith("00")) digits = digits.slice(2)
+  if (digits.startsWith("0") && digits.length >= 10) digits = `92${digits.slice(1)}`
+  else if (!digits.startsWith("92") && digits.length === 10) digits = `92${digits}`
+  return digits
+}
+
+function whatsAppHref(phone: string, leadName?: string) {
+  const digits = toWhatsAppDigits(phone)
+  const greeting = leadName?.trim()
+    ? `Hi ${leadName.trim()}, this is Voltrix Batteries. `
+    : "Hi, this is Voltrix Batteries. "
+  return `https://wa.me/${digits}?text=${encodeURIComponent(greeting)}`
+}
+
+function LeadPhoneLinks({ phone, leadName }: { phone: string; leadName?: string }) {
+  const trimmed = phone.trim()
+  if (!trimmed) return <>—</>
+
+  const telHref = `tel:${trimmed.replace(/\s/g, "")}`
+  const waHref = whatsAppHref(trimmed, leadName)
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <a
+        href={waHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 font-medium text-[#25D366] hover:underline"
+        title="Message on WhatsApp"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <MessageSquare className="h-3 w-3 shrink-0" />
+        {trimmed}
+      </a>
+      <a
+        href={telHref}
+        className="inline-flex p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/50"
+        title="Call"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Phone className="h-3 w-3 shrink-0" />
+      </a>
+    </span>
+  )
+}
+
 function LeadTableRow({
   lead,
   onOpenDetail,
@@ -83,19 +131,8 @@ function LeadTableRow({
     >
       <td className="px-3 py-2 text-xs font-medium">{lead.name}</td>
       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
-      <td className="px-3 py-2 text-xs tabular-nums">
-        {lead.phone?.trim() ? (
-          <a
-            href={`tel:${lead.phone.replace(/\s/g, "")}`}
-            className="inline-flex items-center gap-1 font-medium text-[hsl(var(--foreground))] hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Phone className="h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))]" />
-            {lead.phone}
-          </a>
-        ) : (
-          "—"
-        )}
+      <td className="px-3 py-2 text-xs tabular-nums" onClick={(e) => e.stopPropagation()}>
+        <LeadPhoneLinks phone={lead.phone} leadName={lead.name} />
       </td>
       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
         <select
@@ -1367,7 +1404,12 @@ function LeadDetailDrawer({
                 <p className="text-lg font-semibold">{lead.name}</p>
                 {lead.company && <p className="text-sm text-[hsl(var(--muted-foreground))]">{lead.company}</p>}
                 <div className="mt-2 text-xs space-y-1">
-                  {lead.phone && <p>Phone: {lead.phone}</p>}
+                  {lead.phone?.trim() && (
+                    <p className="flex items-center gap-2 flex-wrap">
+                      <span>Phone:</span>
+                      <LeadPhoneLinks phone={lead.phone} leadName={lead.name} />
+                    </p>
+                  )}
                   {lead.email && <p>Email: {lead.email}</p>}
                   {lead.notes && (
                     <p className="text-[hsl(var(--muted-foreground))] pt-1 whitespace-pre-line">Notes: {lead.notes}</p>
