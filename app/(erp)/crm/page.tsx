@@ -32,12 +32,12 @@ export default function CRMPage() {
       <Topbar title="Customer relationship management" />
       
       <div className="flex-1 overflow-auto">
-        <div className="p-6 max-w-6xl">
+        <div className="p-3 sm:p-6 max-w-6xl">
           {/* Tabs */}
-          <div className="flex items-center gap-1 border-b mb-4">
+          <div className="flex items-center gap-1 border-b mb-4 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-none">
             <button
               onClick={() => setTab("quotations")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
                 tab === "quotations"
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
@@ -50,7 +50,7 @@ export default function CRMPage() {
             </button>
             <button
               onClick={() => setTab("orders")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
                 tab === "orders"
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
@@ -63,7 +63,7 @@ export default function CRMPage() {
             </button>
             <button
               onClick={() => setTab("clients")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
                 tab === "clients"
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
@@ -76,7 +76,7 @@ export default function CRMPage() {
             </button>
             <button
               onClick={() => setTab("leads")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
                 tab === "leads"
                   ? "text-[hsl(var(--foreground))]"
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"

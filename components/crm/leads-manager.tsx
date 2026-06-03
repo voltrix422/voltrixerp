@@ -42,6 +42,8 @@ import {
   User,
   Download,
   RefreshCw,
+  Filter,
+  SlidersHorizontal,
 } from "lucide-react"
 
 const STATUS_OPTIONS = [
@@ -49,7 +51,273 @@ const STATUS_OPTIONS = [
   { value: "contacted", label: "Contacted" },
   { value: "responded", label: "Responded" },
   { value: "closed", label: "Closed" },
+] as const
+
+type LeadStatusFilter = "all" | (typeof STATUS_OPTIONS)[number]["value"]
+
+const LEAD_STATUS_FILTER_OPTIONS: { value: LeadStatusFilter; label: string; hint?: string }[] = [
+  { value: "all", label: "All leads" },
+  { value: "responded", label: "Qualified (responded)", hint: "Leads who replied" },
+  { value: "contacted", label: "Contacted", hint: "Outreach logged, no reply yet" },
+  { value: "new", label: "New / not contacted", hint: "No outreach logged" },
+  { value: "closed", label: "Closed" },
 ]
+
+const CONTACT_DATE_FILTER_OPTIONS: { value: ContactDateFilter; label: string }[] = [
+  { value: "all", label: "Any outreach date" },
+  { value: "today", label: "Contacted today" },
+  { value: "never", label: "Never contacted" },
+  { value: "range", label: "Contacted between dates" },
+]
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function dayStartMs(isoDate: string) {
+  const [y, m, d] = isoDate.split("-").map(Number)
+  return new Date(y, m - 1, d, 0, 0, 0, 0).getTime()
+}
+
+function dayEndMs(isoDate: string) {
+  const [y, m, d] = isoDate.split("-").map(Number)
+  return new Date(y, m - 1, d, 23, 59, 59, 999).getTime()
+}
+
+function matchesContactDateFilter(
+  lead: CrmLeadRow,
+  contactFilter: ContactDateFilter,
+  contactFrom: string,
+  contactTo: string,
+) {
+  if (contactFilter === "all") return true
+  if (contactFilter === "never") return !lead.lastContactedAt
+  if (!lead.lastContactedAt) return false
+
+  const contactedAt = new Date(lead.lastContactedAt).getTime()
+
+  if (contactFilter === "today") {
+    const today = todayIsoDate()
+    return contactedAt >= dayStartMs(today) && contactedAt <= dayEndMs(today)
+  }
+
+  if (contactFilter === "range") {
+    if (!contactFrom && !contactTo) return true
+    if (contactFrom && contactedAt < dayStartMs(contactFrom)) return false
+    if (contactTo && contactedAt > dayEndMs(contactTo)) return false
+    return true
+  }
+
+  return true
+}
+
+function applyLeadFilters(
+  leads: CrmLeadRow[],
+  {
+    search,
+    statusFilter,
+    contactFilter,
+    contactFrom,
+    contactTo,
+  }: {
+    search: string
+    statusFilter: LeadStatusFilter
+    contactFilter: ContactDateFilter
+    contactFrom: string
+    contactTo: string
+  },
+) {
+  const q = search.toLowerCase().trim()
+
+  return leads.filter((l) => {
+    if (statusFilter !== "all" && l.status !== statusFilter) return false
+    if (!matchesContactDateFilter(l, contactFilter, contactFrom, contactTo)) return false
+    if (!q) return true
+    return (
+      l.name.toLowerCase().includes(q) ||
+      l.company.toLowerCase().includes(q) ||
+      l.email.toLowerCase().includes(q) ||
+      l.phone.toLowerCase().includes(q)
+    )
+  })
+}
+
+function LeadFiltersPanel({
+  statusFilter,
+  contactFilter,
+  contactFrom,
+  contactTo,
+  open,
+  totalCount,
+  filteredCount,
+  onToggleOpen,
+  onStatusFilter,
+  onContactFilter,
+  onContactFrom,
+  onContactTo,
+  onClear,
+}: {
+  statusFilter: LeadStatusFilter
+  contactFilter: ContactDateFilter
+  contactFrom: string
+  contactTo: string
+  open: boolean
+  totalCount: number
+  filteredCount: number
+  onToggleOpen: () => void
+  onStatusFilter: (v: LeadStatusFilter) => void
+  onContactFilter: (v: ContactDateFilter) => void
+  onContactFrom: (v: string) => void
+  onContactTo: (v: string) => void
+  onClear: () => void
+}) {
+  const filtersActive =
+    statusFilter !== "all" ||
+    contactFilter !== "all" ||
+    (contactFilter === "range" && (contactFrom || contactTo))
+
+  const statusLabel =
+    LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label ?? "All leads"
+  const contactLabel =
+    CONTACT_DATE_FILTER_OPTIONS.find((o) => o.value === contactFilter)?.label ?? "Any outreach date"
+
+  return (
+    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))]/40 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggleOpen}
+        className="w-full flex items-center gap-2 px-3 py-2.5 sm:py-2 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors min-h-[44px] sm:min-h-0"
+      >
+        <SlidersHorizontal className="h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
+        <span className="text-xs font-semibold flex-1 min-w-0 truncate">Filter leads</span>
+        {filtersActive && (
+          <span className="shrink-0 text-[10px] rounded-full bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] px-2 py-0.5 font-medium">
+            Active
+          </span>
+        )}
+        <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
+          {filteredCount}/{totalCount}
+        </span>
+        {open ? (
+          <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
+        )}
+      </button>
+
+      {!open && filtersActive && (
+        <div className="px-3 pb-2 flex flex-wrap gap-1.5 border-t border-[hsl(var(--border))] pt-2">
+          {statusFilter !== "all" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 text-[10px]">
+              <Filter className="h-3 w-3 opacity-60" />
+              {statusLabel}
+            </span>
+          )}
+          {contactFilter !== "all" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 text-[10px]">
+              <Calendar className="h-3 w-3 opacity-60" />
+              {contactLabel}
+              {contactFilter === "range" && (contactFrom || contactTo) && (
+                <span className="text-[hsl(var(--muted-foreground))]">
+                  ({contactFrom || "…"} → {contactTo || "…"})
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+      )}
+
+      {open && (
+        <div className="border-t border-[hsl(var(--border))] p-3 space-y-3 bg-[hsl(var(--background))]/50">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                Lead status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => onStatusFilter(e.target.value as LeadStatusFilter)}
+                className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
+              >
+                {LEAD_STATUS_FILTER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.hint && (
+                <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.hint}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                Outreach date
+              </label>
+              <select
+                value={contactFilter}
+                onChange={(e) => onContactFilter(e.target.value as ContactDateFilter)}
+                className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
+              >
+                {CONTACT_DATE_FILTER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {contactFilter === "range" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  From
+                </label>
+                <input
+                  type="date"
+                  value={contactFrom}
+                  onChange={(e) => onContactFrom(e.target.value)}
+                  className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  To
+                </label>
+                <input
+                  type="date"
+                  value={contactTo}
+                  onChange={(e) => onContactTo(e.target.value)}
+                  className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              Showing <strong className="text-[hsl(var(--foreground))]">{filteredCount}</strong> of{" "}
+              {totalCount} lead{totalCount === 1 ? "" : "s"}
+            </p>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={onClear}
+                className="text-[11px] text-[hsl(var(--primary))] hover:underline cursor-pointer min-h-[36px] px-2"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type ContactDateFilter = "all" | "today" | "never" | "range"
 
 function toDatetimeLocalValue(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0")
@@ -79,35 +347,229 @@ function whatsAppHref(phone: string, leadName?: string) {
   return `https://wa.me/${digits}?text=${encodeURIComponent(greeting)}`
 }
 
-function LeadPhoneLinks({ phone, leadName }: { phone: string; leadName?: string }) {
+function LeadPhoneLinks({
+  phone,
+  leadName,
+  layout = "inline",
+}: {
+  phone: string
+  leadName?: string
+  layout?: "inline" | "card"
+}) {
   const trimmed = phone.trim()
   if (!trimmed) return <>—</>
 
   const telHref = `tel:${trimmed.replace(/\s/g, "")}`
   const waHref = whatsAppHref(trimmed, leadName)
 
+  if (layout === "card") {
+    return (
+      <div className="flex gap-2 w-full" onClick={(e) => e.stopPropagation()}>
+        <a
+          href={waHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex flex-1 items-center justify-center gap-2 min-h-[44px] px-3 rounded-lg bg-[#25D366] text-white text-sm font-medium active:scale-[0.98] transition-transform"
+        >
+          <MessageSquare className="h-4 w-4 shrink-0" />
+          WhatsApp
+        </a>
+        <a
+          href={telHref}
+          className="flex flex-1 items-center justify-center gap-2 min-h-[44px] px-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm font-medium active:scale-[0.98] transition-transform"
+        >
+          <Phone className="h-4 w-4 shrink-0" />
+          Call
+        </a>
+      </div>
+    )
+  }
+
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
       <a
         href={waHref}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 font-medium text-[#25D366] hover:underline"
         title="Message on WhatsApp"
-        onClick={(e) => e.stopPropagation()}
       >
         <MessageSquare className="h-3 w-3 shrink-0" />
         {trimmed}
       </a>
       <a
         href={telHref}
-        className="inline-flex p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/50"
+        className="inline-flex p-1 rounded text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/50"
         title="Call"
-        onClick={(e) => e.stopPropagation()}
       >
         <Phone className="h-3 w-3 shrink-0" />
       </a>
     </span>
+  )
+}
+
+function LeadStatusSelect({
+  lead,
+  onStatusChange,
+  className = "",
+}: {
+  lead: CrmLeadRow
+  onStatusChange: (lead: CrmLeadRow, status: string) => void
+  className?: string
+}) {
+  return (
+    <select
+      value={lead.status}
+      onChange={(e) => onStatusChange(lead, e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className={`h-8 sm:h-7 rounded border bg-[hsl(var(--background))] text-[11px] px-1.5 ${className}`}
+    >
+      {STATUS_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function LeadCard({
+  lead,
+  onOpenDetail,
+  onStatusChange,
+  onLog,
+  onDelete,
+}: {
+  lead: CrmLeadRow
+  onOpenDetail: (id: string) => void
+  onStatusChange: (lead: CrmLeadRow, status: string) => void
+  onLog: (lead: CrmLeadRow) => void
+  onDelete: (id: string) => void
+}) {
+  return (
+    <div
+      className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 space-y-2.5 active:bg-[hsl(var(--muted))]/20"
+      onClick={() => onOpenDetail(lead.id)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-sm leading-snug">{lead.name}</p>
+          {lead.company?.trim() && (
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-2">{lead.company}</p>
+          )}
+        </div>
+        <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="shrink-0 max-w-[110px]" />
+      </div>
+
+      {lead.phone?.trim() ? (
+        <LeadPhoneLinks phone={lead.phone} leadName={lead.name} layout="card" />
+      ) : (
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">No phone</p>
+      )}
+
+      <div className="flex items-center justify-between gap-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+        <span>{lead.contactCount} log{lead.contactCount === 1 ? "" : "s"}</span>
+        <span className="text-right truncate">
+          {lead.lastContactedAt
+            ? new Date(lead.lastContactedAt).toLocaleString(undefined, {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "No outreach yet"}
+        </span>
+      </div>
+
+      <div className="flex gap-2 pt-0.5" onClick={(e) => e.stopPropagation()}>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="flex-1 h-10 text-xs"
+          onClick={() => onLog(lead)}
+        >
+          Log outreach
+        </Button>
+        <button
+          type="button"
+          className="shrink-0 flex items-center justify-center w-10 h-10 text-red-500 hover:bg-red-500/10 rounded-lg border border-[hsl(var(--border))] cursor-pointer"
+          title="Delete lead"
+          onClick={() => onDelete(lead.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function LeadsListView({
+  leads,
+  onOpenDetail,
+  onStatusChange,
+  onLog,
+  onDelete,
+}: {
+  leads: CrmLeadRow[]
+  onOpenDetail: (id: string) => void
+  onStatusChange: (lead: CrmLeadRow, status: string) => void
+  onLog: (lead: CrmLeadRow) => void
+  onDelete: (id: string) => void
+}) {
+  return (
+    <>
+      <div className="md:hidden space-y-2 p-2">
+        {leads.map((lead) => (
+          <LeadCard
+            key={lead.id}
+            lead={lead}
+            onOpenDetail={onOpenDetail}
+            onStatusChange={onStatusChange}
+            onLog={onLog}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full min-w-[800px]">
+          <thead>
+            <tr className="border-b bg-[hsl(var(--muted))]/40">
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Lead
+              </th>
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Company
+              </th>
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Phone
+              </th>
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Status
+              </th>
+              <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Logs
+              </th>
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Last outreach
+              </th>
+              <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {leads.map((lead) => (
+              <LeadTableRow
+                key={lead.id}
+                lead={lead}
+                onOpenDetail={onOpenDetail}
+                onStatusChange={onStatusChange}
+                onLog={onLog}
+                onDelete={onDelete}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
@@ -135,17 +597,7 @@ function LeadTableRow({
         <LeadPhoneLinks phone={lead.phone} leadName={lead.name} />
       </td>
       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-        <select
-          value={lead.status}
-          onChange={(e) => onStatusChange(lead, e.target.value)}
-          className="h-7 rounded border bg-[hsl(var(--background))] text-[11px] px-1.5 max-w-[120px]"
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="max-w-[120px]" />
       </td>
       <td className="px-3 py-2 text-xs text-center tabular-nums">{lead.contactCount}</td>
       <td className="px-3 py-2 text-[11px] text-[hsl(var(--muted-foreground))]">
@@ -193,6 +645,11 @@ export function LeadsManager({
   const [leads, setLeads] = useState<CrmLeadRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<LeadStatusFilter>("all")
+  const [contactFilter, setContactFilter] = useState<ContactDateFilter>("all")
+  const [contactFrom, setContactFrom] = useState("")
+  const [contactTo, setContactTo] = useState("")
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [statsDate, setStatsDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [stats, setStats] = useState<{ total: number; byMember: { name: string; userId: string | null; count: number }[] }>({
     total: 0,
@@ -316,17 +773,29 @@ export function LeadsManager({
     reloadLeadDetail(detailId)
   }, [detailId, reloadLeadDetail])
 
-  const filteredAll = useMemo(() => {
-    const q = search.toLowerCase().trim()
-    if (!q) return leads
-    return leads.filter(
-      (l) =>
-        l.name.toLowerCase().includes(q) ||
-        l.company.toLowerCase().includes(q) ||
-        l.email.toLowerCase().includes(q) ||
-        l.phone.toLowerCase().includes(q)
-    )
-  }, [leads, search])
+  const filteredAll = useMemo(
+    () =>
+      applyLeadFilters(leads, {
+        search,
+        statusFilter,
+        contactFilter,
+        contactFrom,
+        contactTo,
+      }),
+    [leads, search, statusFilter, contactFilter, contactFrom, contactTo],
+  )
+
+  const filtersActive =
+    statusFilter !== "all" ||
+    contactFilter !== "all" ||
+    (contactFilter === "range" && (contactFrom || contactTo))
+
+  function clearLeadFilters() {
+    setStatusFilter("all")
+    setContactFilter("all")
+    setContactFrom("")
+    setContactTo("")
+  }
 
   const importBatchGroups = useMemo(() => {
     const map = new Map<string, CrmLeadRow[]>()
@@ -563,24 +1032,24 @@ export function LeadsManager({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4 space-y-3">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-3 sm:p-4 space-y-3">
+        <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-end gap-3 sm:gap-4">
+          <div className="min-w-0 sm:flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">
               Outreach stats (UTC day)
             </p>
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+              <Calendar className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
               <input
                 type="date"
                 value={statsDate}
                 onChange={(e) => setStatsDate(e.target.value)}
-                className="h-8 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+                className="h-9 sm:h-8 flex-1 min-w-0 rounded border bg-[hsl(var(--background))] px-2 text-xs"
               />
             </div>
           </div>
-          <div className="flex flex-wrap gap-6 text-sm">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-6 text-sm">
             <div>
               <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Your contacts</p>
               <p className="text-xl font-bold tabular-nums text-[hsl(var(--foreground))]">{myTodayCount}</p>
@@ -609,13 +1078,48 @@ export function LeadsManager({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search leads…"
+            className="h-10 sm:h-8 flex-1 min-w-0 px-3 rounded border bg-[hsl(var(--background))] text-sm sm:text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          />
+        </div>
+
+        <LeadFiltersPanel
+          statusFilter={statusFilter}
+          contactFilter={contactFilter}
+          contactFrom={contactFrom}
+          contactTo={contactTo}
+          open={filtersOpen}
+          totalCount={leads.length}
+          filteredCount={filteredAll.length}
+          onToggleOpen={() => setFiltersOpen((v) => !v)}
+          onStatusFilter={setStatusFilter}
+          onContactFilter={(v) => {
+            setContactFilter(v)
+            if (v === "today") {
+              const today = todayIsoDate()
+              setContactFrom(today)
+              setContactTo(today)
+            } else if (v !== "range") {
+              setContactFrom("")
+              setContactTo("")
+            }
+          }}
+          onContactFrom={setContactFrom}
+          onContactTo={setContactTo}
+          onClear={clearLeadFilters}
+        />
+
+        <p className="hidden lg:block text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
           Import <strong>Facebook Lead Ads</strong> CSV (FULL_NAME, PHONE, COMPANY_NAME, City, Address) or other CSV
           formats. Outreach logs are saved in the database — open a lead to view full history after refresh. Export
           leads as Excel anytime.
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
           <input
             ref={csvInputRef}
             type="file"
@@ -636,7 +1140,7 @@ export function LeadsManager({
           <Button
             size="sm"
             variant="default"
-            className="h-8 text-xs"
+            className="h-10 sm:h-8 text-xs col-span-2 sm:col-span-1"
             disabled={importing}
             onClick={() => setShowFacebookImportModal(true)}
           >
@@ -646,33 +1150,33 @@ export function LeadsManager({
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs"
+            className="h-10 sm:h-8 text-xs"
             disabled={loadingInstallersCsv || importing}
             onClick={() => loadHardcodedInstallersCsv()}
           >
-            {loadingInstallersCsv ? "Syncing…" : "Sync phones from CSV"}
+            {loadingInstallersCsv ? "Syncing…" : "Sync phones"}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs"
+            className="h-10 sm:h-8 text-xs"
             disabled={importing}
             onClick={() => setShowCsvImportModal(true)}
           >
             <Upload className="h-3.5 w-3.5 mr-1" />
-            Import other CSV
+            Import CSV
           </Button>
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`}
             download="leads-sample.csv"
-            className="text-xs text-[hsl(var(--primary))] underline underline-offset-2"
+            className="inline-flex items-center justify-center h-10 sm:h-8 text-xs text-[hsl(var(--primary))] underline underline-offset-2"
           >
             Sample CSV
           </a>
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs"
+            className="h-10 sm:h-8 text-xs"
             disabled={filteredAll.length === 0}
             onClick={() => {
               downloadLeadsExcel(filteredAll, { exportedBy: currentUser })
@@ -686,15 +1190,9 @@ export function LeadsManager({
             <Download className="h-3.5 w-3.5 mr-1" />
             Export Excel
           </Button>
-          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowAddLead(true)}>
+          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer col-span-2 sm:col-span-1" onClick={() => setShowAddLead(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Add lead
           </Button>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search leads…"
-            className="h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs w-40 focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-          />
         </div>
       </div>
 
@@ -705,7 +1203,11 @@ export function LeadsManager({
       ) : filteredAll.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center text-sm text-[hsl(var(--muted-foreground))]">
           <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
-          {leads.length === 0 ? "No leads yet. Import a CSV or add a lead manually." : "No leads match your search."}
+          {leads.length === 0
+            ? "No leads yet. Import a CSV or add a lead manually."
+            : filtersActive || search.trim()
+              ? "No leads match your filters."
+              : "No leads match your search."}
         </div>
       ) : (
         <div className="space-y-6">
@@ -723,95 +1225,67 @@ export function LeadsManager({
                   })
                   return (
                     <div key={group.importBatchId} className="rounded-lg border border-[hsl(var(--border))] overflow-hidden bg-[hsl(var(--card))]/30">
-                      <div className="flex items-stretch border-b border-transparent">
+                      <div className="flex flex-col sm:flex-row sm:items-stretch">
                         <button
                           type="button"
                           onClick={() => toggleBatch(group.importBatchId)}
-                          className="flex-1 min-w-0 flex items-center gap-3 px-4 py-3 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                          className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 text-left hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
                         >
                           {open ? (
                             <ChevronDown className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
                           ) : (
                             <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))]" />
                           )}
-                          <span className="font-semibold text-sm text-[hsl(var(--foreground))] truncate">
-                            {group.importUploaderName}
-                          </span>
-                          <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">{when}</span>
-                          <span className="ml-auto shrink-0 text-[11px] rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 tabular-nums">
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold text-sm text-[hsl(var(--foreground))] block truncate">
+                              {group.importUploaderName}
+                            </span>
+                            <span className="text-xs text-[hsl(var(--muted-foreground))]">{when}</span>
+                          </div>
+                          <span className="shrink-0 text-[11px] rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 tabular-nums">
                             {group.leads.length} lead{group.leads.length === 1 ? "" : "s"}
                           </span>
                         </button>
-                        <button
-                          type="button"
-                          className="shrink-0 px-3 flex items-center justify-center text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/40 border-l border-[hsl(var(--border))] cursor-pointer text-[11px] font-medium disabled:opacity-50"
-                          title="Fill missing phone numbers from the installers CSV on the server"
-                          disabled={repairingPhonesBatchId === group.importBatchId}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            repairBatchPhones(group.importBatchId)
-                          }}
-                        >
-                          {repairingPhonesBatchId === group.importBatchId ? "Fixing…" : "Fix phones"}
-                        </button>
-                        <button
-                          type="button"
-                          className="shrink-0 px-3 flex items-center justify-center text-red-500 hover:bg-red-500/10 border-l border-[hsl(var(--border))] cursor-pointer"
-                          title="Delete this import and all leads in it"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setDeleteId(null)
-                            setDeleteImportBatch({
-                              importBatchId: group.importBatchId,
-                              importUploaderName: group.importUploaderName,
-                              count: group.leads.length,
-                            })
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex border-t sm:border-t-0 sm:border-l border-[hsl(var(--border))]">
+                          <button
+                            type="button"
+                            className="flex-1 sm:flex-initial shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/40 cursor-pointer text-[11px] font-medium disabled:opacity-50 min-h-[44px]"
+                            title="Fill missing phone numbers from the installers CSV on the server"
+                            disabled={repairingPhonesBatchId === group.importBatchId}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              repairBatchPhones(group.importBatchId)
+                            }}
+                          >
+                            {repairingPhonesBatchId === group.importBatchId ? "Fixing…" : "Fix phones"}
+                          </button>
+                          <button
+                            type="button"
+                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-red-500 hover:bg-red-500/10 border-l border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
+                            title="Delete this import and all leads in it"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeleteId(null)
+                              setDeleteImportBatch({
+                                importBatchId: group.importBatchId,
+                                importUploaderName: group.importUploaderName,
+                                count: group.leads.length,
+                              })
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                       {open && (
-                        <div className="border-t border-[hsl(var(--border))] overflow-x-auto">
-                          <table className="w-full min-w-[800px]">
-                            <thead>
-                              <tr className="border-b bg-[hsl(var(--muted))]/40">
-                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Lead
-                                </th>
-                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Company
-                                </th>
-                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Phone
-                                </th>
-                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Status
-                                </th>
-                                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Logs
-                                </th>
-                                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Last outreach
-                                </th>
-                                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                                  Actions
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                              {group.leads.map((lead) => (
-                                <LeadTableRow
-                                  key={lead.id}
-                                  lead={lead}
-                                  onOpenDetail={openLeadDetail}
-                                  onStatusChange={onStatusChange}
-                                  onLog={setLogForLead}
-                                  onDelete={requestDeleteLead}
-                                />
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="border-t border-[hsl(var(--border))]">
+                          <LeadsListView
+                            leads={group.leads}
+                            onOpenDetail={openLeadDetail}
+                            onStatusChange={onStatusChange}
+                            onLog={setLogForLead}
+                            onDelete={requestDeleteLead}
+                          />
                         </div>
                       )}
                     </div>
@@ -828,46 +1302,14 @@ export function LeadsManager({
                   Other leads (manual or older imports)
                 </p>
               )}
-              <div className="rounded-lg border overflow-hidden overflow-x-auto">
-                <table className="w-full min-w-[800px]">
-                  <thead>
-                    <tr className="border-b bg-[hsl(var(--muted))]/40">
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Lead
-                      </th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Company
-                      </th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Phone
-                      </th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Status
-                      </th>
-                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Logs
-                      </th>
-                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Last outreach
-                      </th>
-                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {(importBatchGroups.length === 0 ? filteredAll : tableLeads).map((lead) => (
-                      <LeadTableRow
-                        key={lead.id}
-                        lead={lead}
-                        onOpenDetail={openLeadDetail}
-                        onStatusChange={onStatusChange}
-                        onLog={setLogForLead}
-                        onDelete={requestDeleteLead}
-                      />
-                    ))}
-                  </tbody>
-                </table>
+              <div className="rounded-lg border overflow-hidden">
+                <LeadsListView
+                  leads={importBatchGroups.length === 0 ? filteredAll : tableLeads}
+                  onOpenDetail={openLeadDetail}
+                  onStatusChange={onStatusChange}
+                  onLog={setLogForLead}
+                  onDelete={requestDeleteLead}
+                />
               </div>
             </div>
           )}
@@ -1303,9 +1745,9 @@ function LogOutreachModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40" onClick={onClose}>
       <div
-        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-lg w-full p-4 space-y-3 max-h-[90vh] overflow-y-auto"
+        className="bg-[hsl(var(--background))] rounded-t-xl sm:rounded-lg border shadow-lg max-w-lg w-full p-4 space-y-3 max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-start gap-2">
@@ -1384,16 +1826,16 @@ function LeadDetailDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <div
-        className="h-full w-full max-w-md bg-[hsl(var(--background))] border-l shadow-xl flex flex-col"
+        className="h-full w-full sm:max-w-md bg-[hsl(var(--background))] sm:border-l shadow-xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b flex justify-between items-center">
+        <div className="p-3 sm:p-4 border-b flex justify-between items-center gap-2">
           <h3 className="text-sm font-semibold">Lead detail</h3>
-          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+          <button type="button" onClick={onClose} className="p-2 -mr-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
           {loading || !lead ? (
             <div className="flex justify-center py-12">
               <div className="h-7 w-7 rounded-full border-2 border-[hsl(var(--primary))] border-t-transparent animate-spin" />
@@ -1403,14 +1845,11 @@ function LeadDetailDrawer({
               <div>
                 <p className="text-lg font-semibold">{lead.name}</p>
                 {lead.company && <p className="text-sm text-[hsl(var(--muted-foreground))]">{lead.company}</p>}
-                <div className="mt-2 text-xs space-y-1">
+                <div className="mt-3 space-y-2">
                   {lead.phone?.trim() && (
-                    <p className="flex items-center gap-2 flex-wrap">
-                      <span>Phone:</span>
-                      <LeadPhoneLinks phone={lead.phone} leadName={lead.name} />
-                    </p>
+                    <LeadPhoneLinks phone={lead.phone} leadName={lead.name} layout="card" />
                   )}
-                  {lead.email && <p>Email: {lead.email}</p>}
+                  {lead.email && <p className="text-xs break-all">Email: {lead.email}</p>}
                   {lead.notes && (
                     <p className="text-[hsl(var(--muted-foreground))] pt-1 whitespace-pre-line">Notes: {lead.notes}</p>
                   )}
@@ -1422,7 +1861,7 @@ function LeadDetailDrawer({
                     </p>
                   )}
                 </div>
-                <Button size="sm" className="mt-3 h-8 text-xs cursor-pointer" onClick={onLog}>
+                <Button size="sm" className="mt-3 h-10 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onLog}>
                   Log outreach
                 </Button>
               </div>
