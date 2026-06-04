@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { getProductImageList } from "@/lib/product-image"
@@ -13,9 +13,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  FileText,
   ZoomIn,
-  ClipboardList,
+  Shield,
+  FileText,
 } from "lucide-react"
 import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
@@ -24,25 +24,23 @@ import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 import { hasProductSpecs } from "@/lib/product-specs"
 
-type TabType = "description" | "specifications" | "brochure"
-
-function StockBadge({ stock }: { stock: unknown }) {
+function StockPill({ stock }: { stock: unknown }) {
   const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
   if (s === "in")
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-        <CheckCircle2 className="w-4 h-4" /> In Stock
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+        <CheckCircle2 className="w-3.5 h-3.5" /> In stock
       </span>
     )
   if (s === "low")
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-        <AlertCircle className="w-4 h-4" /> Low Stock
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
+        <AlertCircle className="w-3.5 h-3.5" /> Low stock
       </span>
     )
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-500 bg-neutral-100 border border-neutral-200 px-3 py-1 rounded-full">
-      <XCircle className="w-4 h-4" /> Out of Stock
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500">
+      <XCircle className="w-3.5 h-3.5" /> Out of stock
     </span>
   )
 }
@@ -50,20 +48,8 @@ function StockBadge({ stock }: { stock: unknown }) {
 function ProductImages({ images, productName }: { images: string[]; productName: string }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [failed, setFailed] = useState<Set<number>>(() => new Set())
-  const activeSrc = images[currentIndex]
-  const activeFailed = failed.has(currentIndex)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
-  const [touchStart, setTouchStart] = useState(0)
-  const [touchEnd, setTouchEnd] = useState(0)
-
-  useEffect(() => {
-    if (images.length <= 1) return
-    const interval = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % images.length)
-    }, 6000)
-    return () => clearInterval(interval)
-  }, [images.length])
 
   useEffect(() => {
     if (!isLightboxOpen) return
@@ -76,18 +62,12 @@ function ProductImages({ images, productName }: { images: string[]; productName:
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isLightboxOpen, images.length])
 
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return
-    const distance = touchStart - touchEnd
-    if (distance > 50) setLightboxIndex(prev => (prev + 1) % images.length)
-    if (distance < -50) setLightboxIndex(prev => (prev - 1 + images.length) % images.length)
-    setTouchStart(0)
-    setTouchEnd(0)
-  }
+  const activeSrc = images[currentIndex]
+  const activeFailed = failed.has(currentIndex)
 
   if (images.length === 0) {
     return (
-      <div className="relative w-full min-h-[min(55vh,520px)] lg:min-h-[min(72vh,780px)] bg-neutral-100">
+      <div className="relative aspect-[4/3] max-h-[280px] w-full rounded-xl bg-neutral-50 border border-neutral-100 overflow-hidden">
         <ProductThumbnail src={null} alt={productName} fill />
       </div>
     )
@@ -95,14 +75,14 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   return (
     <>
-      <div className="flex flex-col h-full min-h-[min(55vh,520px)] lg:min-h-[min(72vh,780px)]">
+      <div className="space-y-3">
         <button
           type="button"
           onClick={() => {
             setLightboxIndex(currentIndex)
             setIsLightboxOpen(true)
           }}
-          className="relative flex-1 w-full bg-gradient-to-b from-neutral-50 to-neutral-100 group cursor-zoom-in"
+          className="relative block w-full aspect-[4/3] max-h-[280px] rounded-xl bg-neutral-50 border border-neutral-100 overflow-hidden group cursor-zoom-in"
           aria-label="View full size image"
         >
           {activeFailed ? (
@@ -112,47 +92,29 @@ function ProductImages({ images, productName }: { images: string[]; productName:
             <img
               src={activeSrc}
               alt={productName}
-              className="absolute inset-0 w-full h-full object-contain p-6 md:p-10 lg:p-14 transition-transform duration-300 group-hover:scale-[1.02]"
+              className="absolute inset-0 w-full h-full object-contain p-4 transition-transform duration-200 group-hover:scale-[1.02]"
               onError={() => setFailed(prev => new Set(prev).add(currentIndex))}
             />
           )}
-          <span className="absolute bottom-5 right-5 flex items-center gap-2 rounded-full bg-white/95 backdrop-blur px-4 py-2 text-xs font-medium text-neutral-600 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-            <ZoomIn className="w-4 h-4" /> Click to enlarge
+          <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-[10px] font-medium text-neutral-500 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+            <ZoomIn className="w-3 h-3" /> Enlarge
           </span>
-          {images.length > 1 && (
-            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
-              {images.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={e => {
-                    e.stopPropagation()
-                    setCurrentIndex(i)
-                  }}
-                  className={`h-2 rounded-full transition-all ${
-                    i === currentIndex ? "w-10 bg-[#1a9f9a]" : "w-2 bg-neutral-300 hover:bg-neutral-400"
-                  }`}
-                  aria-label={`Image ${i + 1}`}
-                />
-              ))}
-            </div>
-          )}
         </button>
 
         {images.length > 1 && (
-          <div className="flex gap-3 overflow-x-auto px-4 py-4 bg-white border-t border-neutral-100 lg:px-6">
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
             {images.map((img, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setCurrentIndex(i)}
-                className={`relative w-20 h-20 md:w-24 md:h-24 shrink-0 rounded-xl overflow-hidden border-2 bg-white transition-all ${
+                className={`relative w-14 h-14 shrink-0 rounded-lg overflow-hidden border bg-white transition-all ${
                   i === currentIndex
-                    ? "border-[#1a9f9a] ring-2 ring-[#1a9f9a]/25 shadow-md"
-                    : "border-neutral-200 hover:border-neutral-300 opacity-80 hover:opacity-100"
+                    ? "border-[#1a9f9a] ring-1 ring-[#1a9f9a]/30"
+                    : "border-neutral-200 opacity-70 hover:opacity-100"
                 }`}
               >
-                <ProductThumbnail src={img} alt="" fill imgClassName="p-2" />
+                <ProductThumbnail src={img} alt="" fill imgClassName="p-1.5" />
               </button>
             ))}
           </div>
@@ -161,7 +123,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
       {isLightboxOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
           onClick={() => setIsLightboxOpen(false)}
         >
           <button
@@ -169,45 +131,34 @@ function ProductImages({ images, productName }: { images: string[]; productName:
             onClick={() => setIsLightboxOpen(false)}
             className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white z-10"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
-          <div
-            className="relative w-full h-full flex items-center justify-center px-4"
-            onClick={e => e.stopPropagation()}
-            onTouchStart={e => setTouchStart(e.targetTouches[0].clientX)}
-            onTouchMove={e => setTouchEnd(e.targetTouches[0].clientX)}
-            onTouchEnd={handleTouchEnd}
-          >
-            <div className="relative w-full max-w-6xl h-[85vh]">
-              {!failed.has(lightboxIndex) && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={images[lightboxIndex]}
-                  alt={productName}
-                  className="absolute inset-0 w-full h-full object-contain"
-                  onError={() => setFailed(prev => new Set(prev).add(lightboxIndex))}
-                />
-              )}
-            </div>
+          <div className="relative w-full max-w-4xl h-[80vh]" onClick={e => e.stopPropagation()}>
+            {!failed.has(lightboxIndex) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={images[lightboxIndex]}
+                alt={productName}
+                className="absolute inset-0 w-full h-full object-contain"
+                onError={() => setFailed(prev => new Set(prev).add(lightboxIndex))}
+              />
+            )}
             {images.length > 1 && (
               <>
                 <button
                   type="button"
                   onClick={() => setLightboxIndex(prev => (prev - 1 + images.length) % images.length)}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white"
                 >
-                  <ChevronLeft className="w-8 h-8" />
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setLightboxIndex(prev => (prev + 1) % images.length)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white"
                 >
-                  <ChevronRight className="w-8 h-8" />
+                  <ChevronRight className="w-6 h-6" />
                 </button>
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 px-4 py-2 rounded-full">
-                  {lightboxIndex + 1} / {images.length}
-                </div>
               </>
             )}
           </div>
@@ -229,9 +180,9 @@ export default function ProductDetailClient({
   termsDisplay: { content: string; fileUrl?: string | null }
 }) {
   const images = getProductImageList(product)
-  const [activeTab, setActiveTab] = useState<TabType>("description")
   const [termsOpen, setTermsOpen] = useState(false)
   const [specsOpen, setSpecsOpen] = useState(false)
+  const [brochureOpen, setBrochureOpen] = useState(false)
   const requestQuote = shouldRequestQuote(product)
   const hasBrochure = Boolean(product.brochureUrl)
   const showSpecs = hasProductSpecs(product)
@@ -240,165 +191,144 @@ export default function ProductDetailClient({
     categoryColors[category] ||
     categoryColors[getMainCategory(category)] ||
     "bg-neutral-100 text-neutral-600 border-neutral-200"
+  const shortDesc = String(product.description ?? "").trim()
+  const fullDesc = String(product.full_desc || product.description || "").trim()
+  const warranty = String(product.warranty || "").trim()
+
+  const docLinks: { label: string; onClick: () => void }[] = []
+  if (showSpecs) docLinks.push({ label: "Specifications", onClick: () => setSpecsOpen(true) })
+  docLinks.push({ label: "Terms & Conditions", onClick: () => setTermsOpen(true) })
+  if (hasBrochure) docLinks.push({ label: "Brochure", onClick: () => setBrochureOpen(true) })
 
   return (
     <div className="bg-white min-h-screen">
-      {/* Breadcrumb — light padding only */}
-      <div className="pt-24 px-4 sm:px-6 lg:px-8 border-b border-neutral-100">
+      <div className="pt-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <Link
           href="/products"
-          className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-[#1a9f9a] transition-colors py-4"
+          className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-[#1a9f9a] transition-colors py-3"
         >
           <ArrowLeft className="w-4 h-4" /> All products
         </Link>
       </div>
 
-      {/* Hero: full-width split — large image | product info */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] xl:grid-cols-[1.35fr_1fr] w-full border-b border-neutral-100">
-        <div className="border-b lg:border-b-0 lg:border-r border-neutral-100 bg-neutral-50/50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,340px)_1fr] gap-8 lg:gap-10 items-start">
           <ProductImages images={images} productName={String(product.name)} />
-        </div>
 
-        <div className="flex flex-col justify-center px-6 sm:px-10 lg:px-12 xl:px-16 py-10 lg:py-14 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">
-          <div className="flex flex-wrap items-center gap-3 mb-5">
-            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${catClass}`}>
+          <div className="min-w-0 space-y-4">
+            <span className={`inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md border ${catClass}`}>
               {getCategoryDisplayLabel(category)}
             </span>
-            <StockBadge stock={product.stock} />
-          </div>
 
-          <h1 className="text-3xl sm:text-4xl xl:text-5xl font-bold tracking-tight text-neutral-900 leading-[1.1]">
-            {String(product.name)}
-          </h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 leading-snug">
+              {String(product.name)}
+            </h1>
 
-          {product.description ? (
-            <p className="mt-4 text-lg text-neutral-600 leading-relaxed max-w-xl">
-              {String(product.description)}
-            </p>
-          ) : null}
+            {shortDesc ? (
+              <p className="text-sm text-neutral-600 leading-relaxed">{shortDesc}</p>
+            ) : null}
 
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6 py-8 border-y border-neutral-100">
-            {requestQuote ? (
-              <div className="sm:col-span-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">Pricing</p>
-                <div className="flex items-center gap-2 text-[#1a9f9a]">
-                  <FileText className="w-5 h-5" />
-                  <span className="text-xl font-bold">Request a Quote</span>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">Price</p>
-                <p className="text-2xl xl:text-3xl font-bold text-neutral-900">
-                  {formatProductPrice(product.price as string | number | null | undefined) ?? "—"}
-                </p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">Warranty</p>
-              <p className="text-2xl xl:text-3xl font-bold text-neutral-900">
-                {String(product.warranty || "—")}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 mt-2">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                href="/quote"
-                className="inline-flex items-center justify-center gap-2 flex-1 min-h-[52px] rounded-full text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all shadow-lg shadow-[#1a9f9a]/20"
-              >
-                Request a quote <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/#contact"
-                className="inline-flex items-center justify-center gap-2 flex-1 min-h-[52px] rounded-full text-sm font-medium text-neutral-700 border-2 border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] transition-all"
-              >
-                Contact us
-              </Link>
-            </div>
-            {showSpecs && (
-              <button
-                type="button"
-                onClick={() => setSpecsOpen(true)}
-                className="inline-flex items-center justify-center gap-2 w-full min-h-[48px] rounded-full text-sm font-semibold text-[#1a9f9a] border-2 border-[#1a9f9a]/40 bg-[#1a9f9a]/5 hover:bg-[#1a9f9a]/10 transition-all"
-              >
-                <ClipboardList className="w-4 h-4" />
-                View specifications & download PDF
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs — full width content */}
-      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-10 lg:py-14">
-        <div className="flex flex-wrap gap-1 border-b border-neutral-200 mb-8">
-          <button
-            type="button"
-            onClick={() => setActiveTab("description")}
-            className={`px-6 py-3.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-              activeTab === "description"
-                ? "border-[#1a9f9a] text-[#1a9f9a]"
-                : "border-transparent text-neutral-500 hover:text-neutral-800"
-            }`}
-          >
-            Description
-          </button>
-          {showSpecs && (
-            <button
-              type="button"
-              onClick={() => setSpecsOpen(true)}
-              className="px-6 py-3.5 text-sm font-semibold border-b-2 -mb-px border-transparent text-neutral-500 hover:text-[#1a9f9a] hover:border-[#1a9f9a]/40 transition-colors"
-            >
-              Specifications
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setTermsOpen(true)}
-            className="px-6 py-3.5 text-sm font-semibold border-b-2 -mb-px border-transparent text-neutral-500 hover:text-neutral-800"
-          >
-            Terms & Conditions
-          </button>
-          {hasBrochure && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("brochure")}
-              className={`px-6 py-3.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                activeTab === "brochure"
-                  ? "border-[#1a9f9a] text-[#1a9f9a]"
-                  : "border-transparent text-neutral-500 hover:text-neutral-800"
-              }`}
-            >
-              Brochure
-            </button>
-          )}
-        </div>
-
-        <div className="max-w-5xl">
-          {activeTab === "description" && (
-            <div className="text-neutral-600 text-base lg:text-lg leading-relaxed whitespace-pre-wrap">
-              {String(product.full_desc || product.description || "") || (
-                <span className="text-neutral-400">No description available.</span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 px-4 rounded-lg bg-neutral-50 border border-neutral-100 text-sm">
+              <StockPill stock={product.stock} />
+              {warranty ? (
+                <>
+                  <span className="hidden sm:inline w-px h-4 bg-neutral-200" aria-hidden />
+                  <span className="inline-flex items-center gap-1.5 text-neutral-700">
+                    <Shield className="w-3.5 h-3.5 text-[#1a9f9a]" />
+                    <span className="text-neutral-500">Warranty</span>
+                    <span className="font-medium">{warranty}</span>
+                  </span>
+                </>
+              ) : null}
+              <span className="hidden sm:inline w-px h-4 bg-neutral-200" aria-hidden />
+              {requestQuote ? (
+                <span className="inline-flex items-center gap-1.5 font-medium text-[#1a9f9a]">
+                  <FileText className="w-3.5 h-3.5" />
+                  Request a quote
+                </span>
+              ) : (
+                <span className="text-neutral-700">
+                  <span className="text-neutral-500 mr-1.5">Price</span>
+                  <span className="font-semibold text-neutral-900">
+                    {formatProductPrice(product.price as string | number | null | undefined) ?? "—"}
+                  </span>
+                </span>
               )}
             </div>
-          )}
 
-          {activeTab === "brochure" && hasBrochure && (
+            <Link
+              href="/quote"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto min-w-[200px] px-6 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-colors"
+            >
+              Request a quote <ArrowRight className="w-4 h-4" />
+            </Link>
+
+            <nav className="flex flex-wrap items-center gap-1 pt-1 border-t border-neutral-100" aria-label="Product documents">
+              {docLinks.map((link, i) => (
+                <span key={link.label} className="inline-flex items-center">
+                  {i > 0 && <span className="text-neutral-300 mx-1">·</span>}
+                  <button
+                    type="button"
+                    onClick={link.onClick}
+                    className="text-sm text-neutral-600 hover:text-[#1a9f9a] font-medium transition-colors py-2"
+                  >
+                    {link.label}
+                  </button>
+                </span>
+              ))}
+            </nav>
+          </div>
+        </div>
+
+        {fullDesc && fullDesc !== shortDesc ? (
+          <section className="mt-10 pt-8 border-t border-neutral-100">
+            <h2 className="text-sm font-semibold text-neutral-900 mb-3">Description</h2>
+            <div className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap max-w-3xl">
+              {fullDesc}
+            </div>
+          </section>
+        ) : fullDesc && !shortDesc ? (
+          <section className="mt-10 pt-8 border-t border-neutral-100">
+            <h2 className="text-sm font-semibold text-neutral-900 mb-3">Description</h2>
+            <div className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap max-w-3xl">
+              {fullDesc}
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      {brochureOpen && hasBrochure && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setBrochureOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-xl p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-neutral-900">Product brochure</h2>
+              <button
+                type="button"
+                onClick={() => setBrochureOpen(false)}
+                className="p-1.5 rounded-full hover:bg-neutral-100 text-neutral-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <ProductBrochurePanel
               brochureUrl={String(product.brochureUrl)}
               brochureName={product.brochureName ? String(product.brochureName) : undefined}
               productName={String(product.name)}
             />
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {related.length > 0 && (
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-12 lg:py-16 bg-neutral-50 border-t border-neutral-100">
-          <h2 className="text-2xl font-bold text-neutral-900 mb-8">Related products</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-100">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-5">Related products</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {related.map((r: Record<string, unknown>) => {
               const rThumb = getProductImageList(r)[0] ?? null
               const rCat = String(r.category ?? "")
@@ -406,19 +336,19 @@ export default function ProductDetailClient({
                 <Link
                   key={String(r.id)}
                   href={`/products/${r.id}`}
-                  className="group flex flex-col bg-white rounded-2xl border border-neutral-200 overflow-hidden hover:border-[#1a9f9a]/40 hover:shadow-xl transition-all duration-300"
+                  className="group flex flex-col bg-white rounded-xl border border-neutral-200 overflow-hidden hover:border-[#1a9f9a]/30 hover:shadow-md transition-all"
                 >
                   <div className="relative w-full aspect-[4/3] bg-neutral-50">
                     <ProductThumbnail
                       src={rThumb}
                       alt={String(r.name)}
                       fill
-                      imgClassName="p-6 group-hover:scale-105 transition-transform duration-300"
+                      imgClassName="p-4 group-hover:scale-[1.02] transition-transform"
                     />
                   </div>
-                  <div className="p-5 space-y-2">
+                  <div className="p-4 space-y-1.5">
                     <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg border w-fit ${
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded border w-fit ${
                         categoryColors[rCat] ||
                         categoryColors[getMainCategory(rCat)] ||
                         "bg-neutral-100 text-neutral-600"
@@ -426,12 +356,11 @@ export default function ProductDetailClient({
                     >
                       {getCategoryDisplayLabel(rCat)}
                     </span>
-                    <p className="font-bold text-neutral-900">{String(r.name)}</p>
-                    <p className="text-sm text-neutral-500 line-clamp-2">{String(r.description ?? "")}</p>
+                    <p className="font-semibold text-sm text-neutral-900">{String(r.name)}</p>
                     {shouldRequestQuote(r) ? (
-                      <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
+                      <span className="text-xs font-medium text-[#1a9f9a]">Request a Quote</span>
                     ) : (
-                      <p className="text-base font-bold text-neutral-900">
+                      <p className="text-sm font-semibold text-neutral-900">
                         {formatProductPrice(r.price as string | number | null | undefined) ?? "—"}
                       </p>
                     )}
@@ -458,11 +387,12 @@ export default function ProductDetailClient({
           category: category,
           description: product.description ? String(product.description) : undefined,
           full_desc: product.full_desc ? String(product.full_desc) : undefined,
-          warranty: product.warranty ? String(product.warranty) : undefined,
+          warranty: warranty || undefined,
           specSheetUrl: product.specSheetUrl ? String(product.specSheetUrl) : undefined,
           specs: product.specs,
           images: images,
         }}
+        focusSpecSheet
       />
     </div>
   )
