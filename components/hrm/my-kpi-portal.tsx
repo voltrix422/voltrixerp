@@ -11,9 +11,13 @@ import {
   fetchStaffProfile,
 } from "@/lib/hrm-kpis"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
+import { DailyReportSection } from "@/components/hrm/daily-report-section"
+
+type PortalTab = "daily" | "kpis"
 
 export function MyKpiPortal() {
   const { user } = useAuth()
+  const [tab, setTab] = useState<PortalTab>("daily")
   const [staff, setStaff] = useState<{ id: string; name: string; email: string } | null>(null)
   const [kpiCount, setKpiCount] = useState(0)
   const [currentStatus, setCurrentStatus] = useState("draft")
@@ -65,6 +69,25 @@ export function MyKpiPortal() {
     return { label: "Draft", tone: "text-amber-600" }
   }, [currentStatus])
 
+  function tabBtn(id: PortalTab, label: string) {
+    const active = tab === id
+    return (
+      <button
+        key={id}
+        type="button"
+        onClick={() => setTab(id)}
+        className={`px-3 py-1.5 text-xs font-medium transition-colors relative cursor-pointer ${
+          active
+            ? "text-[hsl(var(--foreground))]"
+            : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+        }`}
+      >
+        {label}
+        {active && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
+      </button>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -76,7 +99,7 @@ export function MyKpiPortal() {
   if (notFound || !staff) {
     return (
       <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center max-w-lg mx-auto">
-        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Could not load your KPI dashboard</p>
+        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Could not load your dashboard</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
           Please contact admin if this continues for login (
           <span className="font-medium">{user?.email}</span>).
@@ -92,29 +115,54 @@ export function MyKpiPortal() {
           <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">My KPI Dashboard</h2>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{staff.name}</p>
         </div>
-        <p className={`text-xs font-semibold ${statusMeta.tone}`}>{statusMeta.label}</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Assigned</p>
-          <p className="text-xl font-bold tabular-nums">{kpiCount}</p>
-        </div>
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Status</p>
-          <p className={`text-xl font-bold ${statusMeta.tone}`}>{statusMeta.label}</p>
-        </div>
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Score</p>
-          <p className="text-xl font-bold tabular-nums">{currentScore}%</p>
-        </div>
+
+      <div className="flex items-center gap-1 border-b">
+        {tabBtn("daily", "Daily reporting")}
+        {tabBtn("kpis", "KPIs")}
       </div>
-      <StaffKpiSection
-        staffId={staff.id}
-        staffName={staff.name}
-        isAdmin={false}
-        actorName={user?.name ?? staff.name}
-        canSettle
-      />
+
+      {tab === "daily" && (
+        <DailyReportSection
+          staffId={staff.id}
+          staffName={staff.name}
+          actorName={user?.name ?? staff.name}
+        />
+      )}
+
+      {tab === "kpis" && (
+        <>
+          {kpiCount === 0 ? (
+            <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
+              No KPIs assigned for this cycle. Ask admin to assign KPIs, or use Daily reporting above.
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Assigned</p>
+                  <p className="text-xl font-bold tabular-nums">{kpiCount}</p>
+                </div>
+                <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Status</p>
+                  <p className={`text-xl font-bold ${statusMeta.tone}`}>{statusMeta.label}</p>
+                </div>
+                <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Score</p>
+                  <p className="text-xl font-bold tabular-nums">{currentScore}%</p>
+                </div>
+              </div>
+              <StaffKpiSection
+                staffId={staff.id}
+                staffName={staff.name}
+                isAdmin={false}
+                actorName={user?.name ?? staff.name}
+                canSettle
+              />
+            </>
+          )}
+        </>
+      )}
     </div>
   )
 }

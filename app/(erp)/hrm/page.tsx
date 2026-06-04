@@ -5,10 +5,11 @@ import { ModuleGuard } from "@/components/layout/module-guard"
 import { HrmManager } from "@/components/hrm/hrm-manager"
 import { HrmKpiAdmin } from "@/components/hrm/hrm-kpi-admin"
 import { HrmKpiApprovals } from "@/components/hrm/hrm-kpi-approvals"
+import { HrmDailyReportsAdmin } from "@/components/hrm/hrm-daily-reports-admin"
 import { MyKpiPortal } from "@/components/hrm/my-kpi-portal"
 import { useAuth } from "@/components/auth-provider"
 
-type HrmTab = "staff" | "performance" | "approvals" | "my-kpis"
+type HrmTab = "staff" | "performance" | "approvals" | "daily-reports" | "my-kpis"
 
 export default function HrmPage() {
   const { user } = useAuth()
@@ -43,7 +44,8 @@ export default function HrmPage() {
           <div className="flex items-center gap-1 border-b mb-4 flex-wrap">
             {isAdmin && tabBtn("staff", "Staff")}
             {isAdmin && tabBtn("performance", "Templates")}
-            {isAdmin && tabBtn("approvals", "Approvals")}
+            {isAdmin && tabBtn("approvals", "KPI Approvals")}
+            {isAdmin && tabBtn("daily-reports", "Daily Reports")}
             {tabBtn("my-kpis", "My KPIs")}
           </div>
 
@@ -53,6 +55,9 @@ export default function HrmPage() {
           )}
           {tab === "approvals" && isAdmin && (
             <HrmKpiApprovals reviewedBy={user?.name ?? "Admin"} />
+          )}
+          {tab === "daily-reports" && isAdmin && (
+            <HrmDailyReportsAdmin reviewedBy={user?.name ?? "Admin"} />
           )}
           {tab === "my-kpis" && <MyKpiPortal />}
         </div>

@@ -31,7 +31,7 @@ fi
 echo "==> Ensure upload directories exist"
 mkdir -p public/uploads/payment-proofs public/uploads/petty-cash public/uploads/misc \
   public/uploads/products public/uploads/crm-leads public/uploads/client-images \
-  public/uploads/fulfillment public/uploads/imported-po-docs
+  public/uploads/fulfillment public/uploads/imported-po-docs public/uploads/daily-reports
 
 echo "==> Product image health check"
 node scripts/check-product-images.mjs || echo "WARN: some product image files are missing — re-upload in Website → Products"

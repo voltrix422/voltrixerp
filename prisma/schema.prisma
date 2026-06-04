@@ -299,6 +299,7 @@ model ErpStaff {
 
   staffKpis      HrmStaffKpi[]
   kpiSettlements HrmKpiSettlement[]
+  dailyReports   HrmDailyReport[]
 
   @@index([email])
   @@index([erpUserId])
@@ -372,6 +373,29 @@ model HrmKpiSettlement {
   @@unique([staffId, periodStart, periodEnd])
   @@index([staffId, status])
   @@map("hrm_kpi_settlements")
+}
+
+/// Employee daily activity report (self-created, submitted to admin).
+model HrmDailyReport {
+  id            String    @id @default(cuid())
+  staffId       String    @map("staff_id")
+  staff         ErpStaff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  reportDate    String    @map("report_date") // YYYY-MM-DD
+  status        String    @default("draft") // draft | submitted | approved | rejected
+  logs          Json      @default("[]") // [{ id, timeFrom, timeTo, details, imageUrls }]
+  employeeNotes String    @default("") @map("employee_notes")
+  adminNotes    String    @default("") @map("admin_notes")
+  submittedAt   DateTime? @map("submitted_at")
+  submittedBy   String    @default("") @map("submitted_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  reviewedBy    String    @default("") @map("reviewed_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([staffId, reportDate])
+  @@index([reportDate, status])
+  @@index([staffId])
+  @@map("hrm_daily_reports")
 }
 
 model ErpFinanceRecord {
