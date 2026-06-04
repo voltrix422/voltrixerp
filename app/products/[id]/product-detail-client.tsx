@@ -272,30 +272,39 @@ export default function ProductDetailClient({
                 )}
               </div>
 
-              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 scrollbar-thin">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                  {showSpecs && (
+                    <button
+                      type="button"
+                      onClick={() => setSpecsOpen(true)}
+                      className="text-sm font-medium text-neutral-700 hover:text-[#1a9f9a] cursor-pointer border-b border-dotted border-transparent hover:border-[#1a9f9a] pb-0.5 transition-colors bg-transparent"
+                    >
+                      Specifications
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setTermsOpen(true)}
+                    className="text-sm font-medium text-neutral-700 hover:text-[#1a9f9a] cursor-pointer border-b border-dotted border-transparent hover:border-[#1a9f9a] pb-0.5 transition-colors bg-transparent"
+                  >
+                    Terms & Conditions
+                  </button>
+                  {hasBrochure && (
+                    <button
+                      type="button"
+                      onClick={() => setBrochureOpen(true)}
+                      className="text-sm font-medium text-neutral-700 hover:text-[#1a9f9a] cursor-pointer border-b border-dotted border-transparent hover:border-[#1a9f9a] pb-0.5 transition-colors bg-transparent"
+                    >
+                      Brochure
+                    </button>
+                  )}
+                </div>
                 <GetQuoteButton
                   label={requestQuote ? "Request a quote" : "Get a quote"}
                   size="md"
+                  className="w-fit"
                 />
-                {showSpecs && (
-                  <GetQuoteButton
-                    label="Specifications"
-                    size="md"
-                    onClick={() => setSpecsOpen(true)}
-                  />
-                )}
-                <GetQuoteButton
-                  label="Terms & Conditions"
-                  size="md"
-                  onClick={() => setTermsOpen(true)}
-                />
-                {hasBrochure && (
-                  <GetQuoteButton
-                    label="Brochure"
-                    size="md"
-                    onClick={() => setBrochureOpen(true)}
-                  />
-                )}
               </div>
 
               {descriptionBody ? (
