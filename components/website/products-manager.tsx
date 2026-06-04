@@ -14,6 +14,7 @@ import {
 } from "@/lib/product-categories"
 import { uploadFile } from "@/lib/upload"
 import type { ProductSpecRow } from "@/lib/product-specs"
+import { getProductDisplayName } from "@/lib/product-display-name"
 
 type Spec = ProductSpecRow
 type StockVal = "in" | "low" | "out"
@@ -22,6 +23,7 @@ type Product = {
   id: string
   created_at: string
   name: string
+  model?: string
   category: string
   description: string
   full_desc: string
@@ -49,7 +51,7 @@ const STOCK_OPTIONS = [
 type PendingImage = { file: File; preview: string }
 
 const EMPTY = {
-  name: "", category: "Energy Storage Battery", mainCategory: "Energy Storage Battery", subCategory: "",
+  name: "", model: "", category: "Energy Storage Battery", mainCategory: "Energy Storage Battery", subCategory: "",
   description: "", full_desc: "",
   specification: "", price: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
@@ -100,8 +102,12 @@ export default function ProductsManager() {
     }
     
     const { main, sub } = splitStoredCategory(p.category || "")
+    const { title, model } = getProductDisplayName({
+      name: p.name || "",
+      model: p.model,
+    })
     setForm({
-      name: p.name || "", category: p.category || main,
+      name: title, model: model || p.model || "", category: p.category || main,
       mainCategory: main, subCategory: sub,
       description: p.description || "", full_desc: p.full_desc || "",
       specification: p.specification || "", price: String(p.price ?? ""),
@@ -199,7 +205,9 @@ export default function ProductsManager() {
 
       const category = resolveStoredCategory(form.mainCategory, form.subCategory)
       const payload = {
-        name: form.name, category, description: form.description,
+        name: form.name.trim(),
+        model: form.model.trim(),
+        category, description: form.description,
         full_desc: form.full_desc, specification: form.specification,
         price: form.price || 0, warranty: form.warranty,
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
@@ -315,6 +323,7 @@ export default function ProductsManager() {
 
   const filtered = products.filter(p =>
     (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (p.model || "").toLowerCase().includes(search.toLowerCase()) ||
     (p.category || "").toLowerCase().includes(search.toLowerCase())
   )
 
@@ -373,7 +382,9 @@ export default function ProductsManager() {
           <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">No products found</div>
         ) : (
           <div className="flex-1 overflow-y-auto divide-y">
-            {filtered.map((p, index) => (
+            {filtered.map((p, index) => {
+              const display = getProductDisplayName({ name: p.name, model: p.model })
+              return (
               <button
                 key={p.id}
                 draggable
@@ -390,14 +401,18 @@ export default function ProductsManager() {
                     : <ImageIcon className="w-4 h-4 text-muted-foreground opacity-30" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{p.name}</p>
+                  <p className="text-sm font-medium truncate">{display.title}</p>
+                  {display.model ? (
+                    <p className="text-[11px] font-mono text-muted-foreground truncate">{display.model}</p>
+                  ) : null}
                   <p className="text-xs text-muted-foreground">{p.category}</p>
                 </div>
                 {p.published
                   ? <Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   : <EyeOff className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0" />}
               </button>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -414,7 +429,14 @@ export default function ProductsManager() {
 
             {/* Header */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-base font-semibold">{isNew ? "New Product" : form.name || "Edit Product"}</h2>
+              <h2 className="text-base font-semibold">
+                {isNew ? "New Product" : form.name || "Edit Product"}
+                {form.model ? (
+                  <span className="block text-xs font-mono font-normal text-muted-foreground mt-0.5">
+                    {form.model}
+                  </span>
+                ) : null}
+              </h2>
               <div className="flex items-center gap-2">
                 <button onClick={() => { setSelected(null); setIsNew(false); setForm(EMPTY); setPendingImgs([]) }}
                   className="p-2 rounded-lg hover:bg-accent text-muted-foreground transition-colors">
@@ -527,7 +549,20 @@ export default function ProductsManager() {
                 <div className="space-y-1.5 col-span-2">
                   <label className="text-xs font-medium text-muted-foreground">Product Name *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" placeholder="e.g. WL-5" />
+                    className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]"
+                    placeholder="e.g. 5 KWh Energy Storage Battery" />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground">Model / SKU</label>
+                  <input
+                    value={form.model}
+                    onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-lg border text-sm font-mono outline-none focus:border-[#1a9f9a]"
+                    placeholder="e.g. HS-BG5000W-A6"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Shown below the product name on the public product page.
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Main category</label>

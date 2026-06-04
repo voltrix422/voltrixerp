@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { getProductImageList } from "@/lib/product-image"
+import { getProductDisplayName } from "@/lib/product-display-name"
 import {
   CheckCircle2,
   XCircle,
@@ -16,6 +17,10 @@ import {
   ZoomIn,
   Shield,
   FileText,
+  ClipboardList,
+  ScrollText,
+  BookOpen,
+  Tag,
 } from "lucide-react"
 import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
@@ -24,25 +29,33 @@ import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 import { hasProductSpecs } from "@/lib/product-specs"
 
-function StockPill({ stock }: { stock: unknown }) {
-  const s = typeof stock === "number" ? (stock > 0 ? "in" : stock === 0 ? "low" : "out") : stock
-  if (s === "in")
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-        <CheckCircle2 className="w-3.5 h-3.5" /> In stock
-      </span>
-    )
-  if (s === "low")
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
-        <AlertCircle className="w-3.5 h-3.5" /> Low stock
-      </span>
-    )
-  return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500">
-      <XCircle className="w-3.5 h-3.5" /> Out of stock
-    </span>
-  )
+type StockKey = "in" | "low" | "out"
+
+function normalizeStock(stock: unknown): StockKey {
+  if (typeof stock === "number") return stock > 0 ? "in" : stock === 0 ? "low" : "out"
+  if (stock === "low" || stock === "out") return stock
+  return "in"
+}
+
+const STOCK_CHIPS: Record<
+  StockKey,
+  { label: string; icon: typeof CheckCircle2; className: string }
+> = {
+  in: {
+    label: "In stock",
+    icon: CheckCircle2,
+    className: "bg-emerald-50 text-emerald-800 border-emerald-200/80",
+  },
+  low: {
+    label: "Low stock",
+    icon: AlertCircle,
+    className: "bg-amber-50 text-amber-800 border-amber-200/80",
+  },
+  out: {
+    label: "Out of stock",
+    icon: XCircle,
+    className: "bg-neutral-100 text-neutral-600 border-neutral-200",
+  },
 }
 
 function ProductImages({ images, productName }: { images: string[]; productName: string }) {
@@ -50,6 +63,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
   const [failed, setFailed] = useState<Set<number>>(() => new Set())
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [zoomed, setZoomed] = useState(false)
 
   useEffect(() => {
     if (!isLightboxOpen) return
@@ -67,7 +81,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   if (images.length === 0) {
     return (
-      <div className="relative aspect-[4/3] max-h-[280px] w-full rounded-xl bg-neutral-50 border border-neutral-100 overflow-hidden">
+      <div className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200/80 overflow-hidden shadow-sm">
         <ProductThumbnail src={null} alt={productName} fill />
       </div>
     )
@@ -75,43 +89,49 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   return (
     <>
-      <div className="space-y-3">
+      <div className="space-y-3 max-w-[360px] mx-auto md:mx-0">
         <button
           type="button"
           onClick={() => {
             setLightboxIndex(currentIndex)
             setIsLightboxOpen(true)
           }}
-          className="relative block w-full aspect-[4/3] max-h-[280px] rounded-xl bg-neutral-50 border border-neutral-100 overflow-hidden group cursor-zoom-in"
+          onMouseEnter={() => setZoomed(true)}
+          onMouseLeave={() => setZoomed(false)}
+          className="relative block w-full aspect-square rounded-2xl bg-gradient-to-br from-white to-neutral-50 border border-neutral-200/80 overflow-hidden shadow-sm group cursor-zoom-in"
           aria-label="View full size image"
         >
-          {activeFailed ? (
-            <ProductThumbnail src={null} alt={productName} fill />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={activeSrc}
-              alt={productName}
-              className="absolute inset-0 w-full h-full object-contain p-4 transition-transform duration-200 group-hover:scale-[1.02]"
-              onError={() => setFailed(prev => new Set(prev).add(currentIndex))}
-            />
-          )}
-          <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-[10px] font-medium text-neutral-500 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-            <ZoomIn className="w-3 h-3" /> Enlarge
+          <div className="absolute inset-0 overflow-hidden">
+            {activeFailed ? (
+              <ProductThumbnail src={null} alt={productName} fill />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={activeSrc}
+                alt={productName}
+                className={`absolute inset-0 w-full h-full object-contain p-5 transition-transform duration-500 ease-out ${
+                  zoomed ? "scale-[1.12]" : "scale-100"
+                }`}
+                onError={() => setFailed(prev => new Set(prev).add(currentIndex))}
+              />
+            )}
+          </div>
+          <span className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-md border border-neutral-100 opacity-0 group-hover:opacity-100 transition-opacity">
+            <ZoomIn className="w-3.5 h-3.5 text-[#1a9f9a]" /> Hover to zoom · Click to enlarge
           </span>
         </button>
 
         {images.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-0.5">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {images.map((img, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setCurrentIndex(i)}
-                className={`relative w-14 h-14 shrink-0 rounded-lg overflow-hidden border bg-white transition-all ${
+                className={`relative w-16 h-16 shrink-0 rounded-xl overflow-hidden border-2 bg-white transition-all ${
                   i === currentIndex
-                    ? "border-[#1a9f9a] ring-1 ring-[#1a9f9a]/30"
-                    : "border-neutral-200 opacity-70 hover:opacity-100"
+                    ? "border-[#1a9f9a] shadow-md shadow-[#1a9f9a]/15"
+                    : "border-neutral-200 opacity-75 hover:opacity-100 hover:border-neutral-300"
                 }`}
               >
                 <ProductThumbnail src={img} alt="" fill imgClassName="p-1.5" />
@@ -123,7 +143,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
       {isLightboxOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center p-4"
           onClick={() => setIsLightboxOpen(false)}
         >
           <button
@@ -133,7 +153,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="relative w-full max-w-4xl h-[80vh]" onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-4xl h-[85vh]" onClick={e => e.stopPropagation()}>
             {!failed.has(lightboxIndex) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -148,14 +168,14 @@ function ProductImages({ images, productName }: { images: string[]; productName:
                 <button
                   type="button"
                   onClick={() => setLightboxIndex(prev => (prev - 1 + images.length) % images.length)}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setLightboxIndex(prev => (prev + 1) % images.length)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>
@@ -187,114 +207,149 @@ export default function ProductDetailClient({
   const hasBrochure = Boolean(product.brochureUrl)
   const showSpecs = hasProductSpecs(product)
   const category = String(product.category ?? "")
+  const { title, model } = getProductDisplayName({
+    name: String(product.name ?? ""),
+    model: product.model != null ? String(product.model) : undefined,
+  })
   const catClass =
     categoryColors[category] ||
     categoryColors[getMainCategory(category)] ||
     "bg-neutral-100 text-neutral-600 border-neutral-200"
   const shortDesc = String(product.description ?? "").trim()
-  const fullDesc = String(product.full_desc || product.description || "").trim()
+  const fullDesc = String(product.full_desc || "").trim()
   const warranty = String(product.warranty || "").trim()
-
-  const docLinks: { label: string; onClick: () => void }[] = []
-  if (showSpecs) docLinks.push({ label: "Specifications", onClick: () => setSpecsOpen(true) })
-  docLinks.push({ label: "Terms & Conditions", onClick: () => setTermsOpen(true) })
-  if (hasBrochure) docLinks.push({ label: "Brochure", onClick: () => setBrochureOpen(true) })
+  const stockKey = normalizeStock(product.stock)
+  const stockChip = STOCK_CHIPS[stockKey]
+  const StockIcon = stockChip.icon
+  const displayDesc = fullDesc || shortDesc
+  const showDescSection = Boolean(displayDesc) && (fullDesc !== shortDesc || !shortDesc)
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="min-h-screen bg-gradient-to-b from-neutral-50/80 via-white to-white">
       <div className="pt-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <Link
           href="/products"
-          className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-[#1a9f9a] transition-colors py-3"
+          className="inline-flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-[#1a9f9a] transition-colors py-3 rounded-lg hover:bg-white/80 px-2 -ml-2"
         >
           <ArrowLeft className="w-4 h-4" /> All products
         </Link>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,340px)_1fr] gap-8 lg:gap-10 items-start">
-          <ProductImages images={images} productName={String(product.name)} />
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40 p-6 sm:p-8">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,360px)_1fr] gap-8 lg:gap-12 items-start">
+            <ProductImages images={images} productName={title} />
 
-          <div className="min-w-0 space-y-4">
-            <span className={`inline-block text-[11px] font-semibold px-2.5 py-1 rounded-md border ${catClass}`}>
-              {getCategoryDisplayLabel(category)}
-            </span>
+            <div className="min-w-0 flex flex-col gap-5">
+              <span
+                className={`inline-flex w-fit items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border ${catClass}`}
+              >
+                <Tag className="w-3 h-3 opacity-70" />
+                {getCategoryDisplayLabel(category)}
+              </span>
 
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 leading-snug">
-              {String(product.name)}
-            </h1>
+              <div>
+                <h1 className="text-2xl sm:text-[1.75rem] font-bold tracking-tight text-neutral-900 leading-tight">
+                  {title}
+                </h1>
+                {model ? (
+                  <p className="mt-2 inline-flex items-center gap-2 text-sm font-mono font-medium text-neutral-500 bg-neutral-50 border border-neutral-200/80 rounded-lg px-3 py-1.5 w-fit">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-sans font-semibold">
+                      Model
+                    </span>
+                    {model}
+                  </p>
+                ) : null}
+              </div>
 
-            {shortDesc ? (
-              <p className="text-sm text-neutral-600 leading-relaxed">{shortDesc}</p>
-            ) : null}
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 px-4 rounded-lg bg-neutral-50 border border-neutral-100 text-sm">
-              <StockPill stock={product.stock} />
-              {warranty ? (
-                <>
-                  <span className="hidden sm:inline w-px h-4 bg-neutral-200" aria-hidden />
-                  <span className="inline-flex items-center gap-1.5 text-neutral-700">
-                    <Shield className="w-3.5 h-3.5 text-[#1a9f9a]" />
-                    <span className="text-neutral-500">Warranty</span>
-                    <span className="font-medium">{warranty}</span>
-                  </span>
-                </>
+              {shortDesc ? (
+                <p className="text-sm text-neutral-600 leading-relaxed -mt-1">{shortDesc}</p>
               ) : null}
-              <span className="hidden sm:inline w-px h-4 bg-neutral-200" aria-hidden />
-              {requestQuote ? (
-                <span className="inline-flex items-center gap-1.5 font-medium text-[#1a9f9a]">
-                  <FileText className="w-3.5 h-3.5" />
-                  Request a quote
+
+              <div className="flex flex-wrap gap-2.5">
+                <span
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold ${stockChip.className}`}
+                >
+                  <StockIcon className="w-4 h-4 shrink-0" />
+                  {stockChip.label}
                 </span>
-              ) : (
-                <span className="text-neutral-700">
-                  <span className="text-neutral-500 mr-1.5">Price</span>
-                  <span className="font-semibold text-neutral-900">
+                {warranty ? (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#1a9f9a]/25 bg-[#1a9f9a]/5 text-sm font-semibold text-neutral-800">
+                    <Shield className="w-4 h-4 text-[#1a9f9a] shrink-0" />
+                    <span className="text-neutral-500 font-medium">Warranty</span>
+                    {warranty}
+                  </span>
+                ) : null}
+                {!requestQuote && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm font-semibold text-neutral-900">
+                    <span className="text-neutral-500 font-medium">Price</span>
                     {formatProductPrice(product.price as string | number | null | undefined) ?? "—"}
                   </span>
-                </span>
+                )}
+              </div>
+
+              {requestQuote ? (
+                <Link
+                  href="/quote"
+                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 rounded-xl text-sm font-bold text-white bg-[#1a9f9a] hover:bg-[#158a85] shadow-lg shadow-[#1a9f9a]/25 hover:shadow-xl hover:shadow-[#1a9f9a]/30 transition-all hover:-translate-y-0.5"
+                >
+                  <FileText className="w-4 h-4" />
+                  Request a quote
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <Link
+                  href="/quote"
+                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-semibold text-[#1a9f9a] border-2 border-[#1a9f9a] bg-white hover:bg-[#1a9f9a]/5 transition-colors"
+                >
+                  Get a quote <ArrowRight className="w-4 h-4" />
+                </Link>
               )}
-            </div>
 
-            <Link
-              href="/quote"
-              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto min-w-[200px] px-6 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-colors"
-            >
-              Request a quote <ArrowRight className="w-4 h-4" />
-            </Link>
-
-            <nav className="flex flex-wrap items-center gap-1 pt-1 border-t border-neutral-100" aria-label="Product documents">
-              {docLinks.map((link, i) => (
-                <span key={link.label} className="inline-flex items-center">
-                  {i > 0 && <span className="text-neutral-300 mx-1">·</span>}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {showSpecs && (
                   <button
                     type="button"
-                    onClick={link.onClick}
-                    className="text-sm text-neutral-600 hover:text-[#1a9f9a] font-medium transition-colors py-2"
+                    onClick={() => setSpecsOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all"
                   >
-                    {link.label}
+                    <ClipboardList className="w-4 h-4" />
+                    Specifications
                   </button>
-                </span>
-              ))}
-            </nav>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTermsOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all"
+                >
+                  <ScrollText className="w-4 h-4" />
+                  Terms & Conditions
+                </button>
+                {hasBrochure && (
+                  <button
+                    type="button"
+                    onClick={() => setBrochureOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    Brochure
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {fullDesc && fullDesc !== shortDesc ? (
-          <section className="mt-10 pt-8 border-t border-neutral-100">
-            <h2 className="text-sm font-semibold text-neutral-900 mb-3">Description</h2>
-            <div className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap max-w-3xl">
-              {fullDesc}
-            </div>
-          </section>
-        ) : fullDesc && !shortDesc ? (
-          <section className="mt-10 pt-8 border-t border-neutral-100">
-            <h2 className="text-sm font-semibold text-neutral-900 mb-3">Description</h2>
-            <div className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap max-w-3xl">
-              {fullDesc}
-            </div>
-          </section>
-        ) : null}
+          {showDescSection ? (
+            <section className="mt-8 pt-6 border-t border-neutral-100">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">
+                Description
+              </h2>
+              <p className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap max-w-3xl">
+                {fullDesc || shortDesc}
+              </p>
+            </section>
+          ) : null}
+        </div>
       </div>
 
       {brochureOpen && hasBrochure && (
@@ -319,19 +374,23 @@ export default function ProductDetailClient({
             <ProductBrochurePanel
               brochureUrl={String(product.brochureUrl)}
               brochureName={product.brochureName ? String(product.brochureName) : undefined}
-              productName={String(product.name)}
+              productName={title}
             />
           </div>
         </div>
       )}
 
       {related.length > 0 && (
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <h2 className="text-lg font-semibold text-neutral-900 mb-5">Related products</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {related.map((r: Record<string, unknown>) => {
               const rThumb = getProductImageList(r)[0] ?? null
               const rCat = String(r.category ?? "")
+              const rDisplay = getProductDisplayName({
+                name: String(r.name ?? ""),
+                model: r.model != null ? String(r.model) : undefined,
+              })
               return (
                 <Link
                   key={String(r.id)}
@@ -341,12 +400,12 @@ export default function ProductDetailClient({
                   <div className="relative w-full aspect-[4/3] bg-neutral-50">
                     <ProductThumbnail
                       src={rThumb}
-                      alt={String(r.name)}
+                      alt={rDisplay.title}
                       fill
-                      imgClassName="p-4 group-hover:scale-[1.02] transition-transform"
+                      imgClassName="p-4 group-hover:scale-[1.03] transition-transform duration-300"
                     />
                   </div>
-                  <div className="p-4 space-y-1.5">
+                  <div className="p-4 space-y-1">
                     <span
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded border w-fit ${
                         categoryColors[rCat] ||
@@ -356,7 +415,10 @@ export default function ProductDetailClient({
                     >
                       {getCategoryDisplayLabel(rCat)}
                     </span>
-                    <p className="font-semibold text-sm text-neutral-900">{String(r.name)}</p>
+                    <p className="font-semibold text-sm text-neutral-900">{rDisplay.title}</p>
+                    {rDisplay.model ? (
+                      <p className="text-xs font-mono text-neutral-500">{rDisplay.model}</p>
+                    ) : null}
                     {shouldRequestQuote(r) ? (
                       <span className="text-xs font-medium text-[#1a9f9a]">Request a Quote</span>
                     ) : (
@@ -375,7 +437,7 @@ export default function ProductDetailClient({
       <ProductTermsModal
         open={termsOpen}
         onClose={() => setTermsOpen(false)}
-        productName={String(product.name)}
+        productName={title}
         termsDisplay={termsDisplay}
       />
 
@@ -383,7 +445,7 @@ export default function ProductDetailClient({
         open={specsOpen}
         onClose={() => setSpecsOpen(false)}
         product={{
-          name: String(product.name),
+          name: model ? `${title} · ${model}` : title,
           category: category,
           description: product.description ? String(product.description) : undefined,
           full_desc: product.full_desc ? String(product.full_desc) : undefined,
