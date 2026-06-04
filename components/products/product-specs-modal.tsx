@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Download, Loader2, X } from "lucide-react"
+import { Download, Loader2, X, ExternalLink } from "lucide-react"
 import {
   hasProductSpecs,
   normalizeSpecRows,
@@ -15,8 +15,51 @@ type Props = {
   open: boolean
   onClose: () => void
   product: ProductSpecsPayload
-  /** When true, lead with the admin-uploaded full spec sheet image */
+  /** When true, show only the uploaded spec sheet image (sharp, full width) */
   focusSpecSheet?: boolean
+}
+
+/** Renders spec sheet at native resolution — never upscales (avoids blur). */
+function SpecSheetImage({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false)
+
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group block rounded-lg border border-neutral-200 bg-white p-3 hover:border-[#1a9f9a]/40 transition-colors"
+      title="Open full size in new tab"
+    >
+      <div className="flex justify-center overflow-auto max-h-[min(78vh,820px)]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          decoding="async"
+          className={`block h-auto max-w-full object-contain transition-opacity duration-150 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ width: "auto", maxHeight: "min(78vh, 820px)" }}
+          onLoad={e => {
+            const img = e.currentTarget
+            const parent = img.parentElement
+            const maxW = parent?.clientWidth ?? img.naturalWidth
+            // Never scale wider than the file's real pixels (prevents soft upscale blur)
+            const displayW = Math.min(img.naturalWidth, maxW)
+            if (displayW > 0) {
+              img.style.width = `${displayW}px`
+            }
+            setLoaded(true)
+          }}
+        />
+      </div>
+      <p className="mt-2 flex items-center justify-center gap-1 text-[11px] text-neutral-400 group-hover:text-[#1a9f9a]">
+        <ExternalLink className="w-3 h-3" />
+        View full size
+      </p>
+    </a>
+  )
 }
 
 export default function ProductSpecsModal({
@@ -29,6 +72,7 @@ export default function ProductSpecsModal({
   const specs = normalizeSpecRows(product.specs)
   const categoryLabel = getCategoryDisplayLabel(String(product.category ?? ""))
   const specSheet = product.specSheetUrl?.trim()
+  const sheetOnly = Boolean(specSheet && focusSpecSheet)
 
   useEffect(() => {
     if (!open) return
@@ -62,14 +106,16 @@ export default function ProductSpecsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="product-specs-title"
     >
       <div
-        className="flex w-full max-w-3xl max-h-[90vh] flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+        className={`flex w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl isolate ${
+          specSheet ? "max-w-5xl" : "max-w-3xl"
+        } max-h-[92vh]`}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-100 px-5 py-4">
@@ -94,29 +140,10 @@ export default function ProductSpecsModal({
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
           {specSheet && (
-            <div>
-              {focusSpecSheet ? null : (
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-                  Specification sheet
-                </h3>
-              )}
-              <a
-                href={specSheet}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block rounded-lg border border-neutral-200 overflow-hidden bg-neutral-50"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={specSheet}
-                  alt={`${product.name} specification sheet`}
-                  className="w-full h-auto max-h-[min(65vh,560px)] object-contain"
-                />
-              </a>
-            </div>
+            <SpecSheetImage src={specSheet} alt={`${product.name} specification sheet`} />
           )}
 
-          {specs.length > 0 && (
+          {!sheetOnly && specs.length > 0 && (
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
                 Technical details
@@ -143,7 +170,7 @@ export default function ProductSpecsModal({
             </div>
           )}
 
-          {specs.some(s => s.imageUrl) && (
+          {!sheetOnly && specs.some(s => s.imageUrl) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {specs
                 .filter(s => s.imageUrl)
@@ -156,13 +183,14 @@ export default function ProductSpecsModal({
                       href={s.imageUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block rounded-lg border border-neutral-200 overflow-hidden"
+                      className="block rounded-lg border border-neutral-200 overflow-hidden bg-white p-2"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={s.imageUrl}
                         alt={s.label || "Specification"}
-                        className="w-full h-auto object-contain bg-neutral-50 max-h-48"
+                        className="block w-auto max-w-full h-auto max-h-64 mx-auto object-contain"
+                        style={{ width: "auto" }}
                       />
                     </a>
                   </div>
