@@ -290,7 +290,7 @@ export default function ProductDetailClient({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">Price</p>
                 <p className="text-2xl xl:text-3xl font-bold text-neutral-900">
-                  {formatProductPrice(product.price) ?? "—"}
+                  {formatProductPrice(product.price as string | number | null | undefined) ?? "—"}
                 </p>
               </div>
             )}
@@ -432,7 +432,7 @@ export default function ProductDetailClient({
                       <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
                     ) : (
                       <p className="text-base font-bold text-neutral-900">
-                        {formatProductPrice(r.price) ?? "—"}
+                        {formatProductPrice(r.price as string | number | null | undefined) ?? "—"}
                       </p>
                     )}
                   </div>

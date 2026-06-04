@@ -28,9 +28,13 @@ export function normalizeSpecRows(raw: unknown): ProductSpecRow[] {
     .filter(s => s.label || s.value || s.imageUrl)
 }
 
-export function hasProductSpecs(product: ProductSpecsPayload): boolean {
+export function hasProductSpecs(product: {
+  specs?: unknown
+  specSheetUrl?: string | null
+}): boolean {
   const rows = normalizeSpecRows(product.specs)
-  return rows.length > 0 || Boolean(product.specSheetUrl?.trim())
+  const sheet = product.specSheetUrl != null ? String(product.specSheetUrl).trim() : ""
+  return rows.length > 0 || Boolean(sheet)
 }
 
 export function absoluteAssetUrl(path: string): string {
