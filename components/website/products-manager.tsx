@@ -178,10 +178,6 @@ export default function ProductsManager() {
   // ── save ───────────────────────────────────────────────
   const save = async (publishOverride?: boolean, closeAfter = false) => {
     if (!form.name.trim()) { setSaveError("Product name is required."); return }
-    if (form.mainCategory === "Inverter" && !form.subCategory) {
-      setSaveError("Select Voltrix Prime or Voltrix Nivo under Inverter.")
-      return
-    }
     setSaving(true); setSaveError(""); setSaveOk(false)
 
     try {
@@ -530,13 +526,13 @@ export default function ProductsManager() {
                 </div>
                 {form.mainCategory === "Inverter" && (
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Inverter line</label>
+                    <label className="text-xs font-medium text-muted-foreground">Inverter line (optional)</label>
                     <select
                       value={form.subCategory}
                       onChange={e => setForm(f => ({ ...f, subCategory: e.target.value }))}
                       className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]"
                     >
-                      <option value="">Select line…</option>
+                      <option value="">General — shows under Inverter</option>
                       {INVERTER_SUBCATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>

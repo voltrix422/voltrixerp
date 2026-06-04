@@ -8,6 +8,7 @@ import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft } from "lucid
 import { promises as fs } from 'fs'
 import path from 'path'
 import { loadProductTermsTemplates, resolveProductTermsDisplay } from '@/lib/product-terms'
+import { getMainCategory } from '@/lib/product-categories'
 import ProductDetailClient from './product-detail-client'
 
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-dm-sans" })
@@ -17,6 +18,12 @@ const categoryColors: Record<string, string> = {
   Industrial:  "bg-orange-50 text-orange-600 border-orange-100",
   EV:          "bg-purple-50 text-purple-600 border-purple-100",
   BMS:         "bg-neutral-100 text-neutral-600 border-neutral-200",
+  Inverter: "bg-sky-50 text-sky-700 border-sky-200",
+  "Energy Storage Battery": "bg-teal-50 text-teal-700 border-teal-200",
+  "Energy Storage": "bg-teal-50 text-teal-700 border-teal-200",
+  "Voltrix Prime": "bg-sky-50 text-sky-700 border-sky-200",
+  "Voltrix Nivo": "bg-sky-50 text-sky-700 border-sky-200",
+  "Voltrix Fusion": "bg-amber-50 text-amber-700 border-amber-200",
 }
 
 function StockBadge({ stock }: { stock: any }) {
@@ -44,7 +51,7 @@ async function getRelated(category: string, excludeId: string) {
     const data = await fs.readFile(dataFile, 'utf-8')
     const products = JSON.parse(data)
     return products
-      .filter((p: any) => p.category === category && p.id !== excludeId && p.published)
+      .filter((p: any) => getMainCategory(p.category) === getMainCategory(category) && p.id !== excludeId && p.published)
       .slice(0, 3)
   } catch (error) {
     console.error('Error reading related products:', error)

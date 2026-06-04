@@ -9,6 +9,7 @@ import Link from "next/link"
 import { promises as fs } from 'fs'
 import path from 'path'
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
+import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 
@@ -17,6 +18,12 @@ const categoryColors: Record<string, string> = {
   Industrial:  "bg-orange-50 text-orange-600 border-orange-100",
   EV:          "bg-purple-50 text-purple-600 border-purple-100",
   BMS:         "bg-neutral-100 text-neutral-600 border-neutral-200",
+  Inverter: "bg-sky-50 text-sky-700 border-sky-200",
+  "Energy Storage Battery": "bg-teal-50 text-teal-700 border-teal-200",
+  "Energy Storage": "bg-teal-50 text-teal-700 border-teal-200",
+  "Voltrix Prime": "bg-sky-50 text-sky-700 border-sky-200",
+  "Voltrix Nivo": "bg-sky-50 text-sky-700 border-sky-200",
+  "Voltrix Fusion": "bg-amber-50 text-amber-700 border-amber-200",
 }
 
 function StockBadge({ stock }: { stock: any }) {
@@ -63,7 +70,7 @@ export default async function ProductsPage() {
                 return (
                   <Link key={p.id} href={`/products/${p.id}`} className="group flex flex-col gap-4 p-6 rounded-2xl border border-neutral-100 bg-white hover:border-neutral-200 hover:shadow-lg hover:shadow-neutral-100 transition-all duration-200">
                     <div className="flex items-start justify-between gap-2">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${categoryColors[p.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{p.category}</span>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${categoryColors[p.category] || categoryColors[getMainCategory(p.category)] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{getCategoryDisplayLabel(p.category)}</span>
                       <StockBadge stock={p.stock} />
                     </div>
                     <div className="relative w-full h-44 rounded-xl overflow-hidden bg-neutral-50">

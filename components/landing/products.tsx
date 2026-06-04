@@ -9,8 +9,8 @@ import { getProductImageList } from "@/lib/product-image"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import {
   INVERTER_SUBCATEGORIES,
+  getCategoryDisplayLabel,
   getMainCategory,
-  isInverterSubcategory,
   productMatchesCategoryFilter,
 } from "@/lib/product-categories"
 import ProductCategoryFilter from "@/components/landing/product-category-filter"
@@ -99,9 +99,7 @@ export default function Products() {
                   <div className="p-6 flex flex-col gap-4 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <span className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${categoryColors[p.category] || categoryColors[getMainCategory(p.category)] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
-                        {isInverterSubcategory(p.category)
-                          ? `Inverter · ${p.category}`
-                          : (getMainCategory(p.category) || p.category)}
+                        {getCategoryDisplayLabel(p.category)}
                       </span>
                       <StockBadge stock={p.stock} />
                     </div>

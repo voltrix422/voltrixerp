@@ -8,6 +8,7 @@ import { CheckCircle2, XCircle, AlertCircle, ArrowRight, ArrowLeft, X, ChevronLe
 import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductBrochurePanel from "@/components/products/product-brochure-panel"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
+import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 
 type TabType = "description" | "specifications" | "brochure"
 
@@ -335,7 +336,7 @@ export default function ProductDetailClient({
           {/* Right - Product Details */}
           <div className="space-y-6">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${categoryColors[product.category] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{product.category}</span>
+              <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${categoryColors[product.category] || categoryColors[getMainCategory(product.category)] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{getCategoryDisplayLabel(product.category)}</span>
               <StockBadge stock={product.stock} />
             </div>
             

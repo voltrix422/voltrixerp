@@ -13,15 +13,32 @@ export type InverterSubcategory = (typeof INVERTER_SUBCATEGORIES)[number]
 /** Legacy / alias values stored on older products */
 const ENERGY_STORAGE_ALIASES = ["Energy Storage Battery", "Energy Storage"]
 
+/** Stored values that belong under the Inverter website filter (incl. legacy tag). */
+const INVERTER_STORED_ALIASES = ["Inverter", "Residential"] as const
+
 export function isInverterSubcategory(category: string): boolean {
   return (INVERTER_SUBCATEGORIES as readonly string[]).includes(category)
 }
 
+export function isInverterCategory(category: string): boolean {
+  if (!category) return false
+  if ((INVERTER_STORED_ALIASES as readonly string[]).includes(category)) return true
+  return isInverterSubcategory(category)
+}
+
 export function getMainCategory(category: string): string {
   if (!category) return ""
-  if (isInverterSubcategory(category)) return "Inverter"
+  if (isInverterCategory(category)) return "Inverter"
   if (ENERGY_STORAGE_ALIASES.includes(category)) return "Energy Storage Battery"
   return category
+}
+
+export function getCategoryDisplayLabel(category: string): string {
+  if (!category) return ""
+  if (isInverterSubcategory(category)) return `Inverter · ${category}`
+  if (isInverterCategory(category)) return "Inverter"
+  const main = getMainCategory(category)
+  return main || category
 }
 
 export function productMatchesCategoryFilter(
@@ -44,13 +61,16 @@ export const WEBSITE_CATEGORY_FILTERS: { id: string; label: string; children?: s
 ]
 
 export function resolveStoredCategory(main: string, sub: string): string {
-  if (main === "Inverter" && sub) return sub
+  if (main === "Inverter") return sub || "Inverter"
   return main || sub || ""
 }
 
 export function splitStoredCategory(category: string): { main: string; sub: string } {
   if (isInverterSubcategory(category)) {
     return { main: "Inverter", sub: category }
+  }
+  if (category === "Inverter" || category === "Residential") {
+    return { main: "Inverter", sub: "" }
   }
   if (ENERGY_STORAGE_ALIASES.includes(category)) {
     return { main: "Energy Storage Battery", sub: "" }
