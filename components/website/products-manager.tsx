@@ -12,8 +12,10 @@ import {
   resolveStoredCategory,
   splitStoredCategory,
 } from "@/lib/product-categories"
+import { uploadFile } from "@/lib/upload"
+import type { ProductSpecRow } from "@/lib/product-specs"
 
-type Spec = { label: string; value: string }
+type Spec = ProductSpecRow
 type StockVal = "in" | "low" | "out"
 
 type Product = {
@@ -34,6 +36,7 @@ type Product = {
   quoteMode: boolean
   brochureUrl?: string
   brochureName?: string
+  specSheetUrl?: string
   order?: number
 }
 
@@ -50,7 +53,7 @@ const EMPTY = {
   description: "", full_desc: "",
   specification: "", price: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
-  brochureUrl: "", brochureName: "",
+  brochureUrl: "", brochureName: "", specSheetUrl: "",
 }
 
 export default function ProductsManager() {
@@ -108,6 +111,7 @@ export default function ProductsManager() {
       published: p.published || false, unit: p.unit || "pcs", quoteMode: p.quoteMode || false,
       brochureUrl: p.brochureUrl || "",
       brochureName: p.brochureName || "",
+      specSheetUrl: p.specSheetUrl || "",
     })
     setPendingImgs([])
     setIsNew(false)
@@ -201,6 +205,7 @@ export default function ProductsManager() {
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
         brochureUrl: form.brochureUrl, brochureName: form.brochureName,
+        specSheetUrl: form.specSheetUrl,
         terms: "",
         termsUseCustom: false,
         termsTemplateId: "",
@@ -289,10 +294,19 @@ export default function ProductsManager() {
   }
 
   // ── spec helpers ───────────────────────────────────────
-  const addSpec = () => setForm(f => ({ ...f, specs: [...f.specs, { label: "", value: "" }] }))
+  const addSpec = () => setForm(f => ({ ...f, specs: [...f.specs, { label: "", value: "", imageUrl: "" }] }))
   const delSpec = (i: number) => setForm(f => ({ ...f, specs: f.specs.filter((_, j) => j !== i) }))
-  const setSpec = (i: number, k: "label"|"value", v: string) =>
+  const setSpec = (i: number, k: keyof Spec, v: string) =>
     setForm(f => ({ ...f, specs: f.specs.map((s, j) => j === i ? { ...s, [k]: v } : s) }))
+
+  const uploadSpecAsset = async (file: File, onUrl: (url: string) => void) => {
+    try {
+      const url = await uploadFile(file, "products")
+      onUrl(url)
+    } catch {
+      setSaveError("Spec image upload failed.")
+    }
+  }
 
   const filtered = products.filter(p =>
     (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -600,22 +614,91 @@ export default function ProductsManager() {
             <div className="rounded-xl border p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Specifications</p>
-                <button onClick={addSpec} className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border hover:bg-accent">
+                <button type="button" onClick={addSpec} className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border hover:bg-accent">
                   <Plus className="w-3 h-3" /> Add row
                 </button>
               </div>
+
+              <div className="space-y-2 rounded-lg border border-dashed p-3 bg-neutral-50/80">
+                <p className="text-xs font-medium text-muted-foreground">Full specification sheet image</p>
+                <p className="text-[10px] text-muted-foreground">Shown in the specs popup on the website and included in the PDF download.</p>
+                {form.specSheetUrl ? (
+                  <div className="flex items-start gap-3">
+                    <div className="relative w-28 h-28 rounded-lg overflow-hidden border bg-white shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={form.specSheetUrl} alt="Spec sheet" className="w-full h-full object-contain" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, specSheetUrl: "" }))}
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium cursor-pointer hover:bg-white">
+                    <Upload className="w-3.5 h-3.5" />
+                    Upload spec sheet
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (file) uploadSpecAsset(file, url => setForm(f => ({ ...f, specSheetUrl: url })))
+                        e.target.value = ""
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
               {form.specs.length === 0
-                ? <p className="text-xs text-muted-foreground">No specs yet — click Add row.</p>
-                : <div className="space-y-2">
+                ? <p className="text-xs text-muted-foreground">No spec rows yet — click Add row for label/value pairs.</p>
+                : <div className="space-y-3">
                     {form.specs.map((s, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <input value={s.label} onChange={e => setSpec(i, "label", e.target.value)}
-                          className="flex-1 h-8 px-3 rounded-lg border text-xs outline-none focus:border-[#1a9f9a]" placeholder="Label" />
-                        <input value={s.value} onChange={e => setSpec(i, "value", e.target.value)}
-                          className="flex-1 h-8 px-3 rounded-lg border text-xs outline-none focus:border-[#1a9f9a]" placeholder="Value" />
-                        <button onClick={() => delSpec(i)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                      <div key={i} className="rounded-lg border p-3 space-y-2 bg-white">
+                        <div className="flex items-center gap-2">
+                          <input value={s.label} onChange={e => setSpec(i, "label", e.target.value)}
+                            className="flex-1 h-8 px-3 rounded-lg border text-xs outline-none focus:border-[#1a9f9a]" placeholder="Label" />
+                          <input value={s.value} onChange={e => setSpec(i, "value", e.target.value)}
+                            className="flex-1 h-8 px-3 rounded-lg border text-xs outline-none focus:border-[#1a9f9a]" placeholder="Value" />
+                          <button type="button" onClick={() => delSpec(i)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {s.imageUrl ? (
+                            <>
+                              <div className="relative w-16 h-16 rounded border overflow-hidden">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={s.imageUrl} alt="" className="w-full h-full object-cover" />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setSpec(i, "imageUrl", "")}
+                                className="text-[10px] text-red-500"
+                              >
+                                Remove image
+                              </button>
+                            </>
+                          ) : (
+                            <label className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded border cursor-pointer hover:bg-neutral-50">
+                              <ImageIcon className="w-3 h-3" /> Row image
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0]
+                                  if (file) uploadSpecAsset(file, url => setSpec(i, "imageUrl", url))
+                                  e.target.value = ""
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>}

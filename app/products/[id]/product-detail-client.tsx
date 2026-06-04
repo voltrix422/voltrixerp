@@ -15,11 +15,14 @@ import {
   ChevronRight,
   FileText,
   ZoomIn,
+  ClipboardList,
 } from "lucide-react"
 import ProductTermsModal from "@/components/products/product-terms-modal"
+import ProductSpecsModal from "@/components/products/product-specs-modal"
 import ProductBrochurePanel from "@/components/products/product-brochure-panel"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
+import { hasProductSpecs } from "@/lib/product-specs"
 
 type TabType = "description" | "specifications" | "brochure"
 
@@ -228,8 +231,10 @@ export default function ProductDetailClient({
   const images = getProductImageList(product)
   const [activeTab, setActiveTab] = useState<TabType>("description")
   const [termsOpen, setTermsOpen] = useState(false)
+  const [specsOpen, setSpecsOpen] = useState(false)
   const requestQuote = shouldRequestQuote(product)
   const hasBrochure = Boolean(product.brochureUrl)
+  const showSpecs = hasProductSpecs(product)
   const category = String(product.category ?? "")
   const catClass =
     categoryColors[category] ||
@@ -297,19 +302,31 @@ export default function ProductDetailClient({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 mt-2">
-            <Link
-              href="/quote"
-              className="inline-flex items-center justify-center gap-2 flex-1 min-h-[52px] rounded-full text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all shadow-lg shadow-[#1a9f9a]/20"
-            >
-              Request a quote <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              href="/#contact"
-              className="inline-flex items-center justify-center gap-2 flex-1 min-h-[52px] rounded-full text-sm font-medium text-neutral-700 border-2 border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] transition-all"
-            >
-              Contact us
-            </Link>
+          <div className="flex flex-col gap-3 mt-2">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link
+                href="/quote"
+                className="inline-flex items-center justify-center gap-2 flex-1 min-h-[52px] rounded-full text-sm font-semibold text-white bg-[#1a9f9a] hover:bg-[#158a85] transition-all shadow-lg shadow-[#1a9f9a]/20"
+              >
+                Request a quote <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/#contact"
+                className="inline-flex items-center justify-center gap-2 flex-1 min-h-[52px] rounded-full text-sm font-medium text-neutral-700 border-2 border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] transition-all"
+              >
+                Contact us
+              </Link>
+            </div>
+            {showSpecs && (
+              <button
+                type="button"
+                onClick={() => setSpecsOpen(true)}
+                className="inline-flex items-center justify-center gap-2 w-full min-h-[48px] rounded-full text-sm font-semibold text-[#1a9f9a] border-2 border-[#1a9f9a]/40 bg-[#1a9f9a]/5 hover:bg-[#1a9f9a]/10 transition-all"
+              >
+                <ClipboardList className="w-4 h-4" />
+                View specifications & download PDF
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -328,15 +345,11 @@ export default function ProductDetailClient({
           >
             Description
           </button>
-          {Array.isArray(product.specs) && (product.specs as unknown[]).length > 0 && (
+          {showSpecs && (
             <button
               type="button"
-              onClick={() => setActiveTab("specifications")}
-              className={`px-6 py-3.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                activeTab === "specifications"
-                  ? "border-[#1a9f9a] text-[#1a9f9a]"
-                  : "border-transparent text-neutral-500 hover:text-neutral-800"
-              }`}
+              onClick={() => setSpecsOpen(true)}
+              className="px-6 py-3.5 text-sm font-semibold border-b-2 -mb-px border-transparent text-neutral-500 hover:text-[#1a9f9a] hover:border-[#1a9f9a]/40 transition-colors"
             >
               Specifications
             </button>
@@ -369,20 +382,6 @@ export default function ProductDetailClient({
               {String(product.full_desc || product.description || "") || (
                 <span className="text-neutral-400">No description available.</span>
               )}
-            </div>
-          )}
-
-          {activeTab === "specifications" && Array.isArray(product.specs) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-neutral-200 rounded-2xl overflow-hidden border border-neutral-200">
-              {(product.specs as { label: string; value: string }[]).map(s => (
-                <div
-                  key={s.label}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 bg-white px-6 py-5"
-                >
-                  <p className="text-sm font-medium text-neutral-500">{s.label}</p>
-                  <p className="text-base font-bold text-neutral-900">{s.value}</p>
-                </div>
-              ))}
             </div>
           )}
 
@@ -449,6 +448,21 @@ export default function ProductDetailClient({
         onClose={() => setTermsOpen(false)}
         productName={String(product.name)}
         termsDisplay={termsDisplay}
+      />
+
+      <ProductSpecsModal
+        open={specsOpen}
+        onClose={() => setSpecsOpen(false)}
+        product={{
+          name: String(product.name),
+          category: category,
+          description: product.description ? String(product.description) : undefined,
+          full_desc: product.full_desc ? String(product.full_desc) : undefined,
+          warranty: product.warranty ? String(product.warranty) : undefined,
+          specSheetUrl: product.specSheetUrl ? String(product.specSheetUrl) : undefined,
+          specs: product.specs,
+          images: images,
+        }}
       />
     </div>
   )
