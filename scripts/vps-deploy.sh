@@ -34,6 +34,12 @@ if [ -f "$PRODUCTS_LIVE" ]; then
   echo "==> Restored live data/products.json"
 fi
 
+echo "==> Repair data/products.json (fix git merge markers)"
+if ! node scripts/repair-products-json.mjs; then
+  echo "WARN: repair script failed — restoring catalog from origin/main"
+  git show origin/main:data/products.json > data/products.json
+fi
+
 echo "==> npm install --omit=dev"
 npm install --omit=dev
 
@@ -54,8 +60,7 @@ mkdir -p public/uploads/payment-proofs public/uploads/petty-cash public/uploads/
   public/uploads/fulfillment public/uploads/imported-po-docs public/uploads/daily-reports
 
 echo "==> Product catalog health check"
-node scripts/repair-products-json.mjs || echo "WARN: products.json could not be auto-repaired — fix data/products.json manually"
-node scripts/check-products-catalog.mjs 2>/dev/null || true
+node scripts/check-products-catalog.mjs
 node scripts/check-product-images.mjs || echo "WARN: some product image files are missing — re-upload in Website → Products"
 
 echo "==> npm run build"

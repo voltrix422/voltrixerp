@@ -19,7 +19,18 @@ function toDiskPath(url) {
 }
 
 const raw = await readFile(dataFile, "utf-8")
-const products = JSON.parse(raw)
+if (raw.includes("<<<<<<<") || raw.includes(">>>>>>>")) {
+  console.error("FAIL: products.json has git merge markers. Run: node scripts/repair-products-json.mjs")
+  process.exit(1)
+}
+let products
+try {
+  products = JSON.parse(raw)
+} catch (e) {
+  console.error("FAIL: invalid products.json —", e.message)
+  console.error("Run: node scripts/repair-products-json.mjs")
+  process.exit(1)
+}
 let missing = 0
 let ok = 0
 
