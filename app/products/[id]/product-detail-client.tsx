@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
+import { ProductImageMagnifier } from "@/components/products/product-image-magnifier"
 import { getProductImageList } from "@/lib/product-image"
 import { getProductDisplayName } from "@/lib/product-display-name"
 import {
@@ -14,7 +15,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  ZoomIn,
   Shield,
   FileText,
   ClipboardList,
@@ -63,7 +63,6 @@ function ProductImages({ images, productName }: { images: string[]; productName:
   const [failed, setFailed] = useState<Set<number>>(() => new Set())
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
-  const [zoomed, setZoomed] = useState(false)
 
   useEffect(() => {
     if (!isLightboxOpen) return
@@ -77,7 +76,10 @@ function ProductImages({ images, productName }: { images: string[]; productName:
   }, [isLightboxOpen, images.length])
 
   const activeSrc = images[currentIndex]
-  const activeFailed = failed.has(currentIndex)
+  const openLightbox = () => {
+    setLightboxIndex(currentIndex)
+    setIsLightboxOpen(true)
+  }
 
   if (images.length === 0) {
     return (
@@ -87,39 +89,23 @@ function ProductImages({ images, productName }: { images: string[]; productName:
     )
   }
 
+  if (failed.has(currentIndex)) {
+    return (
+      <div className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-neutral-50 border overflow-hidden">
+        <ProductThumbnail src={null} alt={productName} fill />
+      </div>
+    )
+  }
+
   return (
     <>
-      <div className="space-y-3 max-w-[360px] mx-auto md:mx-0">
-        <button
-          type="button"
-          onClick={() => {
-            setLightboxIndex(currentIndex)
-            setIsLightboxOpen(true)
-          }}
-          onMouseEnter={() => setZoomed(true)}
-          onMouseLeave={() => setZoomed(false)}
-          className="relative block w-full aspect-square rounded-2xl bg-gradient-to-br from-white to-neutral-50 border border-neutral-200/80 overflow-hidden shadow-sm group cursor-zoom-in"
-          aria-label="View full size image"
-        >
-          <div className="absolute inset-0 overflow-hidden">
-            {activeFailed ? (
-              <ProductThumbnail src={null} alt={productName} fill />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={activeSrc}
-                alt={productName}
-                className={`absolute inset-0 w-full h-full object-contain p-5 transition-transform duration-500 ease-out ${
-                  zoomed ? "scale-[1.12]" : "scale-100"
-                }`}
-                onError={() => setFailed(prev => new Set(prev).add(currentIndex))}
-              />
-            )}
-          </div>
-          <span className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-md border border-neutral-100 opacity-0 group-hover:opacity-100 transition-opacity">
-            <ZoomIn className="w-3.5 h-3.5 text-[#1a9f9a]" /> Hover to zoom · Click to enlarge
-          </span>
-        </button>
+      <div className="space-y-3 w-full max-w-[640px] mx-auto md:mx-0">
+        <ProductImageMagnifier
+          key={activeSrc}
+          src={activeSrc}
+          alt={productName}
+          onOpenLightbox={openLightbox}
+        />
 
         {images.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
@@ -237,7 +223,7 @@ export default function ProductDetailClient({
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40 p-6 sm:p-8">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,360px)_1fr] gap-8 lg:gap-12 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-8 lg:gap-10 items-start">
             <ProductImages images={images} productName={title} />
 
             <div className="min-w-0 flex flex-col gap-5">
