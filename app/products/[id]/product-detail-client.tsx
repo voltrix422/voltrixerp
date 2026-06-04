@@ -3,20 +3,21 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
-import { ProductImageMagnifier } from "@/components/products/product-image-magnifier"
+import {
+  ProductImageMagnifier,
+  PRODUCT_IMAGE_MAX_W,
+} from "@/components/products/product-image-magnifier"
 import { getProductImageList } from "@/lib/product-image"
 import { getProductDisplayName } from "@/lib/product-display-name"
 import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  ArrowRight,
   ArrowLeft,
   X,
   ChevronLeft,
   ChevronRight,
   Shield,
-  FileText,
   ClipboardList,
   ScrollText,
   BookOpen,
@@ -25,6 +26,7 @@ import {
 import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
 import ProductBrochurePanel from "@/components/products/product-brochure-panel"
+import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 import { hasProductSpecs } from "@/lib/product-specs"
@@ -83,7 +85,10 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   if (images.length === 0) {
     return (
-      <div className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200/80 overflow-hidden shadow-sm">
+      <div
+        className="relative aspect-square w-full mx-auto md:mx-0 rounded-2xl bg-gradient-to-br from-neutral-50 to-neutral-100 border border-neutral-200/80 overflow-hidden shadow-sm"
+        style={{ maxWidth: PRODUCT_IMAGE_MAX_W }}
+      >
         <ProductThumbnail src={null} alt={productName} fill />
       </div>
     )
@@ -91,7 +96,10 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   if (failed.has(currentIndex)) {
     return (
-      <div className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-neutral-50 border overflow-hidden">
+      <div
+        className="relative aspect-square w-full mx-auto md:mx-0 rounded-2xl bg-neutral-50 border overflow-hidden"
+        style={{ maxWidth: PRODUCT_IMAGE_MAX_W }}
+      >
         <ProductThumbnail src={null} alt={productName} fill />
       </div>
     )
@@ -99,7 +107,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   return (
     <>
-      <div className="space-y-3 w-full max-w-[360px] mx-auto md:mx-0">
+      <div className="space-y-3 w-full mx-auto md:mx-0" style={{ maxWidth: PRODUCT_IMAGE_MAX_W }}>
         <ProductImageMagnifier
           key={activeSrc}
           src={activeSrc}
@@ -114,7 +122,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
                 key={i}
                 type="button"
                 onClick={() => setCurrentIndex(i)}
-                className={`relative w-16 h-16 shrink-0 rounded-xl overflow-hidden border-2 bg-white transition-all ${
+                className={`relative w-[4.5rem] h-[4.5rem] shrink-0 rounded-xl overflow-hidden border-2 bg-white transition-all ${
                   i === currentIndex
                     ? "border-[#1a9f9a] shadow-md shadow-[#1a9f9a]/15"
                     : "border-neutral-200 opacity-75 hover:opacity-100 hover:border-neutral-300"
@@ -223,7 +231,7 @@ export default function ProductDetailClient({
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40 p-6 sm:p-8">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,360px)_1fr] gap-8 lg:gap-10 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,480px)_1fr] gap-8 lg:gap-10 items-start">
             <ProductImages images={images} productName={title} />
 
             <div className="min-w-0 flex flex-col gap-5">
@@ -274,23 +282,11 @@ export default function ProductDetailClient({
                 )}
               </div>
 
-              {requestQuote ? (
-                <Link
-                  href="/quote"
-                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 rounded-xl text-sm font-bold text-white bg-[#1a9f9a] hover:bg-[#158a85] shadow-lg shadow-[#1a9f9a]/25 hover:shadow-xl hover:shadow-[#1a9f9a]/30 transition-all hover:-translate-y-0.5"
-                >
-                  <FileText className="w-4 h-4" />
-                  Request a quote
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              ) : (
-                <Link
-                  href="/quote"
-                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-semibold text-[#1a9f9a] border-2 border-[#1a9f9a] bg-white hover:bg-[#1a9f9a]/5 transition-colors"
-                >
-                  Get a quote <ArrowRight className="w-4 h-4" />
-                </Link>
-              )}
+              <GetQuoteButton
+                label={requestQuote ? "Request a quote" : "Get a quote"}
+                size="md"
+                className="w-full sm:w-auto justify-center"
+              />
 
               <div className="flex flex-wrap gap-2 pt-1">
                 {showSpecs && (

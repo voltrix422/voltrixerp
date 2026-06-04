@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
+import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import { usePathname } from "next/navigation"
 
 const links = [
@@ -74,18 +75,7 @@ export default function Navbar() {
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-6">
-          <a
-            href="/quote"
-            className="group relative flex items-center gap-2 pl-4 pr-1.5 h-9 rounded-full text-base font-medium text-white transition-all duration-300 hover:opacity-90 cursor-pointer"
-            style={{ backgroundColor: "#1a9f9a" }}
-          >
-            <span className="transition-transform duration-300 group-hover:-translate-x-0.5">Get a quote</span>
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 group-hover:bg-white/30 transition-all duration-300 group-hover:translate-x-0.5">
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </span>
-          </a>
+          <GetQuoteButton />
         </div>
 
         {/* Mobile toggle */}
