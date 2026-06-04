@@ -7,6 +7,7 @@ import Link from "next/link"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { getProductImageList } from "@/lib/product-image"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
+import { isProductPublished } from "@/lib/product-published"
 import {
   INVERTER_SUBCATEGORIES,
   countProductsForFilter,
@@ -38,19 +39,29 @@ function StockBadge({ stock }: { stock: any }) {
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([])
+  const [catalogTotal, setCatalogTotal] = useState(0)
+  const [loadError, setLoadError] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("All")
 
   useEffect(() => {
-    fetch('/api/products')
+    fetch("/api/products", { cache: "no-store" })
       .then(res => res.json())
       .then(data => {
-        const published = (data || []).filter(
-          (p: any) => p.published === true || p.published === "true",
-        )
+        if (data && typeof data === "object" && !Array.isArray(data) && data.error) {
+          setLoadError(true)
+          return
+        }
+        const list = Array.isArray(data) ? data : []
+        setCatalogTotal(list.length)
+        const published = list.filter((p: any) => isProductPublished(p))
         const sorted = published.sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
         setProducts(sorted)
+        setLoadError(false)
       })
-      .catch(err => console.error('Error fetching products:', err))
+      .catch(err => {
+        console.error("Error fetching products:", err)
+        setLoadError(true)
+      })
   }, [])
 
   const activeInverterSubs = INVERTER_SUBCATEGORIES.filter((sub) =>
@@ -81,7 +92,20 @@ export default function Products() {
           activeInverterSubs={activeInverterSubs}
         />
 
-        {filteredProducts.length === 0 ? (
+        {loadError ? (
+          <div className="text-center py-16 text-red-600 text-sm">
+            Could not load products. Check server logs and data/products.json.
+          </div>
+        ) : products.length === 0 ? (
+          <div className="text-center py-16 px-4 max-w-lg mx-auto space-y-2">
+            <p className="text-neutral-600 text-sm font-medium">No published products on the website.</p>
+            <p className="text-neutral-400 text-xs">
+              {catalogTotal > 0
+                ? `${catalogTotal} product(s) in the catalog are drafts — open Website → Products and publish each one.`
+                : "data/products.json is empty or invalid on the server. Restore from backup or re-import products."}
+            </p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16 px-4 max-w-md mx-auto space-y-2">
             <p className="text-neutral-600 text-sm font-medium">No products in this category.</p>
             {selectedCategory === "Voltrix Fusion" && (

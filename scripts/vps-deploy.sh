@@ -53,7 +53,9 @@ mkdir -p public/uploads/payment-proofs public/uploads/petty-cash public/uploads/
   public/uploads/products public/uploads/crm-leads public/uploads/client-images \
   public/uploads/fulfillment public/uploads/imported-po-docs public/uploads/daily-reports
 
-echo "==> Product image health check"
+echo "==> Product catalog health check"
+node scripts/repair-products-json.mjs || echo "WARN: products.json could not be auto-repaired — fix data/products.json manually"
+node scripts/check-products-catalog.mjs 2>/dev/null || true
 node scripts/check-product-images.mjs || echo "WARN: some product image files are missing — re-upload in Website → Products"
 
 echo "==> npm run build"

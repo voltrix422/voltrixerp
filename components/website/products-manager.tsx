@@ -212,6 +212,11 @@ export default function ProductsManager() {
         termsFile: "",
       }
 
+      const parseApiError = async (res: Response, fallback: string) => {
+        const data = await res.json().catch(() => ({}))
+        return String(data?.error || data?.message || fallback)
+      }
+
       if (isNew) {
         const res = await fetch('/api/products', {
           method: 'POST',
@@ -219,7 +224,7 @@ export default function ProductsManager() {
           body: JSON.stringify({ ...payload, created_by: "admin" }),
         })
         
-        if (!res.ok) throw new Error('Failed to create product')
+        if (!res.ok) throw new Error(await parseApiError(res, 'Failed to create product'))
         
         const p = await res.json()
         setProducts(prev => [p, ...prev])
@@ -243,7 +248,7 @@ export default function ProductsManager() {
           body: JSON.stringify({ ...payload, id: selected.id }),
         })
         
-        if (!res.ok) throw new Error('Failed to update product')
+        if (!res.ok) throw new Error(await parseApiError(res, 'Failed to update product'))
         
         const updated = await res.json()
         setProducts(prev => prev.map(x => x.id === selected.id ? updated : x))

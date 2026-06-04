@@ -1,3 +1,5 @@
+import { isProductPublished } from "@/lib/product-published"
+
 /** Website product category tree — main groups and inverter sub-lines. */
 export const INVERTER_SUBCATEGORIES = ["Voltrix Prime", "Voltrix Nivo"] as const
 
@@ -59,7 +61,7 @@ export function countProductsForFilter(
   filter: string,
 ): number {
   return products.filter(
-    p => (p.published === true || p.published === "true") &&
+    p => isProductPublished(p) &&
       productMatchesCategoryFilter(String(p.category ?? ""), filter),
   ).length
 }

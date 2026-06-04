@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { promises as fs } from 'fs'
-import path from 'path'
 import { DEFAULT_PRODUCT_TERMS_CONTENT } from '@/lib/default-product-terms'
-
-const DATA_FILE = path.join(process.cwd(), 'data', 'products.json')
+import {
+  readProductsCatalog,
+  sanitizeSpecsForSave,
+  writeProductsCatalog,
+} from '@/lib/products-catalog-server'
 
 async function resetAllProductTermsInFile() {
-  const data = await fs.readFile(DATA_FILE, 'utf-8')
-  const products = JSON.parse(data) as Record<string, unknown>[]
+  const read = await readProductsCatalog()
+  if (!read.ok) throw new Error(read.error)
+  const products = read.products
   let updated = 0
   for (const product of products) {
     const hadTerms = Boolean(String(product.terms || '').trim())
@@ -20,143 +22,138 @@ async function resetAllProductTermsInFile() {
       updated += 1
     }
   }
-  await fs.writeFile(DATA_FILE, JSON.stringify(products, null, 2))
+  await writeProductsCatalog(products)
   return { total: products.length, updated, defaultTerms: DEFAULT_PRODUCT_TERMS_CONTENT }
 }
 
-async function ensureDataFile() {
-  try {
-    await fs.access(DATA_FILE)
-  } catch {
-    await fs.mkdir(path.dirname(DATA_FILE), { recursive: true })
-    await fs.writeFile(DATA_FILE, JSON.stringify([]))
-  }
-}
-
 export async function GET() {
-  try {
-    await ensureDataFile()
-    const data = await fs.readFile(DATA_FILE, 'utf-8')
-    const products = JSON.parse(data)
-    return NextResponse.json(products)
-  } catch (error) {
-    console.error('Error reading products:', error)
-    return NextResponse.json([])
+  const read = await readProductsCatalog()
+  if (!read.ok) {
+    return NextResponse.json({ error: read.error }, { status: read.status })
   }
+  return NextResponse.json(read.products)
 }
 
 export async function POST(request: NextRequest) {
   const url = new URL(request.url)
   const action = url.searchParams.get('action')
-  
+
   if (action === 'reset-all-terms') {
     try {
-      await ensureDataFile()
       const result = await resetAllProductTermsInFile()
       return NextResponse.json({ success: true, ...result })
     } catch (error) {
       console.error('Error resetting product terms:', error)
-      return NextResponse.json({ error: 'Failed to reset product terms' }, { status: 500 })
+      const msg = error instanceof Error ? error.message : 'Failed to reset product terms'
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
   }
 
   if (action === 'reorder') {
     try {
-      await ensureDataFile()
+      const read = await readProductsCatalog()
+      if (!read.ok) {
+        return NextResponse.json({ error: read.error }, { status: read.status })
+      }
       const { productIds } = await request.json()
-      
-      const data = await fs.readFile(DATA_FILE, 'utf-8')
-      const products = JSON.parse(data)
-      
-      // Update order for each product
+      const products = read.products
+
       const updatedProducts = productIds.map((id: string, index: number) => {
-        const product = products.find((p: any) => p.id === id)
-        if (product) {
-          product.order = index
-        }
+        const product = products.find((p) => p.id === id)
+        if (product) product.order = index
         return product
       }).filter(Boolean)
-      
-      // Sort all products by order
-      const allProducts = products.map((p: any) => {
-        const updated = updatedProducts.find((up: any) => up.id === p.id)
-        return updated || p
-      }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-      
-      await fs.writeFile(DATA_FILE, JSON.stringify(allProducts, null, 2))
-      
+
+      const allProducts = products
+        .map((p) => {
+          const updated = updatedProducts.find((up) => up.id === p.id)
+          return updated || p
+        })
+        .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+
+      await writeProductsCatalog(allProducts)
       return NextResponse.json({ success: true })
     } catch (error) {
       console.error('Error reordering products:', error)
       return NextResponse.json({ error: 'Failed to reorder products' }, { status: 500 })
     }
   }
-  
-  // Original POST for creating products
+
   try {
-    await ensureDataFile()
+    const read = await readProductsCatalog()
+    if (!read.ok) {
+      return NextResponse.json({ error: read.error }, { status: read.status })
+    }
+
     const product = await request.json()
-    const data = await fs.readFile(DATA_FILE, 'utf-8')
-    const products = JSON.parse(data)
-    
+    const products = read.products
+
     product.id = product.id || crypto.randomUUID()
     product.created_at = product.created_at || new Date().toISOString()
     product.order = product.order ?? products.length
+    product.specs = sanitizeSpecsForSave(product.specs)
     if (product.termsUseCustom !== true) {
-      product.terms = ""
+      product.terms = ''
       product.termsUseCustom = false
-      product.termsTemplateId = ""
-      product.termsFile = ""
+      product.termsTemplateId = ''
+      product.termsFile = ''
     }
 
     products.unshift(product)
-    await fs.writeFile(DATA_FILE, JSON.stringify(products, null, 2))
-    
+    await writeProductsCatalog(products)
+
     return NextResponse.json(product)
   } catch (error) {
     console.error('Error creating product:', error)
-    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : 'Failed to create product'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    await ensureDataFile()
+    const read = await readProductsCatalog()
+    if (!read.ok) {
+      return NextResponse.json({ error: read.error }, { status: read.status })
+    }
+
     const updatedProduct = await request.json()
-    const data = await fs.readFile(DATA_FILE, 'utf-8')
-    const products = JSON.parse(data)
-    
-    const index = products.findIndex((p: any) => p.id === updatedProduct.id)
+    updatedProduct.specs = sanitizeSpecsForSave(updatedProduct.specs)
+    const products = read.products
+
+    const index = products.findIndex((p) => p.id === updatedProduct.id)
     if (index === -1) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
-    
+
     products[index] = { ...products[index], ...updatedProduct }
-    await fs.writeFile(DATA_FILE, JSON.stringify(products, null, 2))
-    
+    await writeProductsCatalog(products)
+
     return NextResponse.json(products[index])
   } catch (error) {
     console.error('Error updating product:', error)
-    return NextResponse.json({ error: 'Failed to update product' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : 'Failed to update product'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    await ensureDataFile()
+    const read = await readProductsCatalog()
+    if (!read.ok) {
+      return NextResponse.json({ error: read.error }, { status: read.status })
+    }
+
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-    
+
     if (!id) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 })
     }
-    
-    const data = await fs.readFile(DATA_FILE, 'utf-8')
-    const products = JSON.parse(data)
-    
-    const filtered = products.filter((p: any) => p.id !== id)
-    await fs.writeFile(DATA_FILE, JSON.stringify(filtered, null, 2))
-    
+
+    const filtered = read.products.filter((p) => p.id !== id)
+    await writeProductsCatalog(filtered)
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting product:', error)
