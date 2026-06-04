@@ -4,10 +4,13 @@ import { useEffect, useState } from "react"
 import { Zap, Battery, Layers, Shield, ArrowRight, Sparkles } from "lucide-react"
 import Image from "next/image"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
-import { findFeaturedFusionProduct } from "@/lib/featured-fusion-product"
+import {
+  FALLBACK_FUSION_PRODUCT,
+  findFeaturedFusionProduct,
+  fusionProductToSpecsPayload,
+  resolveFeaturedFusionProduct,
+} from "@/lib/featured-fusion-product"
 import { getProductDisplayName } from "@/lib/product-display-name"
-import { hasProductSpecs } from "@/lib/product-specs"
-import { isProductPublished } from "@/lib/product-published"
 
 const specs = [
   { icon: Zap, label: "4200W", desc: "Rated Output Power" },
@@ -18,26 +21,25 @@ const specs = [
 
 export default function FeaturedProduct() {
   const [specsOpen, setSpecsOpen] = useState(false)
-  const [catalogProduct, setCatalogProduct] = useState<Record<string, unknown> | null>(null)
+  const [fusionProduct, setFusionProduct] = useState<Record<string, unknown>>(
+    () => ({ ...FALLBACK_FUSION_PRODUCT })
+  )
 
   useEffect(() => {
     fetch("/api/products")
       .then(res => res.json())
       .then(data => {
         const list = Array.isArray(data) ? data : []
-        const published = list.filter((p: Record<string, unknown>) => isProductPublished(p))
-        setCatalogProduct(findFeaturedFusionProduct(published))
+        const found = findFeaturedFusionProduct(list)
+        setFusionProduct(resolveFeaturedFusionProduct(found))
       })
-      .catch(() => setCatalogProduct(null))
+      .catch(() => setFusionProduct({ ...FALLBACK_FUSION_PRODUCT }))
   }, [])
 
-  const canOpenSpecs = catalogProduct != null && hasProductSpecs(catalogProduct)
-  const display = catalogProduct
-    ? getProductDisplayName({
-        name: String(catalogProduct.name ?? ""),
-        model: catalogProduct.model != null ? String(catalogProduct.model) : undefined,
-      })
-    : null
+  const display = getProductDisplayName({
+    name: String(fusionProduct.name ?? ""),
+    model: fusionProduct.model != null ? String(fusionProduct.model) : undefined,
+  })
 
   return (
     <section className="py-20 px-4 bg-white text-neutral-900">
@@ -69,12 +71,8 @@ export default function FeaturedProduct() {
                 Stackable energy storage battery with off-grid inverter. Features 4200W rated
                 output power, 8038.4Wh battery capacity, and advanced LiFePO4 technology.
               </p>
-              {display?.model ? (
+              {display.model ? (
                 <p className="mt-2 text-xs font-mono text-neutral-500">{display.model}</p>
-              ) : catalogProduct ? (
-                <p className="mt-2 text-xs font-mono text-neutral-500">
-                  {String(catalogProduct.name)}
-                </p>
               ) : null}
             </div>
 
@@ -91,15 +89,14 @@ export default function FeaturedProduct() {
             <div className="flex flex-wrap gap-3 pt-2">
               <a
                 href="#products"
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-neutral-950 bg-[#1a9f9a] hover:bg-[#158a85] transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-neutral-950 bg-[#1a9f9a] hover:bg-[#158a85] transition-colors cursor-pointer"
               >
                 View All Products <ArrowRight className="w-4 h-4" />
               </a>
               <button
                 type="button"
-                onClick={() => canOpenSpecs && setSpecsOpen(true)}
-                disabled={!canOpenSpecs}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-neutral-600 border border-neutral-300 hover:text-neutral-900 hover:border-[#1a9f9a]/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setSpecsOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-neutral-600 border border-neutral-300 hover:text-neutral-900 hover:border-[#1a9f9a]/50 transition-colors cursor-pointer"
               >
                 Get Technical Specs
               </button>
@@ -108,30 +105,12 @@ export default function FeaturedProduct() {
         </div>
       </div>
 
-      {catalogProduct && (
-        <ProductSpecsModal
-          open={specsOpen}
-          onClose={() => setSpecsOpen(false)}
-          focusSpecSheet
-          product={{
-            name: display
-              ? display.model
-                ? `${display.title} · ${display.model}`
-                : display.title
-              : String(catalogProduct.name),
-            category: String(catalogProduct.category ?? "Voltrix Fusion"),
-            description: catalogProduct.description
-              ? String(catalogProduct.description)
-              : undefined,
-            full_desc: catalogProduct.full_desc ? String(catalogProduct.full_desc) : undefined,
-            warranty: catalogProduct.warranty ? String(catalogProduct.warranty) : undefined,
-            specSheetUrl: catalogProduct.specSheetUrl
-              ? String(catalogProduct.specSheetUrl)
-              : undefined,
-            specs: catalogProduct.specs,
-          }}
-        />
-      )}
+      <ProductSpecsModal
+        open={specsOpen}
+        onClose={() => setSpecsOpen(false)}
+        focusSpecSheet
+        product={fusionProductToSpecsPayload(fusionProduct)}
+      />
     </section>
   )
 }

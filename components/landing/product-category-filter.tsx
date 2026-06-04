@@ -54,7 +54,7 @@ export default function ProductCategoryFilter({
               key={sub}
               type="button"
               onClick={() => onSelect(sub)}
-              className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${
+              className={`px-4 py-2 rounded-full text-xs font-medium transition-all cursor-pointer ${
                 selected === sub
                   ? "bg-[#1a9f9a]/15 text-[#1a9f9a] border border-[#1a9f9a]"
                   : "bg-neutral-50 text-neutral-600 border border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a]"
@@ -82,7 +82,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
+      className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
         active
           ? "bg-[#1a9f9a] text-white shadow-lg shadow-[#1a9f9a]/20"
           : "bg-neutral-50 text-neutral-600 border border-neutral-200 hover:border-[#1a9f9a] hover:text-[#1a9f9a] hover:bg-neutral-100"
