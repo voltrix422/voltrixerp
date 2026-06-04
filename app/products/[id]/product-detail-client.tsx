@@ -18,9 +18,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
-  ClipboardList,
-  ScrollText,
-  BookOpen,
   Tag,
 } from "lucide-react"
 import ProductTermsModal from "@/components/products/product-terms-modal"
@@ -275,40 +272,29 @@ export default function ProductDetailClient({
                 )}
               </div>
 
-              <GetQuoteButton
-                label={requestQuote ? "Request a quote" : "Get a quote"}
-                size="md"
-                className="w-full sm:w-auto justify-center"
-              />
-
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
+              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 scrollbar-thin">
+                <GetQuoteButton
+                  label={requestQuote ? "Request a quote" : "Get a quote"}
+                  size="md"
+                />
                 {showSpecs && (
-                  <button
-                    type="button"
+                  <GetQuoteButton
+                    label="Specifications"
+                    size="md"
                     onClick={() => setSpecsOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all cursor-pointer"
-                  >
-                    <ClipboardList className="w-3.5 h-3.5 shrink-0" />
-                    Specifications
-                  </button>
+                  />
                 )}
-                <button
-                  type="button"
+                <GetQuoteButton
+                  label="Terms & Conditions"
+                  size="md"
                   onClick={() => setTermsOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all cursor-pointer"
-                >
-                  <ScrollText className="w-3.5 h-3.5 shrink-0" />
-                  Terms & Conditions
-                </button>
+                />
                 {hasBrochure && (
-                  <button
-                    type="button"
+                  <GetQuoteButton
+                    label="Brochure"
+                    size="md"
                     onClick={() => setBrochureOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all cursor-pointer"
-                  >
-                    <BookOpen className="w-3.5 h-3.5 shrink-0" />
-                    Brochure
-                  </button>
+                  />
                 )}
               </div>
 
