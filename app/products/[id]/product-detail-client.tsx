@@ -99,7 +99,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   return (
     <>
-      <div className="space-y-3 w-full max-w-[640px] mx-auto md:mx-0">
+      <div className="space-y-3 w-full max-w-[360px] mx-auto md:mx-0">
         <ProductImageMagnifier
           key={activeSrc}
           src={activeSrc}
@@ -223,7 +223,7 @@ export default function ProductDetailClient({
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40 p-6 sm:p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-8 lg:gap-10 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,360px)_1fr] gap-8 lg:gap-10 items-start">
             <ProductImages images={images} productName={title} />
 
             <div className="min-w-0 flex flex-col gap-5">

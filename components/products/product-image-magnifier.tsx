@@ -17,7 +17,7 @@ export function ProductImageMagnifier({ src, alt, onOpenLightbox }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [active, setActive] = useState(false)
-  const [pos, setPos] = useState({ x: 0, y: 0, px: 50, py: 50 })
+  const [pos, setPos] = useState({ x: 0, y: 0 })
   const [failed, setFailed] = useState(false)
 
   const measure = useCallback(() => {
@@ -41,9 +41,7 @@ export function ProductImageMagnifier({ src, alt, onOpenLightbox }: Props) {
     const r = el.getBoundingClientRect()
     const x = clientX - r.left
     const y = clientY - r.top
-    const px = Math.max(0, Math.min(100, (x / r.width) * 100))
-    const py = Math.max(0, Math.min(100, (y / r.height) * 100))
-    setPos({ x, y, px, py })
+    setPos({ x, y })
   }
 
   const handleMove = (e: React.MouseEvent) => {
@@ -64,9 +62,6 @@ export function ProductImageMagnifier({ src, alt, onOpenLightbox }: Props) {
   const bgPosX = -(pos.x * ZOOM - lensHalf)
   const bgPosY = -(pos.y * ZOOM - lensHalf)
 
-  const sideBgPosX = `${pos.px}%`
-  const sideBgPosY = `${pos.py}%`
-
   if (failed) {
     return (
       <div className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-neutral-50 border border-neutral-200/80 overflow-hidden">
@@ -76,100 +71,64 @@ export function ProductImageMagnifier({ src, alt, onOpenLightbox }: Props) {
   }
 
   return (
-    <div className="w-full max-w-[360px] mx-auto md:mx-0 lg:max-w-none">
-      <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-        {/* Main image + magnifier lens */}
+    <div
+      ref={containerRef}
+      className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-gradient-to-br from-white to-neutral-50 border border-neutral-200/80 overflow-hidden shadow-sm cursor-crosshair touch-none"
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onMouseMove={handleMove}
+      onTouchStart={e => {
+        setActive(true)
+        handleTouch(e)
+      }}
+      onTouchMove={handleTouch}
+      onTouchEnd={() => setActive(false)}
+      onClick={onOpenLightbox}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => {
+        if (e.key === "Enter" || e.key === " ") onOpenLightbox?.()
+      }}
+      aria-label={`${alt}. Move pointer to magnify. Click for full size.`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className="absolute inset-0 w-full h-full object-contain p-5 pointer-events-none select-none"
+        draggable={false}
+        onError={() => setFailed(true)}
+      />
+
+      {active && size.w > 0 && (
         <div
-          ref={containerRef}
-          className="relative aspect-square w-full shrink-0 rounded-2xl bg-gradient-to-br from-white to-neutral-50 border border-neutral-200/80 overflow-hidden shadow-sm cursor-crosshair touch-none"
-          onMouseEnter={() => setActive(true)}
-          onMouseLeave={() => setActive(false)}
-          onMouseMove={handleMove}
-          onTouchStart={e => {
-            setActive(true)
-            handleTouch(e)
+          className="pointer-events-none absolute z-[2] rounded-full border-[3px] border-white shadow-[0_8px_32px_rgba(0,0,0,0.22)] ring-2 ring-[#1a9f9a]/40 overflow-hidden"
+          style={{
+            width: LENS_SIZE,
+            height: LENS_SIZE,
+            left: lensLeft,
+            top: lensTop,
           }}
-          onTouchMove={handleTouch}
-          onTouchEnd={() => setActive(false)}
-          onClick={onOpenLightbox}
-          role="button"
-          tabIndex={0}
-          onKeyDown={e => {
-            if (e.key === "Enter" || e.key === " ") onOpenLightbox?.()
-          }}
-          aria-label={`${alt}. Move pointer to magnify. Click for full size.`}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={alt}
-            className="absolute inset-0 w-full h-full object-contain p-5 pointer-events-none select-none"
-            draggable={false}
-            onError={() => setFailed(true)}
-          />
-
-          {active && size.w > 0 && (
-            <>
-              {/* Dim overlay outside lens */}
-              <div
-                className="pointer-events-none absolute inset-0 bg-black/5 z-[1]"
-                aria-hidden
-              />
-
-              {/* Magnifying glass lens */}
-              <div
-                className="pointer-events-none absolute z-[2] rounded-full border-[3px] border-white shadow-[0_8px_32px_rgba(0,0,0,0.22)] ring-2 ring-[#1a9f9a]/40 overflow-hidden"
-                style={{
-                  width: LENS_SIZE,
-                  height: LENS_SIZE,
-                  left: lensLeft,
-                  top: lensTop,
-                }}
-              >
-                <div
-                  className="w-full h-full bg-no-repeat bg-white"
-                  style={{
-                    backgroundImage: `url(${src})`,
-                    backgroundSize: `${bgW}px ${bgH}px`,
-                    backgroundPosition: `${bgPosX}px ${bgPosY}px`,
-                  }}
-                />
-              </div>
-            </>
-          )}
-
-          <span
-            className={`absolute bottom-3 right-3 z-[3] flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-md border border-neutral-100 transition-opacity pointer-events-none ${
-              active ? "opacity-0" : "opacity-100"
-            }`}
-          >
-            <ZoomIn className="w-3.5 h-3.5 text-[#1a9f9a]" />
-            Move to magnify · Click to enlarge
-          </span>
-        </div>
-
-        {/* Side zoom panel (desktop) */}
-        <div
-          className={`hidden lg:block relative aspect-square w-[280px] shrink-0 rounded-2xl border-2 overflow-hidden bg-white shadow-md transition-all duration-200 ${
-            active ? "border-[#1a9f9a]/50 opacity-100" : "border-neutral-200 opacity-40"
-          }`}
-          aria-hidden={!active}
         >
           <div
-            className="absolute inset-0 bg-no-repeat"
+            className="w-full h-full bg-no-repeat bg-white"
             style={{
-              backgroundImage: active ? `url(${src})` : undefined,
-              backgroundSize: `${ZOOM * 100}%`,
-              backgroundPosition: active ? `${sideBgPosX} ${sideBgPosY}` : "center",
+              backgroundImage: `url(${src})`,
+              backgroundSize: `${bgW}px ${bgH}px`,
+              backgroundPosition: `${bgPosX}px ${bgPosY}px`,
             }}
           />
-          {!active && (
-            <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400 font-medium px-4 text-center">
-              Hover image to preview zoom
-            </div>
-          )}
         </div>
-      </div>
+      )}
+
+      <span
+        className={`absolute bottom-3 right-3 z-[3] flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-md border border-neutral-100 transition-opacity pointer-events-none ${
+          active ? "opacity-0" : "opacity-100"
+        }`}
+      >
+        <ZoomIn className="w-3.5 h-3.5 text-[#1a9f9a]" />
+        Move to magnify · Click to enlarge
+      </span>
     </div>
   )
 }
