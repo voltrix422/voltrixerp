@@ -107,7 +107,10 @@ function ProductImages({ images, productName }: { images: string[]; productName:
 
   return (
     <>
-      <div className="space-y-3 w-full mx-auto md:mx-0" style={{ maxWidth: PRODUCT_IMAGE_MAX_W }}>
+      <div
+        className="space-y-3 w-full max-w-[580px] mx-auto lg:mx-0 lg:max-w-none lg:w-full"
+        style={{ maxWidth: PRODUCT_IMAGE_MAX_W }}
+      >
         <ProductImageMagnifier
           key={activeSrc}
           src={activeSrc}
@@ -122,7 +125,7 @@ function ProductImages({ images, productName }: { images: string[]; productName:
                 key={i}
                 type="button"
                 onClick={() => setCurrentIndex(i)}
-                className={`relative w-[4.5rem] h-[4.5rem] shrink-0 rounded-xl overflow-hidden border-2 bg-white transition-all ${
+                className={`relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 bg-white transition-all ${
                   i === currentIndex
                     ? "border-[#1a9f9a] shadow-md shadow-[#1a9f9a]/15"
                     : "border-neutral-200 opacity-75 hover:opacity-100 hover:border-neutral-300"
@@ -229,9 +232,11 @@ export default function ProductDetailClient({
         </Link>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40 p-6 sm:p-8">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,480px)_1fr] gap-8 lg:gap-10 items-start">
+          <div
+            className="grid grid-cols-1 lg:grid-cols-[minmax(0,580px)_minmax(0,1fr)] gap-8 lg:gap-12 items-start"
+          >
             <ProductImages images={images} productName={title} />
 
             <div className="min-w-0 flex flex-col gap-5">

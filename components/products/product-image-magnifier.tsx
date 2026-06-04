@@ -5,7 +5,9 @@ import { ZoomIn } from "lucide-react"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 
 const ZOOM = 2.75
-const LENS_SIZE = 140
+const LENS_SIZE = 180
+/** Max width of the main product image on the detail page */
+export const PRODUCT_IMAGE_MAX_W = 580
 
 type Props = {
   src: string
@@ -64,7 +66,10 @@ export function ProductImageMagnifier({ src, alt, onOpenLightbox }: Props) {
 
   if (failed) {
     return (
-      <div className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-neutral-50 border border-neutral-200/80 overflow-hidden">
+      <div
+        className="relative aspect-square w-full mx-auto md:mx-0 rounded-2xl bg-neutral-50 border border-neutral-200/80 overflow-hidden"
+        style={{ maxWidth: PRODUCT_IMAGE_MAX_W }}
+      >
         <ProductThumbnail src={null} alt={alt} fill />
       </div>
     )
@@ -73,7 +78,8 @@ export function ProductImageMagnifier({ src, alt, onOpenLightbox }: Props) {
   return (
     <div
       ref={containerRef}
-      className="relative aspect-square w-full max-w-[360px] mx-auto md:mx-0 rounded-2xl bg-gradient-to-br from-white to-neutral-50 border border-neutral-200/80 overflow-hidden shadow-sm cursor-crosshair touch-none"
+      className="relative aspect-square w-full max-w-[580px] mx-auto lg:mx-0 lg:max-w-none rounded-2xl bg-gradient-to-br from-white to-neutral-50 border border-neutral-200/80 overflow-hidden shadow-sm cursor-crosshair touch-none"
+      style={{ maxWidth: PRODUCT_IMAGE_MAX_W }}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       onMouseMove={handleMove}
@@ -95,7 +101,7 @@ export function ProductImageMagnifier({ src, alt, onOpenLightbox }: Props) {
       <img
         src={src}
         alt={alt}
-        className="absolute inset-0 w-full h-full object-contain p-5 pointer-events-none select-none"
+        className="absolute inset-0 w-full h-full object-contain p-4 pointer-events-none select-none"
         draggable={false}
         onError={() => setFailed(true)}
       />
