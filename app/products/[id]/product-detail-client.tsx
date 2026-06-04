@@ -218,8 +218,8 @@ export default function ProductDetailClient({
   const stockKey = normalizeStock(product.stock)
   const stockChip = STOCK_CHIPS[stockKey]
   const StockIcon = stockChip.icon
-  const displayDesc = fullDesc || shortDesc
-  const showDescSection = Boolean(displayDesc) && (fullDesc !== shortDesc || !shortDesc)
+  const descriptionBody = fullDesc || shortDesc
+  const showShortAbove = Boolean(shortDesc) && shortDesc !== fullDesc
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-neutral-50/80 via-white to-white">
@@ -261,7 +261,7 @@ export default function ProductDetailClient({
                 ) : null}
               </div>
 
-              {shortDesc ? (
+              {showShortAbove ? (
                 <p className="text-sm text-neutral-600 leading-relaxed -mt-1">{shortDesc}</p>
               ) : null}
 
@@ -293,49 +293,49 @@ export default function ProductDetailClient({
                 className="w-full sm:w-auto justify-center"
               />
 
-              <div className="flex flex-wrap gap-2 pt-1">
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
                 {showSpecs && (
                   <button
                     type="button"
                     onClick={() => setSpecsOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all cursor-pointer"
                   >
-                    <ClipboardList className="w-4 h-4" />
+                    <ClipboardList className="w-3.5 h-3.5 shrink-0" />
                     Specifications
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setTermsOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all cursor-pointer"
                 >
-                  <ScrollText className="w-4 h-4" />
+                  <ScrollText className="w-3.5 h-3.5 shrink-0" />
                   Terms & Conditions
                 </button>
                 {hasBrochure && (
                   <button
                     type="button"
                     onClick={() => setBrochureOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 hover:border-[#1a9f9a]/40 hover:text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-all cursor-pointer"
                   >
-                    <BookOpen className="w-4 h-4" />
+                    <BookOpen className="w-3.5 h-3.5 shrink-0" />
                     Brochure
                   </button>
                 )}
               </div>
+
+              {descriptionBody ? (
+                <section className="pt-2">
+                  <h2 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">
+                    Description
+                  </h2>
+                  <p className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap">
+                    {descriptionBody}
+                  </p>
+                </section>
+              ) : null}
             </div>
           </div>
-
-          {showDescSection ? (
-            <section className="mt-8 pt-6 border-t border-neutral-100">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">
-                Description
-              </h2>
-              <p className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap max-w-3xl">
-                {fullDesc || shortDesc}
-              </p>
-            </section>
-          ) : null}
         </div>
       </div>
 
