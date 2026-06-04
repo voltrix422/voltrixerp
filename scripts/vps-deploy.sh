@@ -11,27 +11,27 @@ PM2_NAME="${PM2_APP_NAME:-voltrix-erp}"
 echo "==> Reset local package-lock.json (fixes: merge would overwrite package-lock.json)"
 git checkout -- package-lock.json 2>/dev/null || true
 
-# Live catalog edits on the server (admin saves) must not block deploy pulls.
-if [ -n "$(git status --porcelain data/products.json 2>/dev/null)" ]; then
-  PRODUCTS_BACKUP="data/products.json.vps-backup-$(date +%Y%m%d-%H%M%S)"
-  echo "==> Stashing local data/products.json (backup: $PRODUCTS_BACKUP)"
+# Clear broken merge/rebase state from a previous failed deploy.
+git merge --abort 2>/dev/null || true
+git rebase --abort 2>/dev/null || true
+
+PRODUCTS_LIVE="/tmp/erpvoltrix-products-live.json"
+PRODUCTS_BACKUP="data/products.json.vps-backup-$(date +%Y%m%d-%H%M%S)"
+
+# Always preserve the live catalog file (admin edits on the server).
+if [ -f data/products.json ]; then
+  cp data/products.json "$PRODUCTS_LIVE"
   cp data/products.json "$PRODUCTS_BACKUP"
-  git stash push -m "vps-products-json-$(date +%Y%m%d-%H%M%S)" -- data/products.json
+  echo "==> Backed up live data/products.json ($PRODUCTS_BACKUP)"
 fi
 
-echo "==> git pull origin main"
-git pull origin main
+echo "==> git fetch + reset to origin/main (code only; products restored after)"
+git fetch origin main
+git reset --hard origin/main
 
-if git stash list | grep -q "vps-products-json"; then
-  echo "==> Restoring live data/products.json from stash"
-  if ! git stash pop; then
-    echo "WARN: stash pop conflict — keeping newest backup copy"
-    LATEST="$(ls -t data/products.json.vps-backup-* 2>/dev/null | head -1)"
-    if [ -n "${LATEST:-}" ]; then
-      cp "$LATEST" data/products.json
-      git checkout -- data/products.json 2>/dev/null || true
-    fi
-  fi
+if [ -f "$PRODUCTS_LIVE" ]; then
+  cp "$PRODUCTS_LIVE" data/products.json
+  echo "==> Restored live data/products.json"
 fi
 
 echo "==> npm install --omit=dev"
