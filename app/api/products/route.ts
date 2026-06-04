@@ -58,20 +58,21 @@ export async function POST(request: NextRequest) {
       const { productIds } = await request.json()
       const products = read.products
 
-      const updatedProducts: Record<string, unknown>[] = productIds
+      type CatalogProduct = Record<string, unknown>
+      const updatedProducts: CatalogProduct[] = (productIds as string[])
         .map((id: string, index: number) => {
-          const product = products.find((p) => p.id === id)
+          const product = products.find((p: CatalogProduct) => p.id === id)
           if (product) product.order = index
           return product
         })
-        .filter((p): p is Record<string, unknown> => Boolean(p))
+        .filter((p: CatalogProduct | undefined): p is CatalogProduct => Boolean(p))
 
       const allProducts = products
-        .map((p) => {
-          const updated = updatedProducts.find((up) => up.id === p.id)
+        .map((p: CatalogProduct) => {
+          const updated = updatedProducts.find((up: CatalogProduct) => up.id === p.id)
           return updated || p
         })
-        .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+        .sort((a: CatalogProduct, b: CatalogProduct) => Number(a.order || 0) - Number(b.order || 0))
 
       await writeProductsCatalog(allProducts)
       return NextResponse.json({ success: true })
