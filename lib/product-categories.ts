@@ -46,11 +46,22 @@ export function productMatchesCategoryFilter(
   filter: string,
 ): boolean {
   if (filter === "All") return true
-  if (filter === "Inverter") return getMainCategory(productCategory) === "Inverter"
-  if (filter === "Energy Storage Battery") {
-    return ENERGY_STORAGE_ALIASES.includes(productCategory)
-  }
-  return productCategory === filter
+  const main = getMainCategory(productCategory)
+  if (filter === "Inverter") return main === "Inverter"
+  if (isInverterSubcategory(filter)) return productCategory === filter
+  if (filter === "Energy Storage Battery") return main === "Energy Storage Battery"
+  return productCategory === filter || main === filter
+}
+
+/** Published products per website filter id (for empty-state hints). */
+export function countProductsForFilter(
+  products: { category?: string; published?: boolean | string }[],
+  filter: string,
+): number {
+  return products.filter(
+    p => (p.published === true || p.published === "true") &&
+      productMatchesCategoryFilter(String(p.category ?? ""), filter),
+  ).length
 }
 
 /** Top-level filter chips in display order (excluding All). */

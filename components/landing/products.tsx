@@ -9,6 +9,7 @@ import { getProductImageList } from "@/lib/product-image"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import {
   INVERTER_SUBCATEGORIES,
+  countProductsForFilter,
   getCategoryDisplayLabel,
   getMainCategory,
   productMatchesCategoryFilter,
@@ -43,7 +44,9 @@ export default function Products() {
     fetch('/api/products')
       .then(res => res.json())
       .then(data => {
-        const published = (data || []).filter((p: any) => p.published)
+        const published = (data || []).filter(
+          (p: any) => p.published === true || p.published === "true",
+        )
         const sorted = published.sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
         setProducts(sorted)
       })
@@ -79,7 +82,26 @@ export default function Products() {
         />
 
         {filteredProducts.length === 0 ? (
-          <div className="text-center py-16 text-neutral-400 text-sm">No products in this category.</div>
+          <div className="text-center py-16 px-4 max-w-md mx-auto space-y-2">
+            <p className="text-neutral-600 text-sm font-medium">No products in this category.</p>
+            {selectedCategory === "Voltrix Fusion" && (
+              <p className="text-neutral-400 text-xs">
+                No products are tagged as Voltrix Fusion yet. Assign that category in Website → Products.
+              </p>
+            )}
+            {selectedCategory === "Inverter" && countProductsForFilter(products, "Inverter") === 0 && (
+              <p className="text-neutral-400 text-xs">
+                Set Main category to <strong>Inverter</strong> (or Voltrix Prime / Nivo) and turn on{" "}
+                <strong>Publish</strong> for each product in the admin.
+              </p>
+            )}
+            {(selectedCategory === "Voltrix Prime" || selectedCategory === "Voltrix Nivo") && (
+              <p className="text-neutral-400 text-xs">
+                No products use the <strong>{selectedCategory}</strong> line. Use that inverter line in admin,
+                or click the main <strong>Inverter</strong> tab to see all inverters.
+              </p>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((p) => {
