@@ -39,25 +39,13 @@ function normalizeStock(stock: unknown): StockKey {
   return "in"
 }
 
-const STOCK_CHIPS: Record<
-  StockKey,
-  { label: string; icon: typeof CheckCircle2; className: string }
-> = {
-  in: {
-    label: "In stock",
-    icon: CheckCircle2,
-    className: "bg-emerald-50 text-emerald-800 border-emerald-200/80",
-  },
-  low: {
-    label: "Low stock",
-    icon: AlertCircle,
-    className: "bg-amber-50 text-amber-800 border-amber-200/80",
-  },
-  out: {
-    label: "Out of stock",
-    icon: XCircle,
-    className: "bg-neutral-100 text-neutral-600 border-neutral-200",
-  },
+const META_CHIP_CLASS =
+  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-[#1a9f9a]/30 bg-[#1a9f9a]/[0.07] text-neutral-700"
+
+const STOCK_CHIPS: Record<StockKey, { label: string; icon: typeof CheckCircle2 }> = {
+  in: { label: "In stock", icon: CheckCircle2 },
+  low: { label: "Low stock", icon: AlertCircle },
+  out: { label: "Out of stock", icon: XCircle },
 }
 
 function ProductImages({ images, productName }: { images: string[]; productName: string }) {
@@ -265,24 +253,24 @@ export default function ProductDetailClient({
                 <p className="text-sm text-neutral-600 leading-relaxed -mt-1">{shortDesc}</p>
               ) : null}
 
-              <div className="flex flex-wrap gap-2.5">
-                <span
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold ${stockChip.className}`}
-                >
-                  <StockIcon className="w-4 h-4 shrink-0" />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={META_CHIP_CLASS}>
+                  <StockIcon className="w-3.5 h-3.5 shrink-0 text-[#1a9f9a]" />
                   {stockChip.label}
                 </span>
                 {warranty ? (
-                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#1a9f9a]/25 bg-[#1a9f9a]/5 text-sm font-semibold text-neutral-800">
-                    <Shield className="w-4 h-4 text-[#1a9f9a] shrink-0" />
-                    <span className="text-neutral-500 font-medium">Warranty</span>
-                    {warranty}
+                  <span className={META_CHIP_CLASS}>
+                    <Shield className="w-3.5 h-3.5 shrink-0 text-[#1a9f9a]" />
+                    <span className="text-neutral-500">Warranty</span>
+                    <span className="font-semibold text-neutral-800">{warranty}</span>
                   </span>
                 ) : null}
                 {!requestQuote && (
-                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-200 bg-neutral-50 text-sm font-semibold text-neutral-900">
-                    <span className="text-neutral-500 font-medium">Price</span>
-                    {formatProductPrice(product.price as string | number | null | undefined) ?? "—"}
+                  <span className={META_CHIP_CLASS}>
+                    <span className="text-neutral-500">Price</span>
+                    <span className="font-semibold text-neutral-800">
+                      {formatProductPrice(product.price as string | number | null | undefined) ?? "—"}
+                    </span>
                   </span>
                 )}
               </div>
