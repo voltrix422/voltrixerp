@@ -43,21 +43,21 @@ export default function Hero() {
     <section className="relative min-h-screen flex flex-col overflow-hidden bg-neutral-950">
       {/* Dark base */}
       <div className="absolute inset-0 z-0 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950" />
-      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-[#1a9f9a]/10 via-transparent to-neutral-950/80" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-white/[0.04] via-transparent to-neutral-950/80" />
 
-      {/* Side rays — top-right teal glow */}
+      {/* Side rays — top-right white glow */}
       <SideRays
         speed={2.5}
-        rayColor1="#1a9f9a"
-        rayColor2="#0d9488"
-        intensity={1.6}
+        rayColor1="#ffffff"
+        rayColor2="#e8e8e8"
+        intensity={1.5}
         spread={2}
         origin="top-right"
         tilt={0}
-        saturation={1.5}
-        blend={0.72}
+        saturation={1}
+        blend={0.7}
         falloff={1.65}
-        opacity={0.85}
+        opacity={0.75}
       />
 
       {/* 50px grid on dark */}
@@ -174,26 +174,6 @@ export default function Hero() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative z-10 border-t border-white/[0.08] bg-neutral-950/70 backdrop-blur-sm">
-        <div className="container mx-auto px-6 lg:px-16 py-4 lg:py-5">
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-x-0">
-            {SECTOR_STRIP.map((label, i) => (
-              <Fragment key={label}>
-                {i > 0 && (
-                  <span
-                    className="hidden sm:inline-block w-px h-3 bg-neutral-700 mx-6 lg:mx-10"
-                    aria-hidden
-                  />
-                )}
-                <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 whitespace-nowrap">
-                  {label}
-                </span>
-              </Fragment>
-            ))}
           </div>
         </div>
       </div>
