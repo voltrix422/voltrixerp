@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, Fragment } from "react"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Zap } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
 
@@ -68,16 +68,15 @@ export default function Hero() {
       <div className="relative z-10 flex-1 flex items-center">
         <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 lg:py-28 relative pl-6 sm:pl-12 lg:pl-48 w-full">
           {/* Left — text */}
-          <div className="flex flex-col gap-5 max-w-xl lg:max-w-2xl lg:mr-12">
-            <div className="flex flex-col gap-4">
-              <p className="text-[9px] font-bold uppercase text-[#1a9f9a] tracking-[2px] leading-none">
-                <span className="mr-1.5 inline-block text-[10px]" aria-hidden>
-                  ⚡
-                </span>
+          <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
+            <div className="flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-[#1a9f9a] shrink-0" strokeWidth={2.5} />
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#1a9f9a] uppercase tracking-[0.22em]">
                 Let&apos;s go off grid.
-              </p>
+              </span>
+            </div>
 
-              <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
+            <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
               Power your{" "}
               <span className="inline-block min-w-[4.5rem] align-bottom">
                 <RotatingText
@@ -96,8 +95,7 @@ export default function Hero() {
               </span>
               <br />
               <span className="text-[#1a9f9a]">with Voltrix.</span>
-              </h1>
-            </div>
+            </h1>
 
             <p className="text-base text-neutral-600 leading-relaxed max-w-2xl">
               Empowering Sustainable Living with Innovative Batteries, Smart Inverters, and{" "}
@@ -120,31 +118,24 @@ export default function Hero() {
           {/* Right — carousel on platform */}
           <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-5 w-[400px] shrink-0">
             <div className="relative w-full flex flex-col items-center">
-              {/* Radial teal glow — ambient light behind carousel */}
+              {/* Soft ground shadow */}
               <div
-                className="absolute top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] h-[440px] rounded-full pointer-events-none z-0"
-                style={{
-                  backgroundColor: "#20b2aa",
-                  filter: "blur(120px)",
-                  opacity: 0.08,
-                }}
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[78%] h-10 rounded-[100%] bg-neutral-900/[0.08] blur-2xl pointer-events-none"
+                aria-hidden
+              />
+              <div
+                className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[72%] h-3 rounded-[100%] bg-neutral-900/[0.06] blur-md pointer-events-none"
                 aria-hidden
               />
 
-              <div
-                className="relative z-10 w-96 h-[450px] rounded-3xl overflow-visible"
-                style={{
-                  boxShadow:
-                    "0 30px 60px rgba(0,0,0,0.04), 0 10px 20px rgba(0,0,0,0.02)",
-                }}
-              >
+              <div className="relative w-96 h-[450px] rounded-3xl overflow-visible">
                 {heroImages.map((img, index) => (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     key={img}
                     src={img}
                     alt=""
-                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 ${
+                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 drop-shadow-[0_28px_32px_rgba(0,0,0,0.12)] ${
                       index === currentImageIndex ? "opacity-100" : "opacity-0"
                     }`}
                   />
