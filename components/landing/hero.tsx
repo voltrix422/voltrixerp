@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from "react"
 import { ArrowRight, Zap } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
+import SideRays from "./side-rays"
 
 const fillAnimation = `
 @keyframes fill {
@@ -46,17 +47,33 @@ export default function Hero() {
   }, [])
 
   return (
-    <section className="relative min-h-screen flex flex-col overflow-hidden">
-      {/* Base gradient */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#1a9f9a]/20 via-white to-white" />
+    <section className="relative min-h-screen flex flex-col overflow-hidden bg-neutral-950">
+      {/* Dark base */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-[#1a9f9a]/10 via-transparent to-neutral-950/80" />
 
-      {/* 50px geometric grid — opacity ~0.03 */}
+      {/* Side rays — top-right teal glow */}
+      <SideRays
+        speed={2.5}
+        rayColor1="#1a9f9a"
+        rayColor2="#0d9488"
+        intensity={1.6}
+        spread={2}
+        origin="top-right"
+        tilt={0}
+        saturation={1.5}
+        blend={0.72}
+        falloff={1.65}
+        opacity={0.85}
+      />
+
+      {/* 50px grid on dark */}
       <div
         className="absolute inset-0 z-[1] pointer-events-none"
         style={{
           backgroundImage: `
-            linear-gradient(to right, rgba(26, 159, 154, 0.14) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(26, 159, 154, 0.14) 1px, transparent 1px)
+            linear-gradient(to right, rgba(255, 255, 255, 0.2) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.2) 1px, transparent 1px)
           `,
           backgroundSize: "50px 50px",
           opacity: 0.03,
@@ -64,10 +81,15 @@ export default function Hero() {
         aria-hidden
       />
 
+      {/* Vignette for depth */}
+      <div
+        className="absolute inset-0 z-[3] pointer-events-none bg-gradient-to-t from-neutral-950 via-transparent to-neutral-950/40"
+        aria-hidden
+      />
+
       {/* Main hero content */}
       <div className="relative z-10 flex-1 flex items-center">
         <div className="container mx-auto px-6 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 py-24 lg:py-28 relative pl-6 sm:pl-12 lg:pl-48 w-full">
-          {/* Left — text */}
           <div className="flex flex-col gap-6 max-w-xl lg:max-w-2xl lg:mr-12">
             <div className="flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-[#1a9f9a] shrink-0" strokeWidth={2.5} />
@@ -76,7 +98,7 @@ export default function Hero() {
               </span>
             </div>
 
-            <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-neutral-900">
+            <h1 className="text-[clamp(2.4rem,5vw,4rem)] font-bold tracking-tight leading-[1.15] text-white">
               Power your{" "}
               <span className="inline-block min-w-[4.5rem] align-bottom">
                 <RotatingText
@@ -97,14 +119,14 @@ export default function Hero() {
               <span className="text-[#1a9f9a]">with Voltrix.</span>
             </h1>
 
-            <p className="text-base text-neutral-600 leading-relaxed max-w-2xl">
+            <p className="text-base text-neutral-400 leading-relaxed max-w-2xl">
               Empowering Sustainable Living with Innovative Batteries, Smart Inverters, and{" "}
               <span className="whitespace-nowrap">Next-Generation Energy Solutions</span>
             </p>
 
             <a
               href="#products"
-              className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-[#1a9f9a] overflow-hidden transition-all duration-300 hover:shadow-lg hover:bg-[#158a85] w-fit cursor-pointer"
+              className="group flex items-center gap-3 pl-6 pr-2 h-12 rounded-full text-sm font-medium text-white bg-[#1a9f9a] overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-[#1a9f9a]/25 hover:bg-[#158a85] w-fit cursor-pointer"
             >
               <span className="transition-transform duration-300 group-hover:-translate-x-0.5">
                 Explore products
@@ -115,16 +137,14 @@ export default function Hero() {
             </a>
           </div>
 
-          {/* Right — carousel on platform */}
           <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-5 w-[400px] shrink-0">
             <div className="relative w-full flex flex-col items-center">
-              {/* Soft ground shadow */}
               <div
-                className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[78%] h-10 rounded-[100%] bg-neutral-900/[0.08] blur-2xl pointer-events-none"
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[78%] h-10 rounded-[100%] bg-black/40 blur-2xl pointer-events-none"
                 aria-hidden
               />
               <div
-                className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[72%] h-3 rounded-[100%] bg-neutral-900/[0.06] blur-md pointer-events-none"
+                className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[72%] h-3 rounded-[100%] bg-[#1a9f9a]/20 blur-md pointer-events-none"
                 aria-hidden
               />
 
@@ -135,7 +155,7 @@ export default function Hero() {
                     key={img}
                     src={img}
                     alt=""
-                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 drop-shadow-[0_28px_32px_rgba(0,0,0,0.12)] ${
+                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 drop-shadow-[0_32px_48px_rgba(0,0,0,0.45)] ${
                       index === currentImageIndex ? "opacity-100" : "opacity-0"
                     }`}
                   />
@@ -147,7 +167,7 @@ export default function Hero() {
               {heroImages.map((_, index) => (
                 <div
                   key={index}
-                  className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-neutral-300"
+                  className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-neutral-700"
                   aria-label={`Slide ${index + 1}`}
                 >
                   <div
@@ -165,19 +185,18 @@ export default function Hero() {
         </div>
       </div>
 
-      {/* Social proof strip — above the fold line */}
-      <div className="relative z-10 border-t border-neutral-200/50 bg-white/50 backdrop-blur-[2px]">
+      <div className="relative z-10 border-t border-white/[0.08] bg-neutral-950/70 backdrop-blur-sm">
         <div className="container mx-auto px-6 lg:px-16 py-4 lg:py-5">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-x-0">
             {SECTOR_STRIP.map((label, i) => (
               <Fragment key={label}>
                 {i > 0 && (
                   <span
-                    className="hidden sm:inline-block w-px h-3 bg-neutral-300/80 mx-6 lg:mx-10"
+                    className="hidden sm:inline-block w-px h-3 bg-neutral-700 mx-6 lg:mx-10"
                     aria-hidden
                   />
                 )}
-                <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400 whitespace-nowrap">
+                <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 whitespace-nowrap">
                   {label}
                 </span>
               </Fragment>
