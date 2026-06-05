@@ -102,7 +102,7 @@ export default function Products() {
             <p className="text-neutral-400 text-xs">
               {catalogTotal > 0
                 ? `${catalogTotal} product(s) in the catalog are drafts — open Website → Products and publish each one.`
-                : "data/products.json is empty or invalid on the server. Restore from backup or re-import products."}
+                : "Add products in Website → Products, then turn on Publish for each one."}
             </p>
           </div>
         ) : filteredProducts.length === 0 ? (

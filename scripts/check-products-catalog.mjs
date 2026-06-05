@@ -32,8 +32,14 @@ try {
   if (published.length === 0 && products.length > 0) {
     console.log("TIP: Turn on Publish in Website → Products for each item")
   }
+  const withImages = products.filter((p) => Array.isArray(p.images) && p.images.length > 0).length
+  console.log("Products with image URLs:", withImages)
   if (products.length > 0) {
-    console.log("Sample:", products[0].name, "| published:", products[0].published, "| category:", products[0].category)
+    console.log("\nCatalog:")
+    for (const p of products) {
+      const imgs = Array.isArray(p.images) ? p.images.length : 0
+      console.log(`  - ${p.name} | published: ${isPublished(p.published)} | images: ${imgs}`)
+    }
   }
 } catch (e) {
   console.error("FAIL: cannot read/parse products.json:", e.message)

@@ -1,45 +1,46 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Zap, Battery, Layers, Shield, ArrowRight, Sparkles } from "lucide-react"
+import { ArrowRight, Sparkles } from "lucide-react"
 import Image from "next/image"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
 import {
-  FALLBACK_FUSION_PRODUCT,
   findFeaturedFusionProduct,
   fusionProductToSpecsPayload,
-  resolveFeaturedFusionProduct,
 } from "@/lib/featured-fusion-product"
 import { getProductDisplayName } from "@/lib/product-display-name"
-
-const specs = [
-  { icon: Zap, label: "4200W", desc: "Rated Output Power" },
-  { icon: Battery, label: "8038.4Wh", desc: "Battery Capacity" },
-  { icon: Layers, label: "Stackable", desc: "Modular Design" },
-  { icon: Shield, label: "LiFePO4", desc: "Advanced Technology" },
-]
+import { getProductImageList, PRODUCT_IMAGE_FALLBACK } from "@/lib/product-image"
 
 export default function FeaturedProduct() {
   const [specsOpen, setSpecsOpen] = useState(false)
-  const [fusionProduct, setFusionProduct] = useState<Record<string, unknown>>(
-    () => ({ ...FALLBACK_FUSION_PRODUCT })
-  )
+  const [fusionProduct, setFusionProduct] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
-    fetch("/api/products")
-      .then(res => res.json())
-      .then(data => {
+    fetch("/api/products", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
         const list = Array.isArray(data) ? data : []
-        const found = findFeaturedFusionProduct(list)
-        setFusionProduct(resolveFeaturedFusionProduct(found))
+        setFusionProduct(findFeaturedFusionProduct(list))
       })
-      .catch(() => setFusionProduct({ ...FALLBACK_FUSION_PRODUCT }))
+      .catch(() => setFusionProduct(null))
   }, [])
+
+  if (!fusionProduct) return null
 
   const display = getProductDisplayName({
     name: String(fusionProduct.name ?? ""),
     model: fusionProduct.model != null ? String(fusionProduct.model) : undefined,
   })
+  const images = getProductImageList(fusionProduct)
+  const heroImage = images[0] ?? PRODUCT_IMAGE_FALLBACK
+  const specRows = Array.isArray(fusionProduct.specs)
+    ? fusionProduct.specs
+        .filter((s): s is { label?: unknown; value?: unknown } => s && typeof s === "object")
+        .slice(0, 4)
+    : []
+  const description =
+    String(fusionProduct.full_desc || fusionProduct.description || "").trim() ||
+    "Explore our Voltrix Fusion energy storage system."
 
   return (
     <section className="py-20 px-4 bg-white text-neutral-900">
@@ -55,36 +56,38 @@ export default function FeaturedProduct() {
           <div className="lg:col-span-5">
             <div className="relative aspect-square max-w-sm mx-auto rounded-xl overflow-hidden bg-white border border-neutral-200">
               <Image
-                src="/voltrix-fusion.png"
-                alt="Voltrix Fusion"
+                src={heroImage}
+                alt={display.title || "Voltrix Fusion"}
                 fill
                 className="object-contain p-4"
+                unoptimized={heroImage.startsWith("/uploads/")}
               />
             </div>
           </div>
 
           <div className="lg:col-span-7 space-y-6">
             <div>
-              <p className="text-xs text-neutral-500 mb-1">Stackable Energy Storage System</p>
-              <h3 className="text-3xl font-bold text-neutral-900 mb-2">Voltrix Fusion</h3>
-              <p className="text-neutral-600 text-sm leading-relaxed max-w-md">
-                Stackable energy storage battery with off-grid inverter. Features 4200W rated
-                output power, 8038.4Wh battery capacity, and advanced LiFePO4 technology.
-              </p>
+              <p className="text-xs text-neutral-500 mb-1">Voltrix Fusion</p>
+              <h3 className="text-3xl font-bold text-neutral-900 mb-2">{display.title}</h3>
+              <p className="text-neutral-600 text-sm leading-relaxed max-w-md">{description}</p>
               {display.model ? (
                 <p className="mt-2 text-xs font-mono text-neutral-500">{display.model}</p>
               ) : null}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {specs.map(s => (
-                <div key={s.label} className="p-3 rounded-lg bg-white border border-neutral-200">
-                  <s.icon className="w-4 h-4 text-[#1a9f9a] mb-2" />
-                  <p className="text-sm font-semibold text-neutral-900">{s.label}</p>
-                  <p className="text-xs text-neutral-500">{s.desc}</p>
-                </div>
-              ))}
-            </div>
+            {specRows.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {specRows.map((s) => (
+                  <div
+                    key={String(s.label)}
+                    className="p-3 rounded-lg bg-white border border-neutral-200"
+                  >
+                    <p className="text-sm font-semibold text-neutral-900">{String(s.value ?? "")}</p>
+                    <p className="text-xs text-neutral-500">{String(s.label ?? "")}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-3 pt-2">
               <a

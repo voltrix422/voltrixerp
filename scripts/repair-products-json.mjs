@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
  * Repair data/products.json after a failed git merge on the VPS.
+ * Uses VPS backups only — never restores stale catalog from git.
+ *
  * Run from project root: node scripts/repair-products-json.mjs
  */
 import fs from "fs"
 import path from "path"
-import { execSync } from "child_process"
 
 const file = path.join(process.cwd(), "data", "products.json")
 const backupDir = path.join(process.cwd(), "data")
@@ -28,37 +29,34 @@ function tryParse(filePath) {
   }
 }
 
+function imageUrlCount(products) {
+  return products.reduce((n, p) => n + (Array.isArray(p.images) ? p.images.filter(Boolean).length : 0), 0)
+}
+
 function listBackups() {
   if (!fs.existsSync(backupDir)) return []
   return fs
     .readdirSync(backupDir)
     .filter((n) => n.startsWith("products.json.vps-backup-"))
     .map((n) => path.join(backupDir, n))
-    .sort()
-    .reverse()
 }
 
-function fromGitMain() {
-  try {
-    const raw = execSync("git show origin/main:data/products.json", {
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
+function pickBestBackup() {
+  const candidates = []
+  for (const bk of listBackups()) {
+    const r = tryParse(bk)
+    if (!r.ok) continue
+    candidates.push({
+      path: bk,
+      data: r.data,
+      count: r.data.length,
+      images: imageUrlCount(r.data),
+      mtime: fs.statSync(bk).mtimeMs,
     })
-    return tryParseFromRaw(raw)
-  } catch {
-    return { ok: false, reason: "git show failed" }
   }
-}
-
-function tryParseFromRaw(raw) {
-  if (hasMergeMarkers(raw)) return { ok: false, reason: "merge markers" }
-  try {
-    const data = JSON.parse(raw)
-    if (!Array.isArray(data)) return { ok: false, reason: "not an array" }
-    return { ok: true, data }
-  } catch (e) {
-    return { ok: false, reason: e.message }
-  }
+  if (candidates.length === 0) return null
+  candidates.sort((a, b) => b.mtime - a.mtime || b.count - a.count || b.images - a.images)
+  return candidates[0]
 }
 
 let products = null
@@ -73,33 +71,34 @@ if (fs.existsSync(file)) {
   console.log("Current file invalid:", main.reason)
 }
 
-for (const bk of listBackups()) {
-  const r = tryParse(bk)
-  if (r.ok) {
-    source = bk
-    products = r.data
-    console.log("Using backup:", bk, "→", products.length, "products")
-    break
-  }
+const bestBackup = pickBestBackup()
+if (bestBackup) {
+  source = bestBackup.path
+  products = bestBackup.data
+  console.log(
+    "Using backup:",
+    path.basename(bestBackup.path),
+    "→",
+    products.length,
+    "products",
+  )
 }
 
 if (!products) {
-  const git = fromGitMain()
-  if (git.ok) {
-    source = "origin/main:data/products.json"
-    products = git.data
-    console.log("Using git catalog from origin/main →", products.length, "products")
-  }
-}
-
-if (!products) {
-  console.error("No valid products.json source found. Check data/products.json.vps-backup-* manually.")
-  process.exit(1)
+  source = "empty catalog"
+  products = []
+  console.log("No valid backup — initializing empty catalog []")
 }
 
 const archive = path.join(backupDir, `products.json.repaired-${Date.now()}.json`)
-fs.writeFileSync(archive, JSON.stringify(products, null, 2))
+if (fs.existsSync(file)) {
+  try {
+    fs.copyFileSync(file, archive)
+    console.log("Archived broken file:", archive)
+  } catch {
+    // ignore
+  }
+}
 fs.writeFileSync(file, JSON.stringify(products, null, 2))
 console.log("Wrote:", file, "(from", source + ")")
-console.log("Archive:", archive)
 console.log("Restart: pm2 restart voltrix-erp")

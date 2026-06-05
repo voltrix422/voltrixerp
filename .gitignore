@@ -37,3 +37,8 @@ Thumbs.db
 
 # Uploads (if you want to exclude uploaded files)
 public/uploads/
+
+# Live product catalog — managed in admin on each server; never ship from git
+data/products.json
+data/products.json.vps-backup-*
+data/products.json.repaired-*

@@ -46,6 +46,18 @@ export async function readProductsCatalog(): Promise<ProductsCatalogReadResult> 
 export async function writeProductsCatalog(products: Record<string, unknown>[]): Promise<void> {
   const dir = path.dirname(PRODUCTS_DATA_FILE)
   await fs.mkdir(dir, { recursive: true })
+
+  try {
+    await fs.access(PRODUCTS_DATA_FILE)
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, "0")
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+    const backup = path.join(dir, `products.json.vps-backup-${stamp}`)
+    await fs.copyFile(PRODUCTS_DATA_FILE, backup)
+  } catch {
+    // first write — nothing to back up yet
+  }
+
   const tmp = path.join(dir, `.products-${Date.now()}.tmp`)
   const body = JSON.stringify(products, null, 2)
   await fs.writeFile(tmp, body, "utf-8")

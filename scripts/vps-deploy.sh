@@ -32,12 +32,22 @@ git reset --hard origin/main
 if [ -f "$PRODUCTS_LIVE" ]; then
   cp "$PRODUCTS_LIVE" data/products.json
   echo "==> Restored live data/products.json"
+elif [ ! -f data/products.json ]; then
+  mkdir -p data
+  echo '[]' > data/products.json
+  echo "==> Created empty data/products.json"
 fi
 
-echo "==> Repair data/products.json (fix git merge markers)"
+echo "==> Repair data/products.json (fix git merge markers only)"
 if ! node scripts/repair-products-json.mjs; then
-  echo "WARN: repair script failed — restoring catalog from origin/main"
-  git show origin/main:data/products.json > data/products.json
+  echo "WARN: repair script failed — keeping pre-deploy catalog or starting empty"
+  if [ -f "$PRODUCTS_LIVE" ]; then
+    cp "$PRODUCTS_LIVE" data/products.json
+    echo "==> Restored catalog from pre-deploy snapshot"
+  elif [ ! -f data/products.json ]; then
+    echo '[]' > data/products.json
+    echo "==> Initialized empty product catalog"
+  fi
 fi
 
 echo "==> npm install --omit=dev"
