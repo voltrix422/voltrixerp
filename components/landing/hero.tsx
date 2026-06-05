@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Fragment } from "react"
+import { useState, useEffect } from "react"
 import { ArrowRight, Zap } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
@@ -18,13 +18,6 @@ const heroImages = [
   "/craiyon_130930_image.png",
   "/craiyon_131152_image.png",
   "/craiyon_132822_image.png",
-]
-
-const SECTOR_STRIP = [
-  "Residential",
-  "Commercial",
-  "Industrial BESS",
-  "EV Packs",
 ]
 
 export default function Hero() {
