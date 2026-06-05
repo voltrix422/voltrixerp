@@ -73,11 +73,17 @@ echo "==> Product catalog health check"
 node scripts/check-products-catalog.mjs
 node scripts/check-product-images.mjs || echo "WARN: some product image files are missing — re-upload in Website → Products"
 
+echo "==> Stop app before clean build (avoids stale .next manifest errors)"
+pm2 stop "${PM2_NAME}" 2>/dev/null || true
+
+echo "==> Clean previous Next.js build"
+rm -rf .next
+
 echo "==> npm run build"
 npm run build
 
 echo "==> pm2 restart ${PM2_NAME}"
-pm2 restart "${PM2_NAME}"
+pm2 restart "${PM2_NAME}" || pm2 start npm --name "${PM2_NAME}" -- start
 
 if [ -f "public/Voltrix installers Leads 19 May 2026.csv" ]; then
   echo "==> Backfill lead phones from Facebook installers CSV"
