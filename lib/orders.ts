@@ -293,14 +293,19 @@ export async function getOrders(): Promise<Order[]> {
   } catch { return [] }
 }
 
-export async function saveOrder(order: Order): Promise<void> {
+export async function saveOrder(order: Order): Promise<Order> {
   const payload = normalizeOrderPaymentTerms(order)
   const res = await fetch("/api/db/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) console.error("saveOrder error:", res.statusText)
+  if (!res.ok) {
+    console.error("saveOrder error:", res.statusText)
+    return order
+  }
+  const data = await res.json().catch(() => null)
+  return data ? rowToOrder(data) : order
 }
 
 export async function deleteOrder(id: string): Promise<void> {

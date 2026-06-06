@@ -338,6 +338,8 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const autoDeductAttempted = useRef(false)
 
   async function applyInventoryDeduction(targetOrder: Order): Promise<Order> {
+    if (targetOrder.inventoryDeductedAt) return targetOrder
+
     const result = await deductInventoryForOrder(targetOrder)
     if (result.alreadyDeducted) {
       if (!targetOrder.inventoryDeductedAt) {
@@ -478,8 +480,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       const { applySalesCommissionOnDelivery } = await import("@/lib/sales-commission")
       updatedOrder = await applySalesCommissionOnDelivery(updatedOrder)
 
-      await saveOrder(updatedOrder)
-      updatedOrder = await applyInventoryDeduction(updatedOrder)
+      updatedOrder = await saveOrder(updatedOrder)
+      if (!updatedOrder.inventoryDeductedAt) {
+        updatedOrder = await applyInventoryDeduction(updatedOrder)
+      }
 
       await logOrderFulfillmentHistory({
         orderId: updatedOrder.id,
@@ -595,11 +599,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
   async function updateStatus(newStatus: "processing" | "shipped" | "delivered") {
     setUpdating(true)
-    const updated: Order = { ...order, status: newStatus }
-    await saveOrder(updated)
+    let updated: Order = { ...order, status: newStatus }
+    updated = await saveOrder(updated)
     
     if (newStatus === "delivered") {
-      const withStock = await applyInventoryDeduction(updated)
+      const withStock = updated.inventoryDeductedAt
+        ? updated
+        : await applyInventoryDeduction(updated)
       onUpdate(withStock)
       
       // Close the delivery confirmation dialog

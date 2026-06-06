@@ -591,6 +591,29 @@ async function deductStockForLine(
   return { ok: false, error: "no matching stock row" }
 }
 
+async function manualQtyAlreadyDeductedForOrder(
+  order: OrderDeductInput,
+  manualItem: { name: string; model: string },
+  item: OrderDeductLine,
+): Promise<number> {
+  const priorRows = await prisma.erpInventoryHistory.findMany({
+    where: {
+      referenceType: "order",
+      referenceId: order.id,
+      transactionType: "out",
+    },
+  })
+  const labels = new Set(
+    [manualItem.name, manualItem.model, item.description, item.model]
+      .map((value) => normalizeKey(value || ""))
+      .filter(Boolean),
+  )
+
+  return priorRows
+    .filter((row) => labels.has(normalizeKey(row.itemDescription || "")))
+    .reduce((sum, row) => sum + (row.quantity || 0), 0)
+}
+
 async function deductManualQtyForLine(
   order: OrderDeductInput,
   item: OrderDeductLine,
@@ -601,12 +624,17 @@ async function deductManualQtyForLine(
   const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
   if (qty === 0) return { ok: true }
 
+  const alreadyOut = await manualQtyAlreadyDeductedForOrder(order, manualItem, item)
+  if (alreadyOut >= qty) return { ok: true }
+
   const keys = getOrderLineMatchKeys(item)
   if (manualItem.model?.trim()) keys.push(manualItem.model.trim())
   const allocated = await unitsAllocatedForLine(order, keys)
   if (allocated >= qty) return { ok: true }
 
-  const need = qty - allocated
+  const need = qty - Math.max(allocated, alreadyOut)
+  if (need <= 0) return { ok: true }
+
   const available = manualItem.availableQty ?? 0
   if (available < need) {
     return {
@@ -638,27 +666,6 @@ export async function deductInventoryForOrderServer(
     return { success: true, alreadyDeducted: true, deductedLines: 0, failedLines: [], serialUnitsDeducted: 0 }
   }
 
-  let allLinesAllocated = true
-  for (const item of nonCustom) {
-    const keys = getOrderLineMatchKeys(item)
-    const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
-    const allocated = await unitsAllocatedForLine(order, keys)
-    if (allocated < needQty) {
-      allLinesAllocated = false
-      break
-    }
-  }
-
-  if (order.inventoryDeductedAt && allLinesAllocated) {
-    return {
-      success: true,
-      alreadyDeducted: true,
-      deductedLines: 0,
-      failedLines: [],
-      serialUnitsDeducted: 0,
-    }
-  }
-
   // Delivered orders: finalize dispatch-scanned serials still stuck as in_stock.
   if (order.status === "delivered") {
     for (const item of nonCustom) {
@@ -670,6 +677,16 @@ export async function deductInventoryForOrderServer(
         await markSerialUnitsDelivered(order, pending, item)
         serialUnitsDeducted += pending.length
       }
+    }
+  }
+
+  if (order.inventoryDeductedAt) {
+    return {
+      success: true,
+      alreadyDeducted: true,
+      deductedLines: 0,
+      failedLines: [],
+      serialUnitsDeducted,
     }
   }
 
@@ -745,6 +762,19 @@ export async function orderNeedsInventoryDeductionServer(order: OrderDeductInput
 
   const nonCustom = order.items.filter((i) => !i.isCustom)
 
+  if (order.status === "delivered") {
+    for (const item of nonCustom) {
+      const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+      if (needQty === 0) continue
+      const keys = getOrderLineMatchKeys(item)
+      const allocated = await unitsAllocatedForLine(order, keys)
+      const pending = await findSerialsReservedForOrder(order, keys, needQty - allocated)
+      if (pending.length > 0) return true
+    }
+  }
+
+  if (order.inventoryDeductedAt) return false
+
   for (const item of nonCustom) {
     const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
     if (needQty === 0) continue
@@ -753,19 +783,24 @@ export async function orderNeedsInventoryDeductionServer(order: OrderDeductInput
     const allocated = await unitsAllocatedForLine(order, keys)
 
     if (allocated < needQty) {
+      const manualItem = await resolveManualInventoryForOrderLine(item)
+      if (manualItem) {
+        const alreadyOut = await manualQtyAlreadyDeductedForOrder(order, manualItem, item)
+        if (alreadyOut < needQty && (manualItem.availableQty ?? 0) > 0) return true
+        continue
+      }
+
       const found = await findInStockSerials(keys, needQty - allocated)
       if (found) return true
-      const manualItem = await resolveManualInventoryForOrderLine(item)
-      if (manualItem && (manualItem.availableQty ?? 0) > 0) return true
       for (const key of keys) {
         const stock = await findStockByModel(key)
         if (stock && (stock.availableQty ?? 0) > 0) return true
       }
-      if (!order.inventoryDeductedAt) return true
+      return true
     }
   }
 
-  return !order.inventoryDeductedAt
+  return false
 }
 
 async function findDeliveredSerialsForKeys(keys: string[], limit: number) {
