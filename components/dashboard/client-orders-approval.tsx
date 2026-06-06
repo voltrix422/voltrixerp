@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, canShowOrderInvoiceActions, type Order, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, canShowOrderInvoiceActions, type Order } from "@/lib/orders"
+import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 import { getClients, type Client } from "@/lib/crm"
@@ -167,9 +168,7 @@ export function ClientOrdersApproval() {
                         PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status]}`}>
-                          {STATUS_LABELS[order.status]}
-                        </span>
+                        <OrderStatusBadge status={order.status} />
                       </td>
                       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
                         {new Date(order.createdAt).toLocaleDateString()}
@@ -294,7 +293,7 @@ export function ClientOrdersApproval() {
                 </Button>
               )}
               {detailOrder.status !== "pending_approval" && (
-                <Badge variant="success" className="text-xs w-fit">Order {STATUS_LABELS[detailOrder.status]}</Badge>
+                <OrderStatusBadge status={detailOrder.status} className="text-xs" />
               )}
               {showInvoiceActions && (
                 <>

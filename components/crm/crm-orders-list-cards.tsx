@@ -2,7 +2,7 @@
 
 import type { MouseEvent } from "react"
 import type { Order } from "@/lib/orders"
-import { STATUS_COLORS, STATUS_LABELS } from "@/lib/orders"
+import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { Loader2 } from "lucide-react"
@@ -36,11 +36,7 @@ export function CrmOrdersListCards({
               <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber || "—"}</p>
               <p className="text-sm font-medium truncate">{order.clientName || "—"}</p>
             </div>
-            <span
-              className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}
-            >
-              {STATUS_LABELS[order.status] || order.status || "Unknown"}
-            </span>
+            <OrderStatusBadge status={order.status} className="shrink-0" />
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]">
             <span>{formatCrmItemsQtyLabel(order.items)}</span>

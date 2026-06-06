@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, hasOutstandingCredit, isOrderOnCredit, type Order, type OrderItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getSubmittedPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, hasOutstandingCredit, isOrderOnCredit, type Order, type OrderItem } from "@/lib/orders"
+import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { OrderSourceBadge } from "@/components/crm/order-source-badge"
@@ -234,9 +235,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   </td>
                   <td className="px-4 py-2.5 text-xs text-right font-semibold cursor-pointer" onClick={() => setSelected(order)}>PKR {(order.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}>
-                      {STATUS_LABELS[order.status] || order.status || "Unknown"}
-                    </span>
+                    <OrderStatusBadge status={order.status} />
                   </td>
                   <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] cursor-pointer" onClick={() => setSelected(order)}>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-2.5 text-center">
@@ -1098,9 +1097,7 @@ function OrderDetail({
               <div className="flex flex-wrap items-center gap-2">
                 <OrderSourceBadge order={detailOrder} />
                 <p className="text-base sm:text-xl font-bold text-[hsl(var(--primary))] truncate">{detailOrder.orderNumber}</p>
-                <span className={`inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-medium ${STATUS_COLORS[detailOrder.status]}`}>
-                  {STATUS_LABELS[detailOrder.status]}
-                </span>
+                <OrderStatusBadge status={detailOrder.status} className="sm:text-xs sm:px-3 sm:py-1" />
               </div>
               <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize truncate">{detailOrder.clientName}</p>
               <div className="lg:hidden grid grid-cols-2 gap-2 mt-2 text-[10px]">
