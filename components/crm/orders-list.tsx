@@ -27,6 +27,85 @@ import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 
+type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed"
+type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
+
+const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "delivered", label: "Delivered" },
+  { value: "approved", label: "Approved" },
+  { value: "confirmed", label: "Confirmed" },
+]
+
+const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
+  { value: "last_3", label: "Last 3 days" },
+  { value: "last_7", label: "Last 7 days" },
+  { value: "last_15", label: "Last 15 days" },
+  { value: "last_30", label: "Last 30 days" },
+]
+
+function toYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+function endOfDay(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(23, 59, 59, 999)
+  return x
+}
+
+function getDatePresetRange(preset: DatePreset): { from: string; to: string } | null {
+  const today = startOfDay(new Date())
+  switch (preset) {
+    case "today":
+      return { from: toYmd(today), to: toYmd(today) }
+    case "tomorrow": {
+      const t = new Date(today)
+      t.setDate(t.getDate() + 1)
+      return { from: toYmd(t), to: toYmd(t) }
+    }
+    case "last_3": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 2)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    case "last_7": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 6)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    case "last_15": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 14)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    case "last_30": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 29)
+      return { from: toYmd(from), to: toYmd(today) }
+    }
+    default:
+      return null
+  }
+}
+
+function orderMatchesDateRange(createdAt: string | undefined, fromDate: string, toDate: string): boolean {
+  if (!fromDate && !toDate) return true
+  if (!createdAt) return false
+  const d = new Date(createdAt)
+  if (fromDate && d < startOfDay(new Date(fromDate))) return false
+  if (toDate && d > endOfDay(new Date(toDate))) return false
+  return true
+}
+
 export function OrdersList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
   const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
@@ -38,6 +117,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [showFilters, setShowFilters] = useState(false)
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
+  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("all")
+  const [datePreset, setDatePreset] = useState<DatePreset>("")
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<Order | null>(null)
   const [exportingExcel, setExportingExcel] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
@@ -80,17 +161,41 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   }, [])
 
   const filtered = orders.filter(o => {
-    const matchesSearch = (o.orderNumber?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (o.clientName?.toLowerCase() || "").includes(search.toLowerCase())
-    
-    const matchesDateRange = (!fromDate || !toDate) || (
-      o.createdAt && 
-      new Date(o.createdAt) >= new Date(fromDate) && 
-      new Date(o.createdAt) <= new Date(toDate)
-    )
-    
-    return matchesSearch && matchesDateRange
+    const q = search.toLowerCase()
+    const matchesSearch =
+      !search ||
+      (o.orderNumber?.toLowerCase() || "").includes(q) ||
+      (o.clientName?.toLowerCase() || "").includes(q)
+
+    const matchesStatus = statusFilter === "all" || o.status === statusFilter
+    const matchesDateRange = orderMatchesDateRange(o.createdAt, fromDate, toDate)
+
+    return matchesSearch && matchesStatus && matchesDateRange
   })
+
+  const hasActiveFilters = Boolean(search || fromDate || toDate || statusFilter !== "all")
+
+  function applyDatePreset(preset: DatePreset) {
+    if (datePreset === preset) {
+      setDatePreset("")
+      setFromDate("")
+      setToDate("")
+      return
+    }
+    const range = getDatePresetRange(preset)
+    if (!range) return
+    setDatePreset(preset)
+    setFromDate(range.from)
+    setToDate(range.to)
+  }
+
+  function clearFilters() {
+    setSearch("")
+    setFromDate("")
+    setToDate("")
+    setStatusFilter("all")
+    setDatePreset("")
+  }
 
   function exportListExcel() {
     setExportingExcel(true)
@@ -115,30 +220,84 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     <div className="space-y-4">
       {/* Filter Panel */}
       {showFilters && (
-        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
-          <input
-            type="date"
-            value={fromDate}
-            onChange={e => setFromDate(e.target.value)}
-            className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-          />
-          <input
-            type="date"
-            value={toDate}
-            onChange={e => setToDate(e.target.value)}
-            className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-          />
-          <div className="relative flex-1">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search orders..."
-              className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-            />
+        <div className="space-y-3 p-3 rounded-lg border bg-[hsl(var(--card))]">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Status
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setStatusFilter(opt.value)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    statusFilter === opt.value
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setFromDate(""); setToDate(""); setSearch("") }}>
-            Clear
-          </Button>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Date range
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DATE_PRESET_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => applyDatePreset(opt.value)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    datePreset === opt.value
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => {
+                setFromDate(e.target.value)
+                setDatePreset("")
+              }}
+              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            />
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => {
+                setToDate(e.target.value)
+                setDatePreset("")
+              }}
+              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+            />
+            <div className="relative flex-1 min-w-[12rem]">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search orders..."
+                className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={clearFilters}>
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -166,7 +325,11 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {orders.length === 0 ? "No orders found" : "No orders found"}
+            {orders.length === 0
+              ? "No orders found"
+              : hasActiveFilters
+                ? "No orders match your filters"
+                : "No orders found"}
           </p>
         </div>
       ) : (
