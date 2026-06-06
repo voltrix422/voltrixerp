@@ -8,6 +8,7 @@ import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inve
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmItemsQtyCell } from "@/components/crm/crm-items-qty-cell"
+import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 import { CrmOrdersListCards } from "@/components/crm/crm-orders-list-cards"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
@@ -106,6 +107,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     }
   }
 
+  const totalOrderValue = filtered.reduce((sum, o) => sum + (o.total || 0), 0)
+  const totalOrderQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
+
   return (
     <div className="space-y-4">
       {/* Filter Panel */}
@@ -166,6 +170,29 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       ) : (
         <>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-[hsl(var(--muted))]/20 px-4 py-3 text-xs">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                Total orders
+              </p>
+              <p className="text-lg font-bold tabular-nums leading-tight">{filtered.length}</p>
+            </div>
+            <div className="sm:border-l sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                Total qty
+              </p>
+              <p className="text-lg font-bold tabular-nums leading-tight">{totalOrderQty}</p>
+            </div>
+            <div className="sm:border-l sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                Total value
+              </p>
+              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight">
+                PKR {totalOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+
           <CrmOrdersListCards
             orders={filtered}
             onSelect={setSelected}
