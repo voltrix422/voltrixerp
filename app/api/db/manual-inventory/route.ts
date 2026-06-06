@@ -340,6 +340,118 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
+  if (action === "subtract_stock") {
+    const manualId = String(body.manualId ?? "").trim()
+    const qty = Number(body.qty)
+    const subtractedBy = String(body.subtractedBy ?? "system").trim() || "system"
+    const notes = String(body.notes ?? "").trim()
+
+    if (!manualId) {
+      return NextResponse.json({ error: "manualId is required" }, { status: 400 })
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return NextResponse.json({ error: "Quantity must be greater than zero" }, { status: 400 })
+    }
+
+    const item = await prisma.erpManualInventoryItem.findUnique({ where: { id: manualId } })
+    if (!item) return NextResponse.json({ error: "Manual item not found" }, { status: 404 })
+    if ((item.availableQty ?? 0) < qty) {
+      return NextResponse.json(
+        { error: `Not enough stock for "${item.name}" (available ${item.availableQty})` },
+        { status: 400 },
+      )
+    }
+
+    const nextAvailableQty = (item.availableQty ?? 0) - qty
+    const updated = await prisma.erpManualInventoryItem.update({
+      where: { id: manualId },
+      data: { availableQty: nextAvailableQty },
+    })
+
+    if (item.inventoryStockId) {
+      await prisma.erpInventoryStock.update({
+        where: { id: item.inventoryStockId },
+        data: { availableQty: nextAvailableQty },
+      })
+    }
+
+    await prisma.erpInventoryHistory.create({
+      data: {
+        itemDescription: item.name,
+        transactionType: "out",
+        quantity: qty,
+        unit: item.unit || "pcs",
+        referenceType: "manual_subtract_stock",
+        referenceId: item.id,
+        referenceNumber: item.model,
+        notes: notes || undefined,
+        createdBy: subtractedBy,
+      },
+    })
+
+    return NextResponse.json(mapRow(updated))
+  }
+
+  if (action === "subtract_units") {
+    const manualId = String(body.manualId ?? "").trim()
+    const qty = Number(body.qty)
+    const subtractedBy = String(body.subtractedBy ?? "system").trim() || "system"
+    const notes = String(body.notes ?? "").trim()
+
+    if (!manualId) {
+      return NextResponse.json({ error: "manualId is required" }, { status: 400 })
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return NextResponse.json({ error: "Quantity must be greater than zero" }, { status: 400 })
+    }
+
+    const item = await prisma.erpManualInventoryItem.findUnique({ where: { id: manualId } })
+    if (!item) return NextResponse.json({ error: "Manual item not found" }, { status: 404 })
+    if ((item.qty ?? 0) < qty) {
+      return NextResponse.json(
+        { error: `Cannot subtract ${qty} units from "${item.name}" (total ${item.qty})` },
+        { status: 400 },
+      )
+    }
+
+    const nextQty = (item.qty ?? 0) - qty
+    const nextAvailableQty = Math.min(item.availableQty ?? 0, nextQty)
+
+    const updated = await prisma.erpManualInventoryItem.update({
+      where: { id: manualId },
+      data: {
+        qty: nextQty,
+        availableQty: nextAvailableQty,
+      },
+    })
+
+    if (item.inventoryStockId) {
+      await prisma.erpInventoryStock.update({
+        where: { id: item.inventoryStockId },
+        data: {
+          receivedQty: nextQty,
+          availableQty: nextAvailableQty,
+        },
+      })
+    }
+
+    await prisma.erpInventoryHistory.create({
+      data: {
+        itemDescription: item.name,
+        transactionType: "out",
+        quantity: qty,
+        unit: item.unit || "pcs",
+        referenceType: "manual_subtract_units",
+        referenceId: item.id,
+        referenceNumber: item.model,
+        notes: notes || undefined,
+        createdBy: subtractedBy,
+      },
+    })
+
+    return NextResponse.json(mapRow(updated))
+  }
+
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })
 }
 

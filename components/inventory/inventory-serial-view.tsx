@@ -9,7 +9,12 @@ import {
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
 import { getInventoryModelLabels, saveInventoryModelLabel } from "@/lib/inventory-model-labels"
-import { getManualInventoryItems } from "@/lib/manual-inventory"
+import {
+  getManualInventoryItems,
+  subtractManualInventoryStock,
+  subtractManualInventoryUnits,
+} from "@/lib/manual-inventory"
+import { getSession } from "@/lib/auth"
 import {
   buildUnifiedInventoryGroups,
   filterUnifiedGroups,
@@ -51,6 +56,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
   const [savingModelLabel, setSavingModelLabel] = useState(false)
+  const [adjustingManual, setAdjustingManual] = useState<{ id: string; mode: "stock" | "units" } | null>(null)
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
@@ -319,6 +325,48 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     )
   }
 
+  async function handleSubtractManualStock(manualId: string, qty: number): Promise<boolean> {
+    setAdjustingManual({ id: manualId, mode: "stock" })
+    try {
+      const user = getSession()?.name || "Inventory"
+      await subtractManualInventoryStock({ manualId, qty, subtractedBy: user })
+      await loadUnits()
+      onUnitsChanged?.()
+      toast({ title: "Stock updated", message: `${qty} subtracted from available stock.`, type: "success" })
+      return true
+    } catch (err) {
+      toast({
+        title: "Could not subtract stock",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+      return false
+    } finally {
+      setAdjustingManual(null)
+    }
+  }
+
+  async function handleSubtractManualUnits(manualId: string, qty: number): Promise<boolean> {
+    setAdjustingManual({ id: manualId, mode: "units" })
+    try {
+      const user = getSession()?.name || "Inventory"
+      await subtractManualInventoryUnits({ manualId, qty, subtractedBy: user })
+      await loadUnits()
+      onUnitsChanged?.()
+      toast({ title: "Units updated", message: `${qty} subtracted from total units.`, type: "success" })
+      return true
+    } catch (err) {
+      toast({
+        title: "Could not subtract units",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+      return false
+    } finally {
+      setAdjustingManual(null)
+    }
+  }
+
   function renderGroupTable(title: string, groups: UnifiedInventoryModelGroup[]) {
     return (
       <div className="rounded-lg border overflow-hidden bg-[hsl(var(--background))]">
@@ -326,15 +374,14 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{title}</p>
           <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{groups.length} models</span>
         </div>
-        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+        <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] gap-3 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
           <span>Model / product</span>
           <span>Model code</span>
           <span className="text-right">Stock</span>
           <span className="text-right">Units</span>
           <span className="text-right text-[10px] font-normal normal-case tracking-normal text-[#1faca6]/90">
-            Click for prices
+            Click for prices · − stock · U− units
           </span>
-          <span className="text-right">Delete</span>
         </div>
         <div className="divide-y">
           {groups.map((group) => (
@@ -359,6 +406,9 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
               onCancelEdit={() => setEditingModel(null)}
               onDeleteUnit={(unit) => void handleDeleteUnit(unit)}
               onDeleteModel={() => handleDeleteModel(group)}
+              onSubtractManualStock={handleSubtractManualStock}
+              onSubtractManualUnits={handleSubtractManualUnits}
+              adjustingManual={adjustingManual}
             />
           ))}
         </div>

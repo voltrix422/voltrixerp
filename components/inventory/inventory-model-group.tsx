@@ -11,7 +11,7 @@ import { InventoryModelPricePanel } from "@/components/inventory/inventory-model
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { StockOnlyMeta } from "@/lib/unified-inventory-groups"
-import { ChevronDown, ChevronRight, Loader2, Pencil, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2, Minus, Pencil, Trash2, X } from "lucide-react"
 
 function formatDate(iso?: string) {
   if (!iso) return "—"
@@ -39,6 +39,9 @@ export function InventoryModelGroup({
   onCancelEdit,
   onDeleteUnit,
   onDeleteModel,
+  onSubtractManualStock,
+  onSubtractManualUnits,
+  adjustingManual,
   stockOnly,
 }: {
   modelKey: string
@@ -57,6 +60,9 @@ export function InventoryModelGroup({
   onCancelEdit: () => void
   onDeleteUnit: (unit: InventorySerialUnit) => void
   onDeleteModel: () => void | Promise<boolean | void>
+  onSubtractManualStock?: (manualId: string, qty: number) => boolean | Promise<boolean>
+  onSubtractManualUnits?: (manualId: string, qty: number) => boolean | Promise<boolean>
+  adjustingManual?: { id: string; mode: "stock" | "units" } | null
   stockOnly?: StockOnlyMeta
 }) {
   const count = modelUnits.length > 0 ? modelUnits.length : (stockOnly?.total ?? 0)
@@ -69,9 +75,35 @@ export function InventoryModelGroup({
   const hasSerials = modelUnits.length > 0
 
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjustMode, setAdjustMode] = useState<"stock" | "units">("stock")
+  const [adjustQty, setAdjustQty] = useState("1")
+
+  const manualId = stockOnly?.manualId
+  const isManualStock = Boolean(stockOnly?.isManual && manualId)
+  const isAdjusting =
+    Boolean(manualId && adjustingManual?.id === manualId && adjustingManual?.mode === adjustMode)
 
   function openPricePanel() {
     if (!isEditing) setPricePanelOpen(true)
+  }
+
+  function openAdjust(mode: "stock" | "units") {
+    setAdjustMode(mode)
+    setAdjustQty("1")
+    setAdjustOpen(true)
+  }
+
+  async function confirmAdjust() {
+    if (!manualId) return
+    const qty = Math.floor(Number(adjustQty))
+    const max = adjustMode === "stock" ? inStock : count
+    if (!Number.isFinite(qty) || qty <= 0 || qty > max) return
+    const ok =
+      adjustMode === "stock"
+        ? await onSubtractManualStock?.(manualId, qty)
+        : await onSubtractManualUnits?.(manualId, qty)
+    if (ok) setAdjustOpen(false)
   }
 
   return (
@@ -117,7 +149,7 @@ export function InventoryModelGroup({
         </div>
       ) : (
         <div
-          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_64px_64px] gap-3 items-center px-4 py-3.5 hover:bg-[hsl(var(--muted))]/12 transition-colors"
+          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] gap-3 items-center px-4 py-3.5 hover:bg-[hsl(var(--muted))]/12 transition-colors"
         >
           <button
             type="button"
@@ -156,40 +188,85 @@ export function InventoryModelGroup({
               {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}
             </span>
           </button>
-          <button
-            type="button"
-            className="flex justify-end p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] sm:col-start-6 col-start-5"
-            onClick={onStartEdit}
-            title="Edit name"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            className="flex justify-end p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-red-600 disabled:opacity-50 sm:col-start-7 col-start-6"
-            onClick={(e) => {
-              e.stopPropagation()
-              void onDeleteModel()
-            }}
-            disabled={deletingModel || count === 0}
-            title="Delete model and all serial numbers"
-          >
-            {deletingModel ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          </button>
+          <div className="flex justify-end items-center gap-0.5 shrink-0">
+            {isManualStock ? (
+              <>
+                <button
+                  type="button"
+                  className="p-1 rounded-md text-amber-600 hover:bg-amber-500/10 disabled:opacity-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openAdjust("stock")
+                  }}
+                  disabled={inStock <= 0 || isAdjusting}
+                  title="Subtract from stock (available qty)"
+                >
+                  {isAdjusting && adjustingManual?.mode === "stock" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Minus className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="p-1 rounded-md text-orange-600 hover:bg-orange-500/10 disabled:opacity-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openAdjust("units")
+                  }}
+                  disabled={count <= 0 || isAdjusting}
+                  title="Subtract from units (total qty)"
+                >
+                  {isAdjusting && adjustingManual?.mode === "units" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <span className="text-[10px] font-bold leading-none px-0.5">U−</span>
+                  )}
+                </button>
+              </>
+            ) : null}
+            <button
+              type="button"
+              className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
+              onClick={onStartEdit}
+              title="Edit name"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-red-600 disabled:opacity-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                void onDeleteModel()
+              }}
+              disabled={deletingModel || count === 0}
+              title="Delete model and all serial numbers"
+            >
+              {deletingModel ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       )}
 
       {expanded && (
         <div className="overflow-x-auto border-t border-[hsl(var(--border))] bg-[hsl(var(--muted))]/5">
           {!hasSerials ? (
-            <div className="px-4 py-4 text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+            <div className="px-4 py-4 text-xs text-[hsl(var(--muted-foreground))] space-y-2">
               <p>
                 <span className="font-semibold text-[hsl(var(--foreground))]">{inStock}</span> of{" "}
                 <span className="font-semibold text-[hsl(var(--foreground))]">{count}</span>{" "}
                 {unitLabel} available
                 {stockOnly?.isManual ? " (manual inventory)" : ""}.
               </p>
-              <p>Scan QR codes at dispatch or use Scan QR above to register serial numbers.</p>
+              {isManualStock ? (
+                <p>
+                  Use <span className="font-medium text-amber-600">−</span> to subtract from stock only, or{" "}
+                  <span className="font-medium text-orange-600">U−</span> to subtract from total units.
+                </p>
+              ) : (
+                <p>Scan QR codes at dispatch or use Scan QR above to register serial numbers.</p>
+              )}
             </div>
           ) : (
           <table className="w-full text-xs sm:text-sm border-collapse">
@@ -248,6 +325,71 @@ export function InventoryModelGroup({
           )}
         </div>
       )}
+
+      {adjustOpen && isManualStock ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setAdjustOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border bg-[hsl(var(--background))] p-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div>
+                <p className="text-sm font-semibold">
+                  {adjustMode === "stock" ? "Subtract from stock" : "Subtract from units"}
+                </p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{title}</p>
+              </div>
+              <button
+                type="button"
+                className="p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20"
+                onClick={() => setAdjustOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+              {adjustMode === "stock" ? (
+                <>
+                  Current stock: <span className="font-semibold text-[hsl(var(--foreground))]">{inStock}</span> /{" "}
+                  {count} {unitLabel}
+                </>
+              ) : (
+                <>
+                  Current units: <span className="font-semibold text-[hsl(var(--foreground))]">{count}</span>{" "}
+                  {unitLabel} ({inStock} in stock)
+                </>
+              )}
+            </p>
+            <label className="block text-xs font-medium mb-1.5">Quantity to subtract</label>
+            <input
+              type="number"
+              min={1}
+              max={adjustMode === "stock" ? inStock : count}
+              value={adjustQty}
+              onChange={(e) => setAdjustQty(e.target.value)}
+              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setAdjustOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={isAdjusting}
+                onClick={() => void confirmAdjust()}
+              >
+                {isAdjusting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Subtract"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

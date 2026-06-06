@@ -110,3 +110,47 @@ export async function addManualInventoryQty(input: {
   if (!res.ok) throw new Error(data.error || "Could not add quantity")
   return data
 }
+
+export async function subtractManualInventoryStock(input: {
+  manualId: string
+  qty: number
+  subtractedBy?: string
+  notes?: string
+}): Promise<ManualInventoryItem> {
+  const res = await fetch("/api/db/manual-inventory", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "subtract_stock",
+      manualId: input.manualId,
+      qty: input.qty,
+      subtractedBy: input.subtractedBy,
+      notes: input.notes,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Could not subtract stock")
+  return data
+}
+
+export async function subtractManualInventoryUnits(input: {
+  manualId: string
+  qty: number
+  subtractedBy?: string
+  notes?: string
+}): Promise<ManualInventoryItem> {
+  const res = await fetch("/api/db/manual-inventory", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "subtract_units",
+      manualId: input.manualId,
+      qty: input.qty,
+      subtractedBy: input.subtractedBy,
+      notes: input.notes,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Could not subtract units")
+  return data
+}

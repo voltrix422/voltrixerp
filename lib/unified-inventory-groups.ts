@@ -6,6 +6,7 @@ export type StockOnlyMeta = {
   total: number
   unit: string
   isManual: boolean
+  manualId?: string
 }
 
 export type UnifiedInventoryModelGroup = {
@@ -66,6 +67,7 @@ export function buildUnifiedInventoryGroups(
           total: manual.qty ?? 0,
           unit: manual.unit || "pcs",
           isManual: true,
+          manualId: manual.id,
         },
       })
       continue
@@ -78,6 +80,7 @@ export function buildUnifiedInventoryGroups(
         total: manual.qty ?? 0,
         unit: manual.unit || "pcs",
         isManual: true,
+        manualId: manual.id,
       }
     }
   }

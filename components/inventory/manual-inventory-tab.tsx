@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  Minus,
   PackagePlus,
   Trash2,
   X,
@@ -19,6 +20,8 @@ import {
   createManualInventoryItem,
   deleteManualInventoryItem,
   getManualInventoryItems,
+  subtractManualInventoryStock,
+  subtractManualInventoryUnits,
   type ManualInventoryItem,
 } from "@/lib/manual-inventory"
 import {
@@ -50,6 +53,11 @@ export function ManualInventoryTab() {
   const [restockQty, setRestockQty] = useState("")
   const [restockNotes, setRestockNotes] = useState("")
   const [restocking, setRestocking] = useState(false)
+  const [showSubtract, setShowSubtract] = useState(false)
+  const [subtractItem, setSubtractItem] = useState<ManualInventoryItem | null>(null)
+  const [subtractMode, setSubtractMode] = useState<"stock" | "units">("stock")
+  const [subtractQty, setSubtractQty] = useState("")
+  const [subtracting, setSubtracting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -152,6 +160,47 @@ export function ManualInventoryTab() {
     setRestockQty("")
     setRestockNotes("")
     setShowAddQty(true)
+  }
+
+  function openSubtract(item: ManualInventoryItem, mode: "stock" | "units") {
+    setSubtractItem(item)
+    setSubtractMode(mode)
+    setSubtractQty("1")
+    setShowSubtract(true)
+  }
+
+  async function handleSubtract(e: React.FormEvent) {
+    e.preventDefault()
+    if (!subtractItem) return
+    const q = Math.floor(Number(subtractQty))
+    const max = subtractMode === "stock" ? subtractItem.availableQty : subtractItem.qty
+    if (!Number.isFinite(q) || q <= 0 || q > max) {
+      toast({ title: "Enter a valid quantity", type: "error" })
+      return
+    }
+    setSubtracting(true)
+    try {
+      const user = getSession()?.name || "Inventory"
+      if (subtractMode === "stock") {
+        await subtractManualInventoryStock({ manualId: subtractItem.id, qty: q, subtractedBy: user })
+        toast({ title: "Stock subtracted", type: "success" })
+      } else {
+        await subtractManualInventoryUnits({ manualId: subtractItem.id, qty: q, subtractedBy: user })
+        toast({ title: "Units subtracted", type: "success" })
+      }
+      setShowSubtract(false)
+      setSubtractItem(null)
+      setSubtractQty("")
+      await load()
+    } catch (err) {
+      toast({
+        title: "Could not subtract",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+    } finally {
+      setSubtracting(false)
+    }
   }
 
   async function handleAddQty(e: React.FormEvent) {
@@ -335,6 +384,24 @@ export function ManualInventoryTab() {
                               title="Add quantity"
                             >
                               <Plus className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-md text-amber-600 hover:bg-amber-500/10 cursor-pointer disabled:opacity-40"
+                              onClick={() => openSubtract(item, "stock")}
+                              disabled={item.availableQty <= 0}
+                              title="Subtract from stock"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-md text-orange-600 hover:bg-orange-500/10 cursor-pointer disabled:opacity-40"
+                              onClick={() => openSubtract(item, "units")}
+                              disabled={item.qty <= 0}
+                              title="Subtract from units"
+                            >
+                              <span className="text-[10px] font-bold leading-none">U−</span>
                             </button>
                             <button
                               type="button"
@@ -523,6 +590,69 @@ export function ManualInventoryTab() {
               disabled={restocking}
             >
               {restocking ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Add quantity"}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {showSubtract && subtractItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          onClick={() => !subtracting && setShowSubtract(false)}
+        >
+          <form
+            className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => void handleSubtract(e)}
+          >
+            <div className="flex items-center justify-between border-b pb-3">
+              <p className="text-sm font-semibold">
+                {subtractMode === "stock" ? "Subtract from stock" : "Subtract from units"}
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 cursor-pointer"
+                onClick={() => setShowSubtract(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {subtractItem.name}{" "}
+              <span className="font-mono">({subtractItem.model})</span>
+            </p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {subtractMode === "stock" ? (
+                <>
+                  Available: <span className="font-semibold text-[hsl(var(--foreground))]">{subtractItem.availableQty}</span> / {subtractItem.qty} {subtractItem.unit}
+                </>
+              ) : (
+                <>
+                  Total units: <span className="font-semibold text-[hsl(var(--foreground))]">{subtractItem.qty}</span> {subtractItem.unit} ({subtractItem.availableQty} in stock)
+                </>
+              )}
+            </p>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Quantity to subtract *</label>
+              <input
+                type="number"
+                min={1}
+                max={subtractMode === "stock" ? subtractItem.availableQty : subtractItem.qty}
+                step={1}
+                className={fieldClass}
+                value={subtractQty}
+                onChange={(e) => setSubtractQty(e.target.value)}
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full h-9 text-sm cursor-pointer bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={subtracting}
+            >
+              {subtracting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Subtract"}
             </Button>
           </form>
         </div>
