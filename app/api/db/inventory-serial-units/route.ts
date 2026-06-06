@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { parseDecimalField } from "@/lib/format-inventory-price"
 import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
+import { deleteModelInventoryCompletely } from "@/lib/delete-model-inventory-server"
 
 function addYears(date: Date, years: number) {
   const next = new Date(date)
@@ -156,16 +157,8 @@ export async function DELETE(req: NextRequest) {
   }
 
   if (model) {
-    const units = await prisma.erpInventorySerialUnit.findMany({
-      where: { model },
-    })
-    if (units.length === 0) {
-      return NextResponse.json({ error: "No scanned units for this model" }, { status: 404 })
-    }
-    for (const unit of units) {
-      await deleteSerialUnitAndWarranties(unit)
-    }
-    return NextResponse.json({ ok: true, deleted: units.length })
+    const deleted = await deleteModelInventoryCompletely(model)
+    return NextResponse.json({ ok: true, deleted })
   }
 
   if (!id) {

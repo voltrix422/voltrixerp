@@ -9,7 +9,7 @@ import {
   type InventorySerialUnit,
 } from "@/lib/inventory-serial-units"
 import { getInventoryModelLabels, saveInventoryModelLabel } from "@/lib/inventory-model-labels"
-import { deleteManualInventoryItem, getManualInventoryItems } from "@/lib/manual-inventory"
+import { getManualInventoryItems } from "@/lib/manual-inventory"
 import {
   buildUnifiedInventoryGroups,
   filterUnifiedGroups,
@@ -48,8 +48,6 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [deletingModel, setDeletingModel] = useState<string | null>(null)
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({})
   const [inventoryGroups, setInventoryGroups] = useState<UnifiedInventoryModelGroup[]>([])
-  const [manualItemsCache, setManualItemsCache] = useState<any[]>([])
-  const [stockRowsCache, setStockRowsCache] = useState<any[]>([])
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
   const [savingModelLabel, setSavingModelLabel] = useState(false)
@@ -98,8 +96,6 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           map,
         ),
       )
-      setManualItemsCache(Array.isArray(manualItems) ? manualItems : [])
-      setStockRowsCache(Array.isArray(stockRows) ? stockRows : [])
     } catch {
       toast({ title: "Error", message: "Could not load inventory.", type: "error" })
     } finally {
@@ -285,33 +281,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
 
     setDeletingModel(modelKey)
     try {
-      let deleted = 0
-      if (unitCount > 0) {
-        deleted = await deleteInventorySerialUnitsByModel(modelKey)
-      }
-
-      const manual = manualItemsCache.find(
-        (m) => String(m?.model || "").trim() === modelKey.trim(),
-      )
-      if (manual?.id) {
-        await deleteManualInventoryItem(manual.id)
-        if (deleted === 0) deleted = Number(manual.qty || 0)
-      } else if (unitCount === 0) {
-        const stockRow = stockRowsCache.find(
-          (row) =>
-            String(row?.description || row?.name || "")
-              .trim()
-              .toLowerCase() === modelKey.trim().toLowerCase(),
-        )
-        if (!stockRow?.id) throw new Error("Stock record not found.")
-        const res = await fetch("/api/db/inventory-stock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "delete", data: { itemId: stockRow.id } }),
-        })
-        if (!res.ok) throw new Error("Could not delete stock record.")
-        deleted = Number(stockRow.availableQty ?? stockRow.receivedQty ?? 0) || 0
-      }
+      const deleted = await deleteInventorySerialUnitsByModel(modelKey)
       await loadUnits()
       setModelLabels((prev) => {
         const next = { ...prev }
