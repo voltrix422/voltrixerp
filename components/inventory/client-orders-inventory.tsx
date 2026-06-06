@@ -6,7 +6,7 @@ import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SuccessNotification } from "@/components/ui/success-notification"
-import { Loader2, X, Eye, Download, Truck, FileText, Search, Package } from "lucide-react"
+import { Loader2, X, Eye, Download, Truck, FileText, Search, Package, ScanLine, PackageMinus } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder, orderNeedsInventoryDeduction } from "@/lib/inventory"
@@ -331,6 +331,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [serialSelections, setSerialSelections] = useState<Record<string, string[]>>({})
   const [serialSelectionValid, setSerialSelectionValid] = useState(true)
   const [fulfillTab, setFulfillTab] = useState<"dispatcher" | "products">("dispatcher")
+  const [dispatchMode, setDispatchMode] = useState<"scan" | "no_scan">("scan")
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [deductingStock, setDeductingStock] = useState(false)
   const [stockDeductionNotice, setStockDeductionNotice] = useState<string | null>(null)
@@ -379,8 +380,21 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     setProductImages([])
     setSerialSelections(selectionsFromAllocations(order.fulfillmentSerialAllocations))
     setSerialSelectionValid(orderLinesRequiringSerials(order).length === 0)
+    setDispatchMode("scan")
     setFulfillTab("dispatcher")
     setShowFulfillDialog(true)
+  }
+
+  function selectDispatchMode(mode: "scan" | "no_scan") {
+    setDispatchMode(mode)
+    setFulfillTab("dispatcher")
+    if (mode === "no_scan") {
+      setSerialSelections({})
+      setSerialSelectionValid(true)
+    } else {
+      setSerialSelections(selectionsFromAllocations(order.fulfillmentSerialAllocations))
+      setSerialSelectionValid(false)
+    }
   }
 
   async function handleFulfillOrder() {
@@ -393,25 +407,29 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     let fulfillmentSerialAllocations = order.fulfillmentSerialAllocations ?? []
 
     if (linesNeedSerials.length > 0 && !order.inventoryDeductedAt) {
-      const [manualItems, stockRes] = await Promise.all([
-        getManualInventoryItems().catch(() => []),
-        fetch("/api/db/inventory-stock", { cache: "no-store" }),
-      ])
-      const stockRows = stockRes.ok ? await stockRes.json() : []
-      const manualMeta = manualDispatchMetaByModel(manualItems)
-      const warehouseStockByModel = warehouseStockByModelFromRows(stockRows)
-      const check = validateSerialSelections(
-        order,
-        serialSelections,
-        manualMeta,
-        warehouseStockByModel,
-      )
-      if (!check.valid) {
-        setFulfillTab("products")
-        alert(check.errors.join("\n"))
-        return
+      if (dispatchMode === "no_scan") {
+        fulfillmentSerialAllocations = []
+      } else {
+        const [manualItems, stockRes] = await Promise.all([
+          getManualInventoryItems().catch(() => []),
+          fetch("/api/db/inventory-stock", { cache: "no-store" }),
+        ])
+        const stockRows = stockRes.ok ? await stockRes.json() : []
+        const manualMeta = manualDispatchMetaByModel(manualItems)
+        const warehouseStockByModel = warehouseStockByModelFromRows(stockRows)
+        const check = validateSerialSelections(
+          order,
+          serialSelections,
+          manualMeta,
+          warehouseStockByModel,
+        )
+        if (!check.valid) {
+          setFulfillTab("products")
+          alert(check.errors.join("\n"))
+          return
+        }
+        fulfillmentSerialAllocations = buildAllocationsFromSelections(order, serialSelections)
       }
-      fulfillmentSerialAllocations = buildAllocationsFromSelections(order, serialSelections)
     }
 
     setUpdating(true)
@@ -477,7 +495,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         productImageUrls: productImageUrls.length > 0 ? productImageUrls : [],
         fulfilledAt: updatedOrder.fulfillmentDate || new Date().toISOString(),
         fulfilledBy: updatedOrder.createdBy || "Inventory",
-        notes: `Dispatch note created by ${fulfillDispatcherName.trim()}. Inventory updated.`,
+        notes:
+          dispatchMode === "no_scan"
+            ? `Dispatch note (qty only, no QR scan) by ${fulfillDispatcherName.trim()}. Inventory updated.`
+            : `Dispatch note created by ${fulfillDispatcherName.trim()}. Inventory updated.`,
       })
 
       const blob = await generateDispatchNotePDF(updatedOrder, fulfillDispatcherName, fulfillDate)
@@ -649,8 +670,10 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const proofComplete = orderHasCompleteFulfillmentProof(order)
   const hasDispatcher = !!(order.fulfillmentDispatcher || order.dispatcher || "").trim()
   const linesNeedSerials = orderLinesRequiringSerials(order).length > 0
+  const useQrScanDispatch =
+    linesNeedSerials && !order.inventoryDeductedAt && dispatchMode === "scan"
   const serialSelectionOk =
-    !linesNeedSerials || !!order.inventoryDeductedAt || serialSelectionValid
+    !useQrScanDispatch || serialSelectionValid
   const canSubmitFulfillment = !!fulfillDispatcherName.trim() && serialSelectionOk
   const needsStockUpdate = hasDispatcher && !order.inventoryDeductedAt
 
@@ -1173,13 +1196,61 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               <div>
                 <p className="text-base font-bold">Create dispatch note</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                  Step 1: dispatcher · Step 2: scan QR codes for order qty
+                  {useQrScanDispatch
+                    ? "Step 1: dispatcher · Step 2: scan QR codes for order qty"
+                    : dispatchMode === "no_scan" && linesNeedSerials
+                      ? "Qty-only dispatch — inventory reduced without QR scanning"
+                      : "Enter dispatcher details and create the dispatch note"}
                 </p>
               </div>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFulfillDialog(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
+
+            {linesNeedSerials && !order.inventoryDeductedAt ? (
+              <div className="px-4 sm:px-6 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+                  Dispatch method
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => selectDispatchMode("scan")}
+                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      dispatchMode === "scan"
+                        ? "border-[#1faca6] bg-[#1faca6]/10 ring-1 ring-[#1faca6]/40"
+                        : "border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/20"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      <ScanLine className="h-4 w-4 text-[#1faca6] shrink-0" />
+                      With QR scanning
+                    </span>
+                    <span className="block text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                      Scan serials for warranty · then create dispatch note
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectDispatchMode("no_scan")}
+                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      dispatchMode === "no_scan"
+                        ? "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/40"
+                        : "border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/20"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      <PackageMinus className="h-4 w-4 text-amber-600 shrink-0" />
+                      Without scanning
+                    </span>
+                    <span className="block text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                      Reduce inventory qty only · no warranty serials
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex items-center gap-1 px-4 sm:px-6 border-b shrink-0 bg-[hsl(var(--muted))]/10">
               <button
@@ -1197,31 +1268,42 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
                 )}
               </button>
-              <button
-                type="button"
-                onClick={() => setFulfillTab("products")}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors relative ${
-                  fulfillTab === "products"
-                    ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                }`}
-              >
-                <Package className="h-3.5 w-3.5 shrink-0" />
-                Scan QR
-                {linesNeedSerials && !serialSelectionValid && !order.inventoryDeductedAt && (
-                  <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white">
-                    !
-                  </span>
-                )}
-                {fulfillTab === "products" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
-                )}
-              </button>
+              {useQrScanDispatch ? (
+                <button
+                  type="button"
+                  onClick={() => setFulfillTab("products")}
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors relative ${
+                    fulfillTab === "products"
+                      ? "text-[hsl(var(--foreground))]"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                >
+                  <Package className="h-3.5 w-3.5 shrink-0" />
+                  Scan QR
+                  {!serialSelectionValid && (
+                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white">
+                      !
+                    </span>
+                  )}
+                  {fulfillTab === "products" && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                  )}
+                </button>
+              ) : null}
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5">
               {fulfillTab === "dispatcher" && (
               <>
+              {dispatchMode === "no_scan" && linesNeedSerials && !order.inventoryDeductedAt ? (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]">
+                  <p className="font-semibold text-amber-800 dark:text-amber-300">Qty-only dispatch</p>
+                  <p className="mt-1">
+                    Inventory quantity will be reduced for each order line. QR codes are not required and
+                    no warranty serials will be registered for this dispatch.
+                  </p>
+                </div>
+              ) : null}
               {/* Dispatcher Information */}
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Dispatcher Information</p>
@@ -1364,7 +1446,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               </>
               )}
 
-              {showFulfillDialog && (
+              {showFulfillDialog && useQrScanDispatch && (
                 <div className={fulfillTab === "products" ? "" : "hidden"} aria-hidden={fulfillTab !== "products"}>
                   <OrderDispatchSerialPicker
                     order={order}
@@ -1379,7 +1461,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             </div>
 
             <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              {fulfillTab === "products" ? (
+              {fulfillTab === "products" && useQrScanDispatch ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -1389,13 +1471,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 >
                   Back to dispatcher
                 </Button>
-              ) : linesNeedSerials && !order.inventoryDeductedAt ? (
+              ) : useQrScanDispatch && fulfillTab === "dispatcher" ? (
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-10 w-full sm:w-auto text-xs"
                   onClick={() => setFulfillTab("products")}
-                  disabled={updating}
+                  disabled={updating || !fulfillDispatcherName.trim()}
                 >
                   Next: Scan QR codes
                 </Button>
