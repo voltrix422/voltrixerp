@@ -111,6 +111,52 @@ export async function addManualInventoryQty(input: {
   return data
 }
 
+/** Add to total units only — does not change available stock. */
+export async function addManualInventoryUnits(input: {
+  manualId: string
+  qty: number
+  addedBy?: string
+  notes?: string
+}): Promise<ManualInventoryItem> {
+  const res = await fetch("/api/db/manual-inventory", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "add_units",
+      manualId: input.manualId,
+      qty: input.qty,
+      addedBy: input.addedBy,
+      notes: input.notes,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Could not add units")
+  return data
+}
+
+/** Add to available stock only — cannot exceed total units. */
+export async function addManualInventoryStock(input: {
+  manualId: string
+  qty: number
+  addedBy?: string
+  notes?: string
+}): Promise<ManualInventoryItem> {
+  const res = await fetch("/api/db/manual-inventory", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "add_stock",
+      manualId: input.manualId,
+      qty: input.qty,
+      addedBy: input.addedBy,
+      notes: input.notes,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Could not add stock")
+  return data
+}
+
 export async function subtractManualInventoryStock(input: {
   manualId: string
   qty: number

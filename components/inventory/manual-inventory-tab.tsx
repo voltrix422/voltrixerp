@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { getSession } from "@/lib/auth"
 import {
-  addManualInventoryQty,
+  addManualInventoryStock,
+  addManualInventoryUnits,
   createManualInventoryItem,
   deleteManualInventoryItem,
   getManualInventoryItems,
@@ -49,6 +50,7 @@ export function ManualInventoryTab() {
 
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [showAddQty, setShowAddQty] = useState(false)
+  const [addMode, setAddMode] = useState<"units" | "stock">("units")
   const [restockItem, setRestockItem] = useState<ManualInventoryItem | null>(null)
   const [restockQty, setRestockQty] = useState("")
   const [restockNotes, setRestockNotes] = useState("")
@@ -155,9 +157,10 @@ export function ManualInventoryTab() {
     }
   }
 
-  function openAddQty(item: ManualInventoryItem) {
+  function openAddQty(item: ManualInventoryItem, mode: "units" | "stock") {
     setRestockItem(item)
-    setRestockQty("")
+    setAddMode(mode)
+    setRestockQty("1")
     setRestockNotes("")
     setShowAddQty(true)
   }
@@ -207,20 +210,34 @@ export function ManualInventoryTab() {
     e.preventDefault()
     if (!restockItem) return
     const q = Math.floor(Number(restockQty))
-    if (!Number.isFinite(q) || q <= 0) {
+    const max =
+      addMode === "units"
+        ? Infinity
+        : Math.max(0, restockItem.qty - restockItem.availableQty)
+    if (!Number.isFinite(q) || q <= 0 || (addMode === "stock" && q > max)) {
       toast({ title: "Enter a valid quantity", type: "error" })
       return
     }
     setRestocking(true)
     try {
       const user = getSession()?.name || "Inventory"
-      await addManualInventoryQty({
-        manualId: restockItem.id,
-        qty: q,
-        addedBy: user,
-        notes: restockNotes.trim() || undefined,
-      })
-      toast({ title: "Quantity added", type: "success" })
+      if (addMode === "units") {
+        await addManualInventoryUnits({
+          manualId: restockItem.id,
+          qty: q,
+          addedBy: user,
+          notes: restockNotes.trim() || undefined,
+        })
+        toast({ title: "Added to total units", type: "success" })
+      } else {
+        await addManualInventoryStock({
+          manualId: restockItem.id,
+          qty: q,
+          addedBy: user,
+          notes: restockNotes.trim() || undefined,
+        })
+        toast({ title: "Added to available stock", type: "success" })
+      }
       setShowAddQty(false)
       setRestockItem(null)
       setRestockQty("")
@@ -228,7 +245,7 @@ export function ManualInventoryTab() {
       await load()
     } catch (err) {
       toast({
-        title: "Could not add quantity",
+        title: addMode === "units" ? "Could not add units" : "Could not add stock",
         message: err instanceof Error ? err.message : undefined,
         type: "error",
       })
@@ -380,8 +397,17 @@ export function ManualInventoryTab() {
                             <button
                               type="button"
                               className="p-1.5 rounded-md text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
-                              onClick={() => openAddQty(item)}
-                              title="Add quantity"
+                              onClick={() => openAddQty(item, "units")}
+                              title="Add to total units"
+                            >
+                              <span className="text-[10px] font-bold leading-none">U+</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-500/10 cursor-pointer disabled:opacity-40"
+                              onClick={() => openAddQty(item, "stock")}
+                              disabled={item.availableQty >= item.qty}
+                              title="Add to available stock"
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
@@ -589,7 +615,13 @@ export function ManualInventoryTab() {
               className="w-full h-9 text-sm cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
               disabled={restocking}
             >
-              {restocking ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Add quantity"}
+              {restocking ? (
+                <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+              ) : addMode === "units" ? (
+                "Add to total"
+              ) : (
+                "Add to stock"
+              )}
             </Button>
           </form>
         </div>
