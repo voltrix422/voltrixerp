@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
 import { getOrders, saveOrder, hasOutstandingCredit, type Order } from "@/lib/orders"
+import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,16 +41,6 @@ function orderHasCompleteFulfillmentProof(o: Order): boolean {
     !!(o.fulfillmentVehicleImageUrl || "").trim()
   const productsOk = Array.isArray(o.fulfillmentProductImageUrls) && o.fulfillmentProductImageUrls.length > 0
   return textOk && imgOk && productsOk
-}
-
-function orderDispatchStatusLabel(order: Order): { label: string; variant: "success" | "warning" } {
-  if (!order.dispatcher) {
-    return { label: "ready to fulfill", variant: "warning" }
-  }
-  if (order.status === "delivered" || orderHasCompleteFulfillmentProof(order)) {
-    return { label: "delivered", variant: "success" }
-  }
-  return { label: "dispatched", variant: "success" }
 }
 
 export function ClientOrdersInventory() {
@@ -207,7 +198,6 @@ export function ClientOrdersInventory() {
         <>
           <div className="md:hidden space-y-2">
             {filteredOrders.map((order) => {
-              const status = orderDispatchStatusLabel(order)
               return (
                 <button
                   key={order.id}
@@ -225,9 +215,7 @@ export function ClientOrdersInventory() {
                       </div>
                       <p className="text-sm font-medium truncate mt-0.5">{order.clientName}</p>
                     </div>
-                    <Badge variant={status.variant} className="text-[10px] px-1.5 py-0 shrink-0 max-w-[42%] text-right leading-tight">
-                      {status.label}
-                    </Badge>
+                    <OrderStatusBadge status={order.status} className="shrink-0 max-w-[42%] text-right" />
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
                     <div>
@@ -267,7 +255,6 @@ export function ClientOrdersInventory() {
                 </thead>
                 <tbody className="divide-y">
                   {filteredOrders.map((order) => {
-                    const status = orderDispatchStatusLabel(order)
                     return (
                       <tr
                         key={order.id}
@@ -291,9 +278,7 @@ export function ClientOrdersInventory() {
                           {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : "—"}
                         </td>
                         <td className="px-4 py-2.5">
-                          <Badge variant={status.variant} className="text-[10px] px-1.5 py-0">
-                            {status.label}
-                          </Badge>
+                          <OrderStatusBadge status={order.status} />
                         </td>
                       </tr>
                     )

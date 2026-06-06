@@ -13,9 +13,8 @@ import {
   isOrderOnCredit,
   normalizeOrderPaymentTerms,
   type Order,
-  STATUS_LABELS,
-  STATUS_COLORS,
 } from "@/lib/orders"
+import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { useAuth } from "@/components/auth-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -168,11 +167,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
                           Credit
                         </span>
                       )}
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium text-right leading-tight ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}
-                      >
-                        {STATUS_LABELS[order.status] || order.status}
-                      </span>
+                      <OrderStatusBadge status={order.status} className="text-right" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
@@ -261,11 +256,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
                           )}
                         </td>
                         <td className="px-4 py-2.5">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[order.status] || "bg-gray-100 text-gray-600"}`}
-                          >
-                            {STATUS_LABELS[order.status] || order.status}
-                          </span>
+                          <OrderStatusBadge status={order.status} />
                         </td>
                         <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
                           {new Date(order.createdAt).toLocaleDateString()}
@@ -385,6 +376,7 @@ function ClientOrderDetail({
               {order.orderNumber}
             </p>
             <p className="text-sm text-[hsl(var(--muted-foreground))] truncate -mt-1">{order.clientName}</p>
+            <OrderStatusBadge status={order.status} />
             {statusBadge && (
               <Badge variant={statusBadge.variant} className="text-[10px] w-fit">
                 {statusBadge.label}

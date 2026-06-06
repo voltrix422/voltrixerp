@@ -348,15 +348,15 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
 }
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  pending_approval: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-  approved: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  rejected: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-  finalized: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  payment_added: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  processing: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-  shipped: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-  delivered: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  cancelled: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  draft: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-700",
+  pending_approval: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800",
+  approved: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/30 dark:text-teal-300 dark:border-teal-800",
+  rejected: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800",
+  finalized: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-800",
+  payment_added: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800",
+  confirmed: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800",
+  processing: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-300 dark:border-cyan-800",
+  shipped: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800",
+  delivered: "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800",
+  cancelled: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800",
 }
