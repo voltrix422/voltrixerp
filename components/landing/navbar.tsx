@@ -24,11 +24,15 @@ export default function Navbar() {
   const pathname = usePathname()
   const isHome = pathname === "/"
 
+  const transparent = isHome && !scrolled
+  const glass = !transparent
+
   const getHref = (hash?: string) => hash ? (isHome ? `#${hash}` : `/#${hash}`) : ""
   const closeMenu = () => setOpen(false)
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20)
+    handler()
     window.addEventListener("scroll", handler)
     return () => window.removeEventListener("scroll", handler)
   }, [])
@@ -37,10 +41,25 @@ export default function Navbar() {
     closeMenu()
   }, [pathname])
 
-  // Show navbar immediately
   useEffect(() => {
     setVisible(true)
   }, [])
+
+  const navClass = glass
+    ? "bg-white/70 backdrop-blur-xl border-white/50 shadow-lg border"
+    : "bg-transparent border-transparent shadow-none"
+
+  const linkClass = transparent
+    ? "text-white hover:text-white/70"
+    : "text-neutral-900 hover:text-neutral-500"
+
+  const toggleClass = transparent
+    ? "text-white hover:text-white/70"
+    : "text-neutral-400 hover:text-neutral-900"
+
+  const logoClass = transparent
+    ? "h-7 w-auto object-contain brightness-0 invert"
+    : "h-7 w-auto object-contain"
 
   return (
     <div
@@ -53,39 +72,45 @@ export default function Navbar() {
       }}
     >
       <nav
-        className={`flex items-center justify-between px-8 py-2.5 rounded-xl border w-full max-w-6xl mx-4 transition-all duration-500 ${
-          scrolled
-            ? "bg-white border-neutral-200"
-            : "bg-white border-neutral-200"
-        }`}
+        className={`flex items-center justify-between px-8 py-2.5 rounded-xl w-full max-w-6xl mx-4 transition-all duration-500 ${navClass}`}
       >
-        {/* Logo */}
         <a href="/" onClick={closeMenu}>
           <Image
             src="/logo.png"
             alt="Voltrix"
             width={100}
             height={32}
-            className="h-7 w-auto object-contain"
+            className={logoClass}
           />
         </a>
 
-        {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-8">{links.map((l) => <a key={l.label} href={l.href || getHref(l.hash)} className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium whitespace-nowrap cursor-pointer" style={{ letterSpacing: '-0.5px' }}>{l.label}</a>)}</div>
-
-        {/* CTA */}
-        <div className="hidden md:flex items-center gap-6">
-          <GetQuoteButton />
+        <div className="hidden md:flex items-center gap-8">
+          {links.map((l) => (
+            <a
+              key={l.label}
+              href={l.href || getHref(l.hash)}
+              className={`text-base transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
+              style={{ letterSpacing: "-0.5px" }}
+            >
+              {l.label}
+            </a>
+          ))}
         </div>
 
-        {/* Mobile toggle */}
-        <button className="md:hidden text-neutral-400 hover:text-neutral-900 transition-colors" onClick={() => setOpen(!open)}>
+        <div className="hidden md:flex items-center gap-6">
+          <GetQuoteButton variant={transparent ? "ghost" : "solid"} />
+        </div>
+
+        <button
+          className={`md:hidden transition-colors ${toggleClass}`}
+          onClick={() => setOpen(!open)}
+        >
           {open ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </button>
       </nav>
 
       {open && (
-        <div className="absolute top-14 left-4 right-4 bg-white border border-neutral-200 rounded-2xl shadow-xl p-5 flex flex-col gap-4 md:hidden">
+        <div className="absolute top-14 left-4 right-4 bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl shadow-xl p-5 flex flex-col gap-4 md:hidden">
           {links.map((l) => (
             <a
               key={l.label}
@@ -97,13 +122,7 @@ export default function Navbar() {
             </a>
           ))}
           <div className="pt-3 border-t border-neutral-100">
-            <a
-              href="/quote"
-              onClick={closeMenu}
-              className="flex items-center justify-center gap-2 h-10 rounded-full text-base font-medium text-black bg-white border border-neutral-200"
-            >
-              Get started
-            </a>
+            <GetQuoteButton onClick={closeMenu} />
           </div>
         </div>
       )}

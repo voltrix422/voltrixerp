@@ -7,6 +7,8 @@ type Props = {
   onClick?: () => void
   /** Navbar (h-9) vs product detail row (h-9, text-sm) */
   size?: "sm" | "md"
+  /** solid = teal pill; ghost = transparent with white border (hero navbar) */
+  variant?: "solid" | "ghost"
 }
 
 const ARROW_CHIP = (
@@ -31,11 +33,19 @@ export function GetQuoteButton({
   className = "",
   onClick,
   size = "sm",
+  variant = "solid",
 }: Props) {
   const sizeClass =
     size === "md" ? "pl-4 pr-1.5 h-9 text-sm" : "pl-4 pr-1.5 h-9 text-base"
 
-  const pillClass = `group relative inline-flex items-center gap-1.5 rounded-full font-medium text-white transition-all duration-300 hover:opacity-90 cursor-pointer shrink-0 ${sizeClass} ${className}`
+  const variantClass =
+    variant === "ghost"
+      ? "border border-white/40 bg-transparent hover:bg-white/10 hover:opacity-100"
+      : "hover:opacity-90"
+
+  const pillClass = `group relative inline-flex items-center gap-1.5 rounded-full font-medium text-white transition-all duration-300 cursor-pointer shrink-0 ${sizeClass} ${variantClass} ${className}`
+
+  const solidStyle = variant === "solid" ? { backgroundColor: "#1a9f9a" } : undefined
 
   const content = (
     <>
@@ -52,7 +62,7 @@ export function GetQuoteButton({
         type="button"
         onClick={onClick}
         className={pillClass}
-        style={{ backgroundColor: "#1a9f9a" }}
+        style={solidStyle}
       >
         {content}
       </button>
@@ -60,7 +70,7 @@ export function GetQuoteButton({
   }
 
   return (
-    <Link href={href} className={pillClass} style={{ backgroundColor: "#1a9f9a" }}>
+    <Link href={href} className={pillClass} style={solidStyle}>
       {content}
     </Link>
   )
