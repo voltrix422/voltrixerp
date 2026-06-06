@@ -9,6 +9,10 @@ import {
   type OrderDeductInput,
 } from "@/lib/inventory-order-deduct-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
+import {
+  generateNextOrderNumber,
+  repairDuplicateOrderNumbers,
+} from "@/lib/order-number-server"
 
 function toOrderDeductInput(record: {
   id: string
@@ -56,6 +60,7 @@ function fulfillmentData(o: Record<string, unknown>) {
 }
 
 export async function GET() {
+  await repairDuplicateOrderNumbers()
   const orders = await prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } })
   return NextResponse.json(orders)
 }
@@ -63,10 +68,25 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const o = await req.json()
   const fulfillment = fulfillmentData(o)
+  const orderId = String(o.id ?? "").trim()
+  const existing = orderId
+    ? await prisma.erpOrder.findUnique({ where: { id: orderId }, select: { id: true } })
+    : null
+
+  let orderNumber = String(o.orderNumber ?? "").trim()
+  if (!existing) {
+    orderNumber = await generateNextOrderNumber()
+  } else if (!orderNumber) {
+    orderNumber = (await prisma.erpOrder.findUnique({
+      where: { id: orderId },
+      select: { orderNumber: true },
+    }))?.orderNumber ?? (await generateNextOrderNumber())
+  }
+
   const record = await prisma.erpOrder.upsert({
-    where: { id: o.id ?? "__new__" },
+    where: { id: orderId || "__new__" },
     update: {
-      orderNumber: o.orderNumber, clientId: o.clientId, clientName: o.clientName,
+      orderNumber, clientId: o.clientId, clientName: o.clientName,
       items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
       transportCost: o.transportCost, transportLabel: o.transportLabel,
       otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,
@@ -83,7 +103,7 @@ export async function POST(req: NextRequest) {
       ...fulfillment,
     },
     create: {
-      id: o.id, orderNumber: o.orderNumber, clientId: o.clientId, clientName: o.clientName,
+      id: o.id, orderNumber, clientId: o.clientId, clientName: o.clientName,
       items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
       transportCost: o.transportCost, transportLabel: o.transportLabel,
       otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,

@@ -317,11 +317,13 @@ export async function deleteOrder(id: string): Promise<void> {
 
 export async function generateOrderNumber(): Promise<string> {
   try {
-    const res = await fetch("/api/db/orders/count")
-    const { count } = await res.json()
-    const n = (count ?? 0) + 1
-    return `ORD-${String(n).padStart(5, "0")}`
-  } catch { return `ORD-${Date.now()}` }
+    const res = await fetch("/api/db/orders/next-number", { cache: "no-store" })
+    if (!res.ok) throw new Error("Failed to reserve order number")
+    const { orderNumber } = await res.json()
+    return String(orderNumber || "").trim() || `ORD-${Date.now()}`
+  } catch {
+    return `ORD-${Date.now()}`
+  }
 }
 
 export function isSalesAgentOrder(order: Pick<Order, "ownerUserId">) {
