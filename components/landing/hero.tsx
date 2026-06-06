@@ -45,19 +45,29 @@ export default function Hero() {
       <div className="absolute inset-0 z-0 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950" />
       <div className="absolute inset-0 z-0 bg-gradient-to-tr from-white/[0.04] via-transparent to-neutral-950/80" />
 
-      {/* Side rays — top-right white glow */}
+      {/* Side rays — top-right white glow onto product showcase */}
       <SideRays
         speed={2.5}
         rayColor1="#ffffff"
-        rayColor2="#e8e8e8"
-        intensity={1.5}
-        spread={2}
+        rayColor2="#f5f5f5"
+        intensity={2.8}
+        spread={2.8}
         origin="top-right"
-        tilt={0}
+        tilt={-8}
         saturation={1}
-        blend={0.7}
-        falloff={1.65}
-        opacity={0.75}
+        blend={0.55}
+        falloff={1.15}
+        opacity={1}
+      />
+
+      {/* Spotlight pool — lands on hero product images */}
+      <div
+        className="absolute inset-0 z-[2] pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse 50% 42% at 78% 12%, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.1) 38%, transparent 68%)",
+        }}
+        aria-hidden
       />
 
       {/* 50px grid on dark */}
@@ -74,9 +84,9 @@ export default function Hero() {
         aria-hidden
       />
 
-      {/* Vignette for depth */}
+      {/* Vignette for depth — keep top-right bright for product highlight */}
       <div
-        className="absolute inset-0 z-[3] pointer-events-none bg-gradient-to-t from-neutral-950 via-transparent to-neutral-950/40"
+        className="absolute inset-0 z-[3] pointer-events-none bg-gradient-to-t from-neutral-950 via-transparent to-transparent"
         aria-hidden
       />
 
@@ -133,6 +143,15 @@ export default function Hero() {
           <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-5 w-[400px] shrink-0">
             <div className="relative w-full flex flex-col items-center">
               <div
+                className="absolute -top-6 right-0 w-[92%] h-[72%] pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(ellipse 70% 55% at 68% 18%, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.14) 42%, transparent 72%)",
+                  filter: "blur(10px)",
+                }}
+                aria-hidden
+              />
+              <div
                 className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[78%] h-10 rounded-[100%] bg-black/40 blur-2xl pointer-events-none"
                 aria-hidden
               />
@@ -148,7 +167,7 @@ export default function Hero() {
                     key={img}
                     src={img}
                     alt=""
-                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 drop-shadow-[0_32px_48px_rgba(0,0,0,0.45)] ${
+                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 drop-shadow-[0_0_48px_rgba(255,255,255,0.22)] drop-shadow-[0_32px_48px_rgba(0,0,0,0.45)] ${
                       index === currentImageIndex ? "opacity-100" : "opacity-0"
                     }`}
                   />
