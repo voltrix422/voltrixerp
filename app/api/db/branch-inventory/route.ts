@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { permanentlyDeleteBranchInventoryRow } from "@/lib/branch-inventory-permanent-delete"
 import { buildModelLabelMap } from "@/lib/main-warehouse-inventory"
 import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
 import {
@@ -307,31 +308,13 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const { id } = await req.json()
-  
-  // Get the branch inventory record
-  const branchInventory = await prisma.erpBranchInventory.findUnique({
-    where: { id }
-  })
-  
-  if (!branchInventory) {
+
+  const result = await permanentlyDeleteBranchInventoryRow(id)
+  if (!result.deleted) {
     return NextResponse.json({ error: "Branch inventory not found" }, { status: 404 })
   }
-  
-  // Restore to main inventory
-  await prisma.erpInventoryStock.update({
-    where: { id: branchInventory.inventoryId },
-    data: {
-      availableQty: { increment: branchInventory.quantity },
-      allocatedQty: { decrement: branchInventory.quantity }
-    }
-  })
-  
-  // Delete branch inventory record
-  await prisma.erpBranchInventory.delete({
-    where: { id }
-  })
-  
-  return NextResponse.json({ ok: true })
+
+  return NextResponse.json({ ok: true, ...result })
 }
 
 export async function PUT(req: NextRequest) {

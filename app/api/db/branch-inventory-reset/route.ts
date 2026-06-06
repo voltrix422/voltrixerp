@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { permanentlyDeleteAllBranchInventory } from "@/lib/branch-inventory-permanent-delete"
 import {
   clearBranchTransferHistory,
   resetAllBranchTransfersAndInventory,
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   const inventory = returnToMain
     ? await returnBranchInventoryToMain(branchId)
-    : null
+    : await permanentlyDeleteAllBranchInventory(branchId)
   const history = clearHistory
     ? await clearBranchTransferHistory(branchId)
     : null

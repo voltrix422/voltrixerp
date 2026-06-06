@@ -154,7 +154,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
     if (!ok) return
     setReturningToMain(true)
     try {
-      await resetBranchInventory({ branchId: branch.id, all: false })
+      await resetBranchInventory({ branchId: branch.id, returnToMain: true, clearHistory: true })
       await reloadInventory()
       await loadTransferHistory()
       toast({ type: "success", title: "Inventory returned", message: "Stock is back in the main warehouse." })
@@ -168,17 +168,16 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   async function handleRemoveAllBranchInventory() {
     const ok = await confirm({
       type: "confirm",
-      title: "Remove all inventory",
-      message: `Remove every item from ${branch.name}? Quantities return to the main warehouse.`,
-      confirmLabel: "Remove all",
+      title: "Delete all inventory",
+      message: `Permanently delete every item from ${branch.name}? Stock will not return to the main warehouse.`,
+      confirmLabel: "Delete all",
     })
     if (!ok) return
     setRemovingAll(true)
     try {
-      await resetBranchInventory({ branchId: branch.id, all: false })
+      await resetBranchInventory({ branchId: branch.id, returnToMain: false, clearHistory: false })
       await reloadInventory()
-      await loadTransferHistory()
-      toast({ type: "success", title: "Inventory cleared", message: "All items removed from this branch." })
+      toast({ type: "success", title: "Inventory deleted", message: "All items permanently removed from this branch." })
     } catch {
       toast({ type: "error", title: "Failed", message: "Could not remove branch inventory." })
     } finally {
@@ -191,11 +190,11 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
     const modelKey = inv.model || (inv.id.startsWith("wh:") ? inv.id.slice(3) : null)
     const ok = await confirm({
       type: "confirm",
-      title: isMainWarehouse ? "Delete from inventory" : "Remove from branch",
+      title: isMainWarehouse ? "Delete from inventory" : "Delete from branch",
       message: isMainWarehouse && modelKey
         ? `Delete all ${inv.totalUnits ?? inv.quantity} scanned unit(s) for "${label}"? This cannot be undone.`
-        : `Remove ${inv.quantity} ${inv.unit} of "${label}" from ${branch.name}? Stock returns to the main warehouse.`,
-      confirmLabel: isMainWarehouse ? "Delete" : "Remove",
+        : `Permanently delete ${inv.quantity} ${inv.unit} of "${label}" from ${branch.name}? Stock will not return to the main warehouse.`,
+      confirmLabel: "Delete",
     })
     if (!ok) return
     setDeletingInvId(inv.id)
@@ -211,10 +210,10 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
       } else {
         await removeBranchInventory(inv.id)
         await reloadInventory()
-        toast({ type: "success", title: "Removed", message: `${label} removed from this branch.` })
+        toast({ type: "success", title: "Deleted", message: `${label} permanently removed.` })
       }
     } catch {
-      toast({ type: "error", title: "Failed", message: "Could not remove this item." })
+      toast({ type: "error", title: "Failed", message: "Could not delete this item." })
     } finally {
       setDeletingInvId(null)
     }
@@ -471,7 +470,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                     disabled={removingAll}
                     onClick={handleRemoveAllBranchInventory}
                   >
-                    {removingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : "Remove all"}
+                    {removingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete all"}
                   </Button>
                 </>
               ) : null}
@@ -584,7 +583,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                                 ) : (
                                   <>
                                     <Trash2 className="h-3 w-3 mr-0.5" />
-                                    Remove
+                                    Delete
                                   </>
                                 )}
                               </Button>
