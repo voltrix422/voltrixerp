@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { findStockByModel } from "@/lib/ensure-model-stock-link"
 
 export function slugifyManualModelBase(name: string): string {
   const base = name
@@ -130,4 +131,52 @@ export function parseManualInventoryItemId(inventoryItemId?: string | null): str
   if (!id?.startsWith("man:")) return null
   const manualId = id.slice(4).trim()
   return manualId || null
+}
+
+/** Match an order line to manual inventory even when model codes differ (e.g. HSLD15KW vs MAN-…). */
+export async function resolveManualInventoryForOrderLine(item: {
+  description?: string
+  model?: string
+  inventoryItemId?: string
+}) {
+  const manualId = parseManualInventoryItemId(item.inventoryItemId)
+  if (manualId) {
+    const byId = await prisma.erpManualInventoryItem.findUnique({ where: { id: manualId } })
+    if (byId) return byId
+  }
+
+  const model = item.model?.trim()
+  if (model) {
+    const byModel = await prisma.erpManualInventoryItem.findUnique({ where: { model } })
+    if (byModel) return byModel
+  }
+
+  const desc = item.description?.trim()
+  if (desc) {
+    const byName = await prisma.erpManualInventoryItem.findFirst({
+      where: { name: { equals: desc, mode: "insensitive" } },
+    })
+    if (byName) return byName
+  }
+
+  const keys = [item.description, item.model].filter(Boolean) as string[]
+  for (const key of keys) {
+    const stock = await findStockByModel(key)
+    if (!stock) continue
+
+    const byStockId = await prisma.erpManualInventoryItem.findFirst({
+      where: { inventoryStockId: stock.id },
+    })
+    if (byStockId) return byStockId
+
+    const stockModel = stock.description?.trim()
+    if (stock.poType === "manual" && stockModel) {
+      const byStockModel = await prisma.erpManualInventoryItem.findUnique({
+        where: { model: stockModel },
+      })
+      if (byStockModel) return byStockModel
+    }
+  }
+
+  return null
 }

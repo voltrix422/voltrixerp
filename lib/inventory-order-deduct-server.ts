@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/db"
 import { ensureInventoryStockForModel, findStockByModel } from "@/lib/ensure-model-stock-link"
-import { decrementManualInventoryByModel, restoreManualInventoryByModel } from "@/lib/manual-inventory-server"
+import {
+  decrementManualInventoryByModel,
+  resolveManualInventoryForOrderLine,
+  restoreManualInventoryByModel,
+} from "@/lib/manual-inventory-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 
 export type OrderDeductLine = {
@@ -36,13 +40,6 @@ export type OrderDeductResult = {
 
 function normalizeKey(value: string): string {
   return value.trim().toLowerCase()
-}
-
-function isManualInventoryLine(item: OrderDeductLine): boolean {
-  const id = item.inventoryItemId?.trim()
-  if (id?.startsWith("man:")) return true
-  const model = item.model?.trim()
-  return !!model?.toUpperCase().startsWith("MAN-")
 }
 
 export function getOrderLineMatchKeys(item: OrderDeductLine): string[] {
@@ -405,9 +402,9 @@ async function processDispatchAllocationsForLine(
     }
   }
 
-  if (isManualInventoryLine(item)) {
-    const model = item.model?.trim()
-    if (model) await decrementManualInventoryByModel(model, qty)
+  const manualItem = await resolveManualInventoryForOrderLine(item)
+  if (manualItem) {
+    await decrementManualInventoryByModel(manualItem.model, qty)
   } else {
     const stock = await deductStockForLine(order, item)
     if (!stock.ok) {
@@ -575,9 +572,58 @@ async function deductStockForLine(
     )
   }
 
+  if (deducted > 0) {
+    for (const key of keys) {
+      const stock = await findStockByModel(key)
+      if (!stock) continue
+      const manual = await prisma.erpManualInventoryItem.findFirst({
+        where: { inventoryStockId: stock.id },
+      })
+      if (manual) {
+        await decrementManualInventoryByModel(manual.model, deducted)
+        break
+      }
+    }
+  }
+
   if (deducted > 0 && remaining <= 0) return { ok: true }
   if (deducted > 0) return { ok: false, error: `short by ${remaining} ${item.unit}` }
   return { ok: false, error: "no matching stock row" }
+}
+
+async function deductManualQtyForLine(
+  order: OrderDeductInput,
+  item: OrderDeductLine,
+): Promise<{ ok: boolean; error?: string }> {
+  const manualItem = await resolveManualInventoryForOrderLine(item)
+  if (!manualItem) return { ok: false, error: "not manual inventory" }
+
+  const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
+  if (qty === 0) return { ok: true }
+
+  const keys = getOrderLineMatchKeys(item)
+  if (manualItem.model?.trim()) keys.push(manualItem.model.trim())
+  const allocated = await unitsAllocatedForLine(order, keys)
+  if (allocated >= qty) return { ok: true }
+
+  const need = qty - allocated
+  const available = manualItem.availableQty ?? 0
+  if (available < need) {
+    return {
+      ok: false,
+      error: `only ${available} available in manual stock (need ${need})`,
+    }
+  }
+
+  await decrementManualInventoryByModel(manualItem.model, need)
+  await logHistory(
+    manualItem.name || item.description,
+    need,
+    item.unit || manualItem.unit || "pcs",
+    order,
+    `Delivered to ${order.clientName}`,
+  )
+  return { ok: true }
 }
 
 export async function deductInventoryForOrderServer(
@@ -634,6 +680,19 @@ export async function deductInventoryForOrderServer(
     const lineAllocations = (order.fulfillmentSerialAllocations ?? []).filter(
       (a) => item.id && a.orderItemId === item.id,
     )
+
+    if (lineAllocations.length === 0) {
+      const manualOnly = await deductManualQtyForLine(order, item)
+      if (manualOnly.ok) {
+        deductedLines += 1
+        continue
+      }
+      if (manualOnly.error && manualOnly.error !== "not manual inventory") {
+        failedLines.push(`${label} (${manualOnly.error})`)
+        continue
+      }
+    }
+
     if (lineAllocations.length > 0) {
       const dispatch = await processDispatchAllocationsForLine(order, item)
       serialUnitsDeducted += dispatch.count
@@ -649,9 +708,11 @@ export async function deductInventoryForOrderServer(
     serialUnitsDeducted += serial.count
 
     if (serial.ok) {
-      if (isManualInventoryLine(item) && serial.count > 0) {
-        const model = item.model?.trim()
-        if (model) await decrementManualInventoryByModel(model, serial.count)
+      if (serial.count > 0) {
+        const manualItem = await resolveManualInventoryForOrderLine(item)
+        if (manualItem) {
+          await decrementManualInventoryByModel(manualItem.model, serial.count)
+        }
       }
       deductedLines += 1
       continue
@@ -659,11 +720,6 @@ export async function deductInventoryForOrderServer(
 
     const stock = await deductStockForLine(order, item)
     if (stock.ok) {
-      if (isManualInventoryLine(item)) {
-        const model = item.model?.trim()
-        const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
-        if (model && qty > 0) await decrementManualInventoryByModel(model, qty)
-      }
       deductedLines += 1
       continue
     }
@@ -699,6 +755,8 @@ export async function orderNeedsInventoryDeductionServer(order: OrderDeductInput
     if (allocated < needQty) {
       const found = await findInStockSerials(keys, needQty - allocated)
       if (found) return true
+      const manualItem = await resolveManualInventoryForOrderLine(item)
+      if (manualItem && (manualItem.availableQty ?? 0) > 0) return true
       for (const key of keys) {
         const stock = await findStockByModel(key)
         if (stock && (stock.availableQty ?? 0) > 0) return true
@@ -863,9 +921,8 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
     const restoredQty = restoredCountByLine.get(item.id) ?? 0
     const lineQty = Math.max(0, Math.floor(Number(item.qty) || 0))
 
-    if (isManualInventoryLine(item)) {
-      const model = item.model?.trim()
-      if (!model) continue
+    const manualItem = await resolveManualInventoryForOrderLine(item)
+    if (manualItem) {
       const qtyToRestore =
         restoredQty > 0
           ? restoredQty
@@ -873,7 +930,7 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
             ? lineQty
             : 0
       if (qtyToRestore > 0) {
-        await restoreManualInventoryByModel(model, qtyToRestore)
+        await restoreManualInventoryByModel(manualItem.model, qtyToRestore)
       }
       continue
     }

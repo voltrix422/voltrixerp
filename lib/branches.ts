@@ -117,6 +117,46 @@ export interface BranchInventory {
   isManual?: boolean
 }
 
+export type BranchProductLocation = {
+  branchId: string
+  branchName: string
+  branchCode: string
+  branchType: string
+  itemName: string
+  model: string
+  quantity: number
+  unit: string
+  assignedAt: string | null
+}
+
+export async function searchProductAcrossBranches(
+  query: string,
+): Promise<BranchProductLocation[]> {
+  const q = query.trim()
+  if (!q) return []
+  try {
+    const res = await fetch(
+      `/api/db/branch-inventory/search?q=${encodeURIComponent(q)}`,
+      { cache: "no-store" },
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data ?? []).map((r: Record<string, unknown>) => ({
+      branchId: r.branchId as string,
+      branchName: r.branchName as string,
+      branchCode: r.branchCode as string,
+      branchType: r.branchType as string,
+      itemName: r.itemName as string,
+      model: r.model as string,
+      quantity: Number(r.quantity) || 0,
+      unit: (r.unit as string) || "pcs",
+      assignedAt: (r.assignedAt as string | null) ?? null,
+    }))
+  } catch {
+    return []
+  }
+}
+
 export async function getBranchInventory(branchId: string): Promise<BranchInventory[]> {
   try {
     const res = await fetch(`/api/db/branch-inventory?branchId=${branchId}`)

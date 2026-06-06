@@ -690,7 +690,13 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
   useEffect(() => {
     if (!hasDispatcher || order.inventoryDeductedAt || autoDeductAttempted.current) return
-    if (linesNeedSerials && !orderHasSerialAllocations(order)) return
+    if (
+      linesNeedSerials &&
+      !orderHasSerialAllocations(order) &&
+      order.status !== "delivered"
+    ) {
+      return
+    }
     autoDeductAttempted.current = true
 
     let cancelled = false

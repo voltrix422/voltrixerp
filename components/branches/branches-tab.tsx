@@ -1,10 +1,20 @@
 ﻿  "use client"
 import { useState, useEffect } from "react"
-import { getBranches, saveBranch, deleteBranch, generateBranchCode, getBranchInventory, resetBranchInventory, type Branch } from "@/lib/branches"
+import {
+  getBranches,
+  saveBranch,
+  deleteBranch,
+  generateBranchCode,
+  getBranchInventory,
+  resetBranchInventory,
+  searchProductAcrossBranches,
+  type Branch,
+  type BranchProductLocation,
+} from "@/lib/branches"
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search } from "lucide-react"
+import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
@@ -174,6 +184,9 @@ export function BranchesTab() {
     transferredAt: string
   }>>([])
   const [search, setSearch] = useState("")
+  const [productSearch, setProductSearch] = useState("")
+  const [productResults, setProductResults] = useState<BranchProductLocation[]>([])
+  const [productSearchLoading, setProductSearchLoading] = useState(false)
   const { confirm } = useDialog()
   const { toast } = useToast()
   const { user } = useAuth()
@@ -183,6 +196,24 @@ export function BranchesTab() {
     const interval = setInterval(() => getBranches().then(setBranches), 30000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    const q = productSearch.trim()
+    if (q.length < 2) {
+      setProductResults([])
+      setProductSearchLoading(false)
+      return
+    }
+
+    setProductSearchLoading(true)
+    const timer = window.setTimeout(() => {
+      searchProductAcrossBranches(q)
+        .then(setProductResults)
+        .finally(() => setProductSearchLoading(false))
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [productSearch])
 
   async function handleAdd(data: Omit<Branch, "id" | "createdAt" | "createdBy">) {
     setSaving(true)
@@ -394,14 +425,35 @@ export function BranchesTab() {
                 <span className="font-semibold text-[hsl(var(--foreground))]">{branches.length}</span> locations
               </span>
             </div>
-            <div className="relative flex-1 min-w-[140px] max-w-xs">
+            <div className="relative flex-1 min-w-[140px] max-w-[200px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, code, manager…"
+                placeholder="Search branch…"
                 className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
               />
+            </div>
+            <div className="relative flex-1 min-w-[160px] max-w-sm">
+              <Package className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+              <input
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Search product across branches…"
+                className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-8 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+              />
+              {productSearchLoading ? (
+                <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-[hsl(var(--muted-foreground))]" />
+              ) : productSearch ? (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  onClick={() => setProductSearch("")}
+                  aria-label="Clear product search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-1.5 ml-auto">
               <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs cursor-pointer border" asChild>
@@ -447,8 +499,67 @@ export function BranchesTab() {
           </div>
 
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] px-0.5 -mt-1">
-            Click a row to open inventory
+            {productSearch.trim().length >= 2
+              ? "Product search shows which branches hold matching stock"
+              : "Click a row to open inventory"}
           </p>
+
+          {productSearch.trim().length >= 2 && (
+            <div className="rounded-lg border overflow-hidden shrink-0">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/10">
+                <p className="text-xs font-semibold">
+                  Product locations for &ldquo;{productSearch.trim()}&rdquo;
+                </p>
+                <span className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
+                  {productSearchLoading ? "Searching…" : `${productResults.length} result${productResults.length === 1 ? "" : "s"}`}
+                </span>
+              </div>
+              {productSearchLoading ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-xs text-[hsl(var(--muted-foreground))]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Searching branches…
+                </div>
+              ) : productResults.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                  No branches have this product in stock.
+                </div>
+              ) : (
+                <div className="max-h-56 overflow-y-auto divide-y">
+                  {productResults.map((row) => (
+                    <button
+                      key={`${row.branchId}-${row.model}-${row.quantity}`}
+                      type="button"
+                      onClick={() => {
+                        const branch = branches.find((b) => b.id === row.branchId)
+                        if (branch) {
+                          setViewBranch(branch)
+                          setEditId(null)
+                        }
+                      }}
+                      className="w-full text-left px-3 py-2.5 hover:bg-[hsl(var(--muted))]/20 transition-colors"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{row.itemName}</p>
+                          <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] truncate mt-0.5">
+                            {row.model}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-[#1faca6] tabular-nums">
+                            {row.quantity} {row.unit}
+                          </p>
+                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                            {row.branchName} ({row.branchCode})
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {branches.length === 0 && !adding && (
             <div className="flex flex-col items-center justify-center py-14 text-center gap-2 rounded-lg border border-dashed">
