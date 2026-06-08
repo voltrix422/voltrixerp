@@ -3,43 +3,83 @@ import { resolveOrderItemModel } from "@/lib/orders"
 
 export type ProductFilter = {
   modelKey?: string
+  matchTerms?: string[]
   query?: string
 }
 
-export function hasProductFilter(filter: ProductFilter): boolean {
-  return !!(filter.modelKey?.trim() || filter.query?.trim())
+export function normalizeProductText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
 }
 
-export function orderItemMatchesProductModel(item: OrderItem, modelKey: string): boolean {
-  const key = modelKey.trim().toLowerCase()
-  if (!key) return false
-  const model = resolveOrderItemModel(item)?.toLowerCase()
-  if (model === key) return true
-  if (item.description.trim().toLowerCase() === key) return true
-  return item.description.toLowerCase().includes(key)
+export function hasProductFilter(filter: ProductFilter): boolean {
+  return !!(filter.matchTerms?.length || filter.modelKey?.trim() || filter.query?.trim())
+}
+
+function itemSearchValues(item: OrderItem): string[] {
+  const values = new Set<string>()
+  const add = (value?: string | null) => {
+    const trimmed = value?.trim()
+    if (trimmed) values.add(normalizeProductText(trimmed))
+  }
+
+  add(item.description)
+  add(resolveOrderItemModel(item))
+
+  const inventoryId = item.inventoryItemId?.trim()
+  if (inventoryId) {
+    add(inventoryId)
+    if (inventoryId.startsWith("wh:")) add(inventoryId.slice(3))
+    if (inventoryId.startsWith("man:")) add(inventoryId.slice(4))
+  }
+
+  return [...values]
+}
+
+function valuesMatchTerm(values: string[], term: string): boolean {
+  const normalizedTerm = normalizeProductText(term)
+  if (!normalizedTerm) return false
+
+  for (const value of values) {
+    if (!value) continue
+    if (value === normalizedTerm) return true
+    if (value.includes(normalizedTerm) || normalizedTerm.includes(value)) return true
+  }
+
+  return false
+}
+
+export function orderItemMatchesTerm(item: OrderItem, term: string): boolean {
+  return valuesMatchTerm(itemSearchValues(item), term)
+}
+
+export function orderItemMatchesTerms(item: OrderItem, terms: string[]): boolean {
+  if (!terms.length) return false
+  const values = itemSearchValues(item)
+  return terms.some((term) => valuesMatchTerm(values, term))
 }
 
 export function orderItemMatchesProductQuery(item: OrderItem, query: string): boolean {
-  const q = query.trim().toLowerCase()
+  const q = query.trim()
   if (!q) return true
-  const model = resolveOrderItemModel(item)
-  return (
-    item.description.toLowerCase().includes(q) ||
-    (model?.toLowerCase().includes(q) ?? false) ||
-    (item.inventoryItemId?.toLowerCase().includes(q) ?? false)
-  )
+  return orderItemMatchesTerm(item, q)
+}
+
+export function orderItemMatchesProductFilter(item: OrderItem, filter: ProductFilter): boolean {
+  if (filter.matchTerms?.length) {
+    return orderItemMatchesTerms(item, filter.matchTerms)
+  }
+  if (filter.modelKey?.trim()) {
+    return orderItemMatchesTerm(item, filter.modelKey)
+  }
+  if (filter.query?.trim()) {
+    return orderItemMatchesProductQuery(item, filter.query)
+  }
+  return true
 }
 
 export function orderMatchesProductFilter(order: Order, filter: ProductFilter): boolean {
-  const modelKey = filter.modelKey?.trim() || ""
-  const query = filter.query?.trim() || ""
-  if (!modelKey && !query) return true
-
-  return order.items.some((item) => {
-    if (modelKey && orderItemMatchesProductModel(item, modelKey)) return true
-    if (!modelKey && query && orderItemMatchesProductQuery(item, query)) return true
-    return false
-  })
+  if (!hasProductFilter(filter)) return true
+  return order.items.some((item) => orderItemMatchesProductFilter(item, filter))
 }
 
 /** @deprecated use orderMatchesProductFilter */
@@ -48,13 +88,8 @@ export function orderMatchesProductQuery(order: Order, query: string): boolean {
 }
 
 export function getMatchingOrderItems(order: Order, filter: ProductFilter): OrderItem[] {
-  const modelKey = filter.modelKey?.trim() || ""
-  const query = filter.query?.trim() || ""
-  if (!modelKey && !query) return order.items
-  if (modelKey) {
-    return order.items.filter((item) => orderItemMatchesProductModel(item, modelKey))
-  }
-  return order.items.filter((item) => orderItemMatchesProductQuery(item, query))
+  if (!hasProductFilter(filter)) return order.items
+  return order.items.filter((item) => orderItemMatchesProductFilter(item, filter))
 }
 
 export function matchingProductQty(order: Order, filter: ProductFilter): number {

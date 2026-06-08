@@ -74,18 +74,20 @@ export function ClientOrdersInventory() {
       .finally(() => setLoadingProducts(false))
   }, [])
 
-  const productFilter: ProductFilter = useMemo(
-    () => ({
-      modelKey: selectedProductModel || undefined,
-      query: selectedProductModel ? undefined : productSearch || undefined,
-    }),
-    [selectedProductModel, productSearch],
-  )
-
   const selectedProductOption = useMemo(
-    () => inventoryProducts.find((p) => p.modelKey === selectedProductModel),
+    () => inventoryProducts.find((p) => p.id === selectedProductModel),
     [inventoryProducts, selectedProductModel],
   )
+
+  const productFilter: ProductFilter = useMemo(() => {
+    if (selectedProductOption) {
+      return {
+        matchTerms: selectedProductOption.matchTerms,
+        modelKey: selectedProductOption.displayName,
+      }
+    }
+    return { query: productSearch || undefined }
+  }, [selectedProductOption, productSearch])
 
   const filteredInventoryProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase()
@@ -93,7 +95,8 @@ export function ClientOrdersInventory() {
     return inventoryProducts.filter(
       (p) =>
         p.displayName.toLowerCase().includes(q) ||
-        p.modelKey.toLowerCase().includes(q),
+        p.modelKey.toLowerCase().includes(q) ||
+        p.matchTerms.some((term) => term.toLowerCase().includes(q)),
     )
   }, [inventoryProducts, productSearch, selectedProductModel])
 
@@ -145,15 +148,15 @@ export function ClientOrdersInventory() {
     })
   }, [orders, search, productFilter, fromDate, toDate])
 
-  const productSummary = useMemo(
-    () =>
-      computeProductOrderSummary(
-        filteredOrders,
-        productFilter,
-        selectedProductOption?.displayName || productSearch.trim(),
-      ),
-    [filteredOrders, productFilter, selectedProductOption, productSearch],
-  )
+  const productSummary = useMemo(() => {
+    if (!hasProductFilter(productFilter)) return null
+    const productMatchedOrders = orders.filter((order) => orderMatchesProductFilter(order, productFilter))
+    return computeProductOrderSummary(
+      productMatchedOrders,
+      productFilter,
+      selectedProductOption?.displayName || productSearch.trim(),
+    )
+  }, [orders, productFilter, selectedProductOption, productSearch])
 
   const isProductFiltered = hasProductFilter(productFilter)
 
@@ -206,7 +209,7 @@ export function ClientOrdersInventory() {
                   {loadingProducts ? "Loading inventory…" : "All products"}
                 </option>
                 {filteredInventoryProducts.map((product) => (
-                  <option key={product.modelKey} value={product.modelKey}>
+                  <option key={product.id} value={product.id}>
                     {product.displayName} ({product.inStock} in stock)
                   </option>
                 ))}
