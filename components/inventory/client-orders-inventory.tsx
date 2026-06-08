@@ -30,11 +30,14 @@ import {
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 import {
   computeProductOrderSummary,
+  hasProductFilter,
   matchingProductDescription,
   matchingProductQtyLabel,
   matchingProductValue,
-  orderMatchesProductQuery,
+  orderMatchesProductFilter,
+  type ProductFilter,
 } from "@/lib/order-product-search"
+import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
 
 /** Optional delivery proof — all receiver/vehicle/product fields filled. */
 function orderHasCompleteFulfillmentProof(o: Order): boolean {
@@ -58,9 +61,41 @@ export function ClientOrdersInventory() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [search, setSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
+  const [selectedProductModel, setSelectedProductModel] = useState("")
+  const [inventoryProducts, setInventoryProducts] = useState<InventoryProductOption[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(true)
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const [showFilters, setShowFilters] = useState(false)
+
+  useEffect(() => {
+    loadInventoryProductOptions()
+      .then(setInventoryProducts)
+      .finally(() => setLoadingProducts(false))
+  }, [])
+
+  const productFilter: ProductFilter = useMemo(
+    () => ({
+      modelKey: selectedProductModel || undefined,
+      query: selectedProductModel ? undefined : productSearch || undefined,
+    }),
+    [selectedProductModel, productSearch],
+  )
+
+  const selectedProductOption = useMemo(
+    () => inventoryProducts.find((p) => p.modelKey === selectedProductModel),
+    [inventoryProducts, selectedProductModel],
+  )
+
+  const filteredInventoryProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q || selectedProductModel) return inventoryProducts
+    return inventoryProducts.filter(
+      (p) =>
+        p.displayName.toLowerCase().includes(q) ||
+        p.modelKey.toLowerCase().includes(q),
+    )
+  }, [inventoryProducts, productSearch, selectedProductModel])
 
   useEffect(() => {
     getOrders().then(o => {
@@ -99,7 +134,7 @@ export function ClientOrdersInventory() {
         order.clientName.toLowerCase().includes(searchLower) ||
         (order.dispatcher || "").toLowerCase().includes(searchLower)
 
-      const matchesProduct = orderMatchesProductQuery(order, productSearch)
+      const matchesProduct = orderMatchesProductFilter(order, productFilter)
 
       const orderDate = order.deliveryDate ? new Date(order.deliveryDate) : new Date()
       const matchesDateRange =
@@ -108,14 +143,34 @@ export function ClientOrdersInventory() {
 
       return matchesSearch && matchesProduct && matchesDateRange
     })
-  }, [orders, search, productSearch, fromDate, toDate])
+  }, [orders, search, productFilter, fromDate, toDate])
 
   const productSummary = useMemo(
-    () => computeProductOrderSummary(filteredOrders, productSearch),
-    [filteredOrders, productSearch],
+    () =>
+      computeProductOrderSummary(
+        filteredOrders,
+        productFilter,
+        selectedProductOption?.displayName || productSearch.trim(),
+      ),
+    [filteredOrders, productFilter, selectedProductOption, productSearch],
   )
 
-  const hasProductFilter = productSearch.trim().length > 0
+  const isProductFiltered = hasProductFilter(productFilter)
+
+  function clearProductFilter() {
+    setSelectedProductModel("")
+    setProductSearch("")
+  }
+
+  function handleProductDropdownChange(value: string) {
+    setSelectedProductModel(value)
+    setProductSearch("")
+  }
+
+  function handleProductSearchChange(value: string) {
+    setProductSearch(value)
+    if (value.trim()) setSelectedProductModel("")
+  }
 
   function exportDispatchExcel() {
     setExportingExcel(true)
@@ -135,39 +190,75 @@ export function ClientOrdersInventory() {
 
   return (
     <div className="space-y-4">
-      {/* Product search */}
+      {/* Product filter */}
       {!loading && orders.length > 0 && (
-        <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 space-y-2">
-          <div className="relative">
-            <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1faca6]" />
-            <input
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-              placeholder="Search product / model to see all client orders for that item..."
-              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-10 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50"
-            />
-          </div>
-          {productSummary && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-              <span className="font-semibold text-[hsl(var(--foreground))]">
-                &ldquo;{productSearch.trim()}&rdquo;
-              </span>
-              <span className="text-[hsl(var(--muted-foreground))]">
-                <span className="font-semibold text-[#1faca6]">{productSummary.orderCount}</span> orders
-              </span>
-              <span className="text-[hsl(var(--muted-foreground))]">
-                <span className="font-semibold text-[#1faca6]">{productSummary.totalQty}</span> {productSummary.unit} total
-              </span>
-              <span className="text-[hsl(var(--muted-foreground))]">
-                <span className="font-semibold text-[#1faca6]">{productSummary.clientCount}</span> clients
-              </span>
-              <button
-                type="button"
-                onClick={() => setProductSearch("")}
-                className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+        <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative sm:w-72 shrink-0">
+              <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1faca6] pointer-events-none" />
+              <select
+                value={selectedProductModel}
+                onChange={(e) => handleProductDropdownChange(e.target.value)}
+                disabled={loadingProducts}
+                className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-10 pr-8 text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50 cursor-pointer"
               >
-                Clear product
-              </button>
+                <option value="">
+                  {loadingProducts ? "Loading inventory…" : "All products"}
+                </option>
+                {filteredInventoryProducts.map((product) => (
+                  <option key={product.modelKey} value={product.modelKey}>
+                    {product.displayName} ({product.inStock} in stock)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+              <input
+                value={productSearch}
+                onChange={(e) => handleProductSearchChange(e.target.value)}
+                placeholder="Or type product / model name..."
+                className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50"
+              />
+            </div>
+          </div>
+
+          {productSummary && (
+            <div className="rounded-md border bg-[hsl(var(--background))] p-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{productSummary.label}</p>
+                <button
+                  type="button"
+                  onClick={clearProductFilter}
+                  className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                >
+                  Clear product
+                </button>
+              </div>
+              <div className="flex flex-wrap items-end gap-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total ordered qty</p>
+                  <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
+                    {productSummary.totalQty} <span className="text-sm font-medium">{productSummary.unit}</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Orders</p>
+                  <p className="text-lg font-semibold tabular-nums">{productSummary.orderCount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Clients</p>
+                  <p className="text-lg font-semibold tabular-nums">{productSummary.clientCount}</p>
+                </div>
+                {selectedProductOption && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">In stock now</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {selectedProductOption.inStock} {selectedProductOption.unit}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -177,7 +268,7 @@ export function ClientOrdersInventory() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""}
-          {hasProductFilter ? " with this product" : " for dispatch"}
+          {isProductFiltered ? " with this product" : " for dispatch"}
         </p>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <CrmExcelExportButton
@@ -220,8 +311,8 @@ export function ClientOrdersInventory() {
             placeholder="To Date"
             className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] w-full sm:w-36 cursor-pointer"
           />
-          {(search || productSearch || fromDate || toDate) && (
-            <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setSearch(""); setProductSearch(""); setFromDate(""); setToDate("") }}>
+          {(search || isProductFiltered || fromDate || toDate) && (
+            <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => { setSearch(""); clearProductFilter(); setFromDate(""); setToDate("") }}>
               Clear
             </Button>
           )}
@@ -276,19 +367,19 @@ export function ClientOrdersInventory() {
                     </div>
                     <OrderStatusBadge status={order.status} className="shrink-0 max-w-[42%] text-right" />
                   </div>
-                  {hasProductFilter && (
+                  {isProductFiltered && (
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))] line-clamp-2">
-                      {matchingProductDescription(order, productSearch)}
+                      {matchingProductDescription(order, productFilter)}
                     </p>
                   )}
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
                     <div>
                       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                        {hasProductFilter ? "Product Qty" : "Items"}
+                        {isProductFiltered ? "Product Qty" : "Items"}
                       </p>
                       <p className="font-medium">
-                        {hasProductFilter
-                          ? matchingProductQtyLabel(order, productSearch)
+                        {isProductFiltered
+                          ? matchingProductQtyLabel(order, productFilter)
                           : formatCrmItemsQtyLabel(order.items)}
                       </p>
                     </div>
@@ -316,9 +407,9 @@ export function ClientOrdersInventory() {
                     {[
                       "Order #",
                       "Client",
-                      hasProductFilter ? "Product" : null,
-                      hasProductFilter ? "Product Qty" : "Items",
-                      hasProductFilter ? "Product Value" : "Total",
+                      isProductFiltered ? "Product" : null,
+                      isProductFiltered ? "Product Qty" : "Items",
+                      isProductFiltered ? "Product Value" : "Total",
                       "Delivery Date",
                       "Status",
                     ].filter(Boolean).map((h) => (
@@ -348,19 +439,19 @@ export function ClientOrdersInventory() {
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-xs font-medium">{order.clientName}</td>
-                        {hasProductFilter && (
+                        {isProductFiltered && (
                           <td className="px-4 py-2.5 text-xs max-w-[200px]">
-                            <span className="line-clamp-2">{matchingProductDescription(order, productSearch)}</span>
+                            <span className="line-clamp-2">{matchingProductDescription(order, productFilter)}</span>
                           </td>
                         )}
                         <td className="px-4 py-2.5 text-xs">
-                          {hasProductFilter
-                            ? matchingProductQtyLabel(order, productSearch)
+                          {isProductFiltered
+                            ? matchingProductQtyLabel(order, productFilter)
                             : formatCrmItemsQtyLabel(order.items)}
                         </td>
                         <td className="px-4 py-2.5 text-xs font-semibold whitespace-nowrap tabular-nums">
-                          {hasProductFilter
-                            ? `PKR ${matchingProductValue(order, productSearch).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                          {isProductFiltered
+                            ? `PKR ${matchingProductValue(order, productFilter).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                             : `PKR ${order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                         </td>
                         <td className="px-4 py-2.5 text-xs whitespace-nowrap">
