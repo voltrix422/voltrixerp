@@ -1,17 +1,32 @@
 // DB access via /api/db routes (Prisma)
 
+export type InventoryTransactionType =
+  | "in"
+  | "out"
+  | "assigned_to_branch"
+  | "branch_transfer"
+
 export interface InventoryTransaction {
   id: string
   item_description: string
-  transaction_type: "in" | "out"
+  transaction_type: InventoryTransactionType | string
   quantity: number
   unit: string
-  reference_type: "po" | "order"
+  reference_type: string
   reference_id: string
   reference_number: string
   notes?: string
   created_at: string
   created_by: string
+}
+
+export type InventoryHistoryFilters = {
+  from?: string
+  to?: string
+  type?: "all" | "in" | "out"
+  referenceType?: string
+  item?: string
+  referenceId?: string
 }
 
 type RawInventoryTransaction = Record<string, unknown>
@@ -20,10 +35,10 @@ function normalizeTransaction(row: RawInventoryTransaction): InventoryTransactio
   return {
     id: String(row.id || ""),
     item_description: String(row.item_description ?? row.itemDescription ?? ""),
-    transaction_type: String(row.transaction_type ?? row.transactionType ?? "in") as "in" | "out",
+    transaction_type: String(row.transaction_type ?? row.transactionType ?? "in"),
     quantity: Number(row.quantity ?? 0),
     unit: String(row.unit ?? ""),
-    reference_type: String(row.reference_type ?? row.referenceType ?? "order") as "po" | "order",
+    reference_type: String(row.reference_type ?? row.referenceType ?? "order"),
     reference_id: String(row.reference_id ?? row.referenceId ?? ""),
     reference_number: String(row.reference_number ?? row.referenceNumber ?? ""),
     notes: row.notes ? String(row.notes) : undefined,
@@ -32,9 +47,21 @@ function normalizeTransaction(row: RawInventoryTransaction): InventoryTransactio
   }
 }
 
-export async function getInventoryHistory(): Promise<InventoryTransaction[]> {
+function buildHistoryQuery(filters?: InventoryHistoryFilters): string {
+  const params = new URLSearchParams()
+  if (filters?.from) params.set("from", filters.from)
+  if (filters?.to) params.set("to", filters.to)
+  if (filters?.type && filters.type !== "all") params.set("type", filters.type)
+  if (filters?.referenceType) params.set("referenceType", filters.referenceType)
+  if (filters?.item) params.set("item", filters.item)
+  if (filters?.referenceId) params.set("referenceId", filters.referenceId)
+  const qs = params.toString()
+  return qs ? `?${qs}` : ""
+}
+
+export async function getInventoryHistory(filters?: InventoryHistoryFilters): Promise<InventoryTransaction[]> {
   try {
-    const res = await fetch("/api/db/inventory-history")
+    const res = await fetch(`/api/db/inventory-history${buildHistoryQuery(filters)}`)
     if (!res.ok) return []
     const data = await res.json()
     if (!Array.isArray(data)) return []
@@ -57,7 +84,7 @@ export async function logInventoryTransaction(
   transactionType: "in" | "out",
   quantity: number,
   unit: string,
-  referenceType: "po" | "order",
+  referenceType: string,
   referenceId: string,
   referenceNumber: string,
   createdBy: string,

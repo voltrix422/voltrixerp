@@ -6,7 +6,7 @@ import { InventoryList } from "@/components/inventory/inventory-list"
 import { ManualInventoryTab } from "@/components/inventory/manual-inventory-tab"
 import { ClientOrdersInventory } from "@/components/inventory/client-orders-inventory"
 import { BranchesTab } from "@/components/branches/branches-tab"
-import { History } from "lucide-react"
+import { InventoryMovementOverview } from "@/components/inventory/inventory-movement-overview"
 
 export default function InventoryPage() {
   const [tab, setTab] = useState<"orders" | "inventory" | "manual" | "branches" | "history">("orders")
@@ -47,13 +47,7 @@ export default function InventoryPage() {
           {tab === "inventory" && <InventoryList />}
           {tab === "manual" && <ManualInventoryTab />}
           {tab === "branches" && <BranchesTab />}
-          {tab === "history" && (
-            <div className="flex flex-col items-center justify-center py-24 text-center text-[hsl(var(--muted-foreground))]">
-              <History className="h-10 w-10 opacity-30 mb-3" />
-              <p className="text-sm font-medium text-[hsl(var(--foreground))]">History</p>
-              <p className="text-xs mt-1 max-w-sm">Inventory and fulfillment history will appear here soon.</p>
-            </div>
-          )}
+          {tab === "history" && <InventoryMovementOverview />}
         </div>
       </div>
     </ModuleGuard>

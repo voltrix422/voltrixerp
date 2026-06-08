@@ -1,3 +1,6 @@
+import type { InventoryMovementRow } from "@/lib/inventory-movement-display"
+import { formatMovementDate, getReferenceTypeLabel } from "@/lib/inventory-movement-display"
+import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 import type { Order } from "@/lib/orders"
 import { STATUS_LABELS as ORDER_STATUS_LABELS } from "@/lib/orders"
 
@@ -68,8 +71,6 @@ function itemSecondary(item: { name?: string; description?: string }) {
   if (name && description && name !== description) return description
   return ""
 }
-
-import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 
 export function downloadSerialUnitsExcel(units: InventorySerialUnit[], exportedBy?: string) {
   const headers = [
@@ -148,6 +149,49 @@ function dispatchInvoiceLabel(order: Order): string {
   if (order.dispatcher && !orderHasCompleteFulfillmentProof(order)) return "proof required"
   if (order.dispatcher) return "delivered"
   return "ready to fulfill"
+}
+
+export function downloadInventoryMovementsExcel(
+  movements: InventoryMovementRow[],
+  exportedBy?: string,
+  dateLabel?: string,
+) {
+  const headers = [
+    "Date & Time",
+    "Movement",
+    "Item",
+    "Quantity",
+    "Unit",
+    "Source (From)",
+    "Destination (To)",
+    "Order #",
+    "Client",
+    "Reference Type",
+    "Reference #",
+    "Notes",
+    "Recorded By",
+  ]
+  const rows = movements.map((m) => [
+    formatMovementDate(m.created_at),
+    m.movement_label,
+    m.item_description,
+    m.abs_quantity,
+    m.unit,
+    m.source,
+    m.destination,
+    m.order_number || "",
+    m.client_name || "",
+    getReferenceTypeLabel(m.reference_type),
+    m.reference_number,
+    m.notes || "",
+    m.created_by,
+  ])
+  let meta = exportMetaHeader(exportedBy)
+  if (dateLabel) {
+    meta = `${escCsvCell("Period")},${escCsvCell(dateLabel)}\r\n${meta}`
+  }
+  const csv = meta + rowsToCsv(headers, rows)
+  downloadCsv(`inventory-movements-${new Date().toISOString().slice(0, 10)}.csv`, csv)
 }
 
 export function downloadDispatchOrdersExcel(orders: Order[], exportedBy?: string) {
