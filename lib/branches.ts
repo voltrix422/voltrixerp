@@ -130,13 +130,21 @@ export type BranchProductLocation = {
 }
 
 export async function searchProductAcrossBranches(
-  query: string,
+  queryOrTerms: string | string[],
 ): Promise<BranchProductLocation[]> {
-  const q = query.trim()
-  if (!q) return []
+  const terms = (Array.isArray(queryOrTerms) ? queryOrTerms : [queryOrTerms])
+    .map((t) => t.trim())
+    .filter(Boolean)
+  if (!terms.length) return []
   try {
+    const params = new URLSearchParams()
+    if (Array.isArray(queryOrTerms) && terms.length > 0) {
+      for (const term of terms) params.append("term", term)
+    } else {
+      params.set("q", terms[0])
+    }
     const res = await fetch(
-      `/api/db/branch-inventory/search?q=${encodeURIComponent(q)}`,
+      `/api/db/branch-inventory/search?${params.toString()}`,
       { cache: "no-store" },
     )
     if (!res.ok) return []

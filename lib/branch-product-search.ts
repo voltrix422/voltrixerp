@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { normalizeProductText } from "@/lib/order-product-search"
 
 export type BranchProductSearchResult = {
   branchId: string
@@ -12,17 +13,30 @@ export type BranchProductSearchResult = {
   assignedAt: string | null
 }
 
-function matchesQuery(query: string, values: Array<string | null | undefined>): boolean {
-  const lower = query.trim().toLowerCase()
-  if (!lower) return false
-  return values.some((value) => (value || "").toLowerCase().includes(lower))
+function valueMatchesTerm(value: string, term: string): boolean {
+  const v = normalizeProductText(value)
+  const t = normalizeProductText(term)
+  if (!v || !t) return false
+  return v === t || v.includes(t) || t.includes(v)
+}
+
+function matchesAnyTerm(terms: string[], values: Array<string | null | undefined>): boolean {
+  const cleanedTerms = terms.map((t) => t.trim()).filter(Boolean)
+  if (!cleanedTerms.length) return false
+  return cleanedTerms.some((term) =>
+    values.some((value) => value && valueMatchesTerm(String(value), term)),
+  )
 }
 
 export async function searchProductAcrossBranches(
-  query: string,
+  queryOrTerms: string | string[],
 ): Promise<BranchProductSearchResult[]> {
-  const q = query.trim()
-  if (!q || q.length < 2) return []
+  const terms = (Array.isArray(queryOrTerms) ? queryOrTerms : [queryOrTerms])
+    .map((t) => t.trim())
+    .filter(Boolean)
+
+  if (!terms.length) return []
+  if (!Array.isArray(queryOrTerms) && terms[0].length < 2) return []
 
   const [branches, inventoryRows, manualItems, labels, stockRows, serialCounts] =
     await Promise.all([
@@ -58,7 +72,7 @@ export async function searchProductAcrossBranches(
   const seen = new Set<string>()
 
   function pushResult(entry: BranchProductSearchResult) {
-    const key = `${entry.branchId}:${entry.model}:${entry.quantity}`
+    const key = `${entry.branchId}:${normalizeProductText(entry.model)}:${entry.quantity}`
     if (seen.has(key)) return
     seen.add(key)
     results.push(entry)
@@ -71,15 +85,16 @@ export async function searchProductAcrossBranches(
     const stock = stockById.get(row.inventoryId)
     const model = (stock?.description || row.productDescription || "").trim()
     const manual = manualByModel.get(model.toLowerCase())
+    const labelName = labelByModel.get(model.toLowerCase())
     const itemName =
       manual?.name ||
-      labelByModel.get(model.toLowerCase()) ||
+      labelName ||
       stock?.name ||
       row.productDescription ||
       model
 
     if (
-      !matchesQuery(q, [
+      !matchesAnyTerm(terms, [
         row.productDescription,
         itemName,
         model,
@@ -87,6 +102,7 @@ export async function searchProductAcrossBranches(
         stock?.description,
         manual?.name,
         manual?.model,
+        labelName,
       ])
     ) {
       continue
@@ -111,8 +127,9 @@ export async function searchProductAcrossBranches(
       const qty = manual.availableQty ?? manual.qty ?? 0
       if (qty <= 0) continue
       const model = manual.model.trim()
-      const itemName = manual.name.trim() || labelByModel.get(model.toLowerCase()) || model
-      if (!matchesQuery(q, [itemName, model, manual.name])) continue
+      const labelName = labelByModel.get(model.toLowerCase())
+      const itemName = manual.name.trim() || labelName || model
+      if (!matchesAnyTerm(terms, [itemName, model, manual.name, labelName])) continue
 
       pushResult({
         branchId: mainBranch.id,
@@ -135,10 +152,11 @@ export async function searchProductAcrossBranches(
       if (qty <= 0) continue
 
       const manual = manualByModel.get(model.toLowerCase())
+      const labelName = labelByModel.get(model.toLowerCase())
       const itemName =
-        manual?.name || labelByModel.get(model.toLowerCase()) || stock.name || model
+        manual?.name || labelName || stock.name || model
 
-      if (!matchesQuery(q, [itemName, model, stock.name, stock.description])) continue
+      if (!matchesAnyTerm(terms, [itemName, model, stock.name, stock.description, labelName])) continue
 
       const alreadyFromManual = results.some(
         (r) =>
@@ -159,6 +177,34 @@ export async function searchProductAcrossBranches(
         assignedAt: null,
       })
     }
+
+    for (const [modelKey, qty] of serialInStockByModel) {
+      if (qty <= 0) continue
+      const manual = manualByModel.get(modelKey)
+      const labelName = labelByModel.get(modelKey)
+      const itemName = manual?.name || labelName || modelKey
+      if (!matchesAnyTerm(terms, [modelKey, itemName, manual?.name, manual?.model, labelName])) continue
+
+      const already = results.some(
+        (r) =>
+          r.branchId === mainBranch.id &&
+          (r.model.toLowerCase() === modelKey ||
+            normalizeProductText(r.itemName) === normalizeProductText(itemName)),
+      )
+      if (already) continue
+
+      pushResult({
+        branchId: mainBranch.id,
+        branchName: mainBranch.name,
+        branchCode: mainBranch.code,
+        branchType: mainBranch.type,
+        itemName,
+        model: manual?.model || modelKey,
+        quantity: qty,
+        unit: manual?.unit || "pcs",
+        assignedAt: null,
+      })
+    }
   }
 
   return results.sort((a, b) => {
@@ -166,4 +212,11 @@ export async function searchProductAcrossBranches(
     if (byBranch !== 0) return byBranch
     return a.itemName.localeCompare(b.itemName)
   })
+}
+
+export function summarizeBranchProductResults(results: BranchProductSearchResult[]) {
+  const totalQty = results.reduce((sum, row) => sum + row.quantity, 0)
+  const branchCount = new Set(results.map((r) => r.branchId)).size
+  const unit = results[0]?.unit || "pcs"
+  return { totalQty, branchCount, unit, resultCount: results.length }
 }

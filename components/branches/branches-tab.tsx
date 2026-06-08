@@ -1,5 +1,5 @@
 ﻿  "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   getBranches,
   saveBranch,
@@ -18,6 +18,8 @@ import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Se
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
+import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
+import { summarizeBranchProductResults } from "@/lib/branch-product-search"
 
 const empty = (code: string = ""): Omit<Branch, "id" | "createdAt" | "createdBy"> => ({
   name: "", code, type: "outlet", address: "", city: "", country: "", phone: "", email: "", manager: "", status: "active", notes: "",
@@ -185,6 +187,9 @@ export function BranchesTab() {
   }>>([])
   const [search, setSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
+  const [selectedProductId, setSelectedProductId] = useState("")
+  const [inventoryProducts, setInventoryProducts] = useState<InventoryProductOption[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(true)
   const [productResults, setProductResults] = useState<BranchProductLocation[]>([])
   const [productSearchLoading, setProductSearchLoading] = useState(false)
   const { confirm } = useDialog()
@@ -198,6 +203,59 @@ export function BranchesTab() {
   }, [])
 
   useEffect(() => {
+    loadInventoryProductOptions()
+      .then(setInventoryProducts)
+      .finally(() => setLoadingProducts(false))
+  }, [])
+
+  const selectedProductOption = useMemo(
+    () => inventoryProducts.find((p) => p.id === selectedProductId),
+    [inventoryProducts, selectedProductId],
+  )
+
+  const filteredInventoryProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q || selectedProductId) return inventoryProducts
+    return inventoryProducts.filter(
+      (p) =>
+        p.displayName.toLowerCase().includes(q) ||
+        p.modelKey.toLowerCase().includes(q) ||
+        p.matchTerms.some((term) => term.toLowerCase().includes(q)),
+    )
+  }, [inventoryProducts, productSearch, selectedProductId])
+
+  const isProductFiltered = !!selectedProductOption || productSearch.trim().length >= 2
+
+  const productSummary = useMemo(() => {
+    if (!isProductFiltered || productSearchLoading) return null
+    return summarizeBranchProductResults(productResults)
+  }, [productResults, isProductFiltered, productSearchLoading])
+
+  function clearProductFilter() {
+    setSelectedProductId("")
+    setProductSearch("")
+    setProductResults([])
+  }
+
+  function handleProductDropdownChange(value: string) {
+    setSelectedProductId(value)
+    setProductSearch("")
+  }
+
+  function handleProductSearchChange(value: string) {
+    setProductSearch(value)
+    if (value.trim()) setSelectedProductId("")
+  }
+
+  useEffect(() => {
+    if (selectedProductOption) {
+      setProductSearchLoading(true)
+      searchProductAcrossBranches(selectedProductOption.matchTerms)
+        .then(setProductResults)
+        .finally(() => setProductSearchLoading(false))
+      return
+    }
+
     const q = productSearch.trim()
     if (q.length < 2) {
       setProductResults([])
@@ -213,7 +271,7 @@ export function BranchesTab() {
     }, 300)
 
     return () => window.clearTimeout(timer)
-  }, [productSearch])
+  }, [selectedProductOption, productSearch])
 
   async function handleAdd(data: Omit<Branch, "id" | "createdAt" | "createdBy">) {
     setSaving(true)
@@ -434,27 +492,6 @@ export function BranchesTab() {
                 className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
               />
             </div>
-            <div className="relative flex-1 min-w-[160px] max-w-sm">
-              <Package className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-              <input
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Search product across branches…"
-                className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-8 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
-              />
-              {productSearchLoading ? (
-                <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-[hsl(var(--muted-foreground))]" />
-              ) : productSearch ? (
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                  onClick={() => setProductSearch("")}
-                  aria-label="Clear product search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-            </div>
             <div className="flex flex-wrap items-center gap-1.5 ml-auto">
               <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs cursor-pointer border" asChild>
                 <Link href="/warranty-center">
@@ -498,20 +535,93 @@ export function BranchesTab() {
             </div>
           </div>
 
+          <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 space-y-3 shrink-0">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative sm:w-72 shrink-0">
+                <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1faca6] pointer-events-none" />
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => handleProductDropdownChange(e.target.value)}
+                  disabled={loadingProducts}
+                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-10 pr-8 text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50 cursor-pointer"
+                >
+                  <option value="">
+                    {loadingProducts ? "Loading inventory…" : "All products"}
+                  </option>
+                  {filteredInventoryProducts.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.displayName} ({product.inStock} in stock)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                <input
+                  value={productSearch}
+                  onChange={(e) => handleProductSearchChange(e.target.value)}
+                  placeholder="Or type product / model to search across branches…"
+                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50"
+                />
+              </div>
+            </div>
+
+            {isProductFiltered && productSummary && !productSearchLoading && (
+              <div className="rounded-md border bg-[hsl(var(--background))] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-semibold">
+                    {selectedProductOption?.displayName || productSearch.trim()}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={clearProductFilter}
+                    className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                  >
+                    Clear product
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-end gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total across branches</p>
+                    <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
+                      {productSummary.totalQty} <span className="text-sm font-medium">{productSummary.unit}</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Branches</p>
+                    <p className="text-lg font-semibold tabular-nums">{productSummary.branchCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations</p>
+                    <p className="text-lg font-semibold tabular-nums">{productSummary.resultCount}</p>
+                  </div>
+                  {selectedProductOption && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Main warehouse stock</p>
+                      <p className="text-lg font-semibold tabular-nums">
+                        {selectedProductOption.inStock} {selectedProductOption.unit}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] px-0.5 -mt-1">
-            {productSearch.trim().length >= 2
-              ? "Product search shows which branches hold matching stock"
+            {isProductFiltered
+              ? "Shows where this product is held across branches and warehouses"
               : "Click a row to open inventory"}
           </p>
 
-          {productSearch.trim().length >= 2 && (
+          {isProductFiltered && (
             <div className="rounded-lg border overflow-hidden shrink-0">
               <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/10">
                 <p className="text-xs font-semibold">
-                  Product locations for &ldquo;{productSearch.trim()}&rdquo;
+                  Stock locations
                 </p>
                 <span className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
-                  {productSearchLoading ? "Searching…" : `${productResults.length} result${productResults.length === 1 ? "" : "s"}`}
+                  {productSearchLoading ? "Searching…" : `${productResults.length} location${productResults.length === 1 ? "" : "s"}`}
                 </span>
               </div>
               {productSearchLoading ? (
