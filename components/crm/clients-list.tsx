@@ -9,9 +9,20 @@ import { useToast } from "@/components/ui/toast"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Plus, Search, X, Upload, Trash2, User, Mail, Phone, Globe, MapPin, Building2, Calendar, Truck, Loader2, Package } from "lucide-react"
+import { Plus, Search, X, Upload, Trash2, User, Mail, Phone, Globe, MapPin, Building2, Calendar, Truck, Loader2, Package, Crown, Download } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
-import { downloadClientsExcel } from "@/lib/crm-excel-export"
+import {
+  downloadAllClientsDetailExcel,
+  downloadClientDetailExcel,
+  downloadClientsExcel,
+  type ClientSalesExportMeta,
+} from "@/lib/crm-excel-export"
+import {
+  assignSalesRanks,
+  buildClientSalesMap,
+  sortClientsBySales,
+  type ClientSalesInfo,
+} from "@/lib/client-sales-stats"
 import { getOrders, type Order } from "@/lib/orders"
 import { formatCurrency } from "@/lib/pos"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
@@ -25,27 +36,51 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
   const [selected, setSelected] = useState<Client | null>(null)
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null)
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [exportingAllDetails, setExportingAllDetails] = useState(false)
+  const [orders, setOrders] = useState<Order[]>([])
 
   useEffect(() => {
-    getClients().then(c => {
+    Promise.all([getClients(), getOrders()]).then(([c, o]) => {
       const scoped = workspace?.ownerUserId
         ? c.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
         : c
       setClients(scoped)
+      setOrders(o)
       setLoading(false)
     })
-  }, [])
+  }, [workspace?.ownerUserId])
 
-  const filtered = clients.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.company.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase())
-  )
+  const salesMap = useMemo(() => {
+    const base = buildClientSalesMap(orders)
+    return assignSalesRanks(clients, base)
+  }, [clients, orders])
+
+  const salesExportMap = useMemo(() => {
+    const map = new Map<string, ClientSalesExportMeta>()
+    for (const [id, info] of salesMap) {
+      map.set(id, {
+        totalSales: info.totalSales,
+        orderCount: info.orderCount,
+        salesRank: info.salesRank,
+      })
+    }
+    return map
+  }, [salesMap])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    const matched = clients.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.company.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q)
+    )
+    return sortClientsBySales(matched, salesMap)
+  }, [clients, search, salesMap])
 
   function exportListExcel() {
     setExportingExcel(true)
     try {
-      downloadClientsExcel(filtered, currentUser)
+      downloadClientsExcel(filtered, currentUser, salesExportMap)
       toast({
         title: "Download started",
         message: `${filtered.length} client(s) exported for Excel.`,
@@ -55,6 +90,38 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
       toast({ title: "Error", message: "Could not export clients.", type: "error" })
     } finally {
       setExportingExcel(false)
+    }
+  }
+
+  function exportAllDetailsExcel() {
+    setExportingAllDetails(true)
+    try {
+      downloadAllClientsDetailExcel(filtered, orders, currentUser, salesExportMap)
+      toast({
+        title: "Download started",
+        message: `Full details for ${filtered.length} client(s) exported.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export client details.", type: "error" })
+    } finally {
+      setExportingAllDetails(false)
+    }
+  }
+
+  function exportSingleClient(client: Client, e?: React.MouseEvent) {
+    e?.stopPropagation()
+    const stats = salesMap.get(client.id)
+    const clientOrders = orders.filter((o) => o.clientId === client.id && o.status === "delivered")
+    try {
+      downloadClientDetailExcel(client, clientOrders, currentUser, stats)
+      toast({
+        title: "Download started",
+        message: `${client.name} exported with ${clientOrders.length} order(s).`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export client.", type: "error" })
     }
   }
 
@@ -73,7 +140,19 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
           onExport={exportListExcel}
           exporting={exportingExcel}
           disabled={loading || filtered.length === 0}
+          label="Export List"
         />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+          disabled={loading || filtered.length === 0 || exportingAllDetails}
+          onClick={exportAllDetailsExcel}
+        >
+          <Download className="h-3.5 w-3.5" />
+          {exportingAllDetails ? "Exporting…" : "Export All Details"}
+        </Button>
         {!workspace?.readOnly && (
         <Button size="sm" className="h-8 text-xs px-3 cursor-pointer" onClick={() => setShowForm(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Clients
@@ -99,29 +178,63 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
         </div>
       ) : (
         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
-          {filtered.map(client => (
+          {filtered.map(client => {
+            const sales = salesMap.get(client.id)
+            const isTopClient = sales?.salesRank != null && sales.salesRank > 0 && sales.salesRank <= 3
+            return (
             <div
               key={client.id}
               onClick={() => setSelected(client)}
-              className="group flex flex-col items-center text-center space-y-2 cursor-pointer"
+              className="group relative flex flex-col items-center text-center space-y-2 cursor-pointer"
             >
+              <button
+                type="button"
+                title={`Export ${client.name}`}
+                onClick={(e) => exportSingleClient(client, e)}
+                className="absolute top-0 right-0 z-10 h-6 w-6 rounded-full border bg-[hsl(var(--card))] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[hsl(var(--muted))] cursor-pointer"
+              >
+                <Download className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+              </button>
+
+              {isTopClient && (
+                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                  <Crown className="h-3 w-3 fill-amber-500 text-amber-500" />
+                  Top {sales!.salesRank}
+                </div>
+              )}
+
               {/* Avatar */}
               {client.imageUrl ? (
                 <img 
                   src={client.imageUrl} 
                   alt={client.name} 
-                  className="h-16 w-16 rounded-full object-cover shadow-md hover:shadow-lg transition-shadow" 
+                  className={`h-16 w-16 rounded-full object-cover shadow-md hover:shadow-lg transition-shadow ${
+                    isTopClient ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-[hsl(var(--background))]" : ""
+                  }`}
                 />
               ) : (
-                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[hsl(var(--primary))]/30 via-[hsl(var(--primary))]/20 to-[hsl(var(--primary))]/10 flex items-center justify-center shadow-md hover:shadow-lg transition-shadow">
-                  <User className="h-8 w-8 text-[hsl(var(--primary))]" />
+                <div className={`h-16 w-16 rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-shadow ${
+                  isTopClient
+                    ? "bg-gradient-to-br from-amber-200 via-amber-100 to-amber-50 ring-2 ring-amber-400 ring-offset-2 ring-offset-[hsl(var(--background))]"
+                    : "bg-gradient-to-br from-[hsl(var(--primary))]/30 via-[hsl(var(--primary))]/20 to-[hsl(var(--primary))]/10"
+                }`}>
+                  <User className={`h-8 w-8 ${isTopClient ? "text-amber-700" : "text-[hsl(var(--primary))]"}`} />
                 </div>
               )}
               
               {/* Name */}
-              <p className="text-xs font-semibold truncate w-full px-1 capitalize">
+              <p className={`text-xs font-semibold truncate w-full px-1 capitalize ${
+                isTopClient ? "text-amber-700 dark:text-amber-300" : ""
+              }`}>
                 {client.name}
               </p>
+
+              {(sales?.totalSales ?? 0) > 0 && (
+                <p className="text-[10px] font-medium text-[#1faca6] tabular-nums">
+                  {formatCurrency(sales!.totalSales)}
+                </p>
+              )}
+
               <div className="flex flex-col items-center gap-1 w-full px-1">
                 {client.ownerUserId && (
                   <SalesAgentSourceBadge agentName={client.createdBy} kind="client" className="max-w-full" />
@@ -133,7 +246,8 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
                 )}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -154,6 +268,9 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
         <ClientDetail
           client={selected}
           workspace={workspace}
+          salesInfo={salesMap.get(selected.id)}
+          allOrders={orders}
+          currentUser={currentUser}
           onClose={() => setSelected(null)}
           onUpdate={c => {
             setClients(prev => prev.map(x => x.id === c.id ? c : x))
@@ -406,9 +523,12 @@ function formatDetailDate(d: Date | null): string {
   return d.toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" })
 }
 
-function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onRequestDelete }: {
+function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, onClose, onUpdate, onDelete, onRequestDelete }: {
   client: Client
   workspace?: CrmWorkspaceScope
+  salesInfo?: ClientSalesInfo
+  allOrders?: Order[]
+  currentUser?: string
   onClose: () => void
   onUpdate: (c: Client) => void
   onDelete: (id: string) => void
@@ -423,11 +543,18 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
   const [clientOrders, setClientOrders] = useState<Order[]>([])
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [exportingClient, setExportingClient] = useState(false)
   const readOnly = !!workspace?.readOnly
+  const isTopClient = salesInfo?.salesRank != null && salesInfo.salesRank > 0 && salesInfo.salesRank <= 3
   const isAdmin = user?.role === "superadmin"
   const canReview = isAdmin && client.status === "pending_approval" && !!client.ownerUserId
 
   useEffect(() => {
+    if (allOrders) {
+      setClientOrders(allOrders.filter((o) => o.clientId === client.id && o.status === "delivered"))
+      setOrdersLoading(false)
+      return
+    }
     let cancelled = false
     setOrdersLoading(true)
     getOrders()
@@ -443,7 +570,7 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
     return () => {
       cancelled = true
     }
-  }, [client.id])
+  }, [client.id, allOrders])
 
   const filteredOrders = useMemo(() => {
     return clientOrders
@@ -498,6 +625,22 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
     onDelete(client.id)
   }
 
+  function handleExportClient() {
+    setExportingClient(true)
+    try {
+      downloadClientDetailExcel(client, filteredOrders, currentUser, salesInfo)
+      toast({
+        title: "Download started",
+        message: `${client.name} exported with ${filteredOrders.length} order(s).`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not export client.", type: "error" })
+    } finally {
+      setExportingClient(false)
+    }
+  }
+
   const infoItems = [
     { icon: Mail, label: "Email", value: client.email },
     { icon: Phone, label: "Phone", value: client.phone },
@@ -545,6 +688,12 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-semibold capitalize truncate">{client.name}</h2>
+                  {isTopClient && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                      <Crown className="h-3 w-3 fill-amber-500 text-amber-500" />
+                      Top {salesInfo!.salesRank} Client
+                    </span>
+                  )}
                   {client.ownerUserId && (
                     <SalesAgentSourceBadge agentName={client.createdBy} kind="client" />
                   )}
@@ -560,6 +709,9 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
                 <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
                   Added {new Date(client.createdAt).toLocaleDateString("en-PK")} by {client.createdBy}
                   {client.industry ? ` · ${client.industry}` : ""}
+                  {(salesInfo?.totalSales ?? 0) > 0 && (
+                    <> · <span className="font-semibold text-[#1faca6]">{formatCurrency(salesInfo!.totalSales)}</span> total sales</>
+                  )}
                 </p>
               </div>
               <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
@@ -721,6 +873,16 @@ function ClientDetail({ client, workspace, onClose, onUpdate, onDelete, onReques
             </div>
 
             <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 border-t shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs cursor-pointer gap-1.5"
+                onClick={handleExportClient}
+                disabled={exportingClient}
+              >
+                <Download className="h-3 w-3" />
+                {exportingClient ? "Exporting…" : "Export Client"}
+              </Button>
               {canReview && (
                 <>
                   <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => reviewClient("active")} disabled={reviewing}>
