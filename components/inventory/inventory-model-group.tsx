@@ -148,105 +148,206 @@ export function InventoryModelGroup({
           </Button>
         </div>
       ) : (
-        <div
-          className="w-full grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] sm:grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] gap-3 items-center px-4 py-3.5 hover:bg-[hsl(var(--muted))]/12 transition-colors"
-        >
-          <button
-            type="button"
-            className="flex items-center justify-center p-0.5 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20 shrink-0"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            title="Expand serial numbers"
-          >
-            {expanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </button>
-          <button
-            type="button"
-            className="col-span-4 sm:col-span-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px] gap-3 items-center min-w-0 text-left cursor-pointer rounded-md -my-1 py-1 hover:bg-[#1faca6]/5"
-            onClick={openPricePanel}
-            title="Click for prices"
-          >
-            <span className="min-w-0 text-sm font-medium truncate flex items-center gap-1.5">
-              {title}
-              {stockOnly?.isManual && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                  Manual
-                </Badge>
-              )}
-            </span>
-            <span className="min-w-0 text-xs font-mono text-[hsl(var(--muted-foreground))] truncate hidden sm:block">
-              {modelKey}
-            </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums text-right">
-              {inStock}/{count}
-            </span>
-            <span className="text-sm font-semibold text-[#1faca6] tabular-nums text-right">
-              {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}
-            </span>
-          </button>
-          <div className="flex justify-end items-center gap-0.5 shrink-0">
-            {isManualStock ? (
-              <>
-                <button
-                  type="button"
-                  className="p-1 rounded-md text-amber-600 hover:bg-amber-500/10 disabled:opacity-50"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openAdjust("stock")
-                  }}
-                  disabled={inStock <= 0 || isAdjusting}
-                  title="Subtract from stock (available qty)"
-                >
-                  {isAdjusting && adjustingManual?.mode === "stock" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Minus className="h-4 w-4" />
+        <>
+          {/* Mobile card layout */}
+          <div className="sm:hidden px-3 py-3 hover:bg-[hsl(var(--muted))]/12 transition-colors">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20"
+                onClick={onToggle}
+                aria-expanded={expanded}
+                title="Expand serial numbers"
+              >
+                {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                className="flex-1 min-w-0 text-left rounded-md py-0.5 pr-1 hover:bg-[#1faca6]/5"
+                onClick={openPricePanel}
+                title="Click for prices"
+              >
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-sm font-semibold leading-snug break-words text-[hsl(var(--foreground))]">
+                    {title}
+                  </span>
+                  {stockOnly?.isManual && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                      Manual
+                    </Badge>
                   )}
-                </button>
-                <button
-                  type="button"
-                  className="p-1 rounded-md text-orange-600 hover:bg-orange-500/10 disabled:opacity-50"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openAdjust("units")
-                  }}
-                  disabled={count <= 0 || isAdjusting}
-                  title="Subtract from units (total qty)"
-                >
-                  {isAdjusting && adjustingManual?.mode === "units" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <span className="text-[10px] font-bold leading-none px-0.5">U−</span>
-                  )}
-                </button>
-              </>
-            ) : null}
-            <button
-              type="button"
-              className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
-              onClick={onStartEdit}
-              title="Edit name"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-red-600 disabled:opacity-50"
-              onClick={(e) => {
-                e.stopPropagation()
-                void onDeleteModel()
-              }}
-              disabled={deletingModel || count === 0}
-              title="Delete model and all serial numbers"
-            >
-              {deletingModel ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            </button>
+                </div>
+                <p className="mt-1 text-[11px] font-mono text-[hsl(var(--muted-foreground))] break-all leading-relaxed">
+                  {modelKey}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                    Stock{" "}
+                    <span className="font-semibold tabular-nums text-[hsl(var(--foreground))]">
+                      {inStock}/{count}
+                    </span>
+                  </span>
+                  <span className="text-sm font-semibold tabular-nums text-[#1faca6]">
+                    {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}
+                  </span>
+                </div>
+              </button>
+            </div>
+            <div className="mt-2 flex items-center justify-end gap-1 pl-10">
+              {isManualStock ? (
+                <>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 disabled:opacity-50"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdjust("stock")
+                    }}
+                    disabled={inStock <= 0 || isAdjusting}
+                    title="Subtract from stock"
+                  >
+                    {isAdjusting && adjustingManual?.mode === "stock" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Minus className="h-4 w-4" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-8 min-w-8 items-center justify-center rounded-md px-1 text-orange-600 hover:bg-orange-500/10 disabled:opacity-50"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdjust("units")
+                    }}
+                    disabled={count <= 0 || isAdjusting}
+                    title="Subtract units"
+                  >
+                    {isAdjusting && adjustingManual?.mode === "units" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <span className="text-[10px] font-bold">U−</span>
+                    )}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[hsl(var(--muted))]/20"
+                onClick={onStartEdit}
+                title="Edit name"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void onDeleteModel()
+                }}
+                disabled={deletingModel || count === 0}
+                title="Delete model"
+              >
+                {deletingModel ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
-        </div>
+
+          {/* Desktop table row */}
+          <div className="hidden sm:grid w-full grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] gap-3 items-center px-4 py-3.5 hover:bg-[hsl(var(--muted))]/12 transition-colors">
+            <button
+              type="button"
+              className="flex items-center justify-center p-0.5 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20 shrink-0"
+              onClick={onToggle}
+              aria-expanded={expanded}
+              title="Expand serial numbers"
+            >
+              {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              className="col-span-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px] gap-3 items-center min-w-0 text-left cursor-pointer rounded-md -my-1 py-1 hover:bg-[#1faca6]/5"
+              onClick={openPricePanel}
+              title="Click for prices"
+            >
+              <span className="min-w-0 text-sm font-medium truncate flex items-center gap-1.5">
+                {title}
+                {stockOnly?.isManual && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                    Manual
+                  </Badge>
+                )}
+              </span>
+              <span className="min-w-0 text-xs font-mono text-[hsl(var(--muted-foreground))] truncate">
+                {modelKey}
+              </span>
+              <span className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums text-right">
+                {inStock}/{count}
+              </span>
+              <span className="text-sm font-semibold text-[#1faca6] tabular-nums text-right">
+                {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}
+              </span>
+            </button>
+            <div className="flex justify-end items-center gap-0.5 shrink-0">
+              {isManualStock ? (
+                <>
+                  <button
+                    type="button"
+                    className="p-1 rounded-md text-amber-600 hover:bg-amber-500/10 disabled:opacity-50"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdjust("stock")
+                    }}
+                    disabled={inStock <= 0 || isAdjusting}
+                    title="Subtract from stock (available qty)"
+                  >
+                    {isAdjusting && adjustingManual?.mode === "stock" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Minus className="h-4 w-4" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="p-1 rounded-md text-orange-600 hover:bg-orange-500/10 disabled:opacity-50"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdjust("units")
+                    }}
+                    disabled={count <= 0 || isAdjusting}
+                    title="Subtract from units (total qty)"
+                  >
+                    {isAdjusting && adjustingManual?.mode === "units" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <span className="text-[10px] font-bold leading-none px-0.5">U−</span>
+                    )}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
+                onClick={onStartEdit}
+                title="Edit name"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-red-600 disabled:opacity-50"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void onDeleteModel()
+                }}
+                disabled={deletingModel || count === 0}
+                title="Delete model and all serial numbers"
+              >
+                {deletingModel ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {expanded && (
@@ -269,59 +370,101 @@ export function InventoryModelGroup({
               )}
             </div>
           ) : (
-          <table className="w-full text-xs sm:text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-[hsl(var(--border))]">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">SN</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Retail</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">GST</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Received</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-                <th className="w-10" />
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <div className="sm:hidden divide-y divide-[hsl(var(--border))]/60">
               {modelUnits.map((unit) => {
                 const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
                 const client = parseSerialDispatchClient(unit.notes)
                 return (
-                <tr key={unit.id} className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))]/8">
-                  <td className="px-4 py-2.5 font-mono text-xs break-all">{unit.serialNumber}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{orderRef ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{client ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">
-                    {formatRetailPricePkr(unit.retailPrice)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">
-                    {formatGstPercent(unit.gstPercent)}
-                  </td>
-                  <td className="px-4 py-2.5 text-[hsl(var(--muted-foreground))] whitespace-nowrap tabular-nums">
-                    {formatDate(unit.scannedAt)}
-                  </td>
-                  <td className="px-4 py-2.5 capitalize text-[hsl(var(--muted-foreground))]">
-                    {unit.status.replace(/_/g, " ")}
-                  </td>
-                  <td className="px-2 py-2.5 text-right">
-                    <button
-                      type="button"
-                      className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
-                      disabled={deletingId === unit.id}
-                      onClick={() => onDeleteUnit(unit)}
-                      title="Remove"
-                    >
-                      {deletingId === unit.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
-                  </td>
+                  <div key={unit.id} className="px-3 py-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-mono text-xs break-all leading-relaxed">{unit.serialNumber}</p>
+                      <button
+                        type="button"
+                        className="shrink-0 p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
+                        disabled={deletingId === unit.id}
+                        onClick={() => onDeleteUnit(unit)}
+                        title="Remove"
+                      >
+                        {deletingId === unit.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                      <span className="text-[hsl(var(--muted-foreground))]">Order</span>
+                      <span className="font-mono text-right">{orderRef ?? "—"}</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">Client</span>
+                      <span className="text-right truncate">{client ?? "—"}</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">Retail</span>
+                      <span className="text-right tabular-nums">{formatRetailPricePkr(unit.retailPrice)}</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">GST</span>
+                      <span className="text-right tabular-nums">{formatGstPercent(unit.gstPercent)}</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">Received</span>
+                      <span className="text-right tabular-nums">{formatDate(unit.scannedAt)}</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">Status</span>
+                      <span className="text-right capitalize">{unit.status.replace(/_/g, " ")}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <table className="hidden sm:table w-full text-xs sm:text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-[hsl(var(--border))]">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">SN</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Retail</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">GST</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Received</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
+                  <th className="w-10" />
                 </tr>
-              )})}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {modelUnits.map((unit) => {
+                  const orderRef = parseSerialOrderRef(unit.notes, unit.specs)
+                  const client = parseSerialDispatchClient(unit.notes)
+                  return (
+                  <tr key={unit.id} className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))]/8">
+                    <td className="px-4 py-2.5 font-mono text-xs break-all">{unit.serialNumber}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs">{orderRef ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{client ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">
+                      {formatRetailPricePkr(unit.retailPrice)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap">
+                      {formatGstPercent(unit.gstPercent)}
+                    </td>
+                    <td className="px-4 py-2.5 text-[hsl(var(--muted-foreground))] whitespace-nowrap tabular-nums">
+                      {formatDate(unit.scannedAt)}
+                    </td>
+                    <td className="px-4 py-2.5 capitalize text-[hsl(var(--muted-foreground))]">
+                      {unit.status.replace(/_/g, " ")}
+                    </td>
+                    <td className="px-2 py-2.5 text-right">
+                      <button
+                        type="button"
+                        className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
+                        disabled={deletingId === unit.id}
+                        onClick={() => onDeleteUnit(unit)}
+                        title="Remove"
+                      >
+                        {deletingId === unit.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                )})}
+              </tbody>
+            </table>
+          </>
           )}
         </div>
       )}

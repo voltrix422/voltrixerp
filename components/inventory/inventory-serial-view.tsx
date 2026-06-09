@@ -370,9 +370,9 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   function renderGroupTable(title: string, groups: UnifiedInventoryModelGroup[]) {
     return (
       <div className="rounded-lg border overflow-hidden bg-[hsl(var(--background))]">
-        <div className="flex items-center justify-between px-3 py-2 border-b">
-          <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{title}</p>
-          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{groups.length} models</span>
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b">
+          <p className="text-xs sm:text-sm font-semibold text-[hsl(var(--foreground))] leading-snug">{title}</p>
+          <span className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">{groups.length} models</span>
         </div>
         <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px_minmax(100px,1fr)] gap-3 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
           <span>Model / product</span>
@@ -417,13 +417,13 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   }
 
   return (
-    <div className={`flex flex-col gap-3 min-h-0 ${embedded ? "" : "h-[calc(100vh-11rem)]"}`}>
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 shrink-0">
-        <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
+    <div className={`flex flex-col gap-3 min-h-0 ${embedded ? "" : "sm:h-[calc(100vh-11rem)]"}`}>
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center rounded-lg border px-3 py-2.5 sm:py-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))]">
           <span className="tabular-nums">
             <span className="font-semibold text-[hsl(var(--foreground))]">{totalBoxes}</span> boxes
           </span>
-          <span className="text-[hsl(var(--border))]">·</span>
+          <span className="text-[hsl(var(--border))] hidden xs:inline">·</span>
           <span className="tabular-nums">
             <span className="font-semibold text-[hsl(var(--foreground))]">{modelCount}</span> models
           </span>
@@ -432,29 +432,31 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
             <span className="font-semibold text-[#1faca6]">{inStockCount}</span> in stock
           </span>
         </div>
-        <div className="relative flex-1 min-w-[160px]">
+        <div className="relative w-full sm:flex-1 sm:min-w-[160px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search model, SN…"
-            className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+            className="w-full h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-sm sm:text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
           />
         </div>
-        <CrmExcelExportButton
-          onExport={exportExcel}
-          exporting={exportingExcel}
-          disabled={filteredUnits.length === 0}
-          className="h-8 px-2.5 text-xs gap-1.5 cursor-pointer shrink-0"
-        />
-        <Button
-          className="h-8 px-2.5 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 shrink-0"
-          onClick={() => setShowQrModal(true)}
-        >
-          <QrCode className="h-3.5 w-3.5" />
-          Scan QR
-        </Button>
-        {toolbarEnd}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <CrmExcelExportButton
+            onExport={exportExcel}
+            exporting={exportingExcel}
+            disabled={filteredUnits.length === 0}
+            className="h-9 sm:h-8 flex-1 sm:flex-none px-2.5 text-xs gap-1.5 cursor-pointer justify-center"
+          />
+          <Button
+            className="h-9 sm:h-8 flex-1 sm:flex-none px-2.5 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5"
+            onClick={() => setShowQrModal(true)}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            Scan QR
+          </Button>
+          {toolbarEnd}
+        </div>
       </div>
 
       {modelCount === 0 ? (
