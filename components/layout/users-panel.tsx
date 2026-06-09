@@ -4,6 +4,7 @@ import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, type User, 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Users, Copy } from "lucide-react"
+import { NotificationEmailsEditor } from "@/components/settings/notification-emails-editor"
 
 function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; onDelete: (id: string) => void }) {
   const [editing, setEditing] = useState(false)
@@ -75,6 +76,16 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
           )}
         </div>
       </div>
+      <div className="pt-1 border-t border-dashed">
+        <NotificationEmailsEditor
+          emails={draft.notificationEmails ?? []}
+          enabled={draft.emailNotificationsEnabled !== false}
+          onEmailsChange={emails => setDraft(d => ({ ...d, notificationEmails: emails }))}
+          onEnabledChange={enabled => setDraft(d => ({ ...d, emailNotificationsEnabled: enabled }))}
+          compact
+          readOnly={!editing}
+        />
+      </div>
       <div className="flex flex-wrap gap-1">
         {u.role === "superadmin" ? (
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages</span>
@@ -100,6 +111,8 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [modules, setModules] = useState<Module[]>([])
+  const [notificationEmails, setNotificationEmails] = useState<string[]>([])
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true)
   const [showPw, setShowPw] = useState(false)
 
   function toggleModule(m: Module) {
@@ -108,7 +121,16 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    onAdd({ id: Date.now().toString(), name, email, password, role: "user", modules })
+    onAdd({
+      id: Date.now().toString(),
+      name,
+      email,
+      password,
+      role: "user",
+      modules,
+      notificationEmails,
+      emailNotificationsEnabled,
+    })
   }
 
   return (
@@ -125,6 +147,13 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
           {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
         </button>
       </div>
+      <NotificationEmailsEditor
+        emails={notificationEmails}
+        enabled={emailNotificationsEnabled}
+        onEmailsChange={setNotificationEmails}
+        onEnabledChange={setEmailNotificationsEnabled}
+        compact
+      />
       <div className="flex flex-wrap gap-1">
         {ALL_MODULES.map(m => {
           const has = modules.includes(m)
@@ -188,7 +217,7 @@ export function UsersPanel() {
             <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
               <div>
                 <p className="text-sm font-semibold">User Accounts</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Manage credentials & page access</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Credentials, page access & notification emails</p>
               </div>
               <div className="flex items-center gap-1">
                 <Button size="sm" className="h-7 text-xs cursor-pointer" onClick={() => setAdding(v => !v)}>

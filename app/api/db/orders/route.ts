@@ -13,6 +13,7 @@ import {
   generateNextOrderNumber,
   repairDuplicateOrderNumbers,
 } from "@/lib/order-number-server"
+import { notifyOnOrderStatusChange } from "@/lib/notifications-server"
 
 function toOrderDeductInput(record: {
   id: string
@@ -70,7 +71,10 @@ export async function POST(req: NextRequest) {
   const fulfillment = fulfillmentData(o)
   const orderId = String(o.id ?? "").trim()
   const existing = orderId
-    ? await prisma.erpOrder.findUnique({ where: { id: orderId }, select: { id: true } })
+    ? await prisma.erpOrder.findUnique({
+        where: { id: orderId },
+        select: { id: true, status: true },
+      })
     : null
 
   let orderNumber = String(o.orderNumber ?? "").trim()
@@ -142,6 +146,17 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error("[orders POST] inventory deduction failed:", err)
     }
+  }
+
+  if (existing?.status !== responseRecord.status) {
+    void notifyOnOrderStatusChange(
+      responseRecord.id,
+      responseRecord.orderNumber,
+      responseRecord.clientName,
+      existing?.status,
+      responseRecord.status,
+      responseRecord.ownerUserId,
+    )
   }
 
   return NextResponse.json({

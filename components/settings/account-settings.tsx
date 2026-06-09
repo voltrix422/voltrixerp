@@ -1,9 +1,10 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { saveUser } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
-import { Eye, EyeOff, Check, User, Lock, AlertCircle } from "lucide-react"
+import { NotificationEmailsEditor } from "@/components/settings/notification-emails-editor"
+import { Eye, EyeOff, Check, User, Lock, AlertCircle, Bell } from "lucide-react"
 
 const inputCls = "w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6] transition-colors"
 
@@ -27,6 +28,34 @@ export function AccountSettings() {
   const [savingPw, setSavingPw]     = useState(false)
   const [pwDone, setPwDone]         = useState(false)
   const [pwError, setPwError]       = useState("")
+
+  const [notificationEmails, setNotificationEmails] = useState<string[]>(user?.notificationEmails ?? [])
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(
+    user?.emailNotificationsEnabled !== false,
+  )
+  const [savingNotif, setSavingNotif] = useState(false)
+  const [notifDone, setNotifDone] = useState(false)
+  const [notifError, setNotifError] = useState("")
+  const [testingEmail, setTestingEmail] = useState(false)
+  const [testResult, setTestResult] = useState("")
+  const [smtpStatus, setSmtpStatus] = useState<{
+    configured: boolean
+    provider?: string | null
+    from?: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    setNotificationEmails(user.notificationEmails ?? [])
+    setEmailNotificationsEnabled(user.emailNotificationsEnabled !== false)
+  }, [user])
+
+  useEffect(() => {
+    fetch("/api/notifications/smtp-status")
+      .then(r => r.json())
+      .then(setSmtpStatus)
+      .catch(() => setSmtpStatus({ configured: false }))
+  }, [])
 
   if (!user) return null
 
@@ -81,6 +110,56 @@ export function AccountSettings() {
     }
     setSavingPw(false)
   }
+
+  async function handleSaveNotifications(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user) return
+    setSavingNotif(true)
+    setNotifError("")
+    setNotifDone(false)
+    try {
+      await saveUser({
+        ...user,
+        notificationEmails,
+        emailNotificationsEnabled,
+      })
+      await refreshUser()
+      setNotifDone(true)
+      setTimeout(() => setNotifDone(false), 3000)
+    } catch {
+      setNotifError("Failed to save notification emails.")
+    }
+    setSavingNotif(false)
+  }
+
+  async function handleTestEmail() {
+    if (!notificationEmails.length) {
+      setTestResult("Add at least one notification email first.")
+      return
+    }
+    setTestingEmail(true)
+    setTestResult("")
+    try {
+      const res = await fetch("/api/notifications/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: notificationEmails }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTestResult(data.error || "Test email failed. Check SMTP settings in .env")
+        return
+      }
+      setTestResult(`Test sent to ${notificationEmails.join(", ")}. Check inbox and spam.`)
+    } catch {
+      setTestResult("Could not send test email.")
+    }
+    setTestingEmail(false)
+  }
+
+  const notifDirty =
+    JSON.stringify(notificationEmails) !== JSON.stringify(user.notificationEmails ?? []) ||
+    emailNotificationsEnabled !== (user.emailNotificationsEnabled !== false)
 
   return (
     <div className="max-w-lg space-y-6">
@@ -141,6 +220,86 @@ export function AccountSettings() {
               </span>
             )}
           </div>
+        </form>
+      </div>
+
+      {/* Notification emails */}
+      <div className="rounded-xl border bg-[hsl(var(--card))]">
+        <div className="flex items-center gap-3 px-5 py-4 border-b">
+          <div className="h-8 w-8 rounded-lg bg-[#1faca6]/10 flex items-center justify-center">
+            <Bell className="h-4 w-4 text-[#1faca6]" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Notification Emails</p>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              Add Gmail, Hostinger, or any email — alerts go to these addresses.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={handleSaveNotifications} className="p-5 space-y-4">
+          {smtpStatus && (
+            <div className={`rounded-lg border px-3 py-2 text-[11px] ${
+              smtpStatus.configured
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+                : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+            }`}>
+              {smtpStatus.configured ? (
+                <>
+                  SMTP ready ({smtpStatus.provider}) — sending from <strong>{smtpStatus.from}</strong>.
+                  Recipients can be Gmail, Hostinger, or any provider.
+                </>
+              ) : (
+                <>
+                  SMTP not configured yet. Add Hostinger or Gmail SMTP to <code className="text-[10px]">.env.local</code> (see <code className="text-[10px]">.env.smtp.example</code>).
+                </>
+              )}
+            </div>
+          )}
+
+          <NotificationEmailsEditor
+            emails={notificationEmails}
+            enabled={emailNotificationsEnabled}
+            onEmailsChange={setNotificationEmails}
+            onEnabledChange={setEmailNotificationsEnabled}
+          />
+
+          {notifError && (
+            <div className="flex items-center gap-2 text-xs text-red-600">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              {notifError}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="submit"
+              size="sm"
+              className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer"
+              disabled={savingNotif || !notifDirty}
+            >
+              {savingNotif ? "Saving..." : "Save Notification Emails"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs cursor-pointer"
+              disabled={testingEmail || !notificationEmails.length || !smtpStatus?.configured}
+              onClick={handleTestEmail}
+            >
+              {testingEmail ? "Sending..." : "Send test email"}
+            </Button>
+            {notifDone && (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+                <Check className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
+          </div>
+          {testResult && (
+            <p className={`text-[11px] ${testResult.includes("sent") ? "text-emerald-600" : "text-red-600"}`}>
+              {testResult}
+            </p>
+          )}
         </form>
       </div>
 

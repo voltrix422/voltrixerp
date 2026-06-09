@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { notifyOnClientPendingApproval } from "@/lib/notifications-server"
 
 export async function GET() {
   const clients = await prisma.erpClient.findMany({ orderBy: { createdAt: "desc" } })
@@ -8,6 +9,12 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const c = await req.json()
+  const existing = c.id
+    ? await prisma.erpClient.findUnique({
+        where: { id: c.id },
+        select: { status: true },
+      })
+    : null
   const record = await prisma.erpClient.upsert({
     where: { id: c.id ?? "__new__" },
     update: {
@@ -24,6 +31,16 @@ export async function POST(req: NextRequest) {
       createdAt: c.createdAt ? new Date(c.createdAt) : undefined,
     },
   })
+
+  const newStatus = c.status ?? "active"
+  if (
+    newStatus === "pending_approval" &&
+    existing?.status !== "pending_approval" &&
+    c.ownerUserId
+  ) {
+    void notifyOnClientPendingApproval(c.name, c.ownerUserId)
+  }
+
   return NextResponse.json(record)
 }
 

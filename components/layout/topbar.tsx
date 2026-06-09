@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { DBStatusIndicator } from "@/components/db-status-indicator"
 import { ActiveUsersCounter } from "@/components/ui/active-users-counter"
+import { NotificationBell } from "@/components/layout/notification-bell"
 import { useAuth } from "@/components/auth-provider"
 import { useState, useRef, useEffect } from "react"
 
@@ -49,8 +50,9 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
         <DBStatusIndicator />
         <ThemeToggle />
         <Separator orientation="vertical" className="h-5 mx-1" />
+        <NotificationBell />
 
-        {/* Notification bell — only shown when pendingCount is passed (dashboard) */}
+        {/* Dashboard quick-link for pending approvals */}
         {pendingCount !== undefined && pendingCount > 0 && (
           <button
             onClick={onPendingClick}

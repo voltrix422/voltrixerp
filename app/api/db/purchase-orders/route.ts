@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { notifyOnPoStatusChange } from "@/lib/notifications-server"
 
 export async function GET() {
   const pos = await prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } })
@@ -60,6 +61,17 @@ export async function POST(req: NextRequest) {
     }
     
     console.log('✅ PO saved, returned flowHistory length:', record.flowHistory ? (record.flowHistory as any).length : 0)
+
+    if (existing?.status !== record.status) {
+      void notifyOnPoStatusChange(
+        record.id,
+        record.poNumber,
+        existing?.status,
+        record.status,
+        record.createdBy,
+      )
+    }
+
     return NextResponse.json(record)
   } catch (error) {
     console.error('❌ Error saving PO:', error)

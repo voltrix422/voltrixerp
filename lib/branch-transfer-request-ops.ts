@@ -3,6 +3,10 @@ import {
   executeBatchBranchInventoryTransfer,
   type BatchTransferRequestBody,
 } from "@/lib/branch-inventory-batch-execute"
+import {
+  notifyOnBranchTransferRequest,
+  notifyOnBranchTransferReviewed,
+} from "@/lib/notifications-server"
 
 export type BranchTransferRequestRow = {
   id: string
@@ -110,6 +114,7 @@ export async function createPendingBranchTransferRequest(
     },
   })
 
+  void notifyOnBranchTransferRequest(row.id, buildSummary(body), requestedBy)
   return mapRow(row)
 }
 
@@ -157,6 +162,7 @@ export async function approveBranchTransferRequest(id: string, reviewedBy: strin
     },
   })
 
+  void notifyOnBranchTransferReviewed(request.summary, true, request.requestedBy)
   return { request: mapRow(updated), result }
 }
 
@@ -179,5 +185,6 @@ export async function rejectBranchTransferRequest(
     },
   })
 
+  void notifyOnBranchTransferReviewed(request.summary, false, request.requestedBy)
   return mapRow(updated)
 }

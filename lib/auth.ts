@@ -12,6 +12,8 @@ export interface User {
   jobTitle?: string
   baseSalary?: number
   commissionPercent?: number
+  notificationEmails?: string[]
+  emailNotificationsEnabled?: boolean
 }
 
 export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty", "pos"]
@@ -63,6 +65,17 @@ function mapRow(row: Record<string, unknown>): User {
     }
   }
 
+  let notificationEmails: string[] = []
+  if (row.notificationEmails) {
+    try {
+      notificationEmails = Array.isArray(row.notificationEmails)
+        ? (row.notificationEmails as string[])
+        : JSON.parse(row.notificationEmails as string)
+    } catch {
+      notificationEmails = []
+    }
+  }
+
   return {
     id: row.id as string,
     name: row.name as string,
@@ -75,6 +88,8 @@ function mapRow(row: Record<string, unknown>): User {
     jobTitle: (row.jobTitle as string) ?? undefined,
     baseSalary: (row.baseSalary as number) ?? undefined,
     commissionPercent: (row.commissionPercent as number) ?? undefined,
+    notificationEmails,
+    emailNotificationsEnabled: row.emailNotificationsEnabled !== false,
   }
 }
 

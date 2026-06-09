@@ -8,22 +8,39 @@ datasource db {
 }
 
 model ErpUser {
-  id                 String   @id @default(cuid())
-  name               String
-  email              String   @unique
-  password           String
-  role               String   @default("user")
-  modules            Json     @default("[]")
-  managerId          String?  @map("manager_id")
-  location           String   @default("")
-  jobTitle           String   @default("field_sales_officer") @map("job_title")
-  baseSalary         Float    @default(25000) @map("base_salary")
-  commissionPercent  Float    @default(0.5) @map("commission_percent")
-  createdAt          DateTime @default(now()) @map("created_at")
+  id                        String   @id @default(cuid())
+  name                      String
+  email                     String   @unique
+  password                  String
+  role                      String   @default("user")
+  modules                   Json     @default("[]")
+  managerId                 String?  @map("manager_id")
+  location                  String   @default("")
+  jobTitle                  String   @default("field_sales_officer") @map("job_title")
+  baseSalary                Float    @default(25000) @map("base_salary")
+  commissionPercent         Float    @default(0.5) @map("commission_percent")
+  notificationEmails        Json     @default("[]") @map("notification_emails")
+  emailNotificationsEnabled Boolean  @default(true) @map("email_notifications_enabled")
+  createdAt                 DateTime @default(now()) @map("created_at")
 
   @@index([role])
   @@index([managerId])
   @@map("erp_users")
+}
+
+model ErpNotification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String   @default("")
+  type      String   @default("info")
+  link      String   @default("")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("erp_notifications")
 }
 
 model ErpSalesAgentCompensationHistory {

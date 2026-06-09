@@ -4,6 +4,10 @@ import {
   PERSONAL_LEDGER_MARKER,
   PERSONAL_LEDGER_PURPOSE,
 } from '@/lib/petty-cash-personal'
+import {
+  notifyOnPettyCashPending,
+  notifyOnPettyCashReviewed,
+} from '@/lib/notifications-server'
 
 const prisma = new PrismaClient()
 
@@ -155,6 +159,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
+      if (receipt.status === 'pending') {
+        void notifyOnPettyCashPending(
+          employeeName,
+          parsedAmount,
+          description,
+          'receipt',
+        )
+      }
+
       return res.status(201).json(receipt)
     }
 
@@ -195,6 +208,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
+      const beforeReceipt = await prisma.erpPettyCashReceipt.findUnique({
+        where: { id },
+      })
+
       const receipt = await prisma.erpPettyCashReceipt.update({
         where: { id },
         data: {
@@ -204,6 +221,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           reviewNotes: reviewNotes || null
         }
       })
+
+      if (beforeReceipt?.status === 'pending' && (status === 'approved' || status === 'rejected')) {
+        const allocation = await prisma.erpPettyCashAllocation.findUnique({
+          where: { id: beforeReceipt.allocationId },
+          select: { employeeId: true },
+        })
+        if (allocation?.employeeId) {
+          void notifyOnPettyCashReviewed(allocation.employeeId, status === 'approved', 'receipt')
+        }
+      }
 
       return res.status(200).json(receipt)
     }

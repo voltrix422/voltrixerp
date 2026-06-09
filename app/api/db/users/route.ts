@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
       jobTitle: body.jobTitle ?? "field_sales_officer",
       baseSalary: body.baseSalary ?? 25000,
       commissionPercent: body.commissionPercent ?? 0.5,
+      notificationEmails: body.notificationEmails ?? [],
+      emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
     },
     create: {
       id: body.id,
@@ -34,6 +36,8 @@ export async function POST(req: NextRequest) {
       jobTitle: body.jobTitle ?? "field_sales_officer",
       baseSalary: body.baseSalary ?? 25000,
       commissionPercent: body.commissionPercent ?? 0.5,
+      notificationEmails: body.notificationEmails ?? [],
+      emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
     },
   })
   return NextResponse.json(user)

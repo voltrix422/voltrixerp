@@ -1,5 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { PrismaClient } from '@prisma/client'
+import {
+  notifyOnPettyCashPending,
+  notifyOnPettyCashReviewed,
+} from '@/lib/notifications-server'
 
 const prisma = new PrismaClient()
 
@@ -31,6 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Missing required fields' })
       }
 
+      const allocationStatus = status || 'active'
       const allocation = await prisma.erpPettyCashAllocation.create({
         data: {
           employeeId,
@@ -43,9 +48,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentProofName,
           notes: notes || '',
           allocatedBy,
-          status: status || 'active',
+          status: allocationStatus,
         }
       })
+
+      if (allocationStatus === 'pending') {
+        void notifyOnPettyCashPending(
+          employeeName,
+          parseFloat(amount),
+          purpose,
+          'allocation',
+        )
+      }
 
       return res.status(201).json(allocation)
     }
@@ -69,6 +83,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Missing allocation ID' })
       }
 
+      const before = await prisma.erpPettyCashAllocation.findUnique({ where: { id } })
+
       const allocation = await prisma.erpPettyCashAllocation.update({
         where: { id },
         data: {
@@ -84,6 +100,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           reviewNotes,
         }
       })
+
+      if (before && before.status === 'pending' && status === 'active') {
+        void notifyOnPettyCashReviewed(before.employeeId, true, 'allocation')
+      }
+      if (before && before.status === 'pending' && status === 'rejected') {
+        void notifyOnPettyCashReviewed(before.employeeId, false, 'allocation')
+      }
 
       return res.status(200).json(allocation)
     }

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import {
+  notifyOnTicketAssigned,
+  notifyOnTicketCreated,
+} from "@/lib/notifications-server"
 
 export async function GET() {
   const tickets = await prisma.erpTicket.findMany({ orderBy: { createdAt: "desc" } })
@@ -27,6 +31,11 @@ export async function POST(req: NextRequest) {
         createdBy: body.createdBy,
       },
     })
+    void notifyOnTicketCreated(
+      ticket.ticketNumber,
+      ticket.subject,
+      body.createdBy || "Unknown",
+    )
     return NextResponse.json(ticket)
   } catch (error) {
     console.error("Error creating ticket:", error)
@@ -36,6 +45,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   const body = await req.json()
+  const existing = await prisma.erpTicket.findUnique({ where: { id: body.id } })
   const updateData: any = {
     customerName: body.customerName,
     customerEmail: body.customerEmail,
@@ -57,6 +67,23 @@ export async function PUT(req: NextRequest) {
     where: { id: body.id },
     data: updateData,
   })
+
+  if (body.assignedTo && body.assignedTo !== existing?.assignedTo) {
+    const assignee = await prisma.erpUser.findFirst({
+      where: {
+        OR: [
+          { id: body.assignedTo },
+          { name: body.assignedTo },
+          { email: body.assignedTo },
+        ],
+      },
+      select: { id: true },
+    })
+    if (assignee) {
+      void notifyOnTicketAssigned(assignee.id, ticket.ticketNumber, ticket.subject)
+    }
+  }
+
   return NextResponse.json(ticket)
 }
 
