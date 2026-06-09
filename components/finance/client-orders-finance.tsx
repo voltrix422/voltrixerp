@@ -97,7 +97,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
   return (
     <div className="space-y-3">
       {(filteredOrders.length > 0 || orders.length > 0) && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 sm:flex sm:flex-wrap sm:items-center sm:gap-6 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 sm:flex sm:flex-wrap sm:items-center sm:gap-6 sm:p-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
               {hasFilters ? "Filtered" : ""} Orders
@@ -115,7 +115,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
               PKR {totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </p>
           </div>
-          <div className="col-span-2 sm:col-span-1 sm:border-l sm:pl-6 border-t sm:border-t-0 pt-2 sm:pt-0">
+          <div className="sm:border-l sm:pl-6 border-t sm:border-t-0 pt-2 sm:pt-0">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-300">
               Credit outstanding
             </p>

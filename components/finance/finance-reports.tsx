@@ -67,26 +67,26 @@ export function FinanceReports({ period }: { period: string }) {
   const maxTrend = Math.max(...data.monthlyTrend.map(m => Math.max(m.moneyIn, m.moneyOut)), 1)
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button size="sm" variant="outline" onClick={exportCsv}>
+    <div className="space-y-5 sm:space-y-6">
+      <div className="flex justify-stretch sm:justify-end">
+        <Button size="sm" variant="outline" className="w-full sm:w-auto h-9 sm:h-8" onClick={exportCsv}>
           <Download className="h-3.5 w-3.5 mr-1" />
           Export activity CSV
         </Button>
       </div>
 
-      <div className="grid sm:grid-cols-3 gap-3">
-        <div className="rounded-lg border p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-lg border p-3.5 sm:p-4">
           <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Money in ({data.periodLabel})</p>
-          <p className="text-lg font-bold text-green-700">{fmt(data.summary.moneyIn)}</p>
+          <p className="text-base sm:text-lg font-bold text-green-700 tabular-nums break-words mt-1">{fmt(data.summary.moneyIn)}</p>
         </div>
-        <div className="rounded-lg border p-4">
+        <div className="rounded-lg border p-3.5 sm:p-4">
           <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Money out ({data.periodLabel})</p>
-          <p className="text-lg font-bold text-red-700">{fmt(data.summary.moneyOut)}</p>
+          <p className="text-base sm:text-lg font-bold text-red-700 tabular-nums break-words mt-1">{fmt(data.summary.moneyOut)}</p>
         </div>
-        <div className="rounded-lg border p-4">
+        <div className="rounded-lg border p-3.5 sm:p-4">
           <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Net ({data.periodLabel})</p>
-          <p className={`text-lg font-bold ${data.summary.netCashFlow >= 0 ? "text-[#1faca6]" : "text-red-700"}`}>
+          <p className={`text-base sm:text-lg font-bold tabular-nums break-words mt-1 ${data.summary.netCashFlow >= 0 ? "text-[#1faca6]" : "text-red-700"}`}>
             {fmt(data.summary.netCashFlow)}
           </p>
         </div>
@@ -169,29 +169,42 @@ export function FinanceReports({ period }: { period: string }) {
         </div>
       </div>
 
-      <div className="rounded-lg border p-4">
+      <div className="rounded-lg border p-3.5 sm:p-4">
         <h3 className="text-sm font-semibold mb-3">Top outstanding client orders</h3>
         {data.topOutstandingClients.length === 0 ? (
           <p className="text-xs text-[hsl(var(--muted-foreground))]">No outstanding balances.</p>
         ) : (
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b text-[hsl(var(--muted-foreground))]">
-                <th className="text-left py-2">Client</th>
-                <th className="text-left py-2">Order</th>
-                <th className="text-right py-2">Due</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <div className="sm:hidden divide-y divide-[hsl(var(--border))]/60">
               {data.topOutstandingClients.map((r, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="py-2">{r.name}</td>
-                  <td className="py-2 text-[hsl(var(--muted-foreground))]">{r.orderNumber}</td>
-                  <td className="py-2 text-right font-semibold tabular-nums">{fmt(r.remaining)}</td>
-                </tr>
+                <div key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium break-words">{r.name}</p>
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">{r.orderNumber}</p>
+                  </div>
+                  <span className="text-xs font-semibold tabular-nums shrink-0">{fmt(r.remaining)}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+            <table className="hidden sm:table w-full text-xs">
+              <thead>
+                <tr className="border-b text-[hsl(var(--muted-foreground))]">
+                  <th className="text-left py-2">Client</th>
+                  <th className="text-left py-2">Order</th>
+                  <th className="text-right py-2">Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topOutstandingClients.map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-2">{r.name}</td>
+                    <td className="py-2 text-[hsl(var(--muted-foreground))]">{r.orderNumber}</td>
+                    <td className="py-2 text-right font-semibold tabular-nums">{fmt(r.remaining)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
     </div>

@@ -238,9 +238,9 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
     <div className="space-y-4">
 
       {/* Top row: stats + actions */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Stats — plain, no color */}
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
               {hasFilters ? "Filtered" : "Total"}
@@ -262,14 +262,14 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {hasFilters && (
             <button onClick={clearFilters}
-              className="h-8 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border rounded-md transition-colors cursor-pointer">
+              className="h-9 sm:h-8 flex-1 sm:flex-none px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border rounded-md transition-colors cursor-pointer">
               Clear Filters
             </button>
           )}
-          <Button size="sm" className="h-8 text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowForm(true)}>
+          <Button size="sm" className="h-9 sm:h-8 flex-1 sm:flex-none text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer justify-center" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5" /> Add Record
           </Button>
         </div>
@@ -312,8 +312,8 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
           No records match your filters.
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full">
+        <div className="rounded-xl border overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[40rem]">
             <thead>
               <tr className="border-b bg-[hsl(var(--muted))]/40">
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Title</th>

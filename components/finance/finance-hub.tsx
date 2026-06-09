@@ -155,15 +155,15 @@ export function FinanceHub({ embedded }: { embedded?: boolean }) {
   const maxCat = expensesByCategory[0]?.amount || 1
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex rounded-lg border p-0.5 bg-[hsl(var(--muted))]/20">
+    <div className="space-y-5 sm:space-y-6">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex w-full sm:w-auto rounded-lg border p-0.5 bg-[hsl(var(--muted))]/20">
           {PERIODS.map(p => (
             <button
               key={p.id}
               type="button"
               onClick={() => setPeriod(p.id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-2 sm:py-1.5 text-[11px] sm:text-xs font-medium rounded-md transition-colors cursor-pointer text-center ${
                 period === p.id ? "bg-[#1faca6] text-white" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
             >
@@ -171,51 +171,51 @@ export function FinanceHub({ embedded }: { embedded?: boolean }) {
             </button>
           ))}
         </div>
-        <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+        <Button size="sm" variant="outline" className="w-full sm:w-auto h-9 sm:h-8" onClick={load} disabled={loading}>
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Refresh"}
         </Button>
       </div>
 
       {/* Cash flow snapshot */}
-      <div className="rounded-xl border bg-gradient-to-br from-[#1faca6]/10 to-transparent p-4">
-        <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">{periodLabel} — cash snapshot</p>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] flex items-center gap-1"><TrendingUp className="h-3 w-3 text-green-600" /> Money in</p>
-            <p className="text-xl font-bold text-green-700 tabular-nums">{fmt(summary.moneyIn)}</p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Clients + POS + income records</p>
+      <div className="rounded-xl border bg-gradient-to-br from-[#1faca6]/10 to-transparent p-3.5 sm:p-4">
+        <p className="text-[11px] sm:text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-3">{periodLabel} — cash snapshot</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+          <div className="rounded-lg border border-green-200/50 bg-[hsl(var(--background))]/60 p-3 sm:border-0 sm:bg-transparent sm:p-0">
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] flex items-center gap-1"><TrendingUp className="h-3 w-3 text-green-600 shrink-0" /> Money in</p>
+            <p className="text-lg sm:text-xl font-bold text-green-700 tabular-nums break-words leading-snug mt-1">{fmt(summary.moneyIn)}</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">Clients + POS + income records</p>
           </div>
-          <div>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] flex items-center gap-1"><TrendingDown className="h-3 w-3 text-red-600" /> Money out</p>
-            <p className="text-xl font-bold text-red-700 tabular-nums">{fmt(summary.moneyOut)}</p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Expenses + PO + petty cash</p>
+          <div className="rounded-lg border border-red-200/50 bg-[hsl(var(--background))]/60 p-3 sm:border-0 sm:bg-transparent sm:p-0">
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] flex items-center gap-1"><TrendingDown className="h-3 w-3 text-red-600 shrink-0" /> Money out</p>
+            <p className="text-lg sm:text-xl font-bold text-red-700 tabular-nums break-words leading-snug mt-1">{fmt(summary.moneyOut)}</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">Expenses + PO + petty cash</p>
           </div>
-          <div>
+          <div className="rounded-lg border border-[#1faca6]/30 bg-[hsl(var(--background))]/60 p-3 sm:border-0 sm:bg-transparent sm:p-0">
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Net</p>
-            <p className={`text-xl font-bold tabular-nums ${summary.netCashFlow >= 0 ? "text-[#1faca6]" : "text-red-700"}`}>{fmt(summary.netCashFlow)}</p>
-            <Link href="/finance?tab=reports" className="text-[10px] text-[#1faca6] hover:underline mt-0.5 inline-block">View full reports →</Link>
+            <p className={`text-lg sm:text-xl font-bold tabular-nums break-words leading-snug mt-1 ${summary.netCashFlow >= 0 ? "text-[#1faca6]" : "text-red-700"}`}>{fmt(summary.netCashFlow)}</p>
+            <Link href="/finance?tab=reports" className="text-[10px] text-[#1faca6] hover:underline mt-1 inline-block">View full reports →</Link>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {cards.map(c => {
           const Icon = c.icon
           return (
             <Link
               key={c.label}
               href={c.href}
-              className={`rounded-lg border p-3 transition-colors hover:border-[#1faca6]/50 hover:bg-[hsl(var(--muted))]/20 ${
+              className={`rounded-lg border p-3.5 sm:p-3 transition-colors hover:border-[#1faca6]/50 hover:bg-[hsl(var(--muted))]/20 ${
                 c.alert ? "border-amber-300/60 bg-amber-500/5" : "bg-[hsl(var(--card))]"
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <Icon className="h-4 w-4 text-[#1faca6] shrink-0 mt-0.5" />
-                <ArrowRight className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+                <ArrowRight className="h-3 w-3 text-[hsl(var(--muted-foreground))] shrink-0" />
               </div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mt-2">{c.label}</p>
-              <p className="text-lg font-bold tabular-nums mt-0.5">{c.value}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{c.sub}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mt-2 leading-snug">{c.label}</p>
+              <p className="text-base sm:text-lg font-bold tabular-nums mt-1 break-words leading-snug">{c.value}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">{c.sub}</p>
             </Link>
           )
         })}
@@ -303,9 +303,27 @@ export function FinanceHub({ embedded }: { embedded?: boolean }) {
         </div>
       )}
 
-      <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+      <div className="rounded-lg border bg-[hsl(var(--card))] p-3.5 sm:p-4">
         <h3 className="text-sm font-semibold mb-3">Recent activity</h3>
-        <div className="overflow-x-auto max-h-80 overflow-y-auto">
+        <div className="sm:hidden divide-y divide-[hsl(var(--border))]/60 max-h-80 overflow-y-auto">
+          {activity.length === 0 ? (
+            <p className="text-xs text-[hsl(var(--muted-foreground))] py-4 text-center">No recent activity.</p>
+          ) : (
+            activity.map(row => (
+              <div key={row.id} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-medium leading-snug break-words flex-1 min-w-0">{row.label}</p>
+                  <p className="text-xs font-semibold tabular-nums shrink-0">{fmt(row.amount)}</p>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+                  <span>{fmtDate(row.date)}</span>
+                  <span className="uppercase">{SOURCE_LABELS[row.source] ?? row.source}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="hidden sm:block overflow-x-auto max-h-80 overflow-y-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-[hsl(var(--card))]">
               <tr className="border-b text-[hsl(var(--muted-foreground))]">
