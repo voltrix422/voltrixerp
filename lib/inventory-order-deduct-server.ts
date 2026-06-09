@@ -103,7 +103,6 @@ async function logHistory(
   unit: string,
   order: OrderDeductInput,
   notes: string,
-  stock?: { before: number; after: number },
 ) {
   try {
     await prisma.erpInventoryHistory.create({
@@ -116,9 +115,6 @@ async function logHistory(
         referenceId: order.id,
         referenceNumber: order.orderNumber,
         notes,
-        stockBefore: stock?.before ?? null,
-        stockAfter: stock?.after ?? null,
-        locationLabel: "Main Warehouse",
         createdBy: order.createdBy || "System",
       },
     })
@@ -573,7 +569,6 @@ async function deductStockForLine(
       item.unit || stock.unit || "pcs",
       order,
       `Delivered to ${order.clientName}`,
-      { before: currentQty, after: newQty },
     )
   }
 
@@ -655,7 +650,6 @@ async function deductManualQtyForLine(
     item.unit || manualItem.unit || "pcs",
     order,
     `Delivered to ${order.clientName}`,
-    { before: available, after: available - need },
   )
   return { ok: true }
 }

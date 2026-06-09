@@ -1,5 +1,23 @@
 import type { InventoryTransaction } from "@/lib/inventory-history"
-import { parseBranchTransferFromNote } from "@/lib/inventory-movement-stock"
+
+function parseBranchTransferFromNote(notes?: string | null): {
+  fromName: string
+  fromCode: string
+  toName: string
+  toCode: string
+} | null {
+  if (!notes) return null
+  const match = notes.match(
+    /from\s+(.+?)\s*\(([^)]+)\)\s+to\s+(.+?)\s*\(([^)]+)\)/i,
+  )
+  if (!match) return null
+  return {
+    fromName: match[1].trim(),
+    fromCode: match[2].trim(),
+    toName: match[3].trim(),
+    toCode: match[4].trim(),
+  }
+}
 
 export type InventoryReferenceType =
   | "po"
@@ -23,9 +41,6 @@ export type InventoryMovementRow = InventoryTransaction & {
   order_number: string
   is_inbound: boolean
   abs_quantity: number
-  stock_before: number | null
-  stock_after: number | null
-  location_label: string
 }
 
 const REFERENCE_LABELS: Record<string, string> = {
@@ -130,9 +145,6 @@ export function enrichMovement(
     order_number: tx.reference_type === "order" ? tx.reference_number : "",
     is_inbound: inbound,
     abs_quantity: Math.abs(tx.quantity),
-    stock_before: tx.stock_before ?? null,
-    stock_after: tx.stock_after ?? null,
-    location_label: tx.location_label || (tx.reference_type === "branch" ? source : "Main Warehouse"),
   }
 }
 

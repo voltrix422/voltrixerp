@@ -297,9 +297,8 @@ export async function PATCH(req: NextRequest) {
     const item = await prisma.erpManualInventoryItem.findUnique({ where: { id: manualId } })
     if (!item) return NextResponse.json({ error: "Manual item not found" }, { status: 404 })
 
-    const stockBefore = item.availableQty ?? 0
     const nextQty = (item.qty ?? 0) + qty
-    const nextAvailableQty = stockBefore + qty
+    const nextAvailableQty = (item.availableQty ?? 0) + qty
 
     const updated = await prisma.erpManualInventoryItem.update({
       where: { id: manualId },
@@ -329,9 +328,6 @@ export async function PATCH(req: NextRequest) {
         referenceId: item.id,
         referenceNumber: item.model,
         notes: notes || undefined,
-        stockBefore,
-        stockAfter: nextAvailableQty,
-        locationLabel: "Main Warehouse",
         createdBy: addedBy,
       },
     })
@@ -420,8 +416,7 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
-    const stockBefore = item.availableQty ?? 0
-    const nextAvailableQty = stockBefore + qty
+    const nextAvailableQty = (item.availableQty ?? 0) + qty
 
     const updated = await prisma.erpManualInventoryItem.update({
       where: { id: manualId },
@@ -445,9 +440,6 @@ export async function PATCH(req: NextRequest) {
         referenceId: item.id,
         referenceNumber: item.model,
         notes: notes || undefined,
-        stockBefore,
-        stockAfter: nextAvailableQty,
-        locationLabel: "Main Warehouse",
         createdBy: addedBy,
       },
     })
@@ -477,8 +469,7 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
-    const stockBefore = item.availableQty ?? 0
-    const nextAvailableQty = stockBefore - qty
+    const nextAvailableQty = (item.availableQty ?? 0) - qty
     const updated = await prisma.erpManualInventoryItem.update({
       where: { id: manualId },
       data: { availableQty: nextAvailableQty },
@@ -501,9 +492,6 @@ export async function PATCH(req: NextRequest) {
         referenceId: item.id,
         referenceNumber: item.model,
         notes: notes || undefined,
-        stockBefore,
-        stockAfter: nextAvailableQty,
-        locationLabel: "Main Warehouse",
         createdBy: subtractedBy,
       },
     })

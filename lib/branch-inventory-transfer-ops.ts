@@ -297,9 +297,6 @@ export async function executeDispatchLine(params: {
       referenceId: destinationBranchId,
       referenceNumber: destinationBranchCode || destinationBranch.code,
       notes: transferNote,
-      stockBefore: effectiveAvailable,
-      stockAfter: effectiveAvailable - quantity,
-      locationLabel: "Main Warehouse",
       createdBy: assignedBy,
     },
   })
@@ -390,10 +387,6 @@ export async function executeTransferLine(params: {
     },
   })
 
-  const stockBefore = source.quantity
-  const stockAfter = source.quantity - quantity
-  const locationLabel = `${sourceBranch?.name || "Branch warehouse"} (${sourceBranch?.code || "N/A"})`
-
   await prisma.$transaction(async (tx) => {
     await tx.erpBranchInventory.update({
       where: { id: line.fromBranchInventoryId },
@@ -437,9 +430,6 @@ export async function executeTransferLine(params: {
         referenceId: source.branchId,
         referenceNumber: destinationBranch.code,
         notes: transferNote,
-        stockBefore,
-        stockAfter,
-        locationLabel,
         createdBy: transferredBy,
       },
     })

@@ -1,6 +1,5 @@
 import type { InventoryMovementRow } from "@/lib/inventory-movement-display"
 import { formatMovementDate, getReferenceTypeLabel } from "@/lib/inventory-movement-display"
-import { formatStockRange } from "@/lib/inventory-movement-stock"
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
 import type { Order } from "@/lib/orders"
 import { STATUS_LABELS as ORDER_STATUS_LABELS } from "@/lib/orders"
@@ -163,8 +162,6 @@ export function downloadInventoryMovementsExcel(
     "Item",
     "Quantity",
     "Unit",
-    "Stock Before → After",
-    "Location",
     "Source (From)",
     "Destination (To)",
     "Order #",
@@ -180,8 +177,6 @@ export function downloadInventoryMovementsExcel(
     m.item_description,
     m.abs_quantity,
     m.unit,
-    formatStockRange(m.stock_before, m.stock_after, m.unit),
-    m.location_label,
     m.source,
     m.destination,
     m.order_number || "",
