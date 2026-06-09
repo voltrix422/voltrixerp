@@ -11,6 +11,7 @@ import {
   type DateRangePreset,
   type InventoryMovementRow,
 } from "@/lib/inventory-movement-display"
+import { formatStockRange } from "@/lib/inventory-movement-stock"
 import { downloadInventoryMovementsExcel } from "@/lib/inventory-excel-export"
 import { downloadInventoryMovementsPDF } from "@/lib/generate-inventory-movements-pdf"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
@@ -104,6 +105,7 @@ export function InventoryMovementOverview() {
         m.client_name.toLowerCase().includes(q) ||
         m.order_number.toLowerCase().includes(q) ||
         m.created_by.toLowerCase().includes(q) ||
+        m.location_label.toLowerCase().includes(q) ||
         getReferenceTypeLabel(m.reference_type).toLowerCase().includes(q) ||
         (m.notes || "").toLowerCase().includes(q)
       )
@@ -319,13 +321,14 @@ export function InventoryMovementOverview() {
         </div>
       ) : (
         <div className="rounded-lg border overflow-x-auto">
-          <table className="w-full min-w-[1100px]">
+          <table className="w-full min-w-[1280px]">
             <thead>
               <tr className="border-b bg-[hsl(var(--muted))]/40">
                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Type</th>
                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Item</th>
                 <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Qty</th>
+                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Stock (before → after)</th>
                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">From</th>
                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">To</th>
                 <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order</th>
@@ -364,6 +367,14 @@ export function InventoryMovementOverview() {
                     >
                       {m.is_inbound ? "+" : "-"}{m.abs_quantity} {m.unit}
                     </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">
+                    <div className="font-medium">
+                      {formatStockRange(m.stock_before, m.stock_after, m.unit)}
+                    </div>
+                    <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                      {m.location_label}
+                    </div>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[140px]">
                     <span className="line-clamp-2">{m.source}</span>

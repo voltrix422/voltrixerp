@@ -1,4 +1,5 @@
 import type { InventoryTransaction } from "@/lib/inventory-history"
+import { parseBranchTransferFromNote } from "@/lib/inventory-movement-stock"
 
 export type InventoryReferenceType =
   | "po"
@@ -22,6 +23,9 @@ export type InventoryMovementRow = InventoryTransaction & {
   order_number: string
   is_inbound: boolean
   abs_quantity: number
+  stock_before: number | null
+  stock_after: number | null
+  location_label: string
 }
 
 const REFERENCE_LABELS: Record<string, string> = {
@@ -86,11 +90,18 @@ function resolveSourceDestination(
     return { source: "Main Warehouse", destination: "POS Removed" }
   }
   if (ref === "branch") {
-    if (tx.transaction_type === "assigned_to_branch" || tx.transaction_type === "branch_transfer") {
+    const parsed = parseBranchTransferFromNote(tx.notes)
+    if (parsed) {
       return {
-        source: tx.transaction_type === "branch_transfer" ? `Branch ${refNum}` : "Main Warehouse",
-        destination: `Branch ${refNum}`,
+        source: `${parsed.fromName} (${parsed.fromCode})`,
+        destination: `${parsed.toName} (${parsed.toCode})`,
       }
+    }
+    if (tx.transaction_type === "assigned_to_branch") {
+      return { source: "Main Warehouse", destination: `Branch ${refNum}` }
+    }
+    if (tx.transaction_type === "branch_transfer") {
+      return { source: `Branch ${refNum}`, destination: `Branch ${refNum}` }
     }
     return { source: "Main Warehouse", destination: `Branch ${refNum}` }
   }
@@ -119,6 +130,9 @@ export function enrichMovement(
     order_number: tx.reference_type === "order" ? tx.reference_number : "",
     is_inbound: inbound,
     abs_quantity: Math.abs(tx.quantity),
+    stock_before: tx.stock_before ?? null,
+    stock_after: tx.stock_after ?? null,
+    location_label: tx.location_label || (tx.reference_type === "branch" ? source : "Main Warehouse"),
   }
 }
 

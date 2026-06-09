@@ -2,6 +2,7 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { InventoryMovementRow } from "@/lib/inventory-movement-display"
 import { formatMovementDate, getReferenceTypeLabel } from "@/lib/inventory-movement-display"
+import { formatStockRange } from "@/lib/inventory-movement-stock"
 
 const BRAND: [number, number, number] = [31, 172, 166]
 const INBOUND: [number, number, number] = [22, 101, 52]
@@ -82,6 +83,8 @@ export function downloadInventoryMovementsPDF(opts: InventoryMovementsPdfOptions
           m.movement_label,
           m.item_description,
           `${m.abs_quantity} ${m.unit}`,
+          formatStockRange(m.stock_before, m.stock_after, m.unit),
+          m.location_label,
           m.source,
           m.destination,
           m.order_number || "—",
@@ -90,27 +93,29 @@ export function downloadInventoryMovementsPDF(opts: InventoryMovementsPdfOptions
           m.reference_number,
           m.created_by,
         ])
-      : [["—", "No movements in this period", "", "", "", "", "", "", "", "", ""]]
+      : [["—", "No movements in this period", "", "", "", "", "", "", "", "", "", "", ""]]
 
   autoTable(doc, {
     startY: y,
-    head: [["Date", "Type", "Item", "Qty", "From", "To", "Order", "Client", "Ref Type", "Ref #", "By"]],
+    head: [["Date", "Type", "Item", "Qty", "Stock", "Location", "From", "To", "Order", "Client", "Ref Type", "Ref #", "By"]],
     body,
     theme: "striped",
     styles: { fontSize: 6.5, cellPadding: 1.5, overflow: "linebreak" },
     headStyles: { fillColor: BRAND, textColor: 255, fontSize: 6.5 },
     columnStyles: {
-      0: { cellWidth: 28 },
-      1: { cellWidth: 10 },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 14 },
-      4: { cellWidth: 28 },
-      5: { cellWidth: 28 },
-      6: { cellWidth: 18 },
-      7: { cellWidth: 22 },
-      8: { cellWidth: 20 },
+      0: { cellWidth: 24 },
+      1: { cellWidth: 9 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 12 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 18 },
+      6: { cellWidth: 24 },
+      7: { cellWidth: 24 },
+      8: { cellWidth: 16 },
       9: { cellWidth: 18 },
       10: { cellWidth: 18 },
+      11: { cellWidth: 16 },
+      12: { cellWidth: 16 },
     },
     margin: { left: mL, right: mL },
     didParseCell(data) {

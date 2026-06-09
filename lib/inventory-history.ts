@@ -16,6 +16,9 @@ export interface InventoryTransaction {
   reference_id: string
   reference_number: string
   notes?: string
+  stock_before?: number | null
+  stock_after?: number | null
+  location_label?: string | null
   created_at: string
   created_by: string
 }
@@ -42,6 +45,24 @@ function normalizeTransaction(row: RawInventoryTransaction): InventoryTransactio
     reference_id: String(row.reference_id ?? row.referenceId ?? ""),
     reference_number: String(row.reference_number ?? row.referenceNumber ?? ""),
     notes: row.notes ? String(row.notes) : undefined,
+    stock_before:
+      row.stock_before != null
+        ? Number(row.stock_before)
+        : row.stockBefore != null
+          ? Number(row.stockBefore)
+          : null,
+    stock_after:
+      row.stock_after != null
+        ? Number(row.stock_after)
+        : row.stockAfter != null
+          ? Number(row.stockAfter)
+          : null,
+    location_label:
+      row.location_label != null
+        ? String(row.location_label)
+        : row.locationLabel != null
+          ? String(row.locationLabel)
+          : null,
     created_at: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
     created_by: String(row.created_by ?? row.createdBy ?? "System"),
   }
