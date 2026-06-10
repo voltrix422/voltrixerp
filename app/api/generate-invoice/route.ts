@@ -3,9 +3,21 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import fs from 'fs'
 import path from 'path'
+import { prisma } from '@/lib/db'
 import { formatSerialListForLine, orderHasSerialAllocations } from '@/lib/order-fulfillment-serials'
 import { getOrderSourcePdfLabel, resolveOrderItemModel } from '@/lib/orders'
 import { formatInvoiceMoney, getInvoicePaymentSummary } from '@/lib/invoice-payment-summary'
+
+async function resolveClientNtn(order: { clientId?: string; clientNtn?: string }): Promise<string> {
+  const fromPayload = String(order.clientNtn ?? '').trim()
+  if (fromPayload) return fromPayload
+  if (!order.clientId) return ''
+  const client = await prisma.erpClient.findUnique({
+    where: { id: order.clientId },
+    select: { ntn: true },
+  })
+  return client?.ntn?.trim() || ''
+}
 
 function loadFont(filename: string): string {
   try {
@@ -28,6 +40,7 @@ const FONT = geistRegularB64 ? 'Geist' : 'helvetica'
 export async function POST(request: NextRequest) {
   try {
     const order = await request.json()
+    const clientNtn = await resolveClientNtn(order)
     const taxAmount = Number(order.tax || 0)
     const hasTax = Math.abs(taxAmount) > 0.004
 
@@ -111,11 +124,20 @@ export async function POST(request: NextRequest) {
     const infoW  = pageW - mL - mR - billW - 8
     const infoX  = mL + billW + 8
 
+    const billLines: string[] = []
+    if (order.deliveryAddress) {
+      billLines.push(...doc.splitTextToSize(order.deliveryAddress, billW - 8).slice(0, 2))
+    }
+    if (clientNtn) {
+      billLines.push(`NTN: ${clientNtn}`)
+    }
+    const billBoxH = Math.max(28, 18 + billLines.length * 5)
+
     // Bill To box
     doc.setFillColor(...lightBg)
     doc.setDrawColor(...lightGray)
     doc.setLineWidth(0.3)
-    doc.roundedRect(mL, y, billW, 28, 2, 2, 'FD')
+    doc.roundedRect(mL, y, billW, billBoxH, 2, 2, 'FD')
 
     // Bill To header strip
     doc.setFillColor(...teal)
@@ -131,18 +153,17 @@ export async function POST(request: NextRequest) {
     doc.setTextColor(...black)
     doc.text(order.clientName || '—', mL + 4, y + 14)
 
-    if (order.deliveryAddress) {
+    if (billLines.length > 0) {
       doc.setFont(FONT, 'normal')
       doc.setFontSize(8)
       doc.setTextColor(...gray)
-      const addrLines = doc.splitTextToSize(order.deliveryAddress, billW - 8)
-      doc.text(addrLines.slice(0, 2), mL + 4, y + 20)
+      doc.text(billLines, mL + 4, y + 20)
     }
 
     // Invoice Info box (right side)
     doc.setFillColor(...lightBg)
     doc.setDrawColor(...lightGray)
-    doc.roundedRect(infoX, y, infoW, 28, 2, 2, 'FD')
+    doc.roundedRect(infoX, y, infoW, billBoxH, 2, 2, 'FD')
 
     doc.setFillColor(...teal)
     doc.roundedRect(infoX, y, infoW, 7, 2, 2, 'F')
@@ -170,7 +191,7 @@ export async function POST(request: NextRequest) {
     })
 
     // ── Items table ───────────────────────────────────────────────────────────
-    y += 34
+    y += billBoxH + 6
 
     const itemsWithModel = order.items.map((item: any) => ({
       item,

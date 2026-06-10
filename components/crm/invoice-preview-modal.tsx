@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { X, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
@@ -15,6 +15,28 @@ interface InvoicePreviewModalProps {
 
 export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps) {
   const [downloading, setDownloading] = useState(false)
+  const [clientNtn, setClientNtn] = useState("")
+
+  useEffect(() => {
+    if (!order.clientId) {
+      setClientNtn("")
+      return
+    }
+    let cancelled = false
+    fetch("/api/db/clients")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((clients: { id: string; ntn?: string }[]) => {
+        if (cancelled) return
+        const client = clients.find((c) => c.id === order.clientId)
+        setClientNtn(client?.ntn?.trim() || "")
+      })
+      .catch(() => {
+        if (!cancelled) setClientNtn("")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [order.clientId])
   const subtotal = order.subtotal ?? 0
   const tax = order.tax ?? (subtotal * (order.taxPercent || 0)) / 100
   const transport = order.transportCostValue ?? order.transportCost ?? 0
@@ -153,6 +175,9 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                 <p className="text-sm font-bold text-gray-800">{order.clientName}</p>
                 {order.deliveryAddress && (
                   <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{order.deliveryAddress}</p>
+                )}
+                {clientNtn && (
+                  <p className="text-xs text-gray-500 mt-0.5">NTN: {clientNtn}</p>
                 )}
               </div>
 
