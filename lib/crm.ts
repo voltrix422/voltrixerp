@@ -11,6 +11,7 @@ export interface Client {
   country: string
   website: string
   taxId: string
+  ntn: string
   industry: string
   contactPerson: string
   imageUrl?: string
@@ -45,6 +46,7 @@ function mapRow(r: Record<string, unknown>): Client {
     country: (r.country as string) ?? "",
     website: (r.website as string) ?? "",
     taxId: (r.taxId as string) ?? "",
+    ntn: (r.ntn as string) ?? "",
     industry: (r.industry as string) ?? "",
     contactPerson: (r.contactPerson as string) ?? "",
     imageUrl: (r.imageUrl as string) ?? undefined,

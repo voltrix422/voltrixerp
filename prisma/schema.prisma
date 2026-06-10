@@ -166,6 +166,7 @@ model ErpClient {
   country       String   @default("")
   website       String   @default("")
   taxId         String   @default("") @map("tax_id")
+  ntn           String   @default("")
   industry      String   @default("")
   contactPerson String   @default("") @map("contact_person")
   imageUrl      String?  @map("image_url")

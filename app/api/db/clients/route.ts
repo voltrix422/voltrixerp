@@ -20,13 +20,13 @@ export async function POST(req: NextRequest) {
     update: {
       name: c.name, company: c.company, email: c.email, phone: c.phone,
       address: c.address, city: c.city, country: c.country, website: c.website,
-      taxId: c.taxId, industry: c.industry, contactPerson: c.contactPerson,
+      taxId: c.taxId, ntn: c.ntn ?? "", industry: c.industry, contactPerson: c.contactPerson,
       imageUrl: c.imageUrl, notes: c.notes, createdBy: c.createdBy, ownerUserId: c.ownerUserId, status: c.status ?? "active",
     },
     create: {
       id: c.id, name: c.name, company: c.company, email: c.email, phone: c.phone,
       address: c.address, city: c.city, country: c.country, website: c.website,
-      taxId: c.taxId, industry: c.industry, contactPerson: c.contactPerson,
+      taxId: c.taxId, ntn: c.ntn ?? "", industry: c.industry, contactPerson: c.contactPerson,
       imageUrl: c.imageUrl, notes: c.notes, createdBy: c.createdBy, ownerUserId: c.ownerUserId, status: c.status ?? "active",
       createdAt: c.createdAt ? new Date(c.createdAt) : undefined,
     },

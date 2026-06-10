@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Plus, Search, X, Upload, Trash2, User, Mail, Phone, Globe, MapPin, Building2, Calendar, Truck, Loader2, Package, Crown, Download } from "lucide-react"
+import { Plus, Search, X, Upload, Trash2, User, Mail, Phone, Globe, MapPin, Building2, Calendar, Truck, Loader2, Package, Crown, Download, Hash } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import {
   downloadAllClientsDetailExcel,
@@ -72,7 +72,8 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
     const matched = clients.filter(c =>
       c.name.toLowerCase().includes(q) ||
       c.company.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q)
+      c.email.toLowerCase().includes(q) ||
+      c.ntn.toLowerCase().includes(q)
     )
     return sortClientsBySales(matched, salesMap)
   }, [clients, search, salesMap])
@@ -235,6 +236,14 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
                 </p>
               )}
 
+              <ClientNtnInput
+                client={client}
+                readOnly={!!workspace?.readOnly}
+                onSaved={(updated) => {
+                  setClients(prev => prev.map(x => x.id === updated.id ? updated : x))
+                }}
+              />
+
               <div className="flex flex-col items-center gap-1 w-full px-1">
                 {client.ownerUserId && (
                   <SalesAgentSourceBadge agentName={client.createdBy} kind="client" className="max-w-full" />
@@ -323,6 +332,7 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
   const [country, setCountry] = useState(existing?.country || "")
   const [website, setWebsite] = useState(existing?.website || "")
   const [taxId, setTaxId] = useState(existing?.taxId || "")
+  const [ntn, setNtn] = useState(existing?.ntn || "")
   const [industry, setIndustry] = useState(existing?.industry || "")
   const [contactPerson, setContactPerson] = useState(existing?.contactPerson || "")
   const [notes, setNotes] = useState(existing?.notes || "")
@@ -359,6 +369,7 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
       country: country.trim(),
       website: website.trim(),
       taxId: taxId.trim(),
+      ntn: ntn.trim(),
       industry: industry.trim(),
       contactPerson: contactPerson.trim(),
       imageUrl,
@@ -491,6 +502,11 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
                 <input value={taxId} onChange={e => setTaxId(e.target.value)}
                   className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
               </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium">NTN Number</label>
+                <input value={ntn} onChange={e => setNtn(e.target.value)} placeholder="e.g. 1234567-8"
+                  className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
+              </div>
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-medium">Notes</label>
@@ -508,6 +524,61 @@ function ClientForm({ currentUser, currentUserId, workspace, existing, onClose, 
         </div>
       </div>
     </div>
+  )
+}
+
+function ClientNtnInput({
+  client,
+  readOnly,
+  onSaved,
+}: {
+  client: Client
+  readOnly: boolean
+  onSaved: (client: Client) => void
+}) {
+  const [value, setValue] = useState(client.ntn || "")
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setValue(client.ntn || "")
+  }, [client.id, client.ntn])
+
+  async function commit() {
+    const trimmed = value.trim()
+    if (trimmed === (client.ntn || "").trim()) return
+    setSaving(true)
+    const updated = { ...client, ntn: trimmed }
+    await saveClient(updated)
+    onSaved(updated)
+    setSaving(false)
+  }
+
+  if (readOnly) {
+    if (!client.ntn?.trim()) return null
+    return (
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums truncate w-full px-1">
+        NTN: {client.ntn}
+      </p>
+    )
+  }
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => void commit()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+      }}
+      placeholder="NTN number"
+      disabled={saving}
+      className="w-full max-w-[120px] h-6 px-2 rounded border bg-[hsl(var(--background))] text-[10px] text-center focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40 disabled:opacity-60"
+    />
   )
 }
 
@@ -648,6 +719,7 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
     { icon: MapPin, label: "City", value: client.city },
     { icon: Globe, label: "Website", value: client.website, link: client.website },
     { icon: Building2, label: "Tax ID", value: client.taxId },
+    { icon: Hash, label: "NTN", value: client.ntn },
   ]
 
   return (
