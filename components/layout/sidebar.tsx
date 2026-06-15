@@ -53,15 +53,19 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const showCrmMain = canAccessCrmMain(user)
   const showSalesAgents = canAccessSalesAgentsArea(user)
 
+  function hasModule(module: Module): boolean {
+    return isSuperadmin || (user?.modules.includes(module) ?? false)
+  }
+
   function canShowNavItem(item: (typeof NAV_ORDER)[number]): boolean {
     if (item.kind === "crm") {
-      return (isSuperadmin || user?.modules.includes("crm")) && (showCrmMain || showSalesAgents)
+      return hasModule("crm") && (showCrmMain || showSalesAgents)
     }
     if (item.kind === "finance") {
-      return isSuperadmin || user?.modules.includes("finance")
+      return hasModule("finance")
     }
     if (!item.module) return true
-    return isSuperadmin || user?.modules.includes(item.module)
+    return hasModule(item.module)
   }
 
   const visibleAdminNav = isSuperadmin ? ADMIN_ONLY_NAV : []
