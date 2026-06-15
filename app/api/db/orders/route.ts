@@ -11,16 +11,10 @@ import {
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 import { generateNextOrderNumber } from "@/lib/order-number-server"
 import { notifyOnOrderStatusChange } from "@/lib/notifications-server"
-
-const APPROVED_ORDER_STATUSES = [
-  "approved",
-  "finalized",
-  "payment_added",
-  "confirmed",
-  "processing",
-  "shipped",
-  "delivered",
-] as const
+import {
+  APPROVED_ORDER_STATUSES,
+  PENDING_APPROVAL_STATUS,
+} from "@/lib/order-approval-statuses"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -31,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (status) {
     where = { status }
   } else if (statusGroup === "pending") {
-    where = { status: "pending_approval" }
+    where = { status: PENDING_APPROVAL_STATUS }
   } else if (statusGroup === "approved") {
     where = { status: { in: [...APPROVED_ORDER_STATUSES] } }
   }
@@ -39,7 +33,7 @@ export async function GET(req: NextRequest) {
   const orders = await prisma.erpOrder.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    take: statusGroup === "approved" ? 100 : undefined,
+    take: statusGroup === "approved" ? 150 : undefined,
   })
   return NextResponse.json(orders)
 }

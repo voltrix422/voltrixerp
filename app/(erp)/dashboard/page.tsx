@@ -36,12 +36,12 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
   useEffect(() => {
     let mounted = true
     async function load() {
-      const [pending, supplierList] = await Promise.all([
-        getPOs({ status: "sent_to_admin" }),
+      const [allPos, supplierList] = await Promise.all([
+        getPOs(),
         getSuppliers(),
       ])
       if (!mounted) return
-      setPOs(pending)
+      setPOs(allPos)
       setSuppliers(supplierList)
     }
     load()
@@ -51,17 +51,6 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
       clearInterval(interval)
     }
   }, [])
-
-  useEffect(() => {
-    if (subTab === "pending") return
-    let mounted = true
-    getPOs().then((all) => {
-      if (mounted) setPOs(all)
-    })
-    return () => {
-      mounted = false
-    }
-  }, [subTab])
 
   useEffect(() => {
     if (notified) return
@@ -316,12 +305,18 @@ export default function DashboardPage() {
             />
 
             <div className="min-h-[280px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-              {approvalTab === "orders" && <ClientOrdersApproval />}
-              {approvalTab === "po" && (
+              <div className={approvalTab === "orders" ? "" : "hidden"}>
+                <ClientOrdersApproval />
+              </div>
+              <div className={approvalTab === "po" ? "" : "hidden"}>
                 <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
-              )}
-              {approvalTab === "transfers" && <DashboardBranchTransferApprovals />}
-              {approvalTab === "petty" && <DashboardPettyCashApprovals />}
+              </div>
+              <div className={approvalTab === "transfers" ? "" : "hidden"}>
+                <DashboardBranchTransferApprovals />
+              </div>
+              <div className={approvalTab === "petty" ? "" : "hidden"}>
+                <DashboardPettyCashApprovals />
+              </div>
             </div>
           </section>
         )}

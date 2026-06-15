@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, canShowOrderInvoiceActions, type Order } from "@/lib/orders"
+import { getCrmApprovalOrders, saveOrder, canShowOrderInvoiceActions, type Order } from "@/lib/orders"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
@@ -18,7 +18,9 @@ import { X, CheckCircle2, XCircle, Edit, Eye, Download, Loader2 } from "lucide-r
 
 export function ClientOrdersApproval() {
   const { user } = useAuth()
-  const [orders, setOrders] = useState<Order[]>([])
+  const [pendingOrders, setPendingOrders] = useState<Order[]>([])
+  const [approvedOrders, setApprovedOrders] = useState<Order[]>([])
+  const [approvedTotal, setApprovedTotal] = useState(0)
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Order | null>(null)
@@ -33,31 +35,38 @@ export function ClientOrdersApproval() {
 
   useEffect(() => {
     let mounted = true
+
     async function load() {
       setLoading(true)
       try {
-        const [o, c] = await Promise.all([
-          getOrders({ statusGroup: tab }),
+        const [approvalData, clientList] = await Promise.all([
+          getCrmApprovalOrders(),
           getClients(),
         ])
         if (!mounted) return
-        setOrders(o)
-        setClients(c)
+        setPendingOrders(approvalData.pending)
+        setApprovedOrders(approvalData.approved)
+        setApprovedTotal(approvalData.counts.approved)
+        setClients(clientList)
       } finally {
         if (mounted) setLoading(false)
       }
     }
+
     load()
-    const interval = setInterval(() => {
-      getOrders({ statusGroup: tab }).then((o) => {
-        if (mounted) setOrders(o)
-      })
+    const interval = setInterval(async () => {
+      const approvalData = await getCrmApprovalOrders()
+      if (!mounted) return
+      setPendingOrders(approvalData.pending)
+      setApprovedOrders(approvalData.approved)
+      setApprovedTotal(approvalData.counts.approved)
     }, 60_000)
+
     return () => {
       mounted = false
       clearInterval(interval)
     }
-  }, [tab])
+  }, [])
 
   useEffect(() => {
     setDetailOrder(selected)
@@ -65,18 +74,9 @@ export function ClientOrdersApproval() {
     setShowInvoicePreview(false)
   }, [selected])
 
-  const pendingOrders = orders.filter(o => o.status === "pending_approval")
-  const approvedOrders = orders.filter(o =>
-    o.status === "approved" ||
-    o.status === "finalized" ||
-    o.status === "payment_added" ||
-    o.status === "confirmed" ||
-    o.status === "processing" ||
-    o.status === "shipped" ||
-    o.status === "delivered"
-  )
-
   const displayOrders = tab === "pending" ? pendingOrders : approvedOrders
+  const pendingCount = pendingOrders.length
+  const approvedCount = approvedTotal
   const canEditOrder = detailOrder?.status === "pending_approval"
   const showInvoiceActions = detailOrder ? canShowOrderInvoiceActions(detailOrder) : false
   const currentUserName = user?.name || user?.email || "Admin"
@@ -104,7 +104,9 @@ export function ClientOrdersApproval() {
     setProcessing(true)
     const updated = { ...detailOrder, status: "approved" as const }
     await saveOrder(updated)
-    setOrders(prev => prev.map(o => o.id === updated.id ? updated : o))
+    setPendingOrders((prev) => prev.filter((o) => o.id !== updated.id))
+    setApprovedOrders((prev) => [updated, ...prev])
+    setApprovedTotal((prev) => prev + 1)
     setSelected(null)
     setProcessing(false)
   }
@@ -118,11 +120,21 @@ export function ClientOrdersApproval() {
       notes: detailOrder.notes + (rejectionReason ? `\n\nRejection reason: ${rejectionReason}` : ""),
     }
     await saveOrder(updated)
-    setOrders(prev => prev.map(o => o.id === updated.id ? updated : o))
+    setPendingOrders((prev) => prev.filter((o) => o.id !== updated.id))
     setSelected(null)
     setShowRejectDialog(false)
     setRejectionReason("")
     setProcessing(false)
+  }
+
+  function updateOrderInLists(order: Order) {
+    if (order.status === "pending_approval") {
+      setPendingOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)))
+    } else {
+      setApprovedOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)))
+    }
+    setDetailOrder(order)
+    setSelected(order)
   }
 
   return (
@@ -140,7 +152,7 @@ export function ClientOrdersApproval() {
                   : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
             >
-              {t === "pending" ? `Pending (${pendingOrders.length})` : `Approved (${approvedOrders.length})`}
+              {t === "pending" ? `Pending (${pendingCount})` : `Approved (${approvedCount})`}
               {tab === t && <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#1faca6] rounded-full" />}
             </button>
           ))}
@@ -213,9 +225,7 @@ export function ClientOrdersApproval() {
           currentUserId={user?.id}
           onClose={() => setShowEdit(false)}
           onSave={(o) => {
-            setOrders(prev => prev.map(x => x.id === o.id ? o : x))
-            setDetailOrder(o)
-            setSelected(o)
+            updateOrderInLists(o)
             setShowEdit(false)
           }}
         />
@@ -414,24 +424,4 @@ export function ClientOrdersApproval() {
       )}
     </>
   )
-}
-
-export function useCrmOrdersPendingCount() {
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const orders = await getOrders()
-        setCount(orders.filter((o) => o.status === "pending_approval").length)
-      } catch {
-        setCount(0)
-      }
-    }
-    load()
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  return count
 }

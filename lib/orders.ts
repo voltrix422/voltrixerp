@@ -294,6 +294,32 @@ export async function getOrders(options?: { statusGroup?: "pending" | "approved"
   } catch { return [] }
 }
 
+export type CrmApprovalOrdersPayload = {
+  pending: Order[]
+  approved: Order[]
+  counts: { pending: number; approved: number }
+}
+
+export async function getCrmApprovalOrders(): Promise<CrmApprovalOrdersPayload> {
+  try {
+    const res = await fetch("/api/dashboard/crm-approvals")
+    if (!res.ok) {
+      return { pending: [], approved: [], counts: { pending: 0, approved: 0 } }
+    }
+    const data = await res.json()
+    return {
+      pending: (data.pending ?? []).map(rowToOrder),
+      approved: (data.approved ?? []).map(rowToOrder),
+      counts: {
+        pending: Number(data.counts?.pending) || 0,
+        approved: Number(data.counts?.approved) || 0,
+      },
+    }
+  } catch {
+    return { pending: [], approved: [], counts: { pending: 0, approved: 0 } }
+  }
+}
+
 export async function saveOrder(order: Order): Promise<Order> {
   const payload = normalizeOrderPaymentTerms(order)
   const res = await fetch("/api/db/orders", {
