@@ -13,24 +13,28 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import type { Module } from "@/lib/auth"
 
-const PERSONAL_NAV = [
-  { href: "/kpi-dashboard", label: "KPI Dashboard", icon: Target },
-  { href: "/petty-cash", label: "Petty Cash", icon: Wallet },
-]
-
-const ALL_NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard" as Module },
-  { href: "/purchase", label: "Purchase", icon: ShoppingCart, module: "purchase" as Module },
-  { href: "/finance", label: "Finance", icon: DollarSign, module: "finance" as Module },
-  { href: "/pos", label: "POS", icon: Store, module: "pos" as Module },
-  { href: "/crm", label: "CRM", icon: Users2, module: "crm" as Module },
-  { href: "/inventory", label: "Inventory", icon: Package, module: "inventory" as Module },
-  { href: "/rfid", label: "RFID", icon: ScanLine, module: "inventory" as Module },
-  { href: "/dispatches", label: "Dispatches", icon: Truck, module: "dispatches" as Module },
-  { href: "/website", label: "Website", icon: Globe, module: "website" as Module },
-  { href: "/docs", label: "Documentation", icon: BookOpen, module: "docs" as Module },
-  { href: "/hrm", label: "HRM", icon: UserCog, module: "hrm" as Module },
-  { href: "/tickets", label: "Tickets", icon: Ticket, module: "tickets" as Module },
+const NAV_ORDER: Array<{
+  key: string
+  href?: string
+  label: string
+  icon: typeof LayoutDashboard
+  module?: Module
+  kind: "link" | "crm" | "finance"
+}> = [
+  { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard", kind: "link" },
+  { key: "kpi", href: "/kpi-dashboard", label: "KPI Dashboard", icon: Target, kind: "link" },
+  { key: "finance", label: "Finance", icon: DollarSign, module: "finance", kind: "finance" },
+  { key: "crm", label: "CRM", icon: Users2, module: "crm", kind: "crm" },
+  { key: "inventory", href: "/inventory", label: "Inventory", icon: Package, module: "inventory", kind: "link" },
+  { key: "purchase", href: "/purchase", label: "Purchase", icon: ShoppingCart, module: "purchase", kind: "link" },
+  { key: "pos", href: "/pos", label: "POS", icon: Store, module: "pos", kind: "link" },
+  { key: "rfid", href: "/rfid", label: "RFID", icon: ScanLine, module: "inventory", kind: "link" },
+  { key: "dispatches", href: "/dispatches", label: "Dispatches", icon: Truck, module: "dispatches", kind: "link" },
+  { key: "website", href: "/website", label: "Website", icon: Globe, module: "website", kind: "link" },
+  { key: "docs", href: "/docs", label: "Documentation", icon: BookOpen, module: "docs", kind: "link" },
+  { key: "hrm", href: "/hrm", label: "HRM", icon: UserCog, module: "hrm", kind: "link" },
+  { key: "tickets", href: "/tickets", label: "Tickets", icon: Ticket, module: "tickets", kind: "link" },
+  { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Wallet, kind: "link" },
 ]
 
 const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any }> = []
@@ -42,141 +46,113 @@ const navSecondary = [
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
 
-  const visibleNav = user?.role === "superadmin"
-    ? ALL_NAV
-    : ALL_NAV.filter(n => user?.modules.includes(n.module))
-
-  const visibleAdminNav = user?.role === "superadmin" ? ADMIN_ONLY_NAV : []
+  const isSuperadmin = user?.role === "superadmin"
   const showCrmMain = canAccessCrmMain(user)
   const showSalesAgents = canAccessSalesAgentsArea(user)
-  const showCrmSection = visibleNav.some(item => item.href === "/crm") && (showCrmMain || showSalesAgents)
-  const showFinanceSection = visibleNav.some(item => item.href === "/finance")
-  const primaryNav = visibleNav.filter(item => item.href !== "/crm" && item.href !== "/finance")
-  // Finance is a single sidebar link (overview + tabs inside /finance)
+
+  function canShowNavItem(item: (typeof NAV_ORDER)[number]): boolean {
+    if (item.kind === "crm") {
+      return (isSuperadmin || user?.modules.includes("crm")) && (showCrmMain || showSalesAgents)
+    }
+    if (item.kind === "finance") {
+      return isSuperadmin || user?.modules.includes("finance")
+    }
+    if (!item.module) return true
+    return isSuperadmin || user?.modules.includes(item.module)
+  }
+
+  const visibleAdminNav = isSuperadmin ? ADMIN_ONLY_NAV : []
+
+  const linkClass = (active: boolean) =>
+    cn(
+      "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+      active
+        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+        : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+    )
 
   return (
     <>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {PERSONAL_NAV.map(({ href, label, icon: Icon }) => {
-          const active = pathname?.startsWith(href) || false
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{label}</span>
-            </Link>
-          )
-        })}
-        {primaryNav.map(({ href, label, icon: Icon }) => {
-          const active = pathname?.startsWith(href) || false
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{label}</span>
-            </Link>
-          )
-        })}
-        {showCrmSection && (
-          <div className="space-y-1">
-            <button
-              type="button"
-              onClick={() => setCrmOpen(open => !open)}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors cursor-pointer",
-                pathname?.startsWith("/crm")
-                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-              )}
-            >
-              <Users2 className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate text-left">CRM</span>
-              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", crmOpen && "rotate-180")} />
-            </button>
-            {crmOpen && (
-              <div className="ml-6 space-y-1">
-                {showCrmMain && (
-                  <Link
-                    href="/crm"
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                      pathname === "/crm"
-                        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                        : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+        {NAV_ORDER.filter(canShowNavItem).map((item) => {
+          if (item.kind === "crm") {
+            return (
+              <div key={item.key} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setCrmOpen((open) => !open)}
+                  className={cn(linkClass(pathname?.startsWith("/crm") || false), "w-full cursor-pointer")}
+                >
+                  <Users2 className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 truncate text-left">{item.label}</span>
+                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", crmOpen && "rotate-180")} />
+                </button>
+                {crmOpen && (
+                  <div className="ml-6 space-y-1">
+                    {showCrmMain && (
+                      <Link
+                        href="/crm"
+                        onClick={onNavigate}
+                        className={cn(
+                          "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                          pathname === "/crm"
+                            ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                            : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+                        )}
+                      >
+                        Main
+                      </Link>
                     )}
-                  >
-                    Main
-                  </Link>
-                )}
-                {showSalesAgents && (
-                  <Link
-                    href="/crm/sales-agents"
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                      pathname?.startsWith("/crm/sales-agents")
-                        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                        : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+                    {showSalesAgents && (
+                      <Link
+                        href="/crm/sales-agents"
+                        onClick={onNavigate}
+                        className={cn(
+                          "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                          pathname?.startsWith("/crm/sales-agents")
+                            ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                            : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+                        )}
+                      >
+                        Sales agents
+                      </Link>
                     )}
-                  >
-                    Sales agents
-                  </Link>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
-        {showFinanceSection && (
-          <Link
-            href="/finance"
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
-              pathname?.startsWith("/finance")
-                ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-            )}
-          >
-            <DollarSign className="h-4 w-4 shrink-0" />
-            <span className="flex-1 truncate">Finance</span>
-          </Link>
-        )}
+            )
+          }
+
+          if (item.kind === "finance") {
+            return (
+              <Link
+                key={item.key}
+                href="/finance"
+                onClick={onNavigate}
+                className={linkClass(pathname?.startsWith("/finance") || false)}
+              >
+                <DollarSign className="h-4 w-4 shrink-0" />
+                <span className="flex-1 truncate">{item.label}</span>
+              </Link>
+            )
+          }
+
+          const Icon = item.icon
+          const active = pathname?.startsWith(item.href!) || false
+          return (
+            <Link key={item.key} href={item.href!} onClick={onNavigate} className={linkClass(active)}>
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">{item.label}</span>
+            </Link>
+          )
+        })}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href) || false
           return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
-              )}
-            >
+            <Link key={href} href={href} onClick={onNavigate} className={linkClass(active)}>
               <Icon className="h-4 w-4 shrink-0" />
               <span className="flex-1 truncate">{label}</span>
             </Link>
