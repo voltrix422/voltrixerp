@@ -7,16 +7,21 @@ import { prisma } from '@/lib/db'
 import { formatSerialListForLine, orderHasSerialAllocations } from '@/lib/order-fulfillment-serials'
 import { getOrderSourcePdfLabel, resolveOrderItemModel } from '@/lib/orders'
 import { formatInvoiceMoney, getInvoicePaymentSummary } from '@/lib/invoice-payment-summary'
+import {
+  buildInvoiceClientDetailRows,
+  formatInvoiceModelCell,
+  invoiceClientFromRecord,
+  type InvoiceClientProfile,
+} from '@/lib/invoice-client-details'
 
-async function resolveClientNtn(order: { clientId?: string; clientNtn?: string }): Promise<string> {
-  const fromPayload = String(order.clientNtn ?? '').trim()
-  if (fromPayload) return fromPayload
-  if (!order.clientId) return ''
+async function resolveInvoiceClient(order: {
+  clientId?: string
+}): Promise<InvoiceClientProfile | null> {
+  if (!order.clientId) return null
   const client = await prisma.erpClient.findUnique({
     where: { id: order.clientId },
-    select: { ntn: true },
   })
-  return client?.ntn?.trim() || ''
+  return invoiceClientFromRecord(client as Record<string, unknown> | null)
 }
 
 function loadFont(filename: string): string {
@@ -40,7 +45,8 @@ const FONT = geistRegularB64 ? 'Geist' : 'helvetica'
 export async function POST(request: NextRequest) {
   try {
     const order = await request.json()
-    const clientNtn = await resolveClientNtn(order)
+    const client = await resolveInvoiceClient(order)
+    const clientDetailRows = buildInvoiceClientDetailRows(order, client)
     const taxAmount = Number(order.tax || 0)
     const hasTax = Math.abs(taxAmount) > 0.004
 
@@ -98,11 +104,11 @@ export async function POST(request: NextRequest) {
 
     const pay = getInvoicePaymentSummary(order)
     const metaItems = [
-      { label: 'CLIENT',        value: (order.clientName || '—').substring(0, 22) },
       { label: 'INVOICE DATE',  value: new Date(order.createdAt).toLocaleDateString('en-PK') },
       ...(order.deliveryDate ? [{ label: 'DELIVERY DATE', value: new Date(order.deliveryDate).toLocaleDateString('en-PK') }] : []),
-      { label: 'ORDER SOURCE',  value: getOrderSourcePdfLabel(order).substring(0, 24) },
+      { label: 'STATUS',        value: (order.status || '').replace(/_/g, ' ').toUpperCase().substring(0, 16) },
       { label: 'PREPARED BY',   value: order.createdBy || '—' },
+      { label: 'ORDER SOURCE',  value: getOrderSourcePdfLabel(order).substring(0, 20) },
       ...(pay.showPaymentSection ? [{ label: 'PAYMENT', value: pay.paymentStatusLabel.substring(0, 18) }] : []),
     ]
     const colW = (pageW - mL - mR) / metaItems.length
@@ -118,49 +124,80 @@ export async function POST(request: NextRequest) {
       doc.text(m.value, x, 55.5)
     })
 
-    // ── Bill To + Invoice Info (two columns) ──────────────────────────────────
-    let y = 67
-    const billW  = 90
-    const infoW  = pageW - mL - mR - billW - 8
-    const infoX  = mL + billW + 8
+    // ── Bill To + Invoice Info ────────────────────────────────────────────────
+    let y = 64
+    const contentW = pageW - mL - mR
+    const billW = contentW * 0.58
+    const infoW = contentW - billW - 6
+    const infoX = mL + billW + 6
 
-    const billLines: string[] = []
-    if (order.deliveryAddress) {
-      billLines.push(...doc.splitTextToSize(order.deliveryAddress, billW - 8).slice(0, 2))
-    }
-    if (clientNtn) {
-      billLines.push(`NTN: ${clientNtn}`)
-    }
-    const billBoxH = Math.max(28, 18 + billLines.length * 5)
-
-    // Bill To box
+    const companyLine =
+      client?.company &&
+      client.company.trim().toLowerCase() !== (order.clientName || '').trim().toLowerCase()
+        ? 1
+        : 0
+    const infoRows = [
+      ['Invoice #', order.orderNumber],
+      ['Issue date', new Date(order.createdAt).toLocaleDateString('en-PK')],
+      ...(order.deliveryDate ? [['Delivery date', new Date(order.deliveryDate).toLocaleDateString('en-PK')]] : []),
+      ['Status', (order.status || '').replace(/_/g, ' ').toUpperCase()],
+      ['Prepared by', order.createdBy || '—'],
+      ['Source', getOrderSourcePdfLabel(order)],
+      ...(pay.showPaymentSection ? [['Payment', pay.paymentStatusLabel]] : []),
+    ]
+    const billContentH = Math.max(40, 22 + companyLine * 5 + clientDetailRows.length * 4.3)
+    const infoContentH = Math.max(40, 13 + infoRows.length * 7)
+    const billBoxH = Math.max(billContentH, infoContentH)
     doc.setFillColor(...lightBg)
     doc.setDrawColor(...lightGray)
     doc.setLineWidth(0.3)
     doc.roundedRect(mL, y, billW, billBoxH, 2, 2, 'FD')
 
-    // Bill To header strip
     doc.setFillColor(...teal)
     doc.roundedRect(mL, y, billW, 7, 2, 2, 'F')
     doc.rect(mL, y + 3, billW, 4, 'F')
     doc.setFont(FONT, 'bold')
     doc.setFontSize(7)
     doc.setTextColor(...white)
-    doc.text('BILL TO', mL + 4, y + 5)
+    doc.text('BILL TO — CLIENT', mL + 4, y + 5)
 
+    let by = y + 13
     doc.setFont(FONT, 'bold')
-    doc.setFontSize(10)
+    doc.setFontSize(11)
     doc.setTextColor(...black)
-    doc.text(order.clientName || '—', mL + 4, y + 14)
+    doc.text(order.clientName || '—', mL + 4, by)
 
-    if (billLines.length > 0) {
+    if (companyLine > 0) {
+      by += 5
       doc.setFont(FONT, 'normal')
-      doc.setFontSize(8)
+      doc.setFontSize(9)
       doc.setTextColor(...gray)
-      doc.text(billLines, mL + 4, y + 20)
+      doc.text(client!.company, mL + 4, by)
     }
 
-    // Invoice Info box (right side)
+    if (clientDetailRows.length > 0) {
+      by += 5
+      doc.setFont(FONT, 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...gray)
+      clientDetailRows.forEach((row) => {
+        doc.setFont(FONT, 'bold')
+        doc.text(`${row.label}:`, mL + 4, by)
+        doc.setFont(FONT, 'normal')
+        const labelW = doc.getTextWidth(`${row.label}: `)
+        const valueLines = doc.splitTextToSize(row.value, billW - 8 - labelW)
+        doc.text(valueLines[0] || row.value, mL + 4 + labelW, by)
+        if (valueLines.length > 1) {
+          for (let i = 1; i < valueLines.length; i++) {
+            by += 4
+            doc.text(valueLines[i], mL + 4 + labelW, by)
+          }
+        }
+        by += 4.3
+      })
+    }
+
+    // Invoice details (right)
     doc.setFillColor(...lightBg)
     doc.setDrawColor(...lightGray)
     doc.roundedRect(infoX, y, infoW, billBoxH, 2, 2, 'FD')
@@ -173,21 +210,17 @@ export async function POST(request: NextRequest) {
     doc.setTextColor(...white)
     doc.text('INVOICE DETAILS', infoX + 4, y + 5)
 
-    const infoRows = [
-      ['Invoice #:', order.orderNumber],
-      ['Date:', new Date(order.createdAt).toLocaleDateString('en-PK')],
-      ...(order.deliveryDate ? [['Delivery:', new Date(order.deliveryDate).toLocaleDateString('en-PK')]] : []),
-      ['Status:', (order.status || '').replace(/_/g, ' ').toUpperCase()],
-    ]
     infoRows.forEach(([label, val], i) => {
-      const ry = y + 13 + i * 6
+      const ry = y + 13 + i * 7
       doc.setFont(FONT, 'bold')
-      doc.setFontSize(7.5)
+      doc.setFontSize(7)
       doc.setTextColor(...gray)
-      doc.text(label, infoX + 4, ry)
+      doc.text(`${label}:`, infoX + 4, ry)
       doc.setFont(FONT, 'normal')
+      doc.setFontSize(8)
       doc.setTextColor(...black)
-      doc.text(val, infoX + infoW - 4, ry, { align: 'right' })
+      const valLines = doc.splitTextToSize(String(val), infoW - 28)
+      doc.text(valLines[0], infoX + infoW - 4, ry, { align: 'right' })
     })
 
     // ── Items table ───────────────────────────────────────────────────────────
@@ -197,45 +230,39 @@ export async function POST(request: NextRequest) {
       item,
       model: resolveOrderItemModel(item),
     }))
-    const showModelCol = itemsWithModel.some((row: { model: string | null }) => row.model)
     const showSerialCol = orderHasSerialAllocations(order)
 
     const tableData = itemsWithModel.map(({ item, model }: { item: any; model: string | null }, idx: number) => {
       const row = [
         `${idx + 1}`,
-        item.description,
+        formatInvoiceModelCell(item.description, model),
         item.qty.toString(),
         item.unit,
         `PKR ${Number(item.unitPrice).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
         `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
       ]
       if (showSerialCol) row.splice(3, 0, formatSerialListForLine(order, item.id))
-      if (showModelCol) row.splice(1, 0, model || '—')
       return row
     })
 
-    const headRow = ['#', 'DESCRIPTION', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']
+    const headRow = ['#', 'MODEL / PRODUCT', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']
     if (showSerialCol) headRow.splice(3, 0, 'SERIAL NO.')
-    if (showModelCol) headRow.splice(1, 0, 'MODEL')
 
-    const columnStyles = showModelCol
-      ? {
-          0: { cellWidth: 8, halign: 'center' as const },
-          1: { cellWidth: 28 },
-          2: { cellWidth: 'auto' as const },
-          3: { cellWidth: 13, halign: 'center' as const },
-          4: { cellWidth: 15, halign: 'center' as const },
-          5: { cellWidth: 34, halign: 'right' as const },
-          6: { cellWidth: 34, halign: 'right' as const, fontStyle: 'bold' as const },
-        }
-      : {
-          0: { cellWidth: 8, halign: 'center' as const },
-          1: { cellWidth: 'auto' as const },
-          2: { cellWidth: 13, halign: 'center' as const },
-          3: { cellWidth: 15, halign: 'center' as const },
-          4: { cellWidth: 34, halign: 'right' as const },
-          5: { cellWidth: 34, halign: 'right' as const, fontStyle: 'bold' as const },
-        }
+    const columnStyles: Record<string, object> = {
+      0: { cellWidth: 8, halign: 'center' as const },
+      1: { cellWidth: showSerialCol ? 48 : 62, overflow: 'linebreak' as const },
+      2: { cellWidth: 12, halign: 'center' as const },
+      3: { cellWidth: 14, halign: 'center' as const },
+      4: { cellWidth: 32, halign: 'right' as const },
+      5: { cellWidth: 32, halign: 'right' as const, fontStyle: 'bold' as const },
+    }
+    if (showSerialCol) {
+      columnStyles[3] = { cellWidth: 36, fontSize: 7.5, overflow: 'linebreak' as const }
+      columnStyles[4] = { cellWidth: 12, halign: 'center' as const }
+      columnStyles[5] = { cellWidth: 14, halign: 'center' as const }
+      columnStyles[6] = { cellWidth: 28, halign: 'right' as const }
+      columnStyles[7] = { cellWidth: 28, halign: 'right' as const, fontStyle: 'bold' as const }
+    }
 
     autoTable(doc, {
       startY: y,
@@ -243,7 +270,7 @@ export async function POST(request: NextRequest) {
       body: tableData,
       theme: 'plain',
       headStyles: { fillColor: teal, textColor: white, fontStyle: 'bold', fontSize: 8, font: FONT, cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 } },
-      bodyStyles: { fontSize: 8.5, textColor: black, font: FONT, cellPadding: { top: 3, bottom: 3, left: 3, right: 3 } },
+      bodyStyles: { fontSize: 8.5, textColor: black, font: FONT, cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, valign: 'middle' as const },
       alternateRowStyles: { fillColor: rowAlt },
       columnStyles: columnStyles as Record<string, object>,
       margin: { left: mL, right: mR },
@@ -352,38 +379,39 @@ export async function POST(request: NextRequest) {
       const payY = y + totBoxH + 6
       const payW = pageW - mL - mR
       const detailLines = payments.length
-      const payBoxH = 28 + (detailLines > 0 ? Math.min(detailLines, 4) * 5 : 0)
+      const payBoxH = 32 + (detailLines > 0 ? Math.min(detailLines, 4) * 5 : 0)
 
-      doc.setFillColor(255, 248, 235)
-      doc.setDrawColor(230, 170, 80)
-      doc.setLineWidth(0.3)
+      doc.setFillColor(...lightBg)
+      doc.setDrawColor(...teal)
+      doc.setLineWidth(0.4)
       doc.roundedRect(mL, payY, payW, payBoxH, 2, 2, 'FD')
 
       doc.setFillColor(...teal)
-      doc.roundedRect(mL, payY, payW, 7, 2, 2, 'F')
-      doc.rect(mL, payY + 3, payW, 4, 'F')
+      doc.roundedRect(mL, payY, payW, 8, 2, 2, 'F')
+      doc.rect(mL, payY + 4, payW, 4, 'F')
       doc.setFont(FONT, 'bold')
-      doc.setFontSize(7)
+      doc.setFontSize(7.5)
       doc.setTextColor(...white)
-      doc.text('PAYMENT INFORMATION', mL + 4, payY + 5)
+      doc.text('PAYMENT INFORMATION', mL + 4, payY + 5.5)
 
-      let py = payY + 12
+      let py = payY + 14
       const col1 = mL + 4
-      const col2 = mL + payW * 0.38
-      const col3 = mL + payW * 0.68
+      const col2 = mL + payW * 0.34
+      const col3 = mL + payW * 0.66
 
       doc.setFont(FONT, 'bold')
       doc.setFontSize(6.5)
-      doc.setTextColor(120, 120, 120)
+      doc.setTextColor(100, 100, 100)
       doc.text('TERMS', col1, py)
       doc.text('AMOUNT PAID', col2, py)
       doc.text('AMOUNT TO PAY', col3, py)
-      py += 4
+      py += 5
+
       doc.setFont(FONT, 'bold')
-      doc.setFontSize(8.5)
+      doc.setFontSize(9)
       doc.setTextColor(...black)
       doc.text(pay.paymentTermsLabel, col1, py)
-      doc.text(formatInvoiceMoney(pay.amountPaid).replace('PKR ', 'PKR '), col2, py)
+      doc.text(formatInvoiceMoney(pay.amountPaid), col2, py)
       if (pay.hasOutstanding) doc.setTextColor(180, 90, 20)
       else if (pay.isPaidInFull) doc.setTextColor(34, 120, 60)
       doc.text(
@@ -391,12 +419,12 @@ export async function POST(request: NextRequest) {
         col3,
         py,
       )
-      py += 7
+      py += 8
 
       if (payments.length > 0) {
         doc.setFont(FONT, 'bold')
         doc.setFontSize(6.5)
-        doc.setTextColor(120, 120, 120)
+        doc.setTextColor(100, 100, 100)
         doc.text('PAYMENT DETAILS', col1, py)
         py += 4
         doc.setFont(FONT, 'normal')
@@ -411,22 +439,29 @@ export async function POST(request: NextRequest) {
 
       if (pay.isPaidInFull) {
         doc.setFillColor(34, 139, 34)
-        doc.roundedRect(mL, payY + payBoxH - 10, 52, 8, 1.5, 1.5, 'F')
+        doc.roundedRect(mL + payW - 56, payY + payBoxH - 11, 52, 9, 2, 2, 'F')
         doc.setFont(FONT, 'bold')
         doc.setFontSize(8)
         doc.setTextColor(...white)
-        doc.text('PAID IN FULL', mL + 4, payY + payBoxH - 4.5)
+        doc.text('PAID IN FULL', mL + payW - 52, payY + payBoxH - 5)
       } else if (pay.hasOutstanding && pay.isOnCredit) {
+        doc.setFillColor(255, 243, 224)
+        doc.roundedRect(mL + 3, payY + payBoxH - 12, payW - 6, 9, 1.5, 1.5, 'F')
         doc.setFont(FONT, 'normal')
-        doc.setFontSize(7)
+        doc.setFontSize(7.5)
         doc.setTextColor(140, 80, 10)
-        const note = `Credit invoice — balance ${formatInvoiceMoney(pay.balanceDue)} payable to Voltrix Batteries.`
-        doc.text(note, col1, payY + payBoxH - 3)
+        doc.text(
+          `Credit invoice — balance ${formatInvoiceMoney(pay.balanceDue)} payable to Voltrix Batteries.`,
+          col1,
+          payY + payBoxH - 5.5,
+        )
       } else if (pay.balanceDue > 0.004) {
-        doc.setFont(FONT, 'normal')
-        doc.setFontSize(7)
+        doc.setFillColor(255, 243, 224)
+        doc.roundedRect(mL + 3, payY + payBoxH - 12, payW - 6, 9, 1.5, 1.5, 'F')
+        doc.setFont(FONT, 'bold')
+        doc.setFontSize(7.5)
         doc.setTextColor(140, 80, 10)
-        doc.text(`Balance due: ${formatInvoiceMoney(pay.balanceDue)}`, col1, payY + payBoxH - 3)
+        doc.text(`Balance due: ${formatInvoiceMoney(pay.balanceDue)}`, col1, payY + payBoxH - 5.5)
       }
     }
 

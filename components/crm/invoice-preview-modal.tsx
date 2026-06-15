@@ -6,6 +6,12 @@ import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import type { Order } from "@/lib/orders"
 import { getOrderSourcePdfLabel, resolveOrderItemModel } from "@/lib/orders"
 import { formatInvoiceMoney, getInvoicePaymentSummary } from "@/lib/invoice-payment-summary"
+import {
+  buildInvoiceClientDetailRows,
+  invoiceClientFromRecord,
+  invoiceModelDisplayLines,
+  type InvoiceClientProfile,
+} from "@/lib/invoice-client-details"
 import Image from "next/image"
 
 interface InvoicePreviewModalProps {
@@ -15,23 +21,23 @@ interface InvoicePreviewModalProps {
 
 export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps) {
   const [downloading, setDownloading] = useState(false)
-  const [clientNtn, setClientNtn] = useState("")
+  const [clientProfile, setClientProfile] = useState<InvoiceClientProfile | null>(null)
 
   useEffect(() => {
     if (!order.clientId) {
-      setClientNtn("")
+      setClientProfile(null)
       return
     }
     let cancelled = false
     fetch("/api/db/clients")
       .then((res) => (res.ok ? res.json() : []))
-      .then((clients: { id: string; ntn?: string }[]) => {
+      .then((clients: Record<string, unknown>[]) => {
         if (cancelled) return
         const client = clients.find((c) => c.id === order.clientId)
-        setClientNtn(client?.ntn?.trim() || "")
+        setClientProfile(invoiceClientFromRecord(client))
       })
       .catch(() => {
-        if (!cancelled) setClientNtn("")
+        if (!cancelled) setClientProfile(null)
       })
     return () => {
       cancelled = true
@@ -64,16 +70,21 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
     model: resolveOrderItemModel(item),
     lineTotal: item.qty * item.unitPrice,
   }))
-  const showModelCol = itemRows.some((r) => r.model)
+  const clientDetailRows = buildInvoiceClientDetailRows(order, clientProfile)
+  const companyName =
+    clientProfile?.company &&
+    clientProfile.company.trim().toLowerCase() !== order.clientName.trim().toLowerCase()
+      ? clientProfile.company
+      : null
 
   const metaItems = [
-    { label: "CLIENT", value: order.clientName },
     { label: "INVOICE DATE", value: new Date(order.createdAt).toLocaleDateString("en-PK") },
     ...(order.deliveryDate
       ? [{ label: "DELIVERY DATE", value: new Date(order.deliveryDate).toLocaleDateString("en-PK") }]
       : []),
-    { label: "ORDER SOURCE", value: getOrderSourcePdfLabel(order) },
+    { label: "STATUS", value: order.status.replace(/_/g, " ").toUpperCase() },
     { label: "PREPARED BY", value: order.createdBy || "—" },
+    { label: "ORDER SOURCE", value: getOrderSourcePdfLabel(order) },
     ...(pay.showPaymentSection
       ? [{ label: "PAYMENT", value: pay.paymentStatusLabel }]
       : []),
@@ -168,22 +179,65 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
             </div>
 
             <div className="px-3 sm:px-7 py-4 sm:py-6 space-y-4 sm:space-y-6">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#1a9f9a] border-b border-[#1a9f9a]/30 pb-1 mb-2">
-                  Bill To
-                </p>
-                <p className="text-sm font-bold text-gray-800">{order.clientName}</p>
-                {order.deliveryAddress && (
-                  <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{order.deliveryAddress}</p>
-                )}
-                {clientNtn && (
-                  <p className="text-xs text-gray-500 mt-0.5">NTN: {clientNtn}</p>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                <div className="sm:col-span-3 rounded-lg border border-gray-200 bg-[#f7fafa] overflow-hidden">
+                  <div className="bg-[#1a9f9a] px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white">
+                      Bill to — Client
+                    </p>
+                  </div>
+                  <div className="p-3 sm:p-4 space-y-2">
+                    <p className="text-sm font-bold text-gray-900">{order.clientName}</p>
+                    {companyName && <p className="text-xs text-gray-600">{companyName}</p>}
+                    {clientDetailRows.length > 0 ? (
+                      <dl className="grid grid-cols-1 gap-1.5 pt-1">
+                        {clientDetailRows.map((row) => (
+                          <div key={row.label} className="text-xs">
+                            <dt className="font-semibold text-gray-500 inline">{row.label}: </dt>
+                            <dd className="text-gray-700 inline break-words">{row.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      order.deliveryAddress && (
+                        <p className="text-xs text-gray-500 whitespace-pre-wrap">{order.deliveryAddress}</p>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2 rounded-lg border border-gray-200 bg-[#f7fafa] overflow-hidden">
+                  <div className="bg-[#1a9f9a] px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white">
+                      Invoice details
+                    </p>
+                  </div>
+                  <dl className="p-3 sm:p-4 space-y-2">
+                    {[
+                      ["Invoice #", order.orderNumber],
+                      ["Issue date", new Date(order.createdAt).toLocaleDateString("en-PK")],
+                      ...(order.deliveryDate
+                        ? [["Delivery date", new Date(order.deliveryDate).toLocaleDateString("en-PK")]]
+                        : []),
+                      ["Status", order.status.replace(/_/g, " ").toUpperCase()],
+                      ["Prepared by", order.createdBy || "—"],
+                      ["Source", getOrderSourcePdfLabel(order)],
+                      ...(pay.showPaymentSection ? [["Payment", pay.paymentStatusLabel]] : []),
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex justify-between gap-2 text-xs">
+                        <dt className="font-semibold text-gray-500 shrink-0">{label}</dt>
+                        <dd className="text-gray-800 text-right break-words">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
               </div>
 
               <div>
                 <div className="sm:hidden space-y-2">
-                  {itemRows.map(({ item, index, model, lineTotal }) => (
+                  {itemRows.map(({ item, index, model, lineTotal }) => {
+                    const modelLines = invoiceModelDisplayLines(item.description, model)
+                    return (
                     <div
                       key={item.id}
                       className="rounded-lg border border-gray-200 p-3 space-y-2 text-xs bg-white"
@@ -194,15 +248,12 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                           PKR {lineTotal.toLocaleString("en-PK")}
                         </span>
                       </div>
-                      {showModelCol && model && (
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase text-gray-400">Model</p>
-                          <p className="font-medium tabular-nums break-all">{model}</p>
-                        </div>
-                      )}
                       <div>
-                        <p className="text-[10px] font-semibold uppercase text-gray-400">Description</p>
-                        <p className="break-words">{item.description}</p>
+                        <p className="text-[10px] font-semibold uppercase text-gray-400">Model / Product</p>
+                        <p className="font-medium break-words">{modelLines.name}</p>
+                        {modelLines.code && (
+                          <p className="text-[10px] text-gray-500 font-mono mt-0.5 break-all">{modelLines.code}</p>
+                        )}
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
@@ -219,7 +270,8 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 <div className="hidden sm:block overflow-x-auto">
@@ -227,10 +279,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                     <thead>
                       <tr className="bg-[#1a9f9a] text-white">
                         <th className="px-3 py-2.5 text-left text-xs font-semibold w-6">#</th>
-                        {showModelCol && (
-                          <th className="px-3 py-2.5 text-left text-xs font-semibold w-28">Model</th>
-                        )}
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold">Description</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold min-w-[10rem]">Model / Product</th>
                         <th className="px-3 py-2.5 text-center text-xs font-semibold w-12">Qty</th>
                         <th className="px-3 py-2.5 text-center text-xs font-semibold w-12">Unit</th>
                         <th className="px-3 py-2.5 text-right text-xs font-semibold w-28">Unit Price</th>
@@ -238,15 +287,17 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                       </tr>
                     </thead>
                     <tbody>
-                      {itemRows.map(({ item, index, model, lineTotal }) => (
+                      {itemRows.map(({ item, index, model, lineTotal }) => {
+                        const modelLines = invoiceModelDisplayLines(item.description, model)
+                        return (
                         <tr key={item.id} className={index % 2 === 1 ? "bg-[#f0fafa]" : "bg-white"}>
                           <td className="px-3 py-2.5 text-gray-500 text-xs">{index}</td>
-                          {showModelCol && (
-                            <td className="px-3 py-2.5 text-gray-800 text-xs font-medium tabular-nums">
-                              {model || "—"}
-                            </td>
-                          )}
-                          <td className="px-3 py-2.5 text-gray-800 text-xs">{item.description}</td>
+                          <td className="px-3 py-2.5 text-gray-800 text-xs">
+                            <p className="font-medium">{modelLines.name}</p>
+                            {modelLines.code && (
+                              <p className="text-[10px] text-gray-500 font-mono mt-0.5">{modelLines.code}</p>
+                            )}
+                          </td>
                           <td className="px-3 py-2.5 text-center text-gray-700 text-xs">{item.qty}</td>
                           <td className="px-3 py-2.5 text-center text-gray-700 text-xs">{item.unit}</td>
                           <td className="px-3 py-2.5 text-right text-gray-700 text-xs tabular-nums">
@@ -256,7 +307,8 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                             PKR {lineTotal.toLocaleString("en-PK")}
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -308,15 +360,24 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
 
               {pay.showPaymentSection && (
                 <div
-                  className={`rounded-lg border p-3 sm:p-4 space-y-2 ${
+                  className={`rounded-lg border overflow-hidden ${
                     pay.hasOutstanding
-                      ? "border-amber-300 bg-amber-50/80"
-                      : "border-gray-200 bg-gray-50/50"
+                      ? "border-amber-300"
+                      : pay.isPaidInFull
+                        ? "border-emerald-300"
+                        : "border-gray-200"
                   }`}
                 >
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#1a9f9a] border-b border-[#1a9f9a]/30 pb-1">
-                    Payment information
-                  </p>
+                  <div className="bg-[#1a9f9a] px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white">
+                      Payment information
+                    </p>
+                  </div>
+                  <div
+                    className={`p-3 sm:p-4 space-y-3 ${
+                      pay.hasOutstanding ? "bg-amber-50/80" : "bg-[#f7fafa]"
+                    }`}
+                  >
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                     <div>
                       <p className="text-[10px] font-semibold uppercase text-gray-500">Terms</p>
@@ -364,10 +425,13 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                       remains payable to Voltrix Batteries.
                     </p>
                   ) : pay.balanceDue > 0.004 ? (
-                    <p className="text-[11px] text-amber-800 leading-snug pt-1">
-                      Balance due: <span className="font-semibold">{fmt(pay.balanceDue)}</span>
-                    </p>
+                    <div className="rounded-md bg-amber-100/80 border border-amber-200 px-3 py-2">
+                      <p className="text-[11px] text-amber-900 leading-snug font-semibold">
+                        Balance due: <span>{fmt(pay.balanceDue)}</span>
+                      </p>
+                    </div>
                   ) : null}
+                  </div>
                 </div>
               )}
 
