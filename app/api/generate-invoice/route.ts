@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     doc.setFontSize(7)
     doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', mL + 30, 21)
     doc.text('Phone: 051-8731661  |  Mobile: +92 303 4927779', mL + 30, 26)
-    doc.text('Email: info@voltrixbatteries.com  |  www.voltrixbatteries.com', mL + 30, 31)
+    doc.text('Email: sale@voltrixbatteries.com  |  www.voltrixbatteries.com', mL + 30, 31)
 
     doc.setFont(FONT, 'bold')
     doc.setFontSize(26)
@@ -382,7 +382,7 @@ export async function POST(request: NextRequest) {
       doc.setFont(FONT, 'bold')
       doc.setFontSize(8.5)
       doc.setTextColor(...black)
-      doc.text(pay.paymentStatusLabel, col1, py)
+      doc.text(pay.paymentTermsLabel, col1, py)
       doc.text(formatInvoiceMoney(pay.amountPaid).replace('PKR ', 'PKR '), col2, py)
       if (pay.hasOutstanding) doc.setTextColor(180, 90, 20)
       else if (pay.isPaidInFull) doc.setTextColor(34, 120, 60)
@@ -422,6 +422,11 @@ export async function POST(request: NextRequest) {
         doc.setTextColor(140, 80, 10)
         const note = `Credit invoice — balance ${formatInvoiceMoney(pay.balanceDue)} payable to Voltrix Batteries.`
         doc.text(note, col1, payY + payBoxH - 3)
+      } else if (pay.balanceDue > 0.004) {
+        doc.setFont(FONT, 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(140, 80, 10)
+        doc.text(`Balance due: ${formatInvoiceMoney(pay.balanceDue)}`, col1, payY + payBoxH - 3)
       }
     }
 

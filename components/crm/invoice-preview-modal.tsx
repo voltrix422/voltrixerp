@@ -148,7 +148,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                   </p>
                   <p className="text-white/80 text-[9px] sm:text-[10px]">Phone: 051-8731661 · Mobile: +92 303 4927779</p>
                   <p className="text-white/80 text-[9px] sm:text-[10px] break-all">
-                    info@voltrixbatteries.com · voltrixbatteries.com
+                    sale@voltrixbatteries.com · voltrixbatteries.com
                   </p>
                 </div>
               </div>
@@ -320,7 +320,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                     <div>
                       <p className="text-[10px] font-semibold uppercase text-gray-500">Terms</p>
-                      <p className="font-bold text-gray-900 mt-0.5">{pay.paymentStatusLabel}</p>
+                      <p className="font-bold text-gray-900 mt-0.5">{pay.paymentTermsLabel}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold uppercase text-gray-500">Amount paid</p>
