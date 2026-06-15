@@ -65,6 +65,13 @@ export async function getClients(): Promise<Client[]> {
   return data.map(mapRow)
 }
 
+export async function getClientById(id: string): Promise<Client | null> {
+  const trimmed = id.trim()
+  if (!trimmed) return null
+  const clients = await getClients()
+  return clients.find((c) => c.id === trimmed) ?? null
+}
+
 export async function saveClient(client: Client): Promise<void> {
   await fetch("/api/db/clients", {
     method: "POST",

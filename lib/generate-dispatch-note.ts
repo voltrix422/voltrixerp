@@ -4,11 +4,51 @@ import {
   getAllocationsForOrderItem,
   orderHasSerialAllocations,
 } from "@/lib/order-fulfillment-serials"
+import type { Client } from "@/lib/crm"
+import { getClientById } from "@/lib/crm"
 import type { Order, OrderItem } from "@/lib/orders"
 import { resolveOrderItemModel } from "@/lib/orders"
 
 type DispatchNoteOptions = {
   showPricing?: boolean
+  client?: Client | null
+}
+
+function buildClientDetailLines(
+  order: Order,
+  client: Client | null,
+  doc: jsPDF,
+  maxWidth: number,
+): string[] {
+  const lines: string[] = []
+  const push = (label: string, value?: string) => {
+    const v = value?.trim()
+    if (v) lines.push(`${label}: ${v}`)
+  }
+
+  const deliveryAddr = order.deliveryAddress?.trim()
+  const clientAddr = client?.address?.trim()
+  if (deliveryAddr) {
+    lines.push(...doc.splitTextToSize(`Delivery address: ${deliveryAddr}`, maxWidth))
+  } else if (clientAddr) {
+    lines.push(...doc.splitTextToSize(clientAddr, maxWidth))
+  }
+
+  const cityCountry = [client?.city?.trim(), client?.country?.trim()].filter(Boolean).join(", ")
+  if (cityCountry) push("City", cityCountry)
+
+  push("Focal person", client?.contactPerson)
+  push("Phone", client?.phone)
+  push("Email", client?.email)
+  push("NTN", client?.ntn)
+  push("Tax ID", client?.taxId)
+  if (client?.company?.trim() && client.company.trim() !== order.clientName?.trim()) {
+    push("Company", client.company)
+  }
+  push("Industry", client?.industry)
+  push("Website", client?.website)
+
+  return lines
 }
 
 // ── Font helpers (client-side: fetch from /public) ─────────────────────────
@@ -104,6 +144,12 @@ export async function generateDispatchNotePDF(
   options: DispatchNoteOptions = {}
 ): Promise<Blob> {
   const showPricing = options.showPricing ?? false
+  const client =
+    options.client !== undefined
+      ? options.client
+      : order.clientId
+        ? await getClientById(order.clientId)
+        : null
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const FONT = await registerGeist(doc)
   doc.setFont(FONT, "normal")
@@ -189,34 +235,55 @@ export async function generateDispatchNotePDF(
     doc.text(m.value, x, 54)
   })
 
-  // ── Client + Delivery Address ──────────────────────────────────────────────
-  let y = 66
-  doc.setTextColor(...teal)
-  doc.setFont(FONT, "bold")
-  doc.setFontSize(8)
-  doc.text("DELIVER TO", mL, y)
-  doc.setDrawColor(...teal)
-  doc.setLineWidth(0.4)
-  doc.line(mL, y + 1, mL + 26, y + 1)
+  // ── Client / consignee details ─────────────────────────────────────────────
+  let y = 64
+  const deliverW = pageW - mL - mR
+  const detailLines = buildClientDetailLines(order, client, doc, deliverW - 8)
+  const nameLines = client?.company?.trim() &&
+    client.company.trim().toLowerCase() !== (order.clientName || "").trim().toLowerCase()
+    ? 1
+    : 0
+  const deliverBoxH = Math.max(36, 20 + nameLines * 5 + detailLines.length * 4.2)
 
-  y += 6
+  doc.setFillColor(...lightBg)
+  doc.setDrawColor(...lightGray)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(mL, y, deliverW, deliverBoxH, 2, 2, "FD")
+
+  doc.setFillColor(...teal)
+  doc.roundedRect(mL, y, deliverW, 7, 2, 2, "F")
+  doc.rect(mL, y + 3, deliverW, 4, "F")
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(7.5)
+  doc.setTextColor(...white)
+  doc.text("DELIVER TO — CLIENT / CONSIGNEE", mL + 4, y + 5)
+
+  let dy = y + 13
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(11)
   doc.setTextColor(...black)
-  doc.setFont(FONT, "bold")
-  doc.setFontSize(12)
-  doc.text(order.clientName || "—", mL, y)
+  doc.text(order.clientName || "—", mL + 4, dy)
 
-  if (order.deliveryAddress) {
-    y += 5
+  if (nameLines > 0) {
+    dy += 5
     doc.setFont(FONT, "normal")
     doc.setFontSize(9)
     doc.setTextColor(...darkGray)
-    const addrLines = doc.splitTextToSize(order.deliveryAddress, 90)
-    doc.text(addrLines, mL, y)
-    y += addrLines.length * 4.5
+    doc.text(client!.company.trim(), mL + 4, dy)
   }
 
+  if (detailLines.length > 0) {
+    dy += 5
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(7.8)
+    doc.setTextColor(...darkGray)
+    doc.text(detailLines, mL + 4, dy)
+  }
+
+  y += deliverBoxH + 6
+
   // ── Items table ────────────────────────────────────────────────────────────
-  y = Math.max(y + 8, 92)
+  y = Math.max(y, 92)
 
   const showSerialCol = orderHasSerialAllocations(order)
 
