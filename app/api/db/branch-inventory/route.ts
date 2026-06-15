@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { permanentlyDeleteBranchInventoryRow } from "@/lib/branch-inventory-permanent-delete"
 import { buildModelLabelMap } from "@/lib/main-warehouse-inventory"
 import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
+import { restoreManualInventoryByStockId } from "@/lib/manual-inventory-server"
 import {
   buildUnifiedInventoryGroups,
   unifiedGroupInStock,
@@ -374,13 +375,25 @@ export async function PUT(req: NextRequest) {
     })
 
     if (destinationBranch.type === "main_warehouse") {
-      await tx.erpInventoryStock.update({
-        where: { id: source.inventoryId },
-        data: {
-          availableQty: { increment: quantity },
-          allocatedQty: { decrement: quantity }
-        }
-      })
+      const restoredManual = await restoreManualInventoryByStockId(
+        source.inventoryId,
+        quantity,
+        tx,
+      )
+      if (restoredManual) {
+        await tx.erpInventoryStock.update({
+          where: { id: source.inventoryId },
+          data: { allocatedQty: { decrement: quantity } },
+        })
+      } else {
+        await tx.erpInventoryStock.update({
+          where: { id: source.inventoryId },
+          data: {
+            availableQty: { increment: quantity },
+            allocatedQty: { decrement: quantity },
+          },
+        })
+      }
     } else {
       if (existingDestination) {
         await tx.erpBranchInventory.update({

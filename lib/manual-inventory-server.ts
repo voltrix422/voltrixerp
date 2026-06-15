@@ -1,5 +1,8 @@
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { findStockByModel } from "@/lib/ensure-model-stock-link"
+
+type PrismaClientOrTx = Prisma.TransactionClient | typeof prisma
 
 export function slugifyManualModelBase(name: string): string {
   const base = name
@@ -100,26 +103,49 @@ export async function decrementManualInventoryByModel(model: string, qty: number
   }
 }
 
-export async function restoreManualInventoryByModel(model: string, qty: number) {
+export async function restoreManualInventoryByModel(
+  model: string,
+  qty: number,
+  db: PrismaClientOrTx = prisma,
+) {
   const m = model.trim()
-  if (!m || qty <= 0) return
+  if (!m || qty <= 0) return false
 
-  const item = await prisma.erpManualInventoryItem.findUnique({ where: { model: m } })
-  if (!item) return
+  const item = await db.erpManualInventoryItem.findUnique({ where: { model: m } })
+  if (!item) return false
 
   const cap = item.qty ?? 0
   const next = Math.min(cap, (item.availableQty ?? 0) + qty)
-  await prisma.erpManualInventoryItem.update({
+  await db.erpManualInventoryItem.update({
     where: { id: item.id },
     data: { availableQty: next },
   })
 
   if (item.inventoryStockId) {
-    await prisma.erpInventoryStock.update({
+    await db.erpInventoryStock.update({
       where: { id: item.inventoryStockId },
       data: { availableQty: next },
     }).catch(() => {})
   }
+
+  return true
+}
+
+/** Restore manual stock when branch inventory returns to the main warehouse. */
+export async function restoreManualInventoryByStockId(
+  inventoryStockId: string,
+  qty: number,
+  db: PrismaClientOrTx = prisma,
+) {
+  const stockId = inventoryStockId.trim()
+  if (!stockId || qty <= 0) return false
+
+  const item = await db.erpManualInventoryItem.findFirst({
+    where: { inventoryStockId: stockId },
+  })
+  if (!item) return false
+
+  return restoreManualInventoryByModel(item.model, qty, db)
 }
 
 export function manualInventoryItemId(manualId: string) {

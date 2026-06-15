@@ -6,7 +6,10 @@ import {
   countInStockSerialsForModel,
   ensureInventoryStockForModel,
 } from "@/lib/ensure-model-stock-link"
-import { decrementManualInventoryByModel } from "@/lib/manual-inventory-server"
+import {
+  decrementManualInventoryByModel,
+  restoreManualInventoryByStockId,
+} from "@/lib/manual-inventory-server"
 
 export function buildBranchTransferNote(params: {
   quantity: number
@@ -272,10 +275,7 @@ export async function executeDispatchLine(params: {
     await decrementManualInventoryByModel(modelKey, quantity)
     await prisma.erpInventoryStock.update({
       where: { id: stockId },
-      data: {
-        availableQty: { decrement: quantity },
-        allocatedQty: { increment: quantity },
-      },
+      data: { allocatedQty: { increment: quantity } },
     })
   } else {
     await prisma.erpInventoryStock.update({
@@ -394,13 +394,25 @@ export async function executeTransferLine(params: {
     })
 
     if (destinationBranch.type === "main_warehouse") {
-      await tx.erpInventoryStock.update({
-        where: { id: source.inventoryId },
-        data: {
-          availableQty: { increment: quantity },
-          allocatedQty: { decrement: quantity },
-        },
-      })
+      const restoredManual = await restoreManualInventoryByStockId(
+        source.inventoryId,
+        quantity,
+        tx,
+      )
+      if (restoredManual) {
+        await tx.erpInventoryStock.update({
+          where: { id: source.inventoryId },
+          data: { allocatedQty: { decrement: quantity } },
+        })
+      } else {
+        await tx.erpInventoryStock.update({
+          where: { id: source.inventoryId },
+          data: {
+            availableQty: { increment: quantity },
+            allocatedQty: { decrement: quantity },
+          },
+        })
+      }
     } else if (existingDestination) {
       await tx.erpBranchInventory.update({
         where: { id: existingDestination.id },
