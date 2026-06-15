@@ -392,3 +392,23 @@ export function ClientOrdersApproval() {
     </>
   )
 }
+
+export function useCrmOrdersPendingCount() {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const orders = await getOrders()
+        setCount(orders.filter((o) => o.status === "pending_approval").length)
+      } catch {
+        setCount(0)
+      }
+    }
+    load()
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  return count
+}

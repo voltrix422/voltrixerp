@@ -26,21 +26,24 @@ import {
 } from "recharts"
 
 import { useToast } from "@/components/ui/toast"
-import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
+import { ClientOrdersApproval, useCrmOrdersPendingCount } from "@/components/dashboard/client-orders-approval"
 import { DashboardBranchTransferApprovals, useBranchTransferPendingCount } from "@/components/dashboard/branch-transfer-approvals-panel"
 import { DashboardPettyCashApprovals, usePettyCashPendingCount } from "@/components/dashboard/petty-cash-approvals"
 import {
   ApprovalTabs,
+  ApprovalsSummaryChips,
   ChartCard,
   chartAmountDomain,
   ChartLoading,
   CHART_TOOLTIP_STYLE,
   DashboardBlock,
+  DashboardMainTabs,
   DashboardMetricsStrip,
   DashboardShell,
   formatRsAxis,
   formatRsFull,
   RangeToggle,
+  type DashboardMainTab,
 } from "@/components/dashboard/dashboard-ui"
 
 function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilters: boolean, setShowFilters: (value: boolean) => void, onPendingChange?: (count: number, openFirst: () => void) => void }) {
@@ -200,7 +203,15 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
           ))}
         </div>
 
-        {displayPOs.length === 0 ? null : (
+        {displayPOs.length === 0 ? (
+          <p className="text-sm text-[hsl(var(--muted-foreground))] py-8 text-center">
+            {subTab === "pending"
+              ? "No purchase orders pending approval."
+              : subTab === "approved"
+                ? "No approved purchase orders yet."
+                : "No purchase orders in this view."}
+          </p>
+        ) : (
           <div className="rounded-lg border border-[hsl(var(--border))]/50 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -647,12 +658,38 @@ function FinanceAndOpsMiniCharts() {
   )
 }
 
+function usePOPendingCount() {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const pos = await getPOs()
+        setCount(pos.filter((p) => p.status === "sent_to_admin").length)
+      } catch {
+        setCount(0)
+      }
+    }
+    load()
+    const interval = setInterval(load, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  return count
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
+  const [mainTab, setMainTab] = useState<DashboardMainTab>("overview")
   const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
   const branchTransferPending = useBranchTransferPendingCount()
   const pettyCashPending = usePettyCashPendingCount()
+  const crmOrdersPending = useCrmOrdersPendingCount()
+  const poPending = usePOPendingCount()
+
+  const totalApprovalsPending =
+    branchTransferPending + pettyCashPending + crmOrdersPending + poPending
 
   if (!user) return null
 
@@ -673,47 +710,62 @@ export default function DashboardPage() {
         action={<UsersPanel />}
       />
       <DashboardShell>
-        <ERPStats />
-        <FinanceAndOpsMiniCharts />
-
-        <section className="pt-4 border-t border-[hsl(var(--border))] space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Approvals</h2>
-            {pettyCashPending > 0 && (
-              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                · {pettyCashPending} petty cash
-              </span>
-            )}
-            {branchTransferPending > 0 && (
-              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                · {branchTransferPending} transfers
-              </span>
-            )}
-          </div>
-
-          <ApprovalTabs
-            active={approvalTab}
-            onChange={(id) => setApprovalTab(id as typeof approvalTab)}
-            tabs={[
-              { id: "orders", label: "CRM Orders" },
-              { id: "po", label: "Purchase Orders" },
-              { id: "transfers", label: "Branch Transfers", count: branchTransferPending },
-              { id: "petty", label: "Petty Cash", count: pettyCashPending },
-            ]}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <DashboardMainTabs
+            active={mainTab}
+            onChange={setMainTab}
+            approvalsPending={totalApprovalsPending}
           />
+          {mainTab === "approvals" && totalApprovalsPending > 0 && (
+            <ApprovalsSummaryChips
+              items={[
+                { label: "CRM orders", count: crmOrdersPending },
+                { label: "purchase orders", count: poPending },
+                { label: "transfers", count: branchTransferPending },
+                { label: "petty cash", count: pettyCashPending },
+              ]}
+            />
+          )}
+        </div>
 
-          <div className="min-h-[120px]">
-            {approvalTab === "orders" ? (
-              <ClientOrdersApproval />
-            ) : approvalTab === "po" ? (
-              <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
-            ) : approvalTab === "transfers" ? (
-              <DashboardBranchTransferApprovals />
-            ) : (
-              <DashboardPettyCashApprovals />
-            )}
-          </div>
-        </section>
+        {mainTab === "overview" ? (
+          <>
+            <ERPStats />
+            <FinanceAndOpsMiniCharts />
+          </>
+        ) : (
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">Pending approvals</h2>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                Review client orders, purchase orders, branch transfers, and petty cash requests.
+              </p>
+            </div>
+
+            <ApprovalTabs
+              active={approvalTab}
+              onChange={(id) => setApprovalTab(id as typeof approvalTab)}
+              tabs={[
+                { id: "orders", label: "CRM Orders", count: crmOrdersPending },
+                { id: "po", label: "Purchase Orders", count: poPending },
+                { id: "transfers", label: "Branch Transfers", count: branchTransferPending },
+                { id: "petty", label: "Petty Cash", count: pettyCashPending },
+              ]}
+            />
+
+            <div className="min-h-[280px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+              {approvalTab === "orders" ? (
+                <ClientOrdersApproval />
+              ) : approvalTab === "po" ? (
+                <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
+              ) : approvalTab === "transfers" ? (
+                <DashboardBranchTransferApprovals />
+              ) : (
+                <DashboardPettyCashApprovals />
+              )}
+            </div>
+          </section>
+        )}
       </DashboardShell>
     </>
   )

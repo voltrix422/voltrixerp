@@ -206,6 +206,48 @@ export const CHART_TOOLTIP_STYLE = {
   fontSize: "11px",
 }
 
+export type DashboardMainTab = "overview" | "approvals"
+
+export function DashboardMainTabs({
+  active,
+  onChange,
+  approvalsPending,
+}: {
+  active: DashboardMainTab
+  onChange: (tab: DashboardMainTab) => void
+  approvalsPending: number
+}) {
+  const tabs: { id: DashboardMainTab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "approvals", label: "Approvals" },
+  ]
+
+  return (
+    <div className="inline-flex items-center rounded-lg border border-[hsl(var(--border))] p-0.5 bg-[hsl(var(--muted))]/20">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onChange(tab.id)}
+          className={cn(
+            "relative px-4 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer inline-flex items-center gap-2",
+            active === tab.id
+              ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
+              : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
+          )}
+        >
+          {tab.label}
+          {tab.id === "approvals" && approvalsPending > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1faca6] px-1.5 text-[10px] font-bold text-white tabular-nums">
+              {approvalsPending > 99 ? "99+" : approvalsPending}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function ApprovalTabs({
   tabs,
   active,
@@ -237,6 +279,32 @@ export function ApprovalTabs({
             <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#1faca6] rounded-full" />
           )}
         </button>
+      ))}
+    </div>
+  )
+}
+
+export function ApprovalsSummaryChips({
+  items,
+}: {
+  items: { label: string; count: number }[]
+}) {
+  const visible = items.filter((i) => i.count > 0)
+  if (visible.length === 0) {
+    return (
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">All caught up — nothing pending approval.</p>
+    )
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {visible.map((item) => (
+        <span
+          key={item.label}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-3 py-1 text-xs text-[hsl(var(--muted-foreground))]"
+        >
+          <span className="font-semibold tabular-nums text-[#0d6b67]">{item.count}</span>
+          {item.label}
+        </span>
       ))}
     </div>
   )
