@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { notifyOnPoStatusChange } from "@/lib/notifications-server"
 
-export async function GET() {
-  const pos = await prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } })
+export async function GET(req: NextRequest) {
+  const status = new URL(req.url).searchParams.get("status")
+  const pos = await prisma.erpPurchaseOrder.findMany({
+    where: status ? { status } : undefined,
+    orderBy: { createdAt: "desc" },
+  })
   return NextResponse.json(pos)
 }
 

@@ -1,48 +1,23 @@
-"use client"
+﻿"use client"
 import { useState, useEffect } from "react"
 import { Topbar } from "@/components/layout/topbar"
 import { UsersPanel } from "@/components/layout/users-panel"
 import { useAuth } from "@/components/auth-provider"
 import { getPOs, savePO, getSuppliers, STATUS_LABELS, STATUS_VARIANT, type PurchaseOrder, type Supplier } from "@/lib/purchase"
-// DB access via /api/db routes (Prisma)
 import { PODetail } from "@/components/purchase/po-detail"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { ComingSoon } from "@/components/layout/coming-soon"
-import Link from "next/link"
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
-
 import { useToast } from "@/components/ui/toast"
-import { ClientOrdersApproval, useCrmOrdersPendingCount } from "@/components/dashboard/client-orders-approval"
-import { DashboardBranchTransferApprovals, useBranchTransferPendingCount } from "@/components/dashboard/branch-transfer-approvals-panel"
-import { DashboardPettyCashApprovals, usePettyCashPendingCount } from "@/components/dashboard/petty-cash-approvals"
+import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
+import { DashboardBranchTransferApprovals } from "@/components/dashboard/branch-transfer-approvals-panel"
+import { DashboardPettyCashApprovals } from "@/components/dashboard/petty-cash-approvals"
+import { DashboardOverviewPanel } from "@/components/dashboard/dashboard-overview-panel"
+import { useDashboardApprovalCounts } from "@/components/dashboard/use-dashboard-data"
 import {
   ApprovalTabs,
   ApprovalsSummaryChips,
-  ChartCard,
-  chartAmountDomain,
-  ChartLoading,
-  CHART_TOOLTIP_STYLE,
-  DashboardBlock,
   DashboardMainTabs,
-  DashboardMetricsStrip,
   DashboardShell,
-  formatRsAxis,
-  formatRsFull,
-  RangeToggle,
   type DashboardMainTab,
 } from "@/components/dashboard/dashboard-ui"
 
@@ -59,25 +34,34 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
   const [dateTo, setDateTo] = useState("")
 
   useEffect(() => {
-    Promise.all([getPOs(), getSuppliers()]).then(([p, s]) => {
-      setPOs(p); setSuppliers(s)
-    })
-    const interval = setInterval(() => {
-      getPOs().then(newPos => {
-        setPOs(newPos)
-        const pending = newPos.filter(p => p.status === "sent_to_admin")
-        if (pending.length > 0) {
-          toast({
-            type: "warning",
-            title: `${pending.length} PO${pending.length > 1 ? "s" : ""} awaiting approval`,
-            message: "New purchase order submitted for your review.",
-            duration: 5000,
-          })
-        }
-      })
-    }, 30000)
-    return () => clearInterval(interval)
+    let mounted = true
+    async function load() {
+      const [pending, supplierList] = await Promise.all([
+        getPOs({ status: "sent_to_admin" }),
+        getSuppliers(),
+      ])
+      if (!mounted) return
+      setPOs(pending)
+      setSuppliers(supplierList)
+    }
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
   }, [])
+
+  useEffect(() => {
+    if (subTab === "pending") return
+    let mounted = true
+    getPOs().then((all) => {
+      if (mounted) setPOs(all)
+    })
+    return () => {
+      mounted = false
+    }
+  }, [subTab])
 
   useEffect(() => {
     if (notified) return
@@ -226,10 +210,10 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
                   const poNumberDisplay = (po.poNumber && po.poNumber.trim()) ? po.poNumber : `PO-${po.id.slice(0, 8)}`
                   const supplierNamesDisplay = (po.supplierNames && po.supplierNames.length > 0)
                     ? po.supplierNames.join(", ")
-                    : po.quotes?.[0]?.supplierName || "—"
+                    : po.quotes?.[0]?.supplierName || "â€”"
                   const dateDisplay = po.createdAt && !isNaN(new Date(po.createdAt).getTime())
                     ? new Date(po.createdAt).toLocaleDateString()
-                    : "—"
+                    : "â€”"
                   return (
                     <tr key={po.id} className="hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer" onClick={() => setSelected(po)}>
                       <td className="px-4 py-2.5 font-medium text-[hsl(var(--primary))]">{poNumberDisplay}</td>
@@ -238,7 +222,7 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
                         <Badge variant={po.type === "local" ? "success" : "info"} className="text-[10px] px-1.5 py-0">{po.type}</Badge>
                       </td>
                       <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{po.items.length}</td>
-                      <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{po.createdBy || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{po.createdBy || "â€”"}</td>
                       <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{dateDisplay}</td>
                       <td className="px-4 py-2.5">
                         <Badge variant={STATUS_VARIANT[po.status]} className="text-[10px] px-1.5 py-0">{STATUS_LABELS[po.status]}</Badge>
@@ -265,431 +249,12 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
   )
 }
 
-function ERPStats() {
-  const [stats, setStats] = useState({
-    staff: 0,
-    clients: 0,
-    products: 0,
-    quotations: 0,
-    orders: 0,
-    inventoryItems: 0,
-    financeTotal: 0,
-    totalPOValue: 0,
-    deliveredValue: 0,
-  })
-  const [loading, setLoading] = useState(true)
-  const [showMoney, setShowMoney] = useState(true)
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("dashboard-show-money")
-      if (stored === "0") setShowMoney(false)
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
-  function toggleShowMoney() {
-    setShowMoney((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem("dashboard-show-money", next ? "1" : "0")
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
-  }
-
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const [staffRes, clientsRes, productsRes, quotationsRes, ordersRes, inventoryRes, financeRes, poRes] = await Promise.all([
-          fetch('/api/hrm/staff').then(r => r.json()).catch(() => []),
-          fetch('/api/db/clients').then(r => r.json()).catch(() => []),
-          fetch('/api/products').then(r => r.json()).catch(() => []),
-          fetch('/api/db/quotations').then(r => r.json()).catch(() => []),
-          fetch('/api/db/orders').then(r => r.json()).catch(() => []),
-          fetch('/api/inventory/stock').then(r => r.json()).catch(() => []),
-          fetch('/api/finance/records').then(r => r.json()).catch(() => []),
-          getPOs().catch(() => []),
-        ])
-
-        const ordersList = Array.isArray(ordersRes) ? ordersRes : []
-
-        const inventoryItems = Array.isArray(inventoryRes)
-          ? inventoryRes
-          : (Array.isArray((inventoryRes as any)?.data) ? (inventoryRes as any).data : [])
-
-        // Calculate finance total for current month
-        const now = new Date()
-        const financeTotal = Array.isArray(financeRes)
-          ? financeRes
-              .filter((r: any) => {
-                const date = new Date(r.createdAt || r.created_at || r.date)
-                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-              })
-              .reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0)
-          : 0
-
-        // Calculate total PO value
-        const totalPOValue = Array.isArray(poRes)
-          ? poRes.reduce((sum: number, po: any) => {
-              const poTotal = po.items?.reduce((itemSum: number, item: any) => itemSum + (Number(item.totalPrice) || 0), 0) || 0
-              return sum + poTotal
-            }, 0)
-          : 0
-
-        const deliveredOrders = ordersList.filter(
-          (o: any) => String(o.status || "").toLowerCase() === "delivered",
-        )
-        const deliveredValue = deliveredOrders.reduce(
-          (sum: number, order: any) => sum + (Number(order.total) || Number(order.totalAmount) || 0),
-          0,
-        )
-
-        setStats({
-          staff: Array.isArray(staffRes) ? staffRes.length : 0,
-          clients: Array.isArray(clientsRes) ? clientsRes.length : 0,
-          products: Array.isArray(productsRes) ? productsRes.length : 0,
-          quotations: Array.isArray(quotationsRes) ? quotationsRes.length : 0,
-          orders: ordersList.length,
-          inventoryItems: inventoryItems.length,
-          financeTotal,
-          totalPOValue,
-          deliveredValue,
-        })
-      } catch (error) {
-        console.error('Error fetching stats:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchStats()
-  }, [])
-
-  const formatCurrency = (value: number) =>
-    `Rs. ${value.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
-
-  const stripItems = [
-    { label: "Staff", value: stats.staff, href: "/hrm" },
-    { label: "Clients", value: stats.clients, href: "/crm" },
-    { label: "Products", value: stats.products, href: "/website" },
-    { label: "Quotations", value: stats.quotations, href: "/crm" },
-    { label: "Orders", value: stats.orders, href: "/crm" },
-    { label: "Inventory", value: stats.inventoryItems, href: "/inventory" },
-    { label: "Expenses", value: formatCurrency(stats.financeTotal), href: "/finance", isMoney: true },
-    { label: "PO value", value: formatCurrency(stats.totalPOValue), href: "/purchase", isMoney: true },
-    {
-      label: "Delivered",
-      value: formatCurrency(stats.deliveredValue),
-      href: "/crm",
-      isMoney: true,
-    },
-  ]
-
-  return (
-    <DashboardMetricsStrip
-      items={stripItems}
-      loading={loading}
-      showMoney={showMoney}
-      onToggleMoney={toggleShowMoney}
-    />
-  )
-}
-
-function FinanceAndOpsMiniCharts() {
-  const [loading, setLoading] = useState(true)
-  const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
-  const [pettyCashByEmployee, setPettyCashByEmployee] = useState<Array<{ name: string; amount: number; role: string }>>([])
-  const [deliveredTrend, setDeliveredTrend] = useState<Array<{ day: string; amount: number; orderIds: string[] }>>([])
-  const [deliveredTotal, setDeliveredTotal] = useState(0)
-  const [deliveredCount, setDeliveredCount] = useState(0)
-  const [inventoryTrend, setInventoryTrend] = useState<Array<{ day: string; quantity: number; names: string[] }>>([])
-  const [ticketTrend, setTicketTrend] = useState<Array<{ day: string; opened: number; closed: number }>>([])
-  const chartPalette = ["#93c5fd", "#86efac", "#fde68a", "#c4b5fd", "#fbcfe8", "#99f6e4", "#bfdbfe"]
-
-  useEffect(() => {
-    let mounted = true
-
-    async function loadData() {
-      try {
-        const [allocationsRes, ordersRes, ticketsRes, inventoryRes] = await Promise.all([
-          fetch("/api/db/petty-cash-allocations").then(r => r.json()).catch(() => []),
-          fetch("/api/db/orders").then(r => r.json()).catch(() => []),
-          fetch("/api/db/tickets").then(r => r.json()).catch(() => []),
-          fetch("/api/inventory/stock").then(r => r.json()).catch(() => []),
-        ])
-
-        if (!mounted) return
-
-        const now = new Date()
-        const currentMonth = now.getMonth()
-        const currentYear = now.getFullYear()
-
-        const monthlyAllocations = (Array.isArray(allocationsRes) ? allocationsRes : []).filter((a: any) => {
-          const d = new Date(a.allocatedAt)
-          return !Number.isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear
-        })
-
-        const employeeMap = new Map<string, { amount: number; role: string }>()
-        for (const item of monthlyAllocations) {
-          const key = String(item.employeeName || "Unknown")
-          const existing = employeeMap.get(key) || { amount: 0, role: String(item.employeeRole || "—") }
-          employeeMap.set(key, { amount: existing.amount + (Number(item.amount) || 0), role: existing.role })
-        }
-        const pettyData = Array.from(employeeMap.entries())
-          .map(([name, val]) => ({ name, amount: val.amount, role: val.role }))
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, 8)
-        setPettyCashByEmployee(pettyData)
-
-        const dayStart = new Date(now)
-        dayStart.setHours(0, 0, 0, 0)
-        const deliveredDayMap = new Map<string, { amount: number; orderIds: string[] }>()
-        const inventoryDayMap = new Map<string, { quantity: number; names: string[] }>()
-        const ticketDayMap = new Map<string, { opened: number; closed: number }>()
-        for (let i = rangeDays - 1; i >= 0; i--) {
-          const d = new Date(dayStart)
-          d.setDate(dayStart.getDate() - i)
-          const key = d.toISOString().slice(0, 10)
-          deliveredDayMap.set(key, { amount: 0, orderIds: [] })
-          inventoryDayMap.set(key, { quantity: 0, names: [] })
-          ticketDayMap.set(key, { opened: 0, closed: 0 })
-        }
-
-        for (const order of Array.isArray(ordersRes) ? ordersRes : []) {
-          const dateRaw = order.fulfillmentDate || order.deliveryDate || order.createdAt || order.created_at
-          if (!dateRaw) continue
-          const d = new Date(dateRaw)
-          if (Number.isNaN(d.getTime())) continue
-          d.setHours(0, 0, 0, 0)
-          const key = d.toISOString().slice(0, 10)
-          if (!deliveredDayMap.has(key)) continue
-          if (String(order.status || "").toLowerCase() === "delivered") {
-            const prev = deliveredDayMap.get(key) || { amount: 0, orderIds: [] }
-            deliveredDayMap.set(key, {
-              amount: prev.amount + (Number(order.total) || Number(order.totalAmount) || 0),
-              orderIds: [...prev.orderIds, String(order.orderNumber || order.id || "—")],
-            })
-          }
-        }
-
-        const deliveredSeries = Array.from(deliveredDayMap.entries()).map(([key, value]) => ({
-          day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-          amount: value.amount,
-          orderIds: value.orderIds,
-        }))
-        setDeliveredTrend(deliveredSeries)
-        setDeliveredTotal(deliveredSeries.reduce((sum, row) => sum + row.amount, 0))
-        setDeliveredCount((Array.isArray(ordersRes) ? ordersRes : []).filter((o: any) => String(o.status || "").toLowerCase() === "delivered").length)
-
-        const inventoryItems = Array.isArray(inventoryRes)
-          ? inventoryRes
-          : (Array.isArray((inventoryRes as any)?.data) ? (inventoryRes as any).data : [])
-
-        for (const item of inventoryItems) {
-          const createdRaw = item.createdAt || item.created_at
-          const d = new Date(createdRaw)
-          if (Number.isNaN(d.getTime())) continue
-          d.setHours(0, 0, 0, 0)
-          const key = d.toISOString().slice(0, 10)
-          if (!inventoryDayMap.has(key)) continue
-          const prev = inventoryDayMap.get(key) || { quantity: 0, names: [] }
-          inventoryDayMap.set(key, {
-            quantity: prev.quantity + (Number(item.receivedQty || item.received_qty || item.availableQty || item.available_qty || 0)),
-            names: [...prev.names, String(item.description || item.name || "Inventory item")],
-          })
-        }
-        setInventoryTrend(
-          Array.from(inventoryDayMap.entries()).map(([key, value]) => ({
-            day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-            quantity: value.quantity,
-            names: value.names,
-          }))
-        )
-
-        for (const ticket of Array.isArray(ticketsRes) ? ticketsRes : []) {
-          const created = new Date(ticket.createdAt || ticket.created_at)
-          if (!Number.isNaN(created.getTime())) {
-            created.setHours(0, 0, 0, 0)
-            const key = created.toISOString().slice(0, 10)
-            if (ticketDayMap.has(key)) {
-              const prev = ticketDayMap.get(key)!
-              ticketDayMap.set(key, { ...prev, opened: prev.opened + 1 })
-            }
-          }
-          const closedAt = ticket.closedAt || ticket.closed_at
-          if (closedAt) {
-            const closed = new Date(closedAt)
-            if (!Number.isNaN(closed.getTime())) {
-              closed.setHours(0, 0, 0, 0)
-              const key = closed.toISOString().slice(0, 10)
-              if (ticketDayMap.has(key)) {
-                const prev = ticketDayMap.get(key)!
-                ticketDayMap.set(key, { ...prev, closed: prev.closed + 1 })
-              }
-            }
-          }
-        }
-        setTicketTrend(
-          Array.from(ticketDayMap.entries()).map(([key, value]) => ({
-            day: new Date(key).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-            opened: value.opened,
-            closed: value.closed,
-          }))
-        )
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-
-    loadData()
-    const interval = setInterval(loadData, 30000)
-    return () => {
-      mounted = false
-      clearInterval(interval)
-    }
-  }, [rangeDays])
-
-  const deliveredYDomain = chartAmountDomain(deliveredTrend.map((d) => d.amount))
-
-  return (
-    <DashboardBlock action={<RangeToggle value={rangeDays} onChange={setRangeDays} />}>
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-        <ChartCard
-          title="Delivered order amount"
-          tall
-          footer={
-            <span className="flex flex-wrap gap-4 justify-between">
-              <span><strong className="text-[hsl(var(--foreground))]">{formatRsFull(deliveredTotal)}</strong> delivered</span>
-              <span><strong className="text-[hsl(var(--foreground))]">{deliveredCount}</strong> orders</span>
-            </span>
-          }
-        >
-          {loading ? (
-            <ChartLoading />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={deliveredTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="miniDeliveredFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1faca6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#1faca6" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <YAxis domain={deliveredYDomain} tickFormatter={formatRsAxis} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={42} />
-                <Tooltip
-                  contentStyle={CHART_TOOLTIP_STYLE}
-                  formatter={(value) => formatRsFull(Number(value ?? 0))}
-                  labelFormatter={(label, payload) => {
-                    const ids = ((payload?.[0]?.payload as { orderIds?: string[] } | undefined)?.orderIds || [])
-                      .slice(0, 3)
-                      .join(", ")
-                    const day = String(label ?? "")
-                    return ids ? `${day} · ${ids}` : day
-                  }}
-                />
-                <Area type="monotone" dataKey="amount" stroke="#1faca6" strokeWidth={2.5} fill="url(#miniDeliveredFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        <ChartCard title="Inventory added" tall>
-          {loading ? (
-            <ChartLoading />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={inventoryTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={36} />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => `${Number(v ?? 0).toLocaleString()} qty`} />
-                <Line type="monotone" dataKey="quantity" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1" }} activeDot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <ChartCard title="Petty cash">
-          {loading ? (
-            <ChartLoading />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={pettyCashByEmployee.slice(0, 6)} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={formatRsAxis} />
-                <YAxis type="category" dataKey="name" width={76} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => String(v).split(" ").slice(0, 2).join(" ")} />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => formatRsFull(Number(v ?? 0))} />
-                <Bar dataKey="amount" radius={[0, 6, 6, 0]}>
-                  {pettyCashByEmployee.slice(0, 6).map((entry, idx) => (
-                    <Cell key={`${entry.name}-${idx}`} fill={chartPalette[idx % chartPalette.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        <ChartCard title="Support tickets">
-          {loading ? (
-            <ChartLoading />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={ticketTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={28} />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                <Area type="monotone" dataKey="opened" stroke="#f59e0b" fill="#f59e0b22" strokeWidth={2} />
-                <Area type="monotone" dataKey="closed" stroke="#10b981" fill="#10b98118" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-      </div>
-    </DashboardBlock>
-  )
-}
-
-function usePOPendingCount() {
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const pos = await getPOs()
-        setCount(pos.filter((p) => p.status === "sent_to_admin").length)
-      } catch {
-        setCount(0)
-      }
-    }
-    load()
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  return count
-}
-
 export default function DashboardPage() {
   const { user } = useAuth()
   const [mainTab, setMainTab] = useState<DashboardMainTab>("overview")
   const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
-  const branchTransferPending = useBranchTransferPendingCount()
-  const pettyCashPending = usePettyCashPendingCount()
-  const crmOrdersPending = useCrmOrdersPendingCount()
-  const poPending = usePOPendingCount()
-
-  const totalApprovalsPending =
-    branchTransferPending + pettyCashPending + crmOrdersPending + poPending
+  const approvalCounts = useDashboardApprovalCounts(!!user && user.role === "superadmin")
 
   if (!user) return null
 
@@ -714,25 +279,22 @@ export default function DashboardPage() {
           <DashboardMainTabs
             active={mainTab}
             onChange={setMainTab}
-            approvalsPending={totalApprovalsPending}
+            approvalsPending={approvalCounts.total}
           />
-          {mainTab === "approvals" && totalApprovalsPending > 0 && (
+          {mainTab === "approvals" && approvalCounts.total > 0 && (
             <ApprovalsSummaryChips
               items={[
-                { label: "CRM orders", count: crmOrdersPending },
-                { label: "purchase orders", count: poPending },
-                { label: "transfers", count: branchTransferPending },
-                { label: "petty cash", count: pettyCashPending },
+                { label: "CRM orders", count: approvalCounts.crmOrders },
+                { label: "purchase orders", count: approvalCounts.purchaseOrders },
+                { label: "transfers", count: approvalCounts.transfers },
+                { label: "petty cash", count: approvalCounts.pettyCash },
               ]}
             />
           )}
         </div>
 
         {mainTab === "overview" ? (
-          <>
-            <ERPStats />
-            <FinanceAndOpsMiniCharts />
-          </>
+          <DashboardOverviewPanel />
         ) : (
           <section className="space-y-4">
             <div>
@@ -746,23 +308,20 @@ export default function DashboardPage() {
               active={approvalTab}
               onChange={(id) => setApprovalTab(id as typeof approvalTab)}
               tabs={[
-                { id: "orders", label: "CRM Orders", count: crmOrdersPending },
-                { id: "po", label: "Purchase Orders", count: poPending },
-                { id: "transfers", label: "Branch Transfers", count: branchTransferPending },
-                { id: "petty", label: "Petty Cash", count: pettyCashPending },
+                { id: "orders", label: "CRM Orders", count: approvalCounts.crmOrders },
+                { id: "po", label: "Purchase Orders", count: approvalCounts.purchaseOrders },
+                { id: "transfers", label: "Branch Transfers", count: approvalCounts.transfers },
+                { id: "petty", label: "Petty Cash", count: approvalCounts.pettyCash },
               ]}
             />
 
             <div className="min-h-[280px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-              {approvalTab === "orders" ? (
-                <ClientOrdersApproval />
-              ) : approvalTab === "po" ? (
+              {approvalTab === "orders" && <ClientOrdersApproval />}
+              {approvalTab === "po" && (
                 <POsWidget showFilters={showPOFilters} setShowFilters={setShowPOFilters} />
-              ) : approvalTab === "transfers" ? (
-                <DashboardBranchTransferApprovals />
-              ) : (
-                <DashboardPettyCashApprovals />
               )}
+              {approvalTab === "transfers" && <DashboardBranchTransferApprovals />}
+              {approvalTab === "petty" && <DashboardPettyCashApprovals />}
             </div>
           </section>
         )}

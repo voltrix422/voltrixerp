@@ -284,9 +284,10 @@ export function normalizeOrderPaymentTerms(order: Order): Order {
   }
 }
 
-export async function getOrders(): Promise<Order[]> {
+export async function getOrders(options?: { statusGroup?: "pending" | "approved" }): Promise<Order[]> {
   try {
-    const res = await fetch("/api/db/orders")
+    const qs = options?.statusGroup ? `?statusGroup=${options.statusGroup}` : ""
+    const res = await fetch(`/api/db/orders${qs}`)
     if (!res.ok) return []
     const data = await res.json()
     return (data ?? []).map(rowToOrder)

@@ -226,9 +226,10 @@ function rowToPO(r: Record<string, unknown>): PurchaseOrder {
   }
 }
 
-export async function getPOs(): Promise<PurchaseOrder[]> {
+export async function getPOs(options?: { status?: string }): Promise<PurchaseOrder[]> {
   try {
-    const res = await fetch("/api/db/purchase-orders")
+    const qs = options?.status ? `?status=${encodeURIComponent(options.status)}` : ""
+    const res = await fetch(`/api/db/purchase-orders${qs}`)
     if (!res.ok) return []
     const data = await res.json()
     return (data ?? []).map(rowToPO)

@@ -20,6 +20,7 @@ export function ClientOrdersApproval() {
   const { user } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Order | null>(null)
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -31,15 +32,32 @@ export function ClientOrdersApproval() {
   const [rejectionReason, setRejectionReason] = useState("")
 
   useEffect(() => {
-    Promise.all([getOrders(), getClients()]).then(([o, c]) => {
-      setOrders(o)
-      setClients(c)
-    })
+    let mounted = true
+    async function load() {
+      setLoading(true)
+      try {
+        const [o, c] = await Promise.all([
+          getOrders({ statusGroup: tab }),
+          getClients(),
+        ])
+        if (!mounted) return
+        setOrders(o)
+        setClients(c)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    load()
     const interval = setInterval(() => {
-      getOrders().then(setOrders)
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [])
+      getOrders({ statusGroup: tab }).then((o) => {
+        if (mounted) setOrders(o)
+      })
+    }, 60_000)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [tab])
 
   useEffect(() => {
     setDetailOrder(selected)
@@ -128,7 +146,12 @@ export function ClientOrdersApproval() {
           ))}
         </div>
 
-        {displayOrders.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-[hsl(var(--muted-foreground))]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading orders…
+          </div>
+        ) : displayOrders.length === 0 ? (
           <p className="text-xs text-[hsl(var(--muted-foreground))] py-3">
             {tab === "pending" ? "No orders pending approval." : "No approved orders yet."}
           </p>

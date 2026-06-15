@@ -9,11 +9,40 @@ import {
   type OrderDeductInput,
 } from "@/lib/inventory-order-deduct-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
-import {
-  generateNextOrderNumber,
-  repairDuplicateOrderNumbers,
-} from "@/lib/order-number-server"
+import { generateNextOrderNumber } from "@/lib/order-number-server"
 import { notifyOnOrderStatusChange } from "@/lib/notifications-server"
+
+const APPROVED_ORDER_STATUSES = [
+  "approved",
+  "finalized",
+  "payment_added",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+] as const
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const status = searchParams.get("status")
+  const statusGroup = searchParams.get("statusGroup")
+
+  let where: { status?: string | { in: string[] } } | undefined
+  if (status) {
+    where = { status }
+  } else if (statusGroup === "pending") {
+    where = { status: "pending_approval" }
+  } else if (statusGroup === "approved") {
+    where = { status: { in: [...APPROVED_ORDER_STATUSES] } }
+  }
+
+  const orders = await prisma.erpOrder.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: statusGroup === "approved" ? 100 : undefined,
+  })
+  return NextResponse.json(orders)
+}
 
 function toOrderDeductInput(record: {
   id: string
@@ -58,12 +87,6 @@ function fulfillmentData(o: Record<string, unknown>) {
       (o.fulfillmentSerialAllocations as Prisma.InputJsonValue | undefined) ?? [],
     inventoryDeductedAt: (o.inventoryDeductedAt as string | undefined) ?? null,
   }
-}
-
-export async function GET() {
-  await repairDuplicateOrderNumbers()
-  const orders = await prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } })
-  return NextResponse.json(orders)
 }
 
 export async function POST(req: NextRequest) {
