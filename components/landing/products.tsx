@@ -8,6 +8,7 @@ import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { getProductImageList } from "@/lib/product-image"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { isProductPublished } from "@/lib/product-published"
+import { getProductDisplayName } from "@/lib/product-display-name"
 import {
   INVERTER_SUBCATEGORIES,
   countProductsForFilter,
@@ -130,6 +131,10 @@ export default function Products() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((p) => {
               const thumb = getProductImageList(p)[0] ?? null
+              const { title, model } = getProductDisplayName({
+                name: String(p.name ?? ""),
+                model: p.model != null ? String(p.model) : undefined,
+              })
               return (
                 <Link
                   key={p.id}
@@ -151,7 +156,10 @@ export default function Products() {
                     </div>
                     
                     <div className="space-y-2 flex-1">
-                      <h3 className="font-bold text-neutral-900 text-lg leading-tight">{p.name}</h3>
+                      <h3 className="font-bold text-neutral-900 text-lg leading-tight">{title}</h3>
+                      {model ? (
+                        <p className="text-xs font-mono text-neutral-500">Model: {model}</p>
+                      ) : null}
                       <p className="text-sm text-neutral-500 leading-relaxed line-clamp-2">{p.description}</p>
                     </div>
 

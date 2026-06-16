@@ -10,6 +10,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
+import { getProductDisplayName } from "@/lib/product-display-name"
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 
@@ -67,6 +68,10 @@ export default async function ProductsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {products.map((p: any) => {
                 const thumb = getProductImageList(p)[0] ?? null
+                const { title, model } = getProductDisplayName({
+                  name: String(p.name ?? ""),
+                  model: p.model != null ? String(p.model) : undefined,
+                })
                 return (
                   <Link key={p.id} href={`/products/${p.id}`} className="group flex flex-col gap-4 p-6 rounded-2xl border border-neutral-100 bg-white hover:border-neutral-200 hover:shadow-lg hover:shadow-neutral-100 transition-all duration-200">
                     <div className="flex items-start justify-between gap-2">
@@ -77,7 +82,10 @@ export default async function ProductsPage() {
                       <ProductThumbnail src={thumb} alt={p.name} fill priority={false} />
                     </div>
                     <div className="flex-1 space-y-1">
-                      <h3 className="font-bold text-neutral-900 text-base">{p.name}</h3>
+                      <h3 className="font-bold text-neutral-900 text-base">{title}</h3>
+                      {model ? (
+                        <p className="text-xs font-mono text-neutral-500">Model: {model}</p>
+                      ) : null}
                       <p className="text-sm text-neutral-500 leading-relaxed">{p.description}</p>
                     </div>
                     <div className="flex items-end justify-between pt-2 border-t border-neutral-50">
