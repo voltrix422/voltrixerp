@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard } from "lucide-react"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
+import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
+import { downloadStaffExcel } from "@/lib/hrm-excel-export"
 
 const STORAGE_KEY = "erp_hrm_staff"
 const DB_NAME = "erp_hrm_db"
@@ -186,6 +188,7 @@ export function HrmManager() {
   const [showPayrollRun, setShowPayrollRun] = useState(false)
   const [showPayrollHistory, setShowPayrollHistory] = useState(false)
   const [payrollRows, setPayrollRows] = useState<PayrollRow[]>([])
+  const [exportingStaff, setExportingStaff] = useState(false)
 
   // Fetch salary slips for staff member
   async function fetchSalarySlips(staffName: string) {
@@ -889,6 +892,16 @@ export function HrmManager() {
 
   const activeCount = staff.filter(s => s.status === "active").length
 
+  function exportStaffExcel() {
+    if (!staff.length) return
+    setExportingStaff(true)
+    try {
+      downloadStaffExcel(staff, user?.name)
+    } finally {
+      setExportingStaff(false)
+    }
+  }
+
   // Points management
   function getWarningMessage(level: 0 | 1 | 2 | 3, points: number): string {
     const messages = {
@@ -1184,9 +1197,19 @@ export function HrmManager() {
           <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--foreground))]">Staff Management</h2>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Manage staff profiles, performance, and HR information</p>
         </div>
-        <Button size="sm" className="h-9 px-4 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer rounded-lg" onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4" /> New Staff
-        </Button>
+        <div className="flex items-center gap-2">
+          {staff.length > 0 && (
+            <CrmExcelExportButton
+              onExport={exportStaffExcel}
+              exporting={exportingStaff}
+              label="Export Excel"
+              className="h-9 text-sm gap-2"
+            />
+          )}
+          <Button size="sm" className="h-9 px-4 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer rounded-lg" onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4" /> New Staff
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
