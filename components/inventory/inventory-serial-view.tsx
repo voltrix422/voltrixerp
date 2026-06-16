@@ -22,7 +22,7 @@ import {
   unifiedGroupTotal,
   type UnifiedInventoryModelGroup,
 } from "@/lib/unified-inventory-groups"
-import { downloadSerialUnitsExcel } from "@/lib/inventory-excel-export"
+import { downloadUnifiedInventoryExcel } from "@/lib/inventory-excel-export"
 import { InventoryModelGroup } from "@/components/inventory/inventory-model-group"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
@@ -156,29 +156,6 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     }
   }
 
-  const uniqueUnits = useMemo(() => {
-    const byKey = new Map<string, InventorySerialUnit>()
-    for (const unit of units) {
-      const key = serialNumberKey(unit.serialNumber)
-      if (!key) continue
-      if (!byKey.has(key)) byKey.set(key, unit)
-    }
-    return Array.from(byKey.values())
-  }, [units])
-
-  const filteredUnits = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return uniqueUnits
-    return uniqueUnits.filter(
-      (u) =>
-        u.serialNumber.toLowerCase().includes(q) ||
-        (u.model || "").toLowerCase().includes(q) ||
-        (u.productName || "").toLowerCase().includes(q) ||
-        (u.specs || "").toLowerCase().includes(q) ||
-        (u.notes || "").toLowerCase().includes(q),
-    )
-  }, [uniqueUnits, search])
-
   const filteredGroups = useMemo(
     () => filterUnifiedGroups(inventoryGroups, search),
     [inventoryGroups, search],
@@ -215,10 +192,10 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   function exportExcel() {
     setExportingExcel(true)
     try {
-      downloadSerialUnitsExcel(filteredUnits)
+      const rowCount = downloadUnifiedInventoryExcel(filteredGroups, getSession()?.name)
       toast({
         title: "Download started",
-        message: `${filteredUnits.length} unit(s) exported.`,
+        message: `${rowCount} row(s) exported.`,
         type: "success",
       })
     } catch {
@@ -445,7 +422,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           <CrmExcelExportButton
             onExport={exportExcel}
             exporting={exportingExcel}
-            disabled={filteredUnits.length === 0}
+            disabled={modelCount === 0 || loading}
             className="h-9 sm:h-8 flex-1 sm:flex-none px-2.5 text-xs gap-1.5 cursor-pointer justify-center"
           />
           <Button

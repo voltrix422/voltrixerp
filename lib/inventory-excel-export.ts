@@ -1,6 +1,7 @@
 import type { InventoryMovementRow } from "@/lib/inventory-movement-display"
 import { formatMovementDate, getReferenceTypeLabel } from "@/lib/inventory-movement-display"
 import type { InventorySerialUnit } from "@/lib/inventory-serial-units"
+import type { UnifiedInventoryModelGroup } from "@/lib/unified-inventory-groups"
 import type { Order } from "@/lib/orders"
 import { STATUS_LABELS as ORDER_STATUS_LABELS } from "@/lib/orders"
 
@@ -97,6 +98,71 @@ export function downloadSerialUnitsExcel(units: InventorySerialUnit[], exportedB
   ])
   const csv = exportMetaHeader(exportedBy) + rowsToCsv(headers, rows)
   downloadCsv(`inventory-qr-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+}
+
+export function downloadUnifiedInventoryExcel(
+  groups: UnifiedInventoryModelGroup[],
+  exportedBy?: string,
+) {
+  const headers = [
+    "Model / Product",
+    "Model Code",
+    "Serial Number",
+    "Stock (available)",
+    "Total Units",
+    "Unit",
+    "Inventory Type",
+    "Status",
+    "Specs",
+    "Scanned Date",
+    "Scanned By",
+    "Notes",
+  ]
+
+  const rows: (string | number)[][] = []
+
+  for (const group of groups) {
+    if (group.units.length > 0) {
+      for (const unit of group.units) {
+        rows.push([
+          group.displayName || group.modelKey,
+          group.modelKey,
+          unit.serialNumber,
+          unit.status === "in_stock" ? 1 : 0,
+          "",
+          "",
+          "SN tracked",
+          unit.status,
+          unit.specs || "",
+          formatDate(unit.scannedAt),
+          unit.scannedBy || "",
+          unit.notes || "",
+        ])
+      }
+      continue
+    }
+
+    if (!group.stockOnly) continue
+
+    rows.push([
+      group.displayName || group.modelKey,
+      group.modelKey,
+      "",
+      group.stockOnly.inStock,
+      group.stockOnly.total,
+      group.stockOnly.unit,
+      group.stockOnly.isManual ? "Manual" : "Stock only",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ])
+  }
+
+  const csv = exportMetaHeader(exportedBy) + rowsToCsv(headers, rows)
+  downloadCsv(`inventory-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+  return rows.length
 }
 
 export function downloadManualInventoryExcel(items: ManualInventoryExportRow[], exportedBy?: string) {
