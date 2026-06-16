@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
 
     // ── Discount calculation ──────────────────────────────────────────────────
     const rawDiscount = Number(order.discount) || 0
-    let discountValue: number
+    let discountValue = 0
     if (order.discountValue !== undefined && order.discountValue !== null && Number(order.discountValue) > 0) {
       discountValue = Number(order.discountValue)
     } else if (order.discountIsPercentage === true) {
@@ -290,9 +290,13 @@ export async function POST(request: NextRequest) {
     } else if (order.discountIsPercentage === false) {
       discountValue = rawDiscount
     } else {
+      // Backward compatibility for older records without an explicit mode.
       discountValue = rawDiscount <= 100 ? Number(order.subtotal) * rawDiscount / 100 : rawDiscount
     }
-    const discountLabel = `Discount${rawDiscount > 0 && rawDiscount <= 100 ? ` (${rawDiscount}%)` : ''}`
+    const discountLabel =
+      order.discountIsPercentage === true
+        ? `Discount (${rawDiscount}%)`
+        : "Discount"
     const transportVal  = Number(order.transportCostValue ?? order.transportCost ?? 0)
     const otherVal      = Number(order.otherCostValue ?? order.otherCost ?? 0)
 
@@ -309,7 +313,7 @@ export async function POST(request: NextRequest) {
     if (discountValue > 0)
       totRows.push({ label: discountLabel, value: `-PKR ${discountValue.toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
     if (hasTax)
-      totRows.push({ label: `Tax (${order.taxPercent}%)`, value: `PKR ${taxAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
+      totRows.push({ label: `Included GST (${order.taxPercent}%)`, value: `PKR ${taxAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (transportVal > 0)
       totRows.push({ label: order.transportLabel || 'Transport', value: `PKR ${transportVal.toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (otherVal > 0)
