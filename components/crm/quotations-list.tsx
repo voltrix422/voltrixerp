@@ -17,6 +17,11 @@ import { useToast } from "@/components/ui/toast"
 import { Plus, X, Trash2, FileText, Edit, ShoppingCart } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadQuotationsExcel } from "@/lib/crm-excel-export"
+import {
+  calculateGstInclusiveTotals,
+  DEFAULT_GST_PERCENT,
+  splitGstInclusiveAmount,
+} from "@/lib/gst-inclusive-pricing"
 function defaultFromDate() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
@@ -305,7 +310,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   const [validUntil, setValidUntil] = useState(existing?.validUntil || "")
   const [notes, setNotes] = useState(existing?.notes || "")
   const [items, setItems] = useState<QuotationItem[]>(existing?.items || [])
-  const [taxPercent, setTaxPercent] = useState(existing?.taxPercent || 0)
+  const taxPercent = DEFAULT_GST_PERCENT
   const [discount, setDiscount] = useState(existing?.discount || 0)
   const [discountIsPercentage, setDiscountIsPercentage] = useState(existing?.discountIsPercentage ?? true)
   const [transportCost, setTransportCost] = useState(existing?.transportCost || 0)
@@ -326,13 +331,26 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   }, [])
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0)
-  const discountAmount = discountIsPercentage ? subtotal * (discount / 100) : discount
-  const discountedSubtotal = subtotal - discountAmount
-  const taxAmount = discountedSubtotal * (taxPercent / 100)
-  const transportAmount = transportIsPercentage ? discountedSubtotal * (transportCost / 100) : transportCost
-  const otherAmount = otherCostIsPercentage ? discountedSubtotal * (otherCost / 100) : otherCost
-  const total = discountedSubtotal + taxAmount + transportAmount + otherAmount
-  const hasTax = Math.abs(taxAmount) > 0.004
+  const subtotalGstBreakdown = splitGstInclusiveAmount(subtotal, taxPercent)
+  const pricing = calculateGstInclusiveTotals({
+    subtotalInclGst: subtotal,
+    gstPercent: taxPercent,
+    discount,
+    discountIsPercentage,
+    transportCost,
+    transportIsPercentage,
+    otherCost,
+    otherCostIsPercentage,
+  })
+  const {
+    base: subtotalBeforeTax,
+    gst: taxAmount,
+    discountOnBase: discountAmount,
+    discountedSubtotalInclGst: discountedSubtotal,
+    transportAmount,
+    otherAmount,
+    total,
+  } = pricing
 
   function addFromInventory(product: CrmWarehouseProduct) {
     const ex = items.find((i) => i.inventoryItemId === product.id)
@@ -476,35 +494,102 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">No items added yet</p>
               </div>
             ) : (
-              <CrmLineItemsEditor
-                items={items}
-                onUpdate={(id, key, value) => updateItem(id, key, value)}
-                onRemove={(id) => setItems((prev) => prev.filter((i) => i.id !== id))}
-                size="sm"
-                removeIcon="x"
-              />
+              <div className="space-y-3">
+                <CrmLineItemsEditor
+                  items={items}
+                  onUpdate={(id, key, value) => updateItem(id, key, value)}
+                  onRemove={(id) => setItems((prev) => prev.filter((i) => i.id !== id))}
+                  size="sm"
+                  removeIcon="x"
+                  gstPercent={taxPercent}
+                />
+                {subtotal > 0 && (
+                  <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        Subtotal (excl. GST)
+                      </p>
+                      <p className="font-semibold tabular-nums mt-1">
+                        PKR {subtotalGstBreakdown.base.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        Included GST ({taxPercent}%)
+                      </p>
+                      <p className="font-semibold tabular-nums mt-1 text-[#1faca6]">
+                        PKR {subtotalGstBreakdown.gst.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        Subtotal (incl. GST)
+                      </p>
+                      <p className="font-semibold tabular-nums mt-1">
+                        PKR {subtotalGstBreakdown.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
           </div>
           {/* Financials */}
-          <div className="pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-3">
+          {items.length > 0 && (
+          <div className="pt-3 border-t space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Discount</label>
-                <div className="flex gap-2">
-                  <input type="number" min="0" value={discount} onChange={e => setDiscount(Number(e.target.value))} className="flex-1 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
-                  <select value={discountIsPercentage?"pct":"flat"} onChange={e => setDiscountIsPercentage(e.target.value==="pct")} className="h-9 rounded-md border bg-[hsl(var(--background))] px-2 text-sm focus:outline-none">
-                    <option value="pct">%</option><option value="flat">PKR</option>
-                  </select>
-                </div>
+                <label className="text-xs font-semibold">Discount Percentage</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={discountIsPercentage ? discount : subtotalBeforeTax > 0 ? ((discountAmount / subtotalBeforeTax) * 100).toFixed(2) : 0}
+                  onChange={(e) => {
+                    setDiscount(Number(e.target.value))
+                    if (!discountIsPercentage) setDiscountIsPercentage(true)
+                  }}
+                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Tax (%)</label>
-                <input type="number" min="0" max="100" value={taxPercent} onChange={e => setTaxPercent(Number(e.target.value))} className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"/>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Tax is applied on subtotal after discount.</p>
+                <label className="text-xs font-semibold">Discount Amount on Base (PKR)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={discountIsPercentage ? discountAmount : discount}
+                  onChange={(e) => {
+                    setDiscount(Number(e.target.value))
+                    if (discountIsPercentage) setDiscountIsPercentage(false)
+                  }}
+                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                />
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Discount applies on base (excl. GST). Included GST stays fixed.
+                </p>
               </div>
             </div>
-            <div className="space-y-3">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Tax Percentage</label>
+                <div className="h-9 flex items-center px-3 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
+                  {taxPercent}% (Fixed GST)
+                </div>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  GST stays fixed from item prices and is not reduced by discount.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Included GST Amount</label>
+                <div className="h-9 flex items-center px-3 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
+                  PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Transport / Expense</label>
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -527,12 +612,14 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
               </div>
             </div>
           </div>
+          )}
           {/* Summary */}
           <div className="pt-3 border-t">
-            <div className="w-full sm:ml-auto sm:w-64 space-y-1.5 text-xs">
-              <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Subtotal</span><span className="font-medium">PKR {subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
-              {discount>0&&<div className="flex justify-between text-red-600"><span>Discount {discountIsPercentage?`(${discount}%)`:""}</span><span>-PKR {discountAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
-              {hasTax&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Tax ({taxPercent}%)</span><span>PKR {taxAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
+            <div className="w-full sm:ml-auto sm:w-72 space-y-1.5 text-xs">
+              <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Subtotal (incl. GST)</span><span className="font-medium">PKR {subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
+              {discountAmount>0&&<div className="flex justify-between text-red-600"><span>Discount on base{discountIsPercentage?` (${discount}%)`:""}</span><span>-PKR {discountAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
+              {discountAmount>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Subtotal after discount</span><span>PKR {discountedSubtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
+              <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Included GST ({taxPercent}%)</span><span>PKR {taxAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
               {transportCost>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">{transportLabel}</span><span>PKR {transportAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               {otherCost>0&&<div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">{otherCostLabel}</span><span>PKR {otherAmount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>}
               <div className="flex justify-between pt-1.5 border-t font-bold text-sm"><span>Total</span><span className="text-[#1faca6]">PKR {total.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>

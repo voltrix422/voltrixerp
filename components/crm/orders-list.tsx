@@ -26,12 +26,14 @@ import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
-import { splitGstInclusiveAmount } from "@/lib/gst-inclusive-pricing"
+import {
+  calculateGstInclusiveTotals,
+  DEFAULT_GST_PERCENT,
+  splitGstInclusiveAmount,
+} from "@/lib/gst-inclusive-pricing"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed"
 type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
-const FIXED_GST_PERCENT = 18
-
 const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "delivered", label: "Delivered" },
@@ -527,7 +529,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   const [quantityError, setQuantityError] = useState<string | null>(null)
   
   // Tax and expenses state
-  const taxPercent = FIXED_GST_PERCENT
+  const taxPercent = DEFAULT_GST_PERCENT
   const [transportCost, setTransportCost] = useState<number>(existing?.transportCost ?? 0)
   const [transportLabel, setTransportLabel] = useState<string>(existing?.transportLabel ?? "Transport")
   const [transportIsPercentage, setTransportIsPercentage] = useState<boolean>(existing?.transportIsPercentage ?? false)
@@ -564,34 +566,25 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   const subtotalGstBreakdown = splitGstInclusiveAmount(subtotal, taxPercent)
-  const taxRate = Math.max(0, taxPercent) / 100
-  const taxMultiplier = 1 + taxRate
-  const subtotalBeforeTax = taxRate > 0 ? subtotal / taxMultiplier : subtotal
-
-  // Discount is always applied on pre-tax value.
-  // Amount-mode discount input is treated as tax-inclusive and converted to pre-tax.
-  const rawDiscountBeforeTax = discountIsPercentage
-    ? subtotalBeforeTax * (discount / 100)
-    : (taxRate > 0 ? discount / taxMultiplier : discount)
-  const discountBeforeTax = Math.min(Math.max(rawDiscountBeforeTax, 0), subtotalBeforeTax)
-  const discountAmount = discountBeforeTax * taxMultiplier
-
-  const discountedSubtotalBeforeTax = subtotalBeforeTax - discountBeforeTax
-  const discountedSubtotal = discountedSubtotalBeforeTax * taxMultiplier
-  const taxAmount = discountedSubtotalBeforeTax * taxRate
-  
-  // Calculate transport cost on discounted subtotal
-  const transportAmount = transportIsPercentage
-    ? discountedSubtotal * (transportCost / 100)
-    : transportCost
-  
-  // Calculate other cost on discounted subtotal
-  const otherAmount = otherCostIsPercentage
-    ? discountedSubtotal * (otherCost / 100)
-    : otherCost
-  
-  // Total keeps tax-inclusive subtotal after discount; only expenses are added on top.
-  const total = discountedSubtotal + transportAmount + otherAmount
+  const pricing = calculateGstInclusiveTotals({
+    subtotalInclGst: subtotal,
+    gstPercent: taxPercent,
+    discount,
+    discountIsPercentage,
+    transportCost,
+    transportIsPercentage,
+    otherCost,
+    otherCostIsPercentage,
+  })
+  const {
+    base: subtotalBeforeTax,
+    gst: taxAmount,
+    discountOnBase: discountAmount,
+    discountedSubtotalInclGst: discountedSubtotal,
+    transportAmount,
+    otherAmount,
+    total,
+  } = pricing
 
   function updateItem(id: string, key: keyof OrderItem, value: any) {
     setItems(prev => prev.map(i => {
@@ -895,7 +888,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                         type="number" 
                         min="0" 
                         max="100"
-                        value={discountIsPercentage ? discount : subtotal > 0 ? (discountAmount / subtotal * 100).toFixed(2) : 0}
+                        value={discountIsPercentage ? discount : subtotalBeforeTax > 0 ? ((discountAmount / subtotalBeforeTax) * 100).toFixed(2) : 0}
                         onChange={e => {
                           const value = Number(e.target.value)
                           if (discountIsPercentage) {
@@ -911,7 +904,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                     </div>
                   </div>
                   <div className="col-span-4 space-y-2">
-                    <label className="text-sm font-medium">Discount Amount (PKR)</label>
+                    <label className="text-sm font-medium">Discount Amount on Base (PKR)</label>
                     <div className="flex items-center gap-2">
                       <input 
                         type="number" 
@@ -933,7 +926,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                       - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      Discount applies before tax. Amount input is treated as tax-inclusive.
+                      Discount applies on base amount (excl. GST). Included GST stays fixed.
                     </p>
                   </div>
                 </div>
@@ -951,7 +944,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                       {taxPercent}% (Fixed GST)
                     </div>
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      GST is fixed at <span className="font-semibold">{taxPercent}%</span> and treated as included in item prices.
+                      GST stays fixed from item prices and is <span className="font-semibold">not reduced</span> by discount.
                     </p>
                   </div>
                   <div className="space-y-2">
