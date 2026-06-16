@@ -299,6 +299,7 @@ export async function POST(request: NextRequest) {
         : "Discount"
     const transportVal  = Number(order.transportCostValue ?? order.transportCost ?? 0)
     const otherVal      = Number(order.otherCostValue ?? order.otherCost ?? 0)
+    const subtotalAfterDiscount = Math.max(0, Number(order.subtotal || 0) - discountValue)
 
     // ── Two-column bottom: Notes (left) + Totals (right) ─────────────────────
     const totW  = 84
@@ -312,6 +313,8 @@ export async function POST(request: NextRequest) {
     ]
     if (discountValue > 0)
       totRows.push({ label: discountLabel, value: `-PKR ${discountValue.toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, color: red })
+    if (discountValue > 0)
+      totRows.push({ label: 'Subtotal After Discount', value: `PKR ${subtotalAfterDiscount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (hasTax)
       totRows.push({ label: `Included GST (${order.taxPercent}%)`, value: `PKR ${taxAmount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}` })
     if (transportVal > 0)

@@ -37,7 +37,7 @@ export function CrmOrderSummaryDisplay({ order }: { order: Order }) {
 
   if ((order.tax || 0) > 0) {
     rows.push({
-      label: `Tax (${order.taxPercent || 18}%)`,
+      label: `Included GST (${order.taxPercent || 18}%)`,
       value: `PKR ${(order.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
     })
   }
@@ -63,8 +63,12 @@ export function CrmOrderSummaryDisplay({ order }: { order: Order }) {
     (order.discountValue !== undefined && order.discountValue !== null && order.discountValue > 0) ||
     (order.discount !== undefined && order.discount !== null && order.discount > 0)
   ) {
+    const discountLabel =
+      order.discountIsPercentage === true
+        ? `Discount (${order.discount || 0}%)`
+        : "Discount"
     rows.push({
-      label: `Discount${order.discount > 0 ? ` (${order.discount}%)` : ""}`,
+      label: discountLabel,
       value: `- PKR ${Number(discountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       className: "text-green-600",
     })
