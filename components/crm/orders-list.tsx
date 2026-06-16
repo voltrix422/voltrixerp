@@ -578,6 +578,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   })
   const {
     base: subtotalBeforeTax,
+    discountedBase,
     gst: taxAmount,
     discountOnBase: discountAmount,
     discountedSubtotalInclGst: discountedSubtotal,
@@ -1055,8 +1056,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
               <table className="w-full text-sm">
                 <tbody className="divide-y">
                   <tr className="bg-[hsl(var(--muted))]/30">
-                    <td className="px-4 py-3 text-right font-medium">Subtotal</td>
-                    <td className="px-4 py-3 text-right font-medium w-48">PKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-medium">Base (excl. GST)</td>
+                    <td className="px-4 py-3 text-right font-medium w-48">PKR {subtotalBeforeTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   </tr>
                   {discountAmount > 0 && (
                     <tr className="bg-[hsl(var(--muted))]/30">
@@ -1066,8 +1067,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                   )}
                   {discountAmount > 0 && (
                     <tr className="bg-[hsl(var(--muted))]/20">
-                      <td className="px-4 py-3 text-right font-medium">Subtotal After Discount</td>
-                      <td className="px-4 py-3 text-right font-medium">PKR {discountedSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 text-right font-medium">Base After Discount</td>
+                      <td className="px-4 py-3 text-right font-medium">PKR {discountedBase.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
                   )}
                   <tr className="bg-[hsl(var(--muted))]/30">

@@ -1,6 +1,7 @@
 "use client"
 
 import type { Order } from "@/lib/orders"
+import { splitGstInclusiveAmount } from "@/lib/gst-inclusive-pricing"
 
 function SummaryRow({
   label,
@@ -20,45 +21,26 @@ function SummaryRow({
 }
 
 export function CrmOrderSummaryDisplay({ order }: { order: Order }) {
+  const taxPercent = order.taxPercent || 18
+  const { base: baseBeforeDiscount } = splitGstInclusiveAmount(order.subtotal, taxPercent)
+
   const discountAmount =
     order.discountValue !== undefined && order.discountValue !== null && order.discountValue > 0
       ? order.discountValue
       : order.discountIsPercentage === true
-        ? order.subtotal * (order.discount || 0) / 100
+        ? baseBeforeDiscount * (order.discount || 0) / 100
         : order.discountIsPercentage === false
           ? order.discount
           : (order.discount || 0) <= 100
-            ? order.subtotal * (order.discount || 0) / 100
+            ? baseBeforeDiscount * (order.discount || 0) / 100
             : (order.discount || 0)
 
+  const baseAfterDiscount = Math.max(0, baseBeforeDiscount - Number(discountAmount || 0))
+
   const rows: { label: string; value: string; className?: string }[] = [
-    { label: "Subtotal", value: `PKR ${order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+    { label: "Base (excl. GST)", value: `PKR ${baseBeforeDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
   ]
 
-  if ((order.tax || 0) > 0) {
-    rows.push({
-      label: `Included GST (${order.taxPercent || 18}%)`,
-      value: `PKR ${(order.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    })
-  }
-  if (order.transportCost > 0) {
-    rows.push({
-      label: `${order.transportLabel || "Transport"}${order.transportIsPercentage ? ` (${order.transportCost}%)` : ""}`,
-      value: `PKR ${(order.transportCostValue || order.transportCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    })
-  }
-  if (order.otherCost > 0) {
-    rows.push({
-      label: `${order.otherCostLabel || "Other"}${order.otherCostIsPercentage ? ` (${order.otherCost}%)` : ""}`,
-      value: `PKR ${(order.otherCostValue || order.otherCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    })
-  }
-  if (order.shipping > 0) {
-    rows.push({
-      label: "Shipping",
-      value: `PKR ${order.shipping.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-    })
-  }
   if (
     (order.discountValue !== undefined && order.discountValue !== null && order.discountValue > 0) ||
     (order.discount !== undefined && order.discount !== null && order.discount > 0)
@@ -67,10 +49,44 @@ export function CrmOrderSummaryDisplay({ order }: { order: Order }) {
       order.discountIsPercentage === true
         ? `Discount (${order.discount || 0}%)`
         : "Discount"
+
     rows.push({
       label: discountLabel,
       value: `- PKR ${Number(discountAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       className: "text-green-600",
+    })
+
+    rows.push({
+      label: "Base After Discount",
+      value: `PKR ${baseAfterDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    })
+  }
+
+  if ((order.tax || 0) > 0) {
+    rows.push({
+      label: `Included GST (${order.taxPercent || 18}%)`,
+      value: `PKR ${(order.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    })
+  }
+
+  if (order.transportCost > 0) {
+    rows.push({
+      label: `${order.transportLabel || "Transport"}${order.transportIsPercentage ? ` (${order.transportCost}%)` : ""}`,
+      value: `PKR ${(order.transportCostValue || order.transportCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    })
+  }
+
+  if (order.otherCost > 0) {
+    rows.push({
+      label: `${order.otherCostLabel || "Other"}${order.otherCostIsPercentage ? ` (${order.otherCost}%)` : ""}`,
+      value: `PKR ${(order.otherCostValue || order.otherCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    })
+  }
+
+  if (order.shipping > 0) {
+    rows.push({
+      label: "Shipping",
+      value: `PKR ${order.shipping.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
     })
   }
 
