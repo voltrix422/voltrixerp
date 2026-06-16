@@ -9,7 +9,6 @@ export const DEFAULT_PRODUCT_TERMS_FIELDS = {
   intro:
     "Voltrix Batteries Pvt. Ltd. provides advanced lithium-based energy storage solutions for residential and commercial use. Known for innovation and reliability, Voltrix offers high-performance, durable products designed to meet modern energy needs efficiently.",
   bullets: [
-    "For indoor use only (IP21); keep away from water, moisture, and high humidity.",
     "Install correctly with approved inverters and chargers as per guidelines.",
     "The warranty covers manufacturing defects under normal use with valid proof of purchase.",
     "The warranty does not cover water damage, physical damage, misuse, or unauthorized repairs.",
