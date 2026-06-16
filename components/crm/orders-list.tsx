@@ -561,30 +561,34 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   }, [quantityError])
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
-  
-  // Calculate discount first
-  const discountAmount = discountIsPercentage
-    ? subtotal * (discount / 100)
-    : discount
-  
-  // Apply discount to get discounted subtotal
-  const discountedSubtotal = subtotal - discountAmount
-  
-  // Calculate tax on discounted subtotal (after discount)
-  const taxAmount = discountedSubtotal * (taxPercent / 100)
+  const taxRate = Math.max(0, taxPercent) / 100
+  const taxMultiplier = 1 + taxRate
+  const subtotalBeforeTax = taxRate > 0 ? subtotal / taxMultiplier : subtotal
+
+  // Discount is always applied on pre-tax value.
+  // Amount-mode discount input is treated as tax-inclusive and converted to pre-tax.
+  const rawDiscountBeforeTax = discountIsPercentage
+    ? subtotalBeforeTax * (discount / 100)
+    : (taxRate > 0 ? discount / taxMultiplier : discount)
+  const discountBeforeTax = Math.min(Math.max(rawDiscountBeforeTax, 0), subtotalBeforeTax)
+  const discountAmount = discountBeforeTax * taxMultiplier
+
+  const discountedSubtotalBeforeTax = subtotalBeforeTax - discountBeforeTax
+  const discountedSubtotal = discountedSubtotalBeforeTax * taxMultiplier
+  const taxAmount = discountedSubtotalBeforeTax * taxRate
   
   // Calculate transport cost on discounted subtotal
-  const transportAmount = transportIsPercentage 
-    ? discountedSubtotal * (transportCost / 100) 
+  const transportAmount = transportIsPercentage
+    ? discountedSubtotal * (transportCost / 100)
     : transportCost
   
   // Calculate other cost on discounted subtotal
-  const otherAmount = otherCostIsPercentage 
-    ? discountedSubtotal * (otherCost / 100) 
+  const otherAmount = otherCostIsPercentage
+    ? discountedSubtotal * (otherCost / 100)
     : otherCost
   
-  // Total calculation
-  const total = discountedSubtotal + taxAmount + transportAmount + otherAmount
+  // Total keeps tax-inclusive subtotal after discount; only expenses are added on top.
+  const total = discountedSubtotal + transportAmount + otherAmount
 
   function updateItem(id: string, key: keyof OrderItem, value: any) {
     setItems(prev => prev.map(i => {
@@ -881,13 +885,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                         value={discountIsPercentage ? discountAmount : discount}
                         onChange={e => {
                           const value = Number(e.target.value)
-                          if (!discountIsPercentage) {
-                            setDiscount(value)
-                          } else {
-                            setDiscount(value)
-                            setDiscountIsPercentage(false)
-                            setDiscount(value)
-                          }
+                          setDiscount(value)
+                          if (discountIsPercentage) setDiscountIsPercentage(false)
                         }}
                         placeholder="1000"
                         className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
@@ -899,6 +898,9 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                     <div className="h-10 flex items-center px-4 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium text-green-600">
                       - PKR {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      Discount applies before tax. Amount input is treated as tax-inclusive.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -924,7 +926,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                       <span className="text-sm text-[hsl(var(--muted-foreground))]">%</span>
                     </div>
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      Tax is applied on <span className="font-semibold">subtotal after discount</span>.
+                      Tax is recalculated on <span className="font-semibold">base amount after discount</span>.
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -1052,7 +1054,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                   )}
                   {taxAmount > 0 && (
                     <tr className="bg-[hsl(var(--muted))]/30">
-                      <td className="px-4 py-3 text-right font-medium">Tax ({taxPercent}%)</td>
+                      <td className="px-4 py-3 text-right font-medium">Included Tax ({taxPercent}%)</td>
                       <td className="px-4 py-3 text-right font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
                   )}
