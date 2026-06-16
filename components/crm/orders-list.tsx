@@ -29,6 +29,7 @@ import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed"
 type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
+const FIXED_GST_PERCENT = 18
 
 const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -525,7 +526,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   const [quantityError, setQuantityError] = useState<string | null>(null)
   
   // Tax and expenses state
-  const [taxPercent, setTaxPercent] = useState<number>(existing?.taxPercent ?? 0)
+  const taxPercent = FIXED_GST_PERCENT
   const [transportCost, setTransportCost] = useState<number>(existing?.transportCost ?? 0)
   const [transportLabel, setTransportLabel] = useState<string>(existing?.transportLabel ?? "Transport")
   const [transportIsPercentage, setTransportIsPercentage] = useState<boolean>(existing?.transportIsPercentage ?? false)
@@ -913,24 +914,15 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Tax Percentage</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        min="0" 
-                        max="100" 
-                        value={taxPercent} 
-                        onChange={e => setTaxPercent(Number(e.target.value))}
-                        placeholder="18"
-                        className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" 
-                      />
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">%</span>
+                    <div className="h-10 flex items-center px-3.5 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
+                      {taxPercent}% (Fixed GST)
                     </div>
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      Tax is recalculated on <span className="font-semibold">base amount after discount</span>.
+                      GST is fixed at <span className="font-semibold">{taxPercent}%</span> and treated as included in item prices.
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Tax Amount</label>
+                    <label className="text-sm font-medium">Included GST Amount</label>
                     <div className="h-10 flex items-center px-3.5 rounded-md border bg-[hsl(var(--muted))]/30 text-sm font-medium">
                       PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
@@ -1052,12 +1044,10 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                       <td className="px-4 py-3 text-right font-medium">PKR {discountedSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
                   )}
-                  {taxAmount > 0 && (
-                    <tr className="bg-[hsl(var(--muted))]/30">
-                      <td className="px-4 py-3 text-right font-medium">Included Tax ({taxPercent}%)</td>
-                      <td className="px-4 py-3 text-right font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  )}
+                  <tr className="bg-[hsl(var(--muted))]/30">
+                    <td className="px-4 py-3 text-right font-medium">Included GST ({taxPercent}%)</td>
+                    <td className="px-4 py-3 text-right font-medium">PKR {taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
                   {transportAmount > 0 && (
                     <tr className="bg-[hsl(var(--muted))]/30">
                       <td className="px-4 py-3 text-right font-medium">{transportLabel}{transportIsPercentage && ` (${transportCost}%)`}</td>
