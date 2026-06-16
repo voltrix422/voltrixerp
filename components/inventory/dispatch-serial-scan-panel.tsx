@@ -209,8 +209,10 @@ export function DispatchSerialScanPanel({
         return false
       }
 
+      const isManual = isManualDispatchLine(item)
       const scannedModel = details.model?.trim()
       if (
+        !isManual &&
         scannedModel &&
         !dispatchScanModelMatches(model, scannedModel, serialRaw, raw)
       ) {
@@ -232,7 +234,6 @@ export function DispatchSerialScanPanel({
         return false
       }
 
-      const isManual = isManualDispatchLine(item)
       if (isManual && manualInfo !== undefined && currentSerials.length >= manualInfo.availableQty) {
         setMessage({
           type: "err",
