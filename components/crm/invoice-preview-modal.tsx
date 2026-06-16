@@ -378,16 +378,12 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                       pay.hasOutstanding ? "bg-amber-50/80" : "bg-[#f7fafa]"
                     }`}
                   >
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase text-gray-500">Terms</p>
-                      <p className="font-bold text-gray-900 mt-0.5">{pay.paymentTermsLabel}</p>
-                    </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <p className="text-[10px] font-semibold uppercase text-gray-500">Amount paid</p>
                       <p className="font-bold text-gray-900 tabular-nums mt-0.5">{fmt(pay.amountPaid)}</p>
                     </div>
-                    <div className="col-span-2 sm:col-span-1">
+                    <div>
                       <p className="text-[10px] font-semibold uppercase text-gray-500">Amount to pay</p>
                       <p
                         className={`font-bold tabular-nums mt-0.5 ${
@@ -421,15 +417,9 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                     </div>
                   ) : pay.hasOutstanding && pay.isOnCredit ? (
                     <p className="text-[11px] text-amber-800 leading-snug pt-1">
-                      This invoice is on <span className="font-semibold">credit</span>. The balance shown above
+                      This invoice is on <span className="font-semibold">credit</span>. The amount to pay above
                       remains payable to Voltrix Batteries.
                     </p>
-                  ) : pay.balanceDue > 0.004 ? (
-                    <div className="rounded-md bg-amber-100/80 border border-amber-200 px-3 py-2">
-                      <p className="text-[11px] text-amber-900 leading-snug font-semibold">
-                        Balance due: <span>{fmt(pay.balanceDue)}</span>
-                      </p>
-                    </div>
                   ) : null}
                   </div>
                 </div>

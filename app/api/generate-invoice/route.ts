@@ -407,27 +407,24 @@ export async function POST(request: NextRequest) {
 
       let py = payY + 14
       const col1 = mL + 4
-      const col2 = mL + payW * 0.34
-      const col3 = mL + payW * 0.66
+      const col2 = mL + payW * 0.5
 
       doc.setFont(FONT, 'bold')
       doc.setFontSize(6.5)
       doc.setTextColor(100, 100, 100)
-      doc.text('TERMS', col1, py)
-      doc.text('AMOUNT PAID', col2, py)
-      doc.text('AMOUNT TO PAY', col3, py)
+      doc.text('AMOUNT PAID', col1, py)
+      doc.text('AMOUNT TO PAY', col2, py)
       py += 5
 
       doc.setFont(FONT, 'bold')
       doc.setFontSize(9)
       doc.setTextColor(...black)
-      doc.text(pay.paymentTermsLabel, col1, py)
-      doc.text(formatInvoiceMoney(pay.amountPaid), col2, py)
+      doc.text(formatInvoiceMoney(pay.amountPaid), col1, py)
       if (pay.hasOutstanding) doc.setTextColor(180, 90, 20)
       else if (pay.isPaidInFull) doc.setTextColor(34, 120, 60)
       doc.text(
         pay.isPaidInFull ? formatInvoiceMoney(0) : formatInvoiceMoney(pay.balanceDue),
-        col3,
+        col2,
         py,
       )
       py += 8
@@ -493,17 +490,10 @@ export async function POST(request: NextRequest) {
         doc.setFontSize(7.5)
         doc.setTextColor(140, 80, 10)
         doc.text(
-          `Credit invoice — balance ${formatInvoiceMoney(pay.balanceDue)} payable to Voltrix Batteries.`,
+          'Credit invoice — balance payable to Voltrix Batteries.',
           col1,
           payY + payBoxH - 5.5,
         )
-      } else if (pay.balanceDue > 0.004) {
-        doc.setFillColor(255, 243, 224)
-        doc.roundedRect(mL + 3, payY + payBoxH - 12, payW - 6, 9, 1.5, 1.5, 'F')
-        doc.setFont(FONT, 'bold')
-        doc.setFontSize(7.5)
-        doc.setTextColor(140, 80, 10)
-        doc.text(`Balance due: ${formatInvoiceMoney(pay.balanceDue)}`, col1, payY + payBoxH - 5.5)
       }
     }
 
