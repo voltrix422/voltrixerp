@@ -1,6 +1,7 @@
 "use client"
 
 import { Trash2, X } from "lucide-react"
+import { splitGstInclusiveAmount } from "@/lib/gst-inclusive-pricing"
 
 export type CrmLineItem = {
   id: string
@@ -20,18 +21,25 @@ const inputSm =
 const inputMd =
   "w-full rounded border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
 
+function formatPkr(value: number) {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export function CrmLineItemsEditor({
   items,
   onUpdate,
   onRemove,
   size = "sm",
   removeIcon = "x",
+  gstPercent,
 }: {
   items: CrmLineItem[]
   onUpdate: (id: string, key: CrmLineItemField, value: string | number) => void
   onRemove: (id: string) => void
   size?: "sm" | "md"
   removeIcon?: "x" | "trash"
+  /** When set, unit prices are treated as GST-inclusive and breakdown is shown per line. */
+  gstPercent?: number
 }) {
   const inputClass = size === "md" ? inputMd : inputSm
   const inputH = size === "md" ? "h-9" : "h-8"
@@ -52,6 +60,10 @@ export function CrmLineItemsEditor({
       <div className="sm:hidden divide-y divide-[hsl(var(--border))]">
         {items.map((item) => {
           const lineTotal = item.qty * item.unitPrice
+          const gstBreakdown =
+            gstPercent != null && gstPercent > 0 && lineTotal > 0
+              ? splitGstInclusiveAmount(lineTotal, gstPercent)
+              : null
           return (
             <div key={item.id} className="p-3 space-y-2.5 bg-[hsl(var(--background))]">
               <div className="flex items-start gap-2">
@@ -116,6 +128,11 @@ export function CrmLineItemsEditor({
                   onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
                   className={`${inputClass} ${inputH}`}
                 />
+                {gstPercent != null && gstPercent > 0 && (
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    GST-inclusive price
+                  </p>
+                )}
                 {item.costPrice !== undefined && (
                   <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
                     Cost: PKR {item.costPrice.toLocaleString()}
@@ -127,9 +144,16 @@ export function CrmLineItemsEditor({
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                   Line total
                 </span>
-                <span className={`font-medium text-[#1faca6] ${size === "md" ? "text-sm" : "text-xs"}`}>
-                  PKR {lineTotal.toLocaleString()}
-                </span>
+                <div className="text-right">
+                  <span className={`font-medium text-[#1faca6] ${size === "md" ? "text-sm" : "text-xs"}`}>
+                    PKR {lineTotal.toLocaleString()}
+                  </span>
+                  {gstBreakdown && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                      Base PKR {formatPkr(gstBreakdown.base)} · GST ({gstPercent}%) PKR {formatPkr(gstBreakdown.gst)}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )
@@ -149,7 +173,13 @@ export function CrmLineItemsEditor({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {items.map((item) => (
+            {items.map((item) => {
+              const lineTotal = item.qty * item.unitPrice
+              const gstBreakdown =
+                gstPercent != null && gstPercent > 0 && lineTotal > 0
+                  ? splitGstInclusiveAmount(lineTotal, gstPercent)
+                  : null
+              return (
               <tr key={item.id}>
                 <td className={tdClass}>
                   <input
@@ -192,6 +222,11 @@ export function CrmLineItemsEditor({
                     onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
                     className={`${inputClass} ${inputH} text-right`}
                   />
+                  {gstPercent != null && gstPercent > 0 && (
+                    <p className={`text-[hsl(var(--muted-foreground))] mt-1 px-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>
+                      GST-inclusive
+                    </p>
+                  )}
                   {item.costPrice !== undefined && (
                     <p className={`text-blue-600 dark:text-blue-400 font-medium mt-1 px-1 ${size === "md" ? "text-xs" : "text-[10px]"}`}>
                       Cost: PKR {item.costPrice.toLocaleString()}
@@ -199,7 +234,14 @@ export function CrmLineItemsEditor({
                   )}
                 </td>
                 <td className={`${tdClass} text-right font-medium ${size === "md" ? "" : "text-xs"}`}>
-                  PKR {(item.qty * item.unitPrice).toLocaleString()}
+                  <div>PKR {(item.qty * item.unitPrice).toLocaleString()}</div>
+                  {gstBreakdown && (
+                    <p className={`text-[hsl(var(--muted-foreground))] font-normal mt-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>
+                      Base {formatPkr(gstBreakdown.base)}
+                      <br />
+                      GST ({gstPercent}%) {formatPkr(gstBreakdown.gst)}
+                    </p>
+                  )}
                 </td>
                 <td className={tdClass}>
                   <button type="button" onClick={() => onRemove(item.id)} className={removeBtnClass}>
@@ -207,7 +249,8 @@ export function CrmLineItemsEditor({
                   </button>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

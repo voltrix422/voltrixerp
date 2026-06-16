@@ -26,6 +26,7 @@ import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
+import { splitGstInclusiveAmount } from "@/lib/gst-inclusive-pricing"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed"
 type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
@@ -562,6 +563,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   }, [quantityError])
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
+  const subtotalGstBreakdown = splitGstInclusiveAmount(subtotal, taxPercent)
   const taxRate = Math.max(0, taxPercent) / 100
   const taxMultiplier = 1 + taxRate
   const subtotalBeforeTax = taxRate > 0 ? subtotal / taxMultiplier : subtotal
@@ -839,13 +841,44 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add items from warehouse inventory</p>
               </div>
             ) : (
-              <CrmLineItemsEditor
-                items={items}
-                onUpdate={(id, key, value) => updateItem(id, key, value)}
-                onRemove={removeItem}
-                size="md"
-                removeIcon="trash"
-              />
+              <div className="space-y-3">
+                <CrmLineItemsEditor
+                  items={items}
+                  onUpdate={(id, key, value) => updateItem(id, key, value)}
+                  onRemove={removeItem}
+                  size="md"
+                  removeIcon="trash"
+                  gstPercent={taxPercent}
+                />
+                {subtotal > 0 && (
+                  <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        Subtotal (excl. GST)
+                      </p>
+                      <p className="font-semibold tabular-nums mt-1">
+                        PKR {subtotalGstBreakdown.base.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        Included GST ({taxPercent}%)
+                      </p>
+                      <p className="font-semibold tabular-nums mt-1 text-[#1faca6]">
+                        PKR {subtotalGstBreakdown.gst.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        Subtotal (incl. GST)
+                      </p>
+                      <p className="font-semibold tabular-nums mt-1">
+                        PKR {subtotalGstBreakdown.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
