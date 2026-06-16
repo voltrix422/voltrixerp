@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
     const order = await request.json()
     const client = await resolveInvoiceClient(order)
     const clientDetailRows = buildInvoiceClientDetailRows(order, client)
+    const pay = getInvoicePaymentSummary(order)
+    const isProformaInvoice = pay.balanceDue > 0.004
+    const documentTitle = isProformaInvoice ? "PROFORMA INVOICE" : "INVOICE"
     const taxAmount = Number(order.tax || 0)
     const hasTax = Math.abs(taxAmount) > 0.004
 
@@ -92,8 +95,8 @@ export async function POST(request: NextRequest) {
     doc.text('Email: sale@voltrixbatteries.com  |  www.voltrixbatteries.com', mL + 30, 31)
 
     doc.setFont(FONT, 'bold')
-    doc.setFontSize(26)
-    doc.text('INVOICE', pageW - mR, 22, { align: 'right' })
+    doc.setFontSize(isProformaInvoice ? 18 : 26)
+    doc.text(documentTitle, pageW - mR, 22, { align: 'right' })
     doc.setFont(FONT, 'normal')
     doc.setFontSize(8.5)
     doc.text(order.orderNumber, pageW - mR, 29, { align: 'right' })
@@ -102,7 +105,6 @@ export async function POST(request: NextRequest) {
     doc.setFillColor(...tealDark)
     doc.rect(0, 44, pageW, 15, 'F')
 
-    const pay = getInvoicePaymentSummary(order)
     const metaItems = [
       { label: 'INVOICE DATE',  value: new Date(order.createdAt).toLocaleDateString('en-PK') },
       ...(order.deliveryDate ? [{ label: 'DELIVERY DATE', value: new Date(order.deliveryDate).toLocaleDateString('en-PK') }] : []),
@@ -386,7 +388,9 @@ export async function POST(request: NextRequest) {
       const payY = y + totBoxH + 6
       const payW = pageW - mL - mR
       const detailLines = payments.length
-      const payBoxH = 32 + (detailLines > 0 ? Math.min(detailLines, 4) * 5 : 0)
+      const showBankDetails = pay.balanceDue > 0.004
+      const bankBlockH = showBankDetails ? 28 : 0
+      const payBoxH = 32 + (detailLines > 0 ? Math.min(detailLines, 4) * 5 : 0) + bankBlockH
 
       doc.setFillColor(...lightBg)
       doc.setDrawColor(...teal)
@@ -444,6 +448,37 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      if (showBankDetails) {
+        const bankY = payY + payBoxH - 28
+        doc.setFillColor(241, 249, 248)
+        doc.roundedRect(mL + 3, bankY, payW - 6, 22, 1.5, 1.5, 'F')
+        doc.setDrawColor(...lightGray)
+        doc.setLineWidth(0.2)
+        doc.roundedRect(mL + 3, bankY, payW - 6, 22, 1.5, 1.5, 'S')
+
+        doc.setFont(FONT, 'bold')
+        doc.setFontSize(7)
+        doc.setTextColor(...tealDark)
+        doc.text('BANK DETAILS', mL + 6, bankY + 4.5)
+
+        doc.setFont(FONT, 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(...black)
+        doc.text('Bank: UBL', mL + 6, bankY + 9)
+        doc.text('Account #: 0109000340713349', mL + 6, bankY + 13)
+        doc.text('Title: Voltrix Batteries Pvt Limited', mL + 6, bankY + 17)
+        doc.text('IBAN: PK29UNIL0109000340713349', mL + 6, bankY + 21)
+
+        doc.setFont(FONT, 'bold')
+        doc.setTextColor(180, 40, 40)
+        doc.text(
+          'Double-check details before sending · Send screenshot after payment',
+          mL + payW - 6,
+          bankY + 21,
+          { align: 'right' },
+        )
+      }
+
       if (pay.isPaidInFull) {
         doc.setFillColor(34, 139, 34)
         doc.roundedRect(mL + payW - 56, payY + payBoxH - 11, 52, 9, 2, 2, 'F')
@@ -488,7 +523,7 @@ export async function POST(request: NextRequest) {
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Invoice-${order.orderNumber}.pdf"`,
+        'Content-Disposition': `attachment; filename="${isProformaInvoice ? 'Proforma-Invoice' : 'Invoice'}-${order.orderNumber}.pdf"`,
       },
     })
 
