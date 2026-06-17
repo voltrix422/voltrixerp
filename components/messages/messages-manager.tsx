@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { MessageSquare, Send } from "lucide-react"
@@ -20,9 +20,17 @@ type ChatMessage = {
   mine: boolean
 }
 
+type ConversationSummary = {
+  partnerId: string
+  text: string
+  createdAt: string
+  unreadCount: number
+}
+
 export function MessagesManager() {
   const { user } = useAuth()
   const [users, setUsers] = useState<ErpUserRow[]>([])
+  const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [selectedUserId, setSelectedUserId] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [text, setText] = useState("")
@@ -30,6 +38,7 @@ export function MessagesManager() {
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState("")
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function loadUsers() {
@@ -43,6 +52,19 @@ export function MessagesManager() {
     }
     void loadUsers()
   }, [])
+
+  async function loadConversations() {
+    if (!user?.id) return
+    const params = new URLSearchParams({ userId: user.id })
+    const res = await fetch(`/api/db/messages?${params.toString()}`)
+    const data = (await res.json()) as ConversationSummary[]
+    setConversations(Array.isArray(data) ? data : [])
+  }
+
+  useEffect(() => {
+    void loadConversations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const contacts = useMemo(() => {
     const currentId = user?.id
@@ -58,6 +80,17 @@ export function MessagesManager() {
       )
   }, [users, user?.id, search])
 
+  const contactRows = useMemo(() => {
+    const convMap = new Map(conversations.map((c) => [c.partnerId, c]))
+    return contacts
+      .map((u) => ({ user: u, conv: convMap.get(u.id) || null }))
+      .sort((a, b) => {
+        const at = a.conv ? new Date(a.conv.createdAt).getTime() : 0
+        const bt = b.conv ? new Date(b.conv.createdAt).getTime() : 0
+        return bt - at
+      })
+  }, [contacts, conversations])
+
   const selectedUser = users.find((u) => u.id === selectedUserId) || null
 
   async function loadMessages() {
@@ -68,6 +101,12 @@ export function MessagesManager() {
       const res = await fetch(`/api/db/messages?${params.toString()}`)
       const data = (await res.json()) as ChatMessage[]
       setMessages(Array.isArray(data) ? data : [])
+      await fetch("/api/db/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, partnerId: selectedUserId }),
+      })
+      await loadConversations()
     } finally {
       setLoadingMessages(false)
     }
@@ -87,6 +126,25 @@ export function MessagesManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, selectedUserId])
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void loadConversations()
+    }, 5000)
+    return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!selectedUserId && contactRows.length > 0) {
+      setSelectedUserId(contactRows[0].user.id)
+    }
+  }, [contactRows, selectedUserId])
+
+  useEffect(() => {
+    if (!listRef.current) return
+    listRef.current.scrollTop = listRef.current.scrollHeight
+  }, [messages, selectedUserId, loadingMessages])
+
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault()
     if (!user?.id || !selectedUser || !text.trim()) return
@@ -105,6 +163,7 @@ export function MessagesManager() {
       })
       setText("")
       await loadMessages()
+      await loadConversations()
     } finally {
       setSending(false)
     }
@@ -131,10 +190,10 @@ export function MessagesManager() {
           <div className="flex-1 overflow-auto p-2 space-y-1">
             {loadingUsers ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))] px-2 py-3">Loading users...</p>
-            ) : contacts.length === 0 ? (
+            ) : contactRows.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))] px-2 py-3">No users found.</p>
             ) : (
-              contacts.map((u) => (
+              contactRows.map(({ user: u, conv }) => (
                 <button
                   key={u.id}
                   type="button"
@@ -145,9 +204,19 @@ export function MessagesManager() {
                       : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/30"
                   }`}
                 >
-                  <p className="text-xs font-semibold truncate">{u.name}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold truncate">{u.name}</p>
+                    {conv && conv.unreadCount > 0 && (
+                      <span className="h-4 min-w-4 rounded-full bg-[#1faca6] px-1 text-[10px] text-white flex items-center justify-center">
+                        {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{u.email}</p>
                   <p className="text-[10px] text-[#0d6b67] truncate">ID: {u.id}</p>
+                  {conv && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate mt-1">{conv.text}</p>
+                  )}
                 </button>
               ))
             )}
@@ -166,7 +235,7 @@ export function MessagesManager() {
             )}
           </div>
 
-          <div className="flex-1 overflow-auto p-4 space-y-2 bg-[hsl(var(--background))]">
+          <div ref={listRef} className="flex-1 overflow-auto p-4 space-y-2 bg-[hsl(var(--background))]">
             {!selectedUser ? (
               <div className="h-full flex items-center justify-center text-center text-[hsl(var(--muted-foreground))]">
                 <div>

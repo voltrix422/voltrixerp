@@ -49,13 +49,24 @@ export async function GET(req: NextRequest) {
     take: 300,
   })
 
-  const map = new Map<string, { partnerId: string; text: string; createdAt: Date }>()
+  const map = new Map<string, { partnerId: string; text: string; createdAt: Date; unreadCount: number }>()
   for (const row of rows) {
     const parsed = parseChatLink(row.link)
     if (!parsed) continue
     const partner = parsed.senderId === userId ? parsed.recipientId : parsed.senderId
-    if (!partner || map.has(partner)) continue
-    map.set(partner, { partnerId: partner, text: row.message, createdAt: row.createdAt })
+    if (!partner) continue
+    const existing = map.get(partner)
+    const isIncomingUnread = parsed.senderId === partner && parsed.recipientId === userId && !row.read
+    if (!existing) {
+      map.set(partner, {
+        partnerId: partner,
+        text: row.message,
+        createdAt: row.createdAt,
+        unreadCount: isIncomingUnread ? 1 : 0,
+      })
+      continue
+    }
+    if (isIncomingUnread) existing.unreadCount += 1
   }
 
   return NextResponse.json(Array.from(map.values()))
@@ -102,5 +113,27 @@ export async function POST(req: NextRequest) {
     messageId: forSender.id,
     recipientMessageId: forRecipient.id,
   })
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json()
+  const userId = String(body.userId || "").trim()
+  const partnerId = String(body.partnerId || "").trim()
+  if (!userId || !partnerId) {
+    return NextResponse.json({ error: "Missing userId or partnerId" }, { status: 400 })
+  }
+
+  const incomingLink = `chat:${partnerId}:${userId}`
+  const result = await prisma.erpNotification.updateMany({
+    where: {
+      userId,
+      type: "chat_message",
+      link: incomingLink,
+      read: false,
+    },
+    data: { read: true },
+  })
+
+  return NextResponse.json({ ok: true, updated: result.count })
 }
 

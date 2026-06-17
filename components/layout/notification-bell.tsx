@@ -77,7 +77,7 @@ export function NotificationBell() {
       setItems(prev => prev.map(i => (i.id === n.id ? { ...i, read: true } : i)))
       setUnread(c => Math.max(0, c - 1))
     }
-    if (n.link) {
+    if (n.link && n.link.startsWith("/")) {
       setOpen(false)
       router.push(n.link)
     }
