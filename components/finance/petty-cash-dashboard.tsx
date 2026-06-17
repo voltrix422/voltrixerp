@@ -44,6 +44,13 @@ export function PettyCashDashboard() {
   const [activeTab, setActiveTab] = useState<"allocations" | "receipts" | "history">("allocations")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
+  const [migrationPreview, setMigrationPreview] = useState<{
+    eligibleCount: number
+    eligibleTotal: number
+    expectedCount: number
+    expectedTotal: number
+  } | null>(null)
+  const [migratingFinance, setMigratingFinance] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -170,6 +177,53 @@ export function PettyCashDashboard() {
   }
 
   const canManagePettyCash = userRole === "superadmin"
+
+  useEffect(() => {
+    if (!canManagePettyCash) return
+    fetch("/api/finance/migrate-to-petty-cash")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.eligibleCount > 0) setMigrationPreview(data)
+        else setMigrationPreview(null)
+      })
+      .catch(() => setMigrationPreview(null))
+  }, [canManagePettyCash])
+
+  async function handleMigrateFinanceRecords() {
+    if (
+      !window.confirm(
+        `Move ${migrationPreview?.eligibleCount ?? 0} finance records (PKR ${(migrationPreview?.eligibleTotal ?? 0).toLocaleString()}) to petty cash as a negative balance? This is a one-time action and cannot be undone.`,
+      )
+    ) {
+      return
+    }
+
+    setMigratingFinance(true)
+    try {
+      const res = await fetch("/api/finance/migrate-to-petty-cash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirm: true,
+          allocatedBy: currentUser || "Finance",
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Migration failed")
+      toast({ title: "Migration complete", message: data.message, type: "success" })
+      setMigrationPreview(null)
+      loadData()
+    } catch (error) {
+      toast({
+        title: "Error",
+        message: error instanceof Error ? error.message : "Migration failed",
+        type: "error",
+      })
+    } finally {
+      setMigratingFinance(false)
+    }
+  }
+
   const belongsToCurrentUser = (allocation: PettyCashAllocation) =>
     allocationBelongsToUser(allocation, currentUserId, currentUser)
   const receiptBelongsToCurrentUser = (receipt: PettyCashReceipt) => {
@@ -236,6 +290,25 @@ export function PettyCashDashboard() {
           </Button>
         </div>
       </div>
+
+      {canManagePettyCash && migrationPreview && migrationPreview.eligibleCount > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">One-time finance records migration</h3>
+            <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+              Move {migrationPreview.eligibleCount} finance records (PKR {migrationPreview.eligibleTotal.toLocaleString()}) into petty cash as negative balance under Office Expenses.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="h-8 text-xs shrink-0"
+            disabled={migratingFinance}
+            onClick={handleMigrateFinanceRecords}
+          >
+            {migratingFinance ? "Migrating..." : "Move to Petty Cash"}
+          </Button>
+        </div>
+      )}
 
       {canManagePettyCash && pendingRequests.length > 0 && (
         <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-3">

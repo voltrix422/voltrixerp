@@ -404,7 +404,11 @@ async function processDispatchAllocationsForLine(
 
   const manualItem = await resolveManualInventoryForOrderLine(item)
   if (manualItem) {
-    await decrementManualInventoryByModel(manualItem.model, qty)
+    const alreadyOut = await manualQtyAlreadyDeductedForOrder(order, manualItem, item)
+    const need = qty - alreadyOut
+    if (need > 0) {
+      await decrementManualInventoryByModel(manualItem.model, need)
+    }
   } else {
     const stock = await deductStockForLine(order, item)
     if (!stock.ok) {
