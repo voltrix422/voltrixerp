@@ -159,7 +159,6 @@ export function parseManualInventoryItemId(inventoryItemId?: string | null): str
   return manualId || null
 }
 
-/** Match an order line to manual inventory even when model codes differ (e.g. HSLD15KW vs MAN-…). */
 export async function resolveManualInventoryForOrderLine(item: {
   description?: string
   model?: string
@@ -205,4 +204,59 @@ export async function resolveManualInventoryForOrderLine(item: {
   }
 
   return null
+}
+
+function isManualModelAlias(modelKey: string, manualModel: string) {
+  const key = modelKey.trim()
+  const base = manualModel.trim()
+  if (!key || !base) return false
+  if (key === base) return true
+  return key.startsWith(`${base}-`)
+}
+
+/** Resolve manual inventory for branch dispatch (handles model aliases like MAN-FOO-B-1). */
+export async function resolveManualInventoryForBranchDispatch(input: {
+  modelKey?: string
+  stockId?: string
+  productName?: string
+}) {
+  const stockId = input.stockId?.trim()
+  if (stockId) {
+    const byStock = await prisma.erpManualInventoryItem.findFirst({
+      where: { inventoryStockId: stockId },
+    })
+    if (byStock) return byStock
+  }
+
+  const productName = input.productName?.trim()
+  if (productName) {
+    const byName = await prisma.erpManualInventoryItem.findFirst({
+      where: { name: { equals: productName, mode: "insensitive" } },
+    })
+    if (byName) return byName
+  }
+
+  const modelKey = input.modelKey?.trim()
+  if (!modelKey) return null
+
+  const byModel = await prisma.erpManualInventoryItem.findUnique({
+    where: { model: modelKey },
+  })
+  if (byModel) return byModel
+
+  const manuals = await prisma.erpManualInventoryItem.findMany({
+    where: {
+      OR: [
+        { model: { startsWith: modelKey.split("-").slice(0, -1).join("-") } },
+        { name: { contains: productName || modelKey, mode: "insensitive" } },
+      ],
+    },
+    take: 20,
+  })
+
+  return (
+    manuals.find((item) => isManualModelAlias(modelKey, item.model)) ??
+    manuals.find((item) => modelKey.startsWith(item.model)) ??
+    null
+  )
 }

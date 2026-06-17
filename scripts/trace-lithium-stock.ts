@@ -9,7 +9,7 @@ async function main() {
   const args = process.argv.slice(2)
   const shouldFix = args.includes("--fix")
   const targetArg = args.find((a) => a.startsWith("--target="))
-  const targetAvailable = targetArg ? Number(targetArg.split("=")[1]) : 175
+  const targetAvailable = targetArg ? Number(targetArg.split("=")[1]) : undefined
 
   const audit = await auditManualInventoryStock(MODEL)
   if (!audit) {
@@ -17,69 +17,58 @@ async function main() {
     process.exit(1)
   }
 
+  const bs = audit.businessSummary
+  const fixTarget = Number.isFinite(targetAvailable)
+    ? targetAvailable!
+    : bs.recommendedAvailable
+
   console.log("=== MANUAL INVENTORY AUDIT ===")
   console.log("Name:", audit.name)
   console.log("Model:", audit.model)
   console.log("Total qty:", audit.totalQty)
   console.log("Current available:", audit.currentAvailable)
-  console.log("Committed (total - available):", audit.committed)
-  console.log("Outbound from history:", audit.totalQty - audit.expectedAvailable)
-  console.log("Expected available (from history):", audit.expectedAvailable)
-  console.log("Discrepancy (current - expected):", audit.discrepancy)
 
-  console.log("\n=== MOVEMENTS ===")
-  let outSum = 0
-  for (const row of audit.movements) {
-    const out =
-      row.type === "out" ||
-      row.type === "assigned_to_branch" ||
-      row.type === "branch_transfer" ||
-      row.type === "manual_subtract_stock"
-        ? Math.abs(row.quantity)
-        : 0
-    if (out > 0) outSum += out
-    console.log(
-      [
-        row.date.slice(0, 10),
-        row.type,
-        row.quantity,
-        row.referenceType,
-        row.referenceNumber,
-        row.notes.slice(0, 70),
-      ].join(" | "),
-    )
+  console.log("\n=== WAREHOUSE MATH (use this) ===")
+  console.log(`  Total:                    ${audit.totalQty}`)
+  console.log(`  − Delivered orders:       ${bs.deliveredOrderQty}`)
+  console.log(`  − At branches:            ${bs.branchHoldingQty}`)
+  console.log(`  = Should be in warehouse:   ${bs.calculatedWarehouseAvailable}`)
+  console.log(`  Current in warehouse:       ${audit.currentAvailable}`)
+  console.log(`  Gap:                        ${bs.gapVsCurrent} (${bs.gapVsCurrent < 0 ? "short by " + Math.abs(bs.gapVsCurrent) : "over by " + bs.gapVsCurrent})`)
+  if (bs.approvedNotDeductedQty > 0) {
+    console.log(`  Note: ${bs.approvedNotDeductedQty} pcs on approved orders not deducted yet (ORD-00026 etc.)`)
   }
-  console.log("Sum of outbound movements:", outSum)
-
-  console.log("\n=== ORDER LINES ===")
-  for (const line of audit.orderLines) {
-    console.log(
-      [line.orderNumber, line.status, "qty", line.qty, line.description, "deducted", line.inventoryDeductedAt].join(
-        " | ",
-      ),
-    )
+  if (bs.manualSubtractStockQty > 0) {
+    console.log(`  Note: ${bs.manualSubtractStockQty} pcs removed via manual −stock adjustment`)
   }
 
-  console.log("\n=== BRANCH ASSIGNMENTS ===")
+  console.log("\n=== DELIVERED ORDERS ===")
+  for (const line of audit.orderLines.filter((l) => l.status === "delivered")) {
+    console.log(`  ${line.orderNumber} | qty ${line.qty} | ${line.description}`)
+  }
+
+  console.log("\n=== BRANCH HOLDINGS (total " + bs.branchHoldingQty + " pcs) ===")
   for (const row of audit.branchAssignments) {
-    console.log([row.quantity, row.productDescription, row.branchId, (row.notes || "").slice(0, 60)].join(" | "))
+    console.log(`  ${row.quantity} pcs | ${row.productDescription}`)
+  }
+
+  console.log("\n=== RECENT MOVEMENTS (last 10) ===")
+  for (const row of audit.movements.slice(-10)) {
+    console.log(
+      `  ${row.date.slice(0, 10)} | ${row.type} | ${row.quantity} | ${row.referenceType} | ${row.referenceNumber}`,
+    )
   }
 
   if (!shouldFix) {
-    console.log("\nRun with --fix --target=175 to correct available stock.")
+    console.log(`\nTo fix, run: npx tsx scripts/trace-lithium-stock.ts --fix --target=${fixTarget}`)
     return
-  }
-
-  if (!Number.isFinite(targetAvailable)) {
-    console.error("Invalid --target value")
-    process.exit(1)
   }
 
   const result = await correctManualInventoryAvailable({
     model: MODEL,
-    targetAvailable,
+    targetAvailable: fixTarget,
     correctedBy: "trace-lithium-stock script",
-    reason: `Reconcile to ${targetAvailable} pcs (was ${audit.currentAvailable})`,
+    reason: `Reconcile warehouse stock to ${fixTarget} pcs (${audit.totalQty} total − ${bs.deliveredOrderQty} orders − ${bs.branchHoldingQty} branches)`,
   })
 
   console.log("\n=== FIX RESULT ===")

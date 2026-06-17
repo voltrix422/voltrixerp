@@ -9,6 +9,7 @@ import {
 import {
   decrementManualInventoryByModel,
   restoreManualInventoryByStockId,
+  resolveManualInventoryForBranchDispatch,
 } from "@/lib/manual-inventory-server"
 
 export function buildBranchTransferNote(params: {
@@ -191,16 +192,27 @@ export async function executeDispatchLine(params: {
     throw new Error("Missing inventory item or model for dispatch")
   }
 
-  const inventory = await prisma.erpInventoryStock.findUnique({
+  let inventory = await prisma.erpInventoryStock.findUnique({
     where: { id: stockId },
   })
   if (!inventory) {
     throw new Error(`Stock item not found: ${stockId}`)
   }
 
-  const manualItem = modelKey
-    ? await prisma.erpManualInventoryItem.findUnique({ where: { model: modelKey } })
-    : null
+  const manualItem = await resolveManualInventoryForBranchDispatch({
+    modelKey,
+    stockId,
+    productName: line.productName || inventory.description,
+  })
+  if (manualItem) {
+    modelKey = manualItem.model
+    if (manualItem.inventoryStockId && manualItem.inventoryStockId !== stockId) {
+      stockId = manualItem.inventoryStockId
+      inventory =
+        (await prisma.erpInventoryStock.findUnique({ where: { id: stockId } })) ?? inventory
+    }
+  }
+
   const serialInStock = modelKey ? await countInStockSerialsForModel(modelKey) : 0
 
   let effectiveAvailable = inventory.availableQty
@@ -245,7 +257,7 @@ export async function executeDispatchLine(params: {
     data: {
       branchId: destinationBranchId,
       inventoryId: stockId,
-      productDescription: inventory.description,
+      productDescription: manualItem?.model || inventory.description,
       quantity,
       unit: line.unit || inventory.unit,
       assignedBy,
@@ -310,7 +322,7 @@ export async function executeDispatchLine(params: {
       toBranchName: destinationBranch.name,
       toBranchCode: destinationBranch.code,
       inventoryId: stockId,
-      productDescription: inventory.description,
+      productDescription: manualItem?.model || inventory.description,
       quantity,
       unit: line.unit || inventory.unit,
       note: transferNote,

@@ -11,6 +11,16 @@ export type ManualInventoryMovement = {
   createdBy: string
 }
 
+export type ManualInventoryBusinessSummary = {
+  deliveredOrderQty: number
+  branchHoldingQty: number
+  approvedNotDeductedQty: number
+  manualSubtractStockQty: number
+  calculatedWarehouseAvailable: number
+  gapVsCurrent: number
+  recommendedAvailable: number
+}
+
 export type ManualInventoryAudit = {
   model: string
   name: string
@@ -20,6 +30,7 @@ export type ManualInventoryAudit = {
   committed: number
   expectedAvailable: number
   discrepancy: number
+  businessSummary: ManualInventoryBusinessSummary
   movements: ManualInventoryMovement[]
   orderLines: Array<{
     orderNumber: string
@@ -44,7 +55,15 @@ function matchesItem(
   if (!value) return false
   const name = manual.name.trim().toLowerCase()
   const model = manual.model.trim().toLowerCase()
-  return value === name || value === model || value.includes(name) || value.includes(model)
+  if (value === name || value === model) return true
+  if (value.includes(model)) return true
+
+  const skuMatch = manual.name.match(/\((HS-[^)]+)\)/i)
+  if (skuMatch) {
+    return value.includes(skuMatch[1].toLowerCase())
+  }
+
+  return value.includes(name)
 }
 
 function outboundQuantity(row: {
@@ -154,6 +173,7 @@ export async function auditManualInventoryStock(model: string): Promise<ManualIn
         { productDescription: { equals: manual.model, mode: "insensitive" } },
         { productDescription: { equals: manual.name, mode: "insensitive" } },
         { productDescription: { contains: manual.name, mode: "insensitive" } },
+        { productDescription: { startsWith: `${manual.model}-`, mode: "insensitive" } },
       ],
     },
     select: {
@@ -164,6 +184,43 @@ export async function auditManualInventoryStock(model: string): Promise<ManualIn
     },
   })
 
+  const deliveredOrderQty = orderLines
+    .filter((line) => line.status === "delivered" && line.inventoryDeductedAt)
+    .reduce((sum, line) => sum + line.qty, 0)
+
+  const approvedNotDeductedQty = orderLines
+    .filter(
+      (line) =>
+        line.status === "approved" &&
+        !line.inventoryDeductedAt &&
+        !line.description.toUpperCase().includes("HS-TL100"),
+    )
+    .reduce((sum, line) => sum + line.qty, 0)
+
+  const branchHoldingQty = branchAssignments.reduce(
+    (sum, row) => sum + (Number(row.quantity) || 0),
+    0,
+  )
+
+  const manualSubtractStockQty = movements
+    .filter((row) => row.type === "out" && row.referenceType === "manual_subtract_stock")
+    .reduce((sum, row) => sum + Math.abs(row.quantity), 0)
+
+  const calculatedWarehouseAvailable = Math.max(
+    0,
+    totalQty - deliveredOrderQty - branchHoldingQty,
+  )
+
+  const businessSummary: ManualInventoryBusinessSummary = {
+    deliveredOrderQty,
+    branchHoldingQty,
+    approvedNotDeductedQty,
+    manualSubtractStockQty,
+    calculatedWarehouseAvailable,
+    gapVsCurrent: currentAvailable - calculatedWarehouseAvailable,
+    recommendedAvailable: calculatedWarehouseAvailable,
+  }
+
   return {
     model: manual.model,
     name: manual.name,
@@ -173,6 +230,7 @@ export async function auditManualInventoryStock(model: string): Promise<ManualIn
     committed,
     expectedAvailable,
     discrepancy: currentAvailable - expectedAvailable,
+    businessSummary,
     movements,
     orderLines,
     branchAssignments,
