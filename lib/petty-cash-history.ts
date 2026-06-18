@@ -1,9 +1,11 @@
 import type { PettyCashAllocation, PettyCashReceipt } from "@/lib/petty-cash"
+import { parsePettyCashTopUps } from "@/lib/petty-cash-topup"
 
 export type PettyCashHistoryEventType =
   | "request"
   | "approval"
   | "rejection"
+  | "topup"
   | "settlement"
   | "settlement_review"
   | "closed"
@@ -66,6 +68,21 @@ export function buildPettyCashHistory(
       })
     }
   }
+
+  parsePettyCashTopUps(allocation.notes).forEach((topUp, index) => {
+    events.push({
+      id: `${allocation.id}-topup-${index}`,
+      type: "topup",
+      title: "Cash added to ledger",
+      description: topUp.note || undefined,
+      amount: topUp.amount,
+      occurredAt: topUp.at,
+      actor: topUp.by,
+      proofUrl: topUp.proofUrl,
+      proofName: topUp.proofName,
+      status: "active",
+    })
+  })
 
   receipts.forEach((receipt) => {
     const expenseAmount = -Math.abs(receipt.amount)

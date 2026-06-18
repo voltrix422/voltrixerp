@@ -7,6 +7,7 @@ import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
 import { PettyCashRequestForm } from "./petty-cash-request"
 import { PettyCashApprovalForm } from "./petty-cash-approval"
 import { PettyCashHistoryPanel } from "./petty-cash-history-panel"
+import { PettyCashTopUp } from "./petty-cash-top-up"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
@@ -44,6 +45,7 @@ export function PettyCashDashboard() {
   const [activeTab, setActiveTab] = useState<"allocations" | "receipts" | "history">("allocations")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
+  const [topUpAllocation, setTopUpAllocation] = useState<PettyCashAllocation | null>(null)
   const [migrationPreview, setMigrationPreview] = useState<{
     eligibleCount: number
     eligibleTotal: number
@@ -529,6 +531,17 @@ export function PettyCashDashboard() {
                                   History
                                 </button>
                               )}
+                              {canManagePettyCash &&
+                                allocation.status === "active" &&
+                                isPersonalLedgerAllocation(allocation) && (
+                                <button
+                                  onClick={() => setTopUpAllocation(allocation)}
+                                  className="text-green-600 hover:text-green-800 text-[10px] font-medium transition-colors cursor-pointer"
+                                  title="Add cash to this ledger"
+                                >
+                                  Add Cash
+                                </button>
+                              )}
                               {canManagePettyCash && allocation.status === "active" && (
                                 <button
                                   onClick={() => setSettleConfirm(allocation)}
@@ -727,6 +740,21 @@ export function PettyCashDashboard() {
           userRole={userRole || "user"}
           onClose={() => setSelectedAllocation(null)}
           onUpdate={loadData}
+        />
+      )}
+
+      {topUpAllocation && (
+        <PettyCashTopUp
+          allocation={topUpAllocation}
+          allocatedBy={currentUser || "Admin"}
+          onClose={() => setTopUpAllocation(null)}
+          onSave={(updated) => {
+            setAllocations((prev) =>
+              prev.map((item) => (item.id === updated.id ? updated : item)),
+            )
+            setTopUpAllocation(null)
+            loadData()
+          }}
         />
       )}
     </div>

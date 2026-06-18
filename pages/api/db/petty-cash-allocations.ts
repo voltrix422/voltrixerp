@@ -1,6 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { PrismaClient } from '@prisma/client'
 import { syncOfficeLedgerDisplayName } from '@/lib/migrate-finance-records-to-petty-cash'
+import { appendPettyCashTopUpNote } from '@/lib/petty-cash-topup'
+import { isPersonalLedgerAllocation } from '@/lib/petty-cash-personal'
 import {
   notifyOnPettyCashPending,
   notifyOnPettyCashReviewed,
@@ -79,10 +81,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         reviewedBy,
         reviewedAt,
         reviewNotes,
+        topUpAmount,
+        topUpBy,
+        topUpNote,
+        topUpProof,
+        topUpProofName,
       } = req.body
 
       if (!id) {
         return res.status(400).json({ error: 'Missing allocation ID' })
+      }
+
+      if (topUpAmount !== undefined) {
+        const before = await prisma.erpPettyCashAllocation.findUnique({ where: { id } })
+        if (!before) {
+          return res.status(404).json({ error: 'Allocation not found' })
+        }
+        if (before.status !== 'active') {
+          return res.status(400).json({ error: 'Can only add cash to an active petty cash ledger' })
+        }
+        if (!isPersonalLedgerAllocation(before)) {
+          return res.status(400).json({ error: 'Top-up is only available for personal expense ledgers' })
+        }
+
+        const addAmount = parseFloat(String(topUpAmount))
+        if (!Number.isFinite(addAmount) || addAmount <= 0) {
+          return res.status(400).json({ error: 'Top-up amount must be greater than zero' })
+        }
+
+        const actor = String(topUpBy || 'Admin').trim() || 'Admin'
+        const allocation = await prisma.erpPettyCashAllocation.update({
+          where: { id },
+          data: {
+            amount: before.amount + addAmount,
+            notes: appendPettyCashTopUpNote(before.notes || '', {
+              at: new Date().toISOString(),
+              amount: addAmount,
+              by: actor,
+              note: String(topUpNote || '').trim() || undefined,
+              proofUrl: topUpProof || undefined,
+              proofName: topUpProofName || undefined,
+            }),
+          },
+        })
+
+        return res.status(200).json(allocation)
       }
 
       const before = await prisma.erpPettyCashAllocation.findUnique({ where: { id } })

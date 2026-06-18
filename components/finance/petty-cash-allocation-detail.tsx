@@ -22,6 +22,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { PettyCashActivityTimeline } from "./petty-cash-history-panel"
+import { PettyCashTopUp } from "./petty-cash-top-up"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target, Trash2 } from "lucide-react"
@@ -51,6 +52,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState("")
   const [deleteReceiptConfirm, setDeleteReceiptConfirm] = useState<PettyCashReceipt | null>(null)
   const [deletingReceipt, setDeletingReceipt] = useState(false)
+  const [showTopUp, setShowTopUp] = useState(false)
 
   useEffect(() => {
     loadReceipts()
@@ -289,9 +291,21 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {canManagePettyCash && isPersonal && allocation.status === "active" && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-green-600 hover:bg-green-700"
+                onClick={() => setShowTopUp(true)}
+              >
+                <DollarSign className="h-3.5 w-3.5 mr-1" />
+                Add Cash
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto">
@@ -680,6 +694,18 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         onConfirm={() => deleteReceiptConfirm && handleDeleteReceipt(deleteReceiptConfirm)}
         onCancel={() => !deletingReceipt && setDeleteReceiptConfirm(null)}
       />
+
+      {showTopUp && (
+        <PettyCashTopUp
+          allocation={allocation}
+          allocatedBy={currentUser || "Admin"}
+          onClose={() => setShowTopUp(false)}
+          onSave={() => {
+            setShowTopUp(false)
+            onUpdate()
+          }}
+        />
+      )}
     </div>
   )
 }

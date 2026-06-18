@@ -144,6 +144,33 @@ export async function updatePettyCashAllocationStatus(
   return res.json()
 }
 
+export async function topUpPettyCashAllocation(data: {
+  id: string
+  topUpAmount: number
+  topUpBy: string
+  note?: string
+  paymentProof?: string
+  paymentProofName?: string
+}): Promise<PettyCashAllocation> {
+  const res = await fetch('/api/db/petty-cash-allocations', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: data.id,
+      topUpAmount: data.topUpAmount,
+      topUpBy: data.topUpBy,
+      topUpNote: data.note || '',
+      topUpProof: data.paymentProof,
+      topUpProofName: data.paymentProofName,
+    }),
+  })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}))
+    throw new Error(payload?.error || 'Failed to add cash to petty cash ledger')
+  }
+  return res.json()
+}
+
 export async function deletePettyCashAllocation(id: string): Promise<void> {
   const res = await fetch(`/api/db/petty-cash-allocations?id=${id}`, {
     method: "DELETE",
