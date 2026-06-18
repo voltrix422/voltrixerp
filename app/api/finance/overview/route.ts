@@ -3,12 +3,17 @@ import { prisma } from "@/lib/db"
 import type { Order } from "@/lib/orders"
 import {
   parseOrderPayments,
-  orderPaidTotal,
+  approvedBalancePaymentAmount,
   isFinanceRelevantOrder,
   type FinanceOverviewAction,
   type FinanceOverviewActivity,
 } from "@/lib/finance-overview"
-import { getPaymentSubmissionStatus, getOrderCreditBalance, hasOutstandingCredit } from "@/lib/orders"
+import {
+  getPaymentSubmissionStatus,
+  getOrderCreditBalance,
+  hasOutstandingCredit,
+  reconcileDeliveredOrderPayments,
+} from "@/lib/orders"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -34,7 +39,7 @@ export async function GET(req: NextRequest) {
     const period = new URL(req.url).searchParams.get("period") || "month"
     const { start, end, label: periodLabel } = periodRange(period)
 
-    const [orders, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending] = await Promise.all([
+    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
@@ -43,6 +48,25 @@ export async function GET(req: NextRequest) {
       prisma.erpPosSale.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
       prisma.erpPettyCashReceipt.count({ where: { status: "pending" } }),
     ])
+
+    const orders = [...ordersRaw]
+    for (let i = 0; i < orders.length; i++) {
+      const row = orders[i]
+      if (row.status !== "delivered") continue
+      const payments = parseOrderPayments(row.payments)
+      const reconciled = reconcileDeliveredOrderPayments({
+        status: row.status as Order["status"],
+        total: row.total,
+        payments,
+      })
+      if (JSON.stringify(payments) !== JSON.stringify(reconciled)) {
+        await prisma.erpOrder.update({
+          where: { id: row.id },
+          data: { payments: reconciled },
+        })
+        orders[i] = { ...row, payments: reconciled }
+      }
+    }
 
     let pendingClientPayments = 0
     let clientReceivedInPeriod = 0
@@ -124,11 +148,13 @@ export async function GET(req: NextRequest) {
       for (const p of payments) {
         const st = getPaymentSubmissionStatus(p, order.status)
         if (st === "approved") {
+          const amount = approvedBalancePaymentAmount(p, order.status)
+          if (amount <= 0) continue
           const d = new Date(p.date || row.createdAt)
           if (inRange(d, start, end)) {
-            clientReceivedInPeriod += p.amount
+            clientReceivedInPeriod += amount
             const method = p.method || "Other"
-            paymentMethodTotals[method] = (paymentMethodTotals[method] || 0) + p.amount
+            paymentMethodTotals[method] = (paymentMethodTotals[method] || 0) + amount
           }
         }
       }
@@ -204,10 +230,12 @@ export async function GET(req: NextRequest) {
       let mo = 0
       for (const row of orders) {
         const payments = parseOrderPayments(row.payments)
+        const orderStatus = row.status as Order["status"]
         for (const p of payments) {
-          if (getPaymentSubmissionStatus(p, row.status as Order["status"]) !== "approved") continue
+          const amount = approvedBalancePaymentAmount(p, orderStatus)
+          if (amount <= 0) continue
           const d = new Date(p.date || row.createdAt)
-          if (inRange(d, mStart, mEnd)) mi += p.amount
+          if (inRange(d, mStart, mEnd)) mi += amount
         }
       }
       for (const sale of posSales) {
@@ -254,13 +282,15 @@ export async function GET(req: NextRequest) {
     }
     for (const row of orders.slice(0, 40)) {
       const payments = parseOrderPayments(row.payments)
+      const orderStatus = row.status as Order["status"]
       for (const p of payments) {
-        if (getPaymentSubmissionStatus(p, row.status as Order["status"]) !== "approved") continue
+        const amount = approvedBalancePaymentAmount(p, orderStatus)
+        if (amount <= 0) continue
         activities.push({
           id: `pay-${p.id}`,
           date: p.date || row.createdAt.toISOString(),
           label: `Client — ${row.orderNumber} (${row.clientName})`,
-          amount: p.amount,
+          amount,
           category: p.method,
           source: "client",
         })

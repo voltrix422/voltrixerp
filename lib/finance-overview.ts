@@ -1,5 +1,9 @@
 import type { OrderPayment, Order } from "@/lib/orders"
-import { getOrderAmountPaid, getPaymentSubmissionStatus } from "@/lib/orders"
+import {
+  getOrderAmountPaid,
+  getPaymentSubmissionStatus,
+  paymentCountsTowardBalance,
+} from "@/lib/orders"
 
 export type FinanceOverviewAction = {
   id: string
@@ -27,6 +31,16 @@ export function parseOrderPayments(payments: unknown): OrderPayment[] {
 
 export function orderPaidTotal(order: Pick<Order, "payments" | "status">) {
   return getOrderAmountPaid(order)
+}
+
+/** Approved CRM payment amount that counts toward cash-in and balance. */
+export function approvedBalancePaymentAmount(
+  payment: OrderPayment,
+  orderStatus: Order["status"],
+): number {
+  if (getPaymentSubmissionStatus(payment, orderStatus) !== "approved") return 0
+  if (!paymentCountsTowardBalance(payment, orderStatus)) return 0
+  return payment.amount
 }
 
 export function orderPendingPaymentCount(order: Pick<Order, "payments" | "status">) {
