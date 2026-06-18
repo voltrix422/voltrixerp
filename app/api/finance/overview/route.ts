@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import type { Order } from "@/lib/orders"
 import {
@@ -62,9 +63,9 @@ export async function GET(req: NextRequest) {
       if (JSON.stringify(payments) !== JSON.stringify(reconciled)) {
         await prisma.erpOrder.update({
           where: { id: row.id },
-          data: { payments: reconciled },
+          data: { payments: reconciled as unknown as Prisma.InputJsonValue },
         })
-        orders[i] = { ...row, payments: reconciled }
+        orders[i] = { ...row, payments: reconciled as unknown as typeof row.payments }
       }
     }
 
