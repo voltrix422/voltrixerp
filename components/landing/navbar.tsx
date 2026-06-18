@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
+import { OutletBar } from "@/components/landing/outlet-bar"
 import { usePathname } from "next/navigation"
 
 const links = [
@@ -64,7 +65,7 @@ export default function Navbar() {
 
   return (
     <div
-      className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4"
+      className="fixed top-4 left-0 right-0 z-50 flex flex-col items-center gap-2 px-4"
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? "translateY(0)" : "translateY(-20px)",
@@ -73,7 +74,7 @@ export default function Navbar() {
       }}
     >
       <nav
-        className={`flex items-center justify-between px-8 py-2.5 rounded-xl w-full max-w-6xl mx-4 transition-all duration-500 ${navClass}`}
+        className={`relative flex items-center justify-between px-8 py-2.5 rounded-xl w-full max-w-6xl transition-all duration-500 ${navClass}`}
       >
         <a href="/" onClick={closeMenu}>
           <Image
@@ -127,6 +128,8 @@ export default function Navbar() {
           </div>
         </div>
       )}
+
+      <OutletBar />
     </div>
   )
 }
