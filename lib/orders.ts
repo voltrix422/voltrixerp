@@ -133,6 +133,21 @@ export interface OrderPayment {
   createdAt: string
   createdBy: string
   submissionStatus?: PaymentSubmissionStatus
+  /** Post-delivery proof attachment only — does not affect order balance. */
+  proofOnly?: boolean
+}
+
+export function isProofOnlyPayment(payment: OrderPayment) {
+  return Boolean(payment.proofOnly)
+}
+
+export function paymentCountsTowardBalance(
+  payment: OrderPayment,
+  orderStatus?: Order["status"],
+) {
+  if (isProofOnlyPayment(payment)) return false
+  const status = getPaymentSubmissionStatus(payment, orderStatus)
+  return status === "pending_approval" || status === "approved"
 }
 
 export function getPaymentSubmissionStatus(payment: OrderPayment, orderStatus?: Order["status"]): PaymentSubmissionStatus {
@@ -146,15 +161,18 @@ export function getPaymentSubmissionStatus(payment: OrderPayment, orderStatus?: 
 }
 
 export function isPaymentEditable(payment: OrderPayment, orderStatus?: Order["status"]) {
-  const status = getPaymentSubmissionStatus(payment, orderStatus)
-  if (orderStatus === "delivered" && status === "approved") {
-    return true
+  if (isProofOnlyPayment(payment)) {
+    return orderStatus === "delivered"
   }
+  const status = getPaymentSubmissionStatus(payment, orderStatus)
   return status === "draft" || status === "pending_approval"
 }
 
 export function getOrderAmountPaid(order: Pick<Order, "payments" | "status">) {
-  return getSubmittedPayments(order.payments, order.status).reduce((sum, p) => sum + p.amount, 0)
+  return getBalanceSubmittedPayments(order.payments, order.status).reduce(
+    (sum, p) => sum + p.amount,
+    0,
+  )
 }
 
 export function getOrderCreditBalance(order: Pick<Order, "total" | "payments" | "status">) {
@@ -221,6 +239,67 @@ export function getSubmittedPayments(payments: OrderPayment[] = [], orderStatus?
   return payments.filter(p => {
     const s = getPaymentSubmissionStatus(p, orderStatus)
     return s === "pending_approval" || s === "approved"
+  })
+}
+
+export function getBalanceSubmittedPayments(
+  payments: OrderPayment[] = [],
+  orderStatus?: Order["status"],
+) {
+  return getSubmittedPayments(payments, orderStatus).filter(p =>
+    paymentCountsTowardBalance(p, orderStatus),
+  )
+}
+
+export function getProofOnlyPayments(payments: OrderPayment[] = [], orderStatus?: Order["status"]) {
+  return getSubmittedPayments(payments, orderStatus).filter(p => isProofOnlyPayment(p))
+}
+
+/** Mark surplus post-delivery payments as proof-only (fixes mistaken amounts). */
+export function reconcileDeliveredOrderPayments(
+  order: Pick<Order, "total" | "payments" | "status">,
+): OrderPayment[] {
+  if (order.status !== "delivered") {
+    return (order.payments || []).map(p => ({ ...p }))
+  }
+
+  const sorted = [...(order.payments || [])].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  )
+
+  let balancePaid = 0
+  const total = Number(order.total) || 0
+
+  return sorted.map((payment) => {
+    const next = { ...payment }
+    if (next.proofOnly) {
+      next.amount = 0
+      return next
+    }
+
+    const status = getPaymentSubmissionStatus(next, order.status)
+    const counts = status === "pending_approval" || status === "approved"
+    if (!counts) return next
+
+    if (balancePaid >= total - 0.004) {
+      next.proofOnly = true
+      next.amount = 0
+      return next
+    }
+
+    if (next.amount > total + 0.004 && balancePaid > 0.004) {
+      next.proofOnly = true
+      next.amount = 0
+      return next
+    }
+
+    balancePaid += next.amount
+    if (balancePaid > total + 0.004) {
+      balancePaid -= next.amount
+      next.proofOnly = true
+      next.amount = 0
+    }
+    return next
   })
 }
 

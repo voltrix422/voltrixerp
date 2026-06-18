@@ -7,7 +7,7 @@ import {
   getOrderPaymentProofUrls,
   getPaymentSubmissionStatus,
   isPaymentEditable,
-  getSubmittedPayments,
+  isProofOnlyPayment,
   getDraftPayments,
   canCapturePaymentsForOrder,
   orderHasPendingFinancePayments,
@@ -77,7 +77,6 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     setPayments(order.payments || [])
   }, [order.id, order.payments, order.status])
 
-  const submittedPayments = getSubmittedPayments(payments, order.status)
   const draftPayments = getDraftPayments(payments, order.status)
   const totalSubmitted = getOrderAmountPaid({ ...order, payments })
   const totalDraft = draftPayments.reduce((sum, p) => sum + p.amount, 0)
@@ -112,18 +111,11 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
       setError("Please enter a valid payment amount (0 or greater)")
       return false
     }
-    if (postDelivery) {
-      if (amount <= 0) {
-        setError("Enter an amount of zero or greater")
-        return false
-      }
-      return true
-    }
     const otherSubmitted = payments
       .filter(p => p.id !== excludePaymentId)
       .filter(p => {
         const s = getPaymentSubmissionStatus(p, order.status)
-        return s === "pending_approval" || s === "approved"
+        return (s === "pending_approval" || s === "approved") && !isProofOnlyPayment(p)
       })
       .reduce((sum, p) => sum + p.amount, 0)
     const otherDraft = payments
@@ -184,33 +176,35 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     }
   }
 
-  async function handleRecordPostDeliveryPayment() {
+  async function handleAttachPostDeliveryProof() {
     setError(null)
-    const amount = Number(paymentAmount)
-    if (!validateNewPaymentAmount(amount)) return
+    if (paymentProofFiles.length === 0) {
+      setError("Please attach at least one proof file")
+      return
+    }
 
     setSaving(true)
     try {
-      const proofUrls =
-        paymentProofFiles.length > 0 ? await uploadProofFiles(paymentProofFiles) : []
+      const proofUrls = await uploadProofFiles(paymentProofFiles)
 
       const payment: OrderPayment = {
         id: Date.now().toString(),
-        amount,
-        method: paymentMethod,
-        date: paymentDate,
+        amount: 0,
+        method: "Proof attachment",
+        date: new Date().toISOString().split("T")[0],
         notes: paymentNotes,
-        proofUrls: proofUrls.length > 0 ? proofUrls : undefined,
+        proofUrls,
         proofUrl: proofUrls[0],
         createdAt: new Date().toISOString(),
         createdBy: currentUser,
         submissionStatus: "approved",
+        proofOnly: true,
       }
 
       await persistOrder([...payments, payment])
       resetNewPaymentForm()
     } catch {
-      setError("Failed to record payment")
+      setError("Failed to attach proof")
     } finally {
       setSaving(false)
     }
@@ -381,16 +375,23 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
   function renderPaymentRow(payment: OrderPayment, paymentNumber: number) {
     const status = getPaymentSubmissionStatus(payment, order.status)
+    const proofOnly = isProofOnlyPayment(payment)
     const editable = isPaymentEditable(payment, order.status) && !financeLocked
-    const isEditing = editingPaymentId === payment.id
+    const isEditing = editingPaymentId === payment.id && !proofOnly
 
     return (
       <div key={payment.id} className="rounded-lg border p-3 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">Payment {paymentNumber} — PKR {payment.amount.toLocaleString()}</p>
+            <p className="text-sm font-semibold">
+              {proofOnly
+                ? `Delivery proof ${paymentNumber}`
+                : `Payment ${paymentNumber} — PKR ${payment.amount.toLocaleString()}`}
+            </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {payment.method} · {new Date(payment.date).toLocaleDateString()}
+              {proofOnly
+                ? new Date(payment.date).toLocaleDateString()
+                : `${payment.method} · ${new Date(payment.date).toLocaleDateString()}`}
             </p>
             {payment.notes && (
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{payment.notes}</p>
@@ -430,7 +431,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
         {editable && (
           <div className="flex items-center gap-2 pt-1">
-            {status === "draft" && (
+            {!proofOnly && status === "draft" && (
               <Button
                 size="sm"
                 className="h-7 text-xs cursor-pointer"
@@ -440,15 +441,17 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                 Submit for approval
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs cursor-pointer"
-              onClick={() => startEditPayment(payment)}
-              disabled={saving}
-            >
-              Edit
-            </Button>
+            {!proofOnly && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs cursor-pointer"
+                onClick={() => startEditPayment(payment)}
+                disabled={saving}
+              >
+                Edit
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -516,7 +519,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             ) : postDelivery ? (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 p-3 sm:p-4">
                 <p className="text-xs sm:text-sm font-medium text-emerald-900 dark:text-emerald-100 leading-snug">
-                  This order is delivered. Add further payments here — they are recorded on the order only and are not sent to Finance for approval. Payment proof and notes are optional.
+                  This order is delivered. Attach delivery or payment proof here — it is saved on the order only and does not change the paid balance or go to Finance.
                 </p>
               </div>
             ) : onCredit && remaining > 0 ? (
@@ -544,10 +547,17 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
               <>
                 <div className="border-t pt-4">
                   <p className="text-sm font-semibold mb-4">
-                    {payments.length > 0 ? "Add another payment" : "Add payment"}
+                    {postDelivery
+                      ? payments.length > 0
+                        ? "Attach another proof"
+                        : "Attach delivery proof"
+                      : payments.length > 0
+                        ? "Add another payment"
+                        : "Add payment"}
                   </p>
                 </div>
 
+                {!postDelivery && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Payment Amount *</label>
@@ -576,7 +586,9 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                     </select>
                   </div>
                 </div>
+                )}
 
+                {!postDelivery && (
                 <div className="space-y-1">
                   <label className="text-xs font-medium">Payment Date *</label>
                   <input
@@ -586,9 +598,10 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                     className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                   />
                 </div>
+                )}
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Payment Notes (optional)</label>
+                  <label className="text-xs font-medium">{postDelivery ? "Notes (optional)" : "Payment Notes (optional)"}</label>
                   <textarea
                     value={paymentNotes}
                     onChange={e => setPaymentNotes(e.target.value)}
@@ -600,7 +613,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
                 <div className="space-y-2">
                   <label className="text-xs font-medium">
-                    Payment Proof (optional{postDelivery ? "" : " — required to submit for approval"})
+                    {postDelivery ? "Proof attachment *" : `Payment Proof (optional${postDelivery ? "" : " — required to submit for approval"})`}
                   </label>
                   <label className="flex items-center justify-center gap-2 h-10 rounded-md border border-dashed bg-[hsl(var(--background))] px-3.5 text-sm cursor-pointer hover:bg-[hsl(var(--muted))]/30">
                     <Upload className="h-4 w-4" />
@@ -615,7 +628,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                   </label>
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
                     {postDelivery
-                      ? "Optional — attach a receipt or screenshot if you have one."
+                      ? "Upload a receipt, screenshot, or delivery proof. This does not add to the order balance."
                       : isZeroAmountSubmit
                         ? "Not required for amount 0 (full credit request)."
                         : "Required to submit for approval. You can add more proofs later before finance approves."}
@@ -659,10 +672,10 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
               <Button
                 size="sm"
                 className="h-10 w-full sm:w-auto text-sm bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
-                onClick={handleRecordPostDeliveryPayment}
-                disabled={saving || uploadingProof || !canSubmitNewPayment}
+                onClick={handleAttachPostDeliveryProof}
+                disabled={saving || uploadingProof || paymentProofFiles.length === 0}
               >
-                {saving ? "Saving..." : uploadingProof ? "Uploading..." : "Record payment"}
+                {saving ? "Saving..." : uploadingProof ? "Uploading..." : "Attach proof"}
               </Button>
             )}
             {canAddPayments && !postDelivery && (

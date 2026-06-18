@@ -511,7 +511,7 @@ function ClientOrderDetail({
               onClick={() => setShowPayment(true)}
             >
               <Plus className="h-4 w-4 mr-2" />
-              {postDelivery ? "Add payment (not sent to Finance)" : "Add payment"}
+              {postDelivery ? "Attach proof (not in balance)" : "Add payment"}
             </Button>
           )}
           {order.status === "payment_added" ? (

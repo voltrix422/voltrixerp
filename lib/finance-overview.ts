@@ -1,5 +1,5 @@
 import type { OrderPayment, Order } from "@/lib/orders"
-import { getPaymentSubmissionStatus, getSubmittedPayments } from "@/lib/orders"
+import { getOrderAmountPaid, getPaymentSubmissionStatus } from "@/lib/orders"
 
 export type FinanceOverviewAction = {
   id: string
@@ -26,7 +26,7 @@ export function parseOrderPayments(payments: unknown): OrderPayment[] {
 }
 
 export function orderPaidTotal(order: Pick<Order, "payments" | "status">) {
-  return getSubmittedPayments(order.payments, order.status).reduce((s, p) => s + p.amount, 0)
+  return getOrderAmountPaid(order)
 }
 
 export function orderPendingPaymentCount(order: Pick<Order, "payments" | "status">) {
