@@ -147,6 +147,9 @@ export function getPaymentSubmissionStatus(payment: OrderPayment, orderStatus?: 
 
 export function isPaymentEditable(payment: OrderPayment, orderStatus?: Order["status"]) {
   const status = getPaymentSubmissionStatus(payment, orderStatus)
+  if (orderStatus === "delivered" && status === "approved") {
+    return true
+  }
   return status === "draft" || status === "pending_approval"
 }
 

@@ -113,8 +113,8 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
       return false
     }
     if (postDelivery) {
-      if (amount <= 0.004) {
-        setError("Enter an amount greater than zero")
+      if (amount <= 0) {
+        setError("Enter an amount of zero or greater")
         return false
       }
       return true
