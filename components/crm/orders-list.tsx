@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, hasOutstandingCredit, isOrderOnCredit, type Order, type OrderItem } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, hasOutstandingCredit, isOrderOnCredit, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
@@ -1145,6 +1145,8 @@ function OrderDetail({
   const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
+  const [deletingPayment, setDeletingPayment] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [detailOrder, setDetailOrder] = useState(order)
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
@@ -1206,8 +1208,29 @@ function OrderDetail({
   const showInvoiceActions = canShowOrderInvoiceActions(detailOrder)
   const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
   const canManagePayments = canCapturePaymentsForOrder(detailOrder)
+  const canDeletePayments = detailOrder.status === "delivered" && canManagePayments
   const creditBalance = getOrderCreditBalance(detailOrder)
   const amountPaid = getOrderAmountPaid(detailOrder)
+
+  async function handleDeletePayment(paymentId: string) {
+    const payment = detailOrder.payments?.find(p => p.id === paymentId)
+    if (!payment || !isPaymentDeletable(payment, detailOrder.status)) return
+
+    setDeletingPayment(true)
+    try {
+      const nextPayments = (detailOrder.payments || []).filter(p => p.id !== paymentId)
+      const updated: Order = { ...detailOrder, payments: nextPayments, status: "delivered" }
+      await saveOrder(updated)
+      setDetailOrder(updated)
+      onUpdate(updated)
+      setDeletePaymentId(null)
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : "Could not delete payment.")
+    } finally {
+      setDeletingPayment(false)
+    }
+  }
 
   async function downloadInvoice() {
     if (invoiceLoading) return
@@ -1406,7 +1429,7 @@ function OrderDetail({
                   const proofUrls = getOrderPaymentProofUrls(p)
                   const pStatus = getPaymentSubmissionStatus(p, detailOrder.status)
                   return (
-                  <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0">
+                  <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0 gap-2">
                     <div>
                       <p className="font-medium text-green-900 dark:text-green-100">PKR {p.amount.toLocaleString()}</p>
                       <p className="text-green-700 dark:text-green-300">
@@ -1417,9 +1440,8 @@ function OrderDetail({
                       </p>
                       {p.notes && <p className="text-green-600 dark:text-green-400 text-[10px] mt-0.5">{p.notes}</p>}
                     </div>
-                    {proofUrls.length > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        {proofUrls.map((proofUrl, proofIndex) => (
+                    <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+                      {proofUrls.length > 0 && proofUrls.map((proofUrl, proofIndex) => (
                           <a
                             key={`${p.id}-${proofIndex}`}
                             href={proofUrl}
@@ -1430,8 +1452,17 @@ function OrderDetail({
                             {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "View Proof"}
                           </a>
                         ))}
-                      </div>
-                    )}
+                      {canDeletePayments && isPaymentDeletable(p, detailOrder.status) && (
+                        <button
+                          type="button"
+                          onClick={() => setDeletePaymentId(p.id)}
+                          className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                          title="Delete payment"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   )
                 })}
@@ -1441,7 +1472,7 @@ function OrderDetail({
                     {getProofOnlyPayments(detailOrder.payments, detailOrder.status).map(p => {
                       const proofUrls = getOrderPaymentProofUrls(p)
                       return (
-                        <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0">
+                        <div key={p.id} className="flex items-center justify-between text-xs border-b border-green-200 dark:border-green-800 pb-2 last:border-0 gap-2">
                           <div>
                             <p className="font-medium text-green-900 dark:text-green-100">Proof attachment</p>
                             <p className="text-green-700 dark:text-green-300">
@@ -1449,9 +1480,8 @@ function OrderDetail({
                             </p>
                             {p.notes && <p className="text-green-600 dark:text-green-400 text-[10px] mt-0.5">{p.notes}</p>}
                           </div>
-                          {proofUrls.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap justify-end">
-                              {proofUrls.map((proofUrl, proofIndex) => (
+                          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+                            {proofUrls.length > 0 && proofUrls.map((proofUrl, proofIndex) => (
                                 <a
                                   key={`${p.id}-${proofIndex}`}
                                   href={proofUrl}
@@ -1462,8 +1492,17 @@ function OrderDetail({
                                   {proofUrls.length > 1 ? `Proof ${proofIndex + 1}` : "View Proof"}
                                 </a>
                               ))}
-                            </div>
-                          )}
+                            {canDeletePayments && isPaymentDeletable(p, detailOrder.status) && (
+                              <button
+                                type="button"
+                                onClick={() => setDeletePaymentId(p.id)}
+                                className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                                title="Delete proof"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )
                     })}
@@ -1565,6 +1604,17 @@ function OrderDetail({
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={deletePaymentId !== null}
+        title="Delete payment record"
+        message="Remove this payment or proof from the order? The order, items, and delivery details will stay — only this payment entry is deleted."
+        confirmText={deletingPayment ? "Deleting..." : "Delete"}
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => deletePaymentId && handleDeletePayment(deletePaymentId)}
+        onCancel={() => !deletingPayment && setDeletePaymentId(null)}
       />
     </>
   )

@@ -168,6 +168,12 @@ export function isPaymentEditable(payment: OrderPayment, orderStatus?: Order["st
   return status === "draft" || status === "pending_approval"
 }
 
+/** Delivered orders: any payment or proof row can be removed without changing order status. */
+export function isPaymentDeletable(payment: OrderPayment, orderStatus?: Order["status"]) {
+  if (orderStatus === "delivered") return true
+  return isPaymentEditable(payment, orderStatus)
+}
+
 export function getOrderAmountPaid(order: Pick<Order, "payments" | "status">) {
   return getBalanceSubmittedPayments(order.payments, order.status).reduce(
     (sum, p) => sum + p.amount,

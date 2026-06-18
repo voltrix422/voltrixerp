@@ -7,6 +7,7 @@ import {
   getOrderPaymentProofUrls,
   getPaymentSubmissionStatus,
   isPaymentEditable,
+  isPaymentDeletable,
   isProofOnlyPayment,
   getDraftPayments,
   canCapturePaymentsForOrder,
@@ -36,6 +37,7 @@ const PAYMENT_STATUS_COLORS = {
 } as const
 
 function orderStatusAfterPaymentsRemoved(order: Order, remaining: OrderPayment[]) {
+  if (order.status === "delivered") return "delivered" as const
   const hasPending = remaining.some(p => getPaymentSubmissionStatus(p, order.status) === "pending_approval")
   const hasSubmitted = remaining.some(p => {
     const s = getPaymentSubmissionStatus(p, order.status)
@@ -287,7 +289,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
   async function handleDeletePayment(paymentId: string) {
     const payment = payments.find(p => p.id === paymentId)
-    if (!payment || !isPaymentEditable(payment, order.status)) return
+    if (!payment || !isPaymentDeletable(payment, order.status)) return
 
     const next = payments.filter(p => p.id !== paymentId)
     const nextStatus = orderStatusAfterPaymentsRemoved(order, next)
@@ -303,8 +305,6 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     setEditNotes(payment.notes || "")
     setError(null)
   }
-
-  function cancelEditPayment() {
     setEditingPaymentId(null)
     setError(null)
   }
@@ -377,6 +377,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     const status = getPaymentSubmissionStatus(payment, order.status)
     const proofOnly = isProofOnlyPayment(payment)
     const editable = isPaymentEditable(payment, order.status) && !financeLocked
+    const deletable = isPaymentDeletable(payment, order.status) && !financeLocked
     const isEditing = editingPaymentId === payment.id && !proofOnly
 
     return (
@@ -429,9 +430,9 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
           )}
         </div>
 
-        {editable && (
+        {(editable || deletable) && (
           <div className="flex items-center gap-2 pt-1">
-            {!proofOnly && status === "draft" && (
+            {editable && !proofOnly && status === "draft" && (
               <Button
                 size="sm"
                 className="h-7 text-xs cursor-pointer"
@@ -441,7 +442,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                 Submit for approval
               </Button>
             )}
-            {!proofOnly && (
+            {editable && !proofOnly && (
               <Button
                 size="sm"
                 variant="outline"
@@ -452,6 +453,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                 Edit
               </Button>
             )}
+            {deletable && (
             <Button
               size="sm"
               variant="ghost"
@@ -461,6 +463,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
+            )}
           </div>
         )}
       </div>
@@ -713,8 +716,12 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
       <ConfirmDialog
         isOpen={deletePaymentId !== null}
-        title="Delete Payment"
-        message="Are you sure you want to delete this payment? This action cannot be undone."
+        title="Delete payment"
+        message={
+          postDelivery
+            ? "Remove this payment or proof from the order? The order and delivery details stay — only this entry is deleted."
+            : "Are you sure you want to delete this payment? This action cannot be undone."
+        }
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
