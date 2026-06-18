@@ -6,6 +6,7 @@ import {
 
 export const FINANCE_MIGRATION_MARKER = "__finance_migration_jun2026__"
 export const OFFICE_LEDGER_EMPLOYEE_ID = "__office_expense_ledger__"
+export const OFFICE_LEDGER_EMPLOYEE_NAME = "finance"
 export const OFFICE_LEDGER_MIGRATION_MARKER = "__office_finance_migration_jun2026__"
 
 /** One-time Jun 2026 finance records to move into petty cash as negative balance. */
@@ -93,20 +94,51 @@ export async function findFinanceRecordsToMigrate() {
   return matched
 }
 
-async function ensureOfficeExpenseLedger(allocatedBy: string) {
-  const existing = await prisma.erpPettyCashAllocation.findFirst({
+async function findOfficeExpenseLedger() {
+  return prisma.erpPettyCashAllocation.findFirst({
     where: {
       employeeId: OFFICE_LEDGER_EMPLOYEE_ID,
       notes: { contains: OFFICE_LEDGER_MIGRATION_MARKER },
     },
   })
+}
 
-  if (existing) return existing
+/** Rename migrated office ledger from "Office Expenses" → "finance" (idempotent). */
+export async function syncOfficeLedgerDisplayName() {
+  const ledger = await findOfficeExpenseLedger()
+  if (!ledger || ledger.employeeName === OFFICE_LEDGER_EMPLOYEE_NAME) {
+    return { updated: false, allocationId: ledger?.id }
+  }
+
+  await prisma.$transaction([
+    prisma.erpPettyCashAllocation.update({
+      where: { id: ledger.id },
+      data: { employeeName: OFFICE_LEDGER_EMPLOYEE_NAME },
+    }),
+    prisma.erpPettyCashReceipt.updateMany({
+      where: { allocationId: ledger.id },
+      data: { employeeName: OFFICE_LEDGER_EMPLOYEE_NAME },
+    }),
+  ])
+
+  return { updated: true, allocationId: ledger.id }
+}
+
+async function ensureOfficeExpenseLedger(allocatedBy: string) {
+  const existing = await findOfficeExpenseLedger()
+
+  if (existing) {
+    if (existing.employeeName !== OFFICE_LEDGER_EMPLOYEE_NAME) {
+      await syncOfficeLedgerDisplayName()
+      return prisma.erpPettyCashAllocation.findUniqueOrThrow({ where: { id: existing.id } })
+    }
+    return existing
+  }
 
   return prisma.erpPettyCashAllocation.create({
     data: {
       employeeId: OFFICE_LEDGER_EMPLOYEE_ID,
-      employeeName: "Office Expenses",
+      employeeName: OFFICE_LEDGER_EMPLOYEE_NAME,
       employeeRole: "Finance",
       amount: 0,
       purpose: PERSONAL_LEDGER_PURPOSE,

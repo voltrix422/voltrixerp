@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { PrismaClient } from '@prisma/client'
+import { syncOfficeLedgerDisplayName } from '@/lib/migrate-finance-records-to-petty-cash'
 import {
   notifyOnPettyCashPending,
   notifyOnPettyCashReviewed,
@@ -10,6 +11,7 @@ const prisma = new PrismaClient()
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
+      await syncOfficeLedgerDisplayName()
       const allocations = await prisma.erpPettyCashAllocation.findMany({
         orderBy: { allocatedAt: 'desc' }
       })

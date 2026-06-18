@@ -296,7 +296,7 @@ export function PettyCashDashboard() {
           <div>
             <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">One-time finance records migration</h3>
             <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
-              Move {migrationPreview.eligibleCount} finance records (PKR {migrationPreview.eligibleTotal.toLocaleString()}) into petty cash as negative balance under Office Expenses.
+              Move {migrationPreview.eligibleCount} finance records (PKR {migrationPreview.eligibleTotal.toLocaleString()}) into petty cash as negative balance under finance.
             </p>
           </div>
           <Button

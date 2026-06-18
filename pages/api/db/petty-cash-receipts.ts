@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { PrismaClient } from '@prisma/client'
+import { syncOfficeLedgerDisplayName } from '@/lib/migrate-finance-records-to-petty-cash'
 import {
   PERSONAL_LEDGER_MARKER,
   PERSONAL_LEDGER_PURPOSE,
@@ -46,6 +47,7 @@ async function ensurePersonalLedger(data: {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
+      await syncOfficeLedgerDisplayName()
       const { allocationId } = req.query
       
       let receipts
