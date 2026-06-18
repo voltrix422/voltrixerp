@@ -26,7 +26,7 @@ const socialLinks = [
 ]
 
 const links = {
-  Company: ["About", "Blog", "Careers"],
+  Company: ["About", "Outlets", "Blog", "Careers"],
   Legal: ["Privacy", "Terms", "Cookies"],
   Resources: ["Documentation", "ERP"],
 }
@@ -66,6 +66,7 @@ export default function Footer() {
                 <ul className="space-y-2">
                   {items.map((item) => {
                     const href = item === "About" ? "/about" :
+                                 item === "Outlets" ? "/outlets" :
                                  item === "Blog" ? "/blog" :
                                  item === "Careers" ? "/careers" :
                                  item === "Privacy" ? "/privacy" :

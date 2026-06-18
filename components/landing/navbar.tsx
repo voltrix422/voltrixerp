@@ -14,6 +14,7 @@ const links = [
   { label: "R&D & Manufacturing",hash: "rd"        },
   { label: "About Us",           hash: "about"     },
   { label: "Contact",            hash: "contact"   },
+  { label: "Outlets",            href: "/outlets"  },
   { label: "Warranty",           href: "/warranty" },
 ]
 
