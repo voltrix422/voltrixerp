@@ -11,6 +11,8 @@ import {
   getOrderCreditBalance,
   hasOutstandingCredit,
   isOrderOnCredit,
+  canCapturePaymentsForOrder,
+  isPostDeliveryPaymentCapture,
   normalizeOrderPaymentTerms,
   type Order,
 } from "@/lib/orders"
@@ -21,7 +23,8 @@ import { Button } from "@/components/ui/button"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
-import { Loader2, X } from "lucide-react"
+import { Loader2, X, Plus } from "lucide-react"
+import { PaymentCapture } from "@/components/crm/payment-capture"
 
 export type ClientOrdersCreditFilter = "all" | "outstanding" | "on_credit"
 
@@ -316,6 +319,7 @@ function ClientOrderDetail({
   const { user } = useAuth()
   const [approvingPayment, setApprovingPayment] = useState(false)
   const [approvingCredit, setApprovingCredit] = useState(false)
+  const [showPayment, setShowPayment] = useState(false)
 
   function approvePaymentsOnOrder(base: Order): Order {
     return {
@@ -360,6 +364,22 @@ function ClientOrderDetail({
   const isFullyPaid = remaining <= 0.004
   const onCredit = isOrderOnCredit(order)
   const statusBadge = financeStatusBadge(order)
+  const canAddPayment = canCapturePaymentsForOrder(order)
+  const postDelivery = isPostDeliveryPaymentCapture(order)
+
+  if (showPayment) {
+    return (
+      <PaymentCapture
+        order={order}
+        currentUser={user?.name || user?.email || "Finance"}
+        onClose={() => setShowPayment(false)}
+        onUpdate={(updated) => {
+          onUpdate(updated)
+          setShowPayment(false)
+        }}
+      />
+    )
+  }
 
   return (
     <div
@@ -484,6 +504,16 @@ function ClientOrderDetail({
         </div>
 
         <div className="flex flex-col gap-2 px-4 sm:px-6 py-3 sm:py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {canAddPayment && (
+            <Button
+              size="sm"
+              className="h-11 w-full text-sm bg-blue-600 hover:bg-blue-700 cursor-pointer"
+              onClick={() => setShowPayment(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {postDelivery ? "Add payment (not sent to Finance)" : "Add payment"}
+            </Button>
+          )}
           {order.status === "payment_added" ? (
             <>
               {isFullyPaid ? (
@@ -525,7 +555,9 @@ function ClientOrderDetail({
             <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">
               {onCredit && remaining > 0.004
                 ? `Delivered — PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} credit balance`
-                : "Delivered"}
+                : remaining > 0.004
+                  ? `Delivered — PKR ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })} outstanding`
+                  : "Delivered — paid in full"}
             </p>
           ) : (
             <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-1">Awaiting payment</p>

@@ -171,11 +171,19 @@ export function hasOutstandingCredit(order: Pick<Order, "total" | "payments" | "
   return isOrderOnCredit(order) && getOrderCreditBalance(order) > 0.004
 }
 
+/** Delivered orders: record payments locally without sending to Finance for approval. */
+export function isPostDeliveryPaymentCapture(order: Pick<Order, "status">) {
+  return order.status === "delivered"
+}
+
 export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymentTerms" | "creditApprovedAt" | "total" | "payments">) {
   if (order.status === "approved" || order.status === "finalized" || order.status === "payment_added") {
     return true
   }
-  if (["confirmed", "processing", "shipped", "delivered"].includes(order.status)) {
+  if (order.status === "delivered") {
+    return true
+  }
+  if (["confirmed", "processing", "shipped"].includes(order.status)) {
     return hasOutstandingCredit(order)
   }
   return false
@@ -183,8 +191,9 @@ export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymen
 
 export function isOrderPaymentLocked(order: Pick<Order, "status" | "paymentTerms" | "total" | "payments" | "creditApprovedAt">) {
   if (["cancelled", "rejected", "draft", "pending_approval"].includes(order.status)) return true
+  if (isPostDeliveryPaymentCapture(order)) return false
   if (hasOutstandingCredit(order)) return false
-  return ["confirmed", "processing", "shipped", "delivered"].includes(order.status)
+  return ["confirmed", "processing", "shipped"].includes(order.status)
 }
 
 export function orderHasPendingFinancePayments(order: Pick<Order, "payments" | "status">) {

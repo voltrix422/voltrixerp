@@ -1388,7 +1388,11 @@ function OrderDetail({
                 </div>
               ) : (
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                  {canManagePayments ? "No payments yet — add payments with proof; each submit goes to Finance." : "No payments received yet"}
+                  {canManagePayments
+                    ? detailOrder.status === "delivered"
+                      ? "Add further payments here — recorded on the order only, not sent to Finance. Proof and notes are optional."
+                      : "No payments yet — add payments with proof; each submit goes to Finance."
+                    : "No payments received yet"}
                 </p>
               )}
             </div>
@@ -1474,11 +1478,12 @@ function OrderDetail({
               <FileText className="h-4 w-4 mr-2" /> Finalize Order
             </Button>
           )}
-          {canManagePayments && (
-            <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
-              <Plus className="h-4 w-4 mr-2" /> {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
-            </Button>
-          )}
+              {canManagePayments && (
+                <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
+                </Button>
+              )}
           {showInvoiceActions && (
             <>
               <Button
