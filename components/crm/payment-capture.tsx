@@ -305,6 +305,8 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
     setEditNotes(payment.notes || "")
     setError(null)
   }
+
+  function cancelEditPayment() {
     setEditingPaymentId(null)
     setError(null)
   }
