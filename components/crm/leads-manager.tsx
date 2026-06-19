@@ -23,6 +23,7 @@ import {
   syncInstallersPhonesFromBrowser,
   syncPhonesFromCsvText,
   patchLeadStatus,
+  patchLeadFollowUp,
   deleteLead,
   deleteLeadsByImportBatch,
   renameLeadImportBatch,
@@ -50,6 +51,7 @@ import {
   SlidersHorizontal,
   Pencil,
   GitMerge,
+  CalendarClock,
 } from "lucide-react"
 
 const STATUS_OPTIONS = [
@@ -341,6 +343,32 @@ function toDatetimeLocalValue(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function followUpDisplay(lead: Pick<CrmLeadRow, "followUpAt" | "followUpNotes">) {
+  if (!lead.followUpAt) return null
+  const d = new Date(lead.followUpAt)
+  if (Number.isNaN(d.getTime())) return null
+  return {
+    text: d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }),
+    overdue: d.getTime() < Date.now(),
+    notes: lead.followUpNotes?.trim() || "",
+  }
+}
+
+function FollowUpCell({ lead }: { lead: CrmLeadRow }) {
+  const fu = followUpDisplay(lead)
+  if (!fu) return <span className="text-[hsl(var(--muted-foreground))]">—</span>
+  return (
+    <div className="min-w-0">
+      <p className={`text-[11px] tabular-nums ${fu.overdue ? "text-red-600 font-medium" : ""}`}>{fu.text}</p>
+      {fu.notes && (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))] line-clamp-2 mt-0.5" title={fu.notes}>
+          {fu.notes}
+        </p>
+      )}
+    </div>
+  )
+}
+
 const CRM_LEAD_DETAIL_KEY = "crm-lead-detail-id"
 
 function toWhatsAppDigits(phone: string) {
@@ -450,14 +478,17 @@ function LeadCard({
   onOpenDetail,
   onStatusChange,
   onLog,
+  onFollowUp,
   onDelete,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
   onStatusChange: (lead: CrmLeadRow, status: string) => void
   onLog: (lead: CrmLeadRow) => void
+  onFollowUp: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
 }) {
+  const fu = followUpDisplay(lead)
   return (
     <div
       className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 space-y-2.5 active:bg-[hsl(var(--muted))]/20"
@@ -494,6 +525,12 @@ function LeadCard({
         </span>
       </div>
 
+      {fu && (
+        <p className={`text-[11px] ${fu.overdue ? "text-red-600 font-medium" : "text-[hsl(var(--muted-foreground))]"}`}>
+          Follow up: {fu.text}
+        </p>
+      )}
+
       <div className="flex gap-2 pt-0.5" onClick={(e) => e.stopPropagation()}>
         <Button
           size="sm"
@@ -503,6 +540,14 @@ function LeadCard({
         >
           Log outreach
         </Button>
+        <button
+          type="button"
+          className="shrink-0 flex items-center justify-center w-10 h-10 text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/50 rounded-lg border border-[hsl(var(--border))] cursor-pointer"
+          title="Set follow-up"
+          onClick={() => onFollowUp(lead)}
+        >
+          <CalendarClock className="h-4 w-4" />
+        </button>
         <button
           type="button"
           className="shrink-0 flex items-center justify-center w-10 h-10 text-red-500 hover:bg-red-500/10 rounded-lg border border-[hsl(var(--border))] cursor-pointer"
@@ -521,12 +566,14 @@ function LeadsListView({
   onOpenDetail,
   onStatusChange,
   onLog,
+  onFollowUp,
   onDelete,
 }: {
   leads: CrmLeadRow[]
   onOpenDetail: (id: string) => void
   onStatusChange: (lead: CrmLeadRow, status: string) => void
   onLog: (lead: CrmLeadRow) => void
+  onFollowUp: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
 }) {
   return (
@@ -539,12 +586,13 @@ function LeadsListView({
             onOpenDetail={onOpenDetail}
             onStatusChange={onStatusChange}
             onLog={onLog}
+            onFollowUp={onFollowUp}
             onDelete={onDelete}
           />
         ))}
       </div>
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[960px]">
+        <table className="w-full min-w-[1080px]">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
@@ -568,6 +616,9 @@ function LeadsListView({
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Last outreach
               </th>
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Follow up
+              </th>
               <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Actions
               </th>
@@ -581,6 +632,7 @@ function LeadsListView({
                 onOpenDetail={onOpenDetail}
                 onStatusChange={onStatusChange}
                 onLog={onLog}
+                onFollowUp={onFollowUp}
                 onDelete={onDelete}
               />
             ))}
@@ -596,12 +648,14 @@ function LeadTableRow({
   onOpenDetail,
   onStatusChange,
   onLog,
+  onFollowUp,
   onDelete,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
   onStatusChange: (lead: CrmLeadRow, status: string) => void
   onLog: (lead: CrmLeadRow) => void
+  onFollowUp: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
 }) {
   return (
@@ -627,6 +681,16 @@ function LeadTableRow({
             })
           : "—"}
       </td>
+      <td className="px-3 py-2 text-[11px]" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="text-left w-full rounded px-1 py-0.5 hover:bg-[hsl(var(--muted))]/50 cursor-pointer"
+          title="Set follow-up"
+          onClick={() => onFollowUp(lead)}
+        >
+          <FollowUpCell lead={lead} />
+        </button>
+      </td>
       <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-center gap-1">
           <Button
@@ -637,6 +701,14 @@ function LeadTableRow({
           >
             Log outreach
           </Button>
+          <button
+            type="button"
+            className="p-1.5 text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/50 rounded cursor-pointer"
+            title="Set follow-up"
+            onClick={() => onFollowUp(lead)}
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+          </button>
           <button
             type="button"
             className="p-1.5 text-red-500 hover:bg-red-500/10 rounded cursor-pointer"
@@ -678,6 +750,7 @@ export function LeadsManager({
   const [detail, setDetail] = useState<(CrmLeadRow & { contacts: CrmLeadContactRow[] }) | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [logForLead, setLogForLead] = useState<CrmLeadRow | null>(null)
+  const [followUpForLead, setFollowUpForLead] = useState<CrmLeadRow | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteImportBatch, setDeleteImportBatch] = useState<{
     importBatchId: string
@@ -1335,6 +1408,7 @@ export function LeadsManager({
                             onOpenDetail={openLeadDetail}
                             onStatusChange={onStatusChange}
                             onLog={setLogForLead}
+                            onFollowUp={setFollowUpForLead}
                             onDelete={requestDeleteLead}
                           />
                         </div>
@@ -1359,6 +1433,7 @@ export function LeadsManager({
                   onOpenDetail={openLeadDetail}
                   onStatusChange={onStatusChange}
                   onLog={setLogForLead}
+                  onFollowUp={setFollowUpForLead}
                   onDelete={requestDeleteLead}
                 />
               </div>
@@ -1425,6 +1500,8 @@ export function LeadsManager({
                       lastResponseSnippet: savedContact.leadResponse
                         ? savedContact.leadResponse.slice(0, 160)
                         : l.lastResponseSnippet,
+                      followUpAt: savedContact.followUpAt,
+                      followUpNotes: savedContact.followUpNotes,
                       status:
                         l.status === "closed"
                           ? l.status
@@ -1457,6 +1534,39 @@ export function LeadsManager({
         />
       )}
 
+      {followUpForLead && (
+        <FollowUpModal
+          lead={followUpForLead}
+          onClose={() => setFollowUpForLead(null)}
+          onSaved={async (followUpAt, followUpNotes) => {
+            const leadId = followUpForLead.id
+            try {
+              const updated = await patchLeadFollowUp(leadId, { followUpAt, followUpNotes })
+              setLeads((prev) =>
+                prev.map((l) =>
+                  l.id === leadId
+                    ? { ...l, followUpAt: updated.followUpAt, followUpNotes: updated.followUpNotes }
+                    : l,
+                ),
+              )
+              if (detailId === leadId) {
+                setDetail((d) =>
+                  d ? { ...d, followUpAt: updated.followUpAt, followUpNotes: updated.followUpNotes } : d,
+                )
+              }
+              toast({ type: "success", title: "Follow-up saved" })
+              setFollowUpForLead(null)
+            } catch (err) {
+              toast({
+                type: "error",
+                title: "Could not save follow-up",
+                message: err instanceof Error ? err.message : undefined,
+              })
+            }
+          }}
+        />
+      )}
+
       {detailId && (
         <LeadDetailDrawer
           loading={detailLoading}
@@ -1465,6 +1575,9 @@ export function LeadsManager({
           onRefreshHistory={() => detailId && reloadLeadDetail(detailId)}
           onLog={() => {
             if (detail) setLogForLead(detail)
+          }}
+          onFollowUp={() => {
+            if (detail) setFollowUpForLead(detail)
           }}
         />
       )}
@@ -1952,6 +2065,99 @@ function AddLeadModal({
   )
 }
 
+function FollowUpModal({
+  lead,
+  onClose,
+  onSaved,
+}: {
+  lead: CrmLeadRow
+  onClose: () => void
+  onSaved: (followUpAt: string | null, followUpNotes: string) => Promise<void>
+}) {
+  const [followUpAt, setFollowUpAt] = useState(() =>
+    lead.followUpAt ? toDatetimeLocalValue(new Date(lead.followUpAt)) : "",
+  )
+  const [followUpNotes, setFollowUpNotes] = useState(lead.followUpNotes ?? "")
+  const [saving, setSaving] = useState(false)
+
+  return (
+    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-md w-full p-4 space-y-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-start gap-2">
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <CalendarClock className="h-4 w-4" />
+              Set follow-up
+            </h3>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{lead.name}</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div>
+          <label className="text-xs font-medium">When</label>
+          <input
+            type="datetime-local"
+            className="mt-1 w-full h-9 rounded border px-2 text-sm"
+            value={followUpAt}
+            onChange={(e) => setFollowUpAt(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium">Follow-up note</label>
+          <textarea
+            className="mt-1 w-full rounded border px-2 py-1.5 text-sm min-h-[72px]"
+            placeholder="What to discuss or do on the next call…"
+            value={followUpNotes}
+            onChange={(e) => setFollowUpNotes(e.target.value)}
+          />
+        </div>
+        <div className="flex justify-between items-center gap-2 pt-1">
+          <button
+            type="button"
+            className="text-xs text-[hsl(var(--muted-foreground))] hover:underline cursor-pointer"
+            disabled={!followUpAt && !followUpNotes.trim()}
+            onClick={async () => {
+              setSaving(true)
+              try {
+                await onSaved(null, "")
+              } finally {
+                setSaving(false)
+              }
+            }}
+          >
+            Clear follow-up
+          </button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="cursor-pointer" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="cursor-pointer"
+              disabled={saving || !followUpAt.trim()}
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  await onSaved(new Date(followUpAt).toISOString(), followUpNotes.trim())
+                } finally {
+                  setSaving(false)
+                }
+              }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LogOutreachModal({
   lead,
   currentUser,
@@ -1963,10 +2169,14 @@ function LogOutreachModal({
   currentUser: string
   currentUserId?: string | null
   onClose: () => void
-  onSaved: (contact: CrmLeadContactRow) => Promise<void>
+  onSaved: (contact: CrmLeadContactRow & { followUpAt: string | null; followUpNotes: string }) => Promise<void>
 }) {
   const { toast } = useToast()
   const [when, setWhen] = useState(() => toDatetimeLocalValue(new Date()))
+  const [followUpAt, setFollowUpAt] = useState(() =>
+    lead.followUpAt ? toDatetimeLocalValue(new Date(lead.followUpAt)) : "",
+  )
+  const [followUpNotes, setFollowUpNotes] = useState(lead.followUpNotes ?? "")
   const [files, setFiles] = useState<File[]>([])
   const [response, setResponse] = useState("")
   const [notes, setNotes] = useState("")
@@ -1995,6 +2205,8 @@ function LogOutreachModal({
         screenshotUrls,
         leadResponse: response,
         notes,
+        followUpAt: followUpAt.trim() ? new Date(followUpAt).toISOString() : null,
+        followUpNotes,
       })
       toast({ type: "success", title: "Outreach logged" })
       await onSaved(savedContact)
@@ -2062,6 +2274,42 @@ function LogOutreachModal({
           <label className="text-xs font-medium">Internal notes (optional)</label>
           <textarea className="mt-1 w-full rounded border px-2 py-1.5 text-sm min-h-[56px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
+        <div className="rounded border border-[hsl(var(--border))] p-3 space-y-2 bg-[hsl(var(--muted))]/20">
+          <p className="text-xs font-semibold flex items-center gap-1.5">
+            <CalendarClock className="h-3.5 w-3.5" />
+            Next follow-up
+          </p>
+          <div>
+            <label className="text-xs font-medium">When</label>
+            <input
+              type="datetime-local"
+              className="mt-1 w-full h-9 rounded border px-2 text-sm bg-[hsl(var(--background))]"
+              value={followUpAt}
+              onChange={(e) => setFollowUpAt(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Follow-up note</label>
+            <textarea
+              className="mt-1 w-full rounded border px-2 py-1.5 text-sm min-h-[56px] bg-[hsl(var(--background))]"
+              placeholder="What to discuss or do on the next call…"
+              value={followUpNotes}
+              onChange={(e) => setFollowUpNotes(e.target.value)}
+            />
+          </div>
+          {followUpAt && (
+            <button
+              type="button"
+              className="text-[10px] text-[hsl(var(--muted-foreground))] hover:underline cursor-pointer"
+              onClick={() => {
+                setFollowUpAt("")
+                setFollowUpNotes("")
+              }}
+            >
+              Clear follow-up
+            </button>
+          )}
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" size="sm" className="cursor-pointer" onClick={onClose} disabled={saving}>
             Cancel
@@ -2080,14 +2328,17 @@ function LeadDetailDrawer({
   lead,
   onClose,
   onLog,
+  onFollowUp,
   onRefreshHistory,
 }: {
   loading: boolean
   lead: (CrmLeadRow & { contacts: CrmLeadContactRow[] }) | null
   onClose: () => void
   onLog: () => void
+  onFollowUp: () => void
   onRefreshHistory: () => void
 }) {
+  const fu = lead ? followUpDisplay(lead) : null
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <div
@@ -2130,10 +2381,32 @@ function LeadDetailDrawer({
                       {new Date(lead.importedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
                     </p>
                   )}
+                  <div className="pt-2 border-t border-[hsl(var(--border))] mt-2 space-y-1">
+                    <p className="text-xs font-medium flex items-center gap-1.5">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      Follow up
+                    </p>
+                    {fu ? (
+                      <>
+                        <p className={`text-xs ${fu.overdue ? "text-red-600 font-medium" : "text-[hsl(var(--foreground))]"}`}>
+                          {fu.text}
+                          {fu.overdue ? " (overdue)" : ""}
+                        </p>
+                        {fu.notes && <p className="text-xs text-[hsl(var(--muted-foreground))]">{fu.notes}</p>}
+                      </>
+                    ) : (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">No follow-up scheduled</p>
+                    )}
+                  </div>
                 </div>
-                <Button size="sm" className="mt-3 h-10 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onLog}>
-                  Log outreach
-                </Button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onLog}>
+                    Log outreach
+                  </Button>
+                  <Button size="sm" variant="secondary" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onFollowUp}>
+                    Set follow-up
+                  </Button>
+                </div>
               </div>
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">

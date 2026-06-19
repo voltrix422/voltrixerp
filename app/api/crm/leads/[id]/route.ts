@@ -44,6 +44,8 @@ export async function GET(
         notes: lead.notes,
         source: lead.source,
         status: lead.status,
+        followUpAt: lead.followUpAt?.toISOString() ?? null,
+        followUpNotes: lead.followUpNotes,
         importedAt: lead.importedAt.toISOString(),
         createdBy: lead.createdBy,
         createdById: lead.createdById,

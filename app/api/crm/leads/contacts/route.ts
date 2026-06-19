@@ -82,12 +82,33 @@ export async function POST(req: NextRequest) {
       else if (status === "new") status = "contacted"
     }
 
-    await prisma.crmLead.update({
+    const leadUpdate: {
+      status: string
+      followUpAt?: Date | null
+      followUpNotes?: string
+    } = { status }
+
+    if (b.followUpAt !== undefined) {
+      const raw = b.followUpAt
+      leadUpdate.followUpAt = raw == null || raw === "" ? null : new Date(String(raw))
+      if (leadUpdate.followUpAt && Number.isNaN(leadUpdate.followUpAt.getTime())) {
+        return NextResponse.json({ error: "Invalid followUpAt" }, { status: 400 })
+      }
+    }
+    if (b.followUpNotes !== undefined) {
+      leadUpdate.followUpNotes = String(b.followUpNotes ?? "")
+    }
+
+    const updatedLead = await prisma.crmLead.update({
       where: { id: leadId },
-      data: { status },
+      data: leadUpdate,
     })
 
-    return NextResponse.json(mapContact(contact))
+    return NextResponse.json({
+      ...mapContact(contact),
+      followUpAt: updatedLead.followUpAt?.toISOString() ?? null,
+      followUpNotes: updatedLead.followUpNotes,
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Failed to log contact" }, { status: 500 })

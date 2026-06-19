@@ -9,6 +9,8 @@ export type CrmLeadRow = {
   notes: string
   source: string
   status: string
+  followUpAt: string | null
+  followUpNotes: string
   importedAt: string
   createdBy: string
   createdById: string | null
@@ -192,6 +194,20 @@ export async function patchLeadStatus(id: string, status: string): Promise<void>
   if (!res.ok) throw new Error("Update failed")
 }
 
+export async function patchLeadFollowUp(
+  id: string,
+  body: { followUpAt?: string | null; followUpNotes?: string },
+): Promise<{ followUpAt: string | null; followUpNotes: string }> {
+  const res = await fetch("/api/crm/leads", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...body }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Follow-up update failed")
+  return data as { followUpAt: string | null; followUpNotes: string }
+}
+
 export async function deleteLead(id: string): Promise<void> {
   const res = await fetch("/api/crm/leads", {
     method: "DELETE",
@@ -248,7 +264,14 @@ export async function logLeadContact(body: {
   screenshotUrls: string[]
   leadResponse: string
   notes?: string
-}): Promise<CrmLeadContactRow> {
+  followUpAt?: string | null
+  followUpNotes?: string
+}): Promise<
+  CrmLeadContactRow & {
+    followUpAt: string | null
+    followUpNotes: string
+  }
+> {
   const res = await fetch("/api/crm/leads/contacts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

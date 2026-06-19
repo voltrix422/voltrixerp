@@ -21,6 +21,8 @@ export async function GET() {
       notes: l.notes,
       source: l.source,
       status: l.status,
+      followUpAt: l.followUpAt?.toISOString() ?? null,
+      followUpNotes: l.followUpNotes,
       importedAt: l.importedAt.toISOString(),
       createdBy: l.createdBy,
       createdById: l.createdById,
@@ -69,15 +71,42 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { id, status } = await req.json()
-    if (!id || !status) {
-      return NextResponse.json({ error: "id and status required" }, { status: 400 })
+    const body = await req.json()
+    const id = body?.id ? String(body.id) : ""
+    if (!id) {
+      return NextResponse.json({ error: "id required" }, { status: 400 })
     }
+
+    const data: { status?: string; followUpAt?: Date | null; followUpNotes?: string } = {}
+
+    if (body.status != null) {
+      data.status = String(body.status)
+    }
+    if (body.followUpAt !== undefined) {
+      const raw = body.followUpAt
+      data.followUpAt = raw == null || raw === "" ? null : new Date(String(raw))
+      if (data.followUpAt && Number.isNaN(data.followUpAt.getTime())) {
+        return NextResponse.json({ error: "Invalid followUpAt" }, { status: 400 })
+      }
+    }
+    if (body.followUpNotes !== undefined) {
+      data.followUpNotes = String(body.followUpNotes ?? "")
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
+    }
+
     const lead = await prisma.crmLead.update({
-      where: { id: String(id) },
-      data: { status: String(status) },
+      where: { id },
+      data,
     })
-    return NextResponse.json(lead)
+    return NextResponse.json({
+      id: lead.id,
+      status: lead.status,
+      followUpAt: lead.followUpAt?.toISOString() ?? null,
+      followUpNotes: lead.followUpNotes,
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Failed to update lead" }, { status: 500 })
