@@ -2,6 +2,8 @@ export type CrmLeadRow = {
   id: string
   name: string
   company: string
+  city: string
+  address: string
   email: string
   phone: string
   notes: string
@@ -156,7 +158,15 @@ export async function importVoltrixInstallersLeads(body: {
 }
 
 export async function importLeadsJson(body: {
-  leads: { name: string; company?: string; email?: string; phone?: string; notes?: string }[]
+  leads: {
+    name: string
+    company?: string
+    city?: string
+    address?: string
+    email?: string
+    phone?: string
+    notes?: string
+  }[]
   createdBy: string
   createdById?: string | null
   source?: string

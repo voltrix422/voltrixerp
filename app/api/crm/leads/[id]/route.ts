@@ -37,6 +37,8 @@ export async function GET(
         id: lead.id,
         name: lead.name,
         company: lead.company,
+        city: lead.city,
+        address: lead.address,
         email: lead.email,
         phone: lead.phone,
         notes: lead.notes,

@@ -7,6 +7,8 @@ import { syncPhonesFromCsv } from "@/lib/sync-phones-from-csv"
 type Incoming = {
   name: string
   company?: string
+  city?: string
+  address?: string
   email?: string
   phone?: string
   notes?: string
@@ -33,6 +35,8 @@ export async function POST(req: NextRequest) {
         leads.map((l) => ({
           name: String(l.name ?? ""),
           company: String(l.company ?? ""),
+          city: String(l.city ?? ""),
+          address: String(l.address ?? ""),
           email: String(l.email ?? ""),
           phone: String(l.phone ?? ""),
           notes: String(l.notes ?? ""),
@@ -46,6 +50,8 @@ export async function POST(req: NextRequest) {
       .map((l) => ({
         name: String(l.name).trim(),
         company: String(l.company ?? "").trim(),
+        city: String(l.city ?? "").trim(),
+        address: String(l.address ?? "").trim(),
         email: String(l.email ?? "").trim(),
         phone: String(l.phone ?? "").trim(),
         notes: String(l.notes ?? "").trim(),

@@ -791,6 +791,8 @@ model CrmLead {
   id            String   @id @default(cuid())
   name          String
   company       String   @default("")
+  city          String   @default("")
+  address       String   @default("")
   email         String   @default("")
   phone         String   @default("")
   notes         String   @default("")

@@ -89,6 +89,20 @@ function formatMetaLeadPhone(raw) {
   return p
 }
 
+function buildCsvExtraNotes(row, h, skipIndices) {
+  const skip = new Set(skipIndices.filter((i) => i >= 0))
+  const parts = []
+  for (let i = 0; i < h.length; i++) {
+    if (skip.has(i)) continue
+    const label = (h[i] ?? "").trim()
+    if (!label) continue
+    const val = trimCell(row, i)
+    if (!val) continue
+    parts.push(`${label}: ${val}`)
+  }
+  return parts.join("\n")
+}
+
 function parseMetaLeads(text) {
   const rows = parseCsv(text.replace(/^\ufeff/, ""))
   if (rows.length < 2) return []
@@ -98,7 +112,6 @@ function parseMetaLeads(text) {
   const iCompany = colIndex(h, "companyname", "company_name", "company")
   const iCity = colIndex(h, "city")
   const iAddress = colIndex(h, "address")
-  const iPlatform = colIndex(h, "platform")
   if (iFull < 0 || iPhone < 0 || iCompany < 0) {
     throw new Error("Not a Meta Lead Ads CSV (need FULL_NAME, PHONE, COMPANY_NAME)")
   }
@@ -110,17 +123,11 @@ function parseMetaLeads(text) {
     const companyName = trimCell(row, iCompany)
     const name = fullName || companyName
     if (!name) continue
-    const company =
-      fullName && companyName && fullName.toLowerCase() !== companyName.toLowerCase() ? companyName : ""
     const phone = formatMetaLeadPhone(trimCell(row, iPhone))
     const city = trimCell(row, iCity)
     const address = trimCell(row, iAddress)
-    const platform = trimCell(row, iPlatform)
-    const noteParts = []
-    if (city) noteParts.push(`Labels: ${city}`)
-    if (address) noteParts.push(`Address: ${address}`)
-    if (platform) noteParts.push(`Platform: ${platform}`)
-    out.push({ name, company, email: "", phone, notes: noteParts.join("\n") })
+    const notes = buildCsvExtraNotes(row, h, [iFull, iPhone, iCompany, iCity, iAddress])
+    out.push({ name, company: companyName, city, address, email: "", phone, notes })
   }
   return out
 }
@@ -161,6 +168,8 @@ async function main() {
     data: leads.map((l) => ({
       name: l.name,
       company: l.company,
+      city: l.city,
+      address: l.address,
       email: l.email,
       phone: l.phone,
       notes: l.notes,

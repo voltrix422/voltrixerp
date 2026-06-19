@@ -3,6 +3,8 @@ import type { CrmLeadRow } from "./crm-leads"
 export type LeadCsvRow = {
   name: string
   company: string
+  city: string
+  address: string
   email: string
   phone: string
   notes: string
@@ -161,15 +163,27 @@ export function formatMetaLeadPhone(raw: string): string {
   return p
 }
 
+/** Remaining CSV columns (original header labels) stored in notes for full export fidelity. */
+function buildCsvExtraNotes(row: string[], h: string[], skipIndices: number[]): string {
+  const skip = new Set(skipIndices.filter((i) => i >= 0))
+  const parts: string[] = []
+  for (let i = 0; i < h.length; i++) {
+    if (skip.has(i)) continue
+    const label = (h[i] ?? "").trim()
+    if (!label) continue
+    const val = trimCell(row, i)
+    if (!val) continue
+    parts.push(`${label}: ${val}`)
+  }
+  return parts.join("\n")
+}
+
 function parseMetaLeadAdsRows(rows: string[][], h: string[]): LeadCsvRow[] {
   const iFull = colIndex(h, "fullname", "full_name")
   const iPhone = colIndex(h, "phone")
   const iCompany = colIndex(h, "companyname", "company_name", "company")
   const iCity = colIndex(h, "city")
   const iAddress = colIndex(h, "address")
-  const iPlatform = colIndex(h, "platform")
-  const iCreated = colIndex(h, "createdtime", "created_time")
-  const iStatus = colIndex(h, "leadstatus", "lead_status")
 
   const out: LeadCsvRow[] = []
   for (let r = 1; r < rows.length; r++) {
@@ -179,29 +193,19 @@ function parseMetaLeadAdsRows(rows: string[][], h: string[]): LeadCsvRow[] {
     const name = fullName || companyName
     if (!name) continue
 
-    const company =
-      fullName && companyName && fullName.toLowerCase() !== companyName.toLowerCase() ? companyName : ""
-
     const phone = formatMetaLeadPhone(trimCell(row, iPhone))
     const city = trimCell(row, iCity)
     const address = trimCell(row, iAddress)
-    const platform = trimCell(row, iPlatform)
-    const createdTime = trimCell(row, iCreated)
-    const leadStatus = trimCell(row, iStatus)
-
-    const noteParts: string[] = []
-    if (city) noteParts.push(`Labels: ${city}`)
-    if (address) noteParts.push(`Address: ${address}`)
-    if (platform) noteParts.push(`Platform: ${platform}`)
-    if (leadStatus) noteParts.push(`Lead status: ${leadStatus}`)
-    if (createdTime) noteParts.push(`Submitted: ${createdTime}`)
+    const notes = buildCsvExtraNotes(row, h, [iFull, iPhone, iCompany, iCity, iAddress])
 
     out.push({
       name,
-      company,
+      company: companyName,
+      city,
+      address,
       email: "",
       phone,
-      notes: noteParts.join("\n"),
+      notes,
     })
   }
   return out
@@ -249,6 +253,8 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
   const iNotes = colIndex(h, "notes", "remarks", "comments", "description")
   const iBirth = colIndex(h, "birthday", "birthdate")
   const iLabels = colIndex(h, "labels", "groups", "categories")
+  const iCity = colIndex(h, "city", "town")
+  const iAddress = colIndex(h, "address", "street", "streetaddress", "street address")
   const iCompany = colIndex(h, "companyname", "company_name", "company", "business", "employer")
 
   const out: LeadCsvRow[] = []
@@ -277,9 +283,14 @@ export function parseLeadImportCsv(text: string): LeadCsvRow[] {
       notes = [notes, orgLines].filter(Boolean).join("\n")
     }
 
+    const city = trimCell(row, iCity)
+    const address = trimCell(row, iAddress)
+
     out.push({
       name,
       company,
+      city,
+      address,
       email,
       phone,
       notes,
@@ -400,6 +411,8 @@ export function buildLeadsExportCsv(leads: CrmLeadRow[], meta?: LeadsExportMeta)
   const headers = [
     "name",
     "company",
+    "city",
+    "address",
     "email",
     "phone",
     "notes",
@@ -417,6 +430,8 @@ export function buildLeadsExportCsv(leads: CrmLeadRow[], meta?: LeadsExportMeta)
       [
         escCsvCell(l.name),
         escCsvCell(l.company),
+        escCsvCell(l.city ?? ""),
+        escCsvCell(l.address ?? ""),
         escCsvCell(l.email),
         escCsvCell(l.phone),
         escCsvCell(l.notes),

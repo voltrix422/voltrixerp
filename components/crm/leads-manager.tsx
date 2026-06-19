@@ -12,6 +12,7 @@ import {
   FACEBOOK_LEAD_ADS_HEADERS,
 } from "@/lib/facebook-lead-ads-csv"
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
+import { isErpAdmin } from "@/lib/auth"
 import {
   fetchLeads,
   fetchLeadDetail,
@@ -136,6 +137,8 @@ function applyLeadFilters(
     return (
       l.name.toLowerCase().includes(q) ||
       l.company.toLowerCase().includes(q) ||
+      (l.city ?? "").toLowerCase().includes(q) ||
+      (l.address ?? "").toLowerCase().includes(q) ||
       l.email.toLowerCase().includes(q) ||
       l.phone.toLowerCase().includes(q)
     )
@@ -466,6 +469,9 @@ function LeadCard({
           {lead.company?.trim() && (
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-2">{lead.company}</p>
           )}
+          {lead.city?.trim() && (
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-1">{lead.city}</p>
+          )}
         </div>
         <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="shrink-0 max-w-[110px]" />
       </div>
@@ -538,7 +544,7 @@ function LeadsListView({
         ))}
       </div>
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[800px]">
+        <table className="w-full min-w-[960px]">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
@@ -546,6 +552,9 @@ function LeadsListView({
               </th>
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Company
+              </th>
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                City
               </th>
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Phone
@@ -602,6 +611,7 @@ function LeadTableRow({
     >
       <td className="px-3 py-2 text-xs font-medium">{lead.name}</td>
       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
+      <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.city || "—"}</td>
       <td className="px-3 py-2 text-xs tabular-nums" onClick={(e) => e.stopPropagation()}>
         <LeadPhoneLinks phone={lead.phone} leadName={lead.name} />
       </td>
@@ -1064,7 +1074,7 @@ export function LeadsManager({
             </div>
           </div>
         </div>
-        {userRole === "superadmin" && stats.byMember.length > 0 && (
+        {isErpAdmin(userRole) && stats.byMember.length > 0 && (
           <div className="pt-2 border-t border-[hsl(var(--border))]">
             <p className="text-xs font-semibold mb-2">By team member</p>
             <div className="flex flex-wrap gap-2">
@@ -1850,12 +1860,17 @@ function LeadDetailDrawer({
                 <p className="text-lg font-semibold">{lead.name}</p>
                 {lead.company && <p className="text-sm text-[hsl(var(--muted-foreground))]">{lead.company}</p>}
                 <div className="mt-3 space-y-2">
+                  {lead.city?.trim() && <p className="text-xs">City: {lead.city}</p>}
+                  {lead.address?.trim() && <p className="text-xs">Address: {lead.address}</p>}
                   {lead.phone?.trim() && (
                     <LeadPhoneLinks phone={lead.phone} leadName={lead.name} layout="card" />
                   )}
                   {lead.email && <p className="text-xs break-all">Email: {lead.email}</p>}
                   {lead.notes && (
-                    <p className="text-[hsl(var(--muted-foreground))] pt-1 whitespace-pre-line">Notes: {lead.notes}</p>
+                    <div className="text-[hsl(var(--muted-foreground))] pt-1 whitespace-pre-line text-xs space-y-1">
+                      <p className="font-medium text-[hsl(var(--foreground))]">CSV fields</p>
+                      <p>{lead.notes}</p>
+                    </div>
                   )}
                   {lead.importUploaderName && (
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))] pt-2 border-t border-[hsl(var(--border))] mt-2">

@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
         data: rows.map((l) => ({
           name: l.name,
           company: l.company,
+          city: l.city,
+          address: l.address,
           email: l.email,
           phone: l.phone,
           notes: l.notes,

@@ -14,6 +14,8 @@ export async function GET() {
       id: l.id,
       name: l.name,
       company: l.company,
+      city: l.city,
+      address: l.address,
       email: l.email,
       phone: l.phone,
       notes: l.notes,
@@ -47,6 +49,8 @@ export async function POST(req: NextRequest) {
       data: {
         name: String(b.name),
         company: String(b.company ?? ""),
+        city: String(b.city ?? ""),
+        address: String(b.address ?? ""),
         email: String(b.email ?? ""),
         phone: String(b.phone ?? ""),
         notes: String(b.notes ?? ""),
