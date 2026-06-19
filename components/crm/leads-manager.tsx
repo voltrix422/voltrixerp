@@ -10,6 +10,7 @@ import {
   facebookLeadAdsImportSummary,
   isFacebookLeadAdsCsv,
   FACEBOOK_LEAD_ADS_HEADERS,
+  FACEBOOK_LEAD_ADS_SAMPLE_CSV,
 } from "@/lib/facebook-lead-ads-csv"
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
 import { isErpAdmin } from "@/lib/auth"
@@ -335,11 +336,6 @@ function toDatetimeLocalValue(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
-
-const SAMPLE_CSV = `name,company,email,phone,notes
-Jane Doe,Acme Industries,jane@example.com,+923001234567,Interested in UPS
-John Smith,,john@smith.com,,Follow up next week
-`
 
 const CRM_LEAD_DETAIL_KEY = "crm-lead-detail-id"
 
@@ -1181,8 +1177,8 @@ export function LeadsManager({
             Import CSV
           </Button>
           <a
-            href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`}
-            download="leads-sample.csv"
+            href={`data:text/csv;charset=utf-8,${encodeURIComponent(FACEBOOK_LEAD_ADS_SAMPLE_CSV)}`}
+            download="facebook-leads-sample.csv"
             className="inline-flex items-center justify-center h-10 sm:h-8 text-xs text-[hsl(var(--primary))] underline underline-offset-2"
           >
             Sample CSV

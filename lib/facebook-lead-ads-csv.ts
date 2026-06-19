@@ -22,6 +22,61 @@ export const FACEBOOK_LEAD_ADS_HEADERS = [
   "lead_status",
 ] as const
 
+function escCsvSampleCell(value: string): string {
+  const s = String(value ?? "")
+  if (/[,"\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+function sampleCsvRow(values: string[]): string {
+  return values.map(escCsvSampleCell).join(",")
+}
+
+/** Downloadable template matching Meta / Facebook Lead Ads export columns. */
+export const FACEBOOK_LEAD_ADS_SAMPLE_CSV = [
+  FACEBOOK_LEAD_ADS_HEADERS.join(","),
+  sampleCsvRow([
+    "l:sample001",
+    "2026-06-19T10:00:00+05:00",
+    "ag:120245380065400072",
+    "Voltrix lead form promo",
+    "as:120245380065370072",
+    "Installers campaign",
+    "c:120245380065120072",
+    "Installers campaign",
+    "f:1333129181993129",
+    "Voltrix installer form",
+    "FALSE",
+    "fb",
+    "Ali Ahmed",
+    "p:+923001234567",
+    "Green Sun Solar",
+    "Multan",
+    "Model Town Multan",
+    "complete",
+  ]),
+  sampleCsvRow([
+    "l:sample002",
+    "2026-06-19T11:30:00+05:00",
+    "ag:120245380065400072",
+    "Voltrix lead form promo",
+    "as:120245380065370072",
+    "Installers campaign",
+    "c:120245380065120072",
+    "Installers campaign",
+    "f:1333129181993129",
+    "Voltrix installer form",
+    "FALSE",
+    "fb",
+    "Sara Khan",
+    "p:+923339876543",
+    "Sunbright Energy",
+    "Lahore",
+    "Gulberg Lahore",
+    "complete",
+  ]),
+].join("\n")
+
 function csvRows(text: string): string[][] {
   return parseCsv(text.replace(/^\ufeff/, ""))
 }
