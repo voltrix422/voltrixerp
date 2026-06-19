@@ -9,8 +9,8 @@ import { enrichLeadRowsWithPhonesFromCsv, parseLeadImportCsv } from "@/lib/csv-l
 import {
   facebookLeadAdsImportSummary,
   isFacebookLeadAdsCsv,
-  FACEBOOK_LEAD_ADS_HEADERS,
   FACEBOOK_LEAD_ADS_SAMPLE_CSV,
+  LEAD_IMPORT_HEADERS,
 } from "@/lib/facebook-lead-ads-csv"
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
 import { isErpAdmin } from "@/lib/auth"
@@ -25,6 +25,8 @@ import {
   patchLeadStatus,
   deleteLead,
   deleteLeadsByImportBatch,
+  renameLeadImportBatch,
+  mergeLeadImportBatches,
   logLeadContact,
   fetchDailyStats,
   type CrmLeadRow,
@@ -46,6 +48,8 @@ import {
   RefreshCw,
   Filter,
   SlidersHorizontal,
+  Pencil,
+  GitMerge,
 } from "lucide-react"
 
 const STATUS_OPTIONS = [
@@ -680,6 +684,15 @@ export function LeadsManager({
     importUploaderName: string
     count: number
   } | null>(null)
+  const [renameImportBatch, setRenameImportBatch] = useState<{
+    importBatchId: string
+    importUploaderName: string
+  } | null>(null)
+  const [mergeImportBatch, setMergeImportBatch] = useState<{
+    importBatchId: string
+    importUploaderName: string
+    count: number
+  } | null>(null)
   const [importing, setImporting] = useState(false)
   const [repairingPhonesBatchId, setRepairingPhonesBatchId] = useState<string | null>(null)
   const [loadingInstallersCsv, setLoadingInstallersCsv] = useState(false)
@@ -1125,9 +1138,7 @@ export function LeadsManager({
         />
 
         <p className="hidden lg:block text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-          Import <strong>Facebook Lead Ads</strong> CSV (FULL_NAME, PHONE, COMPANY_NAME, City, Address) or other CSV
-          formats. Outreach logs are saved in the database — open a lead to view full history after refresh. Export
-          leads as Excel anytime.
+          Import CSV with <strong>FULL_NAME, PHONE, COMPANY_NAME, City, Address</strong> (or full Facebook export). Outreach logs are saved in the database — open a lead to view full history after refresh. Export leads as Excel anytime.
         </p>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
           <input
@@ -1224,7 +1235,7 @@ export function LeadsManager({
           {importBatchGroups.length > 0 && (
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                CSV imports (by person and date)
+                CSV imports
               </p>
               <div className="space-y-2">
                 {importBatchGroups.map((group) => {
@@ -1257,6 +1268,36 @@ export function LeadsManager({
                           </span>
                         </button>
                         <div className="flex border-t sm:border-t-0 sm:border-l border-[hsl(var(--border))]">
+                          <button
+                            type="button"
+                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40 hover:text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
+                            title="Rename this import"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setRenameImportBatch({
+                                importBatchId: group.importBatchId,
+                                importUploaderName: group.importUploaderName,
+                              })
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40 hover:text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer min-h-[44px] min-w-[44px]"
+                            title="Merge into another import"
+                            disabled={importBatchGroups.length < 2}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setMergeImportBatch({
+                                importBatchId: group.importBatchId,
+                                importUploaderName: group.importUploaderName,
+                                count: group.leads.length,
+                              })
+                            }}
+                          >
+                            <GitMerge className="h-4 w-4" />
+                          </button>
                           <button
                             type="button"
                             className="flex-1 sm:flex-initial shrink-0 px-3 py-2.5 sm:py-3 flex items-center justify-center text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/40 cursor-pointer text-[11px] font-medium disabled:opacity-50 min-h-[44px]"
@@ -1489,6 +1530,220 @@ export function LeadsManager({
         }}
         onCancel={() => setDeleteImportBatch(null)}
       />
+
+      {renameImportBatch && (
+        <RenameImportBatchModal
+          initialName={renameImportBatch.importUploaderName}
+          onClose={() => setRenameImportBatch(null)}
+          onSave={async (name) => {
+            const { importBatchId } = renameImportBatch
+            try {
+              await renameLeadImportBatch(importBatchId, name)
+              setLeads((prev) =>
+                prev.map((l) =>
+                  l.importBatchId === importBatchId ? { ...l, importUploaderName: name } : l,
+                ),
+              )
+              setDetail((prev) =>
+                prev?.importBatchId === importBatchId ? { ...prev, importUploaderName: name } : prev,
+              )
+              toast({ type: "success", title: "Import renamed" })
+              setRenameImportBatch(null)
+            } catch (err) {
+              toast({
+                type: "error",
+                title: "Rename failed",
+                message: err instanceof Error ? err.message : undefined,
+              })
+            }
+          }}
+        />
+      )}
+
+      {mergeImportBatch && (
+        <MergeImportBatchModal
+          source={mergeImportBatch}
+          targets={importBatchGroups.filter((g) => g.importBatchId !== mergeImportBatch.importBatchId)}
+          onClose={() => setMergeImportBatch(null)}
+          onMerge={async (targetImportBatchId) => {
+            const { importBatchId, importUploaderName, count } = mergeImportBatch
+            const target = importBatchGroups.find((g) => g.importBatchId === targetImportBatchId)
+            if (!target) return
+            try {
+              const { merged, importUploaderName: targetName } = await mergeLeadImportBatches(
+                importBatchId,
+                targetImportBatchId,
+              )
+              setLeads((prev) =>
+                prev.map((l) =>
+                  l.importBatchId === importBatchId
+                    ? {
+                        ...l,
+                        importBatchId: targetImportBatchId,
+                        importUploaderName: targetName ?? target.importUploaderName,
+                      }
+                    : l,
+                ),
+              )
+              setOpenBatchIds((prev) => {
+                const next = new Set(prev)
+                next.delete(importBatchId)
+                next.add(targetImportBatchId)
+                return next
+              })
+              if (detail?.importBatchId === importBatchId) {
+                setDetail((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        importBatchId: targetImportBatchId,
+                        importUploaderName: targetName ?? target.importUploaderName,
+                      }
+                    : prev,
+                )
+              }
+              toast({
+                type: "success",
+                title: "Imports merged",
+                message: `Moved ${merged} lead(s) from “${importUploaderName}” into “${target.importUploaderName}”.`,
+              })
+              setMergeImportBatch(null)
+            } catch (err) {
+              toast({
+                type: "error",
+                title: "Merge failed",
+                message: err instanceof Error ? err.message : undefined,
+              })
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function RenameImportBatchModal({
+  initialName,
+  onClose,
+  onSave,
+}: {
+  initialName: string
+  onClose: () => void
+  onSave: (name: string) => Promise<void>
+}) {
+  const [name, setName] = useState(initialName)
+  const [saving, setSaving] = useState(false)
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-md w-full p-4 space-y-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold">Rename import</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          This label is shown on the import list and on each lead from this CSV.
+        </p>
+        <input
+          className="w-full h-9 rounded border px-2 text-sm"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!name.trim() || saving}
+            onClick={async () => {
+              setSaving(true)
+              try {
+                await onSave(name.trim())
+              } finally {
+                setSaving(false)
+              }
+            }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MergeImportBatchModal({
+  source,
+  targets,
+  onClose,
+  onMerge,
+}: {
+  source: { importBatchId: string; importUploaderName: string; count: number }
+  targets: { importBatchId: string; importUploaderName: string; leads: CrmLeadRow[] }[]
+  onClose: () => void
+  onMerge: (targetImportBatchId: string) => Promise<void>
+}) {
+  const [targetId, setTargetId] = useState(targets[0]?.importBatchId ?? "")
+  const [merging, setMerging] = useState(false)
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-md w-full p-4 space-y-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-semibold">Merge import</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          Move all <strong>{source.count}</strong> lead(s) from{" "}
+          <strong>{source.importUploaderName}</strong> into another import. Outreach logs are kept. The empty source
+          import disappears from the list.
+        </p>
+        <div>
+          <label className="text-xs font-medium">Merge into</label>
+          <select
+            className="mt-1 w-full h-9 rounded border px-2 text-sm bg-[hsl(var(--background))]"
+            value={targetId}
+            onChange={(e) => setTargetId(e.target.value)}
+          >
+            {targets.map((t) => (
+              <option key={t.importBatchId} value={t.importBatchId}>
+                {t.importUploaderName} ({t.leads.length} leads)
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!targetId || merging}
+            onClick={async () => {
+              setMerging(true)
+              try {
+                await onMerge(targetId)
+              } finally {
+                setMerging(false)
+              }
+            }}
+          >
+            {merging ? "Merging…" : "Merge"}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1517,10 +1772,10 @@ function FacebookLeadImportModal({
           </button>
         </div>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Upload Meta export with FULL_NAME, PHONE, COMPANY_NAME, City, Address.
+          Upload CSV with columns: FULL_NAME, PHONE, COMPANY_NAME, City, Address.
         </p>
         <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-mono break-all">
-          {FACEBOOK_LEAD_ADS_HEADERS.join(", ")}
+          {LEAD_IMPORT_HEADERS.join(", ")}
         </p>
         <div>
           <label className="text-xs font-medium">Import label *</label>

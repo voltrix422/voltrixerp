@@ -212,6 +212,34 @@ export async function deleteLeadsByImportBatch(importBatchId: string): Promise<{
   return res.json() as Promise<{ deleted: number }>
 }
 
+export async function renameLeadImportBatch(
+  importBatchId: string,
+  importUploaderName: string,
+): Promise<{ updated: number; importUploaderName: string }> {
+  const res = await fetch("/api/crm/leads/batches", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "rename", importBatchId, importUploaderName }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Rename failed")
+  return data as { updated: number; importUploaderName: string }
+}
+
+export async function mergeLeadImportBatches(
+  sourceImportBatchId: string,
+  targetImportBatchId: string,
+): Promise<{ merged: number; importUploaderName: string | null }> {
+  const res = await fetch("/api/crm/leads/batches", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "merge", sourceImportBatchId, targetImportBatchId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Merge failed")
+  return data as { merged: number; importUploaderName: string | null }
+}
+
 export async function logLeadContact(body: {
   leadId: string
   contactedBy: string
