@@ -1,11 +1,13 @@
 export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos"
 
+export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager"
+
 export interface User {
   id: string
   name: string
   email: string
   password: string
-  role: "superadmin" | "user" | "sales_agent" | "sales_manager"
+  role: UserRole
   modules: Module[]
   managerId?: string | null
   location?: string
@@ -32,6 +34,35 @@ export const MODULE_LABELS: Record<Module, string> = {
   tickets: "Tickets",
   warranty: "Warranty",
   pos: "POS",
+}
+
+/** Roles that superadmin can assign when creating/editing users. */
+export const ASSIGNABLE_ROLES: UserRole[] = ["user", "admin", "sales_agent"]
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  superadmin: "Super Admin",
+  admin: "Admin",
+  user: "User",
+  sales_agent: "Sales Agent",
+  sales_manager: "Sales Manager",
+}
+
+export function roleHasAllModules(role: UserRole | string | undefined | null) {
+  return role === "superadmin" || role === "admin"
+}
+
+export function isErpAdmin(role: UserRole | string | undefined | null) {
+  return role === "superadmin" || role === "admin"
+}
+
+export function isSuperadmin(role: UserRole | string | undefined | null) {
+  return role === "superadmin"
+}
+
+export function modulesForRole(role: UserRole, selected: Module[]): Module[] {
+  if (roleHasAllModules(role)) return [...ALL_MODULES]
+  if (role === "sales_agent" && selected.length === 0) return ["crm"]
+  return selected
 }
 
 const SESSION_KEY = "erp_session"
@@ -81,7 +112,7 @@ function mapRow(row: Record<string, unknown>): User {
     name: row.name as string,
     email: row.email as string,
     password: row.password as string,
-    role: row.role as User["role"],
+    role: row.role as UserRole,
     modules,
     managerId: (row.managerId as string | null) ?? undefined,
     location: (row.location as string) ?? undefined,
