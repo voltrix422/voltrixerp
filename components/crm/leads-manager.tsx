@@ -1595,7 +1595,7 @@ export function LeadsManager({
           <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
           {leads.length === 0
             ? "No leads yet. Import a CSV or add a lead manually."
-            : isLeadFiltersActive(statusFilter, contactFilter, contactFrom, contactTo) || search.trim()
+            : isLeadFiltersActive(statusFilter, contactFilter, contactFrom, contactTo, assignedFilter) || search.trim()
               ? "No leads match your filters."
               : "No leads match your search."}
         </div>
