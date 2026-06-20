@@ -671,6 +671,26 @@ model ErpWebsiteOutlet {
   @@map("erp_website_outlets")
 }
 
+model ErpWebsiteDealership {
+  id            String   @id @default(cuid())
+  name          String
+  city          String   @default("")
+  address       String   @default("")
+  phone         String   @default("")
+  email         String   @default("")
+  contactPerson String   @default("") @map("contact_person")
+  openingHours  String   @default("") @map("opening_hours")
+  mapUrl        String   @default("") @map("map_url")
+  published     Boolean  @default(false)
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdBy     String?  @map("created_by")
+
+  @@index([published, sortOrder])
+  @@map("erp_website_dealerships")
+}
+
 model ErpDispatch {
   id               String   @id @default(cuid())
   orderId          String   @map("order_id")

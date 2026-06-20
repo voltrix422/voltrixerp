@@ -26,7 +26,7 @@ const socialLinks = [
 ]
 
 const links = {
-  Company: ["About", "Outlets", "Blog", "Careers"],
+  Company: ["About", "Outlets", "Dealerships", "Blog", "Careers"],
   Legal: ["Privacy", "Terms", "Cookies"],
   Resources: ["Documentation", "ERP"],
 }
@@ -67,6 +67,7 @@ export default function Footer() {
                   {items.map((item) => {
                     const href = item === "About" ? "/about" :
                                  item === "Outlets" ? "/outlets" :
+                                 item === "Dealerships" ? "/dealerships" :
                                  item === "Blog" ? "/blog" :
                                  item === "Careers" ? "/careers" :
                                  item === "Privacy" ? "/privacy" :

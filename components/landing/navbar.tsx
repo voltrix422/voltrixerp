@@ -16,6 +16,7 @@ const links = [
   { label: "About Us",           hash: "about"     },
   { label: "Contact",            hash: "contact"   },
   { label: "Outlets",            href: "/outlets"  },
+  { label: "Dealerships",        href: "/dealerships" },
   { label: "Warranty",           href: "/warranty" },
 ]
 
