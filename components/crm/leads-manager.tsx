@@ -13,7 +13,7 @@ import {
   LEAD_IMPORT_HEADERS,
 } from "@/lib/facebook-lead-ads-csv"
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
-import { isErpAdmin, getUsers, type User } from "@/lib/auth"
+import { isErpAdmin, getUsers, type User as ErpUser } from "@/lib/auth"
 import { LEAD_STATUS_OPTIONS, leadStatusLabel } from "@/lib/crm-lead-status"
 import {
   fetchLeads,
@@ -792,7 +792,7 @@ export function LeadsManager({
 }) {
   const { toast } = useToast()
   const canAssignLeads = isErpAdmin(userRole)
-  const [erpUsers, setErpUsers] = useState<User[]>([])
+  const [erpUsers, setErpUsers] = useState<ErpUser[]>([])
   const [leads, setLeads] = useState<CrmLeadRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -1195,7 +1195,7 @@ export function LeadsManager({
     }
   }
 
-  async function onAssignLead(lead: CrmLeadRow, user: User | null) {
+  async function onAssignLead(lead: CrmLeadRow, user: ErpUser | null) {
     try {
       const updated = await patchLeadAssignment(lead.id, {
         assignedToUserId: user?.id ?? null,
@@ -2461,10 +2461,10 @@ function LinkLeadUserModal({
   onAssign,
 }: {
   lead: CrmLeadRow
-  users: User[]
+  users: ErpUser[]
   canAssign: boolean
   onClose: () => void
-  onAssign: (user: User | null) => void | Promise<void>
+  onAssign: (user: ErpUser | null) => void | Promise<void>
 }) {
   const [selectedId, setSelectedId] = useState(lead.assignedToUserId ?? "")
   const [saving, setSaving] = useState(false)
