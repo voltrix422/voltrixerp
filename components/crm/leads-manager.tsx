@@ -126,12 +126,14 @@ function applyLeadFilters(
     contactFilter,
     contactFrom,
     contactTo,
+    assignedFilter,
   }: {
     search: string
     statusFilter: LeadStatusFilter
     contactFilter: ContactDateFilter
     contactFrom: string
     contactTo: string
+    assignedFilter: string
   },
 ) {
   const q = search.toLowerCase().trim()
@@ -139,6 +141,11 @@ function applyLeadFilters(
   return leads.filter((l) => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false
     if (!matchesContactDateFilter(l, contactFilter, contactFrom, contactTo)) return false
+    if (assignedFilter === "unassigned") {
+      if (l.assignedToUserId) return false
+    } else if (assignedFilter !== "all" && l.assignedToUserId !== assignedFilter) {
+      return false
+    }
     if (!q) return true
     return (
       l.name.toLowerCase().includes(q) ||
@@ -146,7 +153,8 @@ function applyLeadFilters(
       (l.city ?? "").toLowerCase().includes(q) ||
       (l.address ?? "").toLowerCase().includes(q) ||
       l.email.toLowerCase().includes(q) ||
-      l.phone.toLowerCase().includes(q)
+      l.phone.toLowerCase().includes(q) ||
+      (l.assignedToName ?? "").toLowerCase().includes(q)
     )
   })
 }
@@ -156,11 +164,33 @@ function isLeadFiltersActive(
   contactFilter: ContactDateFilter,
   contactFrom: string,
   contactTo: string,
+  assignedFilter: string,
 ) {
   if (statusFilter !== "all") return true
+  if (assignedFilter !== "all") return true
   if (contactFilter === "today" || contactFilter === "never") return true
   if (contactFilter === "range" && (contactFrom || contactTo)) return true
   return false
+}
+
+function summarizeAssignees(leads: CrmLeadRow[]) {
+  const assignees = new Map<string, { name: string; count: number }>()
+  let unassigned = 0
+  for (const l of leads) {
+    if (!l.assignedToUserId) {
+      unassigned++
+      continue
+    }
+    const existing = assignees.get(l.assignedToUserId)
+    if (existing) existing.count++
+    else assignees.set(l.assignedToUserId, { name: l.assignedToName || "Unknown", count: 1 })
+  }
+  return {
+    unassigned,
+    assignees: [...assignees.entries()]
+      .map(([id, v]) => ({ id, name: v.name, count: v.count }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }
 }
 
 function LeadFiltersPanel({
@@ -168,6 +198,9 @@ function LeadFiltersPanel({
   contactFilter,
   contactFrom,
   contactTo,
+  assignedFilter,
+  assigneeSummary,
+  showAssignedFilter,
   open,
   totalCount,
   filteredCount,
@@ -176,12 +209,16 @@ function LeadFiltersPanel({
   onContactFilter,
   onContactFrom,
   onContactTo,
+  onAssignedFilter,
   onClear,
 }: {
   statusFilter: LeadStatusFilter
   contactFilter: ContactDateFilter
   contactFrom: string
   contactTo: string
+  assignedFilter: string
+  assigneeSummary: ReturnType<typeof summarizeAssignees>
+  showAssignedFilter: boolean
   open: boolean
   totalCount: number
   filteredCount: number
@@ -190,14 +227,27 @@ function LeadFiltersPanel({
   onContactFilter: (v: ContactDateFilter) => void
   onContactFrom: (v: string) => void
   onContactTo: (v: string) => void
+  onAssignedFilter: (v: string) => void
   onClear: () => void
 }) {
-  const filtersActive = isLeadFiltersActive(statusFilter, contactFilter, contactFrom, contactTo)
+  const filtersActive = isLeadFiltersActive(
+    statusFilter,
+    contactFilter,
+    contactFrom,
+    contactTo,
+    assignedFilter,
+  )
 
   const statusLabel =
     LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label ?? "All leads"
   const contactLabel =
     CONTACT_DATE_FILTER_OPTIONS.find((o) => o.value === contactFilter)?.label ?? "Any outreach date"
+  const assignedLabel =
+    assignedFilter === "all"
+      ? "All assignees"
+      : assignedFilter === "unassigned"
+        ? "Unassigned"
+        : assigneeSummary.assignees.find((a) => a.id === assignedFilter)?.name ?? "Assigned member"
 
   return (
     <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))]/40 overflow-hidden">
@@ -242,12 +292,18 @@ function LeadFiltersPanel({
               )}
             </span>
           )}
+          {assignedFilter !== "all" && showAssignedFilter && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 text-[10px]">
+              <Link2 className="h-3 w-3 opacity-60" />
+              {assignedLabel}
+            </span>
+          )}
         </div>
       )}
 
       {open && (
         <div className="border-t border-[hsl(var(--border))] p-3 space-y-3 bg-[hsl(var(--background))]/50">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className={`grid grid-cols-1 ${showAssignedFilter ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                 Lead status
@@ -285,7 +341,79 @@ function LeadFiltersPanel({
                 ))}
               </select>
             </div>
+            {showAssignedFilter && (
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  Assigned to
+                </label>
+                <select
+                  value={assignedFilter}
+                  onChange={(e) => onAssignedFilter(e.target.value)}
+                  className="mt-1 w-full h-10 sm:h-9 rounded border bg-[hsl(var(--background))] px-2 text-sm sm:text-xs"
+                >
+                  <option value="all">All assignees</option>
+                  <option value="unassigned">Unassigned ({assigneeSummary.unassigned})</option>
+                  {assigneeSummary.assignees.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.count})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Filter leads linked to a team member via the Link button.
+                </p>
+              </div>
+            )}
           </div>
+
+          {showAssignedFilter && assigneeSummary.assignees.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
+                Quick filter by assignee
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onAssignedFilter("all")}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                    assignedFilter === "all"
+                      ? "bg-[hsl(var(--primary))]/15 border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))]"
+                      : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  All
+                </button>
+                {assigneeSummary.unassigned > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onAssignedFilter("unassigned")}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                      assignedFilter === "unassigned"
+                        ? "bg-[hsl(var(--primary))]/15 border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))]"
+                        : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                    }`}
+                  >
+                    Unassigned: <strong>{assigneeSummary.unassigned}</strong>
+                  </button>
+                )}
+                {assigneeSummary.assignees.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => onAssignedFilter(a.id)}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                      assignedFilter === a.id
+                        ? "bg-[hsl(var(--primary))]/15 border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))]"
+                        : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                    }`}
+                  >
+                    <User className="h-3 w-3 opacity-60" />
+                    {a.name}: <strong>{a.count}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {contactFilter === "range" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -800,6 +928,7 @@ export function LeadsManager({
   const [contactFilter, setContactFilter] = useState<ContactDateFilter>("all")
   const [contactFrom, setContactFrom] = useState("")
   const [contactTo, setContactTo] = useState("")
+  const [assignedFilter, setAssignedFilter] = useState("all")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [statsDate, setStatsDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [stats, setStats] = useState<{ total: number; byMember: { name: string; userId: string | null; count: number }[] }>({
@@ -950,15 +1079,20 @@ export function LeadsManager({
         contactFilter,
         contactFrom,
         contactTo,
+        assignedFilter,
       }),
-    [leads, search, statusFilter, contactFilter, contactFrom, contactTo],
+    [leads, search, statusFilter, contactFilter, contactFrom, contactTo, assignedFilter],
   )
+
+  const assigneeSummary = useMemo(() => summarizeAssignees(leads), [leads])
+  const showAssignedFilter = canAssignLeads || assigneeSummary.assignees.length > 0
 
   function clearLeadFilters() {
     setStatusFilter("all")
     setContactFilter("all")
     setContactFrom("")
     setContactTo("")
+    setAssignedFilter("all")
   }
 
   const importBatchGroups = useMemo(() => {
@@ -1270,7 +1404,7 @@ export function LeadsManager({
         </div>
         {isErpAdmin(userRole) && stats.byMember.length > 0 && (
           <div className="pt-2 border-t border-[hsl(var(--border))]">
-            <p className="text-xs font-semibold mb-2">By team member</p>
+            <p className="text-xs font-semibold mb-2">Outreach by team member</p>
             <div className="flex flex-wrap gap-2">
               {stats.byMember.map((m) => (
                 <span
@@ -1280,6 +1414,52 @@ export function LeadsManager({
                   <User className="h-3 w-3 opacity-60" />
                   {m.name}: <strong>{m.count}</strong>
                 </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {showAssignedFilter && (assigneeSummary.assignees.length > 0 || assigneeSummary.unassigned > 0) && (
+          <div className="pt-2 border-t border-[hsl(var(--border))]">
+            <p className="text-xs font-semibold mb-2">Filter by assigned member</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setAssignedFilter("all")}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                  assignedFilter === "all"
+                    ? "bg-[#1faca6]/15 border-[#1faca6]/40 text-[#1a9f9a] font-medium"
+                    : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                }`}
+              >
+                All assignees
+              </button>
+              {assigneeSummary.unassigned > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAssignedFilter("unassigned")}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                    assignedFilter === "unassigned"
+                      ? "bg-[#1faca6]/15 border-[#1faca6]/40 text-[#1a9f9a] font-medium"
+                      : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  Unassigned: <strong>{assigneeSummary.unassigned}</strong>
+                </button>
+              )}
+              {assigneeSummary.assignees.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setAssignedFilter(a.id)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] cursor-pointer transition-colors ${
+                    assignedFilter === a.id
+                      ? "bg-[#1faca6]/15 border-[#1faca6]/40 text-[#1a9f9a] font-medium"
+                      : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  <Link2 className="h-3 w-3 opacity-60" />
+                  {a.name}: <strong>{a.count}</strong>
+                </button>
               ))}
             </div>
           </div>
@@ -1301,6 +1481,9 @@ export function LeadsManager({
           contactFilter={contactFilter}
           contactFrom={contactFrom}
           contactTo={contactTo}
+          assignedFilter={assignedFilter}
+          assigneeSummary={assigneeSummary}
+          showAssignedFilter={showAssignedFilter}
           open={filtersOpen}
           totalCount={leads.length}
           filteredCount={filteredAll.length}
@@ -1319,6 +1502,7 @@ export function LeadsManager({
           }}
           onContactFrom={setContactFrom}
           onContactTo={setContactTo}
+          onAssignedFilter={setAssignedFilter}
           onClear={clearLeadFilters}
         />
 
