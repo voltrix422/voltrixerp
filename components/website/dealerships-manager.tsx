@@ -144,8 +144,9 @@ export default function DealershipsManager() {
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 className="w-full h-9 rounded-md border px-3 text-sm bg-[hsl(var(--background))]"
-                placeholder="Voltrix Authorized Partner – Lahore"
+                placeholder="AI Wells"
               />
+              <p className="text-[11px] text-muted-foreground mt-1">Company name only — put address and phone in their own fields below.</p>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">City</label>

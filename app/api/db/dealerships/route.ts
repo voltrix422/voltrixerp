@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { normalizeDealership } from "@/lib/dealership-display"
 
 export async function GET(req: NextRequest) {
   const publicOnly = req.nextUrl.searchParams.get("public") === "true"
@@ -16,15 +17,27 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
 
   try {
+    const normalized = normalizeDealership({
+      id: body.id ?? "",
+      name: String(body.name ?? ""),
+      city: String(body.city ?? ""),
+      address: String(body.address ?? ""),
+      phone: String(body.phone ?? ""),
+      email: String(body.email ?? ""),
+      contactPerson: String(body.contactPerson ?? ""),
+      openingHours: String(body.openingHours ?? ""),
+      mapUrl: String(body.mapUrl ?? ""),
+    })
+
     const data = {
-      name: String(body.name ?? "").trim(),
-      city: String(body.city ?? "").trim(),
-      address: String(body.address ?? "").trim(),
-      phone: String(body.phone ?? "").trim(),
-      email: String(body.email ?? "").trim(),
-      contactPerson: String(body.contactPerson ?? "").trim(),
-      openingHours: String(body.openingHours ?? "").trim(),
-      mapUrl: String(body.mapUrl ?? "").trim(),
+      name: normalized.name,
+      city: normalized.city,
+      address: normalized.address,
+      phone: normalized.phone,
+      email: normalized.email,
+      contactPerson: normalized.contactPerson,
+      openingHours: normalized.openingHours,
+      mapUrl: normalized.mapUrl,
       published: Boolean(body.published),
       sortOrder: Number(body.sortOrder) || 0,
     }

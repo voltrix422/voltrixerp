@@ -1,37 +1,19 @@
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
-import { MapPin, Phone, Mail, Clock, ExternalLink, Store, ShieldCheck } from "lucide-react"
+import { MapPin, Phone, Mail, Clock, ExternalLink, Store, ShieldCheck, User } from "lucide-react"
+import { mapsHref, normalizeDealership, type DealershipRecord } from "@/lib/dealership-display"
 
-type WebsiteDealership = {
-  id: string
-  name: string
-  city: string
-  address: string
-  phone: string
-  email: string
-  contactPerson: string
-  openingHours: string
-  mapUrl: string
-}
-
-async function getDealerships(): Promise<WebsiteDealership[]> {
+async function getDealerships(): Promise<DealershipRecord[]> {
   const base = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
   const res = await fetch(`${base}/api/db/dealerships?public=true`, { cache: "no-store" })
   if (!res.ok) return []
   return res.json()
 }
 
-function mapsHref(dealership: WebsiteDealership) {
-  if (dealership.mapUrl?.trim()) return dealership.mapUrl.trim()
-  const query = [dealership.address, dealership.city].filter(Boolean).join(", ")
-  if (!query) return null
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
-}
-
-function groupByCity(dealerships: WebsiteDealership[]) {
-  const groups = new Map<string, WebsiteDealership[]>()
+function groupByCity(dealerships: ReturnType<typeof normalizeDealership>[]) {
+  const groups = new Map<string, ReturnType<typeof normalizeDealership>[]>()
   for (const d of dealerships) {
-    const city = d.city?.trim() || "Other locations"
+    const city = d.city || "Other locations"
     const list = groups.get(city) ?? []
     list.push(d)
     groups.set(city, list)
@@ -40,7 +22,7 @@ function groupByCity(dealerships: WebsiteDealership[]) {
 }
 
 export default async function DealershipsPage() {
-  const dealerships = await getDealerships()
+  const dealerships = (await getDealerships()).map(normalizeDealership)
   const grouped = groupByCity(dealerships)
   const cities = [...new Set(dealerships.map(d => d.city).filter(Boolean))]
 
@@ -48,7 +30,6 @@ export default async function DealershipsPage() {
     <main className="min-h-screen bg-neutral-50 text-neutral-900">
       <Navbar />
 
-      {/* Hero */}
       <section
         className="pt-36 pb-20 px-4 relative overflow-hidden"
         style={{ background: "linear-gradient(135deg, #0d4f4c 0%, #1a9f9a 50%, #2bc4be 100%)" }}
@@ -62,9 +43,7 @@ export default async function DealershipsPage() {
             <ShieldCheck className="w-3.5 h-3.5" />
             Authorized Partners
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-white">
-            Dealerships
-          </h1>
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-white">Dealerships</h1>
           <p className="text-white/80 text-lg max-w-2xl mx-auto leading-relaxed">
             Find a Voltrix authorized dealership near you for genuine products, expert advice, and full warranty support.
           </p>
@@ -76,7 +55,6 @@ export default async function DealershipsPage() {
         </div>
       </section>
 
-      {/* Dealership list */}
       <section className="py-16 px-4 -mt-8">
         <div className="max-w-5xl mx-auto space-y-12">
           {dealerships.length === 0 ? (
@@ -97,88 +75,120 @@ export default async function DealershipsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {items.map(dealership => {
                     const mapLink = mapsHref(dealership)
+                    const telHref = dealership.phone ? `tel:${dealership.phone.replace(/\s/g, "")}` : null
+
                     return (
                       <article
                         key={dealership.id}
-                        className="group rounded-2xl bg-white border border-neutral-100 p-6 space-y-4 shadow-sm hover:shadow-md hover:border-[#1a9f9a]/30 transition-all duration-300"
+                        className="group rounded-2xl bg-white border border-neutral-100 shadow-sm hover:shadow-md hover:border-[#1a9f9a]/30 transition-all duration-300 overflow-hidden"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3 min-w-0">
+                        <div className="h-1.5" style={{ background: "linear-gradient(90deg, #1a9f9a, #2bc4be)" }} />
+
+                        <div className="p-6 space-y-5">
+                          <div className="flex items-start gap-4">
                             <div
-                              className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors group-hover:bg-[#1a9f9a]/20"
+                              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                               style={{ backgroundColor: "#1a9f9a15" }}
                             >
                               <Store className="w-5 h-5" style={{ color: "#1a9f9a" }} />
                             </div>
-                            <div className="min-w-0">
-                              <h3 className="text-lg font-bold text-neutral-900 leading-snug">{dealership.name}</h3>
-                              {dealership.city && grouped.length === 1 && (
-                                <p className="text-sm text-neutral-500 mt-0.5">{dealership.city}</p>
-                              )}
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <h3 className="text-xl font-bold text-neutral-900 leading-tight">
+                                    {dealership.displayName}
+                                  </h3>
+                                  {dealership.city && (
+                                    <p className="text-sm text-neutral-500 mt-1">{dealership.city}</p>
+                                  )}
+                                </div>
+                                <span
+                                  className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide"
+                                  style={{ backgroundColor: "#1a9f9a12", color: "#1a9f9a" }}
+                                >
+                                  <ShieldCheck className="w-3 h-3" />
+                                  Authorized
+                                </span>
+                              </div>
                             </div>
                           </div>
-                          <span
-                            className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide"
-                            style={{ backgroundColor: "#1a9f9a12", color: "#1a9f9a" }}
-                          >
-                            <ShieldCheck className="w-3 h-3" />
-                            Authorized
-                          </span>
-                        </div>
 
-                        {dealership.address && (
-                          <p className="text-sm text-neutral-600 leading-relaxed flex items-start gap-2">
-                            <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
-                            {dealership.address}
-                          </p>
-                        )}
+                          <div className="rounded-xl bg-neutral-50 border border-neutral-100 divide-y divide-neutral-100">
+                            {dealership.address && (
+                              <div className="flex items-start gap-3 px-4 py-3">
+                                <MapPin className="w-4 h-4 text-[#1a9f9a] shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Address</p>
+                                  <p className="text-sm text-neutral-700 leading-relaxed mt-0.5">{dealership.address}</p>
+                                </div>
+                              </div>
+                            )}
 
-                        <div className="space-y-2 pt-1">
-                          {dealership.phone && (
-                            <a
-                              href={`tel:${dealership.phone.replace(/\s/g, "")}`}
-                              className="flex items-center gap-2 text-sm text-neutral-600 hover:text-[#1a9f9a] transition-colors"
-                            >
-                              <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                              {dealership.phone}
-                            </a>
-                          )}
-                          {dealership.email && (
-                            <a
-                              href={`mailto:${dealership.email}`}
-                              className="flex items-center gap-2 text-sm text-neutral-600 hover:text-[#1a9f9a] transition-colors"
-                            >
-                              <Mail className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                              {dealership.email}
-                            </a>
-                          )}
-                          {dealership.openingHours && (
-                            <p className="flex items-center gap-2 text-sm text-neutral-600">
-                              <Clock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                              {dealership.openingHours}
-                            </p>
-                          )}
-                          {dealership.contactPerson && (
-                            <p className="text-sm text-neutral-500">
-                              Contact: <span className="text-neutral-700">{dealership.contactPerson}</span>
-                            </p>
-                          )}
-                        </div>
+                            {telHref && (
+                              <div className="flex items-start gap-3 px-4 py-3">
+                                <Phone className="w-4 h-4 text-[#1a9f9a] shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Phone</p>
+                                  <a
+                                    href={telHref}
+                                    className="text-sm font-medium text-neutral-800 hover:text-[#1a9f9a] transition-colors mt-0.5 inline-block"
+                                  >
+                                    {dealership.phone}
+                                  </a>
+                                </div>
+                              </div>
+                            )}
 
-                        {mapLink && (
-                          <div className="pt-2 border-t border-neutral-50">
+                            {dealership.email && (
+                              <div className="flex items-start gap-3 px-4 py-3">
+                                <Mail className="w-4 h-4 text-[#1a9f9a] shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Email</p>
+                                  <a
+                                    href={`mailto:${dealership.email}`}
+                                    className="text-sm font-medium text-neutral-800 hover:text-[#1a9f9a] transition-colors mt-0.5 inline-block break-all"
+                                  >
+                                    {dealership.email}
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+
+                            {dealership.contactPerson && (
+                              <div className="flex items-start gap-3 px-4 py-3">
+                                <User className="w-4 h-4 text-[#1a9f9a] shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Contact</p>
+                                  <p className="text-sm text-neutral-700 mt-0.5">{dealership.contactPerson}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {dealership.openingHours && (
+                              <div className="flex items-start gap-3 px-4 py-3">
+                                <Clock className="w-4 h-4 text-[#1a9f9a] shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Hours</p>
+                                  <p className="text-sm text-neutral-700 mt-0.5">{dealership.openingHours}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {mapLink && (
                             <a
                               href={mapLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors hover:opacity-80"
-                              style={{ color: "#1a9f9a" }}
+                              className="inline-flex items-center justify-center gap-2 w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                              style={{ backgroundColor: "#1a9f9a" }}
                             >
                               Get directions
-                              <ExternalLink className="w-3.5 h-3.5" />
+                              <ExternalLink className="w-4 h-4" />
                             </a>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </article>
                     )
                   })}
