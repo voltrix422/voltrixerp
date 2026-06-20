@@ -13,7 +13,8 @@ import {
   LEAD_IMPORT_HEADERS,
 } from "@/lib/facebook-lead-ads-csv"
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
-import { isErpAdmin } from "@/lib/auth"
+import { isErpAdmin, getUsers, type User } from "@/lib/auth"
+import { LEAD_STATUS_OPTIONS, leadStatusLabel } from "@/lib/crm-lead-status"
 import {
   fetchLeads,
   fetchLeadDetail,
@@ -23,6 +24,7 @@ import {
   syncInstallersPhonesFromBrowser,
   syncPhonesFromCsvText,
   patchLeadStatus,
+  patchLeadAssignment,
   patchLeadFollowUp,
   deleteLead,
   deleteLeadsByImportBatch,
@@ -52,21 +54,18 @@ import {
   Pencil,
   GitMerge,
   CalendarClock,
+  Link2,
 } from "lucide-react"
 
-const STATUS_OPTIONS = [
-  { value: "new", label: "New" },
-  { value: "contacted", label: "Contacted" },
-  { value: "responded", label: "Responded" },
-  { value: "closed", label: "Closed" },
-] as const
+const STATUS_OPTIONS = LEAD_STATUS_OPTIONS
 
 type LeadStatusFilter = "all" | (typeof STATUS_OPTIONS)[number]["value"]
 
 const LEAD_STATUS_FILTER_OPTIONS: { value: LeadStatusFilter; label: string; hint?: string }[] = [
   { value: "all", label: "All leads" },
   { value: "responded", label: "Qualified (responded)", hint: "Leads who replied" },
-  { value: "contacted", label: "Contacted", hint: "Outreach logged, no reply yet" },
+  { value: "not_responded", label: "Not responded", hint: "Outreach logged, no reply" },
+  { value: "contacted", label: "Contacted", hint: "Marked as contacted" },
   { value: "new", label: "New / not contacted", hint: "No outreach logged" },
   { value: "closed", label: "Closed" },
 ]
@@ -463,6 +462,7 @@ function LeadStatusSelect({
       onChange={(e) => onStatusChange(lead, e.target.value)}
       onClick={(e) => e.stopPropagation()}
       className={`h-8 sm:h-7 rounded border bg-[hsl(var(--background))] text-[11px] px-1.5 ${className}`}
+      title={leadStatusLabel(lead.status)}
     >
       {STATUS_OPTIONS.map((o) => (
         <option key={o.value} value={o.value}>
@@ -473,20 +473,38 @@ function LeadStatusSelect({
   )
 }
 
+function AssignedToCell({ lead }: { lead: CrmLeadRow }) {
+  if (!lead.assignedToUserId) {
+    return <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Unassigned</span>
+  }
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-medium truncate">{lead.assignedToName || "ERP user"}</p>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-mono truncate" title={lead.assignedToUserId}>
+        {lead.assignedToUserId}
+      </p>
+    </div>
+  )
+}
+
 function LeadCard({
   lead,
   onOpenDetail,
   onStatusChange,
   onLog,
   onFollowUp,
+  onLinkUser,
   onDelete,
+  canAssign,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
   onStatusChange: (lead: CrmLeadRow, status: string) => void
   onLog: (lead: CrmLeadRow) => void
   onFollowUp: (lead: CrmLeadRow) => void
+  onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
+  canAssign: boolean
 }) {
   const fu = followUpDisplay(lead)
   return (
@@ -531,6 +549,10 @@ function LeadCard({
         </p>
       )}
 
+      <div className="text-[11px]" onClick={(e) => e.stopPropagation()}>
+        <AssignedToCell lead={lead} />
+      </div>
+
       <div className="flex gap-2 pt-0.5" onClick={(e) => e.stopPropagation()}>
         <Button
           size="sm"
@@ -547,6 +569,14 @@ function LeadCard({
           onClick={() => onFollowUp(lead)}
         >
           <CalendarClock className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          className="shrink-0 flex items-center justify-center w-10 h-10 text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/50 rounded-lg border border-[hsl(var(--border))] cursor-pointer"
+          title={canAssign ? "Link ERP user" : "View assignment"}
+          onClick={() => onLinkUser(lead)}
+        >
+          <Link2 className="h-4 w-4" />
         </button>
         <button
           type="button"
@@ -567,14 +597,18 @@ function LeadsListView({
   onStatusChange,
   onLog,
   onFollowUp,
+  onLinkUser,
   onDelete,
+  canAssign,
 }: {
   leads: CrmLeadRow[]
   onOpenDetail: (id: string) => void
   onStatusChange: (lead: CrmLeadRow, status: string) => void
   onLog: (lead: CrmLeadRow) => void
   onFollowUp: (lead: CrmLeadRow) => void
+  onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
+  canAssign: boolean
 }) {
   return (
     <>
@@ -587,12 +621,14 @@ function LeadsListView({
             onStatusChange={onStatusChange}
             onLog={onLog}
             onFollowUp={onFollowUp}
+            onLinkUser={onLinkUser}
             onDelete={onDelete}
+            canAssign={canAssign}
           />
         ))}
       </div>
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[1080px]">
+        <table className="w-full min-w-[1240px]">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
@@ -606,6 +642,9 @@ function LeadsListView({
               </th>
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Phone
+              </th>
+              <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                Assigned to
               </th>
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Status
@@ -633,7 +672,9 @@ function LeadsListView({
                 onStatusChange={onStatusChange}
                 onLog={onLog}
                 onFollowUp={onFollowUp}
+                onLinkUser={onLinkUser}
                 onDelete={onDelete}
+                canAssign={canAssign}
               />
             ))}
           </tbody>
@@ -649,14 +690,18 @@ function LeadTableRow({
   onStatusChange,
   onLog,
   onFollowUp,
+  onLinkUser,
   onDelete,
+  canAssign,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
   onStatusChange: (lead: CrmLeadRow, status: string) => void
   onLog: (lead: CrmLeadRow) => void
   onFollowUp: (lead: CrmLeadRow) => void
+  onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
+  canAssign: boolean
 }) {
   return (
     <tr
@@ -668,6 +713,9 @@ function LeadTableRow({
       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.city || "—"}</td>
       <td className="px-3 py-2 text-xs tabular-nums" onClick={(e) => e.stopPropagation()}>
         <LeadPhoneLinks phone={lead.phone} leadName={lead.name} />
+      </td>
+      <td className="px-3 py-2 max-w-[140px]" onClick={(e) => e.stopPropagation()}>
+        <AssignedToCell lead={lead} />
       </td>
       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
         <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="max-w-[120px]" />
@@ -693,6 +741,16 @@ function LeadTableRow({
       </td>
       <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-center gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[10px] px-2"
+            title={canAssign ? "Link ERP user" : "View assignment"}
+            onClick={() => onLinkUser(lead)}
+          >
+            <Link2 className="h-3 w-3 mr-1" />
+            Link
+          </Button>
           <Button
             size="sm"
             variant="secondary"
@@ -733,6 +791,8 @@ export function LeadsManager({
   userRole?: string
 }) {
   const { toast } = useToast()
+  const canAssignLeads = isErpAdmin(userRole)
+  const [erpUsers, setErpUsers] = useState<User[]>([])
   const [leads, setLeads] = useState<CrmLeadRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -751,6 +811,7 @@ export function LeadsManager({
   const [detailLoading, setDetailLoading] = useState(false)
   const [logForLead, setLogForLead] = useState<CrmLeadRow | null>(null)
   const [followUpForLead, setFollowUpForLead] = useState<CrmLeadRow | null>(null)
+  const [linkForLead, setLinkForLead] = useState<CrmLeadRow | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteImportBatch, setDeleteImportBatch] = useState<{
     importBatchId: string
@@ -779,9 +840,11 @@ export function LeadsManager({
   const autoSyncPhonesDone = useRef(false)
 
   const refresh = useCallback(async () => {
-    const list = await fetchLeads()
+    const list = await fetchLeads(
+      canAssignLeads || !currentUserId ? undefined : { assignedToUserId: currentUserId },
+    )
     setLeads(list)
-  }, [])
+  }, [canAssignLeads, currentUserId])
 
   const reloadLeadDetail = useCallback(async (id: string) => {
     setDetailLoading(true)
@@ -829,6 +892,11 @@ export function LeadsManager({
     }
     refresh().finally(() => setLoading(false))
   }, [refresh])
+
+  useEffect(() => {
+    if (!canAssignLeads) return
+    getUsers().then(setErpUsers).catch(() => setErpUsers([]))
+  }, [canAssignLeads])
 
   useEffect(() => {
     refreshStats()
@@ -1127,8 +1195,52 @@ export function LeadsManager({
     }
   }
 
+  async function onAssignLead(lead: CrmLeadRow, user: User | null) {
+    try {
+      const updated = await patchLeadAssignment(lead.id, {
+        assignedToUserId: user?.id ?? null,
+        assignedToName: user?.name ?? "",
+      })
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === lead.id
+            ? { ...l, assignedToUserId: updated.assignedToUserId, assignedToName: updated.assignedToName }
+            : l,
+        ),
+      )
+      if (detail?.id === lead.id) {
+        setDetail((d) =>
+          d
+            ? {
+                ...d,
+                assignedToUserId: updated.assignedToUserId,
+                assignedToName: updated.assignedToName,
+              }
+            : d,
+        )
+      }
+      toast({
+        type: "success",
+        title: user ? "Lead linked" : "Lead unlinked",
+        message: user ? `${lead.name} → ${user.name}` : undefined,
+      })
+      setLinkForLead(null)
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not update assignment",
+        message: err instanceof Error ? err.message : undefined,
+      })
+    }
+  }
+
   return (
     <div className="space-y-3 sm:space-y-4">
+      {!canAssignLeads && (
+        <p className="text-xs text-[hsl(var(--muted-foreground))] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-3 py-2">
+          Showing leads assigned to you. Ask an admin to link more leads from the <strong>Link</strong> button.
+        </p>
+      )}
       <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-3 sm:p-4 space-y-3">
         <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-end gap-3 sm:gap-4">
           <div className="min-w-0 sm:flex-1">
@@ -1409,7 +1521,9 @@ export function LeadsManager({
                             onStatusChange={onStatusChange}
                             onLog={setLogForLead}
                             onFollowUp={setFollowUpForLead}
+                            onLinkUser={setLinkForLead}
                             onDelete={requestDeleteLead}
+                            canAssign={canAssignLeads}
                           />
                         </div>
                       )}
@@ -1434,7 +1548,9 @@ export function LeadsManager({
                   onStatusChange={onStatusChange}
                   onLog={setLogForLead}
                   onFollowUp={setFollowUpForLead}
+                  onLinkUser={setLinkForLead}
                   onDelete={requestDeleteLead}
+                  canAssign={canAssignLeads}
                 />
               </div>
             </div>
@@ -1534,6 +1650,16 @@ export function LeadsManager({
         />
       )}
 
+      {linkForLead && (
+        <LinkLeadUserModal
+          lead={linkForLead}
+          users={erpUsers}
+          canAssign={canAssignLeads}
+          onClose={() => setLinkForLead(null)}
+          onAssign={(user) => onAssignLead(linkForLead, user)}
+        />
+      )}
+
       {followUpForLead && (
         <FollowUpModal
           lead={followUpForLead}
@@ -1573,6 +1699,10 @@ export function LeadsManager({
           lead={detail}
           onClose={closeLeadDetail}
           onRefreshHistory={() => detailId && reloadLeadDetail(detailId)}
+          onLink={() => {
+            if (detail) setLinkForLead(detail)
+          }}
+          canAssign={canAssignLeads}
           onLog={() => {
             if (detail) setLogForLead(detail)
           }}
@@ -2323,12 +2453,127 @@ function LogOutreachModal({
   )
 }
 
+function LinkLeadUserModal({
+  lead,
+  users,
+  canAssign,
+  onClose,
+  onAssign,
+}: {
+  lead: CrmLeadRow
+  users: User[]
+  canAssign: boolean
+  onClose: () => void
+  onAssign: (user: User | null) => void | Promise<void>
+}) {
+  const [selectedId, setSelectedId] = useState(lead.assignedToUserId ?? "")
+  const [saving, setSaving] = useState(false)
+
+  const crmUsers = users.filter((u) => u.modules?.includes("crm") || isErpAdmin(u.role))
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-lg w-full p-4 space-y-3 max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center gap-2">
+          <div>
+            <h3 className="text-sm font-semibold">Link ERP user</h3>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+              {lead.name} — assigned user sees this lead in their CRM Leads tab
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {lead.assignedToUserId && (
+          <div className="rounded border bg-[hsl(var(--muted))]/20 px-3 py-2 text-xs">
+            <p className="font-medium">{lead.assignedToName || "Assigned user"}</p>
+            <p className="font-mono text-[10px] text-[hsl(var(--muted-foreground))] mt-1 break-all">
+              User ID: {lead.assignedToUserId}
+            </p>
+          </div>
+        )}
+
+        {canAssign ? (
+          <>
+            <div>
+              <label className="text-xs font-medium">Assign to</label>
+              <select
+                className="mt-1 w-full h-9 rounded border px-2 text-sm bg-[hsl(var(--background))]"
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value)}
+              >
+                <option value="">Unassigned</option>
+                {crmUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} — {u.jobTitle || u.role} ({u.id})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              Each option shows the ERP user name and ID. The linked user only sees leads assigned to their ID.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              {lead.assignedToUserId && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={async () => {
+                    setSaving(true)
+                    try {
+                      await onAssign(null)
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                >
+                  Unlink
+                </Button>
+              )}
+              <Button size="sm" variant="secondary" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={saving}
+                onClick={async () => {
+                  setSaving(true)
+                  try {
+                    const user = selectedId ? crmUsers.find((u) => u.id === selectedId) ?? null : null
+                    await onAssign(user)
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              >
+                {saving ? "Saving…" : "Save link"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            Only admins can change lead assignments. Contact an admin if this lead should be linked to someone else.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function LeadDetailDrawer({
   loading,
   lead,
   onClose,
   onLog,
   onFollowUp,
+  onLink,
+  canAssign,
   onRefreshHistory,
 }: {
   loading: boolean
@@ -2336,6 +2581,8 @@ function LeadDetailDrawer({
   onClose: () => void
   onLog: () => void
   onFollowUp: () => void
+  onLink: () => void
+  canAssign: boolean
   onRefreshHistory: () => void
 }) {
   const fu = lead ? followUpDisplay(lead) : null
@@ -2383,6 +2630,22 @@ function LeadDetailDrawer({
                   )}
                   <div className="pt-2 border-t border-[hsl(var(--border))] mt-2 space-y-1">
                     <p className="text-xs font-medium flex items-center gap-1.5">
+                      <Link2 className="h-3.5 w-3.5" />
+                      ERP assignment
+                    </p>
+                    {lead.assignedToUserId ? (
+                      <>
+                        <p className="text-xs">{lead.assignedToName || "Assigned user"}</p>
+                        <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] break-all">
+                          {lead.assignedToUserId}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Not linked to an ERP user</p>
+                    )}
+                  </div>
+                  <div className="pt-2 border-t border-[hsl(var(--border))] mt-2 space-y-1">
+                    <p className="text-xs font-medium flex items-center gap-1.5">
                       <CalendarClock className="h-3.5 w-3.5" />
                       Follow up
                     </p>
@@ -2405,6 +2668,10 @@ function LeadDetailDrawer({
                   </Button>
                   <Button size="sm" variant="secondary" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onFollowUp}>
                     Set follow-up
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onLink}>
+                    <Link2 className="h-3.5 w-3.5 mr-1" />
+                    {canAssign ? "Link user" : "View link"}
                   </Button>
                 </div>
               </div>

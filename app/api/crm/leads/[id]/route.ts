@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { mapLeadRow } from "@/lib/crm-lead-status"
 
 function asStringArray(v: unknown): string[] {
   if (Array.isArray(v)) return v.filter((x) => typeof x === "string") as string[]
@@ -46,6 +47,8 @@ export async function GET(
         status: lead.status,
         followUpAt: lead.followUpAt?.toISOString() ?? null,
         followUpNotes: lead.followUpNotes,
+        assignedToUserId: lead.assignedToUserId,
+        assignedToName: lead.assignedToName,
         importedAt: lead.importedAt.toISOString(),
         createdBy: lead.createdBy,
         createdById: lead.createdById,

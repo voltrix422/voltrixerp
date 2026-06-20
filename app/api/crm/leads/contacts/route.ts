@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     let status = lead.status
     if (status !== "closed") {
       if (leadResponse.trim()) status = "responded"
-      else if (status === "new") status = "contacted"
+      else if (status === "new" || status === "contacted") status = "not_responded"
     }
 
     const leadUpdate: {

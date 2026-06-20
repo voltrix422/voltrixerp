@@ -1,40 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { mapLeadRow } from "@/lib/crm-lead-status"
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const assignedToUserId = req.nextUrl.searchParams.get("assignedToUserId")?.trim() || ""
+
     const leads = await prisma.crmLead.findMany({
+      where: assignedToUserId ? { assignedToUserId } : undefined,
       orderBy: { importedAt: "desc" },
       include: {
         _count: { select: { contacts: true } },
         contacts: { orderBy: { contactedAt: "desc" }, take: 1 },
       },
     })
-    const mapped = leads.map((l) => ({
-      id: l.id,
-      name: l.name,
-      company: l.company,
-      city: l.city,
-      address: l.address,
-      email: l.email,
-      phone: l.phone,
-      notes: l.notes,
-      source: l.source,
-      status: l.status,
-      followUpAt: l.followUpAt?.toISOString() ?? null,
-      followUpNotes: l.followUpNotes,
-      importedAt: l.importedAt.toISOString(),
-      createdBy: l.createdBy,
-      createdById: l.createdById,
-      importBatchId: l.importBatchId,
-      importUploaderName: l.importUploaderName,
-      contactCount: l._count.contacts,
-      lastContactedAt: l.contacts[0]?.contactedAt.toISOString() ?? null,
-      lastResponseSnippet: l.contacts[0]?.leadResponse
-        ? String(l.contacts[0].leadResponse).slice(0, 160)
-        : null,
-    }))
-    return NextResponse.json(mapped)
+
+    return NextResponse.json(leads.map(mapLeadRow))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Failed to list leads" }, { status: 500 })
@@ -60,6 +41,8 @@ export async function POST(req: NextRequest) {
         status: String(b.status ?? "new"),
         createdBy: String(b.createdBy),
         createdById: b.createdById ? String(b.createdById) : null,
+        assignedToUserId: b.assignedToUserId ? String(b.assignedToUserId) : null,
+        assignedToName: String(b.assignedToName ?? ""),
       },
     })
     return NextResponse.json(lead)
@@ -77,7 +60,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 })
     }
 
-    const data: { status?: string; followUpAt?: Date | null; followUpNotes?: string } = {}
+    const data: {
+      status?: string
+      followUpAt?: Date | null
+      followUpNotes?: string
+      assignedToUserId?: string | null
+      assignedToName?: string
+    } = {}
 
     if (body.status != null) {
       data.status = String(body.status)
@@ -91,6 +80,13 @@ export async function PATCH(req: NextRequest) {
     }
     if (body.followUpNotes !== undefined) {
       data.followUpNotes = String(body.followUpNotes ?? "")
+    }
+    if (body.assignedToUserId !== undefined) {
+      const userId = body.assignedToUserId == null || body.assignedToUserId === ""
+        ? null
+        : String(body.assignedToUserId)
+      data.assignedToUserId = userId
+      data.assignedToName = userId ? String(body.assignedToName ?? "") : ""
     }
 
     if (Object.keys(data).length === 0) {
@@ -106,6 +102,8 @@ export async function PATCH(req: NextRequest) {
       status: lead.status,
       followUpAt: lead.followUpAt?.toISOString() ?? null,
       followUpNotes: lead.followUpNotes,
+      assignedToUserId: lead.assignedToUserId,
+      assignedToName: lead.assignedToName,
     })
   } catch (e) {
     console.error(e)

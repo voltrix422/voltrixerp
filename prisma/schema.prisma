@@ -817,9 +817,11 @@ model CrmLead {
   phone         String   @default("")
   notes         String   @default("")
   source        String   @default("csv") // csv | manual
-  status        String   @default("new") // new | contacted | responded | closed
+  status        String   @default("new") // new | contacted | not_responded | responded | closed
   followUpAt    DateTime? @map("follow_up_at")
   followUpNotes String   @default("") @map("follow_up_notes")
+  assignedToUserId String? @map("assigned_to_user_id")
+  assignedToName   String  @default("") @map("assigned_to_name")
   importedAt    DateTime @default(now()) @map("imported_at")
   createdBy     String   @map("created_by")
   createdById   String?  @map("created_by_id")
@@ -828,6 +830,7 @@ model CrmLead {
   contacts      CrmLeadContact[]
 
   @@index([importBatchId])
+  @@index([assignedToUserId])
   @@map("crm_leads")
 }
 

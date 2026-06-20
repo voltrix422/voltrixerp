@@ -11,6 +11,8 @@ export type CrmLeadRow = {
   status: string
   followUpAt: string | null
   followUpNotes: string
+  assignedToUserId: string | null
+  assignedToName: string
   importedAt: string
   createdBy: string
   createdById: string | null
@@ -32,8 +34,13 @@ export type CrmLeadContactRow = {
   notes: string
 }
 
-export async function fetchLeads(): Promise<CrmLeadRow[]> {
-  const res = await fetch("/api/crm/leads")
+export async function fetchLeads(options?: { assignedToUserId?: string | null }): Promise<CrmLeadRow[]> {
+  const params = new URLSearchParams()
+  if (options?.assignedToUserId) {
+    params.set("assignedToUserId", options.assignedToUserId)
+  }
+  const qs = params.toString()
+  const res = await fetch(`/api/crm/leads${qs ? `?${qs}` : ""}`)
   if (!res.ok) return []
   return res.json()
 }
@@ -192,6 +199,20 @@ export async function patchLeadStatus(id: string, status: string): Promise<void>
     body: JSON.stringify({ id, status }),
   })
   if (!res.ok) throw new Error("Update failed")
+}
+
+export async function patchLeadAssignment(
+  id: string,
+  body: { assignedToUserId: string | null; assignedToName: string },
+): Promise<{ assignedToUserId: string | null; assignedToName: string }> {
+  const res = await fetch("/api/crm/leads", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...body }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Assignment update failed")
+  return data as { assignedToUserId: string | null; assignedToName: string }
 }
 
 export async function patchLeadFollowUp(
