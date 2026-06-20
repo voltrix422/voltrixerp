@@ -969,11 +969,9 @@ export function LeadsManager({
   const autoSyncPhonesDone = useRef(false)
 
   const refresh = useCallback(async () => {
-    const list = await fetchLeads(
-      canAssignLeads || !currentUserId ? undefined : { assignedToUserId: currentUserId },
-    )
+    const list = await fetchLeads()
     setLeads(list)
-  }, [canAssignLeads, currentUserId])
+  }, [])
 
   const reloadLeadDetail = useCallback(async (id: string) => {
     setDetailLoading(true)
@@ -1370,11 +1368,6 @@ export function LeadsManager({
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {!canAssignLeads && (
-        <p className="text-xs text-[hsl(var(--muted-foreground))] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-3 py-2">
-          Showing leads assigned to you. Ask an admin to link more leads from the <strong>Link</strong> button.
-        </p>
-      )}
       <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-3 sm:p-4 space-y-3">
         <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-end gap-3 sm:gap-4">
           <div className="min-w-0 sm:flex-1">
@@ -2665,7 +2658,7 @@ function LinkLeadUserModal({
           <div>
             <h3 className="text-sm font-semibold">Link ERP user</h3>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              {lead.name} — assigned user sees this lead in their CRM Leads tab
+              {lead.name} — link an ERP user to track ownership and filter leads by assignee
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
@@ -2700,7 +2693,7 @@ function LinkLeadUserModal({
               </select>
             </div>
             <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-              Each option shows the ERP user name and ID. The linked user only sees leads assigned to their ID.
+              Each option shows the ERP user name and ID. Use &quot;Filter by assigned member&quot; to view that person&apos;s linked leads.
             </p>
             <div className="flex justify-end gap-2 pt-1">
               {lead.assignedToUserId && (
