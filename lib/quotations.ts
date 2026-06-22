@@ -114,6 +114,24 @@ export async function generateQuotationNumber(): Promise<string> {
   } catch { return `QUO-${Date.now()}` }
 }
 
+/** Clone a quotation into a new draft for editing (does not save). */
+export function duplicateQuotation(source: Quotation): Quotation {
+  const today = new Date().toISOString().slice(0, 10)
+  return {
+    ...source,
+    id: "",
+    quotationNumber: "",
+    status: "draft",
+    createdAt: "",
+    convertedToOrderId: undefined,
+    validUntil: source.validUntil || today,
+    items: source.items.map((item, idx) => ({
+      ...item,
+      id: `${Date.now()}-${idx}`,
+    })),
+  }
+}
+
 export const STATUS_LABELS: Record<QuotationStatus, string> = {
   draft: "Draft",
   pending_approval: "Pending Approval",

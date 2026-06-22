@@ -1,6 +1,6 @@
 ﻿"use client"
 import { useState, useEffect } from "react"
-import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
+import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, duplicateQuotation, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
@@ -14,7 +14,7 @@ import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, X, Trash2, FileText, Edit, ShoppingCart } from "lucide-react"
+import { Plus, X, Trash2, FileText, Edit, ShoppingCart, Copy } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadQuotationsExcel } from "@/lib/crm-excel-export"
 function defaultFromDate() {
@@ -63,6 +63,7 @@ export function QuotationsList({
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Quotation | null>(null)
   const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null)
+  const [duplicatingQuotation, setDuplicatingQuotation] = useState<Quotation | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Quotation | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
@@ -138,6 +139,12 @@ export function QuotationsList({
     } finally {
       setExportingExcel(false)
     }
+  }
+
+  function startDuplicate(q: Quotation) {
+    setSelected(null)
+    setEditingQuotation(null)
+    setDuplicatingQuotation({ ...duplicateQuotation(q), quotationNumber: q.quotationNumber })
   }
 
   return (
@@ -230,9 +237,14 @@ export function QuotationsList({
                 </div>
                 <div className="flex gap-3 pt-1" onClick={e => e.stopPropagation()}>
                   {!workspace?.readOnly && (
+                    <>
                     <button onClick={() => setEditingQuotation(q)} className="text-blue-500 text-xs cursor-pointer">
                       Edit
                     </button>
+                    <button onClick={() => startDuplicate(q)} className="text-[hsl(var(--foreground))] text-xs cursor-pointer">
+                      Duplicate
+                    </button>
+                    </>
                   )}
                   <button onClick={() => downloadQuotationPDF(q)} className="text-[#1a9f9a] text-xs cursor-pointer">
                     PDF
@@ -273,9 +285,14 @@ export function QuotationsList({
             <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{q.createdAt?new Date(q.createdAt).toLocaleDateString():"—"}</td>
             <td className="px-4 py-2.5 text-center" onClick={e=>e.stopPropagation()}>
               <div className="flex items-center justify-center gap-2">
-                <button onClick={()=>setEditingQuotation(q)} className="text-blue-500 hover:text-blue-700 cursor-pointer" title="Edit"><Edit className="h-3.5 w-3.5"/></button>
+                {!workspace?.readOnly && (
+                  <>
+                  <button onClick={()=>setEditingQuotation(q)} className="text-blue-500 hover:text-blue-700 cursor-pointer" title="Edit"><Edit className="h-3.5 w-3.5"/></button>
+                  <button onClick={()=>startDuplicate(q)} className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer" title="Duplicate"><Copy className="h-3.5 w-3.5"/></button>
+                  <button onClick={()=>setDeleteConfirm(q)} className="text-red-500 hover:text-red-700 cursor-pointer" title="Delete"><Trash2 className="h-3.5 w-3.5"/></button>
+                  </>
+                )}
                 <button onClick={()=>downloadQuotationPDF(q)} className="text-[#1a9f9a] hover:text-[#158a85] cursor-pointer" title="Download PDF"><FileText className="h-3.5 w-3.5"/></button>
-                <button onClick={()=>setDeleteConfirm(q)} className="text-red-500 hover:text-red-700 cursor-pointer" title="Delete"><Trash2 className="h-3.5 w-3.5"/></button>
               </div>
             </td>
           </tr>
@@ -285,7 +302,8 @@ export function QuotationsList({
       )}
       {showForm&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}
       {editingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} existing={editingQuotation} onClose={()=>setEditingQuotation(null)} onSave={q=>{setQuotations(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQuotation(null)}}/>}
-      {selected&&!editingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}}/>}
+      {duplicatingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} duplicateFrom={duplicatingQuotation} onClose={()=>setDuplicatingQuotation(null)} onSave={q=>{setQuotations(prev=>[q,...prev]);setDuplicatingQuotation(null)}}/>}
+      {selected&&!editingQuotation&&!duplicatingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDuplicate={()=>startDuplicate(selected)} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}}/>}
       <ConfirmDialog isOpen={!!deleteConfirm} title="Delete Quotation" message={`Delete ${deleteConfirm?.quotationNumber}?`} confirmText="Delete" cancelText="Cancel" variant="danger"
         onConfirm={()=>{if(deleteConfirm){deleteQuotation(deleteConfirm.id);setQuotations(prev=>prev.filter(x=>x.id!==deleteConfirm.id))}setDeleteConfirm(null)}}
         onCancel={()=>setDeleteConfirm(null)}/>
@@ -294,28 +312,31 @@ export function QuotationsList({
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
-function QuotationForm({ currentUser, currentUserId, workspace, clients, existing, onClose, onSave }: {
-  currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope; clients: Client[]; existing?: Quotation
+function QuotationForm({ currentUser, currentUserId, workspace, clients, existing, duplicateFrom, onClose, onSave }: {
+  currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope; clients: Client[]; existing?: Quotation; duplicateFrom?: Quotation
   onClose: () => void; onSave: (q: Quotation) => void
 }) {
-  const [clientId, setClientId] = useState(existing?.clientId || "")
+  const source = duplicateFrom || existing
+  const [clientId, setClientId] = useState(source?.clientId || "")
   const [clientSearch, setClientSearch] = useState("")
   const [showClientDrop, setShowClientDrop] = useState(false)
-  const [deliveryAddress, setDeliveryAddress] = useState(existing?.deliveryAddress || "")
-  const [validUntil, setValidUntil] = useState(existing?.validUntil || "")
-  const [notes, setNotes] = useState(existing?.notes || "")
-  const [items, setItems] = useState<QuotationItem[]>(existing?.items || [])
-  const [discount, setDiscount] = useState(existing?.discount || 0)
-  const [discountIsPercentage, setDiscountIsPercentage] = useState(existing?.discountIsPercentage ?? true)
+  const [deliveryAddress, setDeliveryAddress] = useState(source?.deliveryAddress || "")
+  const [validUntil, setValidUntil] = useState(source?.validUntil || "")
+  const [notes, setNotes] = useState(source?.notes || "")
+  const [items, setItems] = useState<QuotationItem[]>(source?.items || [])
+  const [discount, setDiscount] = useState(source?.discount || 0)
+  const [discountIsPercentage, setDiscountIsPercentage] = useState(source?.discountIsPercentage ?? true)
   const [transportCost, setTransportCost] = useState(
-    existing?.transportIsPercentage ? (existing?.transportCostValue || 0) : (existing?.transportCost || 0)
+    source?.transportIsPercentage ? (source?.transportCostValue || 0) : (source?.transportCost || 0)
   )
-  const [transportLabel, setTransportLabel] = useState(existing?.transportLabel || "Transport")
+  const [transportLabel, setTransportLabel] = useState(source?.transportLabel || "Transport")
   const [otherCost, setOtherCost] = useState(
-    existing?.otherCostIsPercentage ? (existing?.otherCostValue || 0) : (existing?.otherCost || 0)
+    source?.otherCostIsPercentage ? (source?.otherCostValue || 0) : (source?.otherCost || 0)
   )
-  const [otherCostLabel, setOtherCostLabel] = useState(existing?.otherCostLabel || "Other")
-  const [status, setStatus] = useState<Quotation["status"]>(existing?.status || initialQuotationStatus(workspace))
+  const [otherCostLabel, setOtherCostLabel] = useState(source?.otherCostLabel || "Other")
+  const [status, setStatus] = useState<Quotation["status"]>(
+    duplicateFrom ? initialQuotationStatus(workspace) : (source?.status || initialQuotationStatus(workspace))
+  )
   const [warehouseProducts, setWarehouseProducts] = useState<CrmWarehouseProduct[]>([])
   const [showInventory, setShowInventory] = useState(false)
   const [invSearch, setInvSearch] = useState("")
@@ -391,17 +412,23 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
     if (!clientId || items.length === 0 || items.some((i) => !i.description.trim())) return
     setSaving(true)
     const client = clients.find(c => c.id === clientId)
-    const quotationNumber = existing?.quotationNumber || await generateQuotationNumber()
+    const quotationNumber = duplicateFrom || !existing?.quotationNumber
+      ? await generateQuotationNumber()
+      : existing.quotationNumber
     const q: Quotation = {
-      id: existing?.id || Date.now().toString(),
+      id: duplicateFrom || !existing ? Date.now().toString() : existing.id,
       quotationNumber, clientId, clientName: client?.name || "",
       items, subtotal, taxPercent: 0, tax: 0,
       transportCost, transportLabel, transportIsPercentage: false, transportCostValue: transportAmount,
       otherCost, otherCostLabel, otherCostIsPercentage: false, otherCostValue: otherAmount,
       discount, discountIsPercentage, discountValue: discountAmount,
       total, status, notes: notes.trim(), deliveryAddress: deliveryAddress.trim(),
-      validUntil, createdAt: existing?.createdAt || new Date().toISOString(), createdBy: existing?.createdBy || currentUser,
-      ownerUserId: existing?.ownerUserId || resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
+      validUntil,
+      createdAt: duplicateFrom || !existing ? new Date().toISOString() : existing.createdAt,
+      createdBy: duplicateFrom || !existing ? currentUser : existing.createdBy,
+      ownerUserId: duplicateFrom
+        ? resolveOwnerUserId(workspace?.ownerUserId, currentUserId)
+        : (existing?.ownerUserId || resolveOwnerUserId(workspace?.ownerUserId, currentUserId)),
     }
     await saveQuotation(q)
     onSave(q)
@@ -414,7 +441,16 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
       <div className="w-full sm:max-w-5xl rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b shrink-0">
-          <p className="text-base font-bold">{existing ? "Edit Quotation" : "Create Quotation"}</p>
+          <div className="min-w-0">
+          <p className="text-base font-bold">
+            {duplicateFrom ? "Duplicate Quotation" : existing ? "Edit Quotation" : "Create Quotation"}
+          </p>
+          {duplicateFrom && (
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] font-normal mt-0.5">
+              Copied from {duplicateFrom.quotationNumber || "previous quotation"} — edit and save as a new draft.
+            </p>
+          )}
+          </div>
           <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 cursor-pointer" onClick={onClose}><X className="h-4 w-4"/></Button>
         </div>
         <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-5">
@@ -591,8 +627,8 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
 }
 
 // ─── Detail View ──────────────────────────────────────────────────────────────
-function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly }: {
-  quotation: Quotation; onClose: () => void; onEdit: () => void; onDelete: (id: string) => void; readOnly?: boolean
+function QuotationDetail({ quotation, onClose, onEdit, onDuplicate, onDelete, readOnly }: {
+  quotation: Quotation; onClose: () => void; onEdit: () => void; onDuplicate: () => void; onDelete: (id: string) => void; readOnly?: boolean
 }) {
   const [deleting, setDeleting] = useState(false)
 
@@ -679,6 +715,7 @@ function QuotationDetail({ quotation, onClose, onEdit, onDelete, readOnly }: {
           {!readOnly && (
             <>
               <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
+              <Button size="sm" variant="outline" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onDuplicate}><Copy className="h-3.5 w-3.5 mr-1"/>Duplicate</Button>
               <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer sm:ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
             </>
           )}
