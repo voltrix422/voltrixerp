@@ -1,6 +1,9 @@
 export const LEAD_STATUS_OPTIONS = [
   { value: "new", label: "New" },
   { value: "contacted", label: "Contacted" },
+  { value: "interested", label: "Interested" },
+  { value: "not_interested", label: "Not interested" },
+  { value: "price_negotiable", label: "Price negotiable" },
   { value: "not_responded", label: "Not responded" },
   { value: "responded", label: "Responded" },
   { value: "closed", label: "Closed" },

@@ -63,12 +63,50 @@ type LeadStatusFilter = "all" | (typeof STATUS_OPTIONS)[number]["value"]
 
 const LEAD_STATUS_FILTER_OPTIONS: { value: LeadStatusFilter; label: string; hint?: string }[] = [
   { value: "all", label: "All leads" },
-  { value: "responded", label: "Qualified (responded)", hint: "Leads who replied" },
-  { value: "not_responded", label: "Not responded", hint: "Outreach logged, no reply" },
-  { value: "contacted", label: "Contacted", hint: "Marked as contacted" },
   { value: "new", label: "New / not contacted", hint: "No outreach logged" },
+  { value: "contacted", label: "Contacted", hint: "Marked as contacted" },
+  { value: "interested", label: "Interested", hint: "Lead showed interest" },
+  { value: "not_interested", label: "Not interested", hint: "Lead declined or not interested" },
+  { value: "price_negotiable", label: "Price negotiable", hint: "Discussing price or terms" },
+  { value: "not_responded", label: "Not responded", hint: "Outreach logged, no reply" },
+  { value: "responded", label: "Qualified (responded)", hint: "Leads who replied" },
   { value: "closed", label: "Closed" },
 ]
+
+type BatchLeadFilters = {
+  statusFilter: LeadStatusFilter
+  contactFilter: ContactDateFilter
+  contactFrom: string
+  contactTo: string
+}
+
+const DEFAULT_BATCH_FILTERS: BatchLeadFilters = {
+  statusFilter: "all",
+  contactFilter: "all",
+  contactFrom: "",
+  contactTo: "",
+}
+
+function isBatchFiltersActive(filters: BatchLeadFilters) {
+  return isLeadFiltersActive(
+    filters.statusFilter,
+    filters.contactFilter,
+    filters.contactFrom,
+    filters.contactTo,
+    "all",
+  )
+}
+
+function filterBatchLeads(leads: CrmLeadRow[], filters: BatchLeadFilters) {
+  return applyLeadFilters(leads, {
+    search: "",
+    statusFilter: filters.statusFilter,
+    contactFilter: filters.contactFilter,
+    contactFrom: filters.contactFrom,
+    contactTo: filters.contactTo,
+    assignedFilter: "all",
+  })
+}
 
 const CONTACT_DATE_FILTER_OPTIONS: { value: ContactDateFilter; label: string }[] = [
   { value: "all", label: "Any outreach date" },
@@ -459,6 +497,145 @@ function LeadFiltersPanel({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ImportBatchFiltersPanel({
+  filters,
+  totalCount,
+  filteredCount,
+  onStatusFilter,
+  onContactFilter,
+  onContactFrom,
+  onContactTo,
+  onClear,
+}: {
+  filters: BatchLeadFilters
+  totalCount: number
+  filteredCount: number
+  onStatusFilter: (v: LeadStatusFilter) => void
+  onContactFilter: (v: ContactDateFilter) => void
+  onContactFrom: (v: string) => void
+  onContactTo: (v: string) => void
+  onClear: () => void
+}) {
+  const filtersActive = isBatchFiltersActive(filters)
+  const statusLabel =
+    LEAD_STATUS_FILTER_OPTIONS.find((o) => o.value === filters.statusFilter)?.label ?? "All leads"
+  const contactLabel =
+    CONTACT_DATE_FILTER_OPTIONS.find((o) => o.value === filters.contactFilter)?.label ?? "Any outreach date"
+
+  return (
+    <div className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/15 px-3 py-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+          Filter this import
+        </p>
+        {filtersActive && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-[10px] text-[hsl(var(--primary))] hover:underline cursor-pointer"
+          >
+            Clear import filters
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+            Lead status
+          </label>
+          <select
+            value={filters.statusFilter}
+            onChange={(e) => onStatusFilter(e.target.value as LeadStatusFilter)}
+            className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+          >
+            {LEAD_STATUS_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+            Outreach date
+          </label>
+          <select
+            value={filters.contactFilter}
+            onChange={(e) => {
+              const v = e.target.value as ContactDateFilter
+              onContactFilter(v)
+              if (v === "today") {
+                const today = todayIsoDate()
+                onContactFrom(today)
+                onContactTo(today)
+              } else if (v !== "range") {
+                onContactFrom("")
+                onContactTo("")
+              }
+            }}
+            className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+          >
+            {CONTACT_DATE_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {filters.contactFilter === "range" && (
+          <>
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                From
+              </label>
+              <input
+                type="date"
+                value={filters.contactFrom}
+                onChange={(e) => onContactFrom(e.target.value)}
+                className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                To
+              </label>
+              <input
+                type="date"
+                value={filters.contactTo}
+                onChange={(e) => onContactTo(e.target.value)}
+                className="mt-1 w-full h-9 rounded border bg-[hsl(var(--background))] px-2 text-xs"
+              />
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]">
+        <span>
+          Showing <strong className="text-[hsl(var(--foreground))]">{filteredCount}</strong> of {totalCount} in this
+          import
+        </span>
+        {filters.statusFilter !== "all" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5">
+            <Filter className="h-3 w-3 opacity-60" />
+            {statusLabel}
+          </span>
+        )}
+        {filters.contactFilter !== "all" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5">
+            <Calendar className="h-3 w-3 opacity-60" />
+            {contactLabel}
+            {filters.contactFilter === "range" && (filters.contactFrom || filters.contactTo) && (
+              <span>
+                ({filters.contactFrom || "…"} → {filters.contactTo || "…"})
+              </span>
+            )}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
@@ -992,6 +1169,7 @@ export function LeadsManager({
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const [showFacebookImportModal, setShowFacebookImportModal] = useState(false)
   const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
+  const [batchFilters, setBatchFilters] = useState<Record<string, BatchLeadFilters>>({})
   const csvInputRef = useRef<HTMLInputElement>(null)
   const facebookCsvInputRef = useRef<HTMLInputElement>(null)
   const pendingCsvImportRef = useRef<{ importBatchId: string; importUploaderName: string } | null>(null)
@@ -1119,6 +1297,25 @@ export function LeadsManager({
     setContactFrom("")
     setContactTo("")
     setAssignedFilter("all")
+  }
+
+  function getBatchFilters(batchId: string): BatchLeadFilters {
+    return batchFilters[batchId] ?? DEFAULT_BATCH_FILTERS
+  }
+
+  function updateBatchFilters(batchId: string, patch: Partial<BatchLeadFilters>) {
+    setBatchFilters((prev) => ({
+      ...prev,
+      [batchId]: { ...(prev[batchId] ?? DEFAULT_BATCH_FILTERS), ...patch },
+    }))
+  }
+
+  function clearBatchFilters(batchId: string) {
+    setBatchFilters((prev) => {
+      const next = { ...prev }
+      delete next[batchId]
+      return next
+    })
   }
 
   const importBatchGroups = useMemo(() => {
@@ -1634,6 +1831,9 @@ export function LeadsManager({
               <div className="space-y-2">
                 {importBatchGroups.map((group) => {
                   const open = openBatchIds.has(group.importBatchId)
+                  const bf = getBatchFilters(group.importBatchId)
+                  const batchLeads = filterBatchLeads(group.leads, bf)
+                  const batchFiltersActive = isBatchFiltersActive(bf)
                   const when = new Date(group.importedAt).toLocaleString(undefined, {
                     dateStyle: "medium",
                     timeStyle: "short",
@@ -1658,6 +1858,7 @@ export function LeadsManager({
                             <span className="text-xs text-[hsl(var(--muted-foreground))]">{when}</span>
                           </div>
                           <span className="shrink-0 text-[11px] rounded-full bg-[hsl(var(--muted))]/50 px-2 py-0.5 tabular-nums">
+                            {batchFiltersActive ? `${batchLeads.length} of ` : ""}
                             {group.leads.length} lead{group.leads.length === 1 ? "" : "s"}
                           </span>
                         </button>
@@ -1726,8 +1927,23 @@ export function LeadsManager({
                       </div>
                       {open && (
                         <div className="border-t border-[hsl(var(--border))]">
+                          <ImportBatchFiltersPanel
+                            filters={bf}
+                            totalCount={group.leads.length}
+                            filteredCount={batchLeads.length}
+                            onStatusFilter={(v) => updateBatchFilters(group.importBatchId, { statusFilter: v })}
+                            onContactFilter={(v) => updateBatchFilters(group.importBatchId, { contactFilter: v })}
+                            onContactFrom={(v) => updateBatchFilters(group.importBatchId, { contactFrom: v })}
+                            onContactTo={(v) => updateBatchFilters(group.importBatchId, { contactTo: v })}
+                            onClear={() => clearBatchFilters(group.importBatchId)}
+                          />
+                          {batchLeads.length === 0 ? (
+                            <p className="px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                              No leads in this import match the filters.
+                            </p>
+                          ) : (
                           <LeadsListView
-                            leads={group.leads}
+                            leads={batchLeads}
                             onOpenDetail={openLeadDetail}
                             onStatusChange={onStatusChange}
                             onLog={setLogForLead}
@@ -1737,6 +1953,7 @@ export function LeadsManager({
                             canAssign={canAssignLeads}
                             readOnly={readOnly}
                           />
+                          )}
                         </div>
                       )}
                     </div>
