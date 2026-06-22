@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin, roleHasAllModules } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
@@ -54,7 +55,7 @@ export function PosManager() {
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
 
   const selectedTerminal = terminals.find((t) => t.id === selectedTerminalId) ?? null
-  const canManageTerminals = user?.role === "superadmin" || user?.modules.includes("pos")
+  const canManageTerminals = roleHasAllModules(user?.role) || user?.modules.includes("pos")
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -492,7 +493,7 @@ export function PosManager() {
                       {t.code} · {t.location || "—"}
                     </p>
                   </div>
-                  {user?.role === "superadmin" && (
+                  {isErpAdmin(user?.role) && (
                     <button
                       type="button"
                       onClick={() => void handleDeleteTerminal(t.id)}

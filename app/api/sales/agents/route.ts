@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
   })
 
   const managers = await prisma.erpUser.findMany({
-    where: { role: { in: ["sales_manager", "superadmin"] } },
+    where: { role: { in: ["sales_manager", "superadmin", "admin"] } },
     select: { id: true, name: true },
   })
   const managerMap = new Map(managers.map(m => [m.id, m.name]))

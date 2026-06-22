@@ -33,6 +33,7 @@ import {
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 import { deleteInventorySerialUnitsByModel } from "@/lib/inventory-serial-units"
 import { InventorySerialView } from "@/components/inventory/inventory-serial-view"
 
@@ -97,7 +98,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   const { toast } = useToast()
   const { confirm } = useDialog()
   const { user } = useAuth()
-  const isSuperAdmin = user?.role === "superadmin"
+  const isSuperAdmin = isErpAdmin(user?.role)
   const isMainWarehouse = branch.type === "main_warehouse"
 
   useEffect(() => {

@@ -919,7 +919,7 @@ export function LeadsManager({
   userRole?: string
 }) {
   const { toast } = useToast()
-  const canAssignLeads = isErpAdmin(userRole)
+  const canAssignLeads = true
   const [erpUsers, setErpUsers] = useState<ErpUser[]>([])
   const [leads, setLeads] = useState<CrmLeadRow[]>([])
   const [loading, setLoading] = useState(true)

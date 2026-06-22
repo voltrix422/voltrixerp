@@ -5,6 +5,7 @@ import { initialClientStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace
 import { matchesOwnerRecord, resolveOwnerUserId } from "@/lib/crm-workspace"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 import { useToast } from "@/components/ui/toast"
 import { uploadFile } from "@/lib/upload"
 import { Button } from "@/components/ui/button"
@@ -617,7 +618,7 @@ function ClientDetail({ client, workspace, salesInfo, allOrders, currentUser, on
   const [exportingClient, setExportingClient] = useState(false)
   const readOnly = !!workspace?.readOnly
   const isTopClient = salesInfo?.salesRank != null && salesInfo.salesRank > 0 && salesInfo.salesRank <= 3
-  const isAdmin = user?.role === "superadmin"
+  const isAdmin = isErpAdmin(user?.role)
   const canReview = isAdmin && client.status === "pending_approval" && !!client.ownerUserId
 
   useEffect(() => {

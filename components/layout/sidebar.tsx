@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import type { Module } from "@/lib/auth"
+import { isSuperadmin, roleHasAllModules } from "@/lib/auth"
 
 const NAV_ORDER: Array<{
   key: string
@@ -50,12 +51,12 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
 
-  const isSuperadmin = user?.role === "superadmin"
+  const isSuperadminUser = isSuperadmin(user?.role)
   const showCrmMain = canAccessCrmMain(user)
   const showSalesAgents = canAccessSalesAgentsArea(user)
 
   function hasModule(module: Module): boolean {
-    return isSuperadmin || (user?.modules.includes(module) ?? false)
+    return roleHasAllModules(user?.role) || (user?.modules.includes(module) ?? false)
   }
 
   function canShowNavItem(item: (typeof NAV_ORDER)[number]): boolean {
@@ -69,7 +70,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
     return hasModule(item.module)
   }
 
-  const visibleAdminNav = isSuperadmin ? ADMIN_ONLY_NAV : []
+  const visibleAdminNav = isSuperadminUser ? ADMIN_ONLY_NAV : []
 
   const linkClass = (active: boolean) =>
     cn(

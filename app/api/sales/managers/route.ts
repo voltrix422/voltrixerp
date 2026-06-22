@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db"
 
 export async function GET() {
   const managers = await prisma.erpUser.findMany({
-    where: { role: { in: ["sales_manager", "superadmin"] } },
+    where: { role: { in: ["sales_manager", "superadmin", "admin"] } },
     orderBy: { name: "asc" },
     select: { id: true, name: true, email: true, role: true },
   })

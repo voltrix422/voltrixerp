@@ -323,7 +323,7 @@ export function SalesAgentFormModal({
                   {managers.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.name}
-                      {m.role === "superadmin" ? " (Admin)" : " (Sales manager)"}
+                      {m.role === "superadmin" || m.role === "admin" ? " (Admin)" : " (Sales manager)"}
                     </option>
                   ))}
                 </select>

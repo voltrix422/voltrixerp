@@ -4,11 +4,12 @@ import { Topbar } from "@/components/layout/topbar"
 import { AccountSettings } from "@/components/settings/account-settings"
 import { ActiveVisitorsPanel } from "@/components/settings/active-visitors-panel"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 import { TicketsManager } from "@/components/tickets/tickets-manager"
 
 export default function SettingsPage() {
   const { user } = useAuth()
-  const isAdmin = user?.role === "superadmin"
+  const isAdmin = isErpAdmin(user?.role)
   const [tab, setTab] = useState<"account" | "visitors" | "tickets">("account")
 
   return (

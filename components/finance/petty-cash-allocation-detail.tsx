@@ -21,6 +21,7 @@ import { isPersonalLedgerAllocation } from "@/lib/petty-cash-personal"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 import { PettyCashActivityTimeline } from "./petty-cash-history-panel"
 import { PettyCashTopUp } from "./petty-cash-top-up"
 import { Button } from "@/components/ui/button"
@@ -272,7 +273,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
     }
   }
 
-  const canManagePettyCash = userRole === "superadmin"
+  const canManagePettyCash = isErpAdmin(userRole)
   const isOwnAllocation = allocationBelongsToUser(allocation, currentUserId, currentUser)
   const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
   const isPdf = (value?: string) => !!value && (value.startsWith("data:application/pdf") || /\.pdf$/i.test(value))

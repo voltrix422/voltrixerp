@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap, Store } from "lucide-react"
 import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
@@ -39,8 +40,8 @@ export default function LoginPage() {
     console.log("User modules:", loggedInUser.modules)
 
     // Redirect based on user role and modules
-    if (loggedInUser.role === "superadmin") {
-      console.log("Redirecting to /dashboard (superadmin)")
+    if (isErpAdmin(loggedInUser.role)) {
+      console.log("Redirecting to /dashboard (admin)")
       router.replace("/dashboard")
     } else if (loggedInUser.role === "sales_agent" || loggedInUser.role === "sales_manager") {
       router.replace("/crm/sales-agents")

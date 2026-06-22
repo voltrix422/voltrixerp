@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { useAuth } from "@/components/auth-provider"
+import { roleHasAllModules } from "@/lib/auth"
 import { ensurePosSetup } from "@/lib/pos"
 import {
   DEFAULT_POS_EMAIL,
@@ -29,7 +30,7 @@ export default function PosLoginPage() {
   useEffect(() => {
     if (!user) return
     const canPos =
-      user.role === "superadmin" || user.modules.includes("pos")
+      roleHasAllModules(user.role) || user.modules.includes("pos")
     if (canPos) router.replace("/pos")
   }, [user, router])
 
@@ -45,7 +46,7 @@ export default function PosLoginPage() {
       return
     }
     const canPos =
-      loggedInUser.role === "superadmin" || loggedInUser.modules.includes("pos")
+      roleHasAllModules(loggedInUser.role) || loggedInUser.modules.includes("pos")
     if (!canPos) {
       setError("This account does not have POS access.")
       return

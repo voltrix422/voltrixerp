@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   const actor = assignedBy || "system"
-  const isSuperAdmin = requesterRole === "superadmin"
+  const isSuperAdmin = requesterRole === "superadmin" || requesterRole === "admin"
 
   if (!isSuperAdmin) {
     const pending = await createPendingBranchTransferRequest(

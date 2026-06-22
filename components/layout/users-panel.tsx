@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, type User, type Module } from "@/lib/auth"
+import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, type User, type Module, type UserRole } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Users, Copy } from "lucide-react"
@@ -18,7 +18,10 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
     }))
   }
 
-  function save() { onSave(draft); setEditing(false) }
+  function save() {
+    onSave({ ...draft, modules: modulesForRole(draft.role, draft.modules) })
+    setEditing(false)
+  }
   function cancel() { setDraft(u); setEditing(false) }
 
   return (
@@ -60,7 +63,9 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 pt-0.5">
-          <Badge variant={u.role === "superadmin" ? "default" : "secondary"} className="text-[10px]">{u.role}</Badge>
+          <Badge variant={roleHasAllModules(u.role) ? "default" : "secondary"} className="text-[10px]">
+            {ROLE_LABELS[u.role] ?? u.role}
+          </Badge>
           {editing ? (
             <>
               <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-600 cursor-pointer" onClick={save}><Check className="h-3 w-3" /></Button>
@@ -86,8 +91,29 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
           readOnly={!editing}
         />
       </div>
+      {editing && u.role !== "superadmin" && (
+        <div className="space-y-1">
+          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Role</label>
+          <select
+            value={draft.role}
+            onChange={e => {
+              const role = e.target.value as UserRole
+              setDraft(d => ({
+                ...d,
+                role,
+                modules: modulesForRole(role, d.modules),
+              }))
+            }}
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          >
+            {ASSIGNABLE_ROLES.map(r => (
+              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
-        {u.role === "superadmin" ? (
+        {roleHasAllModules(draft.role) ? (
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages</span>
         ) : ALL_MODULES.map(m => {
           const has = draft.modules.includes(m)
@@ -110,6 +136,7 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [role, setRole] = useState<UserRole>("user")
   const [modules, setModules] = useState<Module[]>([])
   const [notificationEmails, setNotificationEmails] = useState<string[]>([])
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true)
@@ -126,8 +153,8 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
       name,
       email,
       password,
-      role: "user",
-      modules,
+      role,
+      modules: modulesForRole(role, modules),
       notificationEmails,
       emailNotificationsEnabled,
     })
@@ -147,6 +174,23 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
           {showPw ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
         </button>
       </div>
+      <div className="space-y-1">
+        <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Role</label>
+        <select
+          value={role}
+          onChange={e => {
+            const next = e.target.value as UserRole
+            setRole(next)
+            if (roleHasAllModules(next)) setModules([...ALL_MODULES])
+            else if (next === "sales_agent") setModules(["crm"])
+          }}
+          className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+        >
+          {ASSIGNABLE_ROLES.map(r => (
+            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+          ))}
+        </select>
+      </div>
       <NotificationEmailsEditor
         emails={notificationEmails}
         enabled={emailNotificationsEnabled}
@@ -154,6 +198,9 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
         onEnabledChange={setEmailNotificationsEnabled}
         compact
       />
+      {roleHasAllModules(role) ? (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages — full access to every module</p>
+      ) : (
       <div className="flex flex-wrap gap-1">
         {ALL_MODULES.map(m => {
           const has = modules.includes(m)
@@ -168,6 +215,7 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
           )
         })}
       </div>
+      )}
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" className="h-7 text-xs flex-1 cursor-pointer">Create</Button>
         <Button type="button" variant="outline" size="sm" className="h-7 text-xs cursor-pointer" onClick={onCancel}>Cancel</Button>

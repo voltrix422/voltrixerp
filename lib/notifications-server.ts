@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { sendNotificationEmail } from "@/lib/email"
+import { roleHasAllModules } from "@/lib/auth"
 
 export type NotificationType = "info" | "warning" | "success" | "error"
 
@@ -48,7 +49,7 @@ async function getUserIdsByModule(module: ErpModule): Promise<string[]> {
     select: { id: true, role: true, modules: true },
   })
   return users
-    .filter(u => u.role === "superadmin" || parseModules(u.modules).includes(module))
+    .filter(u => roleHasAllModules(u.role) || parseModules(u.modules).includes(module))
     .map(u => u.id)
 }
 

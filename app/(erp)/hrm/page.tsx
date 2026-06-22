@@ -8,12 +8,13 @@ import { HrmKpiApprovals } from "@/components/hrm/hrm-kpi-approvals"
 import { HrmDailyReportsAdmin } from "@/components/hrm/hrm-daily-reports-admin"
 import { MyKpiPortal } from "@/components/hrm/my-kpi-portal"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 
 type HrmTab = "staff" | "performance" | "approvals" | "daily-reports" | "my-kpis"
 
 export default function HrmPage() {
   const { user } = useAuth()
-  const isAdmin = user?.role === "superadmin"
+  const isAdmin = isErpAdmin(user?.role)
   const [tab, setTab] = useState<HrmTab>(isAdmin ? "staff" : "my-kpis")
 
   function tabBtn(id: HrmTab, label: string) {

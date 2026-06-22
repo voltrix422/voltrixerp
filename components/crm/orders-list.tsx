@@ -15,6 +15,7 @@ import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-displ
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 // DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -1156,7 +1157,7 @@ function OrderDetail({
     setStatus(order.status)
   }, [order])
 
-  const isAdmin = user?.role === "superadmin"
+  const isAdmin = isErpAdmin(user?.role)
   const canEditOrder = detailOrder.status === "pending_approval"
 
   async function handleDelete() {

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
-import { MODULE_LABELS } from "@/lib/auth"
+import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
 import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Trash2 } from "lucide-react"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
@@ -178,7 +178,7 @@ export function PettyCashDashboard() {
     }
   }
 
-  const canManagePettyCash = userRole === "superadmin"
+  const canManagePettyCash = isErpAdmin(userRole)
 
   useEffect(() => {
     if (!canManagePettyCash) return
@@ -251,7 +251,7 @@ export function PettyCashDashboard() {
   const pendingRequests = allocations.filter(
     (allocation) => allocation.status === "pending" && !isPersonalLedgerAllocation(allocation),
   )
-  const employeeRole = userRole === "superadmin"
+  const employeeRole = isErpAdmin(userRole)
     ? "Super Admin"
     : user?.modules[0]
       ? MODULE_LABELS[user.modules[0]]

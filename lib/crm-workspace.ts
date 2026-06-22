@@ -1,4 +1,5 @@
 import type { User } from "@/lib/auth"
+import { isErpAdmin } from "@/lib/auth"
 import type { ClientStatus } from "@/lib/crm"
 
 export type CrmWorkspaceMode = "main" | "sales_agent"
@@ -18,7 +19,7 @@ export function isSalesManagerUser(user?: User | null) {
 }
 
 export function canManageAllSalesAgents(user?: User | null) {
-  return user?.role === "superadmin"
+  return isErpAdmin(user?.role)
 }
 
 export function canAccessCrmMain(user?: User | null) {
@@ -26,11 +27,11 @@ export function canAccessCrmMain(user?: User | null) {
 }
 
 export function canAccessSalesAgentsArea(user?: User | null) {
-  return !!user && (user.role === "superadmin" || user.role === "sales_manager" || user.role === "sales_agent")
+  return !!user && (isErpAdmin(user.role) || user.role === "sales_manager" || user.role === "sales_agent")
 }
 
 export function isSalesAgentsAdminView(user?: User | null) {
-  return user?.role === "superadmin" || user?.role === "sales_manager"
+  return isErpAdmin(user?.role) || user?.role === "sales_manager"
 }
 
 export function matchesOwnerRecord(ownerUserId: string | undefined, scopeUserId?: string) {

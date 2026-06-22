@@ -13,6 +13,7 @@ import { DashboardBranchTransferApprovals } from "@/components/dashboard/branch-
 import { DashboardPettyCashApprovals } from "@/components/dashboard/petty-cash-approvals"
 import { DashboardOverviewPanel } from "@/components/dashboard/dashboard-overview-panel"
 import { useDashboardApprovalCounts } from "@/components/dashboard/use-dashboard-data"
+import { isErpAdmin, isSuperadmin } from "@/lib/auth"
 import {
   ApprovalTabs,
   ApprovalsSummaryChips,
@@ -229,7 +230,7 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
         <PODetail
           po={selected}
           allSuppliers={suppliers}
-          isAdmin={user?.role === "superadmin"}
+          isAdmin={isErpAdmin(user?.role)}
           onClose={() => setSelected(null)}
           onUpdate={handleUpdate}
         />
@@ -243,11 +244,11 @@ export default function DashboardPage() {
   const [mainTab, setMainTab] = useState<DashboardMainTab>("overview")
   const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
-  const approvalCounts = useDashboardApprovalCounts(!!user && user.role === "superadmin")
+  const approvalCounts = useDashboardApprovalCounts(!!user && isErpAdmin(user.role))
 
   if (!user) return null
 
-  if (user.role !== "superadmin") {
+  if (!isErpAdmin(user.role)) {
     return (
       <>
         <Topbar title="Dashboard" description={`Welcome, ${user.name}`} />
@@ -261,7 +262,7 @@ export default function DashboardPage() {
       <Topbar
         title="Dashboard"
         description={`Welcome, ${user.name}`}
-        action={<UsersPanel />}
+        action={isSuperadmin(user.role) ? <UsersPanel /> : undefined}
       />
       <DashboardShell>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

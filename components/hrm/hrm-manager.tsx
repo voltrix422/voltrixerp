@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard } from "lucide-react"
@@ -1716,7 +1717,7 @@ export function HrmManager() {
               <StaffKpiSection
                 staffId={viewMember.id}
                 staffName={viewMember.name}
-                isAdmin={user?.role === "superadmin"}
+                isAdmin={isErpAdmin(user?.role)}
                 actorName={user?.name ?? "Admin"}
               />
 

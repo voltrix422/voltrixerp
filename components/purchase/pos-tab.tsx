@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react"
 import { getPOs, savePO, deletePO, getSuppliers, STATUS_LABELS, STATUS_VARIANT, type PurchaseOrder, type Supplier } from "@/lib/purchase"
 // DB access via /api/db routes (Prisma)
-import { type User } from "@/lib/auth"
+import { type User, isErpAdmin } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { POForm } from "@/components/purchase/po-form"
@@ -65,7 +65,7 @@ export function POsTab({ user }: Props) {
     }
   }, [showDropdown, downloadMenuPO])
 
-  const isAdmin = user?.role === "superadmin";
+  const isAdmin = isErpAdmin(user?.role);
 
   const pendingPOs = pos.filter(p => p.status === "sent_to_admin")
   const approvedPOs = pos.filter(p => p.status === "approved" || p.status === "finalized")
