@@ -69,6 +69,7 @@ const LEAD_STATUS_FILTER_OPTIONS: { value: LeadStatusFilter; label: string; hint
   { value: "not_interested", label: "Not interested", hint: "Lead declined or not interested" },
   { value: "price_negotiable", label: "Price negotiable", hint: "Discussing price or terms" },
   { value: "on_hold", label: "On hold", hint: "Paused — follow up later" },
+  { value: "pending", label: "Pending", hint: "Waiting on lead or next step" },
   { value: "not_responded", label: "Not responded", hint: "Outreach logged, no reply" },
   { value: "responded", label: "Qualified (responded)", hint: "Leads who replied" },
   { value: "closed", label: "Closed" },

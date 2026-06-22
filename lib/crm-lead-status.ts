@@ -5,6 +5,7 @@ export const LEAD_STATUS_OPTIONS = [
   { value: "not_interested", label: "Not interested" },
   { value: "price_negotiable", label: "Price negotiable" },
   { value: "on_hold", label: "On hold" },
+  { value: "pending", label: "Pending" },
   { value: "not_responded", label: "Not responded" },
   { value: "responded", label: "Responded" },
   { value: "closed", label: "Closed" },

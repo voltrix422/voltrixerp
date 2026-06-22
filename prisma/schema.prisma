@@ -817,7 +817,7 @@ model CrmLead {
   phone         String   @default("")
   notes         String   @default("")
   source        String   @default("csv") // csv | manual
-  status        String   @default("new") // new | contacted | interested | not_interested | price_negotiable | on_hold | not_responded | responded | closed
+  status        String   @default("new") // new | contacted | interested | not_interested | price_negotiable | on_hold | pending | not_responded | responded | closed
   followUpAt    DateTime? @map("follow_up_at")
   followUpNotes String   @default("") @map("follow_up_notes")
   assignedToUserId String? @map("assigned_to_user_id")
