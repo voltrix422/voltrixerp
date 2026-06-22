@@ -780,7 +780,7 @@ function LeadStatusSelect({
   }
   return (
     <select
-      value={lead.status}
+      value={lead.status === "on_hold" ? "not_closed" : lead.status}
       onChange={(e) => onStatusChange(lead, e.target.value)}
       onClick={(e) => e.stopPropagation()}
       className={`h-8 sm:h-7 rounded border bg-[hsl(var(--background))] text-[11px] px-1.5 ${className}`}
