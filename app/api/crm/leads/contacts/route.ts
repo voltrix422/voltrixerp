@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     })
 
     let status = lead.status
-    const preserveStatus = new Set(["closed", "interested", "not_interested", "price_negotiable"])
+    const preserveStatus = new Set(["closed", "interested", "not_interested", "price_negotiable", "on_hold"])
     if (!preserveStatus.has(status)) {
       if (leadResponse.trim()) status = "responded"
       else if (status === "new" || status === "contacted") status = "not_responded"
