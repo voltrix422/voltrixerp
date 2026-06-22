@@ -13,7 +13,7 @@ import {
   LEAD_IMPORT_HEADERS,
 } from "@/lib/facebook-lead-ads-csv"
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
-import { isErpAdmin, getUsers, type User as ErpUser } from "@/lib/auth"
+import { isErpAdmin, getUsers, ROLE_LABELS, type User as ErpUser } from "@/lib/auth"
 import { LEAD_STATUS_OPTIONS, leadStatusLabel } from "@/lib/crm-lead-status"
 import {
   fetchLeads,
@@ -1050,9 +1050,8 @@ export function LeadsManager({
   }, [refresh])
 
   useEffect(() => {
-    if (!canAssignLeads) return
     getUsers().then(setErpUsers).catch(() => setErpUsers([]))
-  }, [canAssignLeads])
+  }, [])
 
   useEffect(() => {
     refreshStats()
@@ -2684,7 +2683,9 @@ function LinkLeadUserModal({
   const [selectedId, setSelectedId] = useState(lead.assignedToUserId ?? "")
   const [saving, setSaving] = useState(false)
 
-  const crmUsers = users.filter((u) => u.modules?.includes("crm") || isErpAdmin(u.role))
+  const linkableUsers = users
+    .filter((u) => u.role !== "superadmin")
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
@@ -2723,15 +2724,15 @@ function LinkLeadUserModal({
                 onChange={(e) => setSelectedId(e.target.value)}
               >
                 <option value="">Unassigned</option>
-                {crmUsers.map((u) => (
+                {linkableUsers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} — {u.jobTitle || u.role} ({u.id})
+                    {u.name} — {u.email} ({ROLE_LABELS[u.role] ?? u.role})
                   </option>
                 ))}
               </select>
             </div>
             <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-              Each option shows the ERP user name and ID. Use &quot;Filter by assigned member&quot; to view that person&apos;s linked leads.
+              All team accounts from User Accounts appear here. Pick who owns this lead, then use &quot;Filter by assigned member&quot; to view their linked leads.
             </p>
             <div className="flex justify-end gap-2 pt-1">
               {lead.assignedToUserId && (
@@ -2760,7 +2761,7 @@ function LinkLeadUserModal({
                 onClick={async () => {
                   setSaving(true)
                   try {
-                    const user = selectedId ? crmUsers.find((u) => u.id === selectedId) ?? null : null
+                    const user = selectedId ? linkableUsers.find((u) => u.id === selectedId) ?? null : null
                     await onAssign(user)
                   } finally {
                     setSaving(false)
