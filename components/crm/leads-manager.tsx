@@ -68,7 +68,7 @@ const LEAD_STATUS_FILTER_OPTIONS: { value: LeadStatusFilter; label: string; hint
   { value: "interested", label: "Interested", hint: "Lead showed interest" },
   { value: "not_interested", label: "Not interested", hint: "Lead declined or not interested" },
   { value: "price_negotiable", label: "Price negotiable", hint: "Discussing price or terms" },
-  { value: "on_hold", label: "On hold", hint: "Paused — follow up later" },
+  { value: "not_closed", label: "Not closed", hint: "Lead still open — not closed yet" },
   { value: "pending", label: "Pending", hint: "Waiting on lead or next step" },
   { value: "not_responded", label: "Not responded", hint: "Outreach logged, no reply" },
   { value: "responded", label: "Qualified (responded)", hint: "Leads who replied" },
@@ -179,7 +179,13 @@ function applyLeadFilters(
   const q = search.toLowerCase().trim()
 
   return leads.filter((l) => {
-    if (statusFilter !== "all" && l.status !== statusFilter) return false
+    if (statusFilter !== "all") {
+      if (statusFilter === "not_closed") {
+        if (l.status !== "not_closed" && l.status !== "on_hold") return false
+      } else if (l.status !== statusFilter) {
+        return false
+      }
+    }
     if (!matchesContactDateFilter(l, contactFilter, contactFrom, contactTo)) return false
     if (assignedFilter === "unassigned") {
       if (l.assignedToUserId) return false

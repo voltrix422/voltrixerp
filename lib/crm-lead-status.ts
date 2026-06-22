@@ -4,7 +4,7 @@ export const LEAD_STATUS_OPTIONS = [
   { value: "interested", label: "Interested" },
   { value: "not_interested", label: "Not interested" },
   { value: "price_negotiable", label: "Price negotiable" },
-  { value: "on_hold", label: "On hold" },
+  { value: "not_closed", label: "Not closed" },
   { value: "pending", label: "Pending" },
   { value: "not_responded", label: "Not responded" },
   { value: "responded", label: "Responded" },
@@ -18,6 +18,7 @@ export const LEAD_STATUS_LABELS: Record<string, string> = Object.fromEntries(
 )
 
 export function leadStatusLabel(status: string) {
+  if (status === "on_hold") return "Not closed"
   return LEAD_STATUS_LABELS[status] ?? status.replace(/_/g, " ")
 }
 
