@@ -1,5 +1,5 @@
 import type { User } from "@/lib/auth"
-import { isErpAdmin } from "@/lib/auth"
+import { isErpAdmin, isViewOnlyUser } from "@/lib/auth"
 import type { ClientStatus } from "@/lib/crm"
 
 export type CrmWorkspaceMode = "main" | "sales_agent"
@@ -24,6 +24,11 @@ export function canManageAllSalesAgents(user?: User | null) {
 
 export function canAccessCrmMain(user?: User | null) {
   return !!user && user.role !== "sales_agent"
+}
+
+export function crmWorkspaceForUser(user?: User | null): CrmWorkspaceScope | undefined {
+  if (isViewOnlyUser(user?.role)) return { mode: "main", readOnly: true }
+  return undefined
 }
 
 export function canAccessSalesAgentsArea(user?: User | null) {

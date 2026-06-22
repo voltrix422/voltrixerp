@@ -1,6 +1,6 @@
 export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos"
 
-export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager"
+export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager" | "view_only"
 
 export interface User {
   id: string
@@ -37,7 +37,7 @@ export const MODULE_LABELS: Record<Module, string> = {
 }
 
 /** Roles that superadmin can assign when creating/editing users. */
-export const ASSIGNABLE_ROLES: UserRole[] = ["user", "admin", "sales_agent"]
+export const ASSIGNABLE_ROLES: UserRole[] = ["user", "admin", "sales_agent", "view_only"]
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   superadmin: "Super Admin",
@@ -45,6 +45,15 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   user: "User",
   sales_agent: "Sales Agent",
   sales_manager: "Sales Manager",
+  view_only: "View Only",
+}
+
+export function isViewOnlyUser(role: UserRole | string | undefined | null) {
+  return role === "view_only"
+}
+
+export function canWriteErp(user?: { role?: string } | null) {
+  return !!user && !isViewOnlyUser(user.role)
 }
 
 export function roleHasAllModules(role: UserRole | string | undefined | null) {

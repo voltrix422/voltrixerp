@@ -579,11 +579,20 @@ function LeadStatusSelect({
   lead,
   onStatusChange,
   className = "",
+  readOnly = false,
 }: {
   lead: CrmLeadRow
   onStatusChange: (lead: CrmLeadRow, status: string) => void
   className?: string
+  readOnly?: boolean
 }) {
+  if (readOnly) {
+    return (
+      <span className={`inline-flex items-center h-8 sm:h-7 px-2 rounded border bg-[hsl(var(--muted))]/30 text-[11px] ${className}`}>
+        {leadStatusLabel(lead.status)}
+      </span>
+    )
+  }
   return (
     <select
       value={lead.status}
@@ -624,6 +633,7 @@ function LeadCard({
   onLinkUser,
   onDelete,
   canAssign,
+  readOnly = false,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
@@ -633,6 +643,7 @@ function LeadCard({
   onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
   canAssign: boolean
+  readOnly?: boolean
 }) {
   const fu = followUpDisplay(lead)
   return (
@@ -650,7 +661,7 @@ function LeadCard({
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-1">{lead.city}</p>
           )}
         </div>
-        <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="shrink-0 max-w-[110px]" />
+        <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="shrink-0 max-w-[110px]" readOnly={readOnly} />
       </div>
 
       {lead.phone?.trim() ? (
@@ -681,6 +692,7 @@ function LeadCard({
         <AssignedToCell lead={lead} />
       </div>
 
+      {!readOnly && (
       <div className="flex gap-2 pt-0.5" onClick={(e) => e.stopPropagation()}>
         <Button
           size="sm"
@@ -715,6 +727,7 @@ function LeadCard({
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+      )}
     </div>
   )
 }
@@ -728,6 +741,7 @@ function LeadsListView({
   onLinkUser,
   onDelete,
   canAssign,
+  readOnly = false,
 }: {
   leads: CrmLeadRow[]
   onOpenDetail: (id: string) => void
@@ -737,6 +751,7 @@ function LeadsListView({
   onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
   canAssign: boolean
+  readOnly?: boolean
 }) {
   return (
     <>
@@ -752,6 +767,7 @@ function LeadsListView({
             onLinkUser={onLinkUser}
             onDelete={onDelete}
             canAssign={canAssign}
+            readOnly={readOnly}
           />
         ))}
       </div>
@@ -786,9 +802,11 @@ function LeadsListView({
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Follow up
               </th>
+              {!readOnly && (
               <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Actions
               </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -803,6 +821,7 @@ function LeadsListView({
                 onLinkUser={onLinkUser}
                 onDelete={onDelete}
                 canAssign={canAssign}
+                readOnly={readOnly}
               />
             ))}
           </tbody>
@@ -821,6 +840,7 @@ function LeadTableRow({
   onLinkUser,
   onDelete,
   canAssign,
+  readOnly = false,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
@@ -830,6 +850,7 @@ function LeadTableRow({
   onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
   canAssign: boolean
+  readOnly?: boolean
 }) {
   return (
     <tr
@@ -846,7 +867,7 @@ function LeadTableRow({
         <AssignedToCell lead={lead} />
       </td>
       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-        <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="max-w-[120px]" />
+        <LeadStatusSelect lead={lead} onStatusChange={onStatusChange} className="max-w-[120px]" readOnly={readOnly} />
       </td>
       <td className="px-3 py-2 text-xs text-center tabular-nums">{lead.contactCount}</td>
       <td className="px-3 py-2 text-[11px] text-[hsl(var(--muted-foreground))]">
@@ -858,6 +879,9 @@ function LeadTableRow({
           : "—"}
       </td>
       <td className="px-3 py-2 text-[11px]" onClick={(e) => e.stopPropagation()}>
+        {readOnly ? (
+          <FollowUpCell lead={lead} />
+        ) : (
         <button
           type="button"
           className="text-left w-full rounded px-1 py-0.5 hover:bg-[hsl(var(--muted))]/50 cursor-pointer"
@@ -866,7 +890,9 @@ function LeadTableRow({
         >
           <FollowUpCell lead={lead} />
         </button>
+        )}
       </td>
+      {!readOnly && (
       <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-center gap-1">
           <Button
@@ -905,6 +931,7 @@ function LeadTableRow({
           </button>
         </div>
       </td>
+      )}
     </tr>
   )
 }
@@ -913,10 +940,12 @@ export function LeadsManager({
   currentUser,
   currentUserId,
   userRole,
+  readOnly = false,
 }: {
   currentUser: string
   currentUserId?: string | null
   userRole?: string
+  readOnly?: boolean
 }) {
   const { toast } = useToast()
   const canAssignLeads = true
@@ -1503,6 +1532,8 @@ export function LeadsManager({
           Import CSV with <strong>FULL_NAME, PHONE, COMPANY_NAME, City, Address</strong> (or full Facebook export). Outreach logs are saved in the database — open a lead to view full history after refresh. Export leads as Excel anytime.
         </p>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+          {!readOnly && (
+          <>
           <input
             ref={csvInputRef}
             type="file"
@@ -1556,6 +1587,11 @@ export function LeadsManager({
           >
             Sample CSV
           </a>
+          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer col-span-2 sm:col-span-1" onClick={() => setShowAddLead(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add lead
+          </Button>
+          </>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -1572,9 +1608,6 @@ export function LeadsManager({
           >
             <Download className="h-3.5 w-3.5 mr-1" />
             Export Excel
-          </Button>
-          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer col-span-2 sm:col-span-1" onClick={() => setShowAddLead(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add lead
           </Button>
         </div>
       </div>
@@ -1629,6 +1662,7 @@ export function LeadsManager({
                             {group.leads.length} lead{group.leads.length === 1 ? "" : "s"}
                           </span>
                         </button>
+                        {!readOnly && (
                         <div className="flex border-t sm:border-t-0 sm:border-l border-[hsl(var(--border))]">
                           <button
                             type="button"
@@ -1689,6 +1723,7 @@ export function LeadsManager({
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
+                        )}
                       </div>
                       {open && (
                         <div className="border-t border-[hsl(var(--border))]">
@@ -1701,6 +1736,7 @@ export function LeadsManager({
                             onLinkUser={setLinkForLead}
                             onDelete={requestDeleteLead}
                             canAssign={canAssignLeads}
+                            readOnly={readOnly}
                           />
                         </div>
                       )}
@@ -1728,6 +1764,7 @@ export function LeadsManager({
                   onLinkUser={setLinkForLead}
                   onDelete={requestDeleteLead}
                   canAssign={canAssignLeads}
+                  readOnly={readOnly}
                 />
               </div>
             </div>
@@ -1880,6 +1917,7 @@ export function LeadsManager({
             if (detail) setLinkForLead(detail)
           }}
           canAssign={canAssignLeads}
+          readOnly={readOnly}
           onLog={() => {
             if (detail) setLogForLead(detail)
           }}
@@ -2751,6 +2789,7 @@ function LeadDetailDrawer({
   onFollowUp,
   onLink,
   canAssign,
+  readOnly = false,
   onRefreshHistory,
 }: {
   loading: boolean
@@ -2760,6 +2799,7 @@ function LeadDetailDrawer({
   onFollowUp: () => void
   onLink: () => void
   canAssign: boolean
+  readOnly?: boolean
   onRefreshHistory: () => void
 }) {
   const fu = lead ? followUpDisplay(lead) : null
@@ -2839,6 +2879,7 @@ function LeadDetailDrawer({
                     )}
                   </div>
                 </div>
+                {!readOnly && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer" onClick={onLog}>
                     Log outreach
@@ -2851,6 +2892,7 @@ function LeadDetailDrawer({
                     {canAssign ? "Link user" : "View link"}
                   </Button>
                 </div>
+                )}
               </div>
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">

@@ -8,11 +8,12 @@ import { LeadsManager } from "@/components/crm/leads-manager"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
 import { useAuth } from "@/components/auth-provider"
-import { isSalesAgentUser } from "@/lib/crm-workspace"
+import { isSalesAgentUser, crmWorkspaceForUser } from "@/lib/crm-workspace"
 
 export default function CRMPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const workspace = crmWorkspaceForUser(user)
   const [tab, setTab] = useState<"quotations" | "orders" | "clients" | "leads">("quotations")
 
   useEffect(() => {
@@ -90,16 +91,23 @@ export default function CRMPage() {
           </div>
 
           {/* Tab Content */}
-          {tab === "quotations" && <QuotationsList currentUser={user?.name || "Unknown"} />}
-          {tab === "clients" && <ClientsList currentUser={user?.name || "Unknown"} />}
+          {tab === "quotations" && (
+            <QuotationsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+          )}
+          {tab === "clients" && (
+            <ClientsList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+          )}
           {tab === "leads" && (
             <LeadsManager
               currentUser={user?.name || "Unknown"}
               currentUserId={user?.id}
               userRole={user?.role}
+              readOnly={!!workspace?.readOnly}
             />
           )}
-          {tab === "orders" && <OrdersList currentUser={user?.name || "Unknown"} />}
+          {tab === "orders" && (
+            <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+          )}
         </div>
       </div>
     </ModuleGuard>

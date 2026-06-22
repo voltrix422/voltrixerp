@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, type User, type Module, type UserRole } from "@/lib/auth"
+import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, type User, type Module, type UserRole } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Users, Copy } from "lucide-react"
@@ -63,7 +63,7 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 pt-0.5">
-          <Badge variant={roleHasAllModules(u.role) ? "default" : "secondary"} className="text-[10px]">
+          <Badge variant={roleHasAllModules(u.role) ? "default" : isViewOnlyUser(u.role) ? "outline" : "secondary"} className="text-[10px]">
             {ROLE_LABELS[u.role] ?? u.role}
           </Badge>
           {editing ? (
@@ -110,6 +110,11 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </select>
+          {isViewOnlyUser(draft.role) && (
+            <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+              View only users can open the selected pages and browse data, but cannot create, edit, or delete records.
+            </p>
+          )}
         </div>
       )}
       <div className="flex flex-wrap gap-1">
@@ -190,6 +195,11 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
             <option key={r} value={r}>{ROLE_LABELS[r]}</option>
           ))}
         </select>
+        {isViewOnlyUser(role) && (
+          <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+            Assign the pages this user can view. They will not be able to change anything in the ERP.
+          </p>
+        )}
       </div>
       <NotificationEmailsEditor
         emails={notificationEmails}

@@ -1,7 +1,7 @@
 "use client"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { type User, getSession, setSession, clearSession, getUsers, login as authLogin } from "@/lib/auth"
+import { type User, getSession, setSession, clearSession, getUsers, login as authLogin, canWriteErp, isViewOnlyUser } from "@/lib/auth"
 
 interface AuthContextType {
   user: User | null
@@ -23,7 +23,13 @@ export function useAuth() {
 
 export function useAuthWithRole() {
   const { user, ...rest } = useContext(AuthContext)
-  return { user, userRole: user?.role || 'user', ...rest }
+  return {
+    user,
+    userRole: user?.role || "user",
+    readOnly: isViewOnlyUser(user?.role),
+    canWrite: canWriteErp(user),
+    ...rest,
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
