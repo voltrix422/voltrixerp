@@ -321,6 +321,7 @@ model ErpStaff {
   staffKpis      HrmStaffKpi[]
   kpiSettlements HrmKpiSettlement[]
   dailyReports   HrmDailyReport[]
+  salaryAdvances HrmSalaryAdvance[]
 
   @@index([email])
   @@index([erpUserId])
@@ -369,6 +370,27 @@ model HrmStaffKpi {
   @@index([staffId])
   @@index([templateId])
   @@map("hrm_staff_kpis")
+}
+
+/// Salary advance given to staff (recovered from payroll, not petty cash).
+model HrmSalaryAdvance {
+  id               String    @id @default(cuid())
+  staffId          String    @map("staff_id")
+  staff            ErpStaff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  amount           Float
+  currency         String    @default("PKR")
+  reason           String    @default("")
+  notes            String    @default("")
+  status           String    @default("outstanding") // outstanding | recovered | cancelled
+  givenBy          String    @map("given_by")
+  givenAt          DateTime  @default(now()) @map("given_at")
+  recoveredAt      DateTime? @map("recovered_at")
+  recoveredInMonth String?   @map("recovered_in_month")
+  proofUrl         String?   @map("proof_url")
+  proofName        String?   @map("proof_name")
+
+  @@index([staffId, status])
+  @@map("hrm_salary_advances")
 }
 
 /// Employee weekly/monthly KPI settlement (actuals + submit).

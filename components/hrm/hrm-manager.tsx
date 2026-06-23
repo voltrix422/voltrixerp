@@ -4,8 +4,10 @@ import { useAuth } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard } from "lucide-react"
+import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard, Wallet } from "lucide-react"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
+import { StaffSalaryAdvanceModal } from "@/components/hrm/staff-salary-advance-modal"
+import { fetchSalaryAdvanceSummary, recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadStaffExcel } from "@/lib/hrm-excel-export"
 
@@ -190,6 +192,21 @@ export function HrmManager() {
   const [showPayrollHistory, setShowPayrollHistory] = useState(false)
   const [payrollRows, setPayrollRows] = useState<PayrollRow[]>([])
   const [exportingStaff, setExportingStaff] = useState(false)
+  const [advanceByStaff, setAdvanceByStaff] = useState<Record<string, number>>({})
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false)
+
+  async function refreshAdvanceSummary() {
+    try {
+      const summary = await fetchSalaryAdvanceSummary()
+      const map: Record<string, number> = {}
+      for (const row of summary) {
+        map[row.staffId] = row.outstanding
+      }
+      setAdvanceByStaff(map)
+    } catch {
+      setAdvanceByStaff({})
+    }
+  }
 
   // Fetch salary slips for staff member
   async function fetchSalarySlips(staffName: string) {
@@ -559,6 +576,7 @@ export function HrmManager() {
         )
         setStaff(staffWithDocs)
         await fetchAllSalarySlips()
+        await refreshAdvanceSummary()
       } catch (error) {
         console.error('Failed to load staff:', error)
       } finally {
@@ -619,16 +637,19 @@ export function HrmManager() {
       alert(`Payroll already created for ${monthLabel(payrollMonth)}. Please select another month.`)
       return
     }
-    const rows: PayrollRow[] = activeStaff.map((member) => ({
-      staffId: member.id,
-      staffName: member.name,
-      role: member.role,
-      baseSalary: Number(member.salary || 0),
-      currency: member.currency || "PKR",
-      adjustmentType: "add",
-      adjustmentAmount: "",
-      adjustmentLabel: "",
-    }))
+    const rows: PayrollRow[] = activeStaff.map((member) => {
+      const outstandingAdvance = advanceByStaff[member.id] || 0
+      return {
+        staffId: member.id,
+        staffName: member.name,
+        role: member.role,
+        baseSalary: Number(member.salary || 0),
+        currency: member.currency || "PKR",
+        adjustmentType: outstandingAdvance > 0 ? "deduct" : "add",
+        adjustmentAmount: outstandingAdvance > 0 ? String(outstandingAdvance) : "",
+        adjustmentLabel: outstandingAdvance > 0 ? "Salary advance recovery" : "",
+      }
+    })
     setPayrollRows(rows)
     setShowPayrollRun(true)
   }
@@ -681,6 +702,19 @@ export function HrmManager() {
         }
         if (!response.ok) {
           throw new Error('Failed to save payroll record')
+        }
+
+        const matchingRow = payrollRows.find((row) => row.staffName === slip.staffName)
+        const hasAdvanceRecovery =
+          matchingRow?.adjustmentType === "deduct" &&
+          Number(matchingRow.adjustmentAmount || 0) > 0 &&
+          (matchingRow.adjustmentLabel || "").toLowerCase().includes("advance")
+        if (hasAdvanceRecovery && matchingRow) {
+          await recoverSalaryAdvances({
+            staffId: matchingRow.staffId,
+            month: payrollMonth,
+            recoveredBy: user?.name || "Admin",
+          })
         }
       }
 
@@ -773,6 +807,7 @@ export function HrmManager() {
       doc.save(`Payroll-${payrollMonth}.pdf`)
       setShowPayrollRun(false)
       await fetchAllSalarySlips()
+      await refreshAdvanceSummary()
     } catch (error) {
       console.error("Payroll generation failed:", error)
       alert("Failed to generate payroll.")
@@ -1367,7 +1402,14 @@ export function HrmManager() {
                   </td>
                   <td className="px-4 py-3">
                     {s.salary > 0 ? (
-                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{s.currency} {s.salary.toLocaleString()}</p>
+                      <>
+                        <p className="text-sm font-medium text-[hsl(var(--foreground))]">{s.currency} {s.salary.toLocaleString()}</p>
+                        {(advanceByStaff[s.id] || 0) > 0 && (
+                          <p className="text-[10px] text-amber-700 font-medium mt-0.5">
+                            Advance: {s.currency} {(advanceByStaff[s.id] || 0).toLocaleString()}
+                          </p>
+                        )}
+                      </>
                     ) : (
                       <p className="text-sm text-[hsl(var(--muted-foreground))]">—</p>
                     )}
@@ -1642,6 +1684,16 @@ export function HrmManager() {
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Salary</p>
                     <div className="flex gap-2">
+                      {isErpAdmin(user?.role) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
+                          onClick={() => setShowAdvanceModal(true)}
+                        >
+                          <Wallet className="h-4 w-4" /> Advance
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => setShowSalarySlip(true)}>
                         <Download className="h-4 w-4" /> Generate
                       </Button>
@@ -1654,6 +1706,11 @@ export function HrmManager() {
                     </div>
                   </div>
                   <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
+                  {(advanceByStaff[viewMember.id] || 0) > 0 && (
+                    <p className="text-sm font-medium text-amber-700 mt-1">
+                      Outstanding advance: {viewMember.currency} {(advanceByStaff[viewMember.id] || 0).toLocaleString()}
+                    </p>
+                  )}
                   <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">Salary History Snapshot</p>
                     {salarySlips.length === 0 ? (
@@ -2758,6 +2815,20 @@ export function HrmManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {showAdvanceModal && viewMember && isErpAdmin(user?.role) && (
+        <StaffSalaryAdvanceModal
+          staff={{
+            id: viewMember.id,
+            name: viewMember.name,
+            role: viewMember.role,
+            currency: viewMember.currency || "PKR",
+          }}
+          givenBy={user?.name || "Admin"}
+          onClose={() => setShowAdvanceModal(false)}
+          onUpdate={refreshAdvanceSummary}
+        />
       )}
     </div>
   )
