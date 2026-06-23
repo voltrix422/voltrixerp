@@ -120,18 +120,6 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
       return
     }
 
-    if (
-      !isPersonalLedgerAllocation(allocation) &&
-      parsedAmount > remainingAmount
-    ) {
-      toast({
-        title: "Amount Exceeds Remaining Balance",
-        message: `Maximum amount available: PKR ${remainingAmount.toLocaleString()}`,
-        type: "error"
-      })
-      return
-    }
-
     setLoading(true)
     setUploading(true)
     
@@ -555,7 +543,6 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                       onChange={e => setAmount(e.target.value)}
                       className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/40"
                       placeholder="0.00"
-                      max={remainingAmount}
                     />
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
                       Remaining: PKR {remainingAmount.toLocaleString()} (negative values allowed for adjustments)
