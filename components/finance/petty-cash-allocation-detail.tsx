@@ -110,9 +110,19 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
       return
     }
 
+    const parsedAmount = parseFloat(amount)
+    if (!Number.isFinite(parsedAmount) || Math.abs(parsedAmount) < 0.004) {
+      toast({
+        title: "Invalid amount",
+        message: "Amount must be non-zero. Use negative values (e.g. -500) when needed.",
+        type: "error"
+      })
+      return
+    }
+
     if (
       !isPersonalLedgerAllocation(allocation) &&
-      parseFloat(amount) > remainingAmount
+      parsedAmount > remainingAmount
     ) {
       toast({
         title: "Amount Exceeds Remaining Balance",
@@ -138,7 +148,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         allocationId: allocation.id,
         employeeName: allocation.employeeName,
         description,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
         notes: notes.trim(),
@@ -548,7 +558,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                       max={remainingAmount}
                     />
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      Remaining: PKR {remainingAmount.toLocaleString()}
+                      Remaining: PKR {remainingAmount.toLocaleString()} (negative values allowed for adjustments)
                     </p>
                   </div>
                   <div className="space-y-2">

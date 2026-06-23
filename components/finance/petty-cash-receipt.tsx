@@ -71,7 +71,7 @@ export function PettyCashReceipt({
 
   const balanceAfter = useMemo(() => {
     const next = parseFloat(amount)
-    if (!Number.isFinite(next) || next <= 0) return balance
+    if (!Number.isFinite(next) || Math.abs(next) < 0.004) return balance
     return balance - next
   }, [balance, amount])
 
@@ -98,6 +98,15 @@ export function PettyCashReceipt({
       })
       return
     }
+    const parsedAmount = parseFloat(amount)
+    if (!Number.isFinite(parsedAmount) || Math.abs(parsedAmount) < 0.004) {
+      toast({
+        title: "Invalid amount",
+        message: "Amount must be non-zero. Use negative values (e.g. -500) when needed.",
+        type: "error",
+      })
+      return
+    }
 
     setLoading(true)
     try {
@@ -115,7 +124,7 @@ export function PettyCashReceipt({
         employeeName: resolvedName,
         employeeRole,
         description,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
         notes: notes.trim(),
@@ -167,7 +176,7 @@ export function PettyCashReceipt({
             <p className="text-xs text-blue-800 dark:text-blue-200">
               <span className="font-semibold">Your petty cash balance</span>
               <br />
-              Add a receipt anytime. Admin must approve before it counts (negative = reimbursed expense).
+              Add a receipt anytime. Admin must approve before it counts. You can enter negative amounts (for adjustments/reversals).
             </p>
             <p className="text-lg font-bold mt-2 text-blue-900 dark:text-blue-100">
               {dataLoading ? "…" : formatPettyCashBalance(balance)}
@@ -177,7 +186,7 @@ export function PettyCashReceipt({
                 Pending approval: {formatPettyCashExpense(pendingTotal)}
               </p>
             )}
-            {amount && Number.parseFloat(amount) > 0 && !dataLoading && (
+            {amount && Number.isFinite(Number.parseFloat(amount)) && !dataLoading && (
               <p className="text-xs mt-1 text-[hsl(var(--muted-foreground))]">
                 If approved:{" "}
                 <span className={balanceAfter < 0 ? "text-red-600 font-semibold" : "font-medium"}>
@@ -206,13 +215,15 @@ export function PettyCashReceipt({
             </label>
             <input
               type="number"
-              min="0"
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="Expense amount"
+              placeholder="e.g. 1500 or -1500"
               className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             />
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              Positive = expense, negative = adjustment/reversal. Admin approval required.
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -82,8 +82,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Missing required fields' })
       }
       const parsedAmount = parseFloat(amount)
-      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        return res.status(400).json({ error: 'Invalid amount' })
+      if (!Number.isFinite(parsedAmount) || Math.abs(parsedAmount) < 0.004) {
+        return res.status(400).json({ error: 'Amount must be non-zero' })
       }
 
       let allocation
