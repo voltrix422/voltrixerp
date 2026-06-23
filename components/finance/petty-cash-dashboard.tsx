@@ -111,7 +111,7 @@ export function PettyCashDashboard() {
     }
   }
 
-  async function handleReviewReceipt(receipt: PettyCashReceipt, status: "approved" | "rejected") {
+  async function handleReviewReceipt(receipt: PettyCashReceipt, status: "pending" | "approved" | "rejected") {
     try {
       await updatePettyCashReceiptStatus(receipt.id, status, currentUser, currentUserId)
       const updatedReceipts = receipts.map(r =>
@@ -128,8 +128,10 @@ export function PettyCashDashboard() {
             : "Receipt approved.",
           type: "success",
         })
-      } else {
+      } else if (status === "rejected") {
         toast({ title: "Receipt rejected", message: "Expense was not applied.", type: "success" })
+      } else {
+        toast({ title: "Moved to pending", message: "Receipt is pending admin review again.", type: "success" })
       }
       loadData()
     } catch (error) {
@@ -614,6 +616,15 @@ export function PettyCashDashboard() {
                                 <XCircle className="h-3.5 w-3.5" />
                               </button>
                             </>
+                          )}
+                          {canManagePettyCash && receipt.status !== "pending" && (
+                            <button
+                              onClick={() => handleReviewReceipt(receipt, "pending")}
+                              className="text-yellow-600 hover:text-yellow-800 text-[10px] font-medium transition-colors cursor-pointer"
+                              title="Move back to pending for admin re-review"
+                            >
+                              Pending
+                            </button>
                           )}
                         </div>
                       </td>

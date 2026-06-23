@@ -204,7 +204,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
     }
   }
 
-  async function handleReviewReceipt(receipt: PettyCashReceipt, status: 'approved' | 'rejected') {
+  async function handleReviewReceipt(receipt: PettyCashReceipt, status: 'pending' | 'approved' | 'rejected') {
     try {
       await updatePettyCashReceiptStatus(receipt.id, status, currentUser, currentUserId || "")
       const updatedReceipts = receipts.map(r => 
@@ -222,8 +222,14 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             : `Receipt approved.`,
           type: "success",
         })
-      } else {
+      } else if (status === "rejected") {
         toast({ title: "Receipt rejected", message: "Expense was not applied to the ledger.", type: "success" })
+      } else {
+        toast({
+          title: "Moved to pending",
+          message: "Receipt is pending admin review again.",
+          type: "success",
+        })
       }
       
       onUpdate()
@@ -684,6 +690,17 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                                 <XCircle className="h-3 w-3" />
                               </Button>
                             </>
+                          )}
+                          {canManagePettyCash && receipt.status !== 'pending' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleReviewReceipt(receipt, 'pending')}
+                              className="h-7 px-2 cursor-pointer"
+                              title="Move back to pending for admin re-review"
+                            >
+                              Pending
+                            </Button>
                           )}
                           {canManagePettyCash && (
                             <Button
