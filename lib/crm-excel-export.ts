@@ -55,7 +55,12 @@ function exportMetaHeader(exportedBy?: string) {
   return `${escCsvCell("Exported by")},${escCsvCell(exportedBy.trim())}\r\n${escCsvCell("Export time")},${escCsvCell(when)}\r\n\r\n`
 }
 
-export function downloadOrdersExcel(orders: Order[], exportedBy?: string) {
+export function downloadOrdersExcel(
+  orders: Order[],
+  exportedBy?: string,
+  salesAgentUserIds?: ReadonlySet<string>
+) {
+  const sourceOpts = salesAgentUserIds ? { salesAgentUserIds } : undefined
   const headers = [
     "Order #",
     "Source",
@@ -84,7 +89,7 @@ export function downloadOrdersExcel(orders: Order[], exportedBy?: string) {
   ]
   const rows = orders.map(o => [
     o.orderNumber,
-    getOrderSourcePdfLabel(o),
+    getOrderSourcePdfLabel(o, sourceOpts),
     o.clientName,
     o.clientId,
     o.items?.length ?? 0,

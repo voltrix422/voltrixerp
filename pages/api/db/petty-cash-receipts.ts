@@ -76,8 +76,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         receiptProof,
         receiptProofName,
         notes,
-        selfSubmit,
-        submittedBy,
       } = req.body
 
       if (!employeeName || !description || amount === undefined || amount === null) {
@@ -129,10 +127,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
       }
 
-      // Personal ledger expenses require admin approval before balance changes.
-      const autoApprove = selfSubmit === true && !personal
-      const reviewer = String(submittedBy || employeeName || '').trim()
-
       const receipt = await prisma.erpPettyCashReceipt.create({
         data: {
           allocationId,
@@ -142,24 +136,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           receiptProof,
           receiptProofName,
           notes: notes || '',
-          status: autoApprove ? 'approved' : 'pending',
-          reviewedBy: autoApprove ? reviewer || employeeName : null,
-          reviewedAt: autoApprove ? new Date() : null,
+          status: 'pending',
+          reviewedBy: null,
+          reviewedAt: null,
         }
       })
-
-      if (autoApprove && !personal) {
-        const approvedRows = await prisma.erpPettyCashReceipt.findMany({
-          where: { allocationId, status: 'approved' },
-        })
-        const approvedTotal = approvedRows.reduce((sum, item) => sum + item.amount, 0)
-        if (approvedTotal >= allocation.amount - 0.004) {
-          await prisma.erpPettyCashAllocation.update({
-            where: { id: allocationId },
-            data: { status: 'settled', settledAt: new Date() },
-          })
-        }
-      }
 
       if (receipt.status === 'pending') {
         void notifyOnPettyCashPending(

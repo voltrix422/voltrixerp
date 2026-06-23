@@ -455,12 +455,29 @@ export async function generateOrderNumber(): Promise<string> {
   }
 }
 
-export function isSalesAgentOrder(order: Pick<Order, "ownerUserId">) {
-  return !!order.ownerUserId
+export type OrderSourceOptions = {
+  salesAgentUserIds?: ReadonlySet<string>
 }
 
-export function getOrderSourcePdfLabel(order: Pick<Order, "ownerUserId" | "createdBy">) {
-  if (order.ownerUserId) return `Sales agent · ${order.createdBy || "—"}`
+/** True only when ownerUserId belongs to a sales_agent account (not main CRM users like CEO/finance). */
+export function isSalesAgentOrder(
+  order: Pick<Order, "ownerUserId">,
+  options?: OrderSourceOptions
+) {
+  if (!order.ownerUserId) return false
+  if (!options?.salesAgentUserIds) return false
+  return options.salesAgentUserIds.has(order.ownerUserId)
+}
+
+export function getOrderSourcePdfLabel(
+  order: Pick<Order, "ownerUserId" | "createdBy">,
+  options?: OrderSourceOptions
+) {
+  if (isSalesAgentOrder(order, options)) {
+    return `Sales agent · ${order.createdBy || "—"}`
+  }
+  const name = order.createdBy?.trim()
+  if (name) return `Created by · ${name}`
   return "CRM"
 }
 

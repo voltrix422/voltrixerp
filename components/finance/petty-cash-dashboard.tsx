@@ -119,27 +119,6 @@ export function PettyCashDashboard() {
       )
       setReceipts(updatedReceipts)
 
-      if (status === "approved") {
-        // Check auto-settle using updated receipts
-        const allocation = allocations.find(a => a.id === receipt.allocationId)
-        if (allocation && !isPersonalLedgerAllocation(allocation)) {
-          const totalSpent = updatedReceipts
-            .filter(r => r.allocationId === receipt.allocationId && r.status === "approved")
-            .reduce((sum, r) => sum + r.amount, 0)
-          if (totalSpent >= allocation.amount) {
-            await updatePettyCashAllocationStatus(allocation.id, "settled", new Date().toISOString())
-            setAllocations(prev =>
-              prev.map(a => a.id === allocation.id ? { ...a, status: "settled", settledAt: new Date().toISOString() } : a)
-            )
-            toast({
-              title: "Auto-Settled",
-              message: `Allocation for ${allocation.employeeName} has been automatically settled`,
-              type: "success"
-            })
-          }
-        }
-      }
-
       const allocation = allocations.find((a) => a.id === receipt.allocationId)
       if (status === "approved") {
         toast({

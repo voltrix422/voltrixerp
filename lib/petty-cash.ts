@@ -200,7 +200,7 @@ export async function createPettyCashReceipt(data: {
   receiptProof?: string
   receiptProofName?: string
   notes?: string
-  /** Employee's own receipt — deducts balance immediately (auto-approved). */
+  /** Deprecated: receipts now always require admin approval. */
   selfSubmit?: boolean
   submittedBy?: string
 }): Promise<PettyCashReceipt> {

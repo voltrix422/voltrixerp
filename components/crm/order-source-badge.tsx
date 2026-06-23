@@ -1,5 +1,8 @@
-import { isSalesAgentOrder, type Order } from "@/lib/orders"
+"use client"
+
+import { getOrderSourcePdfLabel, isSalesAgentOrder, type Order } from "@/lib/orders"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
+import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -7,9 +10,38 @@ type Props = {
   className?: string
 }
 
+function orderSourceOptions(salesAgentUserIds: ReadonlySet<string> | null) {
+  return salesAgentUserIds ? { salesAgentUserIds } : undefined
+}
+
 export function OrderSourceBadge({ order, className }: Props) {
-  if (isSalesAgentOrder(order)) {
-    return <SalesAgentSourceBadge agentName={order.createdBy} kind="order" className={className} />
+  const salesAgentUserIds = useSalesAgentUserIds()
+  const opts = orderSourceOptions(salesAgentUserIds)
+
+  if (isSalesAgentOrder(order, opts)) {
+    return (
+      <SalesAgentSourceBadge
+        agentName={order.createdBy || "—"}
+        kind="order"
+        className={className}
+      />
+    )
+  }
+
+  const name = order.createdBy?.trim()
+  if (name) {
+    return (
+      <span
+        className={cn(
+          "inline-flex max-w-full items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/40 px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]",
+          className
+        )}
+      >
+        <span className="shrink-0">Created by</span>
+        <span className="shrink-0 opacity-70">·</span>
+        <span className="truncate">{name}</span>
+      </span>
+    )
   }
 
   return (
@@ -20,6 +52,15 @@ export function OrderSourceBadge({ order, className }: Props) {
       )}
     >
       CRM order
+    </span>
+  )
+}
+
+export function OrderSourceLabel({ order, className }: Props) {
+  const salesAgentUserIds = useSalesAgentUserIds()
+  return (
+    <span className={className}>
+      {getOrderSourcePdfLabel(order, orderSourceOptions(salesAgentUserIds))}
     </span>
   )
 }

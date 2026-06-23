@@ -4,7 +4,7 @@ import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPayment
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
-import { OrderSourceBadge } from "@/components/crm/order-source-badge"
+import { OrderSourceBadge, OrderSourceLabel } from "@/components/crm/order-source-badge"
 import { CrmWarehouseInventoryPicker } from "@/components/crm/crm-warehouse-inventory-picker"
 import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/toast"
 import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2 } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
+import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
@@ -113,6 +114,7 @@ function orderMatchesDateRange(createdAt: string | undefined, fromDate: string, 
 
 export function OrdersList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
   const { toast } = useToast()
+  const salesAgentUserIds = useSalesAgentUserIds()
   const [orders, setOrders] = useState<Order[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -205,7 +207,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   function exportListExcel() {
     setExportingExcel(true)
     try {
-      downloadOrdersExcel(filtered, currentUser)
+      downloadOrdersExcel(filtered, currentUser, salesAgentUserIds ?? undefined)
       toast({
         title: "Download started",
         message: `${filtered.length} order(s) exported for Excel.`,
@@ -1327,7 +1329,7 @@ function OrderDetail({
             )}
             <div className="hidden lg:block border-l pl-6 shrink-0">
               <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Source</p>
-              <p className="text-sm mt-1">{detailOrder.ownerUserId ? `Sales agent · ${detailOrder.createdBy}` : "CRM"}</p>
+              <OrderSourceLabel order={detailOrder} className="text-sm mt-1 block" />
             </div>
             <div className="hidden lg:block border-l pl-6 shrink-0">
               <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Created</p>

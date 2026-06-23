@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import type { Order } from "@/lib/orders"
 import { getOrderSourcePdfLabel, resolveOrderItemModel } from "@/lib/orders"
+import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { formatInvoiceMoney, getInvoicePaymentSummary } from "@/lib/invoice-payment-summary"
 import {
   buildInvoiceClientDetailRows,
@@ -22,6 +23,11 @@ interface InvoicePreviewModalProps {
 export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps) {
   const [downloading, setDownloading] = useState(false)
   const [clientProfile, setClientProfile] = useState<InvoiceClientProfile | null>(null)
+  const salesAgentUserIds = useSalesAgentUserIds()
+  const orderSourceLabel = getOrderSourcePdfLabel(
+    order,
+    salesAgentUserIds ? { salesAgentUserIds } : undefined
+  )
 
   useEffect(() => {
     if (!order.clientId) {
@@ -84,7 +90,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
       : []),
     { label: "STATUS", value: order.status.replace(/_/g, " ").toUpperCase() },
     { label: "PREPARED BY", value: order.createdBy || "—" },
-    { label: "ORDER SOURCE", value: getOrderSourcePdfLabel(order) },
+    { label: "ORDER SOURCE", value: orderSourceLabel },
     ...(pay.showPaymentSection
       ? [{ label: "PAYMENT", value: pay.paymentStatusLabel }]
       : []),
@@ -221,7 +227,7 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                         : []),
                       ["Status", order.status.replace(/_/g, " ").toUpperCase()],
                       ["Prepared by", order.createdBy || "—"],
-                      ["Source", getOrderSourcePdfLabel(order)],
+                      ["Source", orderSourceLabel],
                       ...(pay.showPaymentSection ? [["Payment", pay.paymentStatusLabel]] : []),
                     ].map(([label, value]) => (
                       <div key={label} className="flex justify-between gap-2 text-xs">

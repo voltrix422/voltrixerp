@@ -142,7 +142,6 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
         notes: notes.trim(),
-        selfSubmit: isOwnAllocation && !isPersonal,
         submittedBy: currentUser || allocation.employeeName,
       })
 
@@ -215,22 +214,6 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
       )
       setReceipts(updatedReceipts)
       
-      // Check if this approval completes the allocation
-      if (status === 'approved') {
-        const allocationReceipts = updatedReceipts.filter(r => r.allocationId === allocation.id && r.status === 'approved')
-        const totalSpent = allocationReceipts.reduce((sum, r) => sum + r.amount, 0)
-        
-        // Auto-settle if total receipts equal or exceed allocation amount
-        if (!isPersonal && totalSpent >= allocation.amount) {
-          await updatePettyCashAllocationStatus(allocation.id, 'settled', new Date().toISOString())
-          toast({
-            title: "Auto-Settled",
-            message: `Petty cash allocation has been automatically settled! Total spent: PKR ${totalSpent.toLocaleString()}`,
-            type: "success"
-          })
-        }
-      }
-
       if (status === "approved") {
         toast({
           title: "Receipt approved",
@@ -275,8 +258,36 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
   const canManagePettyCash = isErpAdmin(userRole)
   const isOwnAllocation = allocationBelongsToUser(allocation, currentUserId, currentUser)
+  const canSettle = canManagePettyCash && allocation.status === "active" && receipts.some(r => r.status === "approved")
+  const canReopen = canManagePettyCash && allocation.status === "settled"
   const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
   const isPdf = (value?: string) => !!value && (value.startsWith("data:application/pdf") || /\.pdf$/i.test(value))
+
+  async function handleSettleStatus(nextStatus: "settled" | "active") {
+    try {
+      await updatePettyCashAllocationStatus(
+        allocation.id,
+        nextStatus,
+        nextStatus === "settled" ? new Date().toISOString() : undefined
+      )
+      toast({
+        title: nextStatus === "settled" ? "Allocation settled" : "Allocation reopened",
+        message:
+          nextStatus === "settled"
+            ? "This allocation is now closed by admin."
+            : "This allocation is active again.",
+        type: "success",
+      })
+      onUpdate()
+    } catch (error) {
+      console.error("Error updating allocation status:", error)
+      toast({
+        title: "Error",
+        message: "Failed to update allocation status",
+        type: "error",
+      })
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
@@ -293,6 +304,25 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canSettle && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-700"
+                onClick={() => handleSettleStatus("settled")}
+              >
+                Settle
+              </Button>
+            )}
+            {canReopen && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => handleSettleStatus("active")}
+              >
+                Reopen
+              </Button>
+            )}
             {canManagePettyCash && isPersonal && allocation.status === "active" && (
               <Button
                 size="sm"

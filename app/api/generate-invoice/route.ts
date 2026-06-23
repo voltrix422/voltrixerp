@@ -5,7 +5,8 @@ import fs from 'fs'
 import path from 'path'
 import { prisma } from '@/lib/db'
 import { formatSerialListForLine, orderHasSerialAllocations } from '@/lib/order-fulfillment-serials'
-import { getOrderSourcePdfLabel, resolveOrderItemModel } from '@/lib/orders'
+import { getOrderSourcePdfLabelServer } from '@/lib/order-source-server'
+import { resolveOrderItemModel } from '@/lib/orders'
 import { formatInvoiceMoney, getInvoicePaymentSummary } from '@/lib/invoice-payment-summary'
 import {
   buildInvoiceClientDetailRows,
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
     const documentTitle = isProformaInvoice ? "PROFORMA INVOICE" : "INVOICE"
     const taxAmount = Number(order.tax || 0)
     const hasTax = Math.abs(taxAmount) > 0.004
+
+    const orderSourceLabel = await getOrderSourcePdfLabelServer(order)
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     registerGeist(doc)
@@ -110,7 +113,7 @@ export async function POST(request: NextRequest) {
       ...(order.deliveryDate ? [{ label: 'DELIVERY DATE', value: new Date(order.deliveryDate).toLocaleDateString('en-PK') }] : []),
       { label: 'STATUS',        value: (order.status || '').replace(/_/g, ' ').toUpperCase().substring(0, 16) },
       { label: 'PREPARED BY',   value: order.createdBy || '—' },
-      { label: 'ORDER SOURCE',  value: getOrderSourcePdfLabel(order).substring(0, 20) },
+      { label: 'ORDER SOURCE',  value: orderSourceLabel.substring(0, 20) },
       ...(pay.showPaymentSection ? [{ label: 'PAYMENT', value: pay.paymentStatusLabel.substring(0, 18) }] : []),
     ]
     const colW = (pageW - mL - mR) / metaItems.length
@@ -144,7 +147,7 @@ export async function POST(request: NextRequest) {
       ...(order.deliveryDate ? [['Delivery date', new Date(order.deliveryDate).toLocaleDateString('en-PK')]] : []),
       ['Status', (order.status || '').replace(/_/g, ' ').toUpperCase()],
       ['Prepared by', order.createdBy || '—'],
-      ['Source', getOrderSourcePdfLabel(order)],
+      ['Source', orderSourceLabel],
       ...(pay.showPaymentSection ? [['Payment', pay.paymentStatusLabel]] : []),
     ]
     const billContentH = Math.max(40, 22 + companyLine * 5 + clientDetailRows.length * 4.3)

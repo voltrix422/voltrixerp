@@ -5,7 +5,7 @@ import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 import { getClients, type Client } from "@/lib/crm"
-import { OrderSourceBadge } from "@/components/crm/order-source-badge"
+import { OrderSourceBadge, OrderSourceLabel } from "@/components/crm/order-source-badge"
 import { CrmItemsQtyCell } from "@/components/crm/crm-items-qty-cell"
 import { CrmOrdersListCards } from "@/components/crm/crm-orders-list-cards"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
@@ -288,7 +288,7 @@ export function ClientOrdersApproval() {
               )}
 
               <div className="text-xs text-[hsl(var(--muted-foreground))] space-y-1">
-                <p>Source: {detailOrder.ownerUserId ? `Sales agent · ${detailOrder.createdBy}` : "CRM"}</p>
+                <p>Source: <OrderSourceLabel order={detailOrder} className="inline" /></p>
                 <p>Created {new Date(detailOrder.createdAt).toLocaleString()} by {detailOrder.createdBy}</p>
               </div>
             </div>
