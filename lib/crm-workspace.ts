@@ -44,8 +44,9 @@ export function matchesOwnerRecord(ownerUserId: string | undefined, scopeUserId?
   return ownerUserId === scopeUserId
 }
 
-export function resolveOwnerUserId(scopeUserId: string | undefined, currentUserId?: string) {
-  return scopeUserId || currentUserId
+/** Only set owner when working inside a sales-agent workspace (never default to current user in main CRM). */
+export function resolveOwnerUserId(scopeUserId: string | undefined, _currentUserId?: string) {
+  return scopeUserId
 }
 
 export function isSalesAgentSubmission(ownerUserId?: string) {
