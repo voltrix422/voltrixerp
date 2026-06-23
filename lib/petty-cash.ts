@@ -217,12 +217,13 @@ export async function updatePettyCashReceiptStatus(
   id: string,
   status: 'pending' | 'approved' | 'rejected',
   reviewedBy: string,
+  reviewedById: string,
   reviewNotes?: string
 ): Promise<PettyCashReceipt> {
   const res = await fetch('/api/db/petty-cash-receipts', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, status, reviewedBy, reviewNotes })
+    body: JSON.stringify({ id, status, reviewedBy, reviewedById, reviewNotes })
   })
   if (!res.ok) throw new Error('Failed to update petty cash receipt')
   return res.json()

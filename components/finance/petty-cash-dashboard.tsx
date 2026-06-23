@@ -113,7 +113,7 @@ export function PettyCashDashboard() {
 
   async function handleReviewReceipt(receipt: PettyCashReceipt, status: "approved" | "rejected") {
     try {
-      await updatePettyCashReceiptStatus(receipt.id, status, currentUser)
+      await updatePettyCashReceiptStatus(receipt.id, status, currentUser, currentUserId)
       const updatedReceipts = receipts.map(r =>
         r.id === receipt.id ? { ...r, status, reviewedBy: currentUser, reviewedAt: new Date().toISOString() } : r
       )

@@ -155,10 +155,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'PUT') {
-      const { id, status, reviewedBy, reviewNotes } = req.body
+      const { id, status, reviewedBy, reviewedById, reviewNotes } = req.body
 
-      if (!id || !status || !reviewedBy) {
+      if (!id || !status || !reviewedBy || !reviewedById) {
         return res.status(400).json({ error: 'Missing required fields' })
+      }
+
+      const reviewer = await prisma.erpUser.findUnique({
+        where: { id: String(reviewedById) },
+        select: { id: true, role: true, name: true },
+      })
+      if (!reviewer || (reviewer.role !== 'superadmin' && reviewer.role !== 'admin')) {
+        return res.status(403).json({ error: 'Only admin can approve or reject receipts' })
       }
 
       if (status === 'approved') {
@@ -199,7 +207,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { id },
         data: {
           status,
-          reviewedBy,
+          reviewedBy: reviewer.name || reviewedBy,
           reviewedAt: new Date(),
           reviewNotes: reviewNotes || null
         }

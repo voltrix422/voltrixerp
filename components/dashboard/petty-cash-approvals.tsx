@@ -26,6 +26,7 @@ export function DashboardPettyCashApprovals() {
   const [busyReceiptId, setBusyReceiptId] = useState<string | null>(null)
 
   const currentUser = user?.name || "Super admin"
+  const currentUserId = user?.id || ""
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -52,7 +53,7 @@ export function DashboardPettyCashApprovals() {
   async function handleReviewReceipt(receipt: PettyCashReceipt, status: "approved" | "rejected") {
     setBusyReceiptId(receipt.id)
     try {
-      await updatePettyCashReceiptStatus(receipt.id, status, currentUser)
+      await updatePettyCashReceiptStatus(receipt.id, status, currentUser, currentUserId)
       await refresh()
       toast({
         type: "success",
