@@ -24,7 +24,7 @@ export function getAllocationRemaining(
   if (isPersonalLedgerAllocation(allocation)) {
     return getLedgerBalance(allocation, receipts)
   }
-  return Math.max(0, allocation.amount - sumCommittedReceipts(receipts, allocation.id))
+  return allocation.amount - sumCommittedReceipts(receipts, allocation.id)
 }
 
 export function canAddReceiptToAllocation(
