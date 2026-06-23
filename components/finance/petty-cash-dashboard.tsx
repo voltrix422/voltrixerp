@@ -307,6 +307,9 @@ export function PettyCashDashboard() {
                   <p className="text-sm font-medium">{allocation.employeeName}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">{allocation.purpose}</p>
                   <p className="text-xs font-semibold mt-1">Requested: PKR {allocation.amount.toLocaleString()}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                    Requested on: {new Date(allocation.allocatedAt).toLocaleString()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => setApprovalAllocation(allocation)}>
