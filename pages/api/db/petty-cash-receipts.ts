@@ -111,22 +111,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Allocation is not active' })
       }
 
-      const personal = isPersonalLedger(allocation)
-
-      const existing = await prisma.erpPettyCashReceipt.findMany({
-        where: {
-          allocationId,
-          status: { in: ['pending', 'approved'] },
-        },
-      })
-      const usedAmount = existing.reduce((sum, item) => sum + item.amount, 0)
-      if (!personal && usedAmount + parsedAmount > allocation.amount) {
-        const remaining = Math.max(allocation.amount - usedAmount, 0)
-        return res.status(400).json({
-          error: `Receipt exceeds remaining balance. Remaining: PKR ${remaining.toLocaleString()}`,
-        })
-      }
-
       const receipt = await prisma.erpPettyCashReceipt.create({
         data: {
           allocationId,
