@@ -460,7 +460,14 @@ export default function SolarCalculator() {
                   </div>
 
                   {result.recommendedInverter ? (
-                    <ProductCard product={result.recommendedInverter} badge="Inverter" />
+                    <ProductCard
+                      product={result.recommendedInverter}
+                      badge={
+                        result.kitIsFusionCombo
+                          ? "Inverter + Battery (all-in-one)"
+                          : "Inverter"
+                      }
+                    />
                   ) : (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                       No matching inverter in catalog for {result.requiredSystemKw} kW — contact
@@ -469,6 +476,7 @@ export default function SolarCalculator() {
                   )}
 
                   {result.backupKwh > 0 &&
+                    !result.kitIsFusionCombo &&
                     (result.recommendedBattery ? (
                       <ProductCard product={result.recommendedBattery} badge="Battery backup" />
                     ) : (
@@ -479,9 +487,19 @@ export default function SolarCalculator() {
 
                   {result.recommendedInverter && (
                     <p className="text-xs text-neutral-500 px-1">
-                      Inverter rating: ~{getProductKw(result.recommendedInverter) || "—"} kW
-                      {result.recommendedBattery &&
-                        ` · Battery: ~${getProductKwh(result.recommendedBattery) || "—"} kWh`}
+                      {result.kitIsFusionCombo ? (
+                        <>
+                          All-in-one: ~{getProductKw(result.recommendedInverter) || "—"} kW inverter
+                          {" · "}
+                          ~{getProductKwh(result.recommendedInverter) || "—"} kWh battery
+                        </>
+                      ) : (
+                        <>
+                          Inverter rating: ~{getProductKw(result.recommendedInverter) || "—"} kW
+                          {result.recommendedBattery &&
+                            ` · Battery: ~${getProductKwh(result.recommendedBattery) || "—"} kWh`}
+                        </>
+                      )}
                     </p>
                   )}
                 </div>

@@ -91,6 +91,14 @@ export function isSolarPanelProduct(p: CatalogProduct): boolean {
   return Boolean(w && /panel|module|pv/.test(text))
 }
 
+export function isFusionComboProduct(p: CatalogProduct): boolean {
+  if (String(p.category || "") === "Voltrix Fusion") return true
+  const text = productText(p).toLowerCase()
+  const hasInv = /inverter/.test(text) && parseKwFromText(text) !== null
+  const hasBat = /battery/.test(text) && parseKwhFromText(text) !== null
+  return hasInv && hasBat
+}
+
 export function isInverterProduct(p: CatalogProduct): boolean {
   const cat = String(p.category || "")
   if (isInverterCategory(cat)) return true
@@ -98,11 +106,25 @@ export function isInverterProduct(p: CatalogProduct): boolean {
   return /inverter|hybrid|on[- ]?grid|off[- ]?grid/.test(text) && parseKwFromText(text) !== null
 }
 
+export function isStandaloneInverterProduct(p: CatalogProduct): boolean {
+  return isInverterProduct(p) && !isFusionComboProduct(p)
+}
+
 export function isBatteryProduct(p: CatalogProduct): boolean {
   const main = getMainCategory(String(p.category || ""))
   if (main === "Energy Storage Battery") return true
   const text = productText(p).toLowerCase()
   return /battery|bess|lifepo|energy\s*storage/.test(text) && parseKwhFromText(text) !== null
+}
+
+export function isStandaloneBatteryProduct(p: CatalogProduct): boolean {
+  return isBatteryProduct(p) && !isFusionComboProduct(p)
+}
+
+export function fusionMeetsBackup(p: CatalogProduct, backupKwh: number): boolean {
+  if (!isFusionComboProduct(p)) return false
+  const kwh = getProductKwh(p)
+  return kwh !== null && kwh >= backupKwh * 0.85
 }
 
 export function getProductKw(p: CatalogProduct): number | null {

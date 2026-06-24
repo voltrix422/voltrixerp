@@ -1,13 +1,16 @@
 import type { CatalogProduct } from "@/lib/solar-product-specs"
 import {
   DEFAULT_SOLAR_PANELS,
+  fusionMeetsBackup,
   getProductKwh,
   getProductKw,
   getProductWattage,
-  isBatteryProduct,
+  isFusionComboProduct,
   isInStock,
-  isInverterProduct,
   isSolarPanelProduct,
+  isStandaloneBatteryProduct,
+  isStandaloneInverterProduct,
+  isInverterProduct,
 } from "@/lib/solar-product-specs"
 
 export type SolarCalculatorInput = {
@@ -39,6 +42,8 @@ export type SolarSizingResult = {
   recommendedPanel: RecommendedPanel
   recommendedInverter: CatalogProduct | null
   recommendedBattery: CatalogProduct | null
+  /** True when inverter pick is an all-in-one Fusion unit (covers battery too). */
+  kitIsFusionCombo: boolean
   backupKwh: number
   estimatedMonthlySavingPkr: number | null
   offsetPercent: number
@@ -93,15 +98,22 @@ function pickInverter(
   catalog: CatalogProduct[],
   requiredKw: number,
   phase: "single" | "three",
+  options?: { preferStandalone?: boolean; excludeIds?: string[] },
 ): CatalogProduct | null {
+  const exclude = new Set(options?.excludeIds || [])
+  const filterFn = options?.preferStandalone ? isStandaloneInverterProduct : isInverterProduct
+
   const candidates = catalog
-    .filter(isInverterProduct)
+    .filter((p) => filterFn(p) && !exclude.has(String(p.id || "")))
     .map((p) => ({ p, kw: getProductKw(p) || 0 }))
     .filter((x) => x.kw >= requiredKw)
     .sort((a, b) => {
       const stockA = isInStock(a.p) ? 0 : 1
       const stockB = isInStock(b.p) ? 0 : 1
       if (stockA !== stockB) return stockA - stockB
+      const fusionA = isFusionComboProduct(a.p) ? 1 : 0
+      const fusionB = isFusionComboProduct(b.p) ? 1 : 0
+      if (options?.preferStandalone && fusionA !== fusionB) return fusionA - fusionB
       return a.kw - b.kw
     })
 
@@ -117,11 +129,38 @@ function pickInverter(
   return pool[0]?.p ?? candidates[0]?.p ?? null
 }
 
-function pickBattery(catalog: CatalogProduct[], backupKwh: number): CatalogProduct | null {
+function pickFusionCombo(
+  catalog: CatalogProduct[],
+  requiredKw: number,
+  backupKwh: number,
+): CatalogProduct | null {
   if (backupKwh <= 0) return null
 
   const candidates = catalog
-    .filter(isBatteryProduct)
+    .filter(isFusionComboProduct)
+    .map((p) => ({ p, kw: getProductKw(p) || 0, kwh: getProductKwh(p) || 0 }))
+    .filter((x) => x.kw >= requiredKw && x.kwh >= backupKwh * 0.85)
+    .sort((a, b) => {
+      const stockA = isInStock(a.p) ? 0 : 1
+      const stockB = isInStock(b.p) ? 0 : 1
+      if (stockA !== stockB) return stockA - stockB
+      return a.kw - b.kw || a.kwh - b.kwh
+    })
+
+  return candidates[0]?.p ?? null
+}
+
+function pickBattery(
+  catalog: CatalogProduct[],
+  backupKwh: number,
+  excludeIds: string[] = [],
+): CatalogProduct | null {
+  if (backupKwh <= 0) return null
+
+  const exclude = new Set(excludeIds)
+
+  const candidates = catalog
+    .filter((p) => isStandaloneBatteryProduct(p) && !exclude.has(String(p.id || "")))
     .map((p) => ({ p, kwh: getProductKwh(p) || 0 }))
     .filter((x) => x.kwh >= backupKwh * 0.85)
     .sort((a, b) => {
@@ -168,8 +207,57 @@ export function calculateSolarSizing(
   }
 
   const inverterKw = Math.max(requiredSystemKw, totalPanelKw * 0.9)
-  const recommendedInverter = pickInverter(catalog, inverterKw, input.phase || "single")
-  const recommendedBattery = pickBattery(catalog, backupKwh)
+  const phase = input.phase || "single"
+
+  let recommendedInverter: CatalogProduct | null = null
+  let recommendedBattery: CatalogProduct | null = null
+  let kitIsFusionCombo = false
+
+  if (backupKwh > 0) {
+    // Prefer separate inverter + battery when both exist in catalog
+    const standaloneInv = pickInverter(catalog, inverterKw, phase, { preferStandalone: true })
+    const standaloneBat = standaloneInv
+      ? pickBattery(catalog, backupKwh, [String(standaloneInv.id || "")])
+      : pickBattery(catalog, backupKwh)
+
+    if (standaloneInv && standaloneBat) {
+      recommendedInverter = standaloneInv
+      recommendedBattery = standaloneBat
+    } else {
+      const fusion = pickFusionCombo(catalog, inverterKw, backupKwh)
+      if (fusion) {
+        recommendedInverter = fusion
+        recommendedBattery = null
+        kitIsFusionCombo = true
+      } else {
+        recommendedInverter =
+          standaloneInv ?? pickInverter(catalog, inverterKw, phase)
+        recommendedBattery =
+          standaloneBat ??
+          (recommendedInverter
+            ? pickBattery(catalog, backupKwh, [String(recommendedInverter.id || "")])
+            : null)
+        if (
+          recommendedInverter &&
+          recommendedBattery &&
+          String(recommendedInverter.id) === String(recommendedBattery.id)
+        ) {
+          recommendedBattery = null
+          kitIsFusionCombo = isFusionComboProduct(recommendedInverter)
+        } else if (
+          recommendedInverter &&
+          isFusionComboProduct(recommendedInverter) &&
+          fusionMeetsBackup(recommendedInverter, backupKwh)
+        ) {
+          recommendedBattery = null
+          kitIsFusionCombo = true
+        }
+      }
+    }
+  } else {
+    recommendedInverter = pickInverter(catalog, inverterKw, phase, { preferStandalone: true })
+      ?? pickInverter(catalog, inverterKw, phase)
+  }
 
   const estimatedBillPkr = input.billAmountPkr ?? Math.round(monthlyUnits * tariff)
   const offsetPercent = 85
@@ -182,6 +270,9 @@ export function calculateSolarSizing(
   ]
   if (backupHours > 0) {
     analysisNotes.push(`Backup target: ${backupHours} hours (~${backupKwh} kWh storage).`)
+  }
+  if (kitIsFusionCombo) {
+    analysisNotes.push("Inverter + battery recommendation is a single Voltrix Fusion all-in-one unit.")
   }
   if (!recommendedPanel.fromCatalog) {
     analysisNotes.push("Panel suggestion uses standard Longi 620W — add panels to website catalog for live SKU matching.")
@@ -196,6 +287,7 @@ export function calculateSolarSizing(
     recommendedPanel,
     recommendedInverter,
     recommendedBattery,
+    kitIsFusionCombo,
     backupKwh,
     estimatedMonthlySavingPkr,
     offsetPercent,
