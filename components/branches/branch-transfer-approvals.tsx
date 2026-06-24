@@ -201,6 +201,22 @@ export function BranchTransferApprovals({
             </div>
           </div>
           <p className="text-[11px] text-[hsl(var(--foreground))]/80">{req.summary}</p>
+          {req.lines.length > 0 && (
+            <ul className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/15 divide-y divide-[hsl(var(--border))]">
+              {req.lines.map((line, idx) => (
+                <li key={`${req.id}-line-${idx}`} className="px-2.5 py-2 text-[11px]">
+                  <p className="font-medium text-[hsl(var(--foreground))] break-words">
+                    {line.quantity} {line.unit} × {line.productDescription}
+                  </p>
+                  {line.userNote && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                      Note: {line.userNote}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </li>
       ))}
     </ul>

@@ -290,6 +290,13 @@ export type BatchTransferLine = {
   userNote?: string
 }
 
+export type BranchTransferRequestLine = {
+  productDescription: string
+  quantity: number
+  unit: string
+  userNote?: string
+}
+
 export type BranchTransferRequest = {
   id: string
   status: "pending" | "approved" | "rejected"
@@ -303,6 +310,7 @@ export type BranchTransferRequest = {
   lineCount: number
   totalQuantity: number
   summary: string
+  lines: BranchTransferRequestLine[]
   requestedBy: string
   requestedAt: string
   reviewedBy: string | null

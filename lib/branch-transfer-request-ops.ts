@@ -8,6 +8,13 @@ import {
   notifyOnBranchTransferReviewed,
 } from "@/lib/notifications-server"
 
+export type BranchTransferRequestLine = {
+  productDescription: string
+  quantity: number
+  unit: string
+  userNote?: string
+}
+
 export type BranchTransferRequestRow = {
   id: string
   status: "pending" | "approved" | "rejected"
@@ -21,6 +28,7 @@ export type BranchTransferRequestRow = {
   lineCount: number
   totalQuantity: number
   summary: string
+  lines: BranchTransferRequestLine[]
   requestedBy: string
   requestedAt: string
   reviewedBy: string | null
@@ -29,7 +37,54 @@ export type BranchTransferRequestRow = {
   transferBatchId: string | null
 }
 
-function mapRow(r: {
+type PayloadLine = BatchTransferRequestBody["lines"][number] & {
+  productName?: string
+  unit?: string
+}
+
+async function resolveRequestLines(payloadJson: string): Promise<BranchTransferRequestLine[]> {
+  let body: BatchTransferRequestBody
+  try {
+    body = JSON.parse(payloadJson) as BatchTransferRequestBody
+  } catch {
+    return []
+  }
+  if (!Array.isArray(body.lines) || body.lines.length === 0) return []
+
+  const branchInvIds = body.lines
+    .map((line) => ("fromBranchInventoryId" in line ? line.fromBranchInventoryId : undefined))
+    .filter((id): id is string => Boolean(id?.trim()))
+
+  const branchRows =
+    branchInvIds.length > 0
+      ? await prisma.erpBranchInventory.findMany({
+          where: { id: { in: branchInvIds } },
+          select: { id: true, productDescription: true, unit: true },
+        })
+      : []
+  const branchById = new Map(branchRows.map((row) => [row.id, row]))
+
+  return body.lines.map((raw) => {
+    const line = raw as PayloadLine
+    const branchInv =
+      "fromBranchInventoryId" in line && line.fromBranchInventoryId
+        ? branchById.get(line.fromBranchInventoryId)
+        : undefined
+    const productDescription =
+      line.productName?.trim() ||
+      ("model" in line && line.model?.trim()) ||
+      branchInv?.productDescription?.trim() ||
+      "Unknown item"
+    return {
+      productDescription,
+      quantity: line.quantity,
+      unit: line.unit?.trim() || branchInv?.unit || "pcs",
+      userNote: line.userNote?.trim() || undefined,
+    }
+  })
+}
+
+async function mapRow(r: {
   id: string
   status: string
   mode: string
@@ -42,13 +97,14 @@ function mapRow(r: {
   lineCount: number
   totalQuantity: number
   summary: string
+  payloadJson: string
   requestedBy: string
   requestedAt: Date
   reviewedBy: string | null
   reviewedAt: Date | null
   reviewNote: string
   transferBatchId: string | null
-}): BranchTransferRequestRow {
+}): Promise<BranchTransferRequestRow> {
   return {
     id: r.id,
     status: r.status as BranchTransferRequestRow["status"],
@@ -62,6 +118,7 @@ function mapRow(r: {
     lineCount: r.lineCount,
     totalQuantity: r.totalQuantity,
     summary: r.summary,
+    lines: await resolveRequestLines(r.payloadJson),
     requestedBy: r.requestedBy,
     requestedAt: r.requestedAt.toISOString(),
     reviewedBy: r.reviewedBy,
@@ -115,7 +172,7 @@ export async function createPendingBranchTransferRequest(
   })
 
   void notifyOnBranchTransferRequest(row.id, buildSummary(body), requestedBy)
-  return mapRow(row)
+  return await mapRow(row)
 }
 
 export async function listBranchTransferRequests(options?: {
@@ -138,7 +195,7 @@ export async function listBranchTransferRequests(options?: {
     take: 100,
   })
 
-  return rows.map(mapRow)
+  return Promise.all(rows.map(mapRow))
 }
 
 export async function approveBranchTransferRequest(id: string, reviewedBy: string) {
@@ -163,7 +220,7 @@ export async function approveBranchTransferRequest(id: string, reviewedBy: strin
   })
 
   void notifyOnBranchTransferReviewed(request.summary, true, request.requestedBy)
-  return { request: mapRow(updated), result }
+  return { request: await mapRow(updated), result }
 }
 
 export async function rejectBranchTransferRequest(
@@ -186,5 +243,5 @@ export async function rejectBranchTransferRequest(
   })
 
   void notifyOnBranchTransferReviewed(request.summary, false, request.requestedBy)
-  return mapRow(updated)
+  return await mapRow(updated)
 }
