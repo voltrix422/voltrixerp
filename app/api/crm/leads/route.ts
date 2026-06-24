@@ -110,7 +110,8 @@ export async function PATCH(req: NextRequest) {
     let lastContactedAt: string | undefined
     if (statusChanging) {
       const contactedBy =
-        String(body.updatedBy ?? body.contactedBy ?? "Unknown").trim() || "Unknown"
+        String(body.updatedBy ?? body.contactedBy ?? "").trim() ||
+        "Unattributed"
       const contactedById =
         body.updatedById != null && body.updatedById !== ""
           ? String(body.updatedById)

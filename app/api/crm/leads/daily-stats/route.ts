@@ -29,15 +29,38 @@ export async function GET(req: NextRequest) {
       select: { contactedBy: true, contactedById: true },
     })
 
+    const userIds = [
+      ...new Set(
+        rows.map((r) => r.contactedById).filter((id): id is string => Boolean(id?.trim())),
+      ),
+    ]
+    const users =
+      userIds.length > 0
+        ? await prisma.erpUser.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, name: true },
+          })
+        : []
+    const nameByUserId = new Map(users.map((u) => [u.id, u.name]))
+
     const agg = new Map<string, { name: string; userId: string | null; count: number }>()
     for (const r of rows) {
-      const key = r.contactedById || `name:${r.contactedBy}`
+      const resolvedName =
+        (r.contactedById ? nameByUserId.get(r.contactedById) : null) ||
+        (r.contactedBy.trim() && r.contactedBy.trim().toLowerCase() !== "unknown"
+          ? r.contactedBy.trim()
+          : null) ||
+        "Unattributed"
+      const key = r.contactedById || `name:${resolvedName.toLowerCase()}`
       const prev = agg.get(key) || {
-        name: r.contactedBy,
+        name: resolvedName,
         userId: r.contactedById,
         count: 0,
       }
       prev.count += 1
+      if (r.contactedById && nameByUserId.get(r.contactedById)) {
+        prev.name = nameByUserId.get(r.contactedById)!
+      }
       agg.set(key, prev)
     }
 

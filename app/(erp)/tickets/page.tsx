@@ -56,7 +56,7 @@ export default function TicketsPage() {
           {tab === "tickets" && <TicketsManager />}
           {tab === "leads" && (
             <LeadsManager
-              currentUser={user.name || "Unknown"}
+              currentUser={user.name || user.email || "Staff"}
               currentUserId={user.id}
               userRole={user.role}
             />

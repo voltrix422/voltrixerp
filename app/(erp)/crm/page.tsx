@@ -99,7 +99,7 @@ export default function CRMPage() {
           )}
           {tab === "leads" && (
             <LeadsManager
-              currentUser={user?.name || "Unknown"}
+              currentUser={user?.name || user?.email || "Staff"}
               currentUserId={user?.id}
               userRole={user?.role}
               readOnly={!!workspace?.readOnly}
