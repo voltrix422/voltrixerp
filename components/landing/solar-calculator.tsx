@@ -116,6 +116,7 @@ export default function SolarCalculator() {
     if (parsed.monthlyUnits) setMonthlyUnits(String(Math.round(parsed.monthlyUnits)))
     if (parsed.billAmountPkr) setBillAmount(String(Math.round(parsed.billAmountPkr)))
     if (parsed.tariffPerUnit) setTariff(String(parsed.tariffPerUnit))
+    if (parsed.city && CITIES.includes(parsed.city)) setCity(parsed.city)
   }, [])
 
   const handleBillUpload = async (file: File) => {
