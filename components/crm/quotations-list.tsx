@@ -148,7 +148,7 @@ export function QuotationsList({
   }
 
   return (
-    <div className="space-y-4 max-w-full overflow-x-hidden">
+    <div className="space-y-4 max-w-full">
       {isSalesAgent && (
         <SalesDateRangePanel
           dateFrom={dateFrom}
@@ -259,45 +259,99 @@ export function QuotationsList({
             ))}
           </div>
 
-          <div className="hidden md:block rounded-lg border overflow-hidden"><table className="w-full"><thead><tr className="border-b bg-[hsl(var(--muted))]/40">
-        <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Quotation #</th>
-        <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
-        <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Qty</th>
-        <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
-        <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-        <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Valid Until</th>
-        <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-        <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Actions</th>
-      </tr></thead><tbody className="divide-y">
-        {filtered.map(q=>(
-          <tr key={q.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer" onClick={()=>setSelected(q)}>
-            <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">
-              <div className="flex flex-col items-start gap-1">
-                {q.ownerUserId && <SalesAgentSourceBadge agentName={q.createdBy} kind="quotation" />}
-                <span>{q.quotationNumber}</span>
-              </div>
-            </td>
-            <td className="px-4 py-2.5 text-xs font-medium">{q.clientName}</td>
-            <td className="px-4 py-2.5 text-xs text-center"><CrmItemsQtyCell items={q.items} /></td>
-            <td className="px-4 py-2.5 text-xs text-right font-semibold">PKR {(q.total||0).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-            <td className="px-4 py-2.5"><span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[q.status]}`}>{STATUS_LABELS[q.status]}</span></td>
-            <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{q.validUntil?new Date(q.validUntil).toLocaleDateString():"—"}</td>
-            <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{q.createdAt?new Date(q.createdAt).toLocaleDateString():"—"}</td>
-            <td className="px-4 py-2.5 text-center" onClick={e=>e.stopPropagation()}>
-              <div className="flex items-center justify-center gap-2">
-                {!workspace?.readOnly && (
-                  <>
-                  <button onClick={()=>setEditingQuotation(q)} className="text-blue-500 hover:text-blue-700 cursor-pointer" title="Edit"><Edit className="h-3.5 w-3.5"/></button>
-                  <button onClick={()=>startDuplicate(q)} className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer" title="Duplicate"><Copy className="h-3.5 w-3.5"/></button>
-                  <button onClick={()=>setDeleteConfirm(q)} className="text-red-500 hover:text-red-700 cursor-pointer" title="Delete"><Trash2 className="h-3.5 w-3.5"/></button>
-                  </>
-                )}
-                <button onClick={()=>downloadQuotationPDF(q)} className="text-[#1a9f9a] hover:text-[#158a85] cursor-pointer" title="Download PDF"><FileText className="h-3.5 w-3.5"/></button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </tbody></table></div>
+          <div className="hidden md:block rounded-lg border overflow-x-auto">
+            <table className="w-full min-w-[960px]">
+              <thead>
+                <tr className="border-b bg-[hsl(var(--muted))]/40">
+                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Quotation #</th>
+                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
+                  <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] min-w-[7rem]">Qty</th>
+                  <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] whitespace-nowrap">Total</th>
+                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
+                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] whitespace-nowrap">Valid Until</th>
+                  <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] whitespace-nowrap">Date</th>
+                  <th className="sticky right-0 z-10 h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/95 backdrop-blur-sm border-l border-[hsl(var(--border))] min-w-[7.5rem] shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.25)]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filtered.map((q) => (
+                  <tr
+                    key={q.id}
+                    className="group hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                    onClick={() => setSelected(q)}
+                  >
+                    <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))]">
+                      <div className="flex flex-col items-start gap-1">
+                        {q.ownerUserId && <SalesAgentSourceBadge agentName={q.createdBy} kind="quotation" />}
+                        <span>{q.quotationNumber}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs font-medium max-w-[12rem] truncate" title={q.clientName}>
+                      {q.clientName}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-center">
+                      <CrmItemsQtyCell items={q.items} compact />
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-right font-semibold whitespace-nowrap">
+                      PKR {(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[q.status]}`}>
+                        {STATUS_LABELS[q.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                      {q.validUntil ? new Date(q.validUntil).toLocaleDateString() : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                      {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : "—"}
+                    </td>
+                    <td
+                      className="sticky right-0 z-10 px-3 py-2.5 text-center bg-[hsl(var(--card))] group-hover:bg-[hsl(var(--muted))]/30 border-l border-[hsl(var(--border))] shadow-[-6px_0_10px_-8px_rgba(0,0,0,0.12)]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        {!workspace?.readOnly && (
+                          <>
+                            <button
+                              onClick={() => setEditingQuotation(q)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-blue-500 hover:text-blue-700 hover:bg-blue-500/10 cursor-pointer"
+                              title="Edit"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => startDuplicate(q)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--muted))]/50 cursor-pointer"
+                              title="Duplicate"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm(q)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-500 hover:text-red-700 hover:bg-red-500/10 cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => downloadQuotationPDF(q)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#1a9f9a] hover:text-[#158a85] hover:bg-[#1faca6]/10 cursor-pointer"
+                          title="Download PDF"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
       {showForm&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}

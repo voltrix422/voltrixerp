@@ -8,7 +8,13 @@ import {
   type CrmQtyLineItem,
 } from "@/lib/crm-line-items-summary"
 
-export function CrmItemsQtyCell({ items }: { items?: CrmQtyLineItem[] | null }) {
+export function CrmItemsQtyCell({
+  items,
+  compact = false,
+}: {
+  items?: CrmQtyLineItem[] | null
+  compact?: boolean
+}) {
   const lineLabels = getCrmLineQtyLabels(items)
   const totalLabel = getCrmItemsTotalQtyLabel(items)
   const lineCount = getCrmItemsLineCount(items)
@@ -23,9 +29,14 @@ export function CrmItemsQtyCell({ items }: { items?: CrmQtyLineItem[] | null }) 
       title={lineCount > 1 ? lineLabels.join(" + ") : undefined}
     >
       <span className="text-xs font-semibold whitespace-nowrap">{totalLabel}</span>
-      {lineCount > 1 && (
-        <span className="text-[10px] text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+      {!compact && lineCount > 1 && (
+        <span className="text-[10px] text-[hsl(var(--muted-foreground))] whitespace-nowrap max-w-[10rem] truncate">
           {lineLabels.join(" + ")}
+        </span>
+      )}
+      {compact && lineCount > 1 && (
+        <span className="text-[10px] text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+          {lineCount} lines
         </span>
       )}
     </span>
