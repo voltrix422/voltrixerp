@@ -11,6 +11,7 @@
     "deploy:vps": "bash scripts/vps-deploy.sh",
     "backup:weekly": "bash scripts/weekly-backup.sh",
     "sync-lead-phones": "node scripts/sync-all-lead-phones.mjs",
+    "backfill-lead-outreach": "node scripts/backfill-lead-status-outreach.mjs",
     "check-product-images": "node scripts/check-product-images.mjs",
     "restore-products": "node scripts/restore-products-backup.mjs --best",
     "list-product-backups": "node scripts/restore-products-backup.mjs --list"

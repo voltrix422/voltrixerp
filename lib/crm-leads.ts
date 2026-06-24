@@ -192,13 +192,23 @@ export async function importLeadsJson(body: {
   return res.json()
 }
 
-export async function patchLeadStatus(id: string, status: string): Promise<void> {
+export async function patchLeadStatus(
+  id: string,
+  status: string,
+  actor?: { updatedBy: string; updatedById?: string | null },
+): Promise<{ contactCount?: number; lastContactedAt?: string }> {
   const res = await fetch("/api/crm/leads", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status }),
+    body: JSON.stringify({
+      id,
+      status,
+      updatedBy: actor?.updatedBy,
+      updatedById: actor?.updatedById ?? null,
+    }),
   })
   if (!res.ok) throw new Error("Update failed")
+  return res.json()
 }
 
 export async function patchLeadAssignment(

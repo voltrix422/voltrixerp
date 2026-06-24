@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { mapLeadRow } from "@/lib/crm-lead-status"
+import { leadStatusLabel, mapLeadRow } from "@/lib/crm-lead-status"
 
 export async function GET(req: NextRequest) {
   try {
@@ -93,10 +93,43 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
     }
 
+    const existing = await prisma.crmLead.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 })
+    }
+
+    const statusChanging =
+      data.status != null && data.status !== existing.status
+
     const lead = await prisma.crmLead.update({
       where: { id },
       data,
     })
+
+    let contactCount: number | undefined
+    let lastContactedAt: string | undefined
+    if (statusChanging) {
+      const contactedBy =
+        String(body.updatedBy ?? body.contactedBy ?? "Unknown").trim() || "Unknown"
+      const contactedById =
+        body.updatedById != null && body.updatedById !== ""
+          ? String(body.updatedById)
+          : body.contactedById != null && body.contactedById !== ""
+            ? String(body.contactedById)
+            : null
+
+      const contact = await prisma.crmLeadContact.create({
+        data: {
+          leadId: id,
+          contactedBy,
+          contactedById,
+          notes: `Status set to ${leadStatusLabel(data.status!)}`,
+        },
+      })
+      contactCount = await prisma.crmLeadContact.count({ where: { leadId: id } })
+      lastContactedAt = contact.contactedAt.toISOString()
+    }
+
     return NextResponse.json({
       id: lead.id,
       status: lead.status,
@@ -104,6 +137,7 @@ export async function PATCH(req: NextRequest) {
       followUpNotes: lead.followUpNotes,
       assignedToUserId: lead.assignedToUserId,
       assignedToName: lead.assignedToName,
+      ...(contactCount !== undefined && { contactCount, lastContactedAt }),
     })
   } catch (e) {
     console.error(e)

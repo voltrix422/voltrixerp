@@ -1551,10 +1551,20 @@ export function LeadsManager({
   }
 
   async function onStatusChange(lead: CrmLeadRow, status: string) {
+    if (status === lead.status || (status === "not_closed" && lead.status === "on_hold")) return
     try {
-      await patchLeadStatus(lead.id, status)
-      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status } : l)))
-      if (detail?.id === lead.id) setDetail((d) => (d ? { ...d, status } : d))
+      const updated = await patchLeadStatus(lead.id, status, {
+        updatedBy: currentUser,
+        updatedById: currentUserId ?? null,
+      })
+      const patch = {
+        status,
+        ...(updated.contactCount != null && { contactCount: updated.contactCount }),
+        ...(updated.lastContactedAt != null && { lastContactedAt: updated.lastContactedAt }),
+      }
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...patch } : l)))
+      if (detail?.id === lead.id) setDetail((d) => (d ? { ...d, ...patch } : d))
+      void refreshStats()
     } catch {
       toast({ type: "error", title: "Could not update status" })
     }
