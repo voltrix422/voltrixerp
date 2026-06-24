@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation"
 
 const links = [
   { label: "Products",            hash: "products"  },
+  { label: "Solar Calculator",    href: "/solar-calculator" },
   { label: "Services",            hash: "services"  },
   { label: "Vision & Mission",    hash: "vision"    },
   { label: "R&D & Manufacturing", hash: "rd"        },
@@ -20,8 +21,8 @@ const links = [
   { label: "Warranty",            href: "/warranty" },
 ]
 
-const primaryLinks = links.slice(0, 6)
-const locationLinks = links.slice(6)
+const primaryLinks = links.slice(0, 7)
+const locationLinks = links.slice(7)
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
