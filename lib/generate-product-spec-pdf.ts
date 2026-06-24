@@ -72,7 +72,7 @@ async function drawHeader(doc: jsPDF, productName: string) {
   doc.setFontSize(7.5)
   doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", margin + 28, 19)
   doc.text("Phone: 051-8731661  |  Mobile: +92 303 4927779", margin + 28, 24)
-  doc.text("Email: info@voltrixbatteries.com  |  www.voltrixbatteries.com", margin + 28, 29)
+  doc.text("Email: sale@voltrixbatteries.com  |  www.voltrixbatteries.com", margin + 28, 29)
 
   doc.setFont("helvetica", "bold")
   doc.setFontSize(16)

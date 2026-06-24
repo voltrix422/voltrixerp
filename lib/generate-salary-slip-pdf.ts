@@ -59,7 +59,7 @@ export async function downloadSalarySlipPdf(
   doc.text("Head Office", 55, 24)
   doc.text("Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", 55, 29)
   doc.text("Phone: 051-8731661 | Mobile: +92 303 4927779", 55, 34)
-  doc.text("Email: info@voltrixbatteries.com", 55, 39)
+  doc.text("Email: sale@voltrixbatteries.com", 55, 39)
 
   doc.setFontSize(22)
   doc.setFont("helvetica", "bold")

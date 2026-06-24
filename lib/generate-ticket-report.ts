@@ -64,7 +64,7 @@ export async function generateTicketReportPDF(ticket: TicketInput, workflow: Wor
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", margin + 22, 18)
-  doc.text("Phone: 051-8731661 | Email: info@voltrixbatteries.com", margin + 22, 22.5)
+  doc.text("Phone: 051-8731661 | Email: sale@voltrixbatteries.com", margin + 22, 22.5)
   doc.text("www.voltrixbatteries.com", margin + 22, 27)
 
   y = 40

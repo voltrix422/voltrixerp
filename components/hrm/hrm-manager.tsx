@@ -284,7 +284,7 @@ export function HrmManager() {
       doc.text('Head Office', 55, 24)
       doc.text('Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 55, 29)
       doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779', 55, 34)
-      doc.text('Email: info@voltrixbatteries.com', 55, 39)
+      doc.text('Email: sale@voltrixbatteries.com', 55, 39)
       
       // SALARY SLIP title (Right side)
       doc.setFontSize(22)
@@ -468,7 +468,7 @@ export function HrmManager() {
       doc.setTextColor(100, 100, 100)
       doc.text('Voltrix Batteries - Human Resources Management System', 105, 276, { align: 'center' })
       doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 105, 281, { align: 'center' })
-      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779 | Email: info@voltrixbatteries.com', 105, 286, { align: 'center' })
+      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779 | Email: sale@voltrixbatteries.com', 105, 286, { align: 'center' })
       
       // Save and download
       const pdfBlob = doc.output('blob')
@@ -2420,7 +2420,7 @@ export function HrmManager() {
                       doc.text('Head Office', 55, 24)
                       doc.text('Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 55, 29)
                       doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779', 55, 34)
-                      doc.text('Email: info@voltrixbatteries.com', 55, 39)
+                      doc.text('Email: sale@voltrixbatteries.com', 55, 39)
                       
                       // SALARY SLIP title (Right side)
                       doc.setFontSize(22)
@@ -2606,7 +2606,7 @@ export function HrmManager() {
                       doc.setTextColor(100, 100, 100)
                       doc.text('Voltrix Batteries - Human Resources Management System', 105, 276, { align: 'center' })
                       doc.text('Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad', 105, 281, { align: 'center' })
-                      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779 | Email: info@voltrixbatteries.com', 105, 286, { align: 'center' })
+                      doc.text('Phone: 051-8731661 | Mobile: +92 303 4927779 | Email: sale@voltrixbatteries.com', 105, 286, { align: 'center' })
                       
                       // Save and download
                       const pdfBlob = doc.output('blob')

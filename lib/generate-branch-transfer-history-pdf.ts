@@ -217,7 +217,7 @@ function drawDocumentHeader(
   doc.setFontSize(7.5)
   doc.text("Head Office: Plot # 73, Street 14, Industrial Area I-9/2, Islamabad", margin + logoOffset, 19)
   doc.text("Phone: 051-8731661  |  Mobile: +92 303 4927779", margin + logoOffset, 24)
-  doc.text("Email: info@voltrixbatteries.com  |  www.voltrixbatteries.com", margin + logoOffset, 29)
+  doc.text("Email: sale@voltrixbatteries.com  |  www.voltrixbatteries.com", margin + logoOffset, 29)
 
   doc.setFont("helvetica", "bold")
   doc.setFontSize(16)
