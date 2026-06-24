@@ -32,6 +32,32 @@ export function useAuthWithRole() {
   }
 }
 
+const PUBLIC_PATH_PREFIXES = [
+  "/quote",
+  "/products",
+  "/services",
+  "/vision",
+  "/rd",
+  "/about",
+  "/contact",
+  "/outlets",
+  "/dealerships",
+  "/technology",
+  "/warranty",
+  "/blog",
+  "/careers",
+  "/privacy",
+  "/terms",
+  "/cookies",
+  "/documentation",
+  "/solar-calculator",
+]
+
+function isPublicPath(pathname: string): boolean {
+  if (pathname === "/login" || pathname === "/pos/login" || pathname === "/") return true
+  return PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [checked, setChecked] = useState(false)
@@ -55,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!checked) return
-    if (!user && pathname && pathname !== "/login" && pathname !== "/pos/login" && pathname !== "/" && !pathname.startsWith("/quote") && !pathname.startsWith("/products") && !pathname.startsWith("/services") && !pathname.startsWith("/vision") && !pathname.startsWith("/rd") && !pathname.startsWith("/about") && !pathname.startsWith("/contact") && !pathname.startsWith("/outlets") && !pathname.startsWith("/dealerships") && !pathname.startsWith("/technology") && !pathname.startsWith("/warranty") && !pathname.startsWith("/blog") && !pathname.startsWith("/careers") && !pathname.startsWith("/privacy") && !pathname.startsWith("/terms") && !pathname.startsWith("/cookies") && !pathname.startsWith("/documentation")) {
+    if (!user && pathname && !isPublicPath(pathname)) {
       // Store the intended destination before redirecting to login
       if (typeof window !== "undefined") {
         sessionStorage.setItem("redirectAfterLogin", pathname)
