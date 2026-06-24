@@ -64,10 +64,17 @@ export async function GET(req: NextRequest) {
       agg.set(key, prev)
     }
 
-    const byMember = [...agg.values()].sort((a, b) => b.count - a.count)
+    const byMember = [...agg.values()]
+      .filter((m) => {
+        const n = m.name.trim().toLowerCase()
+        return n !== "unattributed" && n !== "unknown" && n !== "staff"
+      })
+      .sort((a, b) => b.count - a.count)
+
+    const attributedTotal = byMember.reduce((sum, m) => sum + m.count, 0)
     return NextResponse.json({
       date,
-      total: rows.length,
+      total: attributedTotal,
       byMember,
     })
   } catch (e) {

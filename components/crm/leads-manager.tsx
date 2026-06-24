@@ -1633,7 +1633,7 @@ export function LeadsManager({
               <p className="text-xl font-bold tabular-nums text-[hsl(var(--foreground))]">{myTodayCount}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Team total</p>
+              <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Team total (named)</p>
               <p className="text-xl font-bold tabular-nums text-[hsl(var(--foreground))]">{stats.total}</p>
             </div>
           </div>
