@@ -5,7 +5,6 @@ import { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
-import { OutletBar } from "@/components/landing/outlet-bar"
 import { usePathname } from "next/navigation"
 
 const links = [
@@ -16,7 +15,6 @@ const links = [
   { label: "R&D & Manufacturing", hash: "rd"        },
   { label: "About Us",            hash: "about"     },
   { label: "Contact",             hash: "contact"   },
-  { label: "Outlets",             href: "/outlets"  },
   { label: "Dealerships",         href: "/dealerships" },
   { label: "Warranty",            href: "/warranty" },
 ]
@@ -154,7 +152,6 @@ export default function Navbar() {
         </div>
       )}
 
-      <OutletBar />
     </div>
   )
 }
