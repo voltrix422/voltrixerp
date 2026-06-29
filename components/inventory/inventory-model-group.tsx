@@ -283,6 +283,11 @@ export function InventoryModelGroup({
               </span>
               <span className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums text-right">
                 {inStock}/{count}
+                {isManualStock && count > inStock && (
+                  <span className="block text-[10px] font-normal text-amber-700 dark:text-amber-400">
+                    {count - inStock} out
+                  </span>
+                )}
               </span>
               <span className="text-sm font-semibold text-[#1faca6] tabular-nums text-right">
                 {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}

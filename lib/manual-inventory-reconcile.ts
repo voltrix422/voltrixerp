@@ -1,4 +1,10 @@
 import { prisma } from "@/lib/db"
+import {
+  collectManualProductMatchTerms,
+  findManualInventoryByAnyModelOrAlias,
+  findBranchInventoryForManualProduct,
+  textMatchesAnyProductTerm,
+} from "@/lib/inventory-model-aliases"
 
 export type ManualInventoryMovement = {
   id: string
@@ -47,25 +53,6 @@ export type ManualInventoryAudit = {
   }>
 }
 
-function matchesItem(
-  text: string | null | undefined,
-  manual: { name: string; model: string },
-) {
-  const value = (text || "").trim().toLowerCase()
-  if (!value) return false
-  const name = manual.name.trim().toLowerCase()
-  const model = manual.model.trim().toLowerCase()
-  if (value === name || value === model) return true
-  if (value.includes(model)) return true
-
-  const skuMatch = manual.name.match(/\((HS-[^)]+)\)/i)
-  if (skuMatch) {
-    return value.includes(skuMatch[1].toLowerCase())
-  }
-
-  return value.includes(name)
-}
-
 function outboundQuantity(row: {
   transactionType: string
   quantity: number
@@ -81,34 +68,21 @@ function outboundQuantity(row: {
 }
 
 export async function findManualInventoryByModel(model: string) {
-  const trimmed = model.trim()
-  if (!trimmed) return null
-
-  const byModel = await prisma.erpManualInventoryItem.findUnique({
-    where: { model: trimmed },
-  })
-  if (byModel) return byModel
-
-  return prisma.erpManualInventoryItem.findFirst({
-    where: {
-      OR: [
-        { name: { contains: trimmed, mode: "insensitive" } },
-        { model: { contains: trimmed, mode: "insensitive" } },
-      ],
-    },
-  })
+  return findManualInventoryByAnyModelOrAlias(model)
 }
 
 export async function auditManualInventoryStock(model: string): Promise<ManualInventoryAudit | null> {
   const manual = await findManualInventoryByModel(model)
   if (!manual) return null
 
+  const matchTerms = await collectManualProductMatchTerms(manual)
+
   const history = await prisma.erpInventoryHistory.findMany({
     orderBy: { createdAt: "asc" },
   })
 
   const movements: ManualInventoryMovement[] = history
-    .filter((row) => matchesItem(row.itemDescription, manual))
+    .filter((row) => textMatchesAnyProductTerm(row.itemDescription || "", matchTerms))
     .map((row) => ({
       id: row.id,
       date: row.createdAt.toISOString(),
@@ -152,7 +126,11 @@ export async function auditManualInventoryStock(model: string): Promise<ManualIn
         : []
     for (const item of items) {
       const description = String(item.description || item.model || "")
-      if (!matchesItem(description, manual) && !matchesItem(String(item.model || ""), manual)) {
+      const model = String(item.model || "")
+      if (
+        !textMatchesAnyProductTerm(description, matchTerms) &&
+        !textMatchesAnyProductTerm(model, matchTerms)
+      ) {
         continue
       }
       orderLines.push({
@@ -167,22 +145,13 @@ export async function auditManualInventoryStock(model: string): Promise<ManualIn
     }
   }
 
-  const branchAssignments = await prisma.erpBranchInventory.findMany({
-    where: {
-      OR: [
-        { productDescription: { equals: manual.model, mode: "insensitive" } },
-        { productDescription: { equals: manual.name, mode: "insensitive" } },
-        { productDescription: { contains: manual.name, mode: "insensitive" } },
-        { productDescription: { startsWith: `${manual.model}-`, mode: "insensitive" } },
-      ],
-    },
-    select: {
-      quantity: true,
-      productDescription: true,
-      branchId: true,
-      notes: true,
-    },
-  })
+  const branchRows = await findBranchInventoryForManualProduct(manual)
+  const branchAssignments = branchRows.map((row) => ({
+    quantity: row.quantity,
+    productDescription: row.productDescription,
+    branchId: row.branchId,
+    notes: row.notes || "",
+  }))
 
   const deliveredOrderQty = orderLines
     .filter((line) => line.status === "delivered" && line.inventoryDeductedAt)

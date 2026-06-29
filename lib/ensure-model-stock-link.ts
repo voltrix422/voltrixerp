@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { findManualInventoryByAnyModelOrAlias } from "@/lib/inventory-model-aliases"
 
 /** Find PO stock row that matches a scanned model code. */
 export async function findStockByModel(model: string) {
@@ -48,6 +49,28 @@ export async function ensureInventoryStockForModel(
 ) {
   const trimmed = model.trim() || "Unknown model"
   const inStockCount = await countInStockSerialsForModel(trimmed)
+
+  const manualItem = await findManualInventoryByAnyModelOrAlias(trimmed)
+  if (manualItem?.inventoryStockId) {
+    const linked = await prisma.erpInventoryStock.findUnique({
+      where: { id: manualItem.inventoryStockId },
+    })
+    if (linked) {
+      const available =
+        inStockCount > 0 ? inStockCount : Number(manualItem.availableQty) || 0
+      const stock = await prisma.erpInventoryStock.update({
+        where: { id: linked.id },
+        data: {
+          availableQty: available,
+          receivedQty: Math.max(linked.receivedQty, manualItem.qty ?? 0, inStockCount),
+          name: productName?.trim() || linked.name || manualItem.name || trimmed,
+          description: manualItem.model,
+          unit: unit || linked.unit,
+        },
+      })
+      return { stock, inStockCount: available }
+    }
+  }
 
   let stock = await findStockByModel(trimmed)
 

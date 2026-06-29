@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db"
 import { normalizeProductText } from "@/lib/order-product-search"
+import {
+  collectManualProductMatchTerms,
+  textMatchesAnyProductTerm,
+} from "@/lib/inventory-model-aliases"
 
 export type BranchProductSearchResult = {
   branchId: string
@@ -60,6 +64,23 @@ export async function searchProductAcrossBranches(
   const manualByModel = new Map(
     manualItems.map((m) => [m.model.trim().toLowerCase(), m]),
   )
+  const manualMatchTerms = new Map<string, string[]>()
+  for (const manual of manualItems) {
+    manualMatchTerms.set(
+      manual.model.trim().toLowerCase(),
+      await collectManualProductMatchTerms(manual),
+    )
+  }
+
+  function manualForRow(values: Array<string | null | undefined>) {
+    for (const manual of manualItems) {
+      const terms = manualMatchTerms.get(manual.model.trim().toLowerCase()) || []
+      if (values.some((value) => value && textMatchesAnyProductTerm(String(value), terms))) {
+        return manual
+      }
+    }
+    return null
+  }
 
   const serialInStockByModel = new Map<string, number>()
   for (const row of serialCounts) {
@@ -84,8 +105,15 @@ export async function searchProductAcrossBranches(
 
     const stock = stockById.get(row.inventoryId)
     const model = (stock?.description || row.productDescription || "").trim()
-    const manual = manualByModel.get(model.toLowerCase())
-    const labelName = labelByModel.get(model.toLowerCase())
+    const manual = manualForRow([
+      row.productDescription,
+      model,
+      stock?.name,
+      stock?.description,
+    ])
+    const labelName = manual
+      ? labelByModel.get(manual.model.toLowerCase())
+      : labelByModel.get(model.toLowerCase())
     const itemName =
       manual?.name ||
       labelName ||
@@ -103,6 +131,7 @@ export async function searchProductAcrossBranches(
         manual?.name,
         manual?.model,
         labelName,
+        ...(manual ? manualMatchTerms.get(manual.model.toLowerCase()) || [] : []),
       ])
     ) {
       continue
@@ -114,7 +143,7 @@ export async function searchProductAcrossBranches(
       branchCode: branch.code,
       branchType: branch.type,
       itemName,
-      model: model || row.productDescription,
+      model: manual?.model || model || row.productDescription,
       quantity: row.quantity,
       unit: row.unit || stock?.unit || "pcs",
       assignedAt: row.assignedAt?.toISOString() ?? null,
@@ -129,7 +158,16 @@ export async function searchProductAcrossBranches(
       const model = manual.model.trim()
       const labelName = labelByModel.get(model.toLowerCase())
       const itemName = manual.name.trim() || labelName || model
-      if (!matchesAnyTerm(terms, [itemName, model, manual.name, labelName])) continue
+      const aliasTerms = manualMatchTerms.get(model.toLowerCase()) || []
+      if (!matchesAnyTerm(terms, [itemName, model, manual.name, labelName, ...aliasTerms])) continue
+
+      const already = results.some(
+        (r) =>
+          r.branchId === mainBranch.id &&
+          (r.model.toLowerCase() === model.toLowerCase() ||
+            textMatchesAnyProductTerm(r.model, aliasTerms)),
+      )
+      if (already) continue
 
       pushResult({
         branchId: mainBranch.id,
@@ -151,17 +189,23 @@ export async function searchProductAcrossBranches(
       const qty = serialQty > 0 ? serialQty : Math.max(0, stock.availableQty ?? 0)
       if (qty <= 0) continue
 
-      const manual = manualByModel.get(model.toLowerCase())
-      const labelName = labelByModel.get(model.toLowerCase())
+      const manual = manualForRow([model, stock.name, stock.description])
+      const labelName = manual
+        ? labelByModel.get(manual.model.toLowerCase())
+        : labelByModel.get(model.toLowerCase())
       const itemName =
         manual?.name || labelName || stock.name || model
+      const aliasTerms = manual
+        ? manualMatchTerms.get(manual.model.toLowerCase()) || []
+        : []
 
-      if (!matchesAnyTerm(terms, [itemName, model, stock.name, stock.description, labelName])) continue
+      if (!matchesAnyTerm(terms, [itemName, model, stock.name, stock.description, labelName, ...aliasTerms])) continue
 
       const alreadyFromManual = results.some(
         (r) =>
           r.branchId === mainBranch.id &&
-          r.model.toLowerCase() === model.toLowerCase(),
+          (r.model.toLowerCase() === (manual?.model || model).toLowerCase() ||
+            textMatchesAnyProductTerm(r.model, aliasTerms)),
       )
       if (alreadyFromManual) continue
 
@@ -171,7 +215,7 @@ export async function searchProductAcrossBranches(
         branchCode: mainBranch.code,
         branchType: mainBranch.type,
         itemName,
-        model,
+        model: manual?.model || model,
         quantity: qty,
         unit: stock.unit || "pcs",
         assignedAt: null,
@@ -180,15 +224,21 @@ export async function searchProductAcrossBranches(
 
     for (const [modelKey, qty] of serialInStockByModel) {
       if (qty <= 0) continue
-      const manual = manualByModel.get(modelKey)
-      const labelName = labelByModel.get(modelKey)
+      const manual = manualForRow([modelKey])
+      const labelName = manual
+        ? labelByModel.get(manual.model.toLowerCase())
+        : labelByModel.get(modelKey)
       const itemName = manual?.name || labelName || modelKey
-      if (!matchesAnyTerm(terms, [modelKey, itemName, manual?.name, manual?.model, labelName])) continue
+      const aliasTerms = manual
+        ? manualMatchTerms.get(manual.model.toLowerCase()) || []
+        : []
+      if (!matchesAnyTerm(terms, [modelKey, itemName, manual?.name, manual?.model, labelName, ...aliasTerms])) continue
 
       const already = results.some(
         (r) =>
           r.branchId === mainBranch.id &&
-          (r.model.toLowerCase() === modelKey ||
+          (r.model.toLowerCase() === (manual?.model || modelKey).toLowerCase() ||
+            textMatchesAnyProductTerm(r.model, aliasTerms) ||
             normalizeProductText(r.itemName) === normalizeProductText(itemName)),
       )
       if (already) continue

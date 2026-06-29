@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { findStockByModel } from "@/lib/ensure-model-stock-link"
+import { findManualInventoryByAnyModelOrAlias } from "@/lib/inventory-model-aliases"
 
 type PrismaClientOrTx = Prisma.TransactionClient | typeof prisma
 
@@ -238,6 +239,9 @@ export async function resolveManualInventoryForBranchDispatch(input: {
 
   const modelKey = input.modelKey?.trim()
   if (!modelKey) return null
+
+  const byAlias = await findManualInventoryByAnyModelOrAlias(modelKey)
+  if (byAlias) return byAlias
 
   const byModel = await prisma.erpManualInventoryItem.findUnique({
     where: { model: modelKey },
