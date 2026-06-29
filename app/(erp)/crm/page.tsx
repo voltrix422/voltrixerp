@@ -10,11 +10,13 @@ import { QuotationsList } from "@/components/crm/quotations-list"
 import { CrmProductPricesManager } from "@/components/crm/crm-product-prices-manager"
 import { useAuth } from "@/components/auth-provider"
 import { isSalesAgentUser, crmWorkspaceForUser } from "@/lib/crm-workspace"
+import { isErpAdmin } from "@/lib/auth"
 
 export default function CRMPage() {
   const router = useRouter()
   const { user } = useAuth()
   const workspace = crmWorkspaceForUser(user)
+  const isAdmin = isErpAdmin(user?.role)
   const [tab, setTab] = useState<"quotations" | "orders" | "clients" | "leads" | "prices">("quotations")
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function CRMPage() {
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
             </button>
+            {isAdmin && (
             <button
               onClick={() => setTab("prices")}
               className={`px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
@@ -102,6 +105,7 @@ export default function CRMPage() {
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
             </button>
+            )}
           </div>
 
           {/* Tab Content */}
@@ -122,9 +126,10 @@ export default function CRMPage() {
           {tab === "orders" && (
             <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
           )}
-          {tab === "prices" && (
+          {tab === "prices" && isAdmin && (
             <CrmProductPricesManager
               currentUser={user?.name || user?.email || "Staff"}
+              currentUserId={user?.id}
               readOnly={!!workspace?.readOnly}
             />
           )}

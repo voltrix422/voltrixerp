@@ -14,12 +14,25 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   const body = await req.json()
+  const updatedById = String(body.updatedById ?? "").trim()
   const model = String(body.model ?? "").trim()
   const displayName = String(body.displayName ?? "").trim()
   const retailPrice = Number(body.retailPrice ?? 0)
   const wholesalePrice = Number(body.wholesalePrice ?? 0)
   const dealershipPrice = Number(body.dealershipPrice ?? 0)
   const updatedBy = String(body.updatedBy ?? "").trim()
+
+  if (!updatedById) {
+    return NextResponse.json({ error: "User required" }, { status: 400 })
+  }
+
+  const editor = await prisma.erpUser.findUnique({
+    where: { id: updatedById },
+    select: { role: true },
+  })
+  if (!editor || (editor.role !== "admin" && editor.role !== "superadmin")) {
+    return NextResponse.json({ error: "Only admin can set product prices" }, { status: 403 })
+  }
 
   if (!model) {
     return NextResponse.json({ error: "Model code is required" }, { status: 400 })

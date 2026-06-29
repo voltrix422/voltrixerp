@@ -39,9 +39,11 @@ function toRow(
 
 export function CrmProductPricesManager({
   currentUser,
+  currentUserId,
   readOnly = false,
 }: {
   currentUser: string
+  currentUserId?: string
   readOnly?: boolean
 }) {
   const { toast } = useToast()
@@ -118,7 +120,7 @@ export function CrmProductPricesManager({
   }
 
   async function saveRow(row: PriceRow) {
-    if (readOnly) return
+    if (readOnly || !currentUserId) return
     updateRow(row.model, { saving: true })
     try {
       await saveCrmProductPrice({
@@ -128,6 +130,7 @@ export function CrmProductPricesManager({
         wholesalePrice: Number(row.wholesalePrice) || 0,
         dealershipPrice: Number(row.dealershipPrice) || 0,
         updatedBy: currentUser,
+        updatedById: currentUserId,
       })
       updateRow(row.model, { dirty: false, saving: false })
       toast({ title: "Saved", message: "Prices saved", type: "success" })
@@ -155,8 +158,9 @@ export function CrmProductPricesManager({
       <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-2">
         <h2 className="text-sm font-semibold">CRM product prices</h2>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Set retail, wholesale, and dealership prices per product model. Quotations and orders
-          use the selected price list automatically — no manual unit price entry.
+          Set retail, wholesale, and dealership prices per product model. Only administrators can
+          edit prices. Quotations and orders use the selected price list automatically — no manual
+          unit price entry.
         </p>
       </div>
 

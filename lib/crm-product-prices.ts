@@ -44,6 +44,7 @@ export async function saveCrmProductPrice(payload: {
   wholesalePrice: number
   dealershipPrice: number
   updatedBy?: string
+  updatedById?: string
 }): Promise<CrmProductPrice> {
   const res = await fetch("/api/db/crm-product-prices", {
     method: "PUT",
