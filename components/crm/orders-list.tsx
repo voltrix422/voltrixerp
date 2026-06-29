@@ -14,8 +14,6 @@ import { CrmOrdersListCards } from "@/components/crm/crm-orders-list-cards"
 import { CrmOrderSummaryDisplay } from "@/components/crm/crm-order-summary-display"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
-import { useAuth } from "@/components/auth-provider"
-import { isErpAdmin } from "@/lib/auth"
 // DB access via /api/db routes (Prisma)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -735,10 +733,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
 
     await saveOrder(order)
     toast({
-      title: isEdit ? "Order updated" : "Order submitted",
-      message: isEdit
-        ? "Changes saved. Order is still pending admin approval."
-        : "This order was sent to the dashboard for admin approval.",
+      title: isEdit ? "Order updated" : "Order created",
+      message: isEdit ? "Changes saved." : "Order created successfully.",
       type: "success",
     })
     onSave(order)
@@ -1171,7 +1167,6 @@ function OrderDetail({
   onUpdate: (o: Order) => void
   onDelete: (id: string) => void
 }) {
-  const { user } = useAuth()
   const [deleting, setDeleting] = useState(false)
   const [status, setStatus] = useState(order.status)
   const [showFinalize, setShowFinalize] = useState(false)
@@ -1189,8 +1184,8 @@ function OrderDetail({
     setStatus(order.status)
   }, [order])
 
-  const isAdmin = isErpAdmin(user?.role)
-  const canEditOrder = detailOrder.status === "pending_approval"
+  const canEditOrder =
+    detailOrder.status === "approved" || detailOrder.status === "pending_approval"
 
   async function handleDelete() {
     setDeleting(true)
@@ -1564,16 +1559,6 @@ function OrderDetail({
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 px-4 sm:px-8 py-3 sm:py-5 border-t bg-[hsl(var(--muted))]/20 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {detailOrder.status === "pending_approval" && isAdmin && (
-            <>
-              <Button size="sm" className="h-10 w-full sm:w-auto text-sm bg-green-400 hover:bg-green-500 text-white cursor-pointer" onClick={() => updateStatus("approved")}>
-                Approve Order
-              </Button>
-              <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm bg-red-400 hover:bg-red-500 text-white cursor-pointer" onClick={() => updateStatus("rejected")}>
-                Reject Order
-              </Button>
-            </>
-          )}
           {canEditOrder && (
             <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto text-sm cursor-pointer" onClick={() => setShowEdit(true)}>
               <Edit className="h-4 w-4 mr-2" /> Edit order

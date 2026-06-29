@@ -57,14 +57,14 @@ export function initialClientStatus(_workspace?: CrmWorkspaceScope): ClientStatu
   return "active"
 }
 
-export function initialOrderStatus(_workspace?: CrmWorkspaceScope): "pending_approval" {
-  return "pending_approval"
+export function initialOrderStatus(_workspace?: CrmWorkspaceScope): "approved" {
+  return "approved"
 }
 
 export function initialQuotationStatus(_workspace?: CrmWorkspaceScope): "draft" {
   return "draft"
 }
 
-export function orderStatusForQuotationConversion(): "pending_approval" {
-  return "pending_approval"
+export function orderStatusForQuotationConversion(): "approved" {
+  return "approved"
 }
