@@ -43,6 +43,54 @@ function registerGeist(doc: jsPDF) {
 
 const FONT = geistRegularB64 ? 'Geist' : 'helvetica'
 
+const FOOTER_H = 16
+const TABLE_BOTTOM_MARGIN = FOOTER_H + 8
+
+function drawInvoiceFooter(
+  doc: jsPDF,
+  pageW: number,
+  pageH: number,
+  font: string,
+  teal: [number, number, number],
+  white: [number, number, number],
+) {
+  doc.setFillColor(...teal)
+  doc.rect(0, pageH - FOOTER_H, pageW, FOOTER_H, 'F')
+  doc.setFont(font, 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...white)
+  doc.text('Thank you for your business!', pageW / 2, pageH - 9, { align: 'center' })
+  doc.setFont(font, 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(200, 235, 234)
+  doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, pageH - 4, {
+    align: 'center',
+  })
+}
+
+function ensurePageSpace(doc: jsPDF, y: number, needed: number, pageH: number): number {
+  if (y + needed > pageH - TABLE_BOTTOM_MARGIN) {
+    doc.addPage()
+    return 14
+  }
+  return y
+}
+
+function stampFootersOnAllPages(
+  doc: jsPDF,
+  pageW: number,
+  pageH: number,
+  font: string,
+  teal: [number, number, number],
+  white: [number, number, number],
+) {
+  const total = doc.getNumberOfPages()
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i)
+    drawInvoiceFooter(doc, pageW, pageH, font, teal, white)
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const order = await request.json()
@@ -253,34 +301,61 @@ export async function POST(request: NextRequest) {
     const headRow = ['#', 'MODEL / PRODUCT', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']
     if (showSerialCol) headRow.splice(3, 0, 'SERIAL NO.')
 
-    const columnStyles: Record<string, object> = {
-      0: { cellWidth: 8, halign: 'center' as const },
-      1: { cellWidth: showSerialCol ? 48 : 62, overflow: 'linebreak' as const },
-      2: { cellWidth: 12, halign: 'center' as const },
-      3: { cellWidth: 14, halign: 'center' as const },
-      4: { cellWidth: 32, halign: 'right' as const },
-      5: { cellWidth: 32, halign: 'right' as const, fontStyle: 'bold' as const },
-    }
-    if (showSerialCol) {
-      columnStyles[3] = { cellWidth: 36, fontSize: 7.5, overflow: 'linebreak' as const }
-      columnStyles[4] = { cellWidth: 12, halign: 'center' as const }
-      columnStyles[5] = { cellWidth: 14, halign: 'center' as const }
-      columnStyles[6] = { cellWidth: 28, halign: 'right' as const }
-      columnStyles[7] = { cellWidth: 28, halign: 'right' as const, fontStyle: 'bold' as const }
-    }
+    const columnStyles: Record<string, object> = showSerialCol
+      ? {
+          0: { cellWidth: 7, halign: 'center' as const },
+          1: { cellWidth: 38, overflow: 'linebreak' as const, valign: 'top' as const },
+          2: { cellWidth: 36, fontSize: 7, overflow: 'linebreak' as const, valign: 'top' as const },
+          3: { cellWidth: 10, halign: 'center' as const },
+          4: { cellWidth: 11, halign: 'center' as const },
+          5: { cellWidth: 40, halign: 'right' as const, fontSize: 7.5, overflow: 'linebreak' as const },
+          6: { cellWidth: 40, halign: 'right' as const, fontSize: 7.5, fontStyle: 'bold' as const, overflow: 'linebreak' as const },
+        }
+      : {
+          0: { cellWidth: 7, halign: 'center' as const },
+          1: { cellWidth: 76, overflow: 'linebreak' as const, valign: 'top' as const },
+          2: { cellWidth: 11, halign: 'center' as const },
+          3: { cellWidth: 13, halign: 'center' as const },
+          4: { cellWidth: 36, halign: 'right' as const, fontSize: 7.5, overflow: 'linebreak' as const },
+          5: { cellWidth: 39, halign: 'right' as const, fontSize: 7.5, fontStyle: 'bold' as const, overflow: 'linebreak' as const },
+        }
 
     autoTable(doc, {
       startY: y,
       head: [headRow],
       body: tableData,
       theme: 'plain',
-      headStyles: { fillColor: teal, textColor: white, fontStyle: 'bold', fontSize: 8, font: FONT, cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 } },
-      bodyStyles: { fontSize: 8.5, textColor: black, font: FONT, cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, valign: 'middle' as const },
+      showHead: 'everyPage',
+      rowPageBreak: 'avoid',
+      tableWidth: contentW,
+      headStyles: {
+        fillColor: teal,
+        textColor: white,
+        fontStyle: 'bold',
+        fontSize: 7.5,
+        font: FONT,
+        cellPadding: { top: 3, bottom: 3, left: 2.5, right: 2.5 },
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: black,
+        font: FONT,
+        cellPadding: { top: 3, bottom: 3, left: 2.5, right: 2.5 },
+        valign: 'top' as const,
+        minCellHeight: 7,
+      },
       alternateRowStyles: { fillColor: rowAlt },
       columnStyles: columnStyles as Record<string, object>,
-      margin: { left: mL, right: mR },
+      margin: { left: mL, right: mR, bottom: TABLE_BOTTOM_MARGIN },
       tableLineColor: lightGray,
       tableLineWidth: 0.25,
+      didParseCell: (data) => {
+        if (data.section !== 'body' || data.column.index !== 1) return
+        const raw = String(data.cell.raw ?? '')
+        if (raw.includes('\n')) {
+          data.cell.styles.fontSize = 7.5
+        }
+      },
     })
 
     y = (doc as any).lastAutoTable.finalY + 8
@@ -331,6 +406,14 @@ export async function POST(request: NextRequest) {
     const totBoxH = totRows.length * rowH + 18
     const payments: { id?: string; amount?: number; method?: string; date?: string; notes?: string }[] =
       order.payments || []
+    const showBankDetails = pay.balanceDue > 0.004
+    const bankBlockH = showBankDetails ? 28 : 0
+    const payBoxH = pay.showPaymentSection
+      ? 32 + (payments.length > 0 ? Math.min(payments.length, 4) * 5 : 0) + bankBlockH
+      : 0
+    const bottomBlockH = Math.max(totBoxH, order.notes ? totBoxH : 0) + (pay.showPaymentSection ? payBoxH + 6 : 0)
+
+    y = ensurePageSpace(doc, y, bottomBlockH, pageH)
 
     // Notes box (left)
     if (order.notes) {
@@ -388,13 +471,8 @@ export async function POST(request: NextRequest) {
 
     // ── Payment / credit block ────────────────────────────────────────────────
     if (pay.showPaymentSection) {
-      const payY = y + totBoxH + 6
+      const payY = ensurePageSpace(doc, y + totBoxH + 6, payBoxH, pageH)
       const payW = pageW - mL - mR
-      const detailLines = payments.length
-      const showBankDetails = pay.balanceDue > 0.004
-      const bankBlockH = showBankDetails ? 28 : 0
-      const payBoxH = 32 + (detailLines > 0 ? Math.min(detailLines, 4) * 5 : 0) + bankBlockH
-
       doc.setFillColor(...lightBg)
       doc.setDrawColor(...teal)
       doc.setLineWidth(0.4)
@@ -500,17 +578,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Footer ────────────────────────────────────────────────────────────────
-    doc.setFillColor(...teal)
-    doc.rect(0, pageH - 16, pageW, 16, 'F')
-    doc.setFont(FONT, 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...white)
-    doc.text('Thank you for your business!', pageW / 2, pageH - 9, { align: 'center' })
-    doc.setFont(FONT, 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(200, 235, 234)
-    doc.text('This is a computer-generated invoice. No signature required.', pageW / 2, pageH - 4, { align: 'center' })
+    stampFootersOnAllPages(doc, pageW, pageH, FONT, teal, white)
 
     const pdfBuffer = doc.output('arraybuffer')
     return new NextResponse(pdfBuffer, {
