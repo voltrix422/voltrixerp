@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { getInventoryHistory } from "@/lib/inventory-history"
 import { getOrders } from "@/lib/orders"
+import { getManualInventoryItems } from "@/lib/manual-inventory"
 import {
   enrichMovements,
   attachMainWarehouseBalances,
+  applyMovementCatalog,
+  buildMovementProductCatalog,
   getDateRangeForPreset,
   getReferenceTypeLabel,
   type DateRangePreset,
@@ -66,7 +69,7 @@ export function InventoryMovementOverview() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [periodHistory, allHistory, orders] = await Promise.all([
+      const [periodHistory, allHistory, orders, manualItems] = await Promise.all([
         getInventoryHistory({
           from: dateRange.from || undefined,
           to: dateRange.to || undefined,
@@ -74,6 +77,7 @@ export function InventoryMovementOverview() {
         }),
         getInventoryHistory({}),
         getOrders(),
+        getManualInventoryItems().catch(() => []),
       ])
 
       const orderClientMap = new Map<string, string>()
@@ -83,17 +87,23 @@ export function InventoryMovementOverview() {
         }
       }
 
-      const withBalances = attachMainWarehouseBalances(
-        enrichMovements(allHistory, orderClientMap),
+      const catalog = buildMovementProductCatalog(manualItems)
+
+      const withBalances = applyMovementCatalog(
+        attachMainWarehouseBalances(enrichMovements(allHistory, orderClientMap), catalog),
+        catalog,
       )
       const balanceById = new Map(
         withBalances.map((m) => [m.id, { balance_before: m.balance_before, balance_after: m.balance_after }]),
       )
 
-      const periodRows = enrichMovements(periodHistory, orderClientMap).map((m) => {
-        const bal = balanceById.get(m.id)
-        return bal ? { ...m, ...bal } : m
-      })
+      const periodRows = applyMovementCatalog(
+        enrichMovements(periodHistory, orderClientMap).map((m) => {
+          const bal = balanceById.get(m.id)
+          return bal ? { ...m, ...bal } : m
+        }),
+        catalog,
+      )
 
       periodRows.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -117,6 +127,7 @@ export function InventoryMovementOverview() {
     return movements.filter((m) => {
       return (
         m.item_description.toLowerCase().includes(q) ||
+        (m.item_model_code || "").toLowerCase().includes(q) ||
         m.reference_number.toLowerCase().includes(q) ||
         m.source.toLowerCase().includes(q) ||
         m.destination.toLowerCase().includes(q) ||

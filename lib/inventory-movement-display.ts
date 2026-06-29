@@ -42,10 +42,19 @@ export type InventoryMovementRow = InventoryTransaction & {
   order_number: string
   is_inbound: boolean
   abs_quantity: number
+  /** ERP model code when known (e.g. MAN-15-6-KWH-BATTERY-STORAGE) */
+  item_model_code?: string
   /** Main warehouse qty for this product before this movement */
   balance_before?: number | null
   /** Main warehouse qty for this product after this movement */
   balance_after?: number | null
+}
+
+export type MovementProductCatalog = {
+  displayNameByKey: Map<string, string>
+  modelCodeByKey: Map<string, string>
+  currentMainQtyByKey: Map<string, number>
+  keyForDescription: (description: string) => string
 }
 
 const REFERENCE_LABELS: Record<string, string> = {
@@ -160,8 +169,7 @@ export function enrichMovements(
   return transactions.map((tx) => enrichMovement(tx, orderClientMap))
 }
 
-/** Group alias product names (e.g. MAN-15-6… ↔ 15.6 KWh Battery Storage). */
-export function movementItemKey(description: string): string {
+function movementItemKeyFallback(description: string): string {
   const n = normalizeProductText(description)
   if (!n) return "unknown"
   if (
@@ -173,6 +181,80 @@ export function movementItemKey(description: string): string {
   }
   if (n.startsWith("man-")) return n
   return n
+}
+
+/** Group alias product names (e.g. MAN-15-6… ↔ 15.6 KWh Battery Storage). */
+export function movementItemKey(
+  description: string,
+  catalog?: MovementProductCatalog,
+): string {
+  if (catalog) return catalog.keyForDescription(description)
+  return movementItemKeyFallback(description)
+}
+
+/** Map manual inventory items to one display name + model code per product. */
+export function buildMovementProductCatalog(
+  manualItems: Array<{ name: string; model: string; availableQty?: number }>,
+): MovementProductCatalog {
+  const displayNameByKey = new Map<string, string>()
+  const modelCodeByKey = new Map<string, string>()
+  const currentMainQtyByKey = new Map<string, number>()
+  const aliasToCanonicalKey = new Map<string, string>()
+
+  for (const manual of manualItems) {
+    const model = manual.model.trim()
+    const name = manual.name.trim()
+    if (!model && !name) continue
+
+    const canonicalKey = `model:${normalizeProductText(model || name)}`
+    const displayName = name || model
+
+    displayNameByKey.set(canonicalKey, displayName)
+    if (model) modelCodeByKey.set(canonicalKey, model)
+    currentMainQtyByKey.set(canonicalKey, manual.availableQty ?? 0)
+
+    for (const alias of [model, name]) {
+      const normalized = normalizeProductText(alias)
+      if (normalized) aliasToCanonicalKey.set(normalized, canonicalKey)
+    }
+    const fallbackKey = movementItemKeyFallback(name || model)
+    if (fallbackKey !== "unknown") {
+      aliasToCanonicalKey.set(fallbackKey, canonicalKey)
+    }
+  }
+
+  return {
+    displayNameByKey,
+    modelCodeByKey,
+    currentMainQtyByKey,
+    keyForDescription(description: string) {
+      const normalized = normalizeProductText(description)
+      if (!normalized) return "unknown"
+      const fromAlias = aliasToCanonicalKey.get(normalized)
+      if (fromAlias) return fromAlias
+      const fallback = movementItemKeyFallback(description)
+      const fromFallback = aliasToCanonicalKey.get(fallback)
+      if (fromFallback) return fromFallback
+      return fallback
+    },
+  }
+}
+
+/** One friendly name per product line in movement history. */
+export function applyMovementCatalog(
+  movements: InventoryMovementRow[],
+  catalog: MovementProductCatalog,
+): InventoryMovementRow[] {
+  return movements.map((m) => {
+    const key = catalog.keyForDescription(m.item_description)
+    const displayName = catalog.displayNameByKey.get(key) ?? m.item_description
+    const modelCode = catalog.modelCodeByKey.get(key)
+    return {
+      ...m,
+      item_description: displayName,
+      item_model_code: modelCode,
+    }
+  })
 }
 
 function locationIsMainWarehouse(label: string): boolean {
@@ -215,15 +297,32 @@ export function mainWarehouseDelta(m: InventoryMovementRow): number {
 /** Attach main-warehouse before/after qty per product line (uses full history, chronological). */
 export function attachMainWarehouseBalances(
   movements: InventoryMovementRow[],
+  catalog?: MovementProductCatalog,
 ): InventoryMovementRow[] {
   const sorted = [...movements].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   )
-  const running = new Map<string, number>()
+
+  const keyFor = (description: string) => movementItemKey(description, catalog)
+  const currentMainQtyByKey = catalog?.currentMainQtyByKey ?? new Map<string, number>()
+
+  const totalDeltaByKey = new Map<string, number>()
+  for (const m of sorted) {
+    const key = keyFor(m.item_description)
+    totalDeltaByKey.set(key, (totalDeltaByKey.get(key) ?? 0) + mainWarehouseDelta(m))
+  }
+
+  const openingByKey = new Map<string, number>()
+  for (const [key, totalDelta] of totalDeltaByKey) {
+    const current = currentMainQtyByKey.get(key)
+    openingByKey.set(key, current != null ? current - totalDelta : 0)
+  }
+
+  const running = new Map(openingByKey)
   const balanceById = new Map<string, { before: number; after: number }>()
 
   for (const m of sorted) {
-    const key = movementItemKey(m.item_description)
+    const key = keyFor(m.item_description)
     const before = running.get(key) ?? 0
     const after = before + mainWarehouseDelta(m)
     running.set(key, after)

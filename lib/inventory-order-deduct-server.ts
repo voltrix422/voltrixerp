@@ -97,6 +97,17 @@ export function orderMayNeedInventoryRestore(order: OrderDeductInput): boolean {
   return orderWasDispatched(order)
 }
 
+async function historyItemLabel(
+  item: OrderDeductLine,
+  fallback?: string,
+): Promise<string> {
+  const manual = await resolveManualInventoryForOrderLine(item)
+  if (manual?.name?.trim()) return manual.name.trim()
+  if (fallback?.trim()) return fallback.trim()
+  if (item.description?.trim()) return item.description.trim()
+  return item.model?.trim() || "Unknown"
+}
+
 async function logHistory(
   itemDescription: string,
   quantity: number,
@@ -315,7 +326,7 @@ async function markSerialUnitsDelivered(
   await ensureInventoryStockForModel(units[0].model, item.description, item.unit || "pcs")
 
   await logHistory(
-    units[0].model,
+    await historyItemLabel(item, units[0].model),
     units.length,
     item.unit || "pcs",
     order,
@@ -417,7 +428,7 @@ async function processDispatchAllocationsForLine(
   }
 
   await logHistory(
-    item.model?.trim() || item.description,
+    await historyItemLabel(item),
     qty,
     item.unit || "pcs",
     order,
@@ -568,7 +579,7 @@ async function deductStockForLine(
     deducted += deductQty
 
     await logHistory(
-      stock.description || item.description,
+      await historyItemLabel(item, stock.description || undefined),
       deductQty,
       item.unit || stock.unit || "pcs",
       order,

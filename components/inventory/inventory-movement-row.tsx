@@ -35,6 +35,27 @@ function TypeBadge({ inbound }: { inbound: boolean }) {
   )
 }
 
+function ItemName({ movement: m, compact }: { movement: InventoryMovementRow; compact?: boolean }) {
+  const showCode =
+    m.item_model_code &&
+    normalizeProductText(m.item_model_code) !== normalizeProductText(m.item_description)
+
+  return (
+    <div className="min-w-0">
+      <p className={`${compact ? "text-xs" : "text-sm"} font-medium leading-snug break-words`}>
+        {m.item_description}
+      </p>
+      {showCode && (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-mono mt-0.5">{m.item_model_code}</p>
+      )}
+    </div>
+  )
+}
+
+function normalizeProductText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
 function DetailBlock({ label, value }: { label: string; value: string }) {
   if (!value || value === "—") return null
   return (
@@ -69,7 +90,7 @@ export function InventoryMovementRowCard({ movement: m }: { movement: InventoryM
                 <span className="text-[10px] font-semibold text-[#1faca6]">{m.order_number}</span>
               )}
             </div>
-            <p className="text-sm font-medium leading-snug break-words">{m.item_description}</p>
+            <ItemName movement={m} />
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
               <span
                 className={`font-bold tabular-nums ${
@@ -142,7 +163,9 @@ export function InventoryMovementTableRow({
           <TypeBadge inbound={m.is_inbound} />
         </td>
         <td className="px-2 py-2 text-xs font-medium max-w-[200px]">
-          <span className="line-clamp-2" title={m.item_description}>{m.item_description}</span>
+          <div title={m.item_description}>
+            <ItemName movement={m} compact />
+          </div>
         </td>
         <td className="px-2 py-2 text-center whitespace-nowrap">
           <span
