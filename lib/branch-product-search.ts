@@ -257,16 +257,64 @@ export async function searchProductAcrossBranches(
     }
   }
 
-  return results.sort((a, b) => {
+  const consolidated = consolidateBranchProductResults(results, manualForRow)
+
+  return consolidated.sort((a, b) => {
     const byBranch = a.branchName.localeCompare(b.branchName)
     if (byBranch !== 0) return byBranch
     return a.itemName.localeCompare(b.itemName)
   })
 }
 
+/** Merge duplicate rows for the same product at the same branch (e.g. HSLD15KW vs MAN-…). */
+function consolidateBranchProductResults(
+  results: BranchProductSearchResult[],
+  resolveManual: (values: Array<string | null | undefined>) => { model: string; name: string } | null | undefined,
+) {
+  const map = new Map<string, BranchProductSearchResult>()
+
+  for (const row of results) {
+    const manual = resolveManual([row.model, row.itemName])
+    const canonical = (manual?.model || row.model).trim().toLowerCase()
+    const key = `${row.branchId}:${canonical}`
+    const existing = map.get(key)
+    if (!existing) {
+      map.set(key, {
+        ...row,
+        model: manual?.model || row.model,
+        itemName: manual?.name || row.itemName,
+      })
+      continue
+    }
+    existing.quantity += row.quantity
+  }
+
+  return [...map.values()]
+}
+
 export function summarizeBranchProductResults(results: BranchProductSearchResult[]) {
-  const totalQty = results.reduce((sum, row) => sum + row.quantity, 0)
-  const branchCount = new Set(results.map((r) => r.branchId)).size
   const unit = results[0]?.unit || "pcs"
-  return { totalQty, branchCount, unit, resultCount: results.length }
+  let mainWarehouseQty = 0
+  let branchQty = 0
+  const outletBranchIds = new Set<string>()
+
+  for (const row of results) {
+    if (row.branchType === "main_warehouse") {
+      mainWarehouseQty += row.quantity
+    } else {
+      branchQty += row.quantity
+      outletBranchIds.add(row.branchId)
+    }
+  }
+
+  return {
+    branchQty,
+    mainWarehouseQty,
+    totalQty: branchQty + mainWarehouseQty,
+    branchCount: outletBranchIds.size,
+    locationCount: results.length,
+    unit,
+    /** @deprecated use branchQty / mainWarehouseQty / totalQty */
+    resultCount: results.length,
+  }
 }

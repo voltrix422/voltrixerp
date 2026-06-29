@@ -582,27 +582,32 @@ export function BranchesTab() {
                 </div>
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total across branches</p>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">At outlets &amp; branches</p>
                     <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
-                      {productSummary.totalQty} <span className="text-sm font-medium">{productSummary.unit}</span>
+                      {productSummary.branchQty}{" "}
+                      <span className="text-sm font-medium">{productSummary.unit}</span>
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Branches</p>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Main warehouse</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {productSummary.mainWarehouseQty} {productSummary.unit}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total everywhere</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {productSummary.totalQty} {productSummary.unit}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Outlets</p>
                     <p className="text-lg font-semibold tabular-nums">{productSummary.branchCount}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations</p>
-                    <p className="text-lg font-semibold tabular-nums">{productSummary.resultCount}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations listed</p>
+                    <p className="text-lg font-semibold tabular-nums">{productSummary.locationCount}</p>
                   </div>
-                  {selectedProductOption && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Main warehouse stock</p>
-                      <p className="text-lg font-semibold tabular-nums">
-                        {selectedProductOption.inStock} {selectedProductOption.unit}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -661,6 +666,7 @@ export function BranchesTab() {
                           </p>
                           <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
                             {row.branchName} ({row.branchCode})
+                            {row.branchType === "main_warehouse" && " · Main warehouse"}
                           </p>
                         </div>
                       </div>
