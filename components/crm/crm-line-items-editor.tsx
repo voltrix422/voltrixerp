@@ -32,6 +32,7 @@ export function CrmLineItemsEditor({
   size = "sm",
   removeIcon = "x",
   gstPercent,
+  lockUnitPrice = false,
 }: {
   items: CrmLineItem[]
   onUpdate: (id: string, key: CrmLineItemField, value: string | number) => void
@@ -40,6 +41,8 @@ export function CrmLineItemsEditor({
   removeIcon?: "x" | "trash"
   /** When set, unit prices are treated as GST-inclusive and breakdown is shown per line. */
   gstPercent?: number
+  /** When true, unit price is read-only (set from CRM price list). */
+  lockUnitPrice?: boolean
 }) {
   const inputClass = size === "md" ? inputMd : inputSm
   const inputH = size === "md" ? "h-9" : "h-8"
@@ -125,8 +128,9 @@ export function CrmLineItemsEditor({
                   min={0}
                   step={size === "md" ? "0.01" : undefined}
                   value={item.unitPrice}
+                  readOnly={lockUnitPrice}
                   onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
-                  className={`${inputClass} ${inputH}`}
+                  className={`${inputClass} ${inputH} ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
                 />
                 {gstPercent != null && gstPercent > 0 && (
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
@@ -219,8 +223,9 @@ export function CrmLineItemsEditor({
                     min={0}
                     step={size === "md" ? "0.01" : undefined}
                     value={item.unitPrice}
+                    readOnly={lockUnitPrice}
                     onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
-                    className={`${inputClass} ${inputH} text-right`}
+                    className={`${inputClass} ${inputH} text-right ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
                   />
                   {gstPercent != null && gstPercent > 0 && (
                     <p className={`text-[hsl(var(--muted-foreground))] mt-1 px-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>

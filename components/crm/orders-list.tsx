@@ -33,6 +33,15 @@ import {
   DEFAULT_GST_PERCENT,
   splitGstInclusiveAmount,
 } from "@/lib/gst-inclusive-pricing"
+import { CrmPriceTierSelect } from "@/components/crm/crm-price-tier-select"
+import {
+  applyCrmPriceTierToItems,
+  buildCrmPriceMap,
+  getCrmProductPrices,
+  lookupCrmUnitPrice,
+  type CrmPriceTier,
+  type CrmProductPrice,
+} from "@/lib/crm-product-prices"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed"
 type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
@@ -530,6 +539,8 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   const [clientSearch, setClientSearch] = useState("")
   const [inventorySearch, setInventorySearch] = useState("")
   const [quantityError, setQuantityError] = useState<string | null>(null)
+  const [priceTier, setPriceTier] = useState<CrmPriceTier>("retail")
+  const [priceMap, setPriceMap] = useState<Map<string, CrmProductPrice>>(() => new Map())
   
   // Tax and expenses state
   const taxPercent = DEFAULT_GST_PERCENT
@@ -543,20 +554,34 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   const [discountIsPercentage, setDiscountIsPercentage] = useState<boolean>(existing?.discountIsPercentage ?? true)
 
   useEffect(() => {
-    void loadCrmWarehouseProducts().then((products) => {
-      setWarehouseProducts(products)
-      if (existing?.items?.length) {
-        setItems(
-          existing.items.map((item) => {
-            const product = products.find((p) => p.id === item.inventoryItemId)
-            return product
-              ? { ...item, availableQty: product.qty, model: item.model || product.model }
-              : item
-          }),
-        )
-      }
-    })
+    void Promise.all([loadCrmWarehouseProducts(), getCrmProductPrices().catch(() => [])]).then(
+      ([products, prices]) => {
+        const map = buildCrmPriceMap(prices)
+        setPriceMap(map)
+        setWarehouseProducts(products)
+        if (existing?.items?.length) {
+          setItems(
+            existing.items.map((item) => {
+              const product = products.find((p) => p.id === item.inventoryItemId)
+              const model = item.model || product?.model
+              return product
+                ? {
+                    ...item,
+                    availableQty: product.qty,
+                    model,
+                    unitPrice: lookupCrmUnitPrice(map, model, priceTier),
+                  }
+                : item
+            }),
+          )
+        }
+      },
+    )
   }, [existing?.id])
+
+  useEffect(() => {
+    setItems((prev) => applyCrmPriceTierToItems(prev, priceTier, priceMap))
+  }, [priceTier, priceMap])
 
   useEffect(() => {
     if (quantityError) {
@@ -591,6 +616,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   } = pricing
 
   function updateItem(id: string, key: keyof OrderItem, value: any) {
+    if (key === "unitPrice") return
     setItems(prev => prev.map(i => {
       if (i.id === id) {
         // If updating quantity, validate against available stock
@@ -630,7 +656,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           description: product.displayName,
           qty: 1,
           unit: product.unit,
-          unitPrice: 0,
+          unitPrice: lookupCrmUnitPrice(priceMap, product.model, priceTier),
           isCustom: false,
           inventoryItemId: product.id,
           model: product.model,
@@ -824,8 +850,11 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           </div>
 
           <div className="pt-4 border-t">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-3">
               <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Order Items *</p>
+              <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} className="sm:max-w-xs" />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end mb-3">
               <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs px-3 cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={() => setShowInventory(true)}>
                 <Plus className="h-4 w-4 mr-1.5" /> Add from inventory
               </Button>
@@ -846,6 +875,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                   size="md"
                   removeIcon="trash"
                   gstPercent={taxPercent}
+                  lockUnitPrice
                 />
                 {subtotal > 0 && (
                   <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">

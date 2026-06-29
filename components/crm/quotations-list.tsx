@@ -10,6 +10,15 @@ import { CrmLineItemsEditor } from "@/components/crm/crm-line-items-editor"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { CrmItemsQtyCell, formatCrmItemsQtyLabel } from "@/components/crm/crm-items-qty-cell"
 import { loadCrmWarehouseProducts, type CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
+import { CrmPriceTierSelect } from "@/components/crm/crm-price-tier-select"
+import {
+  applyCrmPriceTierToItems,
+  buildCrmPriceMap,
+  getCrmProductPrices,
+  lookupCrmUnitPrice,
+  type CrmPriceTier,
+  type CrmProductPrice,
+} from "@/lib/crm-product-prices"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -396,10 +405,38 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   const [invSearch, setInvSearch] = useState("")
   const [saving, setSaving] = useState(false)
   const [qtyError, setQtyError] = useState("")
+  const [priceTier, setPriceTier] = useState<CrmPriceTier>("retail")
+  const [priceMap, setPriceMap] = useState<Map<string, CrmProductPrice>>(() => new Map())
 
   useEffect(() => {
-    void loadCrmWarehouseProducts().then(setWarehouseProducts)
-  }, [])
+    void Promise.all([loadCrmWarehouseProducts(), getCrmProductPrices().catch(() => [])]).then(
+      ([products, prices]) => {
+        const map = buildCrmPriceMap(prices)
+        setPriceMap(map)
+        setWarehouseProducts(products)
+        if (source?.items?.length) {
+          setItems(
+            source.items.map((item) => {
+              const product = products.find((p) => p.id === item.inventoryItemId)
+              const model = item.model || product?.model
+              return product
+                ? {
+                    ...item,
+                    availableQty: product.qty,
+                    model,
+                    unitPrice: lookupCrmUnitPrice(map, model, priceTier),
+                  }
+                : item
+            }),
+          )
+        }
+      },
+    )
+  }, [source?.id])
+
+  useEffect(() => {
+    setItems((prev) => applyCrmPriceTierToItems(prev, priceTier, priceMap))
+  }, [priceTier, priceMap])
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0)
   const discountAmount = discountIsPercentage
@@ -424,7 +461,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
           description: product.displayName,
           qty: 1,
           unit: product.unit,
-          unitPrice: 0,
+          unitPrice: lookupCrmUnitPrice(priceMap, product.model, priceTier),
           isCustom: false,
           inventoryItemId: product.id,
           model: product.model,
@@ -437,21 +474,8 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
     setInvSearch("")
   }
 
-  function addCustomProduct() {
-    setItems((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        description: "",
-        qty: 1,
-        unit: "pcs",
-        unitPrice: 0,
-        isCustom: true,
-      },
-    ])
-  }
-
   function updateItem(id: string, key: keyof QuotationItem, value: any) {
+    if (key === "unitPrice") return
     setItems(prev => prev.map(i => {
       if (i.id !== id) return i
       if (key === "qty" && i.availableQty !== undefined && Number(value) > i.availableQty) {
@@ -549,16 +573,14 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
           </div>
           {/* Items */}
           <div className="pt-3 border-t">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Items *</p>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full sm:w-auto">
-                <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowInventory(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1"/>Add from inventory
-                </Button>
-                <Button type="button" size="sm" variant="outline" className="h-9 w-full sm:w-auto text-xs cursor-pointer" onClick={addCustomProduct}>
-                  <Plus className="h-3.5 w-3.5 mr-1"/>Add custom product
-                </Button>
-              </div>
+              <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} className="sm:max-w-xs" />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full sm:w-auto sm:justify-end mb-3">
+              <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowInventory(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1"/>Add from inventory
+              </Button>
             </div>
             {qtyError && <p className="text-xs text-orange-600 mb-2">{qtyError}</p>}
             {items.length === 0 ? (
@@ -574,6 +596,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
                   onRemove={(id) => setItems((prev) => prev.filter((i) => i.id !== id))}
                   size="sm"
                   removeIcon="x"
+                  lockUnitPrice
                 />
                 {subtotal > 0 && (
                   <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 text-xs">

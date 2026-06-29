@@ -7,6 +7,7 @@ import { ClientsList } from "@/components/crm/clients-list"
 import { LeadsManager } from "@/components/crm/leads-manager"
 import { OrdersList } from "@/components/crm/orders-list"
 import { QuotationsList } from "@/components/crm/quotations-list"
+import { CrmProductPricesManager } from "@/components/crm/crm-product-prices-manager"
 import { useAuth } from "@/components/auth-provider"
 import { isSalesAgentUser, crmWorkspaceForUser } from "@/lib/crm-workspace"
 
@@ -14,7 +15,7 @@ export default function CRMPage() {
   const router = useRouter()
   const { user } = useAuth()
   const workspace = crmWorkspaceForUser(user)
-  const [tab, setTab] = useState<"quotations" | "orders" | "clients" | "leads">("quotations")
+  const [tab, setTab] = useState<"quotations" | "orders" | "clients" | "leads" | "prices">("quotations")
 
   useEffect(() => {
     if (user && isSalesAgentUser(user)) {
@@ -88,6 +89,19 @@ export default function CRMPage() {
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
               )}
             </button>
+            <button
+              onClick={() => setTab("prices")}
+              className={`px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
+                tab === "prices"
+                  ? "text-[hsl(var(--foreground))]"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              Product Prices
+              {tab === "prices" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+              )}
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -107,6 +121,12 @@ export default function CRMPage() {
           )}
           {tab === "orders" && (
             <OrdersList currentUser={user?.name || "Unknown"} currentUserId={user?.id} workspace={workspace} />
+          )}
+          {tab === "prices" && (
+            <CrmProductPricesManager
+              currentUser={user?.name || user?.email || "Staff"}
+              readOnly={!!workspace?.readOnly}
+            />
           )}
         </div>
       </div>

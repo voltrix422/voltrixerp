@@ -624,6 +624,20 @@ model ErpInventoryModelLabel {
   @@map("erp_inventory_model_labels")
 }
 
+model ErpCrmProductPrice {
+  id               String   @id @default(cuid())
+  model            String   @unique
+  displayName      String   @default("") @map("display_name")
+  retailPrice      Float    @default(0) @map("retail_price")
+  wholesalePrice   Float    @default(0) @map("wholesale_price")
+  dealershipPrice  Float    @default(0) @map("dealership_price")
+  updatedBy        String   @default("") @map("updated_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("erp_crm_product_prices")
+}
+
 model ErpWarrantyClaim {
   id           String   @id @default(cuid())
   unitId       String   @map("unit_id")
