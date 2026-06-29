@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { permanentlyDeleteBranchInventoryRow } from "@/lib/branch-inventory-permanent-delete"
+import { upsertBranchInventoryAssignment } from "@/lib/branch-inventory-transfer-ops"
 import { buildModelLabelMap } from "@/lib/main-warehouse-inventory"
 import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
 import { restoreManualInventoryByStockId } from "@/lib/manual-inventory-server"
@@ -252,17 +253,15 @@ export async function POST(req: NextRequest) {
     userNote: userNote || notes,
   })
   
-  // Create branch inventory assignment
-  const branchInventory = await prisma.erpBranchInventory.create({
-    data: {
-      branchId,
-      inventoryId,
-      productDescription: inventory.description,
-      quantity,
-      unit: unit || inventory.unit,
-      assignedBy: assignedBy || "system",
-      notes: notes || ""
-    }
+  // Add to branch inventory (merge into existing row when same product)
+  const branchInventory = await upsertBranchInventoryAssignment({
+    branchId,
+    inventoryId,
+    productDescription: inventory.description,
+    quantity,
+    unit: unit || inventory.unit,
+    assignedBy: assignedBy || "system",
+    notes: notes || "",
   })
   
   // Deduct from main inventory

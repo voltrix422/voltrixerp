@@ -12,6 +12,49 @@ import {
   resolveManualInventoryForBranchDispatch,
 } from "@/lib/manual-inventory-server"
 
+/** Add qty to an existing branch line or create one — avoids duplicate rows per product. */
+export async function upsertBranchInventoryAssignment(params: {
+  branchId: string
+  inventoryId: string
+  productDescription: string
+  quantity: number
+  unit: string
+  assignedBy: string
+  notes?: string
+}) {
+  const productDescription = params.productDescription.trim()
+  const existing = await prisma.erpBranchInventory.findFirst({
+    where: {
+      branchId: params.branchId,
+      inventoryId: params.inventoryId,
+      productDescription: { equals: productDescription, mode: "insensitive" },
+    },
+  })
+
+  if (existing) {
+    return prisma.erpBranchInventory.update({
+      where: { id: existing.id },
+      data: {
+        quantity: { increment: params.quantity },
+        assignedBy: params.assignedBy,
+        notes: params.notes?.trim() || existing.notes,
+      },
+    })
+  }
+
+  return prisma.erpBranchInventory.create({
+    data: {
+      branchId: params.branchId,
+      inventoryId: params.inventoryId,
+      productDescription,
+      quantity: params.quantity,
+      unit: params.unit,
+      assignedBy: params.assignedBy,
+      notes: params.notes?.trim() || "",
+    },
+  })
+}
+
 export function buildBranchTransferNote(params: {
   quantity: number
   unit: string
@@ -253,16 +296,14 @@ export async function executeDispatchLine(params: {
     userNote: line.userNote || params.systemNotes,
   })
 
-  await prisma.erpBranchInventory.create({
-    data: {
-      branchId: destinationBranchId,
-      inventoryId: stockId,
-      productDescription: manualItem?.model || inventory.description,
-      quantity,
-      unit: line.unit || inventory.unit,
-      assignedBy,
-      notes: params.systemNotes || "",
-    },
+  await upsertBranchInventoryAssignment({
+    branchId: destinationBranchId,
+    inventoryId: stockId,
+    productDescription: manualItem?.model || inventory.description,
+    quantity,
+    unit: line.unit || inventory.unit,
+    assignedBy,
+    notes: params.systemNotes || "",
   })
 
   if (modelKey && serialInStock >= quantity) {

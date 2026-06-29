@@ -90,12 +90,8 @@ export async function searchProductAcrossBranches(
   }
 
   const results: BranchProductSearchResult[] = []
-  const seen = new Set<string>()
 
   function pushResult(entry: BranchProductSearchResult) {
-    const key = `${entry.branchId}:${normalizeProductText(entry.model)}:${entry.quantity}`
-    if (seen.has(key)) return
-    seen.add(key)
     results.push(entry)
   }
 
