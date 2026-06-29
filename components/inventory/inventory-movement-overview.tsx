@@ -5,12 +5,12 @@ import { getInventoryHistory } from "@/lib/inventory-history"
 import { getOrders } from "@/lib/orders"
 import {
   enrichMovements,
+  attachMainWarehouseBalances,
   getDateRangeForPreset,
-  getReferenceTypeLabel,
-  formatMovementDate,
   type DateRangePreset,
   type InventoryMovementRow,
 } from "@/lib/inventory-movement-display"
+import { InventoryMovementRowCard, InventoryMovementTableRow } from "@/components/inventory/inventory-movement-row"
 import { downloadInventoryMovementsExcel } from "@/lib/inventory-excel-export"
 import { downloadInventoryMovementsPDF } from "@/lib/generate-inventory-movements-pdf"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
@@ -53,6 +53,7 @@ export function InventoryMovementOverview() {
   const [customTo, setCustomTo] = useState("")
   const [exportingExcel, setExportingExcel] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const dateRange = useMemo(
     () => getDateRangeForPreset(datePreset, customFrom, customTo),
@@ -64,12 +65,13 @@ export function InventoryMovementOverview() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [history, orders] = await Promise.all([
+      const [periodHistory, allHistory, orders] = await Promise.all([
         getInventoryHistory({
           from: dateRange.from || undefined,
           to: dateRange.to || undefined,
           type: filterType,
         }),
+        getInventoryHistory({}),
         getOrders(),
       ])
 
@@ -80,7 +82,23 @@ export function InventoryMovementOverview() {
         }
       }
 
-      setMovements(enrichMovements(history, orderClientMap))
+      const withBalances = attachMainWarehouseBalances(
+        enrichMovements(allHistory, orderClientMap),
+      )
+      const balanceById = new Map(
+        withBalances.map((m) => [m.id, { balance_before: m.balance_before, balance_after: m.balance_after }]),
+      )
+
+      const periodRows = enrichMovements(periodHistory, orderClientMap).map((m) => {
+        const bal = balanceById.get(m.id)
+        return bal ? { ...m, ...bal } : m
+      })
+
+      periodRows.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+
+      setMovements(periodRows)
     } catch {
       setMovements([])
     } finally {
@@ -318,82 +336,47 @@ export function InventoryMovementOverview() {
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border overflow-x-auto">
-          <table className="w-full min-w-[1100px]">
-            <thead>
-              <tr className="border-b bg-[hsl(var(--muted))]/40">
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Type</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Item</th>
-                <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Qty</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">From</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">To</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Reference</th>
-                <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">By</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map((m) => (
-                <tr key={m.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                    {formatMovementDate(m.created_at)}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {m.is_inbound ? (
-                      <Badge variant="success" className="text-[10px] px-1.5 py-0">
-                        <TrendingUp className="h-3 w-3 mr-1" /> IN
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                        <TrendingDown className="h-3 w-3 mr-1" /> OUT
-                      </Badge>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs font-medium max-w-[180px]">
-                    <span className="line-clamp-2">{m.item_description}</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                    <span
-                      className={`text-xs font-bold ${
-                        m.is_inbound
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {m.is_inbound ? "+" : "-"}{m.abs_quantity} {m.unit}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[140px]">
-                    <span className="line-clamp-2">{m.source}</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs max-w-[140px]">
-                    <span className="line-clamp-2">{m.destination}</span>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] whitespace-nowrap">
-                    {m.order_number || "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                    {m.client_name || "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs">
-                    <div className="font-medium">{getReferenceTypeLabel(m.reference_type)}</div>
-                    <div className="text-[10px] text-[hsl(var(--muted-foreground))]">{m.reference_number}</div>
-                    {m.notes && (
-                      <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-1" title={m.notes}>
-                        {m.notes}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
-                    {m.created_by}
-                  </td>
+        <>
+          {/* Mobile: compact expandable cards */}
+          <div className="md:hidden rounded-lg border overflow-hidden divide-y">
+            {filtered.map((m) => (
+              <InventoryMovementRowCard key={m.id} movement={m} />
+            ))}
+          </div>
+
+          {/* Desktop: compact table — click row for full detail */}
+          <div className="hidden md:block rounded-lg border overflow-x-auto">
+            <table className="w-full min-w-[960px]">
+              <thead>
+                <tr className="border-b bg-[hsl(var(--muted))]/40">
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Type</th>
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Item</th>
+                  <th className="h-8 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Change</th>
+                  <th className="h-8 px-2 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Main WH</th>
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">From</th>
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">To</th>
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Order</th>
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
+                  <th className="h-8 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">By</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y">
+                {filtered.map((m) => (
+                  <InventoryMovementTableRow
+                    key={m.id}
+                    movement={m}
+                    expanded={expandedId === m.id}
+                    onToggle={() => setExpandedId((id) => (id === m.id ? null : m.id))}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] hidden md:block">
+            Click a row for full notes and reference. <strong>Main WH</strong> = main warehouse qty before → after this movement.
+          </p>
+        </>
       )}
     </div>
   )

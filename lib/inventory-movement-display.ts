@@ -1,4 +1,5 @@
 import type { InventoryTransaction } from "@/lib/inventory-history"
+import { normalizeProductText } from "@/lib/order-product-search"
 
 function parseBranchTransferFromNote(notes?: string | null): {
   fromName: string
@@ -41,6 +42,10 @@ export type InventoryMovementRow = InventoryTransaction & {
   order_number: string
   is_inbound: boolean
   abs_quantity: number
+  /** Main warehouse qty for this product before this movement */
+  balance_before?: number | null
+  /** Main warehouse qty for this product after this movement */
+  balance_after?: number | null
 }
 
 const REFERENCE_LABELS: Record<string, string> = {
@@ -153,6 +158,83 @@ export function enrichMovements(
   orderClientMap: Map<string, string>,
 ): InventoryMovementRow[] {
   return transactions.map((tx) => enrichMovement(tx, orderClientMap))
+}
+
+/** Group alias product names (e.g. MAN-15-6… ↔ 15.6 KWh Battery Storage). */
+export function movementItemKey(description: string): string {
+  const n = normalizeProductText(description)
+  if (!n) return "unknown"
+  if (
+    (n.includes("15.6") || n.includes("15-6")) &&
+    n.includes("kwh") &&
+    n.includes("battery")
+  ) {
+    return "product:15-6-kwh-battery"
+  }
+  if (n.startsWith("man-")) return n
+  return n
+}
+
+function locationIsMainWarehouse(label: string): boolean {
+  const n = normalizeProductText(label)
+  return (
+    n.includes("main warehouse") ||
+    n === "br001" ||
+    /\bmain\s*warehouse\b/i.test(label)
+  )
+}
+
+/** Signed change to main-warehouse stock for one movement. */
+export function mainWarehouseDelta(m: InventoryMovementRow): number {
+  const q = m.abs_quantity
+  const fromMain = locationIsMainWarehouse(m.source)
+  const toMain = locationIsMainWarehouse(m.destination)
+
+  if (m.reference_type === "po" || m.reference_type.startsWith("manual_add")) {
+    return q
+  }
+  if (m.reference_type === "order") {
+    return -q
+  }
+  if (m.transaction_type === "assigned_to_branch") {
+    return -q
+  }
+  if (m.reference_type === "branch" || m.transaction_type === "branch_transfer") {
+    if (fromMain && !toMain) return -q
+    if (toMain && !fromMain) return q
+    return 0
+  }
+  if (m.reference_type.startsWith("manual_subtract_stock")) {
+    return -q
+  }
+  if (m.is_inbound) return q
+  if (m.is_inbound === false) return -q
+  return 0
+}
+
+/** Attach main-warehouse before/after qty per product line (uses full history, chronological). */
+export function attachMainWarehouseBalances(
+  movements: InventoryMovementRow[],
+): InventoryMovementRow[] {
+  const sorted = [...movements].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  )
+  const running = new Map<string, number>()
+  const balanceById = new Map<string, { before: number; after: number }>()
+
+  for (const m of sorted) {
+    const key = movementItemKey(m.item_description)
+    const before = running.get(key) ?? 0
+    const after = before + mainWarehouseDelta(m)
+    running.set(key, after)
+    balanceById.set(m.id, { before, after })
+  }
+
+  return movements.map((m) => {
+    const b = balanceById.get(m.id)
+    if (!b) return m
+    return { ...m, balance_before: b.before, balance_after: b.after }
+  })
 }
 
 export type DateRangePreset = "last_3_days" | "last_week" | "this_month" | "custom"
