@@ -7,6 +7,7 @@ import {
   enrichMovements,
   attachMainWarehouseBalances,
   getDateRangeForPreset,
+  getReferenceTypeLabel,
   type DateRangePreset,
   type InventoryMovementRow,
 } from "@/lib/inventory-movement-display"
