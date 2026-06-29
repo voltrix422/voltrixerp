@@ -26,6 +26,8 @@ import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
+import { InvoiceEditModal } from "@/components/crm/invoice-edit-modal"
+import { canEditOrderInvoice } from "@/lib/invoice-edit"
 import {
   calculateGstInclusiveTotals,
   DEFAULT_GST_PERCENT,
@@ -1171,6 +1173,7 @@ function OrderDetail({
   const [status, setStatus] = useState(order.status)
   const [showFinalize, setShowFinalize] = useState(false)
   const [showInvoicePreview, setShowInvoicePreview] = useState(false)
+  const [showInvoiceEdit, setShowInvoiceEdit] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
@@ -1234,6 +1237,7 @@ function OrderDetail({
 
   const hasInvoiceDetails = orderHasInvoiceDetails(detailOrder)
   const showInvoiceActions = canShowOrderInvoiceActions(detailOrder)
+  const canEditInvoice = canEditOrderInvoice(detailOrder)
   const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
   const canManagePayments = canCapturePaymentsForOrder(detailOrder)
   const canDeletePayments = detailOrder.status === "delivered" && canManagePayments
@@ -1321,6 +1325,17 @@ function OrderDetail({
     <>
     {showInvoicePreview && (
       <InvoicePreviewModal order={detailOrder} onClose={() => setShowInvoicePreview(false)} />
+    )}
+    {showInvoiceEdit && (
+      <InvoiceEditModal
+        order={detailOrder}
+        onClose={() => setShowInvoiceEdit(false)}
+        onSave={(o) => {
+          setDetailOrder(o)
+          onUpdate(o)
+          setShowInvoiceEdit(false)
+        }}
+      />
     )}
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
       <div className="w-full max-w-6xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -1575,6 +1590,16 @@ function OrderDetail({
                   {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
                 </Button>
               )}
+          {canEditInvoice && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-10 text-sm cursor-pointer"
+              onClick={() => setShowInvoiceEdit(true)}
+            >
+              <Edit className="h-4 w-4 mr-2" /> Edit invoice
+            </Button>
+          )}
           {showInvoiceActions && (
             <>
               <Button
