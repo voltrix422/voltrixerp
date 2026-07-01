@@ -14,6 +14,7 @@ import {
   orderHasPendingFinancePayments,
   isOrderPaymentLocked,
   isPostDeliveryPaymentCapture,
+  isDeliveredCreditPaymentCapture,
   getOrderAmountPaid,
   getOrderCreditBalance,
   isOrderOnCredit,
@@ -73,6 +74,8 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
   const [editNotes, setEditNotes] = useState("")
   const financeLocked = isOrderPaymentLocked(order)
   const postDelivery = isPostDeliveryPaymentCapture(order)
+  const deliveredOnCredit = isDeliveredCreditPaymentCapture({ ...order, payments })
+  const deliveredProofOnly = postDelivery && !deliveredOnCredit
   const canAddPayments = canCapturePaymentsForOrder(order) && !financeLocked
 
   useEffect(() => {
@@ -173,6 +176,46 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
       resetNewPaymentForm()
     } catch {
       setError("Failed to save payment draft")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSavePostDeliveryCreditPayment() {
+    setError(null)
+    const amount = Number(paymentAmount)
+    if (!validateNewPaymentAmount(amount)) return
+    if (amount <= 0.004) {
+      setError("Enter a payment amount greater than zero")
+      return
+    }
+    if (paymentProofFiles.length === 0) {
+      setError("Payment proof is required")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const proofUrls = await uploadProofFiles(paymentProofFiles)
+
+      const payment: OrderPayment = {
+        id: Date.now().toString(),
+        amount,
+        method: paymentMethod,
+        date: paymentDate,
+        notes: paymentNotes,
+        proofUrls,
+        proofUrl: proofUrls[0],
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser,
+        submissionStatus: "approved",
+        proofOnly: false,
+      }
+
+      await persistOrder([...payments, payment])
+      resetNewPaymentForm()
+    } catch {
+      setError("Failed to record payment")
     } finally {
       setSaving(false)
     }
@@ -521,10 +564,16 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                     : "Finance has approved this order. You can no longer add or edit payment proofs."}
                 </p>
               </div>
-            ) : postDelivery ? (
+            ) : deliveredOnCredit ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/40 p-3 sm:p-4">
+                <p className="text-xs sm:text-sm font-medium text-amber-900 dark:text-amber-100 leading-snug">
+                  This order was delivered on credit. Record each payment with amount and proof — the remaining balance updates automatically and Finance can track collections.
+                </p>
+              </div>
+            ) : deliveredProofOnly ? (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 p-3 sm:p-4">
                 <p className="text-xs sm:text-sm font-medium text-emerald-900 dark:text-emerald-100 leading-snug">
-                  This order is delivered. Attach delivery or payment proof here — it is saved on the order only and does not change the paid balance or go to Finance.
+                  This order is delivered and fully paid. Attach delivery or payment proof here — it is saved on the order only and does not change the paid balance.
                 </p>
               </div>
             ) : onCredit && remaining > 0 ? (
@@ -552,17 +601,21 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
               <>
                 <div className="border-t pt-4">
                   <p className="text-sm font-semibold mb-4">
-                    {postDelivery
+                    {deliveredOnCredit
                       ? payments.length > 0
-                        ? "Attach another proof"
-                        : "Attach delivery proof"
-                      : payments.length > 0
-                        ? "Add another payment"
-                        : "Add payment"}
+                        ? "Record another payment"
+                        : "Record payment against credit"
+                      : deliveredProofOnly
+                        ? payments.length > 0
+                          ? "Attach another proof"
+                          : "Attach delivery proof"
+                        : payments.length > 0
+                          ? "Add another payment"
+                          : "Add payment"}
                   </p>
                 </div>
 
-                {!postDelivery && (
+                {(!postDelivery || deliveredOnCredit) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Payment Amount *</label>
@@ -593,7 +646,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                 </div>
                 )}
 
-                {!postDelivery && (
+                {(!postDelivery || deliveredOnCredit) && (
                 <div className="space-y-1">
                   <label className="text-xs font-medium">Payment Date *</label>
                   <input
@@ -618,7 +671,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
 
                 <div className="space-y-2">
                   <label className="text-xs font-medium">
-                    {postDelivery ? "Proof attachment *" : `Payment Proof (optional${postDelivery ? "" : " — required to submit for approval"})`}
+                    {deliveredProofOnly ? "Proof attachment *" : "Payment Proof"}{deliveredOnCredit ? " *" : deliveredProofOnly ? "" : " (optional — required to submit for approval)"}
                   </label>
                   <label className="flex items-center justify-center gap-2 h-10 rounded-md border border-dashed bg-[hsl(var(--background))] px-3.5 text-sm cursor-pointer hover:bg-[hsl(var(--muted))]/30">
                     <Upload className="h-4 w-4" />
@@ -632,8 +685,10 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                     />
                   </label>
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                    {postDelivery
+                    {deliveredProofOnly
                       ? "Upload a receipt, screenshot, or delivery proof. This does not add to the order balance."
+                      : deliveredOnCredit
+                        ? "Upload bank receipt or payment proof. Amount is deducted from the credit balance."
                       : isZeroAmountSubmit
                         ? "Not required for amount 0 (full credit request)."
                         : "Required to submit for approval. You can add more proofs later before finance approves."}
@@ -673,7 +728,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                 {saving ? "Submitting..." : "Submit for approval (full credit, no payment)"}
               </Button>
             )}
-            {canAddPayments && postDelivery && (
+            {canAddPayments && deliveredProofOnly && (
               <Button
                 size="sm"
                 className="h-10 w-full sm:w-auto text-sm bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
@@ -681,6 +736,16 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
                 disabled={saving || uploadingProof || paymentProofFiles.length === 0}
               >
                 {saving ? "Saving..." : uploadingProof ? "Uploading..." : "Attach proof"}
+              </Button>
+            )}
+            {canAddPayments && deliveredOnCredit && (
+              <Button
+                size="sm"
+                className="h-10 w-full sm:w-auto text-sm bg-green-600 hover:bg-green-700 cursor-pointer order-1 sm:order-none"
+                onClick={handleSavePostDeliveryCreditPayment}
+                disabled={saving || uploadingProof || !canSubmitNewPayment || paymentProofFiles.length === 0}
+              >
+                {saving ? "Saving..." : uploadingProof ? "Uploading..." : "Record payment"}
               </Button>
             )}
             {canAddPayments && !postDelivery && (
@@ -720,7 +785,7 @@ export function PaymentCapture({ order, currentUser, onClose, onUpdate }: {
         isOpen={deletePaymentId !== null}
         title="Delete payment"
         message={
-          postDelivery
+          deliveredProofOnly
             ? "Remove this payment or proof from the order? The order and delivery details stay — only this entry is deleted."
             : "Are you sure you want to delete this payment? This action cannot be undone."
         }

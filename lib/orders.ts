@@ -203,6 +203,13 @@ export function isPostDeliveryPaymentCapture(order: Pick<Order, "status">) {
   return order.status === "delivered"
 }
 
+/** Delivered on credit — collect payment amount + proof against outstanding balance. */
+export function isDeliveredCreditPaymentCapture(
+  order: Pick<Order, "status" | "total" | "payments" | "paymentTerms" | "creditApprovedAt">,
+) {
+  return isPostDeliveryPaymentCapture(order) && hasOutstandingCredit(order)
+}
+
 export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymentTerms" | "creditApprovedAt" | "total" | "payments">) {
   if (order.status === "approved" || order.status === "finalized" || order.status === "payment_added") {
     return true

@@ -1422,7 +1422,7 @@ function OrderDetail({
               {canManagePayments && (
                 <Button size="sm" className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
-                  {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
+                  {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
                 </Button>
               )}
             </div>
@@ -1453,9 +1453,11 @@ function OrderDetail({
               ) : (
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                   {canManagePayments
-                    ? detailOrder.status === "delivered"
-                      ? "Attach delivery or payment proof here — saved on the order only, does not change the paid balance."
-                      : "No payments yet — add payments with proof; each submit goes to Finance."
+                    ? detailOrder.status === "delivered" && hasOutstandingCredit(detailOrder)
+                      ? "Record payments with amount and proof — remaining credit balance updates automatically."
+                      : detailOrder.status === "delivered"
+                        ? "Attach delivery or payment proof here — saved on the order only, does not change the paid balance."
+                        : "No payments yet — add payments with proof; each submit goes to Finance."
                     : "No payments received yet"}
                 </p>
               )}
@@ -1585,7 +1587,7 @@ function OrderDetail({
               {canManagePayments && (
                 <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  {detailOrder.payments?.length ? "Manage payments" : "Add payment"}
+                  {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
                 </Button>
               )}
           {canEditInvoice && (
