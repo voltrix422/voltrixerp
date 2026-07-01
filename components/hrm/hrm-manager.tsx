@@ -9,6 +9,13 @@ import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { StaffSalaryAdvanceModal } from "@/components/hrm/staff-salary-advance-modal"
 import { StaffBankDetailsModal } from "@/components/hrm/staff-bank-details-modal"
 import { fetchSalaryAdvanceSummary, recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
+import {
+  buildEffectiveSalaryAdjustments,
+  calculateProRatedSalary,
+  computeNetSalary,
+  monthDateBounds,
+  payPeriodLabel,
+} from "@/lib/hrm-salary-calc"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadStaffExcel } from "@/lib/hrm-excel-export"
 
@@ -187,6 +194,10 @@ export function HrmManager() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [salaryAdjustments, setSalaryAdjustments] = useState<{ id: string; type: 'add' | 'deduct'; amount: string; label: string }[]>([])
   const [newAdjustment, setNewAdjustment] = useState({ type: 'add' as 'add' | 'deduct', amount: '', label: '' })
+  const [payPeriodMode, setPayPeriodMode] = useState<"full_month" | "custom_range">("full_month")
+  const [periodFrom, setPeriodFrom] = useState("")
+  const [periodTo, setPeriodTo] = useState("")
+  const [deductAdvance, setDeductAdvance] = useState(false)
   const [allSalarySlips, setAllSalarySlips] = useState<any[]>([])
   const [payrollMonth, setPayrollMonth] = useState(new Date().toISOString().slice(0, 7))
   const [showPayrollRun, setShowPayrollRun] = useState(false)
@@ -207,6 +218,61 @@ export function HrmManager() {
       setAdvanceByStaff(map)
     } catch {
       setAdvanceByStaff({})
+    }
+  }
+
+  function periodStartForMember(member: StaffMember, month: string): string {
+    const { from } = monthDateBounds(month)
+    const join = member.join_date?.slice(0, 10)
+    if (join && join > from) return join
+    return from
+  }
+
+  function resolveSalarySlipFigures(member: StaffMember) {
+    const outstandingAdvance = advanceByStaff[member.id] || 0
+    const proRate =
+      payPeriodMode === "custom_range" && periodFrom && periodTo
+        ? calculateProRatedSalary(member.salary, periodFrom, periodTo)
+        : null
+    const effectiveBase = proRate?.amount ?? member.salary
+    const effectiveAdjustments = buildEffectiveSalaryAdjustments(salaryAdjustments, {
+      deductAdvance,
+      outstandingAdvance,
+    })
+    const netSalary = computeNetSalary(effectiveBase, effectiveAdjustments)
+    const payPeriodText = payPeriodLabel(selectedMonth, payPeriodMode, periodFrom, periodTo)
+    return { outstandingAdvance, proRate, effectiveBase, effectiveAdjustments, netSalary, payPeriodText }
+  }
+
+  function openSalarySlipModal() {
+    if (!viewMember) return
+    const month = new Date().toISOString().slice(0, 7)
+    const bounds = monthDateBounds(month)
+    setSelectedMonth(month)
+    setPayPeriodMode("full_month")
+    setPeriodFrom(periodStartForMember(viewMember, month))
+    setPeriodTo(bounds.to)
+    setSalaryAdjustments([])
+    setNewAdjustment({ type: "add", amount: "", label: "" })
+    setDeductAdvance((advanceByStaff[viewMember.id] || 0) > 0)
+    setShowSalarySlip(true)
+  }
+
+  function resetSalarySlipModal() {
+    setShowSalarySlip(false)
+    setSalaryAdjustments([])
+    setNewAdjustment({ type: "add", amount: "", label: "" })
+    setPayPeriodMode("full_month")
+    setPeriodFrom("")
+    setPeriodTo("")
+    setDeductAdvance(false)
+  }
+
+  function handleSalaryMonthChange(month: string) {
+    setSelectedMonth(month)
+    if (viewMember) {
+      setPeriodFrom(periodStartForMember(viewMember, month))
+      setPeriodTo(monthDateBounds(month).to)
     }
   }
 
@@ -1227,6 +1293,8 @@ export function HrmManager() {
     logoImg.src = '/logo.png'
   }
 
+  const slipFigures = showSalarySlip && viewMember ? resolveSalarySlipFigures(viewMember) : null
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -1708,7 +1776,7 @@ export function HrmManager() {
                           <Wallet className="h-4 w-4" /> Advance
                         </Button>
                       )}
-                      <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => setShowSalarySlip(true)}>
+                      <Button size="sm" variant="outline" className="h-8 gap-2" onClick={openSalarySlipModal}>
                         <Download className="h-4 w-4" /> Generate
                       </Button>
                       <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => {
@@ -2199,8 +2267,8 @@ export function HrmManager() {
       )}
 
       {/* Salary Slip Generation Modal */}
-      {showSalarySlip && viewMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowSalarySlip(false)}>
+      {showSalarySlip && viewMember && slipFigures && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={resetSalarySlipModal}>
           <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
               <div className="flex items-center gap-3">
@@ -2214,7 +2282,7 @@ export function HrmManager() {
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">{viewMember.name} - {viewMember.role}</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setShowSalarySlip(false)}><X className="h-5 w-5" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={resetSalarySlipModal}><X className="h-5 w-5" /></Button>
             </div>
             
             <div className="overflow-y-auto p-6 space-y-6">
@@ -2224,19 +2292,118 @@ export function HrmManager() {
                 <input
                   type="month"
                   value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  onChange={(e) => handleSalaryMonthChange(e.target.value)}
                   className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
                 />
+              </div>
+
+              {/* Pay period */}
+              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-[hsl(var(--foreground))]">Pay Period</h4>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPayPeriodMode("full_month")}
+                    className={`flex-1 h-9 rounded-lg text-sm font-medium border transition-colors ${
+                      payPeriodMode === "full_month"
+                        ? "border-[#1a9f9a] bg-[#1a9f9a]/10 text-[#1a9f9a]"
+                        : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20"
+                    }`}
+                  >
+                    Full month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayPeriodMode("custom_range")
+                      setPeriodFrom(periodStartForMember(viewMember, selectedMonth))
+                      setPeriodTo(monthDateBounds(selectedMonth).to)
+                    }}
+                    className={`flex-1 h-9 rounded-lg text-sm font-medium border transition-colors ${
+                      payPeriodMode === "custom_range"
+                        ? "border-[#1a9f9a] bg-[#1a9f9a]/10 text-[#1a9f9a]"
+                        : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20"
+                    }`}
+                  >
+                    Custom date range
+                  </button>
+                </div>
+                {payPeriodMode === "custom_range" && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">From</label>
+                      <input
+                        type="date"
+                        value={periodFrom}
+                        onChange={(e) => setPeriodFrom(e.target.value)}
+                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">To</label>
+                      <input
+                        type="date"
+                        value={periodTo}
+                        onChange={(e) => setPeriodTo(e.target.value)}
+                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm"
+                      />
+                    </div>
+                    {slipFigures.proRate && slipFigures.proRate.daysWorked > 0 && (
+                      <p className="col-span-2 text-xs text-[hsl(var(--muted-foreground))]">
+                        Pro-rated: {slipFigures.proRate.description} — {viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}
+                      </p>
+                    )}
+                    {viewMember.join_date && periodFrom === viewMember.join_date.slice(0, 10) && (
+                      <p className="col-span-2 text-xs text-amber-700">
+                        Start date set from join date ({new Date(viewMember.join_date).toLocaleDateString()}).
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Base Salary */}
               <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
                 <h4 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Base Salary</h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[hsl(var(--muted-foreground))]">Monthly Salary</span>
-                  <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[hsl(var(--muted-foreground))]">Contract monthly salary</span>
+                    <span className="text-sm font-medium text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</span>
+                  </div>
+                  {payPeriodMode === "custom_range" && (
+                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Payable for selected period</span>
+                      <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {payPeriodMode === "full_month" && (
+                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Full month payable</span>
+                      <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Advance recovery */}
+              {slipFigures.outstandingAdvance > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deductAdvance}
+                      onChange={(e) => setDeductAdvance(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-900">Deduct outstanding salary advance</p>
+                      <p className="text-sm text-amber-800 mt-0.5">
+                        {viewMember.currency} {slipFigures.outstandingAdvance.toLocaleString()} will be recovered from this salary.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
 
               {/* Adjustments */}
               <div>
@@ -2321,10 +2488,12 @@ export function HrmManager() {
                 <h4 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Salary Summary</h4>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[hsl(var(--muted-foreground))]">Base Salary</span>
-                    <span className="font-medium">{viewMember.currency} {viewMember.salary.toLocaleString()}</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">
+                      {payPeriodMode === "custom_range" ? "Pro-rated base salary" : "Base salary"}
+                    </span>
+                    <span className="font-medium">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
                   </div>
-                  {salaryAdjustments.map(adj => (
+                  {slipFigures.effectiveAdjustments.map(adj => (
                     <div key={adj.id} className="flex items-center justify-between text-sm">
                       <span className="text-[hsl(var(--muted-foreground))]">{adj.label}</span>
                       <span className={`font-medium ${adj.type === 'add' ? 'text-green-600' : 'text-red-600'}`}>
@@ -2336,11 +2505,7 @@ export function HrmManager() {
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-[hsl(var(--foreground))]">Net Salary</span>
                       <span className="text-lg font-bold text-[hsl(var(--foreground))]">
-                        {viewMember.currency} {
-                          (viewMember.salary + salaryAdjustments.reduce((sum, adj) => {
-                            return sum + (adj.type === 'add' ? parseFloat(adj.amount) : -parseFloat(adj.amount))
-                          }, 0)).toLocaleString()
-                        }
+                        {viewMember.currency} {slipFigures.netSalary.toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -2349,16 +2514,25 @@ export function HrmManager() {
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1" onClick={() => {
-                  setShowSalarySlip(false)
-                  setSalaryAdjustments([])
-                  setNewAdjustment({ type: 'add', amount: '', label: '' })
-                }}>
+                <Button variant="outline" className="flex-1" onClick={resetSalarySlipModal}>
                   Cancel
                 </Button>
                 <Button 
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white"
                   onClick={async () => {
+                    if (payPeriodMode === "custom_range") {
+                      if (!periodFrom || !periodTo) {
+                        alert("Please select both start and end dates for the pay period.")
+                        return
+                      }
+                      if (periodTo < periodFrom) {
+                        alert("End date must be on or after the start date.")
+                        return
+                      }
+                    }
+
+                    const figures = resolveSalarySlipFigures(viewMember)
+
                     const existsForMonth = uniqueAllSalarySlips.some((slip: any) =>
                       String(slip.month || "") === selectedMonth &&
                       String(slip.staffName || "").trim().toLowerCase() === viewMember.name.trim().toLowerCase()
@@ -2368,21 +2542,15 @@ export function HrmManager() {
                       return
                     }
 
-                    // Generate salary slip PDF
-                    const netSalary = viewMember.salary + salaryAdjustments.reduce((sum, adj) => {
-                      return sum + (adj.type === 'add' ? parseFloat(adj.amount) : -parseFloat(adj.amount))
-                    }, 0)
-                    
-                    // Create salary slip data
                     const salarySlipData = {
                       staffName: viewMember.name,
                       staffRole: viewMember.role,
                       staffDepartment: viewMember.department,
                       month: selectedMonth,
-                      baseSalary: viewMember.salary,
+                      baseSalary: figures.effectiveBase,
                       currency: viewMember.currency,
-                      adjustments: salaryAdjustments,
-                      netSalary: netSalary,
+                      adjustments: figures.effectiveAdjustments,
+                      netSalary: figures.netSalary,
                       generatedDate: new Date().toISOString(),
                       bankName: viewMember.bank_name || "",
                       bankAccountNumber: viewMember.bank_account_number || "",
@@ -2443,7 +2611,7 @@ export function HrmManager() {
                       
                       doc.setFontSize(9)
                       doc.setFont('helvetica', 'normal')
-                      doc.text(new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 205, 38, { align: 'right' })
+                      doc.text(figures.payPeriodText, 205, 38, { align: 'right' })
                       
                       // Reset text color
                       doc.setTextColor(textColor[0], textColor[1], textColor[2])
@@ -2491,7 +2659,7 @@ export function HrmManager() {
                       
                       // Right column values
                       doc.setFont('helvetica', 'normal')
-                      doc.text(new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), 155, 83)
+                      doc.text(figures.payPeriodText, 155, 83)
                       doc.text(new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }), 155, 91)
                       doc.text(viewMember.currency, 155, 99)
                       
@@ -2525,12 +2693,17 @@ export function HrmManager() {
                       doc.setTextColor(textColor[0], textColor[1], textColor[2])
                       doc.text('BASE SALARY', 20, currentY + 8)
                       doc.setFontSize(12)
-                      doc.text(`${viewMember.currency} ${viewMember.salary.toLocaleString()}`, 190, currentY + 8, { align: 'right' })
+                      doc.text(`${viewMember.currency} ${figures.effectiveBase.toLocaleString()}`, 190, currentY + 8, { align: 'right' })
+                      if (payPeriodMode === "custom_range" && figures.proRate) {
+                        doc.setFontSize(8)
+                        doc.setFont('helvetica', 'normal')
+                        doc.text(`Contract: ${viewMember.currency} ${viewMember.salary.toLocaleString()} (${figures.proRate.description})`, 20, currentY + 11)
+                      }
                       
-                      currentY += 20
+                      currentY += payPeriodMode === "custom_range" && figures.proRate ? 24 : 20
                       
                       // Adjustments Section
-                      if (salaryAdjustments.length > 0) {
+                      if (figures.effectiveAdjustments.length > 0) {
                         // Adjustments header
                         doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
                         doc.rect(15, currentY, 180, 8, 'F')
@@ -2542,7 +2715,7 @@ export function HrmManager() {
                         currentY += 12
                         doc.setTextColor(textColor[0], textColor[1], textColor[2])
                         
-                        salaryAdjustments.forEach((adj, index) => {
+                        figures.effectiveAdjustments.forEach((adj, index) => {
                           const amount = parseFloat(adj.amount)
                           const isAddition = adj.type === 'add'
                           
@@ -2588,7 +2761,7 @@ export function HrmManager() {
                       doc.setFont('helvetica', 'bold')
                       doc.text('NET SALARY (TOTAL PAYABLE)', 20, currentY + 13)
                       doc.setFontSize(16)
-                      doc.text(`${viewMember.currency} ${netSalary.toLocaleString()}`, 190, currentY + 13, { align: 'right' })
+                      doc.text(`${viewMember.currency} ${figures.netSalary.toLocaleString()}`, 190, currentY + 13, { align: 'right' })
                       
                       // Reset text color
                       doc.setTextColor(textColor[0], textColor[1], textColor[2])
@@ -2645,6 +2818,15 @@ export function HrmManager() {
                           return
                         }
                         if (!response.ok) throw new Error('Database save failed')
+
+                        if (deductAdvance && figures.outstandingAdvance > 0) {
+                          await recoverSalaryAdvances({
+                            staffId: viewMember.id,
+                            month: selectedMonth,
+                            recoveredBy: user?.name || "Admin",
+                          })
+                          await refreshAdvanceSummary()
+                        }
                       } catch (dbError) {
                         console.warn('Database save failed, using localStorage fallback:', dbError)
                         const existsInLocal = (JSON.parse(localStorage.getItem('salary_slips') || '[]') as any[]).some((slip: any) =>
@@ -2668,10 +2850,8 @@ export function HrmManager() {
                       
                       // Show success and close modal
                       await fetchAllSalarySlips()
-                      setShowSalarySlip(false)
+                      resetSalarySlipModal()
                       setShowSalarySlipSuccess(true)
-                      setSalaryAdjustments([])
-                      setNewAdjustment({ type: 'add', amount: '', label: '' })
                       
                     } catch (error) {
                       console.error('Error generating PDF:', error)
