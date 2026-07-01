@@ -308,14 +308,9 @@ export function MakeSalariesModal({
     }
   }
 
-  function copyBankDetails(row: SalaryRow) {
-    const lines = [
-      row.staffName,
-      row.bankName ? `Bank: ${row.bankName}` : "",
-      row.bankAccountTitle ? `Title: ${row.bankAccountTitle}` : "",
-      row.bankAccountNumber ? `Account: ${row.bankAccountNumber}` : "",
-    ].filter(Boolean)
-    void navigator.clipboard.writeText(lines.join("\n"))
+  function copyAccountNumber(accountNumber: string) {
+    if (!accountNumber.trim()) return
+    void navigator.clipboard.writeText(accountNumber.trim())
   }
 
   return (
@@ -419,11 +414,11 @@ export function MakeSalariesModal({
                         <span className="text-xs tabular-nums text-[hsl(var(--foreground))]">
                           {row.bankAccountNumber || "—"}
                         </span>
-                        {(row.bankName || row.bankAccountNumber || row.bankAccountTitle) && (
+                        {row.bankAccountNumber && (
                           <button
                             type="button"
-                            title="Copy bank details"
-                            onClick={() => copyBankDetails(row)}
+                            title="Copy account number"
+                            onClick={() => copyAccountNumber(row.bankAccountNumber)}
                             className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-[hsl(var(--muted))]/40 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                           >
                             <Copy className="h-3 w-3" />
