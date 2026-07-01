@@ -148,3 +148,27 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Failed to update salary advance" }, { status: 500 })
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = String(searchParams.get("id") || "").trim()
+    const body = await req.json().catch(() => ({}))
+    const deletedBy = String(body.deletedBy || "").trim()
+
+    if (!id || !deletedBy) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    const existing = await prisma.hrmSalaryAdvance.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: "Advance not found" }, { status: 404 })
+    }
+
+    await prisma.hrmSalaryAdvance.delete({ where: { id } })
+    return NextResponse.json({ success: true, id })
+  } catch (error) {
+    console.error("Error deleting salary advance:", error)
+    return NextResponse.json({ error: "Failed to delete salary advance" }, { status: 500 })
+  }
+}

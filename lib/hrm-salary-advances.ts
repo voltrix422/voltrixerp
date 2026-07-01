@@ -66,6 +66,16 @@ export async function cancelSalaryAdvance(id: string, cancelledBy: string): Prom
   return payload
 }
 
+export async function deleteSalaryAdvance(id: string, deletedBy: string): Promise<void> {
+  const res = await fetch(`/api/hrm/salary-advances?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deletedBy }),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(payload?.error || "Failed to delete advance")
+}
+
 export async function recoverSalaryAdvances(data: {
   staffId: string
   month: string

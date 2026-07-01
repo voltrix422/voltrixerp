@@ -4,13 +4,13 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import {
-  cancelSalaryAdvance,
   createSalaryAdvance,
+  deleteSalaryAdvance,
   fetchSalaryAdvances,
   sumOutstandingAdvances,
   type SalaryAdvance,
 } from "@/lib/hrm-salary-advances"
-import { Wallet, X, Upload } from "lucide-react"
+import { Wallet, X, Upload, Trash2 } from "lucide-react"
 
 type StaffLike = {
   id: string
@@ -113,17 +113,25 @@ export function StaffSalaryAdvanceModal({ staff, givenBy, onClose, onUpdate }: P
     }
   }
 
-  async function handleCancel(advance: SalaryAdvance) {
-    if (!window.confirm(`Cancel advance of ${currency} ${advance.amount.toLocaleString()}?`)) return
+  async function handleDelete(advance: SalaryAdvance) {
+    const message =
+      advance.status === "outstanding"
+        ? `Delete this advance of ${currency} ${advance.amount.toLocaleString()}? The outstanding balance will be reduced.`
+        : advance.status === "recovered"
+          ? `This advance was recovered in ${advance.recoveredInMonth || "payroll"}. Delete it permanently?`
+          : `Remove this cancelled advance from history?`
+
+    if (!window.confirm(message)) return
+
     try {
-      const updated = await cancelSalaryAdvance(advance.id, givenBy)
-      setAdvances((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
-      toast({ title: "Advance cancelled", type: "success" })
+      await deleteSalaryAdvance(advance.id, givenBy)
+      setAdvances((prev) => prev.filter((a) => a.id !== advance.id))
+      toast({ title: "Advance deleted", type: "success" })
       onUpdate()
     } catch (error) {
       toast({
         title: "Error",
-        message: error instanceof Error ? error.message : "Failed to cancel",
+        message: error instanceof Error ? error.message : "Failed to delete advance",
         type: "error",
       })
     }
@@ -247,26 +255,29 @@ export function StaffSalaryAdvanceModal({ staff, givenBy, onClose, onUpdate }: P
                         {advance.status}
                       </span>
                     </div>
-                    {advance.status === "outstanding" && (
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                      <div className="flex gap-2">
+                        {advance.proofUrl && (
+                          <a
+                            href={advance.proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[#1faca6] hover:underline"
+                          >
+                            View proof
+                          </a>
+                        )}
+                      </div>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 mt-2 text-xs"
-                        onClick={() => handleCancel(advance)}
+                        className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => handleDelete(advance)}
                       >
-                        Cancel
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
                       </Button>
-                    )}
-                    {advance.proofUrl && (
-                      <a
-                        href={advance.proofUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-block mt-2 text-[#1faca6] hover:underline"
-                      >
-                        View proof
-                      </a>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
