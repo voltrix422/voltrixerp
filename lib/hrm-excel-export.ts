@@ -177,3 +177,78 @@ export function allStaffBankDetailsCopyText(staff: StaffExportRow[]): string {
   )
   return withBank.map((s, i) => `${i + 1}. ${staffBankDetailsCopyText(s)}`).join("\n\n")
 }
+
+export type MakeSalariesExportRow = {
+  staffName: string
+  role: string
+  department: string
+  bankName: string
+  bankAccountTitle: string
+  bankAccountNumber: string
+  periodFrom: string
+  periodTo: string
+  payPeriodText: string
+  contractSalary: number
+  payableSalary: number
+  advanceDeduction: number
+  netSalary: number
+  currency: string
+}
+
+/** Payroll sheet for bank transfers — only rows passed in (caller filters excluded staff). */
+export function downloadMakeSalariesExcel(
+  month: string,
+  rows: MakeSalariesExportRow[],
+  exportedBy?: string,
+): number {
+  const monthLabel = (() => {
+    const [y, m] = month.split("-").map(Number)
+    if (!y || !m) return month
+    return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  })()
+
+  const preamble = [
+    `${escCsvCell("Payroll month")},${escCsvCell(monthLabel)}`,
+    `${escCsvCell("Employees")},${escCsvCell(rows.length)}`,
+    `${escCsvCell("Total net")},${escCsvCell(rows.reduce((s, r) => s + r.netSalary, 0))}`,
+    "",
+  ].join("\r\n")
+
+  const headers = [
+    "Employee",
+    "Role",
+    "Department",
+    "Bank Name",
+    "Account Title",
+    "Account Number",
+    "Period From",
+    "Period To",
+    "Pay Period",
+    "Contract Salary",
+    "Payable Salary",
+    "Advance Deduction",
+    "Net Salary",
+    "Currency",
+  ]
+
+  const dataRows = rows.map((r) => [
+    r.staffName,
+    r.role,
+    r.department,
+    r.bankName,
+    r.bankAccountTitle,
+    r.bankAccountNumber,
+    r.periodFrom,
+    r.periodTo,
+    r.payPeriodText,
+    r.contractSalary,
+    r.payableSalary,
+    r.advanceDeduction,
+    r.netSalary,
+    r.currency,
+  ])
+
+  const csv = preamble + exportMetaHeader(exportedBy) + rowsToCsv(headers, dataRows)
+  downloadCsv(`salary-payroll-${month}.csv`, csv)
+  return rows.length
+}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Save, CheckCircle2, Copy } from "lucide-react"
+import { X, Save, CheckCircle2, Copy, Download } from "lucide-react"
 import {
   computeBatchSalaryFigures,
   monthDateBounds,
@@ -17,6 +17,7 @@ import {
   type PayrollSummaryRow,
 } from "@/lib/generate-salary-slip-pdf"
 import { recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
+import { downloadMakeSalariesExcel } from "@/lib/hrm-excel-export"
 
 export type MakeSalariesStaff = {
   id: string
@@ -113,6 +114,7 @@ export function MakeSalariesModal({
   const [rows, setRows] = useState<SalaryRow[]>(() => buildRows(staff, month, existingSlips))
   const [saving, setSaving] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   useEffect(() => {
     if (initialMonth) setMonth(initialMonth)
@@ -149,6 +151,11 @@ export function MakeSalariesModal({
   }, [rows, advanceByStaff])
 
   const includedRows = computed.filter((c) => c.row.included)
+  const selectableRows = computed.filter(
+    (c) => !finalizedNames.has(c.row.staffName.trim().toLowerCase()),
+  )
+  const allSelectableIncluded =
+    selectableRows.length > 0 && selectableRows.every((c) => c.row.included)
   const totalNet = includedRows.reduce((sum, c) => sum + c.figures.netSalary, 0)
   const currency = includedRows[0]?.row.currency || "PKR"
   const draftCount = existingSlips.filter((s) => s.month === month && s.status === "draft").length
@@ -169,6 +176,48 @@ export function MakeSalariesModal({
         }
       }),
     )
+  }
+
+  function setAllIncluded(included: boolean) {
+    setRows((prev) =>
+      prev.map((row) => {
+        if (finalizedNames.has(row.staffName.trim().toLowerCase())) return row
+        return { ...row, included }
+      }),
+    )
+  }
+
+  function handleExportExcel() {
+    if (includedRows.length === 0) {
+      alert("Select at least one employee to export.")
+      return
+    }
+    setExportingExcel(true)
+    try {
+      const count = downloadMakeSalariesExcel(
+        month,
+        includedRows.map(({ row, advance, figures }) => ({
+          staffName: row.staffName,
+          role: row.role,
+          department: row.department,
+          bankName: row.bankName,
+          bankAccountTitle: row.bankAccountTitle,
+          bankAccountNumber: row.bankAccountNumber,
+          periodFrom: row.periodFrom,
+          periodTo: row.periodTo,
+          payPeriodText: figures.payPeriodText,
+          contractSalary: row.monthlySalary,
+          payableSalary: figures.baseSalary,
+          advanceDeduction: advance,
+          netSalary: figures.netSalary,
+          currency: row.currency,
+        })),
+        recoveredBy,
+      )
+      alert(`Exported ${count} employee${count === 1 ? "" : "s"} to Excel.`)
+    } finally {
+      setExportingExcel(false)
+    }
   }
 
   async function saveSlips(status: "draft" | "finalized") {
@@ -326,7 +375,7 @@ export function MakeSalariesModal({
           <div>
             <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Make Salaries</h3>
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Set pay period per employee, auto-deduct advances, save as draft and export PDFs.
+              Uncheck employees to exclude them from export and payroll. Set pay period per employee, auto-deduct advances.
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
@@ -347,6 +396,14 @@ export function MakeSalariesModal({
           <Button type="button" size="sm" variant="outline" className="h-9 mt-5" onClick={applyMonthBounds}>
             Reset all to full month
           </Button>
+          <div className="flex items-center gap-2 mt-5">
+            <Button type="button" size="sm" variant="ghost" className="h-9 text-xs" onClick={() => setAllIncluded(true)}>
+              Select all
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-9 text-xs" onClick={() => setAllIncluded(false)}>
+              Exclude all
+            </Button>
+          </div>
           {draftCount > 0 && (
             <Badge variant="outline" className="mt-5 text-amber-700 border-amber-300 bg-amber-50">
               {draftCount} draft{draftCount === 1 ? "" : "s"} saved for this month
@@ -364,7 +421,15 @@ export function MakeSalariesModal({
           <table className="w-full min-w-[1280px]">
             <thead>
               <tr className="border-b border-[hsl(var(--border))] text-left">
-                <th className="px-2 py-2 text-xs font-medium w-10" />
+                <th className="px-2 py-2 text-xs font-medium w-10" title="Include in export & payroll">
+                  <input
+                    type="checkbox"
+                    checked={allSelectableIncluded}
+                    onChange={(e) => setAllIncluded(e.target.checked)}
+                    className="h-4 w-4 rounded"
+                    aria-label="Select all employees"
+                  />
+                </th>
                 <th className="px-2 py-2 text-xs font-medium min-w-[140px]">Employee</th>
                 <th className="px-2 py-2 text-xs font-medium min-w-[110px]">Bank</th>
                 <th className="px-2 py-2 text-xs font-medium min-w-[120px]">Account title</th>
@@ -470,12 +535,20 @@ export function MakeSalariesModal({
 
         <div className="border-t border-[hsl(var(--border))] px-6 py-4 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-            Advances are deducted automatically. Use custom dates for mid-month joiners. Save as draft to review
-            before paying. You can still generate individual slips from any staff profile.
+            Uncheck any employee to exclude from Excel, PDF, and payroll. {includedRows.length} of {computed.length} selected.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={onClose}>
               Cancel
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={saving || finalizing || exportingExcel || includedRows.length === 0}
+              onClick={handleExportExcel}
+            >
+              <Download className="h-4 w-4" />
+              {exportingExcel ? "Exporting…" : "Export Excel"}
             </Button>
             <Button
               variant="outline"
