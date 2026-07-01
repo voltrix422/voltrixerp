@@ -36,16 +36,21 @@ function itemSearchValues(item: OrderItem): string[] {
 }
 
 /** Canonical key for grouping product name variants (e.g. 15.6 KWh battery aliases). */
+export function is156BatteryProductFamily(text: string): boolean {
+  const n = normalizeProductText(text)
+  if (!n) return false
+  if (n === "hsld15kw") return true
+  if (n.includes("man-15-6") && (n.includes("battery") || n.includes("kwh"))) return true
+  if ((n.includes("15.6") || n.includes("15-6")) && n.includes("kwh") && n.includes("battery")) {
+    return true
+  }
+  return false
+}
+
 export function productCanonicalKeyFromText(text: string): string {
   const n = normalizeProductText(text)
   if (!n) return "unknown"
-  if (
-    (n.includes("15.6") || n.includes("15-6")) &&
-    n.includes("kwh") &&
-    n.includes("battery")
-  ) {
-    return "product:15-6-kwh-battery"
-  }
+  if (is156BatteryProductFamily(n)) return "product:15-6-kwh-battery"
   if (n.startsWith("man-")) return n
   return n
 }

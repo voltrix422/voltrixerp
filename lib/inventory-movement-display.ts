@@ -172,11 +172,15 @@ export function enrichMovements(
 function movementItemKeyFallback(description: string): string {
   const n = normalizeProductText(description)
   if (!n) return "unknown"
+  if (n === "hsld15kw") return "product:15-6-kwh-battery"
   if (
     (n.includes("15.6") || n.includes("15-6")) &&
     n.includes("kwh") &&
     n.includes("battery")
   ) {
+    return "product:15-6-kwh-battery"
+  }
+  if (n.includes("man-15-6") && (n.includes("battery") || n.includes("kwh"))) {
     return "product:15-6-kwh-battery"
   }
   if (n.startsWith("man-")) return n

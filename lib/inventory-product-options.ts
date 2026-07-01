@@ -6,7 +6,7 @@ import {
   unifiedGroupInStock,
   type UnifiedInventoryModelGroup,
 } from "@/lib/unified-inventory-groups"
-import { normalizeProductText } from "@/lib/order-product-search"
+import { normalizeProductText, productCanonicalKeyFromText } from "@/lib/order-product-search"
 
 export type InventoryProductOption = {
   /** Stable value for dropdown selection */
@@ -53,6 +53,36 @@ function collectMatchTerms(
 
 function mergeKeyForGroup(group: UnifiedInventoryModelGroup): string {
   return normalizeProductText(group.displayName || group.modelKey)
+}
+
+/** Merge separate inventory groups that are the same product (e.g. HSLD15KW + 15.6 KWh battery). */
+function mergeOptionsByCanonicalFamily(
+  options: InventoryProductOption[],
+): InventoryProductOption[] {
+  const byFamily = new Map<string, InventoryProductOption>()
+
+  for (const option of options) {
+    const family =
+      productCanonicalKeyFromText(option.displayName) !== "unknown"
+        ? productCanonicalKeyFromText(option.displayName)
+        : productCanonicalKeyFromText(option.modelKey)
+    const existing = byFamily.get(family)
+
+    if (!existing) {
+      byFamily.set(family, { ...option, matchTerms: [...option.matchTerms] })
+      continue
+    }
+
+    existing.inStock += option.inStock
+    existing.matchTerms = [...new Set([...existing.matchTerms, ...option.matchTerms])]
+    if (option.displayName.length > existing.displayName.length) {
+      existing.displayName = option.displayName
+      existing.id = option.id
+    }
+    if (!existing.modelKey && option.modelKey) existing.modelKey = option.modelKey
+  }
+
+  return [...byFamily.values()]
 }
 
 export async function loadInventoryProductOptions(): Promise<InventoryProductOption[]> {
@@ -123,5 +153,7 @@ export async function loadInventoryProductOptions(): Promise<InventoryProductOpt
     }
   }
 
-  return options.sort((a, b) => a.displayName.localeCompare(b.displayName))
+  const familyMerged = mergeOptionsByCanonicalFamily(options)
+
+  return familyMerged.sort((a, b) => a.displayName.localeCompare(b.displayName))
 }
