@@ -264,6 +264,9 @@ export type PayrollSummaryRow = {
   netSalary: number
   currency: string
   advanceDeducted: number
+  bankName?: string
+  bankAccountNumber?: string
+  bankAccountTitle?: string
   status?: "draft" | "finalized"
 }
 
@@ -298,15 +301,27 @@ export async function downloadPayrollSummaryPdf(
   doc.setFont("helvetica", "normal")
   doc.text(`${rows.length} employee${rows.length === 1 ? "" : "s"}`, 285, 19, { align: "right" })
 
-  const cols = { employee: 10, role: 52, period: 88, base: 148, advance: 178, net: 218, status: 262 }
+  const cols = {
+    employee: 8,
+    role: 38,
+    bank: 68,
+    account: 108,
+    period: 148,
+    base: 198,
+    advance: 222,
+    net: 248,
+    status: 278,
+  }
   let y = 36
   doc.setFillColor(241, 245, 249)
   doc.rect(8, y, 281, 8, "F")
   doc.setTextColor(textColor[0], textColor[1], textColor[2])
-  doc.setFontSize(8)
+  doc.setFontSize(7)
   doc.setFont("helvetica", "bold")
   doc.text("Employee", cols.employee, y + 5.5)
   doc.text("Role", cols.role, y + 5.5)
+  doc.text("Bank", cols.bank, y + 5.5)
+  doc.text("Account", cols.account, y + 5.5)
   doc.text("Pay period", cols.period, y + 5.5)
   doc.text("Base", cols.base, y + 5.5)
   doc.text("Advance", cols.advance, y + 5.5)
@@ -320,9 +335,14 @@ export async function downloadPayrollSummaryPdf(
       doc.addPage()
       y = 16
     }
-    doc.text(row.staffName.slice(0, 28), cols.employee, y)
-    doc.text(row.staffRole.slice(0, 22), cols.role, y)
-    doc.text(row.periodText.slice(0, 32), cols.period, y)
+    doc.text(row.staffName.slice(0, 22), cols.employee, y)
+    doc.text(row.staffRole.slice(0, 18), cols.role, y)
+    doc.text((row.bankName || "—").slice(0, 22), cols.bank, y)
+    const accountLine = row.bankAccountTitle
+      ? `${(row.bankAccountTitle || "").slice(0, 14)} / ${(row.bankAccountNumber || "—").slice(0, 16)}`
+      : (row.bankAccountNumber || "—").slice(0, 28)
+    doc.text(accountLine, cols.account, y)
+    doc.text(row.periodText.slice(0, 28), cols.period, y)
     doc.text(`${row.currency} ${row.baseSalary.toLocaleString()}`, cols.base, y)
     doc.text(
       row.advanceDeducted > 0 ? `- ${row.currency} ${row.advanceDeducted.toLocaleString()}` : "—",

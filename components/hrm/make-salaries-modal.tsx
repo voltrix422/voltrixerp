@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Save, CheckCircle2 } from "lucide-react"
+import { X, Save, CheckCircle2, Copy } from "lucide-react"
 import {
   computeBatchSalaryFigures,
   monthDateBounds,
@@ -240,6 +240,9 @@ export function MakeSalariesModal({
         netSalary: figures.netSalary,
         currency: row.currency,
         advanceDeducted: advance,
+        bankName: row.bankName,
+        bankAccountNumber: row.bankAccountNumber,
+        bankAccountTitle: row.bankAccountTitle,
         status,
       })
     }
@@ -305,13 +308,23 @@ export function MakeSalariesModal({
     }
   }
 
+  function copyBankDetails(row: SalaryRow) {
+    const lines = [
+      row.staffName,
+      row.bankName ? `Bank: ${row.bankName}` : "",
+      row.bankAccountTitle ? `Title: ${row.bankAccountTitle}` : "",
+      row.bankAccountNumber ? `Account: ${row.bankAccountNumber}` : "",
+    ].filter(Boolean)
+    void navigator.clipboard.writeText(lines.join("\n"))
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-7xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-[98vw] rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
@@ -353,11 +366,14 @@ export function MakeSalariesModal({
         </div>
 
         <div className="overflow-auto p-4">
-          <table className="w-full min-w-[960px]">
+          <table className="w-full min-w-[1280px]">
             <thead>
               <tr className="border-b border-[hsl(var(--border))] text-left">
                 <th className="px-2 py-2 text-xs font-medium w-10" />
-                <th className="px-2 py-2 text-xs font-medium">Employee</th>
+                <th className="px-2 py-2 text-xs font-medium min-w-[140px]">Employee</th>
+                <th className="px-2 py-2 text-xs font-medium min-w-[110px]">Bank</th>
+                <th className="px-2 py-2 text-xs font-medium min-w-[120px]">Account title</th>
+                <th className="px-2 py-2 text-xs font-medium min-w-[120px]">Account #</th>
                 <th className="px-2 py-2 text-xs font-medium">From</th>
                 <th className="px-2 py-2 text-xs font-medium">To</th>
                 <th className="px-2 py-2 text-xs font-medium text-right">Contract</th>
@@ -391,6 +407,29 @@ export function MakeSalariesModal({
                           Paid
                         </Badge>
                       )}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-[hsl(var(--foreground))]">
+                      {row.bankName || <span className="text-[hsl(var(--muted-foreground))]">—</span>}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-[hsl(var(--foreground))]">
+                      {row.bankAccountTitle || <span className="text-[hsl(var(--muted-foreground))]">—</span>}
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs tabular-nums text-[hsl(var(--foreground))]">
+                          {row.bankAccountNumber || "—"}
+                        </span>
+                        {(row.bankName || row.bankAccountNumber || row.bankAccountTitle) && (
+                          <button
+                            type="button"
+                            title="Copy bank details"
+                            onClick={() => copyBankDetails(row)}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-[hsl(var(--muted))]/40 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-2">
                       <input
