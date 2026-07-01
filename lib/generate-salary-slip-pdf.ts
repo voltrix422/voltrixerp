@@ -15,6 +15,8 @@ export type SalarySlipPdfData = {
   adjustments?: SalarySlipAdjustment[]
   netSalary: number
   generatedDate: string | Date
+  payPeriodText?: string
+  isDraft?: boolean
   bankName?: string
   bankAccountNumber?: string
   bankAccountTitle?: string
@@ -67,12 +69,14 @@ export async function downloadSalarySlipPdf(
 
   doc.setFontSize(9)
   doc.setFont("helvetica", "normal")
-  doc.text(
-    new Date(slip.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-    205,
-    38,
-    { align: "right" },
-  )
+  const periodHeader =
+    slip.payPeriodText ||
+    new Date(slip.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  doc.text(periodHeader, 205, 38, { align: "right" })
+  if (slip.isDraft) {
+    doc.setFontSize(8)
+    doc.text("DRAFT", 205, 44, { align: "right" })
+  }
 
   doc.setTextColor(textColor[0], textColor[1], textColor[2])
   doc.setLineWidth(0.5)
@@ -106,11 +110,10 @@ export async function downloadSalarySlipPdf(
   doc.text("Generated On:", 120, 91)
   doc.text("Currency:", 120, 99)
   doc.setFont("helvetica", "normal")
-  doc.text(
-    new Date(slip.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-    155,
-    83,
-  )
+  const periodDetail =
+    slip.payPeriodText ||
+    new Date(slip.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  doc.text(periodDetail, 155, 83)
   doc.text(
     new Date(slip.generatedDate).toLocaleDateString("en-US", {
       day: "numeric",
@@ -251,4 +254,90 @@ export function monthDateRange(yyyyMm: string): { from: string; to: string } {
 export function currentPayrollMonth(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+export type PayrollSummaryRow = {
+  staffName: string
+  staffRole: string
+  periodText: string
+  baseSalary: number
+  netSalary: number
+  currency: string
+  advanceDeducted: number
+  status?: "draft" | "finalized"
+}
+
+export async function downloadPayrollSummaryPdf(
+  month: string,
+  rows: PayrollSummaryRow[],
+  options?: { isDraft?: boolean },
+): Promise<void> {
+  const { jsPDF } = await import("jspdf")
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" })
+  const primaryColor: [number, number, number] = [26, 159, 154]
+  const textColor: [number, number, number] = [30, 41, 59]
+  const borderColor: [number, number, number] = [203, 213, 225]
+
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+  doc.rect(0, 0, 297, 28, "F")
+  doc.setTextColor(255, 255, 255)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(16)
+  const title = options?.isDraft
+    ? `Salary Draft — ${monthLabel(month)}`
+    : `Monthly Payroll — ${monthLabel(month)}`
+  doc.text(title, 12, 12)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(9)
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 12, 19)
+
+  const total = rows.reduce((sum, r) => sum + r.netSalary, 0)
+  const currency = rows[0]?.currency || "PKR"
+  doc.setFont("helvetica", "bold")
+  doc.text(`Total: ${currency} ${total.toLocaleString()}`, 285, 12, { align: "right" })
+  doc.setFont("helvetica", "normal")
+  doc.text(`${rows.length} employee${rows.length === 1 ? "" : "s"}`, 285, 19, { align: "right" })
+
+  const cols = { employee: 10, role: 52, period: 88, base: 148, advance: 178, net: 218, status: 262 }
+  let y = 36
+  doc.setFillColor(241, 245, 249)
+  doc.rect(8, y, 281, 8, "F")
+  doc.setTextColor(textColor[0], textColor[1], textColor[2])
+  doc.setFontSize(8)
+  doc.setFont("helvetica", "bold")
+  doc.text("Employee", cols.employee, y + 5.5)
+  doc.text("Role", cols.role, y + 5.5)
+  doc.text("Pay period", cols.period, y + 5.5)
+  doc.text("Base", cols.base, y + 5.5)
+  doc.text("Advance", cols.advance, y + 5.5)
+  doc.text("Net", cols.net, y + 5.5)
+  doc.text("Status", cols.status, y + 5.5)
+  y += 10
+
+  doc.setFont("helvetica", "normal")
+  for (const row of rows) {
+    if (y > 190) {
+      doc.addPage()
+      y = 16
+    }
+    doc.text(row.staffName.slice(0, 28), cols.employee, y)
+    doc.text(row.staffRole.slice(0, 22), cols.role, y)
+    doc.text(row.periodText.slice(0, 32), cols.period, y)
+    doc.text(`${row.currency} ${row.baseSalary.toLocaleString()}`, cols.base, y)
+    doc.text(
+      row.advanceDeducted > 0 ? `- ${row.currency} ${row.advanceDeducted.toLocaleString()}` : "—",
+      cols.advance,
+      y,
+    )
+    doc.setFont("helvetica", "bold")
+    doc.text(`${row.currency} ${row.netSalary.toLocaleString()}`, cols.net, y)
+    doc.setFont("helvetica", "normal")
+    doc.text(row.status === "draft" ? "Draft" : "Final", cols.status, y)
+    y += 7
+    doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+    doc.line(8, y - 2, 289, y - 2)
+  }
+
+  const suffix = options?.isDraft ? "Draft" : "Payroll"
+  doc.save(`${suffix}-${month}.pdf`)
 }

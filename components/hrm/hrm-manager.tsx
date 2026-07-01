@@ -4,10 +4,10 @@ import { useAuth } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard, Wallet, Landmark } from "lucide-react"
+import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard, Wallet, Banknote } from "lucide-react"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { StaffSalaryAdvanceModal } from "@/components/hrm/staff-salary-advance-modal"
-import { StaffBankDetailsModal } from "@/components/hrm/staff-bank-details-modal"
+import { MakeSalariesModal } from "@/components/hrm/make-salaries-modal"
 import { fetchSalaryAdvanceSummary, recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
 import {
   buildEffectiveSalaryAdjustments,
@@ -15,6 +15,7 @@ import {
   computeNetSalary,
   monthDateBounds,
   payPeriodLabel,
+  periodStartForJoinDate,
 } from "@/lib/hrm-salary-calc"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadStaffExcel } from "@/lib/hrm-excel-export"
@@ -61,17 +62,6 @@ interface StaffMember {
   bank_name?: string
   bank_account_number?: string
   bank_account_title?: string
-}
-
-interface PayrollRow {
-  staffId: string
-  staffName: string
-  role: string
-  baseSalary: number
-  currency: string
-  adjustmentType: 'add' | 'deduct'
-  adjustmentAmount: string
-  adjustmentLabel: string
 }
 
 const DEPARTMENTS = ["Management", "Engineering", "Sales", "Finance", "HR", "Operations", "Marketing", "Support", "Other"]
@@ -200,13 +190,12 @@ export function HrmManager() {
   const [deductAdvance, setDeductAdvance] = useState(false)
   const [allSalarySlips, setAllSalarySlips] = useState<any[]>([])
   const [payrollMonth, setPayrollMonth] = useState(new Date().toISOString().slice(0, 7))
-  const [showPayrollRun, setShowPayrollRun] = useState(false)
   const [showPayrollHistory, setShowPayrollHistory] = useState(false)
-  const [payrollRows, setPayrollRows] = useState<PayrollRow[]>([])
   const [exportingStaff, setExportingStaff] = useState(false)
+  const [makeSalariesInitialMonth, setMakeSalariesInitialMonth] = useState<string | undefined>()
   const [advanceByStaff, setAdvanceByStaff] = useState<Record<string, number>>({})
   const [showAdvanceModal, setShowAdvanceModal] = useState(false)
-  const [showBankDetailsModal, setShowBankDetailsModal] = useState(false)
+  const [showMakeSalariesModal, setShowMakeSalariesModal] = useState(false)
 
   async function refreshAdvanceSummary() {
     try {
@@ -222,10 +211,7 @@ export function HrmManager() {
   }
 
   function periodStartForMember(member: StaffMember, month: string): string {
-    const { from } = monthDateBounds(month)
-    const join = member.join_date?.slice(0, 10)
-    if (join && join > from) return join
-    return from
+    return periodStartForJoinDate(month, member.join_date)
   }
 
   function resolveSalarySlipFigures(member: StaffMember) {
@@ -677,7 +663,10 @@ export function HrmManager() {
       return acc
     }, {})
   )
-  const monthPaidSlips = uniqueAllSalarySlips.filter((slip: any) => slip.month === payrollMonth)
+  const finalizedSalarySlips = uniqueAllSalarySlips.filter(
+    (slip: any) => String(slip.status || "finalized") === "finalized",
+  )
+  const monthPaidSlips = finalizedSalarySlips.filter((slip: any) => slip.month === payrollMonth)
   const monthPaidTotal = monthPaidSlips.reduce((sum: number, slip: any) => sum + (Number(slip.netSalary) || 0), 0)
   const monthPaidStaffNames = new Set(monthPaidSlips.map((slip: any) => String(slip.staffName || "")))
   const monthPaidCount = monthPaidStaffNames.size
@@ -700,186 +689,9 @@ export function HrmManager() {
     }, {})
   ).sort((a: any, b: any) => String(b.month || "").localeCompare(String(a.month || "")))
 
-  function openPayrollRun() {
-    if (monthPaidSlips.length > 0) {
-      alert(`Payroll already created for ${monthLabel(payrollMonth)}. Please select another month.`)
-      return
-    }
-    const rows: PayrollRow[] = activeStaff.map((member) => {
-      const outstandingAdvance = advanceByStaff[member.id] || 0
-      return {
-        staffId: member.id,
-        staffName: member.name,
-        role: member.role,
-        baseSalary: Number(member.salary || 0),
-        currency: member.currency || "PKR",
-        adjustmentType: outstandingAdvance > 0 ? "deduct" : "add",
-        adjustmentAmount: outstandingAdvance > 0 ? String(outstandingAdvance) : "",
-        adjustmentLabel: outstandingAdvance > 0 ? "Salary advance recovery" : "",
-      }
-    })
-    setPayrollRows(rows)
-    setShowPayrollRun(true)
-  }
-
-  function updatePayrollRow(staffId: string, patch: Partial<PayrollRow>) {
-    setPayrollRows(prev => prev.map(row => row.staffId === staffId ? { ...row, ...patch } : row))
-  }
-
-  async function runPayrollAndDownload() {
-    if (payrollRows.length === 0) return
-    if (monthPaidSlips.length > 0) {
-      alert(`Payroll already created for ${monthLabel(payrollMonth)}. Please select another month.`)
-      return
-    }
-    try {
-      const slipsToSave = payrollRows.map((row) => {
-        const adjustmentNum = Number(row.adjustmentAmount || 0)
-        const signedAdj = row.adjustmentAmount
-          ? (row.adjustmentType === "add" ? adjustmentNum : -adjustmentNum)
-          : 0
-        const netSalary = Math.max(0, row.baseSalary + signedAdj)
-        const adjustments = row.adjustmentAmount
-          ? [{ id: `${Date.now()}-${row.staffId}`, type: row.adjustmentType, amount: String(adjustmentNum), label: row.adjustmentLabel || "Payroll Adjustment" }]
-          : []
-        return {
-          staffName: row.staffName,
-          staffRole: row.role,
-          staffDepartment: staff.find(s => s.id === row.staffId)?.department || "—",
-          month: payrollMonth,
-          baseSalary: row.baseSalary,
-          currency: row.currency,
-          adjustments,
-          netSalary,
-          generatedDate: new Date().toISOString(),
-          bankName: staff.find(s => s.id === row.staffId)?.bank_name || "",
-          bankAccountNumber: staff.find(s => s.id === row.staffId)?.bank_account_number || "",
-          bankAccountTitle: staff.find(s => s.id === row.staffId)?.bank_account_title || "",
-          bankIban: (staff.find(s => s.id === row.staffId) as any)?.bank_iban || "",
-        }
-      })
-
-      for (const slip of slipsToSave) {
-        const response = await fetch('/api/hrm/salary-slips', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(slip)
-        })
-        if (response.status === 409) {
-          throw new Error(`Payroll already created for ${monthLabel(payrollMonth)}.`)
-        }
-        if (!response.ok) {
-          throw new Error('Failed to save payroll record')
-        }
-
-        const matchingRow = payrollRows.find((row) => row.staffName === slip.staffName)
-        const hasAdvanceRecovery =
-          matchingRow?.adjustmentType === "deduct" &&
-          Number(matchingRow.adjustmentAmount || 0) > 0 &&
-          (matchingRow.adjustmentLabel || "").toLowerCase().includes("advance")
-        if (hasAdvanceRecovery && matchingRow) {
-          await recoverSalaryAdvances({
-            staffId: matchingRow.staffId,
-            month: payrollMonth,
-            recoveredBy: user?.name || "Admin",
-          })
-        }
-      }
-
-      const { jsPDF } = await import('jspdf')
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" })
-      const primaryColor: [number, number, number] = [26, 159, 154]
-      const textColor: [number, number, number] = [30, 41, 59]
-      const borderColor: [number, number, number] = [203, 213, 225]
-
-      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.rect(0, 0, 297, 28, "F")
-      doc.setTextColor(255, 255, 255)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(16)
-      doc.text(`Monthly Payroll - ${monthLabel(payrollMonth)}`, 12, 12)
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.text(`Generated: ${new Date().toLocaleString()}`, 12, 19)
-
-      const total = slipsToSave.reduce((sum, s) => sum + Number(s.netSalary || 0), 0)
-      doc.setFont("helvetica", "bold")
-      doc.text(`Total Payroll: ${slipsToSave[0]?.currency || "PKR"} ${total.toLocaleString()}`, 285, 12, { align: "right" })
-      doc.setFont("helvetica", "normal")
-      doc.text(`Payment Status: Paid (${slipsToSave.length}/${slipsToSave.length})`, 285, 19, { align: "right" })
-
-      const cols = {
-        employee: 10,
-        role: 48,
-        bankName: 84,
-        accountTitle: 120,
-        ibanAccount: 164,
-        base: 208,
-        adjustment: 232,
-        net: 256,
-        status: 282,
-      }
-
-      let y = 36
-      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
-      doc.setFillColor(241, 245, 249)
-      doc.rect(10, y - 6, 277, 8, "FD")
-      doc.setTextColor(textColor[0], textColor[1], textColor[2])
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(8)
-      doc.text("Employee", cols.employee, y - 1)
-      doc.text("Role", cols.role, y - 1)
-      doc.text("Bank Name", cols.bankName, y - 1)
-      doc.text("Account Title", cols.accountTitle, y - 1)
-      doc.text("IBAN / Account", cols.ibanAccount, y - 1)
-      doc.text("Base", cols.base, y - 1)
-      doc.text("Adjustment", cols.adjustment, y - 1)
-      doc.text("Net", cols.net, y - 1)
-      doc.text("Status", cols.status, y - 1)
-      y += 4
-
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(7.5)
-      slipsToSave.forEach((slip, index) => {
-        if (y > 195) {
-          doc.addPage("a4", "landscape")
-          y = 18
-        }
-
-        if (index % 2 === 0) {
-          doc.setFillColor(248, 250, 252)
-          doc.rect(10, y - 4.5, 277, 7.5, "F")
-        }
-
-        const adjustmentAmount = Number(slip.adjustments?.[0]?.amount || 0)
-        const adjustmentSign = slip.adjustments?.[0]?.type === "deduct" ? "-" : "+"
-        const adjustmentText = slip.adjustments?.length
-          ? `${adjustmentSign}${slip.currency} ${adjustmentAmount.toLocaleString()}`
-          : `${slip.currency} 0`
-
-        const ibanOrAccount = String(slip.bankIban || slip.bankAccountNumber || "—")
-        doc.setTextColor(textColor[0], textColor[1], textColor[2])
-        doc.text(String(slip.staffName || "—").slice(0, 24), cols.employee, y)
-        doc.text(String(slip.staffRole || "—").slice(0, 18), cols.role, y)
-        doc.text(String(slip.bankName || "—").slice(0, 18), cols.bankName, y)
-        doc.text(String(slip.bankAccountTitle || "—").slice(0, 22), cols.accountTitle, y)
-        doc.text(ibanOrAccount.slice(0, 24), cols.ibanAccount, y)
-        doc.text(`${slip.currency} ${Number(slip.baseSalary || 0).toLocaleString()}`, cols.base, y)
-        doc.text(adjustmentText, cols.adjustment, y)
-        doc.text(`${slip.currency} ${Number(slip.netSalary || 0).toLocaleString()}`, cols.net, y)
-        doc.setTextColor(22, 163, 74)
-        doc.text("Paid", cols.status, y)
-        y += 7
-      })
-
-      doc.save(`Payroll-${payrollMonth}.pdf`)
-      setShowPayrollRun(false)
-      await fetchAllSalarySlips()
-      await refreshAdvanceSummary()
-    } catch (error) {
-      console.error("Payroll generation failed:", error)
-      alert("Failed to generate payroll.")
-    }
+  function openMakeSalaries(month?: string) {
+    setMakeSalariesInitialMonth(month || payrollMonth)
+    setShowMakeSalariesModal(true)
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1311,10 +1123,10 @@ export function HrmManager() {
                 size="sm"
                 variant="outline"
                 className="h-9 text-sm gap-2 cursor-pointer"
-                onClick={() => setShowBankDetailsModal(true)}
+                onClick={() => openMakeSalaries()}
               >
-                <Landmark className="h-4 w-4" />
-                Bank accounts
+                <Banknote className="h-4 w-4" />
+                Make Salaries
               </Button>
               <CrmExcelExportButton
                 onExport={exportStaffExcel}
@@ -1375,8 +1187,8 @@ export function HrmManager() {
               <Button size="sm" variant="outline" className="h-9 text-xs gap-2" onClick={() => setShowPayrollHistory(true)}>
                 <FileText className="h-3.5 w-3.5" /> Payroll History
               </Button>
-              <Button size="sm" className="h-9 text-xs gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={openPayrollRun}>
-                <Download className="h-3.5 w-3.5" /> Run Payroll & Download
+              <Button size="sm" className="h-9 text-xs gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => openMakeSalaries(payrollMonth)}>
+                <Banknote className="h-3.5 w-3.5" /> Make Salaries
               </Button>
             </div>
           </div>
@@ -2535,22 +2347,28 @@ export function HrmManager() {
 
                     const existsForMonth = uniqueAllSalarySlips.some((slip: any) =>
                       String(slip.month || "") === selectedMonth &&
-                      String(slip.staffName || "").trim().toLowerCase() === viewMember.name.trim().toLowerCase()
+                      String(slip.staffName || "").trim().toLowerCase() === viewMember.name.trim().toLowerCase() &&
+                      String(slip.status || "finalized") === "finalized"
                     )
                     if (existsForMonth) {
                       alert(`Salary slip already created for ${viewMember.name} in ${monthLabel(selectedMonth)}.`)
                       return
                     }
 
+                    const monthBounds = monthDateBounds(selectedMonth)
                     const salarySlipData = {
+                      staffLocalId: viewMember.id,
                       staffName: viewMember.name,
                       staffRole: viewMember.role,
                       staffDepartment: viewMember.department,
                       month: selectedMonth,
+                      periodStart: payPeriodMode === "custom_range" ? periodFrom : monthBounds.from,
+                      periodEnd: payPeriodMode === "custom_range" ? periodTo : monthBounds.to,
                       baseSalary: figures.effectiveBase,
                       currency: viewMember.currency,
                       adjustments: figures.effectiveAdjustments,
                       netSalary: figures.netSalary,
+                      status: "finalized",
                       generatedDate: new Date().toISOString(),
                       bankName: viewMember.bank_name || "",
                       bankAccountNumber: viewMember.bank_account_number || "",
@@ -2867,97 +2685,6 @@ export function HrmManager() {
         </div>
       )}
 
-      {showPayrollRun && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowPayrollRun(false)}>
-          <div className="w-full max-w-6xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))]">
-              <div>
-                <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Payroll Review - {monthLabel(payrollMonth)}</h3>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">Review each employee salary, add/deduct amount, then generate one payroll report.</p>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowPayrollRun(false)}><X className="h-4 w-4" /></Button>
-            </div>
-
-            <div className="overflow-auto p-6">
-              <div className="rounded-xl border border-[hsl(var(--border))] overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-[hsl(var(--muted))]/30 border-b border-[hsl(var(--border))]">
-                    <tr>
-                      <th className="text-left px-3 py-2 text-xs">Employee</th>
-                      <th className="text-left px-3 py-2 text-xs">Base Salary</th>
-                      <th className="text-left px-3 py-2 text-xs">Type</th>
-                      <th className="text-left px-3 py-2 text-xs">Amount</th>
-                      <th className="text-left px-3 py-2 text-xs">Reason</th>
-                      <th className="text-right px-3 py-2 text-xs">Net Salary</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payrollRows.map((row) => {
-                      const adjustmentNum = Number(row.adjustmentAmount || 0)
-                      const signedAdj = row.adjustmentAmount ? (row.adjustmentType === "add" ? adjustmentNum : -adjustmentNum) : 0
-                      const net = Math.max(0, row.baseSalary + signedAdj)
-                      return (
-                        <tr key={row.staffId} className="border-b border-[hsl(var(--border))]">
-                          <td className="px-3 py-2">
-                            <p className="text-sm font-medium text-[hsl(var(--foreground))]">{row.staffName}</p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{row.role}</p>
-                          </td>
-                          <td className="px-3 py-2 text-sm">{row.currency} {row.baseSalary.toLocaleString()}</td>
-                          <td className="px-3 py-2">
-                            <select
-                              value={row.adjustmentType}
-                              onChange={(e) => updatePayrollRow(row.staffId, { adjustmentType: e.target.value as 'add' | 'deduct' })}
-                              className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs"
-                            >
-                              <option value="add">+ Add</option>
-                              <option value="deduct">- Deduct</option>
-                            </select>
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.adjustmentAmount}
-                              onChange={(e) => updatePayrollRow(row.staffId, { adjustmentAmount: e.target.value })}
-                              placeholder="0"
-                              className="h-8 w-24 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="text"
-                              value={row.adjustmentLabel}
-                              onChange={(e) => updatePayrollRow(row.staffId, { adjustmentLabel: e.target.value })}
-                              placeholder="Bonus / Penalty / Advance"
-                              className="h-8 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs"
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-right text-sm font-semibold text-[hsl(var(--foreground))]">{row.currency} {net.toLocaleString()}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="border-t border-[hsl(var(--border))] px-6 py-4 flex items-center justify-between gap-3">
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                Total payout: {payrollRows[0]?.currency || "PKR"} {payrollRows.reduce((sum, row) => {
-                  const n = Number(row.adjustmentAmount || 0)
-                  const s = row.adjustmentAmount ? (row.adjustmentType === "add" ? n : -n) : 0
-                  return sum + Math.max(0, row.baseSalary + s)
-                }, 0).toLocaleString()}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setShowPayrollRun(false)}>Cancel</Button>
-                <Button className="bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={runPayrollAndDownload}>Save & Download Payroll</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showPayrollHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowPayrollHistory(false)}>
           <div className="w-full max-w-5xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -2996,7 +2723,9 @@ export function HrmManager() {
                               </div>
                               <div className="text-right">
                                 <p className="text-sm font-semibold text-emerald-600">{slip.currency} {Number(slip.netSalary || 0).toLocaleString()}</p>
-                                <p className="text-xs text-[hsl(var(--muted-foreground))]">Paid</p>
+                                <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                  {slip.status === "draft" ? "Draft" : "Paid"}
+                                </p>
                               </div>
                             </div>
                           ))}
@@ -3025,11 +2754,18 @@ export function HrmManager() {
         />
       )}
 
-      {showBankDetailsModal && staff.length > 0 && (
-        <StaffBankDetailsModal
+      {showMakeSalariesModal && staff.length > 0 && (
+        <MakeSalariesModal
           staff={staff}
-          exportedBy={user?.name}
-          onClose={() => setShowBankDetailsModal(false)}
+          advanceByStaff={advanceByStaff}
+          existingSlips={allSalarySlips}
+          initialMonth={makeSalariesInitialMonth}
+          recoveredBy={user?.name || "Admin"}
+          onClose={() => setShowMakeSalariesModal(false)}
+          onSaved={async () => {
+            await fetchAllSalarySlips()
+            await refreshAdvanceSummary()
+          }}
         />
       )}
     </div>

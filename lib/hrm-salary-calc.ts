@@ -98,6 +98,44 @@ export function buildEffectiveSalaryAdjustments(
   return list
 }
 
+export function periodStartForJoinDate(month: string, joinDate?: string): string {
+  const { from } = monthDateBounds(month)
+  const join = joinDate?.slice(0, 10)
+  if (join && join > from) return join
+  return from
+}
+
+export function computeBatchSalaryFigures(
+  monthlySalary: number,
+  periodFrom: string,
+  periodTo: string,
+  outstandingAdvance: number,
+) {
+  const bounds = { from: periodFrom, to: periodTo }
+  const fullMonth = monthDateBounds(periodFrom.slice(0, 7))
+  const isFullMonth = periodFrom === fullMonth.from && periodTo === fullMonth.to
+  const proRate = isFullMonth
+    ? { amount: monthlySalary, daysWorked: 0, description: "Full month" }
+    : calculateProRatedSalary(monthlySalary, periodFrom, periodTo)
+  const adjustments = buildEffectiveSalaryAdjustments([], {
+    deductAdvance: outstandingAdvance > 0,
+    outstandingAdvance,
+  })
+  const netSalary = computeNetSalary(proRate.amount, adjustments)
+  return {
+    baseSalary: proRate.amount,
+    adjustments,
+    netSalary,
+    proRateDescription: proRate.description,
+    payPeriodText: isFullMonth
+      ? new Date(periodFrom.slice(0, 7) + "-01").toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        })
+      : `${formatShortDate(periodFrom)} – ${formatShortDate(periodTo)}`,
+  }
+}
+
 export function payPeriodLabel(
   month: string,
   mode: "full_month" | "custom_range",
