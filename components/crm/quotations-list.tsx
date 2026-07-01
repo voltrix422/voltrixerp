@@ -424,7 +424,7 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
                     ...item,
                     availableQty: product.qty,
                     model,
-                    unitPrice: lookupCrmUnitPrice(map, model, priceTier),
+                    unitPrice: item.unitPrice,
                   }
                 : item
             }),
@@ -475,7 +475,6 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
   }
 
   function updateItem(id: string, key: keyof QuotationItem, value: any) {
-    if (key === "unitPrice") return
     setItems(prev => prev.map(i => {
       if (i.id !== id) return i
       if (key === "qty" && i.availableQty !== undefined && Number(value) > i.availableQty) {
@@ -596,7 +595,6 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
                   onRemove={(id) => setItems((prev) => prev.filter((i) => i.id !== id))}
                   size="sm"
                   removeIcon="x"
-                  lockUnitPrice
                 />
                 {subtotal > 0 && (
                   <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 text-xs">
