@@ -34,7 +34,7 @@ export function CrmPriceTierSelect({
         ))}
       </div>
       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-        Unit prices are set from Product Prices — not editable here.
+        Default unit prices come from Product Prices — you can adjust them per line item.
       </p>
     </div>
   )

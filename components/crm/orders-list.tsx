@@ -569,7 +569,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                     ...item,
                     availableQty: product.qty,
                     model,
-                    unitPrice: lookupCrmUnitPrice(map, model, priceTier),
+                    unitPrice: item.unitPrice,
                   }
                 : item
             }),
@@ -616,7 +616,6 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   } = pricing
 
   function updateItem(id: string, key: keyof OrderItem, value: any) {
-    if (key === "unitPrice") return
     setItems(prev => prev.map(i => {
       if (i.id === id) {
         // If updating quantity, validate against available stock
@@ -873,7 +872,6 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
                   size="md"
                   removeIcon="trash"
                   gstPercent={taxPercent}
-                  lockUnitPrice
                 />
                 {subtotal > 0 && (
                   <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
