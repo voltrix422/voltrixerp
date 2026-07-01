@@ -240,27 +240,11 @@ export function ClientOrdersInventory() {
               </div>
               <div className="flex flex-wrap items-end gap-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total ordered qty</p>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Delivered qty</p>
                   <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
-                    {productSummary.totalQty} <span className="text-sm font-medium">{productSummary.unit}</span>
+                    {productSummary.deliveredQty} <span className="text-sm font-medium">{productSummary.unit}</span>
                   </p>
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Orders</p>
-                  <p className="text-lg font-semibold tabular-nums">{productSummary.orderCount}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Clients</p>
-                  <p className="text-lg font-semibold tabular-nums">{productSummary.clientCount}</p>
-                </div>
-                {selectedProductOption && (
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">In stock now</p>
-                    <p className="text-lg font-semibold tabular-nums">
-                      {selectedProductOption.inStock} {selectedProductOption.unit}
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           )}

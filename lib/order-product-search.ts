@@ -119,7 +119,12 @@ export function matchingProductValue(order: Order, filter: ProductFilter): numbe
 export type ProductOrderSummary = {
   label: string
   orderCount: number
+  /** Sum across confirmed, processing, shipped, and delivered. */
   totalQty: number
+  /** Sum for orders with status delivered only. */
+  deliveredQty: number
+  /** Sum for confirmed, processing, or shipped — not yet delivered. */
+  pendingQty: number
   clientCount: number
   unit: string
 }
@@ -132,6 +137,8 @@ export function computeProductOrderSummary(
   if (!hasProductFilter(filter)) return null
 
   let totalQty = 0
+  let deliveredQty = 0
+  let pendingQty = 0
   const clients = new Set<string>()
   let unit = "pcs"
   const matchedOrders = orders.filter((o) => orderMatchesProductFilter(o, filter))
@@ -139,7 +146,13 @@ export function computeProductOrderSummary(
   for (const order of matchedOrders) {
     clients.add(order.clientName)
     const matched = getMatchingOrderItems(order, filter)
-    totalQty += matchingProductQty(order, filter)
+    const qty = matchingProductQty(order, filter)
+    totalQty += qty
+    if (order.status === "delivered") {
+      deliveredQty += qty
+    } else {
+      pendingQty += qty
+    }
     if (matched[0]?.unit) unit = matched[0].unit
   }
 
@@ -153,6 +166,8 @@ export function computeProductOrderSummary(
     label: displayLabel,
     orderCount: matchedOrders.length,
     totalQty,
+    deliveredQty,
+    pendingQty,
     clientCount: clients.size,
     unit,
   }
