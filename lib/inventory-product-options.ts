@@ -43,6 +43,11 @@ function collectMatchTerms(
     add(unit.assignedName)
   }
 
+  if (group.stockOnly?.manualId) {
+    add(group.stockOnly.manualId)
+    add(`man:${group.stockOnly.manualId}`)
+  }
+
   return [...terms]
 }
 

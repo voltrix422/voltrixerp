@@ -29,7 +29,7 @@ import {
 } from "@/lib/order-fulfillment-serials"
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 import {
-  computeProductOrderSummary,
+  computeDeliveredProductQty,
   hasProductFilter,
   matchingProductDescription,
   matchingProductQtyLabel,
@@ -150,13 +150,13 @@ export function ClientOrdersInventory() {
 
   const productSummary = useMemo(() => {
     if (!hasProductFilter(productFilter)) return null
-    const productMatchedOrders = orders.filter((order) => orderMatchesProductFilter(order, productFilter))
-    return computeProductOrderSummary(
-      productMatchedOrders,
-      productFilter,
-      selectedProductOption?.displayName || productSearch.trim(),
-    )
-  }, [orders, productFilter, selectedProductOption, productSearch])
+    const { qty, unit } = computeDeliveredProductQty(filteredOrders, productFilter)
+    return {
+      label: selectedProductOption?.displayName || productSearch.trim() || "Product",
+      deliveredQty: qty,
+      unit,
+    }
+  }, [filteredOrders, productFilter, selectedProductOption, productSearch])
 
   const isProductFiltered = hasProductFilter(productFilter)
 

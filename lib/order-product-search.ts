@@ -35,6 +35,47 @@ function itemSearchValues(item: OrderItem): string[] {
   return [...values]
 }
 
+/** Canonical key for grouping product name variants (e.g. 15.6 KWh battery aliases). */
+export function productCanonicalKeyFromText(text: string): string {
+  const n = normalizeProductText(text)
+  if (!n) return "unknown"
+  if (
+    (n.includes("15.6") || n.includes("15-6")) &&
+    n.includes("kwh") &&
+    n.includes("battery")
+  ) {
+    return "product:15-6-kwh-battery"
+  }
+  if (n.startsWith("man-")) return n
+  return n
+}
+
+function itemCanonicalKeys(item: OrderItem): string[] {
+  const keys = new Set<string>()
+  for (const value of itemSearchValues(item)) {
+    keys.add(productCanonicalKeyFromText(value))
+  }
+  return [...keys]
+}
+
+function filterCanonicalKeys(filter: ProductFilter): string[] {
+  const keys = new Set<string>()
+  const terms = [...(filter.matchTerms || []), filter.modelKey, filter.query].filter(
+    Boolean,
+  ) as string[]
+  for (const term of terms) {
+    keys.add(productCanonicalKeyFromText(term))
+  }
+  return [...keys].filter((k) => k !== "unknown")
+}
+
+function canonicalProductMatch(item: OrderItem, filter: ProductFilter): boolean {
+  const itemKeys = itemCanonicalKeys(item)
+  const fKeys = filterCanonicalKeys(filter)
+  if (!fKeys.length) return false
+  return itemKeys.some((ik) => fKeys.some((fk) => ik === fk))
+}
+
 function valuesMatchTerm(values: string[], term: string): boolean {
   const normalizedTerm = normalizeProductText(term)
   if (!normalizedTerm) return false
@@ -66,10 +107,14 @@ export function orderItemMatchesProductQuery(item: OrderItem, query: string): bo
 
 export function orderItemMatchesProductFilter(item: OrderItem, filter: ProductFilter): boolean {
   if (filter.matchTerms?.length) {
-    return orderItemMatchesTerms(item, filter.matchTerms)
+    if (orderItemMatchesTerms(item, filter.matchTerms)) return true
+    if (canonicalProductMatch(item, filter)) return true
+    return false
   }
   if (filter.modelKey?.trim()) {
-    return orderItemMatchesTerm(item, filter.modelKey)
+    if (orderItemMatchesTerm(item, filter.modelKey)) return true
+    if (canonicalProductMatch(item, filter)) return true
+    return false
   }
   if (filter.query?.trim()) {
     return orderItemMatchesProductQuery(item, filter.query)
@@ -171,4 +216,23 @@ export function computeProductOrderSummary(
     clientCount: clients.size,
     unit,
   }
+}
+
+/** Delivered qty for a product — uses the same rows/ matching as the orders table. */
+export function computeDeliveredProductQty(
+  orders: Order[],
+  filter: ProductFilter,
+): { qty: number; unit: string } {
+  if (!hasProductFilter(filter)) return { qty: 0, unit: "pcs" }
+
+  let qty = 0
+  let unit = "pcs"
+  for (const order of orders) {
+    if (order.status !== "delivered") continue
+    if (!orderMatchesProductFilter(order, filter)) continue
+    const matched = getMatchingOrderItems(order, filter)
+    qty += matchingProductQty(order, filter)
+    if (matched[0]?.unit) unit = matched[0].unit
+  }
+  return { qty, unit }
 }
