@@ -1,9 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getSuppliers, generatePONumber, type Supplier, type POItem, type PurchaseOrder } from "@/lib/purchase"
+import { getSuppliers, generatePONumber, type Supplier, type POItem, type PurchaseOrder, type PODocument } from "@/lib/purchase"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Trash2 } from "lucide-react"
+import { PoCreationAttachments } from "@/components/purchase/po-creation-attachments"
 
 interface Props {
   onSave: (po: Omit<PurchaseOrder, "id">) => void
@@ -25,6 +26,7 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
   const [receivingLocation, setReceivingLocation] = useState("")
   const [notes, setNotes] = useState("")
   const [items, setItems] = useState<POItem[]>([emptyItem()])
+  const [attachments, setAttachments] = useState<PODocument[]>([])
 
   useEffect(() => {
     getSuppliers().then(all => setSuppliers(all.filter(s => s.type === type)))
@@ -77,7 +79,7 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
       payments: [],
       adminDocuments: [],
       financeDocuments1: [],
-      purchaseDocuments: [],
+      purchaseDocuments: attachments,
       financeDocuments2: [],
       importedItems: [],
       flowHistory: [],
@@ -214,6 +216,8 @@ export function POForm({ onSave, onCancel, createdBy, type }: Props) {
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
               className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
           </div>
+
+          <PoCreationAttachments docs={attachments} onChange={setAttachments} uploadedBy={createdBy} />
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">

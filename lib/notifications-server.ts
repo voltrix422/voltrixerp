@@ -178,6 +178,34 @@ export async function notifyOnPoStatusChange(
       }
     }
   }
+
+  if (newStatus === "pending_finance_record" && oldStatus !== "pending_finance_record") {
+    await notifyUsersByModule("finance", {
+      title: "Purchase awaiting finance record",
+      message: `PO ${label} has been sent for finance record.`,
+      type: "info",
+      link: "/finance",
+    })
+  }
+
+  if (newStatus === "finance_recorded" && oldStatus !== "finance_recorded") {
+    if (createdBy) {
+      const creator = await prisma.erpUser.findFirst({
+        where: {
+          OR: [{ name: createdBy }, { email: createdBy }],
+        },
+        select: { id: true },
+      })
+      if (creator) {
+        await notifyUser(creator.id, {
+          title: "Purchase recorded in finance",
+          message: `PO ${label} has been accepted as a finance record.`,
+          type: "success",
+          link: "/purchase",
+        })
+      }
+    }
+  }
 }
 
 export async function notifyOnOrderStatusChange(

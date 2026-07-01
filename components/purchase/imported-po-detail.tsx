@@ -725,15 +725,19 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
           {/* STEP 5: Admin approval */}
           {s === "imp_pending_approval" && isAdmin && (
             <div className="space-y-4">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Admin Payment</p>
+                <PaymentForm pssid={po.pssid} payments={payments} onAdd={p => setPayments(prev => [...prev, p])} />
+              </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">Admin Note</label>
                 <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
                   className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] resize-none" />
               </div>
               <div className="flex gap-2">
-                <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving}
-                  onClick={() => transition("imp_finance_2", "Admin approved", "Admin")}>
-                  Approve
+                <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving || payments.length === 0}
+                  onClick={() => transition("pending_finance_record", "Admin approved and sent to Finance for record", "Admin")}>
+                  Approve &amp; Send to Finance
                 </Button>
                 <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" disabled={saving}
                   onClick={() => transition("imp_rejected", "Admin rejected", "Admin")}>
@@ -783,6 +787,40 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
             </div>
           )}
 
+          {/* Finance record acceptance */}
+          {s === "pending_finance_record" && role === "finance" && (
+            <div className="space-y-4">
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Admin has added payment. Review and accept this purchase as a finance record.
+              </p>
+              {payments.length > 0 && (
+                <div className="space-y-1">
+                  {payments.map(p => (
+                    <div key={p.id} className="rounded-md border bg-[hsl(var(--muted))]/10 px-3 py-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold">PKR {Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{p.method} · {p.date}</p>
+                      </div>
+                      {p.proofUrl && (
+                        <a href={p.proofUrl} target="_blank" rel="noreferrer" className="text-[10px] underline">Proof</a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button size="sm" className="h-8 text-xs cursor-pointer" disabled={saving}
+                onClick={() => transition("finance_recorded", "Finance accepted as record", "Finance")}>
+                Accept as Record
+              </Button>
+            </div>
+          )}
+
+          {s === "finance_recorded" && (
+            <div className="rounded-lg border bg-emerald-50 dark:bg-emerald-950/20 p-4">
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">Finance has recorded this purchase.</p>
+            </div>
+          )}
+
           {/* STEP 8: In Inventory - No action needed, just showing details */}
           {s === "imp_inventory" && (
             <div className="space-y-4">
@@ -794,6 +832,7 @@ export function ImportedPODetail({ po, isAdmin, role, onClose, onUpdate }: Props
           {(s === "imp_rejected" ||
             (s === "imp_finance_1" && role !== "finance") ||
             (s === "imp_pending_approval" && !isAdmin) ||
+            (s === "pending_finance_record" && role !== "finance") ||
             (s === "imp_finance_2" && role !== "finance") ||
             (s === "imp_purchase_final" && role === "finance") ||
             (s === "imp_purchase" && role === "finance") ||

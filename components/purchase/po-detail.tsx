@@ -1,10 +1,12 @@
 "use client"
 import { useState } from "react"
-import { type PurchaseOrder, type Supplier, type SupplierQuote, type POItem, STATUS_LABELS, STATUS_VARIANT, calcQuoteTotal } from "@/lib/purchase"
+import { type PurchaseOrder, type Supplier, type SupplierQuote, type POItem, STATUS_LABELS, STATUS_VARIANT, calcQuoteTotal, isPrePricedLocalPO, allCreationAttachments } from "@/lib/purchase"
 import { generatePOPdf } from "@/lib/generate-po-pdf"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { PoCreationAttachments } from "@/components/purchase/po-creation-attachments"
+import { PoAdminPaymentPanel } from "@/components/purchase/po-admin-payment-panel"
 import {
   X, Download, MessageCircle, CheckCircle, XCircle, Send,
   Building2, Phone, Mail, MapPin, Calendar, User, Hash, ChevronRight
@@ -340,8 +342,25 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
   const [selectedSupplierForFinalize, setSelectedSupplierForFinalize] = useState<string | null>(null)
 
   const selectedSuppliers = allSuppliers.filter(s => po.supplierIds.includes(s.id))
+  const prePriced = isPrePricedLocalPO(po)
+  const creationDocs = allCreationAttachments(po)
 
-  function approve() { onUpdate({ ...po, status: "approved", adminNote }) }
+  function approve() {
+    if (prePriced) {
+      const supplierId = po.supplierIds[0]
+      const quote = po.quotes[0]
+      onUpdate({
+        ...po,
+        status: "approved",
+        adminNote,
+        finalizedSupplierId: supplierId,
+        supplierIds: supplierId ? [supplierId] : po.supplierIds,
+        supplierNames: quote?.supplierName ? [quote.supplierName] : po.supplierNames,
+      })
+      return
+    }
+    onUpdate({ ...po, status: "approved", adminNote })
+  }
   async function reject() {
     if (!adminNote.trim()) {
       await alert({ type: "error", title: "Rejection Reason Required", message: "Please add a note explaining why this PO is being rejected." })
@@ -442,8 +461,8 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
           </div>
         </div>
 
-        {/* Step bar — hidden for direct POs */}
-        {po.status !== "direct" && <StepBar status={po.status} />}
+        {/* Step bar — hidden for direct POs and pre-priced admin-payment flow */}
+        {po.status !== "direct" && !prePriced && <StepBar status={po.status} />}
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
@@ -573,7 +592,7 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
             )}
 
             {/* Send to Suppliers */}
-            {!isAdmin && po.status !== "sent_to_admin" && po.status !== "direct" && (
+            {!isAdmin && po.status !== "sent_to_admin" && po.status !== "direct" && !prePriced && (
               <div className="space-y-3">
                 <button
                   onClick={() => setAddingQuoteFor(addingQuoteFor === "toggle-suppliers" ? null : "toggle-suppliers")}
@@ -648,13 +667,43 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
                 <p className="text-sm">{po.notes}</p>
               </div>
             )}
+
+            {creationDocs.length > 0 && (
+              <div className="rounded-xl border px-5 py-4 bg-[hsl(var(--muted))]/10">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">Attachments</h3>
+                <PoCreationAttachments docs={creationDocs} onChange={() => {}} uploadedBy={po.createdBy} readOnly />
+              </div>
+            )}
+
+            {isAdmin && prePriced && po.status === "approved" && (
+              <PoAdminPaymentPanel po={po} onUpdate={onUpdate} />
+            )}
+
+            {isAdmin && !prePriced && po.status === "finalized" && (
+              <PoAdminPaymentPanel po={po} onUpdate={onUpdate} />
+            )}
+
+            {(po.status === "pending_finance_record" || po.status === "finance_recorded") && (
+              <div className="rounded-xl border px-5 py-4 bg-[hsl(var(--muted))]/20">
+                <p className="text-sm font-medium">
+                  {po.status === "pending_finance_record"
+                    ? "Awaiting Finance to accept this purchase as a record."
+                    : "Finance has recorded this purchase."}
+                </p>
+                {(po.payments || []).length > 0 && (
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    {po.payments.length} payment{po.payments.length !== 1 ? "s" : ""} on file
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Footer actions */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-8 py-5 border-t bg-gradient-to-r from-[hsl(var(--muted))]/20 to-transparent shrink-0">
           <div className="flex flex-wrap items-center gap-2">
-            {po.status !== "direct" && !isAdmin && (
+            {po.status !== "direct" && !prePriced && !isAdmin && (
               <>
                 {po.status === "draft" && (
                   <Button size="sm" variant="outline" className="h-9 text-xs cursor-pointer" onClick={() => onUpdate({ ...po, status: "draft" })}>
@@ -673,7 +722,7 @@ export function PODetail({ po, allSuppliers, isAdmin, onClose, onUpdate }: Props
                 )}
               </>
             )}
-            {po.status !== "direct" && isAdmin && (
+            {po.status !== "direct" && isAdmin && po.status !== "pending_finance_record" && po.status !== "finance_recorded" && (
               <>
                 {po.status === "sent_to_admin" && (
                   <Button size="sm" variant="outline" className="h-9 text-xs cursor-pointer" onClick={() => onUpdate({ ...po, status: "draft" })}>

@@ -1,8 +1,9 @@
 "use client"
 import { useState } from "react"
-import { type PurchaseOrder, type Supplier, type POItem, generatePONumber } from "@/lib/purchase"
+import { type PurchaseOrder, type Supplier, type POItem, type PODocument, generatePONumber } from "@/lib/purchase"
 import { Button } from "@/components/ui/button"
 import { X, Plus, Trash2 } from "lucide-react"
+import { PoCreationAttachments } from "@/components/purchase/po-creation-attachments"
 
 interface Props {
   suppliers: Supplier[]
@@ -32,6 +33,7 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
   const [otherCost, setOtherCost] = useState(0)
   const [otherLabel, setOtherLabel] = useState("")
   const [notes, setNotes] = useState("")
+  const [attachments, setAttachments] = useState<PODocument[]>([])
   const [saving, setSaving] = useState(false)
 
   const supplier = suppliers.find((s) => s.id === supplierId)
@@ -97,7 +99,7 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
       supplierNames: [supplier!.name],
       items: items.map(({ price: _, lineTotal: __, ...item }) => item),
       notes,
-      status: "direct",
+      status: "sent_to_admin",
       createdBy,
       createdAt: now,
       adminNote: "",
@@ -118,11 +120,11 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
           submittedAt: now,
         },
       ],
-      finalizedSupplierId: supplierId,
+      finalizedSupplierId: undefined,
       payments: [],
       adminDocuments: [],
       financeDocuments1: [],
-      purchaseDocuments: [],
+      purchaseDocuments: attachments,
       financeDocuments2: [],
       importedItems: [],
       flowHistory: [],
@@ -142,7 +144,7 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
         <div className="flex items-center justify-between px-6 py-5 border-b shrink-0">
           <div>
             <p className="text-lg font-semibold">Direct PO</p>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">Goes directly to Finance</p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">Sent to Admin for approval &amp; payment</p>
           </div>
           <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer" onClick={onCancel}>
             <X className="h-5 w-5" />
@@ -321,6 +323,8 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
             />
           </div>
 
+          <PoCreationAttachments docs={attachments} onChange={setAttachments} uploadedBy={createdBy} />
+
           <div className="rounded-xl border bg-[hsl(var(--muted))]/20 px-5 py-4 flex items-center justify-between">
             <span className="text-sm text-[hsl(var(--muted-foreground))]">Grand Total</span>
             <span className="text-xl font-bold tabular-nums">
@@ -330,7 +334,7 @@ export function DirectPOForm({ suppliers, createdBy, onSave, onCancel }: Props) 
 
           <div className="flex gap-3 pt-1">
             <Button type="submit" className="h-10 px-5 text-sm cursor-pointer" disabled={saving}>
-              {saving ? "Saving..." : "Send to Finance"}
+              {saving ? "Saving..." : "Create & Send to Admin"}
             </Button>
             <Button type="button" variant="outline" className="h-10 px-5 text-sm cursor-pointer" onClick={onCancel}>
               Cancel

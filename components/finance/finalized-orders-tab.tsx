@@ -19,23 +19,30 @@ export function FinalizedOrdersTab({ search, dateFrom, dateTo }: FinalizedOrders
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null)
-  const [tab, setTab] = useState<"finalized" | "direct" | "imported">("finalized")
+  const [tab, setTab] = useState<"finalized" | "direct" | "pending_record" | "imported">("pending_record")
+
+  const financePoFilter = (po: PurchaseOrder) =>
+    (po.type === "local" && (
+      po.status === "finalized" ||
+      po.status === "direct" ||
+      po.status === "in_inventory" ||
+      po.status === "pending_finance_record" ||
+      po.status === "finance_recorded"
+    )) ||
+    (po.type === "imported" && (
+      !po.status.startsWith("imp_admin_draft") &&
+      !po.status.startsWith("imp_purchase") &&
+      po.status !== "imp_rejected"
+    ))
 
   useEffect(() => {
     Promise.all([getPOs(), getSuppliers()]).then(([p, s]) => {
-      setPOs(p.filter(po =>
-        (po.type === "local" && (po.status === "finalized" || po.status === "direct" || po.status === "in_inventory")) ||
-        (po.type === "imported" && !po.status.startsWith("imp_admin_draft") && !po.status.startsWith("imp_purchase") && po.status !== "imp_rejected")
-      ))
+      setPOs(p.filter(financePoFilter))
       setSuppliers(s)
       setLoading(false)
     })
-    // Refresh data periodically (replaces Supabase realtime)
     const interval = setInterval(() => {
-      getPOs().then(p => setPOs(p.filter(po =>
-        (po.type === "local" && (po.status === "finalized" || po.status === "direct" || po.status === "in_inventory")) ||
-        (po.type === "imported" && !po.status.startsWith("imp_admin_draft") && !po.status.startsWith("imp_purchase") && po.status !== "imp_rejected")
-      )))
+      getPOs().then(p => setPOs(p.filter(financePoFilter)))
     }, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -62,11 +69,13 @@ export function FinalizedOrdersTab({ search, dateFrom, dateTo }: FinalizedOrders
     const matchTo = !dateTo || poDate <= new Date(dateTo + "T23:59:59")
 
     if (tab === "imported") {
-      return po.type === "imported" && matchSearch && matchFrom && matchTo
+      return po.type === "imported" && po.status !== "pending_finance_record" && po.status !== "finance_recorded" && matchSearch && matchFrom && matchTo
+    } else if (tab === "pending_record") {
+      return po.status === "pending_finance_record" && matchSearch && matchFrom && matchTo
     } else if (tab === "direct") {
       return po.status === "direct" && po.type === "local" && matchSearch && matchFrom && matchTo
     } else if (tab === "finalized") {
-      return po.type === "local" && (po.status === "finalized" || po.status === "in_inventory") && matchSearch && matchFrom && matchTo
+      return po.type === "local" && (po.status === "finalized" || po.status === "in_inventory" || po.status === "finance_recorded") && matchSearch && matchFrom && matchTo
     }
     return false
   })
@@ -77,18 +86,19 @@ export function FinalizedOrdersTab({ search, dateFrom, dateTo }: FinalizedOrders
     <div className="p-6 space-y-4">
       {/* Tabs */}
       <div className="flex gap-0 border-b -mx-6 px-6">
-        {(["finalized", "direct", "imported"] as const).map(t => (
+        {(["pending_record", "finalized", "direct", "imported"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px cursor-pointer ${
               tab === t ? "border-[hsl(var(--foreground))] text-[hsl(var(--foreground))]"
               : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
             }`}>
-            {t === "finalized" ? "Detail POs" : t === "direct" ? "Direct POs" : "Imported POs"}
+            {t === "pending_record" ? "Pending Record" : t === "finalized" ? "Detail POs" : t === "direct" ? "Direct POs (Legacy)" : "Imported POs"}
             <span className="ml-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
               ({pos.filter(p => {
-                if (t === "imported") return p.type === "imported"
+                if (t === "pending_record") return p.status === "pending_finance_record"
+                if (t === "imported") return p.type === "imported" && p.status !== "pending_finance_record" && p.status !== "finance_recorded"
                 if (t === "direct") return p.status === "direct" && p.type === "local"
-                if (t === "finalized") return p.type === "local" && (p.status === "finalized" || p.status === "in_inventory")
+                if (t === "finalized") return p.type === "local" && (p.status === "finalized" || p.status === "in_inventory" || p.status === "finance_recorded")
                 return false
               }).length})
             </span>
@@ -109,14 +119,15 @@ export function FinalizedOrdersTab({ search, dateFrom, dateTo }: FinalizedOrders
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <p className="text-sm font-medium">
             {hasFilters 
-              ? `No ${tab === "direct" ? "direct" : tab === "imported" ? "imported" : "finalized"} orders match your filters`
-              : `No ${tab === "direct" ? "direct" : tab === "imported" ? "imported" : "finalized"} orders`
+              ? `No ${tab === "pending_record" ? "pending record" : tab === "direct" ? "direct" : tab === "imported" ? "imported" : "finalized"} orders match your filters`
+              : `No ${tab === "pending_record" ? "pending record" : tab === "direct" ? "direct" : tab === "imported" ? "imported" : "finalized"} orders`
             }
           </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
             {hasFilters 
               ? "Try adjusting your search or date range"
-              : (tab === "direct" ? "Direct POs from purchase will appear here." : 
+              : (tab === "pending_record" ? "POs sent by Admin for finance record will appear here." :
+                 tab === "direct" ? "Legacy direct POs from purchase will appear here." : 
                  tab === "imported" ? "Imported POs will appear here." :
                  "Finalized POs from purchase will appear here.")
             }
@@ -268,8 +279,85 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
     setSaving(false)
   }
 
-  const isFullyPaid = remaining <= 10 // Allow small rounding differences
+  const isPendingRecord = po.status === "pending_finance_record"
+  const isRecorded = po.status === "finance_recorded"
+  const isLegacyPayable = po.status === "finalized" || po.status === "direct"
+
+  async function acceptRecord() {
+    setSaving(true)
+    onUpdate({
+      ...po,
+      status: "finance_recorded",
+      flowHistory: [
+        ...(po.flowHistory || []),
+        {
+          step: "finance_recorded",
+          note: "Finance accepted as record",
+          actor: "Finance",
+          doneAt: new Date().toISOString(),
+        },
+      ],
+    })
+    setSaving(false)
+  }
+
+  const isFullyPaid = remaining <= 10
   const isInInventory = po.status === "in_inventory"
+
+  if (isPendingRecord || isRecorded) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+        <div className="w-full max-w-3xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div>
+              <p className="text-lg font-bold text-[hsl(var(--primary))]">{po.poNumber}</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                {isPendingRecord ? "Pending Finance Record" : "Finance Recorded"}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 space-y-1">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">Supplier</p>
+              <p className="text-sm font-semibold">{supplier?.name || quote?.supplierName || po.supplierNames?.[0] || "—"}</p>
+              <p className="text-xs font-bold pt-2">Total: PKR {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            </div>
+            {payments.length > 0 && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">Admin Payments</p>
+                <div className="space-y-2">
+                  {payments.map((p) => (
+                    <div key={p.id} className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold">PKR {p.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{p.method.replace(/_/g, " ")} · {new Date(p.date).toLocaleDateString()}</p>
+                        {p.notes && <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{p.notes}</p>}
+                      </div>
+                      {p.proofUrl && (
+                        <a href={p.proofUrl} target="_blank" rel="noreferrer">
+                          <img src={p.proofUrl} alt="Proof" className="h-14 w-14 rounded-lg object-cover border shrink-0" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {isRecorded && <Badge variant="success" className="text-xs">Recorded in Finance</Badge>}
+          </div>
+          <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
+            {isPendingRecord && (
+              <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={acceptRecord} disabled={saving}>
+                {saving ? "Saving..." : "Accept as Record"}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-8 text-xs ml-auto cursor-pointer" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
@@ -460,7 +548,7 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
         </div>
 
         <div className="flex items-center gap-2 px-6 py-4 border-t bg-[hsl(var(--muted))]/20 shrink-0">
-          {isFullyPaid && !isInInventory && (po.status === "direct" || po.status === "finalized") && (
+          {isFullyPaid && !isInInventory && isLegacyPayable && (
             <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={moveToInventory} disabled={saving}>
               {saving ? "Moving..." : "Move to Inventory"}
             </Button>

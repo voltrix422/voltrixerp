@@ -32,6 +32,8 @@ export type POStatus =
   | "quoted"
   | "finalized"
   | "direct"
+  | "pending_finance_record"   // admin paid, awaiting finance record
+  | "finance_recorded"         // finance accepted as record
   | "in_inventory"             // direct/finalized POs moved to inventory
   // ── Imported PO flow ──
   | "imp_admin_draft"          // admin creating, uploading docs
@@ -271,6 +273,8 @@ export const STATUS_LABELS: Record<POStatus, string> = {
   quoted: "Quotes Received",
   finalized: "Finalized",
   direct: "Direct PO",
+  pending_finance_record: "Pending Finance Record",
+  finance_recorded: "Finance Recorded",
   in_inventory: "In Inventory",
   imp_admin_draft: "Admin Draft",
   imp_purchase: "With Purchase",
@@ -293,6 +297,8 @@ export const STATUS_VARIANT: Record<POStatus, "secondary" | "warning" | "success
   quoted: "default",
   finalized: "success",
   direct: "info",
+  pending_finance_record: "warning",
+  finance_recorded: "success",
   in_inventory: "success",
   imp_admin_draft: "secondary",
   imp_purchase: "info",
@@ -314,6 +320,31 @@ export function calcQuoteTotal(po: PurchaseOrder, quote: SupplierQuote): number 
   }, 0)
   const taxAmount = itemsTotal * (quote.taxPct / 100)
   return itemsTotal + taxAmount + quote.transportCost + quote.otherCost
+}
+
+/** Local PO created with prices already set (e.g. direct PO). */
+export function isPrePricedLocalPO(po: PurchaseOrder): boolean {
+  if (po.type !== "local") return false
+  return po.quotes.some((q) => q.items.some((i) => i.unitPrice > 0))
+}
+
+export function getActiveLocalQuote(po: PurchaseOrder): SupplierQuote | undefined {
+  return (
+    po.quotes.find((q) => q.supplierId === po.finalizedSupplierId) ||
+    po.quotes[0]
+  )
+}
+
+export function getLocalPoTotal(po: PurchaseOrder): number {
+  const quote = getActiveLocalQuote(po)
+  return quote ? calcQuoteTotal(po, quote) : 0
+}
+
+export function allCreationAttachments(po: PurchaseOrder): PODocument[] {
+  return [
+    ...(po.purchaseDocuments || []),
+    ...(po.adminDocuments || []),
+  ]
 }
 
 // ── Inventory Items ──────────────────────────────────────────────

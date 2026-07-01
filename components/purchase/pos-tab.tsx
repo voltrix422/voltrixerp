@@ -68,10 +68,10 @@ export function POsTab({ user }: Props) {
   const isAdmin = isErpAdmin(user?.role);
 
   const pendingPOs = pos.filter(p => p.status === "sent_to_admin")
-  const approvedPOs = pos.filter(p => p.status === "approved" || p.status === "finalized")
+  const approvedPOs = pos.filter(p => p.status === "approved" || p.status === "finalized" || p.status === "pending_finance_record")
   const draftPOs = pos.filter(p => p.status === "draft")
   const rejectedPOs = pos.filter(p => p.status === "rejected")
-  const receivedPOs = pos.filter(p => p.status === "in_inventory" || p.status === "imp_inventory")
+  const receivedPOs = pos.filter(p => p.status === "in_inventory" || p.status === "imp_inventory" || p.status === "finance_recorded")
   const directPOs = pos.filter(p => p.status === "direct" && p.type === "local")
   const importedPOs = pos.filter(p => p.type === "imported")
 
