@@ -4,9 +4,10 @@ import { useAuth } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard, Wallet } from "lucide-react"
+import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard, Wallet, Landmark } from "lucide-react"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { StaffSalaryAdvanceModal } from "@/components/hrm/staff-salary-advance-modal"
+import { StaffBankDetailsModal } from "@/components/hrm/staff-bank-details-modal"
 import { fetchSalaryAdvanceSummary, recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadStaffExcel } from "@/lib/hrm-excel-export"
@@ -194,6 +195,7 @@ export function HrmManager() {
   const [exportingStaff, setExportingStaff] = useState(false)
   const [advanceByStaff, setAdvanceByStaff] = useState<Record<string, number>>({})
   const [showAdvanceModal, setShowAdvanceModal] = useState(false)
+  const [showBankDetailsModal, setShowBankDetailsModal] = useState(false)
 
   async function refreshAdvanceSummary() {
     try {
@@ -1235,12 +1237,24 @@ export function HrmManager() {
         </div>
         <div className="flex items-center gap-2">
           {staff.length > 0 && (
-            <CrmExcelExportButton
-              onExport={exportStaffExcel}
-              exporting={exportingStaff}
-              label="Export Excel"
-              className="h-9 text-sm gap-2"
-            />
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 text-sm gap-2 cursor-pointer"
+                onClick={() => setShowBankDetailsModal(true)}
+              >
+                <Landmark className="h-4 w-4" />
+                Bank accounts
+              </Button>
+              <CrmExcelExportButton
+                onExport={exportStaffExcel}
+                exporting={exportingStaff}
+                label="Export Excel"
+                className="h-9 text-sm gap-2"
+              />
+            </>
           )}
           <Button size="sm" className="h-9 px-4 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer rounded-lg" onClick={() => setShowForm(true)}>
             <Plus className="h-4 w-4" /> New Staff
@@ -2828,6 +2842,14 @@ export function HrmManager() {
           givenBy={user?.name || "Admin"}
           onClose={() => setShowAdvanceModal(false)}
           onUpdate={refreshAdvanceSummary}
+        />
+      )}
+
+      {showBankDetailsModal && staff.length > 0 && (
+        <StaffBankDetailsModal
+          staff={staff}
+          exportedBy={user?.name}
+          onClose={() => setShowBankDetailsModal(false)}
         />
       )}
     </div>

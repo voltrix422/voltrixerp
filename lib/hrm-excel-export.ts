@@ -128,3 +128,52 @@ export function downloadStaffExcel(staff: StaffExportRow[], exportedBy?: string)
   downloadCsv(`staff-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
   return staff.length
 }
+
+/** Payroll bank transfer list — staff name + bank fields only. */
+export function downloadStaffBankDetailsExcel(staff: StaffExportRow[], exportedBy?: string): number {
+  const withBank = staff.filter(
+    (s) => s.bank_name?.trim() || s.bank_account_number?.trim() || s.bank_account_title?.trim(),
+  )
+
+  const headers = [
+    "Staff Name",
+    "Department",
+    "Role",
+    "Salary",
+    "Currency",
+    "Bank Name",
+    "Account Number",
+    "Account Title",
+  ]
+
+  const rows = withBank.map((s) => [
+    s.name,
+    s.department,
+    s.role,
+    s.salary ?? 0,
+    s.currency ?? "PKR",
+    s.bank_name ?? "",
+    s.bank_account_number ?? "",
+    s.bank_account_title ?? "",
+  ])
+
+  const csv = exportMetaHeader(exportedBy) + rowsToCsv(headers, rows)
+  downloadCsv(`staff-bank-accounts-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+  return withBank.length
+}
+
+export function staffBankDetailsCopyText(s: StaffExportRow): string {
+  return [
+    `Staff: ${s.name}`,
+    `Bank: ${s.bank_name?.trim() || "—"}`,
+    `Account #: ${s.bank_account_number?.trim() || "—"}`,
+    `Account title: ${s.bank_account_title?.trim() || "—"}`,
+  ].join("\n")
+}
+
+export function allStaffBankDetailsCopyText(staff: StaffExportRow[]): string {
+  const withBank = staff.filter(
+    (s) => s.bank_name?.trim() || s.bank_account_number?.trim() || s.bank_account_title?.trim(),
+  )
+  return withBank.map((s, i) => `${i + 1}. ${staffBankDetailsCopyText(s)}`).join("\n\n")
+}
