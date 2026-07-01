@@ -474,6 +474,20 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
     setInvSearch("")
   }
 
+  function addCustomItem() {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${prev.length}`,
+        description: "",
+        qty: 1,
+        unit: "pcs",
+        unitPrice: 0,
+        isCustom: true,
+      },
+    ])
+  }
+
   function updateItem(id: string, key: keyof QuotationItem, value: any) {
     setItems(prev => prev.map(i => {
       if (i.id !== id) return i
@@ -577,6 +591,16 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
               <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} className="sm:max-w-xs" />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full sm:w-auto sm:justify-end mb-3">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 w-full sm:w-auto text-xs cursor-pointer"
+                onClick={addCustomItem}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add custom product
+              </Button>
               <Button type="button" size="sm" className="h-9 w-full sm:w-auto text-xs bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" onClick={() => setShowInventory(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1"/>Add from inventory
               </Button>
@@ -586,6 +610,9 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
               <div className="rounded-lg border border-dashed p-8 text-center bg-[hsl(var(--muted))]/10">
                 <ShoppingCart className="h-10 w-10 text-[hsl(var(--muted-foreground))] opacity-30 mx-auto mb-2"/>
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">No items added yet</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  Add from inventory or add a custom product with your own description and price
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
