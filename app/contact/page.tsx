@@ -52,7 +52,7 @@ export default function ContactPage() {
               {[
                 { icon: MapPin, label: "Address", value: "Voltrix HQ, Lahore, Pakistan" },
                 { icon: Phone, label: "Phone", value: "+92 300 000 0000" },
-                { icon: Mail, label: "Email", value: "info@voltrixbatteries.com" },
+                { icon: Mail, label: "Email", value: "ops@voltrixbatteries.com" },
                 { icon: Clock, label: "Business Hours", value: "Mon–Sat, 9:00 AM – 6:00 PM" },
               ].map((item) => (
                 <div key={item.label} className="flex items-start gap-4 p-5 rounded-2xl border border-neutral-100">
