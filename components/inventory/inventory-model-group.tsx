@@ -70,9 +70,11 @@ export function InventoryModelGroup({
     modelUnits.length > 0
       ? modelUnits.filter((u) => u.status === "in_stock").length
       : (stockOnly?.inStock ?? 0)
+  const outCount = count > inStock ? count - inStock : 0
   const unitLabel = stockOnly?.unit || "pcs"
   const title = customName || modelKey
   const hasSerials = modelUnits.length > 0
+  const isManualModel = Boolean(stockOnly?.isManual || modelKey.toUpperCase().startsWith("MAN-"))
 
   const [pricePanelOpen, setPricePanelOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)
@@ -171,9 +173,14 @@ export function InventoryModelGroup({
                   <span className="text-sm font-semibold leading-snug break-words text-[hsl(var(--foreground))]">
                     {title}
                   </span>
-                  {stockOnly?.isManual && (
+                  {isManualModel && (
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
                       Manual
+                    </Badge>
+                  )}
+                  {hasSerials && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 border-[#1faca6]/40 text-[#1faca6]">
+                      {modelUnits.length} SN
                     </Badge>
                   )}
                 </div>
@@ -272,9 +279,14 @@ export function InventoryModelGroup({
             >
               <span className="min-w-0 text-sm font-medium truncate flex items-center gap-1.5">
                 {title}
-                {stockOnly?.isManual && (
+                {isManualModel && (
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
                     Manual
+                  </Badge>
+                )}
+                {hasSerials && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 border-[#1faca6]/40 text-[#1faca6]">
+                    {modelUnits.length} SN
                   </Badge>
                 )}
               </span>
@@ -283,9 +295,9 @@ export function InventoryModelGroup({
               </span>
               <span className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums text-right">
                 {inStock}/{count}
-                {isManualStock && count > inStock && (
+                {outCount > 0 && (
                   <span className="block text-[10px] font-normal text-amber-700 dark:text-amber-400">
-                    {count - inStock} out
+                    {outCount} out
                   </span>
                 )}
               </span>

@@ -70,7 +70,7 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
       const stockRows = stockRes?.ok ? await stockRes.json() : []
 
       const warehouseUnits = rows.filter(
-        (u) => u.status === "in_stock" && !String(u.model || "").toUpperCase().startsWith("MAN-"),
+        (u) => u.status === "in_stock" || u.status === "at_branch",
       )
       setUnits(warehouseUnits)
       const map: Record<string, string> = {}
