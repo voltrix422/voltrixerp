@@ -6,6 +6,7 @@ import {
   Globe, EyeOff, RefreshCw, Star, Check, GripVertical
 } from "lucide-react"
 import ProductBrochureField from "@/components/website/product-brochure-field"
+import ProductUserManualField from "@/components/website/product-user-manual-field"
 import {
   MAIN_CATEGORIES,
   INVERTER_SUBCATEGORIES,
@@ -38,6 +39,8 @@ type Product = {
   quoteMode: boolean
   brochureUrl?: string
   brochureName?: string
+  userManualUrl?: string
+  userManualName?: string
   specSheetUrl?: string
   order?: number
 }
@@ -55,7 +58,7 @@ const EMPTY = {
   description: "", full_desc: "",
   specification: "", price: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
-  brochureUrl: "", brochureName: "", specSheetUrl: "",
+  brochureUrl: "", brochureName: "", userManualUrl: "", userManualName: "", specSheetUrl: "",
 }
 
 export default function ProductsManager() {
@@ -117,6 +120,8 @@ export default function ProductsManager() {
       published: p.published || false, unit: p.unit || "pcs", quoteMode: p.quoteMode || false,
       brochureUrl: p.brochureUrl || "",
       brochureName: p.brochureName || "",
+      userManualUrl: p.userManualUrl || "",
+      userManualName: p.userManualName || "",
       specSheetUrl: p.specSheetUrl || "",
     })
     setPendingImgs([])
@@ -213,6 +218,7 @@ export default function ProductsManager() {
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
         brochureUrl: form.brochureUrl, brochureName: form.brochureName,
+        userManualUrl: form.userManualUrl, userManualName: form.userManualName,
         specSheetUrl: form.specSheetUrl,
         terms: "",
         termsUseCustom: false,
@@ -648,6 +654,14 @@ export default function ProductsManager() {
                 brochureName: form.brochureName,
               }}
               onChange={(brochureValue) => setForm((current) => ({ ...current, ...brochureValue }))}
+            />
+
+            <ProductUserManualField
+              value={{
+                userManualUrl: form.userManualUrl,
+                userManualName: form.userManualName,
+              }}
+              onChange={(userManualValue) => setForm((current) => ({ ...current, ...userManualValue }))}
             />
 
             {/* Specs */}

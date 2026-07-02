@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
-import ProductBrochurePanel from "@/components/products/product-brochure-panel"
+import ProductDocumentPanel from "@/components/products/product-document-panel"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
@@ -185,8 +185,10 @@ export default function ProductDetailClient({
   const [termsOpen, setTermsOpen] = useState(false)
   const [specsOpen, setSpecsOpen] = useState(false)
   const [brochureOpen, setBrochureOpen] = useState(false)
+  const [manualOpen, setManualOpen] = useState(false)
   const requestQuote = shouldRequestQuote(product)
   const hasBrochure = Boolean(product.brochureUrl)
+  const hasUserManual = Boolean(product.userManualUrl)
   const showSpecs = hasProductSpecs(product)
   const category = String(product.category ?? "")
   const { title, model } = getProductDisplayName({
@@ -290,6 +292,15 @@ export default function ProductDetailClient({
                   >
                     Terms & Conditions
                   </button>
+                  {hasUserManual && (
+                    <button
+                      type="button"
+                      onClick={() => setManualOpen(true)}
+                      className="text-sm font-medium text-neutral-700 hover:text-[#1a9f9a] cursor-pointer border-b border-dotted border-transparent hover:border-[#1a9f9a] pb-0.5 transition-colors bg-transparent"
+                    >
+                      User Manual
+                    </button>
+                  )}
                   {hasBrochure && (
                     <button
                       type="button"
@@ -341,10 +352,42 @@ export default function ProductDetailClient({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <ProductBrochurePanel
-              brochureUrl={String(product.brochureUrl)}
-              brochureName={product.brochureName ? String(product.brochureName) : undefined}
+            <ProductDocumentPanel
+              documentUrl={String(product.brochureUrl)}
+              documentName={product.brochureName ? String(product.brochureName) : undefined}
               productName={title}
+              heading="Product brochure"
+              description="View the brochure below or download a copy for offline reading."
+            />
+          </div>
+        </div>
+      )}
+
+      {manualOpen && hasUserManual && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setManualOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-xl p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-neutral-900">User manual</h2>
+              <button
+                type="button"
+                onClick={() => setManualOpen(false)}
+                className="p-1.5 rounded-full hover:bg-neutral-100 text-neutral-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <ProductDocumentPanel
+              documentUrl={String(product.userManualUrl)}
+              documentName={product.userManualName ? String(product.userManualName) : undefined}
+              productName={title}
+              heading="User manual"
+              description="Read the user manual below or download it for offline reference."
             />
           </div>
         </div>
