@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, Suspense } from "react"
 import {
-  Shield,
   Search,
   AlertCircle,
   CheckCircle,
@@ -123,7 +122,7 @@ function WarrantyLookupContent() {
 
       if (res.ok) {
         setWarranty(data)
-        setInfo("Your warranty details and certificate are below.")
+        setInfo("Certificate ready.")
         return
       }
 
@@ -165,19 +164,11 @@ function WarrantyLookupContent() {
       if (data.alreadyActive) {
         setAlreadyActive(true)
         const wn = (data.warranty as WarrantyData)?.warrantyId
-        setInfo(
-          wn
-            ? `This warranty is already active. Your warranty number is ${wn}.`
-            : "This warranty is already active. Your certificate is below.",
-        )
+        setInfo(wn ? `Warranty number: ${wn}` : "Certificate ready below.")
       } else {
         setJustActivated(true)
         const wn = (data.warranty as WarrantyData)?.warrantyId
-        setInfo(
-          wn
-            ? `Your 5-year warranty has started. Warranty number: ${wn}. Save this number to check warranty later.`
-            : "Your 5-year warranty has started. Download your certificate below.",
-        )
+        setInfo(wn ? `Started · ${wn}` : "Warranty started.")
       }
     } catch {
       setError("Failed to start warranty. Please try again.")
@@ -201,68 +192,71 @@ function WarrantyLookupContent() {
 
   const showCheckScanner = flow === "check" && !warranty
   const showStartWizard = flow === "start" && !warranty
+  const showLanding = flow === null && !warranty
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#1a9f9a]/10 mb-3">
-          <Shield className="h-7 w-7 text-[#1a9f9a]" />
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Product warranty</h1>
-        <p className="text-sm text-gray-600">
-          Scan your product, upload invoice, and get your 5-year warranty certificate
-        </p>
-      </div>
+    <div className="max-w-lg mx-auto">
+      {showLanding && (
+        <>
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Warranty</h1>
+            <p className="text-sm text-gray-500 mt-1">5-year coverage</p>
+          </div>
 
-      <section className="mb-8 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 sm:px-5 py-3 border-b bg-gray-50">
-          <h2 className="text-sm font-semibold text-gray-900">Warranty guide video</h2>
-          <p className="text-xs text-gray-600 mt-0.5">
-            Watch how to start or check your Voltrix product warranty, or download the video.
-          </p>
-        </div>
-        <div className="p-4 sm:p-5 space-y-3">
-          <video
-            className="w-full rounded-xl border border-gray-200 bg-black aspect-video"
-            controls
-            playsInline
-            preload="metadata"
-          >
-            <source src="/warranty.mp4" type="video/mp4" />
-            Your browser does not support video playback.
-          </video>
-          <a
-            href="/warranty.mp4"
-            download="voltrix-warranty-guide.mp4"
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#1a9f9a] text-[#1a9f9a] bg-white text-sm font-semibold hover:bg-[#1a9f9a]/5 transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Download video
-          </a>
-        </div>
-      </section>
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-full max-w-[300px] rounded-2xl overflow-hidden shadow-xl ring-1 ring-black/10 bg-black">
+              <video
+                className="w-full aspect-[9/16] object-cover"
+                controls
+                playsInline
+                preload="metadata"
+              >
+                <source src="/warranty.mp4" type="video/mp4" />
+              </video>
+            </div>
+            <a
+              href="/warranty.mp4"
+              download="voltrix-warranty-guide.mp4"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#1a9f9a] hover:text-[#158a85] transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Download guide
+            </a>
+          </div>
 
-      <div className="max-w-md mx-auto">
-      {flow === null && !warranty && (
-        <div className="space-y-3 mb-6">
-          <button
-            type="button"
-            onClick={() => openFlow("start")}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-[#1a9f9a] text-white text-base font-semibold hover:bg-[#158a85] shadow-md transition-colors"
-          >
-            <PlayCircle className="h-5 w-5" />
-            Start warranty
-          </button>
-          <button
-            type="button"
-            onClick={() => openFlow("check")}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-[#1a9f9a] text-[#1a9f9a] bg-white text-base font-semibold hover:bg-[#1a9f9a]/5 transition-colors"
-          >
-            <Search className="h-5 w-5" />
-            Check warranty
-          </button>
-        </div>
+          <div className="space-y-3 max-w-sm mx-auto">
+            <button
+              type="button"
+              onClick={() => openFlow("start")}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] shadow-sm transition-colors"
+            >
+              <PlayCircle className="h-5 w-5" />
+              Start warranty
+            </button>
+            <button
+              type="button"
+              onClick={() => openFlow("check")}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              <Search className="h-5 w-5 text-[#1a9f9a]" />
+              Check warranty
+            </button>
+          </div>
+        </>
       )}
+
+      {!showLanding && (
+        <div className="max-w-md mx-auto">
+          {(flow !== null || warranty) && !showStartWizard && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="mb-5 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+          )}
 
       {showStartWizard && (
         <WarrantyStartWizard
@@ -275,16 +269,8 @@ function WarrantyLookupContent() {
 
       {showCheckScanner && (
         <div className="mb-6 space-y-4">
-          <button
-            type="button"
-            onClick={goBack}
-            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
-
-          <div className="flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+          <h2 className="text-lg font-semibold text-gray-900">Check warranty</h2>
+          <div className="flex rounded-xl border border-gray-200 p-1 bg-gray-50">
             <button
               type="button"
               onClick={() => setCheckMode("scan")}
@@ -310,37 +296,29 @@ function WarrantyLookupContent() {
           </div>
 
           {checkMode === "scan" ? (
-            <>
-              <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
-                Scan your product QR to <strong>view</strong> warranty details and certificate
-              </div>
-              <WarrantyQrScanner
-                key={`check-${scannerKey}`}
-                readerId="public-warranty-check-reader"
-                onScan={(p) => void lookup(p)}
-                busy={loading}
-                autoStart
-                hideStartButton
-              />
-            </>
+            <WarrantyQrScanner
+              key={`check-${scannerKey}`}
+              readerId="public-warranty-check-reader"
+              onScan={(p) => void lookup(p)}
+              busy={loading}
+              autoStart
+              hideStartButton
+            />
           ) : (
             <div className="space-y-3">
-              <div className="rounded-xl bg-gray-100 border border-gray-200 px-4 py-3 text-sm text-gray-700 text-center">
-                Enter your <strong>warranty number</strong> from your certificate (e.g. vol-12345)
-              </div>
               <input
                 value={warrantyNumberInput}
                 onChange={(e) => setWarrantyNumberInput(e.target.value)}
-                placeholder="vol-12345"
-                className="w-full h-11 rounded-lg border border-gray-200 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
+                placeholder="Warranty number · vol-12345"
+                className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
               />
               <button
                 type="button"
                 disabled={loading || !warrantyNumberInput.trim()}
                 onClick={() => void lookup(warrantyNumberInput)}
-                className="w-full py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] disabled:opacity-50"
+                className="w-full py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] disabled:opacity-50 transition-colors"
               >
-                {loading ? "Looking up…" : "Check warranty"}
+                {loading ? "Looking up…" : "Check"}
               </button>
             </div>
           )}
@@ -368,45 +346,29 @@ function WarrantyLookupContent() {
               This product warranty was already started.
             </p>
           )}
-          {justActivated && flow === "start" && (
-            <div className="text-center space-y-1">
-              <p className="text-sm text-[#1a9f9a] font-semibold">Warranty started successfully!</p>
-              {warranty.warrantyId && (
-                <>
-                  <p className="text-sm font-mono font-bold text-gray-900">{warranty.warrantyId}</p>
-                  <p className="text-xs text-gray-600 px-2">
-                    Save this warranty number — use Check warranty → Warranty number anytime.
-                  </p>
-                </>
-              )}
-            </div>
+          {justActivated && flow === "start" && warranty.warrantyId && (
+            <p className="text-center text-sm font-mono font-bold text-[#1a9f9a]">{warranty.warrantyId}</p>
           )}
           <WarrantyPublicCardView ref={cardRef} warranty={toCardData(warranty)} />
           <button
             type="button"
             onClick={() => void handleDownload()}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] shadow-md"
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] shadow-sm transition-colors"
           >
             <Download className="h-4 w-4" />
-            Download warranty card
-          </button>
-          <button
-            type="button"
-            onClick={goBack}
-            className="w-full py-2.5 text-sm text-gray-600 hover:text-gray-900"
-          >
-            Back to home
+            Download card
           </button>
         </div>
       )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default function WarrantyLookupPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 flex flex-col">
+    <div className="min-h-screen bg-[#f7f8fa] flex flex-col">
       <Navbar />
       <div className="flex-1 pt-24 pb-12 px-4">
         <Suspense fallback={<div className="text-center text-sm text-gray-500">Loading…</div>}>
