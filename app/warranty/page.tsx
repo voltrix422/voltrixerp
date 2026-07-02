@@ -203,7 +203,7 @@ function WarrantyLookupContent() {
   const showStartWizard = flow === "start" && !warranty
 
   return (
-    <div className="max-w-md mx-auto">
+    <div className="max-w-2xl mx-auto">
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#1a9f9a]/10 mb-3">
           <Shield className="h-7 w-7 text-[#1a9f9a]" />
@@ -214,6 +214,35 @@ function WarrantyLookupContent() {
         </p>
       </div>
 
+      <section className="mb-8 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-5 py-3 border-b bg-gray-50">
+          <h2 className="text-sm font-semibold text-gray-900">Warranty guide video</h2>
+          <p className="text-xs text-gray-600 mt-0.5">
+            Watch how to start or check your Voltrix product warranty, or download the video.
+          </p>
+        </div>
+        <div className="p-4 sm:p-5 space-y-3">
+          <video
+            className="w-full rounded-xl border border-gray-200 bg-black aspect-video"
+            controls
+            playsInline
+            preload="metadata"
+          >
+            <source src="/warranty.mp4" type="video/mp4" />
+            Your browser does not support video playback.
+          </video>
+          <a
+            href="/warranty.mp4"
+            download="voltrix-warranty-guide.mp4"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#1a9f9a] text-[#1a9f9a] bg-white text-sm font-semibold hover:bg-[#1a9f9a]/5 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Download video
+          </a>
+        </div>
+      </section>
+
+      <div className="max-w-md mx-auto">
       {flow === null && !warranty && (
         <div className="space-y-3 mb-6">
           <button
@@ -370,6 +399,7 @@ function WarrantyLookupContent() {
           </button>
         </div>
       )}
+      </div>
     </div>
   )
 }
