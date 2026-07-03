@@ -52,7 +52,7 @@ export type SolarSizingResult = {
 
 const DEFAULT_TARIFF_PKR = 32
 const DEFAULT_SUN_HOURS = 4.5
-const SYSTEM_OVERSIZE = 1.15
+const SYSTEM_OVERSIZE = 1.5
 
 export function resolveMonthlyUnits(
   units: number | null | undefined,
