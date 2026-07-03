@@ -51,7 +51,7 @@ export type SolarSizingResult = {
 }
 
 const DEFAULT_TARIFF_PKR = 32
-const DEFAULT_SUN_HOURS = 4.5
+const ANNUAL_UNITS_PER_KW = 1300
 const SYSTEM_OVERSIZE = 1.5
 
 export function resolveMonthlyUnits(
@@ -182,9 +182,9 @@ export function calculateSolarSizing(
 
   const tariff = resolveTariff(input.billAmountPkr, monthlyUnits, input.tariffPerUnit ?? null)
   const dailyKwh = monthlyUnits / 30
-  const sunHours = input.sunHoursPerDay && input.sunHoursPerDay > 0 ? input.sunHoursPerDay : DEFAULT_SUN_HOURS
+  const annualUnits = monthlyUnits * 12
   const requiredSystemKw =
-    Math.round(((dailyKwh / sunHours) * SYSTEM_OVERSIZE) * 10) / 10
+    Math.round(((annualUnits / ANNUAL_UNITS_PER_KW) * SYSTEM_OVERSIZE) * 10) / 10
 
   const backupHours = input.backupHours ?? 0
   const backupKwh =
@@ -264,9 +264,8 @@ export function calculateSolarSizing(
   const estimatedMonthlySavingPkr = Math.round(estimatedBillPkr * (offsetPercent / 100))
 
   const analysisNotes: string[] = [
-    `Based on ${monthlyUnits.toLocaleString()} units/month (~${dailyKwh.toFixed(1)} kWh/day).`,
-    `Assuming ${sunHours} peak sun hours/day in ${input.city || "Pakistan"}.`,
-    `Recommended system size: ~${requiredSystemKw} kW (with ${Math.round((SYSTEM_OVERSIZE - 1) * 100)}% safety margin).`,
+    `Based on ${monthlyUnits.toLocaleString()} units/month (~${dailyKwh.toFixed(1)} kWh/day, ${annualUnits.toLocaleString()} units/year).`,
+    `Recommended system size: ~${requiredSystemKw} kW = (annual units ÷ ${ANNUAL_UNITS_PER_KW}) × ${SYSTEM_OVERSIZE}.`,
   ]
   if (backupHours > 0) {
     analysisNotes.push(`Backup target: ${backupHours} hours (~${backupKwh} kWh storage).`)
