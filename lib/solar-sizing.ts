@@ -8,6 +8,7 @@ import {
   isFusionComboProduct,
   isInStock,
   isSolarPanelProduct,
+  isBifacialPanelProduct,
   isStandaloneBatteryProduct,
   isStandaloneInverterProduct,
   isInverterProduct,
@@ -86,8 +87,11 @@ function pickPanel(catalog: CatalogProduct[]): { wattage: number; product?: Cata
     .filter((x) => x.w >= 300)
     .sort((a, b) => b.w - a.w)
 
-  if (panels.length) {
-    return { wattage: panels[0].w, product: panels[0].p }
+  const bifacial = panels.filter((x) => isBifacialPanelProduct(x.p))
+  const pool = bifacial.length ? bifacial : panels
+
+  if (pool.length) {
+    return { wattage: pool[0].w, product: pool[0].p }
   }
 
   const fallback = DEFAULT_SOLAR_PANELS[0]
@@ -274,7 +278,7 @@ export function calculateSolarSizing(
     analysisNotes.push("Inverter + battery recommendation is a single Voltrix Fusion all-in-one unit.")
   }
   if (!recommendedPanel.fromCatalog) {
-    analysisNotes.push("Panel suggestion uses standard Longi 620W — add panels to website catalog for live SKU matching.")
+    analysisNotes.push("Panel suggestion uses standard Longi 620W Bifacial — add panels to website catalog for live SKU matching.")
   }
 
   return {

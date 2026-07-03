@@ -91,6 +91,11 @@ export function isSolarPanelProduct(p: CatalogProduct): boolean {
   return Boolean(w && /panel|module|pv/.test(text))
 }
 
+export function isBifacialPanelProduct(p: CatalogProduct): boolean {
+  const text = productText(p).toLowerCase()
+  return /bifacial|bi[- ]?facial/.test(text)
+}
+
 export function isFusionComboProduct(p: CatalogProduct): boolean {
   if (String(p.category || "") === "Voltrix Fusion") return true
   const text = productText(p).toLowerCase()
@@ -148,6 +153,6 @@ export function isInStock(p: CatalogProduct): boolean {
 
 /** Fallback panels when catalog has no published panel SKUs. */
 export const DEFAULT_SOLAR_PANELS = [
-  { id: "default-longi-620", name: "Longi 620W Mono PERC Panel", wattage: 620 },
+  { id: "default-longi-620-bifacial", name: "Longi 620W Bifacial Panel", wattage: 620 },
   { id: "default-550", name: "550W Solar Panel", wattage: 550 },
 ] as const
