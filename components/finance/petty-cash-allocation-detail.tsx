@@ -698,19 +698,6 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                               </Button>
                             </>
                           )}
-                          {canManagePettyCash && receipt.status !== 'pending' && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={reviewingReceiptId === receipt.id}
-                              onClick={() => handleReviewReceipt(receipt, 'pending')}
-                              className="h-7 px-2 cursor-pointer"
-                              title="Undo approval and move back to pending"
-                            >
-                              Undo
-                            </Button>
-                          )}
                           {canManagePettyCash && (
                             <Button
                               size="sm"

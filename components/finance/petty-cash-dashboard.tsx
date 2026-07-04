@@ -627,17 +627,6 @@ export function PettyCashDashboard() {
                               </button>
                             </>
                           )}
-                          {canManagePettyCash && receipt.status !== "pending" && (
-                            <button
-                              type="button"
-                              disabled={reviewingReceiptId === receipt.id}
-                              onClick={() => handleReviewReceipt(receipt, "pending")}
-                              className="text-yellow-600 hover:text-yellow-800 text-[10px] font-medium transition-colors cursor-pointer disabled:opacity-50"
-                              title="Undo approval and move back to pending"
-                            >
-                              Undo
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
