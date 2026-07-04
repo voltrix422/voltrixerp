@@ -53,6 +53,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState("")
   const [deleteReceiptConfirm, setDeleteReceiptConfirm] = useState<PettyCashReceipt | null>(null)
   const [deletingReceipt, setDeletingReceipt] = useState(false)
+  const [reviewingReceiptId, setReviewingReceiptId] = useState<string | null>(null)
   const [showTopUp, setShowTopUp] = useState(false)
 
   useEffect(() => {
@@ -203,15 +204,17 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   }
 
   async function handleReviewReceipt(receipt: PettyCashReceipt, status: 'pending' | 'approved' | 'rejected') {
+    setReviewingReceiptId(receipt.id)
     try {
-      await updatePettyCashReceiptStatus(receipt.id, status, currentUser, currentUserId || "")
-      const updatedReceipts = receipts.map(r => 
-        r.id === receipt.id 
-          ? { ...r, status, reviewedBy: currentUser, reviewedAt: new Date().toISOString() }
-          : r
+      const updated = await updatePettyCashReceiptStatus(
+        receipt.id,
+        status,
+        currentUser,
+        currentUserId || "",
       )
-      setReceipts(updatedReceipts)
-      
+      setReceipts((prev) => prev.map((r) => (r.id === receipt.id ? updated : r)))
+      await loadReceipts()
+
       if (status === "approved") {
         toast({
           title: "Receipt approved",
@@ -229,15 +232,18 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
           type: "success",
         })
       }
-      
+
       onUpdate()
     } catch (error) {
       console.error('Error reviewing receipt:', error)
       toast({
         title: "Error",
-        message: "Failed to review receipt",
+        message: error instanceof Error ? error.message : "Failed to review receipt",
         type: "error"
       })
+      await loadReceipts()
+    } finally {
+      setReviewingReceiptId(null)
     }
   }
 
@@ -672,15 +678,19 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                           {canManagePettyCash && receipt.status === 'pending' && (
                             <>
                               <Button
+                                type="button"
                                 size="sm"
+                                disabled={reviewingReceiptId === receipt.id}
                                 onClick={() => handleReviewReceipt(receipt, 'approved')}
                                 className="bg-green-600 hover:bg-green-700 h-7 px-2 cursor-pointer"
                               >
                                 <CheckCircle className="h-3 w-3" />
                               </Button>
                               <Button
+                                type="button"
                                 size="sm"
                                 variant="destructive"
+                                disabled={reviewingReceiptId === receipt.id}
                                 onClick={() => handleReviewReceipt(receipt, 'rejected')}
                                 className="h-7 px-2 cursor-pointer"
                               >
@@ -690,13 +700,15 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                           )}
                           {canManagePettyCash && receipt.status !== 'pending' && (
                             <Button
+                              type="button"
                               size="sm"
                               variant="outline"
+                              disabled={reviewingReceiptId === receipt.id}
                               onClick={() => handleReviewReceipt(receipt, 'pending')}
                               className="h-7 px-2 cursor-pointer"
-                              title="Move back to pending for admin re-review"
+                              title="Undo approval and move back to pending"
                             >
-                              Pending
+                              Undo
                             </Button>
                           )}
                           {canManagePettyCash && (

@@ -53,6 +53,7 @@ export function PettyCashDashboard() {
     expectedTotal: number
   } | null>(null)
   const [migratingFinance, setMigratingFinance] = useState(false)
+  const [reviewingReceiptId, setReviewingReceiptId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -112,12 +113,10 @@ export function PettyCashDashboard() {
   }
 
   async function handleReviewReceipt(receipt: PettyCashReceipt, status: "pending" | "approved" | "rejected") {
+    setReviewingReceiptId(receipt.id)
     try {
-      await updatePettyCashReceiptStatus(receipt.id, status, currentUser, currentUserId)
-      const updatedReceipts = receipts.map(r =>
-        r.id === receipt.id ? { ...r, status, reviewedBy: currentUser, reviewedAt: new Date().toISOString() } : r
-      )
-      setReceipts(updatedReceipts)
+      const updated = await updatePettyCashReceiptStatus(receipt.id, status, currentUser, currentUserId)
+      setReceipts((prev) => prev.map((r) => (r.id === receipt.id ? updated : r)))
 
       const allocation = allocations.find((a) => a.id === receipt.allocationId)
       if (status === "approved") {
@@ -133,10 +132,17 @@ export function PettyCashDashboard() {
       } else {
         toast({ title: "Moved to pending", message: "Receipt is pending admin review again.", type: "success" })
       }
-      loadData()
+      await loadData()
     } catch (error) {
       console.error("Error reviewing receipt:", error)
-      toast({ title: "Error", message: "Failed to review receipt", type: "error" })
+      toast({
+        title: "Error",
+        message: error instanceof Error ? error.message : "Failed to review receipt",
+        type: "error",
+      })
+      await loadData()
+    } finally {
+      setReviewingReceiptId(null)
     }
   }
 
@@ -602,15 +608,19 @@ export function PettyCashDashboard() {
                           {canManagePettyCash && receipt.status === "pending" && (
                             <>
                               <button
+                                type="button"
+                                disabled={reviewingReceiptId === receipt.id}
                                 onClick={() => handleReviewReceipt(receipt, "approved")}
-                                className="text-green-500 hover:text-green-700 cursor-pointer transition-colors"
+                                className="text-green-500 hover:text-green-700 cursor-pointer transition-colors disabled:opacity-50"
                                 title="Approve"
                               >
                                 <CheckCircle className="h-3.5 w-3.5" />
                               </button>
                               <button
+                                type="button"
+                                disabled={reviewingReceiptId === receipt.id}
                                 onClick={() => handleReviewReceipt(receipt, "rejected")}
-                                className="text-red-500 hover:text-red-700 cursor-pointer transition-colors"
+                                className="text-red-500 hover:text-red-700 cursor-pointer transition-colors disabled:opacity-50"
                                 title="Reject"
                               >
                                 <XCircle className="h-3.5 w-3.5" />
@@ -619,11 +629,13 @@ export function PettyCashDashboard() {
                           )}
                           {canManagePettyCash && receipt.status !== "pending" && (
                             <button
+                              type="button"
+                              disabled={reviewingReceiptId === receipt.id}
                               onClick={() => handleReviewReceipt(receipt, "pending")}
-                              className="text-yellow-600 hover:text-yellow-800 text-[10px] font-medium transition-colors cursor-pointer"
-                              title="Move back to pending for admin re-review"
+                              className="text-yellow-600 hover:text-yellow-800 text-[10px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+                              title="Undo approval and move back to pending"
                             >
-                              Pending
+                              Undo
                             </button>
                           )}
                         </div>

@@ -59,8 +59,12 @@ export function DashboardPettyCashApprovals() {
         type: "success",
         title: status === "approved" ? "Receipt approved" : "Receipt rejected",
       })
-    } catch {
-      toast({ type: "error", title: "Could not update receipt" })
+    } catch (error) {
+      toast({
+        type: "error",
+        title: "Could not update receipt",
+        message: error instanceof Error ? error.message : "Approval failed. Please try again.",
+      })
     } finally {
       setBusyReceiptId(null)
     }

@@ -1,16 +1,18 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/db'
 import { syncOfficeLedgerDisplayName } from '@/lib/migrate-finance-records-to-petty-cash'
 import {
   PERSONAL_LEDGER_MARKER,
   PERSONAL_LEDGER_PURPOSE,
 } from '@/lib/petty-cash-personal'
 import {
+  normalizePettyCashReceiptStatus,
+  resolvePettyCashReviewer,
+} from '@/lib/petty-cash-receipt-review'
+import {
   notifyOnPettyCashPending,
   notifyOnPettyCashReviewed,
 } from '@/lib/notifications-server'
-
-const prisma = new PrismaClient()
 
 function isPersonalLedger(allocation: { notes: string; purpose: string }) {
   return (
@@ -139,17 +141,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'PUT') {
-      const { id, status, reviewedBy, reviewedById, reviewNotes } = req.body
+      const { id, reviewedBy, reviewedById, reviewNotes } = req.body
+      const status = normalizePettyCashReceiptStatus(req.body.status)
 
-      if (!id || !status || !reviewedBy || !reviewedById) {
-        return res.status(400).json({ error: 'Missing required fields' })
+      if (!id || !status) {
+        return res.status(400).json({ error: 'Missing receipt id or valid status' })
       }
 
-      const reviewer = await prisma.erpUser.findUnique({
-        where: { id: String(reviewedById) },
-        select: { id: true, role: true, name: true },
-      })
-      if (!reviewer || (reviewer.role !== 'superadmin' && reviewer.role !== 'admin')) {
+      const reviewer = await resolvePettyCashReviewer(reviewedById, reviewedBy)
+      if (!reviewer) {
         return res.status(403).json({ error: 'Only admin can approve or reject receipts' })
       }
 
@@ -191,9 +191,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { id },
         data: {
           status,
-          reviewedBy: reviewer.name || reviewedBy,
-          reviewedAt: new Date(),
-          reviewNotes: reviewNotes || null
+          reviewedBy: status === 'pending' ? null : reviewer.name || reviewedBy || null,
+          reviewedAt: status === 'pending' ? null : new Date(),
+          reviewNotes: status === 'pending' ? null : reviewNotes || null,
         }
       })
 

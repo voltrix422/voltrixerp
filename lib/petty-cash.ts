@@ -225,8 +225,15 @@ export async function updatePettyCashReceiptStatus(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, status, reviewedBy, reviewedById, reviewNotes })
   })
-  if (!res.ok) throw new Error('Failed to update petty cash receipt')
-  return res.json()
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(
+      typeof payload?.error === 'string'
+        ? payload.error
+        : 'Failed to update petty cash receipt',
+    )
+  }
+  return payload
 }
 
 export async function deletePettyCashReceipt(id: string): Promise<{
