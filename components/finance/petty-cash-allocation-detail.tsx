@@ -14,9 +14,8 @@ import {
   canAddReceiptToAllocation,
   formatPettyCashBalance,
   formatPettyCashExpense,
-  getAllocationRemaining,
-  sumApprovedReceipts,
-  sumPendingReceipts,
+  formatAllocationBalanceCell,
+  summarizeAllocationReceipts,
 } from "@/lib/petty-cash-display"
 import { isPersonalLedgerAllocation } from "@/lib/petty-cash-personal"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -27,7 +26,7 @@ import { PettyCashActivityTimeline } from "./petty-cash-history-panel"
 import { PettyCashTopUp } from "./petty-cash-top-up"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target, Trash2 } from "lucide-react"
+import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target, Trash2, Clock } from "lucide-react"
 
 interface PettyCashAllocationDetailProps {
   allocation: PettyCashAllocation
@@ -79,10 +78,14 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   }
 
   const isPersonal = isPersonalLedgerAllocation(allocation)
-  const totalSpent = sumApprovedReceipts(receipts, allocation.id)
-  const pendingTotal = sumPendingReceipts(receipts, allocation.id)
-  const remainingAmount = getAllocationRemaining(allocation, receipts)
+  const summary = summarizeAllocationReceipts(allocation, receipts)
+  const totalSpent = summary.approvedSpent
+  const pendingTotal = summary.pendingSpent
+  const remainingAmount = summary.balanceAfterApproved
+  const projectedBalance = summary.balanceAfterPending
   const progressPercentage = allocation.amount > 0 ? (totalSpent / allocation.amount) * 100 : 0
+  const balanceDisplay = formatAllocationBalanceCell(remainingAmount)
+  const projectedDisplay = formatAllocationBalanceCell(projectedBalance)
 
   async function handleFileUpload(file: File): Promise<string> {
     const formData = new FormData()
@@ -366,13 +369,11 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
             )}
 
             {/* Allocation Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <DollarSign className="h-4 w-4 text-blue-600" />
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                    {isPersonal ? "Cash allocated" : "Total Amount"}
-                  </p>
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Cash given</p>
                 </div>
                 <p className="text-xl font-bold text-blue-600">PKR {allocation.amount.toLocaleString()}</p>
               </div>
@@ -380,29 +381,43 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Receipt className="h-4 w-4 text-red-600" />
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                    {isPersonal ? "Approved expenses" : "Total Spent"}
-                  </p>
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Approved receipts</p>
                 </div>
                 <p className="text-xl font-bold text-red-600">
                   {totalSpent > 0 ? formatPettyCashExpense(totalSpent) : "PKR 0"}
+                </p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                  {summary.approvedCount} receipt{summary.approvedCount === 1 ? "" : "s"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Pending approval</p>
+                </div>
+                <p className="text-xl font-bold text-amber-600">
+                  {pendingTotal > 0 ? formatPettyCashExpense(pendingTotal) : "PKR 0"}
+                </p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                  {summary.pendingCount} awaiting admin
                 </p>
               </div>
 
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Target className="h-4 w-4 text-orange-600" />
-                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                    {isPersonal ? (pendingTotal > 0 ? "Pending" : "Balance") : "Remaining"}
-                  </p>
+                  <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Balance (approved)</p>
                 </div>
-                {isPersonal && pendingTotal > 0 ? (
-                  <p className="text-xl font-bold text-amber-600">{formatPettyCashExpense(pendingTotal)}</p>
-                ) : (
-                  <p className={`text-xl font-bold ${remainingAmount < 0 ? "text-red-600" : "text-orange-600"}`}>
-                    {isPersonal
-                      ? formatPettyCashBalance(remainingAmount)
-                      : `PKR ${remainingAmount.toLocaleString()}`}
+                <p className={`text-xl font-bold ${balanceDisplay.className}`}>{balanceDisplay.text}</p>
+                {pendingTotal > 0 && (
+                  <p className={`text-[10px] mt-1 ${projectedDisplay.className}`}>
+                    → {projectedDisplay.text} if pending approved
+                  </p>
+                )}
+                {remainingAmount < 0 && (
+                  <p className="text-[10px] text-red-600 mt-1">
+                    {isPersonal ? "Company owes employee" : "Over allocated amount"}
                   </p>
                 )}
               </div>
@@ -415,6 +430,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 <Badge className={getStatusColor(allocation.status)}>
                   {allocation.status}
                 </Badge>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2">
+                  {summary.receiptCount} receipt{summary.receiptCount === 1 ? "" : "s"} submitted
+                </p>
               </div>
             </div>
 

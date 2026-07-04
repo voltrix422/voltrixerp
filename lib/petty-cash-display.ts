@@ -88,3 +88,64 @@ export function formatPettyCashExpense(amount: number) {
 export function isPettyCashExpenseEvent(type: string) {
   return type === "settlement" || type === "settlement_review"
 }
+
+export type AllocationReceiptSummary = {
+  allocationId: string
+  isPersonalLedger: boolean
+  allocated: number
+  approvedSpent: number
+  pendingSpent: number
+  submittedTotal: number
+  receiptCount: number
+  pendingCount: number
+  approvedCount: number
+  /** Cash left after approved expenses only (allocated − approved). */
+  balanceAfterApproved: number
+  /** Cash left if all pending receipts are also approved (allocated − approved − pending). */
+  balanceAfterPending: number
+  /** Amount over allocation from approved expenses only (0 if not over). */
+  approvedOverage: number
+  /** Amount over allocation if pending receipts are approved too. */
+  projectedOverage: number
+}
+
+export function summarizeAllocationReceipts(
+  allocation: PettyCashAllocation,
+  receipts: PettyCashReceipt[],
+): AllocationReceiptSummary {
+  const allocationReceipts = receipts.filter((r) => r.allocationId === allocation.id)
+  const approvedReceipts = allocationReceipts.filter((r) => r.status === "approved")
+  const pendingReceipts = allocationReceipts.filter((r) => r.status === "pending")
+
+  const approvedSpent = approvedReceipts.reduce((sum, r) => sum + r.amount, 0)
+  const pendingSpent = pendingReceipts.reduce((sum, r) => sum + r.amount, 0)
+  const submittedTotal = approvedSpent + pendingSpent
+  const balanceAfterApproved = allocation.amount - approvedSpent
+  const balanceAfterPending = allocation.amount - submittedTotal
+
+  return {
+    allocationId: allocation.id,
+    isPersonalLedger: isPersonalLedgerAllocation(allocation),
+    allocated: allocation.amount,
+    approvedSpent,
+    pendingSpent,
+    submittedTotal,
+    receiptCount: allocationReceipts.length,
+    pendingCount: pendingReceipts.length,
+    approvedCount: approvedReceipts.length,
+    balanceAfterApproved,
+    balanceAfterPending,
+    approvedOverage: Math.max(0, approvedSpent - allocation.amount),
+    projectedOverage: Math.max(0, submittedTotal - allocation.amount),
+  }
+}
+
+export function formatAllocationBalanceCell(amount: number) {
+  if (amount < -0.004) {
+    return { text: formatPettyCashExpense(amount), className: "text-red-600" }
+  }
+  if (amount > 0.004) {
+    return { text: `PKR ${amount.toLocaleString()}`, className: "text-green-600" }
+  }
+  return { text: "PKR 0", className: "text-[hsl(var(--muted-foreground))]" }
+}

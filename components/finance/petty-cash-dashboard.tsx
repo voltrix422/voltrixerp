@@ -19,8 +19,9 @@ import {
   allocationBelongsToUser,
   formatPettyCashBalance,
   formatPettyCashExpense,
+  formatAllocationBalanceCell,
+  summarizeAllocationReceipts,
   sumApprovedReceipts,
-  sumCommittedReceipts,
   sumPendingReceipts,
 } from "@/lib/petty-cash-display"
 import {
@@ -91,12 +92,8 @@ export function PettyCashDashboard() {
     }
   }
 
-  function calculateSpentAmount(allocationId: string) {
-    return sumApprovedReceipts(receipts, allocationId)
-  }
-
-  function calculateRemainingAmount(allocation: PettyCashAllocation) {
-    return allocation.amount - sumCommittedReceipts(receipts, allocation.id)
+  function getAllocationSummary(allocation: PettyCashAllocation) {
+    return summarizeAllocationReceipts(allocation, receipts)
   }
 
   async function handleSettleAllocation(allocation: PettyCashAllocation) {
@@ -458,56 +455,134 @@ export function PettyCashDashboard() {
             </div>
           ) : (
             <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3 text-center">
-                💡 Click on any row to view details and add expense receipts
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+                💡 Click any row for receipt history and approval.{" "}
+                <span className="font-medium text-[hsl(var(--foreground))]">Balance</span> = cash given minus{" "}
+                <span className="font-medium">approved</span> receipts.{" "}
+                <span className="text-amber-700 dark:text-amber-300">Pending</span> is submitted but not yet approved.
               </p>
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full">
+              <div className="rounded-lg border overflow-x-auto">
+                <table className="w-full min-w-[960px]">
                   <thead>
                     <tr className="border-b bg-[hsl(var(--muted))]/40">
-                      <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
-                      <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Amount</th>
-                      <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Purpose</th>
-                      <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Spent</th>
-                      <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Remaining</th>
-                      <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
-                      <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
-                      <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-24">Actions</th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Given</th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] max-w-[140px]">Purpose</th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Approved</th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Pending</th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Balance</th>
+                      {canManagePettyCash && (
+                        <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Owed / over</th>
+                      )}
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
+                      <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
+                      <th className="h-9 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-24">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {displayAllocations.map(allocation => {
-                      const spent = calculateSpentAmount(allocation.id)
-                      const remaining = calculateRemainingAmount(allocation)
+                      const summary = getAllocationSummary(allocation)
+                      const balance = formatAllocationBalanceCell(summary.balanceAfterApproved)
+                      const projected = formatAllocationBalanceCell(summary.balanceAfterPending)
+                      const owedApproved =
+                        summary.balanceAfterApproved < 0
+                          ? Math.abs(summary.balanceAfterApproved)
+                          : summary.approvedOverage
+                      const owedProjected =
+                        summary.balanceAfterPending < 0
+                          ? Math.abs(summary.balanceAfterPending)
+                          : summary.projectedOverage
                       return (
                         <tr
                           key={allocation.id}
-                          className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer"
+                          className="hover:bg-[hsl(var(--muted))]/30 transition-colors cursor-pointer align-top"
                           onClick={() => setSelectedAllocation(allocation)}
                         >
-                          <td className="px-4 py-2.5 text-xs">
-                            <div className="flex items-center gap-2">
-                              <Eye className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+                          <td className="px-3 py-2.5 text-xs">
+                            <div className="flex items-start gap-2">
+                              <Eye className="h-3 w-3 mt-0.5 text-[hsl(var(--muted-foreground))] shrink-0" />
                               <div>
                                 <p className="font-medium">{allocation.employeeName}</p>
-                                <p className="text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
+                                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{allocation.employeeRole}</p>
+                                {summary.isPersonalLedger && (
+                                  <span className="inline-block mt-1 text-[9px] uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
+                                    Personal ledger
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-2.5 text-xs font-semibold">PKR {allocation.amount.toLocaleString()}</td>
-                          <td className="px-4 py-2.5 text-xs">{allocation.purpose}</td>
-                          <td className="px-4 py-2.5 text-xs font-semibold text-red-600">{formatPettyCashExpense(spent)}</td>
-                          <td className={`px-4 py-2.5 text-xs font-semibold ${isPersonalLedgerAllocation(allocation) ? (remaining < 0 ? "text-red-600" : "text-green-600") : "text-green-600"}`}>
-                            {isPersonalLedgerAllocation(allocation)
-                              ? formatPettyCashBalance(remaining)
-                              : `PKR ${remaining.toLocaleString()}`}
+                          <td className="px-3 py-2.5 text-xs font-semibold tabular-nums">
+                            PKR {summary.allocated.toLocaleString()}
                           </td>
-                          <td className="px-4 py-2.5 text-xs">
+                          <td className="px-3 py-2.5 text-xs max-w-[140px]">
+                            <p className="line-clamp-2" title={allocation.purpose}>{allocation.purpose}</p>
+                          </td>
+                          <td className="px-3 py-2.5 text-xs">
+                            <p className="font-semibold text-red-600 tabular-nums">
+                              {summary.approvedSpent > 0
+                                ? formatPettyCashExpense(summary.approvedSpent)
+                                : "—"}
+                            </p>
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                              {summary.approvedCount} receipt{summary.approvedCount === 1 ? "" : "s"} approved
+                            </p>
+                          </td>
+                          <td className="px-3 py-2.5 text-xs">
+                            {summary.pendingSpent > 0 ? (
+                              <>
+                                <p className="font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
+                                  {formatPettyCashExpense(summary.pendingSpent)}
+                                </p>
+                                <p className="text-[10px] text-amber-700/80 dark:text-amber-300/80">
+                                  {summary.pendingCount} awaiting approval
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-[hsl(var(--muted-foreground))]">—</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs">
+                            <p className={`font-semibold tabular-nums ${balance.className}`}>{balance.text}</p>
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">after approved</p>
+                            {summary.pendingSpent > 0 && (
+                              <p className={`text-[10px] mt-1 tabular-nums ${projected.className}`}>
+                                → {projected.text} if pending approved
+                              </p>
+                            )}
+                          </td>
+                          {canManagePettyCash && (
+                            <td className="px-3 py-2.5 text-xs">
+                              {owedApproved > 0 ? (
+                                <>
+                                  <p className="font-semibold text-red-600 tabular-nums">
+                                    {formatPettyCashExpense(owedApproved)}
+                                  </p>
+                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                                    {summary.isPersonalLedger ? "owed to employee" : "over allocation"}
+                                  </p>
+                                  {summary.pendingSpent > 0 && owedProjected > owedApproved && (
+                                    <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1 tabular-nums">
+                                      → {formatPettyCashExpense(owedProjected)} if pending approved
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-[hsl(var(--muted-foreground))]">—</p>
+                              )}
+                            </td>
+                          )}
+                          <td className="px-3 py-2.5 text-xs">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(allocation.status)}`}>
                               {allocation.status}
                             </span>
+                            {summary.receiptCount > 0 && (
+                              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                                {summary.receiptCount} receipt{summary.receiptCount === 1 ? "" : "s"} total
+                              </p>
+                            )}
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">
+                          <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
                             {new Date(allocation.allocatedAt).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-2.5 text-xs text-center" onClick={e => e.stopPropagation()}>
