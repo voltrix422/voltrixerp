@@ -149,3 +149,16 @@ export function formatAllocationBalanceCell(amount: number) {
   }
   return { text: "PKR 0", className: "text-[hsl(var(--muted-foreground))]" }
 }
+
+/** Owed to employee once all receipts are approved (null if still pending or not owed). */
+export function getAmountOwedToEmployee(summary: AllocationReceiptSummary): number | null {
+  if (summary.pendingCount > 0) return null
+  if (summary.balanceAfterApproved >= -0.004) return null
+  return Math.round(Math.abs(summary.balanceAfterApproved) * 100) / 100
+}
+
+/** Projected owed if all pending receipts are approved. */
+export function getProjectedAmountOwed(summary: AllocationReceiptSummary): number | null {
+  if (summary.balanceAfterPending >= -0.004) return null
+  return Math.round(Math.abs(summary.balanceAfterPending) * 100) / 100
+}

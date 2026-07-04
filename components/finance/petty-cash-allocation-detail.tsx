@@ -15,6 +15,8 @@ import {
   formatPettyCashBalance,
   formatPettyCashExpense,
   formatAllocationBalanceCell,
+  getAmountOwedToEmployee,
+  getProjectedAmountOwed,
   summarizeAllocationReceipts,
 } from "@/lib/petty-cash-display"
 import { isPersonalLedgerAllocation } from "@/lib/petty-cash-personal"
@@ -24,9 +26,10 @@ import { useAuthWithRole } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
 import { PettyCashActivityTimeline } from "./petty-cash-history-panel"
 import { PettyCashTopUp } from "./petty-cash-top-up"
+import { PettyCashPayOwed } from "./petty-cash-pay-owed"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target, Trash2, Clock } from "lucide-react"
+import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target, Trash2, Clock, Banknote } from "lucide-react"
 
 interface PettyCashAllocationDetailProps {
   allocation: PettyCashAllocation
@@ -55,6 +58,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   const [deletingReceipt, setDeletingReceipt] = useState(false)
   const [reviewingReceiptId, setReviewingReceiptId] = useState<string | null>(null)
   const [showTopUp, setShowTopUp] = useState(false)
+  const [showPayOwed, setShowPayOwed] = useState(false)
 
   useEffect(() => {
     loadReceipts()
@@ -86,6 +90,8 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   const progressPercentage = allocation.amount > 0 ? (totalSpent / allocation.amount) * 100 : 0
   const balanceDisplay = formatAllocationBalanceCell(remainingAmount)
   const projectedDisplay = formatAllocationBalanceCell(projectedBalance)
+  const owedToEmployee = getAmountOwedToEmployee(summary)
+  const projectedOwed = getProjectedAmountOwed(summary)
 
   async function handleFileUpload(file: File): Promise<string> {
     const formData = new FormData()
@@ -340,7 +346,17 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 Reopen
               </Button>
             )}
-            {canManagePettyCash && isPersonal && allocation.status === "active" && (
+            {canManagePettyCash && owedToEmployee && allocation.status === "active" && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-red-600 hover:bg-red-700"
+                onClick={() => setShowPayOwed(true)}
+              >
+                <Banknote className="h-3.5 w-3.5 mr-1" />
+                Pay {formatPettyCashExpense(owedToEmployee)} & settle
+              </Button>
+            )}
+            {canManagePettyCash && isPersonal && allocation.status === "active" && !owedToEmployee && (
               <Button
                 size="sm"
                 className="h-8 text-xs bg-green-600 hover:bg-green-700"
@@ -358,7 +374,39 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-6 space-y-6">
-            {canManagePettyCash && isPersonal && pendingTotal > 0 && (
+            {canManagePettyCash && pendingTotal > 0 && projectedOwed && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                <p className="font-semibold">Pending receipts — approve first</p>
+                <p className="text-xs mt-1">
+                  {formatPettyCashExpense(pendingTotal)} awaiting approval.
+                  If all pending receipts are approved,{" "}
+                  <span className="font-semibold">{formatPettyCashExpense(projectedOwed)}</span> will be
+                  owed to {allocation.employeeName}.
+                </p>
+              </div>
+            )}
+
+            {canManagePettyCash && owedToEmployee && allocation.status === "active" && (
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-900 dark:text-red-100">
+                <p className="font-semibold">Amount owed to {allocation.employeeName}</p>
+                <p className="text-2xl font-bold text-red-600 mt-1">
+                  {formatPettyCashExpense(owedToEmployee)}
+                </p>
+                <p className="text-xs mt-1">
+                  All receipts are approved. Cash given (PKR {allocation.amount.toLocaleString()}) is less than
+                  approved expenses. Pay the employee and settle to close this allocation.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-3 h-8 text-xs bg-red-600 hover:bg-red-700"
+                  onClick={() => setShowPayOwed(true)}
+                >
+                  Pay {formatPettyCashExpense(owedToEmployee)} & settle
+                </Button>
+              </div>
+            )}
+
+            {canManagePettyCash && isPersonal && pendingTotal > 0 && !projectedOwed && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
                 <p className="font-semibold">Pending receipt approval</p>
                 <p className="text-xs mt-1">
@@ -779,6 +827,20 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         onConfirm={() => deleteReceiptConfirm && handleDeleteReceipt(deleteReceiptConfirm)}
         onCancel={() => !deletingReceipt && setDeleteReceiptConfirm(null)}
       />
+
+      {showPayOwed && owedToEmployee && (
+        <PettyCashPayOwed
+          allocation={allocation}
+          owedAmount={owedToEmployee}
+          paidBy={currentUser || "Admin"}
+          onClose={() => setShowPayOwed(false)}
+          onComplete={() => {
+            setShowPayOwed(false)
+            onUpdate()
+            onClose()
+          }}
+        />
+      )}
 
       {showTopUp && (
         <PettyCashTopUp

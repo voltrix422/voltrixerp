@@ -169,23 +169,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!allocation) {
           return res.status(404).json({ error: 'Allocation not found' })
         }
-        const approvedReceipts = await prisma.erpPettyCashReceipt.findMany({
-          where: {
-            allocationId: existingReceipt.allocationId,
-            status: 'approved',
-            id: { not: id }
-          }
-        })
-        const approvedAmount = approvedReceipts.reduce((sum, item) => sum + item.amount, 0)
-        if (
-          !isPersonalLedgerAllocation(allocation) &&
-          approvedAmount + existingReceipt.amount > allocation.amount
-        ) {
-          const remaining = Math.max(allocation.amount - approvedAmount, 0)
-          return res.status(400).json({
-            error: `Approval exceeds allocation. Remaining approvable: PKR ${remaining.toLocaleString()}`,
-          })
-        }
+        // Admin may approve into negative balance — employee is owed reimbursement.
       }
 
       const beforeReceipt = await prisma.erpPettyCashReceipt.findUnique({

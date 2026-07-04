@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, deletePettyCashAllocation, rejectPettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
+import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, rejectPettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
 import { PettyCashAllocation as PettyCashAllocationForm } from "./petty-cash-allocation"
 import { PettyCashReceipt as PettyCashReceiptForm } from "./petty-cash-receipt"
 import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
@@ -8,18 +8,21 @@ import { PettyCashRequestForm } from "./petty-cash-request"
 import { PettyCashApprovalForm } from "./petty-cash-approval"
 import { PettyCashHistoryPanel } from "./petty-cash-history-panel"
 import { PettyCashTopUp } from "./petty-cash-top-up"
+import { PettyCashPayOwed } from "./petty-cash-pay-owed"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
-import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Trash2 } from "lucide-react"
+import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
   allocationBelongsToUser,
   formatPettyCashBalance,
   formatPettyCashExpense,
   formatAllocationBalanceCell,
+  getAmountOwedToEmployee,
+  getProjectedAmountOwed,
   summarizeAllocationReceipts,
   sumApprovedReceipts,
   sumPendingReceipts,
@@ -45,8 +48,11 @@ export function PettyCashDashboard() {
   const [selectedAllocation, setSelectedAllocation] = useState<PettyCashAllocation | null>(null)
   const [activeTab, setActiveTab] = useState<"allocations" | "receipts" | "history">("allocations")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<PettyCashAllocation | null>(null)
   const [topUpAllocation, setTopUpAllocation] = useState<PettyCashAllocation | null>(null)
+  const [payOwedAllocation, setPayOwedAllocation] = useState<{
+    allocation: PettyCashAllocation
+    owedAmount: number
+  } | null>(null)
   const [migrationPreview, setMigrationPreview] = useState<{
     eligibleCount: number
     eligibleTotal: number
@@ -140,25 +146,6 @@ export function PettyCashDashboard() {
       await loadData()
     } finally {
       setReviewingReceiptId(null)
-    }
-  }
-
-  async function handleDeleteAllocation(allocation: PettyCashAllocation) {
-    try {
-      await deletePettyCashAllocation(allocation.id)
-      setAllocations(prev => prev.filter(a => a.id !== allocation.id))
-      setReceipts(prev => prev.filter(r => r.allocationId !== allocation.id))
-      if (selectedAllocation?.id === allocation.id) {
-        setSelectedAllocation(null)
-      }
-      toast({ title: "Deleted", message: "Petty cash allocation removed", type: "success" })
-    } catch (error) {
-      console.error("Error deleting allocation:", error)
-      toast({
-        title: "Error",
-        message: error instanceof Error ? error.message : "Failed to delete allocation",
-        type: "error"
-      })
     }
   }
 
@@ -484,14 +471,8 @@ export function PettyCashDashboard() {
                       const summary = getAllocationSummary(allocation)
                       const balance = formatAllocationBalanceCell(summary.balanceAfterApproved)
                       const projected = formatAllocationBalanceCell(summary.balanceAfterPending)
-                      const owedApproved =
-                        summary.balanceAfterApproved < 0
-                          ? Math.abs(summary.balanceAfterApproved)
-                          : summary.approvedOverage
-                      const owedProjected =
-                        summary.balanceAfterPending < 0
-                          ? Math.abs(summary.balanceAfterPending)
-                          : summary.projectedOverage
+                      const owedToEmployee = getAmountOwedToEmployee(summary)
+                      const projectedOwed = getProjectedAmountOwed(summary)
                       return (
                         <tr
                           key={allocation.id}
@@ -553,19 +534,30 @@ export function PettyCashDashboard() {
                           </td>
                           {canManagePettyCash && (
                             <td className="px-3 py-2.5 text-xs">
-                              {owedApproved > 0 ? (
+                              {owedToEmployee ? (
                                 <>
                                   <p className="font-semibold text-red-600 tabular-nums">
-                                    {formatPettyCashExpense(owedApproved)}
+                                    {formatPettyCashExpense(owedToEmployee)}
                                   </p>
                                   <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                                    {summary.isPersonalLedger ? "owed to employee" : "over allocation"}
+                                    owed to employee
                                   </p>
-                                  {summary.pendingSpent > 0 && owedProjected > owedApproved && (
-                                    <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1 tabular-nums">
-                                      → {formatPettyCashExpense(owedProjected)} if pending approved
-                                    </p>
-                                  )}
+                                </>
+                              ) : projectedOwed ? (
+                                <>
+                                  <p className="text-[hsl(var(--muted-foreground))]">—</p>
+                                  <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1 tabular-nums">
+                                    → {formatPettyCashExpense(projectedOwed)} if pending approved
+                                  </p>
+                                </>
+                              ) : summary.approvedOverage > 0 ? (
+                                <>
+                                  <p className="font-semibold text-red-600 tabular-nums">
+                                    {formatPettyCashExpense(summary.approvedOverage)}
+                                  </p>
+                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                                    over allocation
+                                  </p>
                                 </>
                               ) : (
                                 <p className="text-[hsl(var(--muted-foreground))]">—</p>
@@ -586,7 +578,7 @@ export function PettyCashDashboard() {
                             {new Date(allocation.allocatedAt).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-2.5 text-xs text-center" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex items-center justify-center gap-2 flex-wrap">
                               {isPettyCashHistoryAllocation(allocation) && (
                                 <button
                                   onClick={() => setSelectedAllocation(allocation)}
@@ -607,22 +599,26 @@ export function PettyCashDashboard() {
                                   Add Cash
                                 </button>
                               )}
-                              {canManagePettyCash && allocation.status === "active" && (
+                              {canManagePettyCash && allocation.status === "active" && owedToEmployee && (
+                                <button
+                                  onClick={() =>
+                                    setPayOwedAllocation({ allocation, owedAmount: owedToEmployee })
+                                  }
+                                  className="text-red-600 hover:text-red-800 text-[10px] font-medium transition-colors cursor-pointer"
+                                  title="Pay employee and settle"
+                                >
+                                  Pay & settle
+                                </button>
+                              )}
+                              {canManagePettyCash &&
+                                allocation.status === "active" &&
+                                !owedToEmployee && (
                                 <button
                                   onClick={() => setSettleConfirm(allocation)}
                                   className="text-blue-500 hover:text-blue-700 text-[10px] font-medium transition-colors cursor-pointer"
                                   title="Settle allocation"
                                 >
                                   Settle
-                                </button>
-                              )}
-                              {canManagePettyCash && (
-                                <button
-                                  onClick={() => setDeleteConfirm(allocation)}
-                                  className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
-                                  title="Delete allocation"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               )}
                             </div>
@@ -786,20 +782,6 @@ export function PettyCashDashboard() {
         onCancel={() => setSettleConfirm(null)}
       />
 
-      <ConfirmDialog
-        isOpen={!!deleteConfirm}
-        title="Delete Petty Cash Allocation"
-        message={`Are you sure you want to delete the allocation for ${deleteConfirm?.employeeName}? This will also delete linked settlements.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-        onConfirm={() => {
-          if (deleteConfirm) handleDeleteAllocation(deleteConfirm)
-          setDeleteConfirm(null)
-        }}
-        onCancel={() => setDeleteConfirm(null)}
-      />
-
       {/* Allocation Detail Modal */}
       {selectedAllocation && (
         <PettyCashAllocationDetail
@@ -824,6 +806,16 @@ export function PettyCashDashboard() {
             setTopUpAllocation(null)
             loadData()
           }}
+        />
+      )}
+
+      {payOwedAllocation && (
+        <PettyCashPayOwed
+          allocation={payOwedAllocation.allocation}
+          owedAmount={payOwedAllocation.owedAmount}
+          paidBy={currentUser || "Admin"}
+          onClose={() => setPayOwedAllocation(null)}
+          onComplete={loadData}
         />
       )}
     </div>

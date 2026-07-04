@@ -98,10 +98,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'Allocation not found' })
         }
         if (before.status !== 'active') {
-          return res.status(400).json({ error: 'Can only add cash to an active petty cash ledger' })
-        }
-        if (!isPersonalLedgerAllocation(before)) {
-          return res.status(400).json({ error: 'Top-up is only available for personal expense ledgers' })
+          return res.status(400).json({ error: 'Can only add cash to an active petty cash allocation' })
         }
 
         const addAmount = parseFloat(String(topUpAmount))
