@@ -4,6 +4,7 @@ import { syncOfficeLedgerDisplayName } from '@/lib/migrate-finance-records-to-pe
 import {
   PERSONAL_LEDGER_MARKER,
   PERSONAL_LEDGER_PURPOSE,
+  isPersonalLedgerAllocation,
 } from '@/lib/petty-cash-personal'
 import {
   normalizePettyCashReceiptStatus,
@@ -109,8 +110,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const allocationId = allocation.id
 
-      if (allocation.status !== 'active') {
-        return res.status(400).json({ error: 'Allocation is not active' })
+      const acceptsReceipts =
+        allocation.status === 'active' ||
+        (isPersonalLedgerAllocation(allocation) && allocation.status === 'settled')
+
+      if (!acceptsReceipts) {
+        return res.status(400).json({ error: 'This allocation is not accepting new receipts' })
       }
 
       const receipt = await prisma.erpPettyCashReceipt.create({
@@ -173,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
         const approvedAmount = approvedReceipts.reduce((sum, item) => sum + item.amount, 0)
         if (
-          !isPersonalLedger(allocation) &&
+          !isPersonalLedgerAllocation(allocation) &&
           approvedAmount + existingReceipt.amount > allocation.amount
         ) {
           const remaining = Math.max(allocation.amount - approvedAmount, 0)

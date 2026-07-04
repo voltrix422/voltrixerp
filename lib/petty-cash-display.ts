@@ -31,9 +31,14 @@ export function canAddReceiptToAllocation(
   allocation: PettyCashAllocation,
   receipts: PettyCashReceipt[],
 ) {
-  if (allocation.status !== "active") return false
-  if (isPersonalLedgerAllocation(allocation)) return true
-  return getAllocationRemaining(allocation, receipts) > 0.004
+  if (allocation.status === "cancelled" || allocation.status === "rejected") {
+    return false
+  }
+  if (isPersonalLedgerAllocation(allocation)) {
+    return allocation.status === "active" || allocation.status === "settled"
+  }
+  // Standard allocation: allow while active, even when balance is zero or negative
+  return allocation.status === "active"
 }
 
 export function formatPettyCashBalance(amount: number) {

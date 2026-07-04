@@ -11,6 +11,7 @@ import {
 } from "@/lib/petty-cash"
 import {
   allocationBelongsToUser,
+  canAddReceiptToAllocation,
   formatPettyCashBalance,
   formatPettyCashExpense,
   getAllocationRemaining,
@@ -268,6 +269,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
   const canManagePettyCash = isErpAdmin(userRole)
   const isOwnAllocation = allocationBelongsToUser(allocation, currentUserId, currentUser)
+  const canAddReceipt =
+    (isOwnAllocation || canManagePettyCash) &&
+    canAddReceiptToAllocation(allocation, receipts)
   const canSettle = canManagePettyCash && allocation.status === "active" && receipts.some(r => r.status === "approved")
   const canReopen = canManagePettyCash && allocation.status === "settled"
   const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
@@ -507,28 +511,16 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
             <PettyCashActivityTimeline allocation={allocation} receipts={receipts} />
 
-            {/* Actions */}
-            {(isOwnAllocation || canManagePettyCash) && allocation.status === 'active' && (isPersonal || remainingAmount > 0) && (
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Receipts</h3>
-                <Button
-                  onClick={() => setShowReceiptForm(!showReceiptForm)}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Add Receipt
-                </Button>
-              </div>
-            )}
-
             {/* Settlement Form */}
             {showReceiptForm && (
               <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
                 <h3 className="text-sm font-semibold mb-4">Add expense receipt</h3>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mb-4">
                   {isPersonal
-                    ? "Receipt is sent to admin for approval before it affects your balance."
-                    : "Amount is recorded as a negative expense and reduces your remaining petty cash balance."}
+                    ? "Receipt is sent to admin for approval before it affects your balance. You can add receipts even when the ledger is zero or negative (company owes you)."
+                    : remainingAmount <= 0
+                      ? "Allocation is fully used or over-committed — you can still add receipts; admin approval will apply them to the balance."
+                      : "Amount is recorded as a negative expense and reduces your remaining petty cash balance."}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -601,10 +593,30 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
             {/* Settlement History */}
             <div className="rounded-lg border bg-[hsl(var(--card))] p-4">
-              <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                <Receipt className="h-4 w-4" />
-                Receipt history ({receipts.length})
-              </h3>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Receipt className="h-4 w-4" />
+                  Receipt history ({receipts.length})
+                </h3>
+                {canAddReceipt && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setShowReceiptForm(!showReceiptForm)}
+                    className="bg-blue-600 hover:bg-blue-700 h-8 text-xs shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add Receipt
+                  </Button>
+                )}
+              </div>
+              {canAddReceipt && remainingAmount <= 0 && !showReceiptForm && (
+                <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2 mb-4">
+                  {isPersonal
+                    ? `Ledger balance is ${formatPettyCashBalance(remainingAmount)}. You can still submit receipts for reimbursement.`
+                    : `Remaining balance is PKR ${remainingAmount.toLocaleString()}. You can still add receipts for admin approval.`}
+                </p>
+              )}
               {loading && (
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">Loading settlement history...</p>
               )}
@@ -612,6 +624,17 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 <div className="text-center py-8">
                   <Receipt className="h-12 w-12 text-[hsl(var(--muted-foreground))] mx-auto mb-3" />
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">No receipts yet</p>
+                  {canAddReceipt && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-3 h-8 text-xs bg-blue-600 hover:bg-blue-700"
+                      onClick={() => setShowReceiptForm(true)}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Add Receipt
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
