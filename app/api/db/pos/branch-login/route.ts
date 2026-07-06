@@ -5,6 +5,7 @@ import {
   branchPosPassword,
   branchPosTerminalCode,
   branchPosCashierName,
+  branchCodeFromPosEmail,
 } from "@/lib/branch-pos"
 
 function mapUser(row: {
@@ -116,12 +117,15 @@ async function ensureBranchPos(branch: {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const branchCode = String(body.branchCode || "").trim().toUpperCase()
   const email = String(body.email || "").trim().toLowerCase()
   const password = String(body.password || "")
+  let branchCode = String(body.branchCode || "").trim().toUpperCase()
+  if (!branchCode) {
+    branchCode = branchCodeFromPosEmail(email) || ""
+  }
 
   if (!branchCode) {
-    return NextResponse.json({ error: "Branch code required" }, { status: 400 })
+    return NextResponse.json({ error: "Invalid branch POS email" }, { status: 400 })
   }
 
   const branch = await prisma.erpBranch.findFirst({
@@ -134,9 +138,9 @@ export async function POST(req: NextRequest) {
   const { user } = await ensureBranchPos(branch)
 
   const loginEmail = email || user.email.toLowerCase()
-  const loginPassword = password || branchPosPassword(branch.code)
+  const expectedPassword = branchPosPassword(branch.code)
 
-  if (loginEmail !== user.email.toLowerCase() || loginPassword !== user.password) {
+  if (loginEmail !== user.email.toLowerCase() || password !== expectedPassword) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
   }
 

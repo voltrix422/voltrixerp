@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { useAuth } from "@/components/auth-provider"
-import { clearSession, login, roleHasAllModules } from "@/lib/auth"
+import { branchPosLoginAndSession, clearSession } from "@/lib/auth"
+import { branchCodeFromPosEmail } from "@/lib/branch-pos"
 import { Eye, EyeOff, Loader2, Store } from "lucide-react"
 
 export default function PosLoginPage() {
@@ -25,18 +26,28 @@ export default function PosLoginPage() {
     e.preventDefault()
     setError("")
     setLoading(true)
-    const loggedInUser = await login(email.trim(), password)
-    setLoading(false)
 
-    if (!loggedInUser) {
-      setError("Invalid email or password.")
+    const trimmedEmail = email.trim().toLowerCase()
+    const code = branchCodeFromPosEmail(trimmedEmail)
+    if (!code) {
+      setLoading(false)
+      setError("Enter a valid branch POS email (e.g. pos-br006@branch.voltrix).")
       return
     }
 
-    const canPos =
-      roleHasAllModules(loggedInUser.role) || loggedInUser.modules.includes("pos")
+    const { user: loggedInUser, error: loginError } = await branchPosLoginAndSession(trimmedEmail, password, code)
+    setLoading(false)
 
-    if (!canPos || !loggedInUser.branchId) {
+    if (!loggedInUser) {
+      if (loginError === "Branch not found") {
+        setError("No branch found for this login. Check the branch code in Inventory → Branches.")
+      } else {
+        setError(loginError === "Invalid email or password" ? "Invalid email or password." : (loginError || "Login failed."))
+      }
+      return
+    }
+
+    if (!loggedInUser.branchId) {
       clearSession()
       setError("This login is for branch POS accounts only.")
       return

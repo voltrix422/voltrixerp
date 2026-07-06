@@ -173,19 +173,21 @@ export async function login(email: string, password: string): Promise<User | nul
 }
 
 export async function branchPosLoginAndSession(
-  branchCode: string,
   email: string,
   password: string,
-): Promise<User | null> {
+  branchCode?: string,
+): Promise<{ user: User | null; error?: string }> {
   const res = await fetch("/api/db/pos/branch-login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ branchCode, email, password }),
   })
-  if (!res.ok) return null
-  const data = await res.json()
-  if (!data?.id) return null
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return { user: null, error: (data as { error?: string }).error || "Login failed" }
+  }
+  if (!data?.id) return { user: null, error: "Login failed" }
   const user = mapRow(data)
   setSession(user)
-  return user
+  return { user }
 }
