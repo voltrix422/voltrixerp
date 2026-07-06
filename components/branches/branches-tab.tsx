@@ -14,14 +14,14 @@ import {
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Store, ExternalLink } from "lucide-react"
+import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Store } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
 import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
 import { summarizeBranchProductResults } from "@/lib/branch-product-search"
 import { getBranchPosAccounts, setupBranchPos } from "@/lib/pos"
-import { branchPosEmail, branchPosPassword, branchPosLoginUrl } from "@/lib/branch-pos"
+import { branchPosEmail, branchPosPassword } from "@/lib/branch-pos"
 import { isErpAdmin } from "@/lib/auth"
 
 const empty = (code: string = ""): Omit<Branch, "id" | "createdAt" | "createdBy"> => ({
@@ -743,7 +743,6 @@ export function BranchesTab() {
                   const pos = posForBranch(b.id)
                   const email = pos?.email || branchPosEmail(b.code)
                   const password = pos?.password || branchPosPassword(b.code)
-                  const loginUrl = pos?.loginUrl || branchPosLoginUrl(b.code)
                   return (
                   <button
                     key={b.id}
@@ -777,6 +776,9 @@ export function BranchesTab() {
                         )}
                         <p className="text-[10px] font-mono text-[#1faca6] mt-2">{email}</p>
                         <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">{password}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                          Login at <span className="text-[#1faca6]">/pos/login</span>
+                        </p>
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-0.5" />
                     </div>
@@ -801,7 +803,6 @@ export function BranchesTab() {
                     const pos = posForBranch(b.id)
                     const email = pos?.email || branchPosEmail(b.code)
                     const password = pos?.password || branchPosPassword(b.code)
-                    const loginUrl = pos?.loginUrl || branchPosLoginUrl(b.code)
                     return (
                     <div
                       key={b.id}
@@ -841,13 +842,9 @@ export function BranchesTab() {
                       <div className="min-w-0 text-[10px] leading-snug" onClick={(e) => e.stopPropagation()}>
                         <p className="font-mono truncate">{email}</p>
                         <p className="font-mono text-[hsl(var(--muted-foreground))]">{password}</p>
-                        <Link
-                          href={loginUrl}
-                          target="_blank"
-                          className="inline-flex items-center gap-1 text-[#1faca6] hover:underline mt-0.5"
-                        >
-                          Open POS <ExternalLink className="h-3 w-3" />
-                        </Link>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                          Login at <span className="text-[#1faca6]">/pos/login</span>
+                        </p>
                       </div>
                       <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
                         <Button

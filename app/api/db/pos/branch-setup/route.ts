@@ -90,7 +90,7 @@ async function ensureBranchPos(branch: {
     password,
     terminalId: terminal.id,
     terminalCode: terminal.code,
-    loginUrl: branchPosLoginUrl(branch.code),
+    loginUrl: branchPosLoginUrl(),
   }
 }
 
@@ -115,7 +115,7 @@ export async function GET() {
       password: user?.password ?? branchPosPassword(branch.code),
       terminalId: terminal?.id,
       terminalCode: terminal?.code,
-      loginUrl: branchPosLoginUrl(branch.code),
+      loginUrl: branchPosLoginUrl(),
     })
   }
 

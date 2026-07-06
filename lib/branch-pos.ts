@@ -21,8 +21,8 @@ export function branchPosTerminalCode(branchCode: string): string {
   return `POS-${branchCode.trim().toUpperCase()}`
 }
 
-export function branchPosLoginUrl(branchCode: string): string {
-  return `/pos/login?branch=${encodeURIComponent(branchCode.trim().toUpperCase())}`
+export function branchPosLoginUrl(): string {
+  return "/pos/login"
 }
 
 export function branchPosCashierName(branchName: string): string {

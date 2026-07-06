@@ -4,7 +4,6 @@ import { usePathname, useRouter } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
 import { clearSession } from "@/lib/auth"
-import { branchCodeFromPosEmail } from "@/lib/branch-pos"
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
 
@@ -15,9 +14,8 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
   const isLogin = pathname === "/pos/login"
 
   function handleLogout() {
-    const code = branchCodeFromPosEmail(user?.email)
     clearSession()
-    router.replace(code ? `/pos/login?branch=${code}` : "/pos/login")
+    router.replace("/pos/login")
   }
 
   if (isLogin) {
