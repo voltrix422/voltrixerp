@@ -113,7 +113,7 @@ function DocDetailModal({
 
           <div>
             <p className="text-[10px] uppercase font-semibold text-[hsl(var(--muted-foreground))] mb-2">Items</p>
-            <CrmLineItemsDisplay items={doc.items} gstPercent={doc.taxPercent} />
+            <CrmLineItemsDisplay items={doc.items} />
           </div>
 
           {doc.notes && (
