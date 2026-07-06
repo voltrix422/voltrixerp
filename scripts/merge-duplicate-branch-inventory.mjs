@@ -10,11 +10,7 @@ const prisma = new PrismaClient()
 const apply = process.argv.includes("--apply")
 
 function groupKey(row) {
-  return [
-    row.branchId,
-    row.inventoryId,
-    (row.productDescription || "").trim().toLowerCase(),
-  ].join("::")
+  return [row.branchId, (row.productDescription || "").trim().toLowerCase()].join("::")
 }
 
 async function main() {

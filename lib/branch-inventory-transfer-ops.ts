@@ -26,9 +26,9 @@ export async function upsertBranchInventoryAssignment(params: {
   const existing = await prisma.erpBranchInventory.findFirst({
     where: {
       branchId: params.branchId,
-      inventoryId: params.inventoryId,
       productDescription: { equals: productDescription, mode: "insensitive" },
     },
+    orderBy: { assignedAt: "asc" },
   })
 
   if (existing) {
@@ -36,6 +36,7 @@ export async function upsertBranchInventoryAssignment(params: {
       where: { id: existing.id },
       data: {
         quantity: { increment: params.quantity },
+        inventoryId: params.inventoryId || existing.inventoryId,
         assignedBy: params.assignedBy,
         notes: params.notes?.trim() || existing.notes,
       },
@@ -436,8 +437,9 @@ export async function executeTransferLine(params: {
   const existingDestination = await prisma.erpBranchInventory.findFirst({
     where: {
       branchId: toBranchId,
-      inventoryId: source.inventoryId,
+      productDescription: { equals: source.productDescription, mode: "insensitive" },
     },
+    orderBy: { assignedAt: "asc" },
   })
 
   await prisma.$transaction(async (tx) => {
@@ -469,7 +471,10 @@ export async function executeTransferLine(params: {
     } else if (existingDestination) {
       await tx.erpBranchInventory.update({
         where: { id: existingDestination.id },
-        data: { quantity: { increment: quantity } },
+        data: {
+          quantity: { increment: quantity },
+          inventoryId: source.inventoryId,
+        },
       })
     } else {
       await tx.erpBranchInventory.create({
