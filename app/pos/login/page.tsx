@@ -11,7 +11,7 @@ import { Eye, EyeOff, Loader2, Store } from "lucide-react"
 
 export default function PosLoginPage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, syncSessionUser } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPw, setShowPw] = useState(false)
@@ -53,6 +53,7 @@ export default function PosLoginPage() {
       return
     }
 
+    syncSessionUser(loggedInUser)
     router.replace("/pos")
   }
 

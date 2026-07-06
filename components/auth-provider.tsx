@@ -6,8 +6,9 @@ import { type User, getSession, setSession, clearSession, getUsers, login as aut
 interface AuthContextType {
   user: User | null
   login: (email: string, password: string) => Promise<User | null>
-  logout: () => void
+  logout: (redirectTo?: string) => void
   refreshUser: () => Promise<void>
+  syncSessionUser: (user: User) => void
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => null,
   logout: () => {},
   refreshUser: async () => {},
+  syncSessionUser: () => {},
 })
 
 export function useAuth() {
@@ -82,6 +84,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!checked) return
+    if (!user) {
+      const session = getSession()
+      if (session && pathname?.startsWith("/pos") && pathname !== "/pos/login") {
+        setUser(session)
+        return
+      }
+    }
     if (!user && pathname && !isPublicPath(pathname)) {
       // Store the intended destination before redirecting to login
       if (typeof window !== "undefined") {
@@ -97,10 +106,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null
   }, [])
 
-  const logout = useCallback(() => {
+  const syncSessionUser = useCallback((sessionUser: User) => {
+    setSession(sessionUser)
+    setUser(sessionUser)
+  }, [])
+
+  const logout = useCallback((redirectTo = "/login") => {
     clearSession()
     setUser(null)
-    router.replace("/login")
+    router.replace(redirectTo)
   }, [router])
 
   const refreshUser = useCallback(async () => {
@@ -115,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (!checked) return null
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, syncSessionUser }}>
       {children}
     </AuthContext.Provider>
   )

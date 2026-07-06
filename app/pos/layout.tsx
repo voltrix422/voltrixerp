@@ -1,21 +1,18 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
-import { clearSession } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
 
 export default function PosLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { user } = useAuth()
-  const router = useRouter()
+  const { user, logout } = useAuth()
   const isLogin = pathname === "/pos/login"
 
   function handleLogout() {
-    clearSession()
-    router.replace("/pos/login")
+    logout("/pos/login")
   }
 
   if (isLogin) {
