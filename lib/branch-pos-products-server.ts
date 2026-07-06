@@ -4,11 +4,13 @@ export type BranchPosProductRow = {
   id: string
   description: string
   name: string
+  model: string
   unit: string
   availableQty: number
   costPrice: number
   inventoryId: string
   branchInventoryId?: string
+  isManual: boolean
 }
 
 export async function getBranchPosProducts(
@@ -27,10 +29,12 @@ export async function getBranchPosProducts(
       id: row.id,
       description: row.description,
       name: row.name || row.description,
+      model: row.description,
       unit: row.unit || "pcs",
       availableQty: row.availableQty,
       costPrice: row.costPrice,
       inventoryId: row.id,
+      isManual: false,
     }))
   }
 
@@ -65,16 +69,19 @@ export async function getBranchPosProducts(
     const manual = row.inventoryId.startsWith("man:")
       ? manualById.get(row.inventoryId.slice(4))
       : null
+    const model = manual?.model || stock?.description || row.productDescription || row.inventoryId
     const costPrice = stock?.costPrice ?? 0
     return {
       id: row.id,
       branchInventoryId: row.id,
       inventoryId: row.inventoryId,
-      description: row.productDescription || stock?.description || manual?.name || manual?.model || row.inventoryId,
-      name: row.productDescription || stock?.name || manual?.name || manual?.model || row.inventoryId,
+      model,
+      description: row.productDescription || manual?.name || stock?.description || model,
+      name: row.productDescription || manual?.name || stock?.name || model,
       unit: row.unit || stock?.unit || manual?.unit || "pcs",
       availableQty: row.quantity,
       costPrice,
+      isManual: !!manual || row.inventoryId.startsWith("man:"),
     }
   })
 }

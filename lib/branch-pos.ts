@@ -28,3 +28,9 @@ export function branchPosLoginUrl(branchCode: string): string {
 export function branchPosCashierName(branchName: string): string {
   return `${branchName.trim()} POS`
 }
+
+export function branchCodeFromPosEmail(email: string | undefined | null): string | null {
+  if (!email) return null
+  const m = email.trim().toLowerCase().match(/^pos-(.+)@branch\.voltrix$/)
+  return m ? m[1].toUpperCase() : null
+}

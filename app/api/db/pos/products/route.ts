@@ -14,11 +14,13 @@ export async function GET(req: NextRequest) {
         id: row.id,
         description: row.description,
         name: row.name,
+        model: row.model,
         unit: row.unit,
         availableQty: row.availableQty,
         costPrice: row.costPrice,
         inventoryId: row.inventoryId,
         branchInventoryId: row.branchInventoryId,
+        isManual: row.isManual,
       })),
     )
   }

@@ -39,11 +39,13 @@ export type PosStockProduct = {
   id: string
   description: string
   name: string
+  model?: string
   unit: string
   availableQty: number
   costPrice: number
   inventoryId?: string
   branchInventoryId?: string
+  isManual?: boolean
 }
 
 export async function ensurePosSetup(): Promise<{ ok: boolean; message?: string }> {
