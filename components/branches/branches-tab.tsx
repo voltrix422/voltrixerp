@@ -14,7 +14,7 @@ import {
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Store } from "lucide-react"
+import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Store, Copy } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
@@ -27,6 +27,46 @@ import { isErpAdmin } from "@/lib/auth"
 const empty = (code: string = ""): Omit<Branch, "id" | "createdAt" | "createdBy"> => ({
   name: "", code, type: "outlet", address: "", city: "", country: "", phone: "", email: "", manager: "", status: "active", notes: "",
 })
+
+function PosLoginCredentials({
+  email,
+  password,
+  onCopy,
+}: {
+  email: string
+  password: string
+  onCopy: (text: string, label: string) => void
+}) {
+  return (
+    <div className="min-w-0 text-[10px] leading-snug" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1 min-w-0">
+        <p className="font-mono truncate flex-1" title={email}>{email}</p>
+        <button
+          type="button"
+          onClick={() => onCopy(email, "Login ID copied")}
+          className="shrink-0 p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
+          title="Copy login ID"
+        >
+          <Copy className="h-3 w-3" />
+        </button>
+      </div>
+      <div className="flex items-center gap-1 min-w-0 mt-0.5">
+        <p className="font-mono text-[hsl(var(--muted-foreground))] truncate flex-1" title={password}>{password}</p>
+        <button
+          type="button"
+          onClick={() => onCopy(password, "Password copied")}
+          className="shrink-0 p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
+          title="Copy password"
+        >
+          <Copy className="h-3 w-3" />
+        </button>
+      </div>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+        Login at <span className="text-[#1faca6]">/pos/login</span>
+      </p>
+    </div>
+  )
+}
 
 async function generateSingleBranchPdf(branch: Branch, inventoryRows: any[]) {
   const [{ default: jsPDF }, autoTableModule] = await Promise.all([
@@ -451,6 +491,15 @@ export function BranchesTab() {
     return posAccounts.find((a) => a.branchId === branchId)
   }
 
+  async function copyPosCredential(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast({ type: "success", title: label })
+    } catch {
+      toast({ type: "error", title: "Copy failed", message: "Could not copy to clipboard." })
+    }
+  }
+
   async function handleSetupBranchPos(branchId?: string) {
     setSettingUpPos(true)
     try {
@@ -774,11 +823,9 @@ export function BranchesTab() {
                         {b.manager && (
                           <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1.5">{b.manager}</p>
                         )}
-                        <p className="text-[10px] font-mono text-[#1faca6] mt-2">{email}</p>
-                        <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">{password}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                          Login at <span className="text-[#1faca6]">/pos/login</span>
-                        </p>
+                        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                          <PosLoginCredentials email={email} password={password} onCopy={copyPosCredential} />
+                        </div>
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-0.5" />
                     </div>
@@ -839,13 +886,7 @@ export function BranchesTab() {
                       >
                         {b.status}
                       </span>
-                      <div className="min-w-0 text-[10px] leading-snug" onClick={(e) => e.stopPropagation()}>
-                        <p className="font-mono truncate">{email}</p>
-                        <p className="font-mono text-[hsl(var(--muted-foreground))]">{password}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                          Login at <span className="text-[#1faca6]">/pos/login</span>
-                        </p>
-                      </div>
+                      <PosLoginCredentials email={email} password={password} onCopy={copyPosCredential} />
                       <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
                         <Button
                           variant="ghost"
