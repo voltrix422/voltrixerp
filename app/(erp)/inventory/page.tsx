@@ -8,15 +8,21 @@ import { ClientOrdersInventory } from "@/components/inventory/client-orders-inve
 import { BranchesTab } from "@/components/branches/branches-tab"
 import { InventoryMovementOverview } from "@/components/inventory/inventory-movement-overview"
 
-export default function InventoryPage() {
-  const [tab, setTab] = useState<"orders" | "inventory" | "manual" | "branches" | "history">("orders")
+const HISTORY_TAB_ENABLED = false
 
-  const tabs = [
-    { id: "orders" as const, label: "Client Orders", shortLabel: "Orders" },
-    { id: "inventory" as const, label: "Inventory", shortLabel: "Inventory" },
-    { id: "manual" as const, label: "Manual added inventory", shortLabel: "Manual" },
-    { id: "branches" as const, label: "Branches", shortLabel: "Branches" },
-    { id: "history" as const, label: "History", shortLabel: "History" },
+type InventoryTab = "orders" | "inventory" | "manual" | "branches" | "history"
+
+export default function InventoryPage() {
+  const [tab, setTab] = useState<InventoryTab>("orders")
+
+  const tabs: { id: InventoryTab; label: string; shortLabel: string }[] = [
+    { id: "orders", label: "Client Orders", shortLabel: "Orders" },
+    { id: "inventory", label: "Inventory", shortLabel: "Inventory" },
+    { id: "manual", label: "Manual added inventory", shortLabel: "Manual" },
+    { id: "branches", label: "Branches", shortLabel: "Branches" },
+    ...(HISTORY_TAB_ENABLED
+      ? [{ id: "history" as const, label: "History", shortLabel: "History" }]
+      : []),
   ]
 
   return (
@@ -48,7 +54,7 @@ export default function InventoryPage() {
           {tab === "inventory" && <InventoryList />}
           {tab === "manual" && <ManualInventoryTab />}
           {tab === "branches" && <BranchesTab />}
-          {tab === "history" && <InventoryMovementOverview />}
+          {HISTORY_TAB_ENABLED && tab === "history" && <InventoryMovementOverview />}
         </div>
       </div>
     </ModuleGuard>
