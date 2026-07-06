@@ -162,11 +162,29 @@ export async function login(email: string, password: string): Promise<User | nul
   const res = await fetch("/api/db/users/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: email.trim(), password }),
   })
   if (!res.ok) return null
   const data = await res.json()
   if (!data) return null
+  const user = mapRow(data)
+  setSession(user)
+  return user
+}
+
+export async function branchPosLoginAndSession(
+  branchCode: string,
+  email: string,
+  password: string,
+): Promise<User | null> {
+  const res = await fetch("/api/db/pos/branch-login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ branchCode, email, password }),
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  if (!data?.id) return null
   const user = mapRow(data)
   setSession(user)
   return user

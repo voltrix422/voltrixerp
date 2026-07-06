@@ -166,6 +166,23 @@ export async function completePosSale(payload: {
   return res.json()
 }
 
+export async function branchPosLogin(
+  branchCode: string,
+  email: string,
+  password: string,
+): Promise<{ ok: boolean; user?: unknown; error?: string }> {
+  const res = await fetch("/api/db/pos/branch-login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ branchCode, email, password }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return { ok: false, error: (data as { error?: string }).error || "Login failed" }
+  }
+  return { ok: true, user: data }
+}
+
 export async function setupBranchPos(branchId?: string): Promise<{ ok: boolean; accounts?: unknown[] }> {
   const res = await fetch("/api/db/pos/branch-setup", {
     method: "POST",

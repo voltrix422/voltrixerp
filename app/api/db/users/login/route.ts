@@ -23,6 +23,7 @@ function mapRow(row: Record<string, unknown>): any {
     role: row.role as string,
     modules,
     managerId: row.managerId ?? null,
+    branchId: row.branchId ?? null,
     location: row.location ?? "",
     jobTitle: row.jobTitle ?? "",
     baseSalary: row.baseSalary ?? 0,
@@ -32,7 +33,12 @@ function mapRow(row: Record<string, unknown>): any {
 
 export async function POST(req: NextRequest) {
   const { email, password } = await req.json()
-  const user = await prisma.erpUser.findFirst({ where: { email, password } })
+  const user = await prisma.erpUser.findFirst({
+    where: {
+      email: { equals: String(email || "").trim(), mode: "insensitive" },
+      password: String(password || ""),
+    },
+  })
   if (!user) return NextResponse.json(null)
   return NextResponse.json(mapRow(user))
 }

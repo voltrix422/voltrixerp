@@ -1,8 +1,7 @@
 "use client"
 
-import Link from "next/link"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
 import { clearSession } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -31,9 +30,6 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex items-center gap-2">
           {user && <span className="hidden sm:inline text-xs text-[hsl(var(--muted-foreground))]">{user.name}</span>}
-          <Button variant="ghost" size="sm" className="h-8 text-xs" asChild>
-            <Link href="/inventory">ERP</Link>
-          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleLogout}>
             <LogOut className="h-3.5 w-3.5 mr-1" />
             Sign out
