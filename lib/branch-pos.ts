@@ -34,3 +34,16 @@ export function branchCodeFromPosEmail(email: string | undefined | null): string
   const m = email.trim().toLowerCase().match(/^pos-(.+)@branch\.voltrix$/)
   return m ? m[1].toUpperCase() : null
 }
+
+export function branchPosNotesTag(branchName: string): string {
+  return `Branch POS · ${branchName.trim()}`
+}
+
+export function isBranchPosDoc(
+  doc: { notes?: string; createdBy?: string },
+  branchName: string,
+  userName: string,
+): boolean {
+  if (doc.createdBy === userName) return true
+  return !!doc.notes?.includes(branchPosNotesTag(branchName))
+}

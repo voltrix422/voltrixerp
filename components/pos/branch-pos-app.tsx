@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import {
   buildCrmPriceMap,
@@ -9,34 +9,54 @@ import {
   lookupCrmUnitPrice,
   type CrmProductPrice,
 } from "@/lib/crm-product-prices"
+import { getOrders, type Order } from "@/lib/orders"
+import { getQuotations, type Quotation } from "@/lib/quotations"
+import { isBranchPosDoc } from "@/lib/branch-pos"
 import { getPosSales, getPosStockProducts, type PosStockProduct } from "@/lib/pos"
 import { BranchPosSaleForm } from "@/components/pos/branch-pos-sale-form"
+import { BranchPosDocsList } from "@/components/pos/branch-pos-docs-list"
 import { Loader2 } from "lucide-react"
 
-type Tab = "order" | "quotation" | "stock" | "sales"
+type Tab = "order" | "orders" | "quotation" | "quotations" | "stock" | "sales"
 
 export function BranchPosApp() {
   const { user } = useAuth()
   const branchId = user?.branchId!
   const branchName = user?.location || "Branch"
+  const userName = user?.name || "POS"
 
   const [tab, setTab] = useState<Tab>("order")
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<PosStockProduct[]>([])
   const [sales, setSales] = useState<Awaited<ReturnType<typeof getPosSales>>>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [quotations, setQuotations] = useState<Quotation[]>([])
   const [priceMap, setPriceMap] = useState<Map<string, CrmProductPrice>>(() => new Map())
+
+  const branchOrders = useMemo(
+    () => orders.filter((o) => isBranchPosDoc(o, branchName, userName)),
+    [orders, branchName, userName],
+  )
+  const branchQuotations = useMemo(
+    () => quotations.filter((q) => isBranchPosDoc(q, branchName, userName)),
+    [quotations, branchName, userName],
+  )
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [stock, saleRows, prices] = await Promise.all([
+      const [stock, saleRows, prices, orderRows, quotationRows] = await Promise.all([
         getPosStockProducts(false, branchId),
         getPosSales(undefined, branchId),
         getCrmProductPrices().catch(() => []),
+        getOrders().catch(() => []),
+        getQuotations().catch(() => []),
       ])
       setProducts(stock)
       setSales(saleRows)
       setPriceMap(buildCrmPriceMap(prices))
+      setOrders(orderRows)
+      setQuotations(quotationRows)
     } finally {
       setLoading(false)
     }
@@ -56,7 +76,9 @@ export function BranchPosApp() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "order", label: "Create order" },
+    { id: "orders", label: "My orders" },
     { id: "quotation", label: "Create quotation" },
+    { id: "quotations", label: "My quotations" },
     { id: "stock", label: "My stock" },
     { id: "sales", label: "Sales" },
   ]
@@ -97,20 +119,30 @@ export function BranchPosApp() {
             kind="order"
             products={products}
             branchName={branchName}
-            userName={user?.name || "POS"}
-            onSaved={() => void loadAll()}
+            userName={userName}
+            onSaved={() => {
+              void loadAll()
+              setTab("orders")
+            }}
           />
         )}
+
+        {tab === "orders" && <BranchPosDocsList kind="order" orders={branchOrders} />}
 
         {tab === "quotation" && (
           <BranchPosSaleForm
             kind="quotation"
             products={products}
             branchName={branchName}
-            userName={user?.name || "POS"}
-            onSaved={() => void loadAll()}
+            userName={userName}
+            onSaved={() => {
+              void loadAll()
+              setTab("quotations")
+            }}
           />
         )}
+
+        {tab === "quotations" && <BranchPosDocsList kind="quotation" quotations={branchQuotations} />}
 
         {tab === "stock" && (
           <div className="rounded-xl border bg-[hsl(var(--card))] overflow-hidden">

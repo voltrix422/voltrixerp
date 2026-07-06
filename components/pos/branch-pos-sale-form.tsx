@@ -22,6 +22,7 @@ import { BranchPosInventoryPicker } from "@/components/pos/branch-pos-inventory-
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import type { PosStockProduct } from "@/lib/pos"
+import { branchPosNotesTag } from "@/lib/branch-pos"
 import {
   DEFAULT_GST_PERCENT,
   calculateGstInclusiveTotals,
@@ -201,6 +202,8 @@ export function BranchPosSaleForm({
     setSaving(true)
     try {
       const client = clientResults.find((c) => c.id === clientId) || selectedClient
+      const branchTag = branchPosNotesTag(branchName)
+      const docNotes = notes.trim() ? `${notes.trim()} · ${branchTag}` : branchTag
       if (kind === "quotation") {
         const quotationNumber = await generateQuotationNumber()
         const q: Quotation = {
@@ -221,7 +224,7 @@ export function BranchPosSaleForm({
           discountValue: discountAmount,
           total,
           status: "draft",
-          notes: notes.trim() || `Branch POS · ${branchName}`,
+          notes: docNotes,
           deliveryAddress: deliveryAddress.trim(),
           validUntil: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
           createdAt: new Date().toISOString(),
@@ -249,7 +252,7 @@ export function BranchPosSaleForm({
           discountValue: discountAmount,
           total,
           status: "draft",
-          notes: notes.trim() || `Branch POS · ${branchName}`,
+          notes: docNotes,
           deliveryAddress: deliveryAddress.trim(),
           deliveryDate: deliveryDate || "",
           paymentTerms,
