@@ -12,7 +12,8 @@ export interface Doc {
 
 export const DOC_CATEGORIES = [
   "Policies", "Procedures", "Contracts", "Invoices", "Reports",
-  "Certificates", "Legal", "HR", "Finance", "Operations", "Other"
+  "Certificates", "Legal", "HR", "Finance", "Operations",
+  "Sales", "Social Media", "Other",
 ] as const
 
 export type DocCategory = typeof DOC_CATEGORIES[number]
