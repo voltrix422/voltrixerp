@@ -55,6 +55,7 @@ const PUBLIC_PATH_PREFIXES = [
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/login" || pathname === "/pos/login" || pathname === "/") return true
+  if (pathname.startsWith("/pos")) return pathname === "/pos/login"
   return PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))
 }
 
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") {
         sessionStorage.setItem("redirectAfterLogin", pathname)
       }
-      router.replace("/login")
+      router.replace(pathname.startsWith("/pos") ? "/pos/login" : "/login")
     }
   }, [user, checked, pathname, router])
 

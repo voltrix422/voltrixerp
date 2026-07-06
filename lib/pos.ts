@@ -3,6 +3,7 @@ export type PosTerminal = {
   name: string
   code: string
   location: string
+  branchId?: string | null
   isActive: boolean
   createdAt: string
 }
@@ -41,6 +42,8 @@ export type PosStockProduct = {
   unit: string
   availableQty: number
   costPrice: number
+  inventoryId?: string
+  branchInventoryId?: string
 }
 
 export async function ensurePosSetup(): Promise<{ ok: boolean; message?: string }> {
@@ -49,8 +52,9 @@ export async function ensurePosSetup(): Promise<{ ok: boolean; message?: string 
   return res.json()
 }
 
-export async function getPosTerminals(): Promise<PosTerminal[]> {
-  const res = await fetch("/api/db/pos/terminals")
+export async function getPosTerminals(branchId?: string): Promise<PosTerminal[]> {
+  const q = branchId ? `?branchId=${encodeURIComponent(branchId)}` : ""
+  const res = await fetch(`/api/db/pos/terminals${q}`)
   if (!res.ok) return []
   return res.json()
 }
@@ -76,8 +80,12 @@ export async function deletePosTerminal(id: string): Promise<boolean> {
   return res.ok
 }
 
-export async function getPosStockProducts(all = false): Promise<PosStockProduct[]> {
-  const res = await fetch(`/api/db/pos/products${all ? "?all=1" : ""}`)
+export async function getPosStockProducts(all = false, branchId?: string): Promise<PosStockProduct[]> {
+  const params = new URLSearchParams()
+  if (all) params.set("all", "1")
+  if (branchId) params.set("branchId", branchId)
+  const q = params.toString() ? `?${params}` : ""
+  const res = await fetch(`/api/db/pos/products${q}`)
   if (!res.ok) return []
   return res.json()
 }
@@ -121,8 +129,11 @@ export async function receivePosManualLine(payload: {
   return { ok: true }
 }
 
-export async function getPosSales(terminalId?: string): Promise<PosSale[]> {
-  const q = terminalId ? `?terminalId=${encodeURIComponent(terminalId)}` : ""
+export async function getPosSales(terminalId?: string, branchId?: string): Promise<PosSale[]> {
+  const params = new URLSearchParams()
+  if (terminalId) params.set("terminalId", terminalId)
+  if (branchId) params.set("branchId", branchId)
+  const q = params.toString() ? `?${params}` : ""
   const res = await fetch(`/api/db/pos/sales${q}`)
   if (!res.ok) return []
   return res.json()
@@ -141,6 +152,7 @@ export async function completePosSale(payload: {
   cashierName: string
   customerName: string
   notes: string
+  branchId?: string
 }): Promise<PosSale | null> {
   const res = await fetch("/api/db/pos/sales", {
     method: "POST",
@@ -151,6 +163,31 @@ export async function completePosSale(payload: {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error || "Sale failed")
   }
+  return res.json()
+}
+
+export async function setupBranchPos(branchId?: string): Promise<{ ok: boolean; accounts?: unknown[] }> {
+  const res = await fetch("/api/db/pos/branch-setup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(branchId ? { branchId } : {}),
+  })
+  if (!res.ok) return { ok: false }
+  return res.json()
+}
+
+export async function getBranchPosAccounts(): Promise<
+  Array<{
+    branchId: string
+    branchName: string
+    branchCode: string
+    email: string
+    password: string
+    loginUrl: string
+  }>
+> {
+  const res = await fetch("/api/db/pos/branch-setup")
+  if (!res.ok) return []
   return res.json()
 }
 

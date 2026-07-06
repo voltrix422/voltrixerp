@@ -6,6 +6,7 @@ function mapTerminal(row: {
   name: string
   code: string
   location: string
+  branchId: string | null
   isActive: boolean
   createdAt: Date
 }) {
@@ -14,13 +15,18 @@ function mapTerminal(row: {
     name: row.name,
     code: row.code,
     location: row.location,
+    branchId: row.branchId,
     isActive: row.isActive,
     createdAt: row.createdAt.toISOString(),
   }
 }
 
-export async function GET() {
-  const rows = await prisma.erpPosTerminal.findMany({ orderBy: { createdAt: "asc" } })
+export async function GET(req: NextRequest) {
+  const branchId = new URL(req.url).searchParams.get("branchId")?.trim()
+  const rows = await prisma.erpPosTerminal.findMany({
+    where: branchId ? { branchId } : undefined,
+    orderBy: { createdAt: "asc" },
+  })
   return NextResponse.json(rows.map(mapTerminal))
 }
 
@@ -35,6 +41,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name and code are required" }, { status: 400 })
   }
 
+  const branchId = body.branchId ? String(body.branchId).trim() : null
+
   const row = body.id
     ? await prisma.erpPosTerminal.update({
         where: { id: body.id },
@@ -42,6 +50,7 @@ export async function POST(req: NextRequest) {
           name,
           code,
           location: String(body.location || "").trim(),
+          branchId,
           isActive: body.isActive !== false,
         },
       })
@@ -50,6 +59,7 @@ export async function POST(req: NextRequest) {
           name,
           code,
           location: String(body.location || "").trim(),
+          branchId,
           isActive: true,
         },
       })

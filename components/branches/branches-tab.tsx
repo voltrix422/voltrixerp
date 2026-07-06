@@ -14,12 +14,15 @@ import {
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package } from "lucide-react"
+import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Store, ExternalLink } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
 import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
 import { summarizeBranchProductResults } from "@/lib/branch-product-search"
+import { getBranchPosAccounts, setupBranchPos } from "@/lib/pos"
+import { branchPosEmail, branchPosPassword, branchPosLoginUrl } from "@/lib/branch-pos"
+import { isErpAdmin } from "@/lib/auth"
 
 const empty = (code: string = ""): Omit<Branch, "id" | "createdAt" | "createdBy"> => ({
   name: "", code, type: "outlet", address: "", city: "", country: "", phone: "", email: "", manager: "", status: "active", notes: "",
@@ -192,6 +195,13 @@ export function BranchesTab() {
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [productResults, setProductResults] = useState<BranchProductLocation[]>([])
   const [productSearchLoading, setProductSearchLoading] = useState(false)
+  const [posAccounts, setPosAccounts] = useState<Array<{
+    branchId: string
+    email: string
+    password: string
+    loginUrl: string
+  }>>([])
+  const [settingUpPos, setSettingUpPos] = useState(false)
   const { confirm } = useDialog()
   const { toast } = useToast()
   const { user } = useAuth()
@@ -200,6 +210,10 @@ export function BranchesTab() {
     getBranches().then(b => { setBranches(b); setLoading(false) })
     const interval = setInterval(() => getBranches().then(setBranches), 30000)
     return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    void getBranchPosAccounts().then(setPosAccounts)
   }, [])
 
   useEffect(() => {
@@ -433,6 +447,26 @@ export function BranchesTab() {
 
   const editingBranch = branches.find(b => b.id === editId)
 
+  function posForBranch(branchId: string) {
+    return posAccounts.find((a) => a.branchId === branchId)
+  }
+
+  async function handleSetupBranchPos(branchId?: string) {
+    setSettingUpPos(true)
+    try {
+      const result = await setupBranchPos(branchId)
+      if (!result.ok) {
+        toast({ type: "error", title: "Could not set up branch POS" })
+        return
+      }
+      const accounts = await getBranchPosAccounts()
+      setPosAccounts(accounts)
+      toast({ type: "success", title: branchId ? "Branch POS login ready" : "All branch POS logins ready" })
+    } finally {
+      setSettingUpPos(false)
+    }
+  }
+
   if (viewBranch && !editId) {
     return (
       <BranchDetailView
@@ -518,6 +552,16 @@ export function BranchesTab() {
               >
                 {exportLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
                 Export PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-2.5 text-xs cursor-pointer border"
+                onClick={() => void handleSetupBranchPos()}
+                disabled={settingUpPos || !isErpAdmin(user?.role)}
+              >
+                {settingUpPos ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Store className="h-3.5 w-3.5 mr-1" />}
+                Setup branch POS
               </Button>
               <Button
                 size="sm"
@@ -695,7 +739,12 @@ export function BranchesTab() {
             <>
               {/* Mobile list */}
               <div className="sm:hidden rounded-lg border divide-y overflow-hidden">
-                {filteredBranches.map((b) => (
+                {filteredBranches.map((b) => {
+                  const pos = posForBranch(b.id)
+                  const email = pos?.email || branchPosEmail(b.code)
+                  const password = pos?.password || branchPosPassword(b.code)
+                  const loginUrl = pos?.loginUrl || branchPosLoginUrl(b.code)
+                  return (
                   <button
                     key={b.id}
                     type="button"
@@ -726,25 +775,34 @@ export function BranchesTab() {
                         {b.manager && (
                           <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1.5">{b.manager}</p>
                         )}
+                        <p className="text-[10px] font-mono text-[#1faca6] mt-2">{email}</p>
+                        <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">{password}</p>
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-0.5" />
                     </div>
                   </button>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Desktop table */}
               <div className="hidden sm:block rounded-lg border overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,1fr)_minmax(0,1fr)_72px_72px] gap-3 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                <div className="grid grid-cols-[minmax(0,1.1fr)_72px_minmax(0,0.8fr)_minmax(0,0.7fr)_64px_minmax(0,1.3fr)_88px] gap-2 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                   <span>Name</span>
                   <span>Code</span>
                   <span>Type</span>
                   <span>Manager</span>
                   <span>Status</span>
+                  <span>POS login</span>
                   <span className="text-right">Actions</span>
                 </div>
                 <div className="divide-y max-h-[calc(100vh-14rem)] overflow-y-auto">
-                  {filteredBranches.map((b) => (
+                  {filteredBranches.map((b) => {
+                    const pos = posForBranch(b.id)
+                    const email = pos?.email || branchPosEmail(b.code)
+                    const password = pos?.password || branchPosPassword(b.code)
+                    const loginUrl = pos?.loginUrl || branchPosLoginUrl(b.code)
+                    return (
                     <div
                       key={b.id}
                       role="button"
@@ -760,7 +818,7 @@ export function BranchesTab() {
                           setEditId(null)
                         }
                       }}
-                      className="group grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,1fr)_minmax(0,1fr)_72px_72px] gap-3 px-3 py-2.5 items-center hover:bg-[hsl(var(--muted))]/25 transition-colors cursor-pointer"
+                      className="group grid grid-cols-[minmax(0,1.1fr)_72px_minmax(0,0.8fr)_minmax(0,0.7fr)_64px_minmax(0,1.3fr)_88px] gap-2 px-3 py-2.5 items-center hover:bg-[hsl(var(--muted))]/25 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-sm font-medium truncate">{b.name}</span>
@@ -780,6 +838,17 @@ export function BranchesTab() {
                       >
                         {b.status}
                       </span>
+                      <div className="min-w-0 text-[10px] leading-snug" onClick={(e) => e.stopPropagation()}>
+                        <p className="font-mono truncate">{email}</p>
+                        <p className="font-mono text-[hsl(var(--muted-foreground))]">{password}</p>
+                        <Link
+                          href={loginUrl}
+                          target="_blank"
+                          className="inline-flex items-center gap-1 text-[#1faca6] hover:underline mt-0.5"
+                        >
+                          Open POS <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
                       <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
                         <Button
                           variant="ghost"
@@ -804,7 +873,8 @@ export function BranchesTab() {
                         </Button>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </>

@@ -10,6 +10,7 @@ export interface User {
   role: UserRole
   modules: Module[]
   managerId?: string | null
+  branchId?: string | null
   location?: string
   jobTitle?: string
   baseSalary?: number
@@ -124,6 +125,7 @@ function mapRow(row: Record<string, unknown>): User {
     role: row.role as UserRole,
     modules,
     managerId: (row.managerId as string | null) ?? undefined,
+    branchId: (row.branchId as string | null) ?? undefined,
     location: (row.location as string) ?? undefined,
     jobTitle: (row.jobTitle as string) ?? undefined,
     baseSalary: (row.baseSalary as number) ?? undefined,

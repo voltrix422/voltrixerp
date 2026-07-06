@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { getBranchPosProducts } from "@/lib/branch-pos-products-server"
 
 export async function GET(req: NextRequest) {
-  const all = new URL(req.url).searchParams.get("all") === "1"
+  const { searchParams } = new URL(req.url)
+  const all = searchParams.get("all") === "1"
+  const branchId = searchParams.get("branchId")?.trim()
+
+  if (branchId) {
+    const products = await getBranchPosProducts(branchId, { all })
+    return NextResponse.json(
+      products.map((row) => ({
+        id: row.id,
+        description: row.description,
+        name: row.name,
+        unit: row.unit,
+        availableQty: row.availableQty,
+        costPrice: row.costPrice,
+        inventoryId: row.inventoryId,
+        branchInventoryId: row.branchInventoryId,
+      })),
+    )
+  }
+
   const rows = await prisma.erpInventoryStock.findMany({
     where: all ? undefined : { availableQty: { gt: 0 } },
     orderBy: { description: "asc" },

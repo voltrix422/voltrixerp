@@ -21,6 +21,7 @@ import {
   type PosTerminal,
 } from "@/lib/pos"
 import { PosInventoryPanel } from "@/components/pos/pos-inventory-panel"
+import { BranchPosDocsPanel } from "@/components/pos/branch-pos-docs"
 import {
   CreditCard,
   Loader2,
@@ -32,11 +33,14 @@ import {
   Trash2,
 } from "lucide-react"
 
-type Tab = "register" | "inventory" | "terminals" | "sales"
+type Tab = "register" | "inventory" | "terminals" | "sales" | "stock" | "quotation" | "order"
 
 export function PosManager() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const branchId = user?.branchId ?? undefined
+  const isBranchPos = !!branchId
+  const branchName = user?.location || "Branch"
   const [tab, setTab] = useState<Tab>("register")
   const [loading, setLoading] = useState(true)
   const [terminals, setTerminals] = useState<PosTerminal[]>([])
@@ -60,7 +64,11 @@ export function PosManager() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [t, p, s] = await Promise.all([getPosTerminals(), getPosStockProducts(), getPosSales()])
+      const [t, p, s] = await Promise.all([
+        getPosTerminals(branchId),
+        getPosStockProducts(false, branchId),
+        getPosSales(undefined, branchId),
+      ])
       setAllTerminals(t)
       setTerminals(t.filter((x) => x.isActive))
       setProducts(p)
@@ -71,7 +79,7 @@ export function PosManager() {
     } finally {
       setLoading(false)
     }
-  }, [selectedTerminalId])
+  }, [selectedTerminalId, branchId])
 
   useEffect(() => {
     void loadAll()
@@ -158,6 +166,7 @@ export function PosManager() {
         cashierName: user?.name ?? "POS",
         customerName: customerName.trim(),
         notes: "",
+        branchId,
       })
       if (!sale) {
         toast({ type: "error", title: "Checkout failed — check stock" })
@@ -236,19 +245,35 @@ export function PosManager() {
     )
   }
 
+  const tabItems = isBranchPos
+    ? ([
+        { id: "register" as Tab, label: "Sell" },
+        { id: "stock" as Tab, label: "My stock" },
+        { id: "sales" as Tab, label: "Sales" },
+        { id: "quotation" as Tab, label: "Quotation" },
+        { id: "order" as Tab, label: "Order" },
+      ] as const)
+    : ([
+        { id: "register" as Tab, label: "Register" },
+        { id: "inventory" as Tab, label: "Inventory" },
+        { id: "terminals" as Tab, label: "POS terminals" },
+        { id: "sales" as Tab, label: "Sales" },
+      ] as const)
+
   return (
     <div className="flex-1 overflow-auto">
       <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
+        {isBranchPos && (
+          <div className="rounded-lg border bg-[#1faca6]/5 px-4 py-3">
+            <p className="text-sm font-semibold">{branchName}</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Branch POS — sell, quote, and order from this location&apos;s stock only.
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-1 border-b border-[hsl(var(--border))]">
-            {(
-              [
-                { id: "register" as Tab, label: "Register" },
-                { id: "inventory" as Tab, label: "Inventory" },
-                { id: "terminals" as Tab, label: "POS terminals" },
-                { id: "sales" as Tab, label: "Sales" },
-              ] as const
-            ).map((t) => (
+            {tabItems.map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -313,12 +338,12 @@ export function PosManager() {
                         <button
                           type="button"
                           title="Remove product"
-                          disabled={deletingProductId === p.id}
+                          disabled={deletingProductId === p.id || isBranchPos}
                           onClick={(e) => {
                             e.stopPropagation()
                             void handleDeleteProduct(p)
                           }}
-                          className="absolute top-2 right-2 p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-50 cursor-pointer disabled:opacity-50"
+                          className={`absolute top-2 right-2 p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-50 cursor-pointer disabled:opacity-50 ${isBranchPos ? "hidden" : ""}`}
                         >
                           {deletingProductId === p.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -343,10 +368,12 @@ export function PosManager() {
                     ))}
                     {filteredProducts.length === 0 && (
                       <div className="col-span-2 text-sm text-[hsl(var(--muted-foreground))] py-8 text-center space-y-2">
-                        <p>No products in stock.</p>
-                        <Button size="sm" variant="outline" onClick={() => setTab("inventory")}>
-                          Add products with QR
-                        </Button>
+                        <p>{isBranchPos ? "No stock at this branch." : "No products in stock."}</p>
+                        {!isBranchPos && (
+                          <Button size="sm" variant="outline" onClick={() => setTab("inventory")}>
+                            Add products with QR
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -450,9 +477,59 @@ export function PosManager() {
           </>
         )}
 
-        {tab === "inventory" && <PosInventoryPanel onStockUpdated={() => void loadAll()} />}
+        {tab === "inventory" && !isBranchPos && <PosInventoryPanel onStockUpdated={() => void loadAll()} />}
 
-        {tab === "terminals" && canManageTerminals && (
+        {tab === "stock" && isBranchPos && (
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-[hsl(var(--muted))]/30 text-xs">
+                <tr>
+                  <th className="text-left px-3 py-2">Item</th>
+                  <th className="text-right px-3 py-2">Qty</th>
+                  <th className="text-right px-3 py-2">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((p) => (
+                  <tr key={p.id} className="border-t">
+                    <td className="px-3 py-2">{p.description}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {p.availableQty} {p.unit}
+                    </td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(p.costPrice)}</td>
+                  </tr>
+                ))}
+                {products.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
+                      No stock at this branch
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === "quotation" && isBranchPos && (
+          <BranchPosDocsPanel
+            kind="quotation"
+            products={products}
+            branchName={branchName}
+            userName={user?.name || "POS"}
+          />
+        )}
+
+        {tab === "order" && isBranchPos && (
+          <BranchPosDocsPanel
+            kind="order"
+            products={products}
+            branchName={branchName}
+            userName={user?.name || "POS"}
+          />
+        )}
+
+        {tab === "terminals" && canManageTerminals && !isBranchPos && (
           <div className="grid md:grid-cols-2 gap-6">
             <form onSubmit={handleCreateTerminal} className="rounded-lg border p-4 space-y-3">
               <h3 className="font-medium text-sm">Create new POS</h3>

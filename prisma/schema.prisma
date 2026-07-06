@@ -21,10 +21,12 @@ model ErpUser {
   commissionPercent         Float    @default(0.5) @map("commission_percent")
   notificationEmails        Json     @default("[]") @map("notification_emails")
   emailNotificationsEnabled Boolean  @default(true) @map("email_notifications_enabled")
+  branchId                  String?  @map("branch_id")
   createdAt                 DateTime @default(now()) @map("created_at")
 
   @@index([role])
   @@index([managerId])
+  @@index([branchId])
   @@map("erp_users")
 }
 
@@ -938,9 +940,11 @@ model ErpPosTerminal {
   name      String
   code      String   @unique
   location  String   @default("")
+  branchId  String?  @map("branch_id")
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([branchId])
   @@map("erp_pos_terminals")
 }
 
@@ -959,9 +963,11 @@ model ErpPosSale {
   cashierName   String   @default("") @map("cashier_name")
   customerName  String   @default("") @map("customer_name")
   notes         String   @default("")
+  branchId      String?  @map("branch_id")
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([terminalId, createdAt])
+  @@index([branchId, createdAt])
   @@map("erp_pos_sales")
 }
 

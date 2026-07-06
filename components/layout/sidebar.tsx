@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, ScanLine, Wallet, ChevronDown, Store, Target, MessageSquare,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Wallet, ChevronDown, Target, MessageSquare,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -28,8 +28,6 @@ const NAV_ORDER: Array<{
   { key: "crm", label: "CRM", icon: Users2, module: "crm", kind: "crm" },
   { key: "inventory", href: "/inventory", label: "Inventory", icon: Package, module: "inventory", kind: "link" },
   { key: "purchase", href: "/purchase", label: "Purchase", icon: ShoppingCart, module: "purchase", kind: "link" },
-  { key: "pos", href: "/pos", label: "POS", icon: Store, module: "pos", kind: "link" },
-  { key: "rfid", href: "/rfid", label: "RFID", icon: ScanLine, module: "inventory", kind: "link" },
   { key: "dispatches", href: "/dispatches", label: "Dispatches", icon: Truck, module: "dispatches", kind: "link" },
   { key: "website", href: "/website", label: "Website", icon: Globe, module: "website", kind: "link" },
   { key: "docs", href: "/docs", label: "Documentation", icon: BookOpen, module: "docs", kind: "link" },

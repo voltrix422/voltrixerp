@@ -1,36 +1,34 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { useAuth } from "@/components/auth-provider"
 import { roleHasAllModules } from "@/lib/auth"
-import { ensurePosSetup } from "@/lib/pos"
-import {
-  DEFAULT_POS_EMAIL,
-  DEFAULT_POS_PASSWORD,
-} from "@/lib/pos-defaults"
+import { branchPosEmail, branchPosPassword } from "@/lib/branch-pos"
 import { Eye, EyeOff, Loader2, Store } from "lucide-react"
 
 export default function PosLoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const branchCode = searchParams?.get("branch")?.trim().toUpperCase() || ""
   const { login, user } = useAuth()
-  const [email, setEmail] = useState(DEFAULT_POS_EMAIL)
-  const [password, setPassword] = useState(DEFAULT_POS_PASSWORD)
+  const [email, setEmail] = useState(branchCode ? branchPosEmail(branchCode) : "")
+  const [password, setPassword] = useState(branchCode ? branchPosPassword(branchCode) : "")
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [setupReady, setSetupReady] = useState(false)
 
   useEffect(() => {
-    void ensurePosSetup().then(() => setSetupReady(true))
-  }, [])
+    if (!branchCode) return
+    setEmail(branchPosEmail(branchCode))
+    setPassword(branchPosPassword(branchCode))
+  }, [branchCode])
 
   useEffect(() => {
     if (!user) return
-    const canPos =
-      roleHasAllModules(user.role) || user.modules.includes("pos")
+    const canPos = roleHasAllModules(user.role) || user.modules.includes("pos")
     if (canPos) router.replace("/pos")
   }, [user, router])
 
@@ -38,7 +36,6 @@ export default function PosLoginPage() {
     e.preventDefault()
     setError("")
     setLoading(true)
-    await ensurePosSetup()
     const loggedInUser = await login(email.trim(), password)
     setLoading(false)
     if (!loggedInUser) {
@@ -72,10 +69,10 @@ export default function PosLoginPage() {
           <h1 className="text-3xl font-bold leading-tight">
             Voltrix
             <br />
-            Point of Sale
+            Branch Point of Sale
           </h1>
           <p className="text-white/70 text-sm max-w-sm">
-            Fast checkout tied to inventory. Create terminals, ring sales, and view receipts.
+            Sell from your branch stock, create quotations and orders for your customers.
           </p>
         </div>
         <p className="text-xs text-white/40">© 2026 Voltrix</p>
@@ -88,18 +85,20 @@ export default function PosLoginPage() {
 
         <div className="w-full max-w-sm space-y-6">
           <div>
-            <h2 className="text-xl font-semibold">POS sign in</h2>
-            <p className="text-sm text-neutral-500 mt-1">Cashier access for the register</p>
+            <h2 className="text-xl font-semibold">Branch POS sign in</h2>
+            <p className="text-sm text-neutral-500 mt-1">
+              {branchCode ? `Branch ${branchCode}` : "Use your branch POS credentials"}
+            </p>
           </div>
 
-          {setupReady && (
+          {branchCode && (
             <div className="rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 px-3 py-2 text-xs text-neutral-600">
-              <p className="font-medium text-neutral-800 mb-1">Default login</p>
+              <p className="font-medium text-neutral-800 mb-1">Branch login</p>
               <p>
-                Email: <span className="font-mono">{DEFAULT_POS_EMAIL}</span>
+                Email: <span className="font-mono">{branchPosEmail(branchCode)}</span>
               </p>
               <p>
-                Password: <span className="font-mono">{DEFAULT_POS_PASSWORD}</span>
+                Password: <span className="font-mono">{branchPosPassword(branchCode)}</span>
               </p>
             </div>
           )}
@@ -149,7 +148,7 @@ export default function PosLoginPage() {
               style={{ backgroundColor: "#1a9f9a" }}
             >
               {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Open POS
+              Open branch POS
             </button>
           </form>
 

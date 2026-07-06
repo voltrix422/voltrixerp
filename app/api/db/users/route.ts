@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       commissionPercent: body.commissionPercent ?? 0.5,
       notificationEmails: body.notificationEmails ?? [],
       emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
+      branchId: body.branchId ?? null,
     },
     create: {
       id: body.id,
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
       commissionPercent: body.commissionPercent ?? 0.5,
       notificationEmails: body.notificationEmails ?? [],
       emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
+      branchId: body.branchId ?? null,
     },
   })
   return NextResponse.json(user)
