@@ -19,6 +19,16 @@ export interface User {
   emailNotificationsEnabled?: boolean
 }
 
+function normalizeRole(rawRole: unknown): UserRole {
+  const value = String(rawRole ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_")
+  if (value === "superadmin" || value === "super_admin") return "superadmin"
+  if (value === "salesagent" || value === "sales_agent") return "sales_agent"
+  if (value === "salesmanager" || value === "sales_manager") return "sales_manager"
+  if (value === "viewonly" || value === "view_only") return "view_only"
+  if (value === "admin") return "admin"
+  return "user"
+}
+
 export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty", "pos"]
 
 export const MODULE_LABELS: Record<Module, string> = {
@@ -58,15 +68,17 @@ export function canWriteErp(user?: { role?: string } | null) {
 }
 
 export function roleHasAllModules(role: UserRole | string | undefined | null) {
-  return role === "superadmin" || role === "admin"
+  const normalized = normalizeRole(role)
+  return normalized === "superadmin" || normalized === "admin"
 }
 
 export function isErpAdmin(role: UserRole | string | undefined | null) {
-  return role === "superadmin" || role === "admin"
+  const normalized = normalizeRole(role)
+  return normalized === "superadmin" || normalized === "admin"
 }
 
 export function isSuperadmin(role: UserRole | string | undefined | null) {
-  return role === "superadmin"
+  return normalizeRole(role) === "superadmin"
 }
 
 export function modulesForRole(role: UserRole, selected: Module[]): Module[] {
@@ -122,7 +134,7 @@ function mapRow(row: Record<string, unknown>): User {
     name: row.name as string,
     email: row.email as string,
     password: row.password as string,
-    role: row.role as UserRole,
+    role: normalizeRole(row.role),
     modules,
     managerId: (row.managerId as string | null) ?? undefined,
     branchId: (row.branchId as string | null) ?? undefined,
