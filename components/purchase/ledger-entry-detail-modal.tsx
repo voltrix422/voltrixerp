@@ -1,7 +1,7 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Receipt, CreditCard, FileText, Wallet, Pencil, Trash2 } from "lucide-react"
+import { X, Receipt, CreditCard, FileText, Wallet, Pencil, Trash2, Download, FileSpreadsheet } from "lucide-react"
 import {
   formatLedgerProject,
   formatLedgerSuppliers,
@@ -35,6 +35,8 @@ export function LedgerEntryDetailModal({
   onEdit,
   onPayDue,
   onDelete,
+  onExportExcel,
+  onExportPdf,
   readOnly = false,
 }: {
   entry: PurchaseLedgerEntry
@@ -42,6 +44,8 @@ export function LedgerEntryDetailModal({
   onEdit?: () => void
   onPayDue?: () => void
   onDelete?: () => void
+  onExportExcel?: () => void
+  onExportPdf?: () => void
   readOnly?: boolean
 }) {
   return (
@@ -178,6 +182,16 @@ export function LedgerEntryDetailModal({
         </div>
 
         <div className="flex flex-wrap gap-2 px-4 sm:px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
+          {onExportExcel && (
+            <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onExportExcel}>
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+            </Button>
+          )}
+          {onExportPdf && (
+            <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onExportPdf}>
+              <Download className="h-3.5 w-3.5" /> PDF
+            </Button>
+          )}
           {!readOnly && onEdit && (
             <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onEdit}>
               <Pencil className="h-3.5 w-3.5" /> Edit

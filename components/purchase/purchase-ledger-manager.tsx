@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -35,6 +35,12 @@ import {
 import { uploadFile } from "@/lib/upload"
 import { SupplierPicker } from "@/components/purchase/supplier-picker"
 import { LedgerEntryDetailModal } from "@/components/purchase/ledger-entry-detail-modal"
+import {
+  downloadPurchaseLedgerEntryExcel,
+  downloadPurchaseLedgerEntryPDF,
+  downloadPurchaseLedgerExcel,
+  downloadPurchaseLedgerReportPDF,
+} from "@/lib/purchase-ledger-export"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -135,6 +141,8 @@ function LineItemsEditor({
   )
 }
 
+const filterSelectCls = "h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs min-w-0"
+
 export function PurchaseLedgerManager() {
   const { user } = useAuth()
   const [entries, setEntries] = useState<PurchaseLedgerEntry[]>([])
@@ -143,6 +151,15 @@ export function PurchaseLedgerManager() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [filterLinkMode, setFilterLinkMode] = useState<string>("all")
+  const [filterTransactionType, setFilterTransactionType] = useState<string>("all")
+  const [filterSupplierId, setFilterSupplierId] = useState<string>("all")
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>("all")
+  const [filterSearch, setFilterSearch] = useState("")
+  const [filterDateFrom, setFilterDateFrom] = useState("")
+  const [filterDateTo, setFilterDateTo] = useState("")
+  const [filterDueFrom, setFilterDueFrom] = useState("")
+  const [filterDueTo, setFilterDueTo] = useState("")
+  const [exporting, setExporting] = useState(false)
 
   const [payEntry, setPayEntry] = useState<PurchaseLedgerEntry | null>(null)
   const [payAmount, setPayAmount] = useState("")
@@ -414,10 +431,125 @@ export function PurchaseLedgerManager() {
     }
   }
 
-  const filtered = entries.filter(e => {
-    if (filterLinkMode !== "all" && normalizeLinkMode(e.linkMode) !== filterLinkMode) return false
-    return true
-  })
+  const filtered = useMemo(() => {
+    const q = filterSearch.trim().toLowerCase()
+    return entries.filter(e => {
+      if (filterLinkMode !== "all" && normalizeLinkMode(e.linkMode) !== filterLinkMode) return false
+      if (filterTransactionType !== "all" && e.transactionType !== filterTransactionType) return false
+      if (filterSupplierId !== "all") {
+        const inGroups = e.supplierGroups.some(g => g.supplierId === filterSupplierId)
+        if (e.supplierId !== filterSupplierId && !inGroups) return false
+      }
+      if (filterPaymentStatus === "paid" && e.amountDue > 0) return false
+      if (filterPaymentStatus === "due" && e.amountDue <= 0) return false
+      if (filterPaymentStatus === "partial" && (e.amountPaid <= 0 || e.amountDue <= 0)) return false
+      if (filterDateFrom && e.transactionDate < filterDateFrom) return false
+      if (filterDateTo && e.transactionDate > filterDateTo) return false
+      if (filterDueFrom && (!e.dueDate || e.dueDate < filterDueFrom)) return false
+      if (filterDueTo && (!e.dueDate || e.dueDate > filterDueTo)) return false
+      if (q) {
+        const haystack = [
+          e.ledgerNumber,
+          e.supplierName,
+          e.projectName,
+          formatLedgerProject(e),
+          formatLedgerSuppliers(e),
+          formatLedgerItemsSummary(e),
+          e.notes,
+        ].join(" ").toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+  }, [
+    entries,
+    filterLinkMode,
+    filterTransactionType,
+    filterSupplierId,
+    filterPaymentStatus,
+    filterSearch,
+    filterDateFrom,
+    filterDateTo,
+    filterDueFrom,
+    filterDueTo,
+  ])
+
+  const filterStats = useMemo(() => ({
+    count: filtered.length,
+    total: filtered.reduce((s, e) => s + e.totalAmount, 0),
+    paid: filtered.reduce((s, e) => s + e.amountPaid, 0),
+    due: filtered.reduce((s, e) => s + e.amountDue, 0),
+  }), [filtered])
+
+  const hasActiveFilters = Boolean(
+    filterLinkMode !== "all"
+    || filterTransactionType !== "all"
+    || filterSupplierId !== "all"
+    || filterPaymentStatus !== "all"
+    || filterSearch.trim()
+    || filterDateFrom
+    || filterDateTo
+    || filterDueFrom
+    || filterDueTo,
+  )
+
+  function clearFilters() {
+    setFilterLinkMode("all")
+    setFilterTransactionType("all")
+    setFilterSupplierId("all")
+    setFilterPaymentStatus("all")
+    setFilterSearch("")
+    setFilterDateFrom("")
+    setFilterDateTo("")
+    setFilterDueFrom("")
+    setFilterDueTo("")
+  }
+
+  function buildFilterSummary() {
+    const parts: string[] = []
+    if (filterLinkMode !== "all") parts.push(formatLinkModeLabel(filterLinkMode))
+    if (filterTransactionType !== "all") parts.push(filterTransactionType)
+    if (filterSupplierId !== "all") parts.push(suppliers.find(s => s.id === filterSupplierId)?.name || "Supplier")
+    if (filterPaymentStatus !== "all") parts.push(filterPaymentStatus)
+    if (filterSearch.trim()) parts.push(`search: ${filterSearch.trim()}`)
+    if (filterDateFrom || filterDateTo) parts.push(`date ${filterDateFrom || "…"}–${filterDateTo || "…"}`)
+    if (filterDueFrom || filterDueTo) parts.push(`due ${filterDueFrom || "…"}–${filterDueTo || "…"}`)
+    return parts.length > 0 ? parts.join(" · ") : "All entries"
+  }
+
+  async function exportFilteredExcel() {
+    if (filtered.length === 0) return
+    setExporting(true)
+    try {
+      downloadPurchaseLedgerExcel(filtered, {
+        exportedBy: user?.name,
+        filterSummary: buildFilterSummary(),
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function exportFilteredPdf() {
+    if (filtered.length === 0) return
+    setExporting(true)
+    try {
+      await downloadPurchaseLedgerReportPDF(filtered, {
+        exportedBy: user?.name,
+        filterSummary: buildFilterSummary(),
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function exportEntryPdf(entry: PurchaseLedgerEntry) {
+    await downloadPurchaseLedgerEntryPDF(entry)
+  }
+
+  function exportEntryExcel(entry: PurchaseLedgerEntry) {
+    downloadPurchaseLedgerEntryExcel(entry)
+  }
 
   const activeGroups = linkMode === "project" ? supplierGroups : [supplierGroups[0] ?? newSupplierGroup()]
 
@@ -432,22 +564,94 @@ export function PurchaseLedgerManager() {
         <div>
           <h2 className="text-base font-semibold">Purchase Ledger</h2>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            Multiple items, auto unit/total math, and partial payments with due tracking.
+            {entries.length} entries · track purchases, partial payments, and supplier spend
           </p>
         </div>
-        <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => void openNewForm()}>
-          <Plus className="h-3.5 w-3.5" /> New purchase
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer"
+            disabled={filtered.length === 0 || exporting}
+            onClick={() => void exportFilteredExcel()}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer"
+            disabled={filtered.length === 0 || exporting}
+            onClick={() => void exportFilteredPdf()}
+          >
+            <Download className="h-3.5 w-3.5" /> PDF
+          </Button>
+          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => void openNewForm()}>
+            <Plus className="h-3.5 w-3.5" /> New purchase
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <select value={filterLinkMode} onChange={e => setFilterLinkMode(e.target.value)} className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs">
-          <option value="all">All link types</option>
-          {PURCHASE_LINK_MODES.map(mode => (
-            <option key={mode.value} value={mode.value}>{mode.label}</option>
-          ))}
-        </select>
-      </div>
+      <section className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={filterSearch}
+              onChange={e => setFilterSearch(e.target.value)}
+              placeholder="Search ledger, supplier, project, items..."
+              className={inputCls + " pl-8"}
+            />
+          </div>
+          <select value={filterLinkMode} onChange={e => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
+            <option value="all">All link types</option>
+            {PURCHASE_LINK_MODES.map(mode => (
+              <option key={mode.value} value={mode.value}>{mode.label}</option>
+            ))}
+          </select>
+          <select value={filterTransactionType} onChange={e => setFilterTransactionType(e.target.value)} className={filterSelectCls}>
+            <option value="all">All transaction types</option>
+            {PURCHASE_TRANSACTION_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+          <select value={filterSupplierId} onChange={e => setFilterSupplierId(e.target.value)} className={filterSelectCls + " max-w-[160px]"}>
+            <option value="all">All suppliers</option>
+            {suppliers.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <select value={filterPaymentStatus} onChange={e => setFilterPaymentStatus(e.target.value)} className={filterSelectCls}>
+            <option value="all">All payments</option>
+            <option value="paid">Fully paid</option>
+            <option value="partial">Partially paid</option>
+            <option value="due">Has amount due</option>
+          </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">Date</span>
+          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={filterSelectCls + " w-[130px]"} />
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={filterSelectCls + " w-[130px]"} />
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0 ml-1">Due</span>
+          <input type="date" value={filterDueFrom} onChange={e => setFilterDueFrom(e.target.value)} className={filterSelectCls + " w-[130px]"} />
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+          <input type="date" value={filterDueTo} onChange={e => setFilterDueTo(e.target.value)} className={filterSelectCls + " w-[130px]"} />
+          {hasActiveFilters && (
+            <Button type="button" size="sm" variant="ghost" className="h-8 text-[10px] cursor-pointer ml-auto" onClick={clearFilters}>
+              <RotateCcw className="h-3 w-3" /> Clear filters
+            </Button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] border-t border-[hsl(var(--border))] pt-2">
+          <span><strong className="text-[hsl(var(--foreground))]">{filterStats.count}</strong> shown</span>
+          <span>Total <strong className="text-[#1faca6]">{fmtMoney(filterStats.total)}</strong></span>
+          <span>Paid <strong className="text-emerald-600">{fmtMoney(filterStats.paid)}</strong></span>
+          {filterStats.due > 0 && <span>Due <strong className="text-amber-600">{fmtMoney(filterStats.due)}</strong></span>}
+        </div>
+      </section>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4" onClick={closeForm}>
@@ -631,6 +835,8 @@ export function PurchaseLedgerManager() {
             openPayModal(detailEntry)
           }}
           onDelete={() => void handleDelete(detailEntry.id)}
+          onExportExcel={() => exportEntryExcel(detailEntry)}
+          onExportPdf={() => void exportEntryPdf(detailEntry)}
         />
       )}
 
@@ -694,7 +900,9 @@ export function PurchaseLedgerManager() {
               <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">Loading...</td></tr>
             )}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">No purchase entries yet. Click &quot;New purchase&quot; to add one.</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
+                {entries.length === 0 ? "No purchase entries yet. Click \"New purchase\" to add one." : "No entries match your filters."}
+              </td></tr>
             )}
             {filtered.map(entry => (
               <tr
@@ -744,7 +952,13 @@ export function PurchaseLedgerManager() {
                   </div>
                 </td>
                 <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer" title="Export Excel" onClick={() => exportEntryExcel(entry)}>
+                      <FileSpreadsheet className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer" title="Export PDF" onClick={() => void exportEntryPdf(entry)}>
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer" title="Edit" onClick={() => openEditForm(entry)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>

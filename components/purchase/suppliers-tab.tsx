@@ -4,6 +4,10 @@ import { getSuppliers, saveSupplier, deleteSupplier, type Supplier } from "@/lib
 import { getPurchaseLedgerEntries, formatLedgerItemsSummary, formatLedgerProject, formatLinkModeLabel, type PurchaseLedgerEntry } from "@/lib/purchase-ledger"
 import { LedgerEntryDetailModal } from "@/components/purchase/ledger-entry-detail-modal"
 import {
+  downloadPurchaseLedgerEntryExcel,
+  downloadPurchaseLedgerEntryPDF,
+} from "@/lib/purchase-ledger-export"
+import {
   assignSupplierPurchaseRanks,
   getEntriesForSupplier,
   sortSuppliersByPurchases,
@@ -279,6 +283,8 @@ function SupplierDetail({
         entry={ledgerEntry}
         onClose={() => setLedgerEntryId(null)}
         readOnly
+        onExportExcel={() => downloadPurchaseLedgerEntryExcel(ledgerEntry)}
+        onExportPdf={() => void downloadPurchaseLedgerEntryPDF(ledgerEntry)}
       />
     )}
     </>
