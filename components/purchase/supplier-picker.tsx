@@ -1,5 +1,6 @@
 "use client"
 import { useState } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Plus, Pencil, X, Loader2 } from "lucide-react"
 import { saveSupplier, type Supplier } from "@/lib/purchase"
@@ -30,7 +31,11 @@ function SupplierQuickForm({
 
   return (
     <form
-      onSubmit={e => { e.preventDefault(); onSave(form) }}
+      onSubmit={e => {
+        e.preventDefault()
+        e.stopPropagation()
+        onSave(form)
+      }}
       className="space-y-3"
     >
       <p className="text-sm font-semibold">{title}</p>
@@ -180,7 +185,7 @@ export function SupplierPicker({
         )}
       </div>
 
-      {quickOpen && (
+      {quickOpen && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setQuickOpen(false)}>
           <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl p-4" onClick={e => e.stopPropagation()}>
             <div className="flex justify-end mb-1">
@@ -191,15 +196,16 @@ export function SupplierPicker({
             <SupplierQuickForm
               title="Quick add supplier"
               initial={emptySupplier()}
-              onSave={handleQuickAdd}
+              onSave={data => void handleQuickAdd(data)}
               onCancel={() => setQuickOpen(false)}
               saving={saving}
             />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {editOpen && selected && (
+      {editOpen && selected && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setEditOpen(false)}>
           <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl p-4" onClick={e => e.stopPropagation()}>
             <div className="flex justify-end mb-1">
@@ -220,12 +226,13 @@ export function SupplierPicker({
                 bankIban: selected.bankIban || "",
                 image: selected.image || "",
               }}
-              onSave={handleEdit}
+              onSave={data => void handleEdit(data)}
               onCancel={() => setEditOpen(false)}
               saving={saving}
             />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
