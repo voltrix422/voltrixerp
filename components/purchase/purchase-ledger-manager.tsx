@@ -21,13 +21,13 @@ import {
 import { uploadFile } from "@/lib/upload"
 
 const inputCls =
-  "w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
+  "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
 
 const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
-  <div className="space-y-1.5">
-    <label className="text-xs font-medium text-[hsl(var(--foreground))]">{label}</label>
+  <div className="space-y-1">
+    <label className="text-[11px] font-medium text-[hsl(var(--foreground))]">{label}</label>
     {children}
-    {hint && <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{hint}</p>}
+    {hint && <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-tight">{hint}</p>}
   </div>
 )
 
@@ -234,123 +234,138 @@ export function PurchaseLedgerManager() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSave} className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">New purchase entry</p>
-            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowForm(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <Field label="Ledger No." hint="Auto-generated">
-              <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
-            </Field>
-            <Field label="Date" hint="Defaults to today">
-              <input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} className={inputCls} />
-            </Field>
-            <Field label="Link type">
-              <select value={linkMode} onChange={e => setLinkMode(e.target.value as PurchaseLinkMode)} className={inputCls}>
-                <option value="general">General</option>
-                <option value="project">Project based</option>
-                <option value="order">Order based</option>
-              </select>
-            </Field>
-
-            {linkMode === "project" && (
-              <Field label="Project">
-                <input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" className={inputCls} />
-              </Field>
-            )}
-
-            {linkMode === "order" && (
-              <Field label="Order" hint="Auto-fills product from first order line">
-                <select required value={orderId} onChange={e => onOrderChange(e.target.value)} className={inputCls}>
-                  <option value="">Select order</option>
-                  {orders.map(o => (
-                    <option key={o.id} value={o.id}>{o.orderNumber} — {o.clientName}</option>
-                  ))}
-                </select>
-              </Field>
-            )}
-
-            <Field label="Supplier">
-              <select value={supplierId} onChange={e => onSupplierChange(e.target.value)} className={inputCls}>
-                <option value="">Select supplier</option>
-                {suppliers.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Product name">
-              <input required value={productName} onChange={e => setProductName(e.target.value)} placeholder="Product or service" className={inputCls} />
-            </Field>
-
-            <Field label="Transaction type">
-              <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
-                {PURCHASE_TRANSACTION_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Category">
-              <select value={category} onChange={e => setCategory(e.target.value as PurchaseCategory)} className={inputCls}>
-                {PURCHASE_CATEGORIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Quantity">
-              <input type="number" min="0" step="any" value={quantity} onChange={e => setQuantity(e.target.value)} className={inputCls} />
-            </Field>
-
-            <Field label="Unit price">
-              <input type="number" min="0" step="any" required value={unitPrice} onChange={e => setUnitPrice(e.target.value)} className={inputCls} />
-            </Field>
-
-            <Field label="Total amount" hint="Auto: quantity × unit price">
-              <input readOnly value={fmtMoney(totalAmount)} className={inputCls + " bg-[hsl(var(--muted))]/30 font-medium"} />
-            </Field>
-
-            <Field label="Due date">
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
-            </Field>
-
-            <Field label="Account details" hint="Auto-filled from supplier bank info">
-              <input value={accountDetails} onChange={e => setAccountDetails(e.target.value)} placeholder="Bank account / IBAN" className={inputCls} />
-            </Field>
-          </div>
-
-          <Field label="Note">
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inputCls + " h-auto py-2"} />
-          </Field>
-
-          <Field label="Payment proof">
-            <div className="flex items-center gap-2">
-              <label className="inline-flex items-center gap-2 h-9 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30">
-                <Upload className="h-3.5 w-3.5" /> Upload proof
-                <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
-                  const file = e.target.files?.[0] ?? null
-                  setProofFile(file)
-                  setProofPreview(file?.name ?? "")
-                }} />
-              </label>
-              {proofPreview && <span className="text-xs text-[hsl(var(--muted-foreground))]">{proofPreview}</span>}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setShowForm(false)}
+        >
+          <div
+            className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-lg border bg-[hsl(var(--card))] shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+              <div>
+                <p className="text-sm font-semibold">New purchase entry</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Fill in purchase details below</p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setShowForm(false)}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-          </Field>
 
-          <div className="flex gap-2 pt-1">
-            <Button type="submit" size="sm" disabled={saving} className="h-8 text-xs cursor-pointer">
-              {saving ? "Saving..." : "Save entry"}
-            </Button>
-            <Button type="button" variant="outline" size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowForm(false)}>
-              Cancel
-            </Button>
+            <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
+              <div className="overflow-y-auto px-4 py-3 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Ledger No." hint="Auto-generated">
+                    <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
+                  </Field>
+                  <Field label="Date" hint="Defaults to today">
+                    <input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} className={inputCls} />
+                  </Field>
+                  <Field label="Link type">
+                    <select value={linkMode} onChange={e => setLinkMode(e.target.value as PurchaseLinkMode)} className={inputCls}>
+                      <option value="general">General</option>
+                      <option value="project">Project based</option>
+                      <option value="order">Order based</option>
+                    </select>
+                  </Field>
+
+                  {linkMode === "project" && (
+                    <Field label="Project">
+                      <input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" className={inputCls} />
+                    </Field>
+                  )}
+
+                  {linkMode === "order" && (
+                    <Field label="Order" hint="Auto-fills product from first order line">
+                      <select required value={orderId} onChange={e => onOrderChange(e.target.value)} className={inputCls}>
+                        <option value="">Select order</option>
+                        {orders.map(o => (
+                          <option key={o.id} value={o.id}>{o.orderNumber} — {o.clientName}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+
+                  <Field label="Supplier">
+                    <select value={supplierId} onChange={e => onSupplierChange(e.target.value)} className={inputCls}>
+                      <option value="">Select supplier</option>
+                      {suppliers.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Product name">
+                    <input required value={productName} onChange={e => setProductName(e.target.value)} placeholder="Product or service" className={inputCls} />
+                  </Field>
+
+                  <Field label="Transaction type">
+                    <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
+                      {PURCHASE_TRANSACTION_TYPES.map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Category">
+                    <select value={category} onChange={e => setCategory(e.target.value as PurchaseCategory)} className={inputCls}>
+                      {PURCHASE_CATEGORIES.map(c => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Quantity">
+                    <input type="number" min="0" step="any" value={quantity} onChange={e => setQuantity(e.target.value)} className={inputCls} />
+                  </Field>
+
+                  <Field label="Unit price">
+                    <input type="number" min="0" step="any" required value={unitPrice} onChange={e => setUnitPrice(e.target.value)} className={inputCls} />
+                  </Field>
+
+                  <Field label="Total amount" hint="Auto: quantity × unit price">
+                    <input readOnly value={fmtMoney(totalAmount)} className={inputCls + " bg-[hsl(var(--muted))]/30 font-medium"} />
+                  </Field>
+
+                  <Field label="Due date">
+                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
+                  </Field>
+
+                  <div className="sm:col-span-2">
+                    <Field label="Account details" hint="Auto-filled from supplier bank info">
+                      <input value={accountDetails} onChange={e => setAccountDetails(e.target.value)} placeholder="Bank account / IBAN" className={inputCls} />
+                    </Field>
+                  </div>
+                </div>
+
+                <Field label="Note">
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inputCls + " h-auto py-1.5 resize-none"} />
+                </Field>
+
+                <Field label="Payment proof">
+                  <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30">
+                    <Upload className="h-3.5 w-3.5" /> Upload proof
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0] ?? null
+                      setProofFile(file)
+                      setProofPreview(file?.name ?? "")
+                    }} />
+                  </label>
+                  {proofPreview && <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 truncate">{proofPreview}</p>}
+                </Field>
+              </div>
+
+              <div className="flex gap-2 px-4 py-3 border-t shrink-0 bg-[hsl(var(--card))]">
+                <Button type="submit" size="sm" disabled={saving} className="h-8 text-xs flex-1 cursor-pointer">
+                  {saving ? "Saving..." : "Save entry"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowForm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
           </div>
-        </form>
+        </div>
       )}
 
       <div className="rounded-lg border overflow-x-auto">
