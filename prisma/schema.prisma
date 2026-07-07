@@ -110,6 +110,37 @@ model ErpPurchaseOrder {
   @@map("erp_purchase_orders")
 }
 
+model ErpPurchaseLedger {
+  id                String   @id @default(cuid())
+  ledgerNumber      String   @unique @map("ledger_number")
+  transactionDate   String   @map("transaction_date")
+  linkMode          String   @default("general") @map("link_mode")
+  projectName       String   @default("") @map("project_name")
+  orderId           String?  @map("order_id")
+  orderNumber       String   @default("") @map("order_number")
+  supplierId        String?  @map("supplier_id")
+  supplierName      String   @default("") @map("supplier_name")
+  productName       String   @default("") @map("product_name")
+  transactionType   String   @default("purchase") @map("transaction_type")
+  category          String   @default("expense")
+  quantity          Float    @default(0)
+  unitPrice         Float    @default(0) @map("unit_price")
+  totalAmount       Float    @default(0) @map("total_amount")
+  notes             String   @default("")
+  dueDate           String   @default("") @map("due_date")
+  accountDetails    String   @default("") @map("account_details")
+  paymentProofUrl   String   @default("") @map("payment_proof_url")
+  paymentProofName  String   @default("") @map("payment_proof_name")
+  createdBy         String   @default("") @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([transactionDate])
+  @@index([supplierId])
+  @@index([orderId])
+  @@index([category])
+  @@map("erp_purchase_ledger")
+}
+
 model ErpOrder {
   id               String   @id @default(cuid())
   orderNumber      String   @map("order_number")
