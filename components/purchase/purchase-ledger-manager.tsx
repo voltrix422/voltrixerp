@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -160,6 +160,7 @@ export function PurchaseLedgerManager() {
   const [filterDueFrom, setFilterDueFrom] = useState("")
   const [filterDueTo, setFilterDueTo] = useState("")
   const [exporting, setExporting] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const [payEntry, setPayEntry] = useState<PurchaseLedgerEntry | null>(null)
   const [payAmount, setPayAmount] = useState("")
@@ -594,62 +595,94 @@ export function PurchaseLedgerManager() {
         </div>
       </div>
 
-      <section className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[180px] max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-            <input
-              value={filterSearch}
-              onChange={e => setFilterSearch(e.target.value)}
-              placeholder="Search ledger, supplier, project, items..."
-              className={inputCls + " pl-8"}
-            />
-          </div>
-          <select value={filterLinkMode} onChange={e => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
-            <option value="all">All link types</option>
-            {PURCHASE_LINK_MODES.map(mode => (
-              <option key={mode.value} value={mode.value}>{mode.label}</option>
-            ))}
-          </select>
-          <select value={filterTransactionType} onChange={e => setFilterTransactionType(e.target.value)} className={filterSelectCls}>
-            <option value="all">All transaction types</option>
-            {PURCHASE_TRANSACTION_TYPES.map(t => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-          <select value={filterSupplierId} onChange={e => setFilterSupplierId(e.target.value)} className={filterSelectCls + " max-w-[160px]"}>
-            <option value="all">All suppliers</option>
-            {suppliers.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-          <select value={filterPaymentStatus} onChange={e => setFilterPaymentStatus(e.target.value)} className={filterSelectCls}>
-            <option value="all">All payments</option>
-            <option value="paid">Fully paid</option>
-            <option value="partial">Partially paid</option>
-            <option value="due">Has amount due</option>
-          </select>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">Date</span>
-          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={filterSelectCls + " w-[130px]"} />
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={filterSelectCls + " w-[130px]"} />
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0 ml-1">Due</span>
-          <input type="date" value={filterDueFrom} onChange={e => setFilterDueFrom(e.target.value)} className={filterSelectCls + " w-[130px]"} />
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-          <input type="date" value={filterDueTo} onChange={e => setFilterDueTo(e.target.value)} className={filterSelectCls + " w-[130px]"} />
+      <section className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden shadow-sm">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(open => !open)}
+          className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer border-b border-[hsl(var(--border))]/60"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
+          <span className="text-xs font-semibold">Filters & summary</span>
           {hasActiveFilters && (
-            <Button type="button" size="sm" variant="ghost" className="h-8 text-[10px] cursor-pointer ml-auto" onClick={clearFilters}>
-              <RotateCcw className="h-3 w-3" /> Clear filters
-            </Button>
+            <Badge variant="outline" className="text-[9px] h-5 px-1.5 border-[#1faca6]/40 text-[#1faca6]">
+              Active
+            </Badge>
           )}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] border-t border-[hsl(var(--border))] pt-2">
-          <span><strong className="text-[hsl(var(--foreground))]">{filterStats.count}</strong> shown</span>
-          <span>Total <strong className="text-[#1faca6]">{fmtMoney(filterStats.total)}</strong></span>
-          <span>Paid <strong className="text-emerald-600">{fmtMoney(filterStats.paid)}</strong></span>
-          {filterStats.due > 0 && <span>Due <strong className="text-amber-600">{fmtMoney(filterStats.due)}</strong></span>}
+          <span className="ml-auto flex items-center gap-2">
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))] hidden sm:inline">
+              {filterStats.count} shown · {fmtMoney(filterStats.total)}
+            </span>
+            {filtersOpen
+              ? <ChevronUp className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+              : <ChevronDown className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />}
+          </span>
+        </button>
+
+        <div className="p-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+              <input
+                value={filterSearch}
+                onChange={e => setFilterSearch(e.target.value)}
+                placeholder="Search ledger, supplier, project, items..."
+                className={inputCls + " pl-8"}
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button type="button" size="sm" variant="ghost" className="h-8 text-[10px] cursor-pointer shrink-0" onClick={clearFilters}>
+                <RotateCcw className="h-3 w-3" /> Clear
+              </Button>
+            )}
+          </div>
+
+          {filtersOpen && (
+            <div className="space-y-3 pt-1 border-t border-[hsl(var(--border))]/60">
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={filterLinkMode} onChange={e => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
+                  <option value="all">All link types</option>
+                  {PURCHASE_LINK_MODES.map(mode => (
+                    <option key={mode.value} value={mode.value}>{mode.label}</option>
+                  ))}
+                </select>
+                <select value={filterTransactionType} onChange={e => setFilterTransactionType(e.target.value)} className={filterSelectCls}>
+                  <option value="all">All transaction types</option>
+                  {PURCHASE_TRANSACTION_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <select value={filterSupplierId} onChange={e => setFilterSupplierId(e.target.value)} className={filterSelectCls + " max-w-[180px]"}>
+                  <option value="all">All suppliers</option>
+                  {suppliers.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <select value={filterPaymentStatus} onChange={e => setFilterPaymentStatus(e.target.value)} className={filterSelectCls}>
+                  <option value="all">All payments</option>
+                  <option value="paid">Fully paid</option>
+                  <option value="partial">Partially paid</option>
+                  <option value="due">Has amount due</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0 w-8">Date</span>
+                <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={filterSelectCls + " w-[132px]"} />
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+                <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={filterSelectCls + " w-[132px]"} />
+                <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0 ml-2 w-8">Due</span>
+                <input type="date" value={filterDueFrom} onChange={e => setFilterDueFrom(e.target.value)} className={filterSelectCls + " w-[132px]"} />
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+                <input type="date" value={filterDueTo} onChange={e => setFilterDueTo(e.target.value)} className={filterSelectCls + " w-[132px]"} />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] rounded-md bg-[hsl(var(--muted))]/15 px-3 py-2">
+            <span><strong className="text-[hsl(var(--foreground))]">{filterStats.count}</strong> shown</span>
+            <span>Total <strong className="text-[#1faca6]">{fmtMoney(filterStats.total)}</strong></span>
+            <span>Paid <strong className="text-emerald-600">{fmtMoney(filterStats.paid)}</strong></span>
+            <span>Due <strong className="text-amber-600">{fmtMoney(filterStats.due)}</strong></span>
+          </div>
         </div>
       </section>
 
