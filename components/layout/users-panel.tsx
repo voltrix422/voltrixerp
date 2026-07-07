@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, type User, type Module, type UserRole } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -236,9 +237,16 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
 
 export function UsersPanel() {
   const [open, setOpen] = useState(false)
+  const searchParams = useSearchParams()
   const [users, setUsers] = useState<User[]>([])
   const [adding, setAdding] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (searchParams?.get("manageUsers") === "1") {
+      setOpen(true)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (!open) return

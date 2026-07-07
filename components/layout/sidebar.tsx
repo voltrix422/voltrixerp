@@ -37,7 +37,9 @@ const NAV_ORDER: Array<{
   { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Wallet, kind: "link" },
 ]
 
-const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any }> = []
+const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any }> = [
+  { href: "/dashboard?manageUsers=1", label: "Manage Users", icon: Users2 },
+]
 
 const navSecondary = [
   { href: "/settings", label: "Settings", icon: Settings },
@@ -154,7 +156,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           )
         })}
         {visibleAdminNav.map(({ href, label, icon: Icon }) => {
-          const active = pathname?.startsWith(href) || false
+          const active = pathname?.startsWith(href.split("?")[0]) || false
           return (
             <Link key={href} href={href} onClick={onNavigate} className={linkClass(active)}>
               <Icon className="h-4 w-4 shrink-0" />
