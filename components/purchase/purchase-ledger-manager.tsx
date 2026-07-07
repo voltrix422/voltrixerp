@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Receipt, Package, CreditCard } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Receipt, Package, CreditCard, Pencil } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -19,9 +19,11 @@ import {
   PURCHASE_TRANSACTION_TYPES,
   savePurchaseLedgerEntry,
   sumItemTotals,
+  sumPayments,
   type PurchaseCategory,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
+  type PurchaseLedgerPayment,
   type PurchaseLinkMode,
   type PurchaseTransactionType,
 } from "@/lib/purchase-ledger"
@@ -99,11 +101,13 @@ function DetailCell({ label, children }: { label: string; children: React.ReactN
 function LedgerEntryDetailModal({
   entry,
   onClose,
+  onEdit,
   onPayDue,
   onDelete,
 }: {
   entry: PurchaseLedgerEntry
   onClose: () => void
+  onEdit: () => void
   onPayDue: () => void
   onDelete: () => void
 }) {
@@ -225,6 +229,9 @@ function LedgerEntryDetailModal({
         </div>
 
         <div className="flex flex-wrap gap-2 px-4 sm:px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </Button>
           {entry.amountDue > 0 && (
             <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onPayDue}>
               <Wallet className="h-3.5 w-3.5" /> Pay due
@@ -260,6 +267,10 @@ export function PurchaseLedgerManager() {
   const [payProofPreview, setPayProofPreview] = useState("")
   const [paySaving, setPaySaving] = useState(false)
   const [detailEntryId, setDetailEntryId] = useState<string | null>(null)
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  const [existingPayments, setExistingPayments] = useState<PurchaseLedgerPayment[]>([])
+  const [originalCreatedBy, setOriginalCreatedBy] = useState("")
+  const [supplierNameFallback, setSupplierNameFallback] = useState("")
 
   const [ledgerNumber, setLedgerNumber] = useState("PL-0001")
   const [transactionDate, setTransactionDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -279,7 +290,11 @@ export function PurchaseLedgerManager() {
 
   const grandTotal = useMemo(() => sumItemTotals(lineItems), [lineItems])
   const payingNow = parseFloat(amountPayingNow) || 0
-  const amountDueNow = Math.max(0, grandTotal - payingNow)
+  const existingPaid = useMemo(() => sumPayments(existingPayments), [existingPayments])
+  const amountDueNow = editingEntryId
+    ? Math.max(0, grandTotal - existingPaid)
+    : Math.max(0, grandTotal - payingNow)
+  const isEditing = Boolean(editingEntryId)
 
   const selectedOrder = orders.find(o => o.id === orderId)
   const selectedSupplier = suppliers.find(s => s.id === supplierId)
@@ -309,6 +324,10 @@ export function PurchaseLedgerManager() {
   }, [])
 
   function resetForm() {
+    setEditingEntryId(null)
+    setExistingPayments([])
+    setOriginalCreatedBy("")
+    setSupplierNameFallback("")
     setProjectName("")
     setOrderId("")
     setSupplierId("")
@@ -325,10 +344,52 @@ export function PurchaseLedgerManager() {
     setTransactionDate(new Date().toISOString().slice(0, 10))
   }
 
+  function closeForm() {
+    setShowForm(false)
+    resetForm()
+  }
+
   async function openNewForm() {
     resetForm()
     const next = await getNextLedgerNumber()
     setLedgerNumber(next)
+    setShowForm(true)
+  }
+
+  function openEditForm(entry: PurchaseLedgerEntry) {
+    setEditingEntryId(entry.id)
+    setExistingPayments(entry.payments)
+    setOriginalCreatedBy(entry.createdBy)
+    setSupplierNameFallback(entry.supplierName || "")
+    setLedgerNumber(entry.ledgerNumber)
+    setTransactionDate(entry.transactionDate)
+    setLinkMode(entry.linkMode)
+    setProjectName(entry.projectName || "")
+    setOrderId(entry.orderId || "")
+    setSupplierId(
+      entry.supplierId
+      || suppliers.find(s => s.name === entry.supplierName)?.id
+      || "",
+    )
+    setLineItems(
+      entry.items.length > 0
+        ? entry.items.map(item => ({ ...item }))
+        : [newLedgerItem({
+          productName: entry.productName,
+          quantity: entry.quantity,
+          unitPrice: entry.unitPrice,
+          lineTotal: entry.totalAmount,
+        })],
+    )
+    setTransactionType(entry.transactionType)
+    setCategory(entry.category)
+    setNotes(entry.notes || "")
+    setDueDate(entry.dueDate || "")
+    setAccountDetails(entry.accountDetails || "")
+    setAmountPayingNow("")
+    setProofFile(null)
+    setProofPreview("")
+    setDetailEntryId(null)
     setShowForm(true)
   }
 
@@ -355,26 +416,6 @@ export function PurchaseLedgerManager() {
     if (lineItems.length === 0 || !lineItems.some(i => i.productName.trim())) return
     setSaving(true)
     try {
-      const payments = []
-      if (payingNow > 0) {
-        let proofUrl = ""
-        let proofName = ""
-        if (proofFile) {
-          proofUrl = await uploadFile(proofFile, "payment-proofs")
-          proofName = proofFile.name
-        }
-        payments.push({
-          id: Date.now().toString(),
-          amount: payingNow,
-          date: transactionDate,
-          proofUrl,
-          proofName,
-          notes: "Initial payment",
-          createdAt: new Date().toISOString(),
-          createdBy: user.name,
-        })
-      }
-
       const normalizedItems = lineItems
         .filter(i => i.productName.trim())
         .map(i => ({
@@ -383,7 +424,38 @@ export function PurchaseLedgerManager() {
           unitPrice: i.unitPrice || calcUnitPrice(i),
         }))
 
+      const totalAmount = sumItemTotals(normalizedItems)
+      let payments: PurchaseLedgerPayment[] = []
+      let amountPaid = 0
+      let amountDue = totalAmount
+
+      if (isEditing) {
+        payments = existingPayments
+        amountPaid = sumPayments(payments)
+        amountDue = Math.max(0, totalAmount - amountPaid)
+      } else if (payingNow > 0) {
+        let proofUrl = ""
+        let proofName = ""
+        if (proofFile) {
+          proofUrl = await uploadFile(proofFile, "payment-proofs")
+          proofName = proofFile.name
+        }
+        payments = [{
+          id: Date.now().toString(),
+          amount: payingNow,
+          date: transactionDate,
+          proofUrl,
+          proofName,
+          notes: "Initial payment",
+          createdAt: new Date().toISOString(),
+          createdBy: user.name,
+        }]
+        amountPaid = payingNow
+        amountDue = Math.max(0, totalAmount - payingNow)
+      }
+
       const saved = await savePurchaseLedgerEntry({
+        ...(isEditing ? { id: editingEntryId! } : {}),
         ledgerNumber,
         transactionDate,
         linkMode,
@@ -391,15 +463,15 @@ export function PurchaseLedgerManager() {
         orderId: linkMode === "order" ? orderId : null,
         orderNumber: linkMode === "order" ? (selectedOrder?.orderNumber ?? "") : "",
         supplierId: supplierId || null,
-        supplierName: selectedSupplier?.name ?? "",
+        supplierName: selectedSupplier?.name ?? supplierNameFallback,
         productName: normalizedItems[0]?.productName ?? "",
         transactionType,
         category,
         quantity: normalizedItems.reduce((s, i) => s + i.quantity, 0),
         unitPrice: normalizedItems[0]?.unitPrice ?? 0,
-        totalAmount: sumItemTotals(normalizedItems),
-        amountPaid: payingNow,
-        amountDue: Math.max(0, sumItemTotals(normalizedItems) - payingNow),
+        totalAmount,
+        amountPaid,
+        amountDue,
         items: normalizedItems,
         payments,
         notes,
@@ -407,13 +479,16 @@ export function PurchaseLedgerManager() {
         accountDetails,
         paymentProofUrl: payments[0]?.proofUrl ?? "",
         paymentProofName: payments[0]?.proofName ?? "",
-        createdBy: user.name,
+        createdBy: isEditing ? originalCreatedBy : user.name,
       })
 
       if (saved) {
-        setEntries(prev => [saved, ...prev])
-        setShowForm(false)
-        resetForm()
+        setEntries(prev => isEditing
+          ? prev.map(row => row.id === saved.id ? saved : row)
+          : [saved, ...prev])
+        const wasEditing = isEditing
+        closeForm()
+        if (wasEditing) setDetailEntryId(saved.id)
       }
     } finally {
       setSaving(false)
@@ -506,14 +581,16 @@ export function PurchaseLedgerManager() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4" onClick={closeForm}>
           <div className="w-full sm:max-w-6xl max-h-[94vh] flex flex-col rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/15">
               <div>
-                <p className="text-sm font-semibold">New purchase entry</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Multiple items · partial payments · auto totals</p>
+                <p className="text-sm font-semibold">{isEditing ? "Edit purchase entry" : "New purchase entry"}</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {isEditing ? "Update entry details · payments kept as recorded" : "Multiple items · partial payments · auto totals"}
+                </p>
               </div>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setShowForm(false)}>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={closeForm}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -646,42 +723,54 @@ export function PurchaseLedgerManager() {
                       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</p>
                       <p className="text-xs font-semibold sm:mt-0.5">{fmtMoney(grandTotal)}</p>
                     </div>
-                    <div className="min-w-0">
-                      <label className="text-[10px] font-medium text-[hsl(var(--foreground))] block mb-0.5">Paying now</label>
-                      <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
-                      <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">e.g. 50,000</p>
-                    </div>
+                    {isEditing ? (
+                      <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Paid</p>
+                        <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">{fmtMoney(existingPaid)}</p>
+                      </div>
+                    ) : (
+                      <div className="min-w-0">
+                        <label className="text-[10px] font-medium text-[hsl(var(--foreground))] block mb-0.5">Paying now</label>
+                        <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
+                        <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">e.g. 50,000</p>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
                       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount due</p>
                       <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
                     </div>
                   </div>
+                  {isEditing && (
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-2">Use Pay due from the ledger to add more payments.</p>
+                  )}
                 </section>
 
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+                <div className={`grid gap-2 items-end ${isEditing ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-[1fr_auto]"}`}>
                   <Field label="Note">
                     <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes..." className={inputCls} />
                   </Field>
-                  <div className="min-w-0 sm:min-w-[220px]">
-                    <label className="text-[11px] font-medium text-[hsl(var(--foreground))] block mb-1">Payment proof</label>
-                    <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30 w-full">
-                      <Upload className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{proofPreview || "Upload screenshot"}</span>
-                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
-                        const file = e.target.files?.[0] ?? null
-                        setProofFile(file)
-                        setProofPreview(file?.name ?? "")
-                      }} />
-                    </label>
-                  </div>
+                  {!isEditing && (
+                    <div className="min-w-0 sm:min-w-[220px]">
+                      <label className="text-[11px] font-medium text-[hsl(var(--foreground))] block mb-1">Payment proof</label>
+                      <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30 w-full">
+                        <Upload className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{proofPreview || "Upload screenshot"}</span>
+                        <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
+                          const file = e.target.files?.[0] ?? null
+                          setProofFile(file)
+                          setProofPreview(file?.name ?? "")
+                        }} />
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="flex gap-2 px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
                 <Button type="submit" size="sm" disabled={saving} className="h-8 text-xs flex-1 sm:flex-none sm:min-w-[120px] cursor-pointer">
-                  {saving ? "Saving..." : "Save entry"}
+                  {saving ? "Saving..." : isEditing ? "Save changes" : "Save entry"}
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs cursor-pointer" onClick={closeForm}>
                   Cancel
                 </Button>
               </div>
@@ -694,6 +783,7 @@ export function PurchaseLedgerManager() {
         <LedgerEntryDetailModal
           entry={detailEntry}
           onClose={() => setDetailEntryId(null)}
+          onEdit={() => openEditForm(detailEntry)}
           onPayDue={() => {
             openPayModal(detailEntry)
           }}
@@ -810,6 +900,9 @@ export function PurchaseLedgerManager() {
                 </td>
                 <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 cursor-pointer" title="Edit" onClick={() => openEditForm(entry)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                     {entry.amountDue > 0 && (
                       <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => openPayModal(entry)}>
                         <Wallet className="h-3 w-3" /> Pay due
