@@ -37,8 +37,8 @@ const NAV_ORDER: Array<{
   { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Wallet, kind: "link" },
 ]
 
-const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any }> = [
-  { href: "/dashboard?manageUsers=1", label: "Manage Users", icon: Users2 },
+const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any; module?: Module }> = [
+  { href: "/dashboard?manageUsers=1", label: "Manage Users", icon: Users2, module: "users" },
 ]
 
 const navSecondary = [
@@ -70,7 +70,9 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
     return hasModule(item.module)
   }
 
-  const visibleAdminNav = isSuperadminUser ? ADMIN_ONLY_NAV : []
+  const visibleAdminNav = ADMIN_ONLY_NAV.filter((item) => (
+    isSuperadminUser || (item.module ? hasModule(item.module) : false)
+  ))
 
   const linkClass = (active: boolean) =>
     cn(

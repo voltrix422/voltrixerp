@@ -1,4 +1,4 @@
-export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos"
+export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos" | "users"
 
 export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager" | "view_only"
 
@@ -29,7 +29,7 @@ function normalizeRole(rawRole: unknown): UserRole {
   return "user"
 }
 
-export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty", "pos"]
+export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty", "pos", "users"]
 
 export const MODULE_LABELS: Record<Module, string> = {
   dashboard: "Dashboard",
@@ -45,6 +45,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   tickets: "Tickets",
   warranty: "Warranty",
   pos: "POS",
+  users: "Manage Users",
 }
 
 /** Roles that superadmin can assign when creating/editing users. */
