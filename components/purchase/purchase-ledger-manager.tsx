@@ -32,11 +32,15 @@ const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
 
 const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
-  <div className="space-y-1">
+  <div className="space-y-1 min-w-0">
     <label className="text-[11px] font-medium text-[hsl(var(--foreground))]">{label}</label>
     {children}
     {hint && <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-tight">{hint}</p>}
   </div>
+)
+
+const DottedRule = () => (
+  <div className="border-t border-dotted border-[hsl(var(--border))]" aria-hidden />
 )
 
 function fmtMoney(n: number) {
@@ -345,79 +349,72 @@ export function PurchaseLedgerManager() {
             </div>
 
             <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
-              <div className="overflow-y-auto px-5 py-4 space-y-4">
-                <section>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Entry details</p>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
-                    <Field label="Ledger No." hint="Auto-generated">
-                      <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
-                    </Field>
-                    <Field label="Date" hint="Today">
-                      <input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} className={inputCls} />
-                    </Field>
-                    <Field label="Link type">
-                      <select value={linkMode} onChange={e => setLinkMode(e.target.value as PurchaseLinkMode)} className={inputCls}>
-                        <option value="general">General</option>
-                        <option value="project">Project based</option>
-                        <option value="order">Order based</option>
-                      </select>
-                    </Field>
-                    {linkMode === "project" ? (
-                      <Field label="Project">
-                        <input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" className={inputCls} />
-                      </Field>
-                    ) : linkMode === "order" ? (
-                      <Field label="Order" hint="Loads items">
-                        <select required value={orderId} onChange={e => onOrderChange(e.target.value)} className={inputCls}>
-                          <option value="">Select order</option>
-                          {orders.map(o => (
-                            <option key={o.id} value={o.id}>{o.orderNumber} — {o.clientName}</option>
-                          ))}
-                        </select>
-                      </Field>
-                    ) : (
-                      <Field label="Transaction type">
-                        <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
-                          {PURCHASE_TRANSACTION_TYPES.map(t => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
-                          ))}
-                        </select>
-                      </Field>
-                    )}
-                    {linkMode !== "general" && (
-                      <Field label="Transaction type">
-                        <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
-                          {PURCHASE_TRANSACTION_TYPES.map(t => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
-                          ))}
-                        </select>
-                      </Field>
-                    )}
-                    <Field label="Category">
-                      <select value={category} onChange={e => setCategory(e.target.value as PurchaseCategory)} className={inputCls}>
-                        {PURCHASE_CATEGORIES.map(c => (
-                          <option key={c.value} value={c.value}>{c.label}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Due date">
-                      <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
-                    </Field>
-                  </div>
+              <div className="overflow-y-auto px-5 py-4 space-y-3">
+                <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-2 gap-y-2">
+                  <Field label="Ledger No." hint="Auto-generated">
+                    <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
+                  </Field>
+                  <Field label="Date" hint="Today">
+                    <input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} className={inputCls} />
+                  </Field>
+                  <Field label="Link type">
+                    <select value={linkMode} onChange={e => setLinkMode(e.target.value as PurchaseLinkMode)} className={inputCls}>
+                      <option value="general">General</option>
+                      <option value="project">Project based</option>
+                      <option value="order">Order based</option>
+                    </select>
+                  </Field>
+                  <Field label="Transaction type">
+                    <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
+                      {PURCHASE_TRANSACTION_TYPES.map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Category">
+                    <select value={category} onChange={e => setCategory(e.target.value as PurchaseCategory)} className={inputCls}>
+                      {PURCHASE_CATEGORIES.map(c => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Due date">
+                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
+                  </Field>
                 </section>
 
-                <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <SupplierPicker
-                    suppliers={suppliers}
-                    supplierId={supplierId}
-                    onSupplierIdChange={setSupplierId}
-                    onSuppliersChange={setSuppliers}
-                    onAccountDetailsChange={onSupplierAccountDetails}
-                    compact
-                  />
-                  <Field label="Account details" hint="From supplier bank info">
-                    <input value={accountDetails} onChange={e => setAccountDetails(e.target.value)} placeholder="Bank account / IBAN" className={inputCls} />
+                <DottedRule />
+
+                {linkMode === "project" && (
+                  <Field label="Project">
+                    <input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" className={inputCls + " max-w-md"} />
                   </Field>
+                )}
+                {linkMode === "order" && (
+                  <Field label="Order" hint="Loads items into lines">
+                    <select required value={orderId} onChange={e => onOrderChange(e.target.value)} className={inputCls + " max-w-md"}>
+                      <option value="">Select order</option>
+                      {orders.map(o => (
+                        <option key={o.id} value={o.id}>{o.orderNumber} — {o.clientName}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+
+                <section className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 items-start">
+                    <SupplierPicker
+                      suppliers={suppliers}
+                      supplierId={supplierId}
+                      onSupplierIdChange={setSupplierId}
+                      onSuppliersChange={setSuppliers}
+                      onAccountDetailsChange={onSupplierAccountDetails}
+                      compact
+                    />
+                    <Field label="Account details" hint="From supplier bank info">
+                      <input value={accountDetails} onChange={e => setAccountDetails(e.target.value)} placeholder="Bank account / IBAN" className={inputCls} />
+                    </Field>
+                  </div>
                 </section>
 
                 <section className="rounded-lg border overflow-hidden">
@@ -472,38 +469,41 @@ export function PurchaseLedgerManager() {
                   </div>
                 </section>
 
-                <section className="rounded-lg border bg-[hsl(var(--muted))]/15 p-3">
+                <section className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-2.5">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Payment</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                    <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
                       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</p>
-                      <p className="text-sm font-semibold mt-0.5">{fmtMoney(grandTotal)}</p>
+                      <p className="text-xs font-semibold sm:mt-0.5">{fmtMoney(grandTotal)}</p>
                     </div>
-                    <Field label="Paying now" hint="e.g. 50,000">
+                    <div className="min-w-0">
+                      <label className="text-[10px] font-medium text-[hsl(var(--foreground))] block mb-0.5">Paying now</label>
                       <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
-                    </Field>
-                    <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2">
+                      <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">e.g. 50,000</p>
+                    </div>
+                    <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
                       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount due</p>
-                      <p className="text-sm font-semibold mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
+                      <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
                     </div>
                   </div>
                 </section>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
                   <Field label="Note">
-                    <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inputCls + " h-auto py-1.5 resize-none"} placeholder="Optional notes..." />
+                    <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes..." className={inputCls} />
                   </Field>
-                  <Field label="Payment proof">
-                    <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30 w-full sm:w-auto">
+                  <div className="min-w-0 sm:min-w-[220px]">
+                    <label className="text-[11px] font-medium text-[hsl(var(--foreground))] block mb-1">Payment proof</label>
+                    <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30 w-full">
                       <Upload className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{proofPreview || "Upload screenshot or PDF"}</span>
+                      <span className="truncate">{proofPreview || "Upload screenshot"}</span>
                       <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
                         const file = e.target.files?.[0] ?? null
                         setProofFile(file)
                         setProofPreview(file?.name ?? "")
                       }} />
                     </label>
-                  </Field>
+                  </div>
                 </div>
               </div>
 
