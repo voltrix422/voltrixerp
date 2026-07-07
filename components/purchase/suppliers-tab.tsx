@@ -1,7 +1,8 @@
 "use client"
 import { useEffect, useMemo, useState } from "react"
-import { getSuppliers, saveSupplier, deleteSupplier, getPOs, type Supplier, type PurchaseOrder } from "@/lib/purchase"
+import { getSuppliers, saveSupplier, deleteSupplier, type Supplier } from "@/lib/purchase"
 import { getPurchaseLedgerEntries, formatLedgerItemsSummary, formatLedgerProject, formatLinkModeLabel, type PurchaseLedgerEntry } from "@/lib/purchase-ledger"
+import { LedgerEntryDetailModal } from "@/components/purchase/ledger-entry-detail-modal"
 import {
   assignSupplierPurchaseRanks,
   getEntriesForSupplier,
@@ -80,25 +81,10 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
   )
 }
 
-function getPosForSupplier(pos: PurchaseOrder[], supplier: Supplier) {
-  const name = supplier.name.trim().toLowerCase()
-  const company = (supplier.company || "").trim().toLowerCase()
-  return pos.filter(po =>
-    po.supplierIds?.includes(supplier.id) ||
-    po.finalizedSupplierId === supplier.id ||
-    po.supplierNames?.some(n => {
-      const v = n.trim().toLowerCase()
-      return v === name || (!!company && v === company)
-    }) ||
-    (po.importedSupplierName || "").trim().toLowerCase() === name
-  )
-}
-
 function SupplierDetail({
   supplier,
   purchaseInfo,
   allEntries,
-  allPos,
   onClose,
   onEdit,
   onDelete,
@@ -106,22 +92,22 @@ function SupplierDetail({
   supplier: Supplier
   purchaseInfo?: SupplierPurchaseInfo
   allEntries: PurchaseLedgerEntry[]
-  allPos: PurchaseOrder[]
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [ledgerEntryId, setLedgerEntryId] = useState<string | null>(null)
 
   const supplierEntries = useMemo(
     () => getEntriesForSupplier(allEntries, supplier),
     [allEntries, supplier],
   )
 
-  const supplierPos = useMemo(
-    () => getPosForSupplier(allPos, supplier),
-    [allPos, supplier],
+  const ledgerEntry = useMemo(
+    () => (ledgerEntryId ? allEntries.find(e => e.id === ledgerEntryId) ?? null : null),
+    [allEntries, ledgerEntryId],
   )
 
   const filteredEntries = useMemo(() => {
@@ -149,6 +135,7 @@ function SupplierDetail({
   ]
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onClick={onClose}>
       <div className="w-full sm:max-w-4xl max-h-[92vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-lg border bg-[hsl(var(--card))] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3 px-4 sm:px-5 py-4 border-b shrink-0">
@@ -242,11 +229,15 @@ function SupplierDetail({
                 </div>
                 <ul className="divide-y max-h-[240px] overflow-y-auto">
                   {filteredEntries.map(entry => (
-                    <li key={entry.id} className="px-3 py-2.5 hover:bg-[hsl(var(--muted))]/10 sm:grid sm:grid-cols-[100px_minmax(0,1fr)_88px_88px_88px_88px_72px] sm:gap-2 sm:items-center">
+                    <li
+                      key={entry.id}
+                      className="px-3 py-2.5 hover:bg-[hsl(var(--muted))]/10 cursor-pointer sm:grid sm:grid-cols-[100px_minmax(0,1fr)_88px_88px_88px_88px_72px] sm:gap-2 sm:items-center"
+                      onClick={() => setLedgerEntryId(entry.id)}
+                    >
                       <p className="text-xs font-semibold text-[#1faca6] font-mono">{entry.ledgerNumber}</p>
                       <div className="min-w-0">
                         <p className="text-xs font-medium truncate">{formatLedgerItemsSummary(entry)}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate capitalize">
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
                           {formatLinkModeLabel(entry.linkMode)} · {formatLedgerProject(entry)}
                         </p>
                       </div>
@@ -254,7 +245,7 @@ function SupplierDetail({
                       <p className="text-[11px] text-right tabular-nums font-medium">{formatCurrency(entry.totalAmount)}</p>
                       <p className="text-[11px] text-right tabular-nums text-emerald-600">{formatCurrency(entry.amountPaid)}</p>
                       <p className="text-[11px] text-right tabular-nums text-amber-600">{formatCurrency(entry.amountDue)}</p>
-                      <div>
+                      <div onClick={e => e.stopPropagation()}>
                         {entry.paymentProofUrl ? (
                           <a href={entry.paymentProofUrl} target="_blank" rel="noreferrer" className="text-[#1faca6] hover:underline inline-flex items-center gap-1 text-[10px]">
                             <FileText className="h-3 w-3" /> View
@@ -269,28 +260,6 @@ function SupplierDetail({
               </div>
             )}
           </div>
-
-          {supplierPos.length > 0 && (
-            <div className="px-4 sm:px-5 py-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold mb-3">
-                <Package className="h-3.5 w-3.5 text-[#1faca6]" />
-                Linked purchase orders ({supplierPos.length})
-              </div>
-              <div className="rounded-lg border overflow-hidden">
-                <ul className="divide-y max-h-[180px] overflow-y-auto">
-                  {supplierPos.slice(0, 20).map(po => (
-                    <li key={po.id} className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-[hsl(var(--muted))]/10">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-[#1faca6] font-mono">{po.poNumber || po.id.slice(0, 8)}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] capitalize">{po.type} · {po.status.replace(/_/g, " ")}</p>
-                      </div>
-                      <Badge variant="outline" className="text-[10px] shrink-0">{po.items.length} items</Badge>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2 px-4 sm:px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
@@ -304,13 +273,21 @@ function SupplierDetail({
         </div>
       </div>
     </div>
+
+    {ledgerEntry && (
+      <LedgerEntryDetailModal
+        entry={ledgerEntry}
+        onClose={() => setLedgerEntryId(null)}
+        readOnly
+      />
+    )}
+    </>
   )
 }
 
 export function SuppliersTab() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [entries, setEntries] = useState<PurchaseLedgerEntry[]>([])
-  const [pos, setPos] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [adding, setAdding] = useState(false)
@@ -323,22 +300,19 @@ export function SuppliersTab() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [supplierRows, entryRows, poRows] = await Promise.all([
+      const [supplierRows, entryRows] = await Promise.all([
         getSuppliers(),
         getPurchaseLedgerEntries(),
-        getPOs(),
       ])
       setSuppliers(supplierRows)
       setEntries(entryRows)
-      setPos(poRows)
       setLoading(false)
     }
     void load()
     const interval = setInterval(() => {
-      Promise.all([getSuppliers(), getPurchaseLedgerEntries(), getPOs()]).then(([s, e, p]) => {
+      Promise.all([getSuppliers(), getPurchaseLedgerEntries()]).then(([s, e]) => {
         setSuppliers(s)
         setEntries(e)
-        setPos(p)
       })
     }, 30000)
     return () => clearInterval(interval)
@@ -529,7 +503,6 @@ export function SuppliersTab() {
           supplier={selected}
           purchaseInfo={statsMap.get(selected.id)}
           allEntries={entries}
-          allPos={pos}
           onClose={() => setSelected(null)}
           onEdit={() => { setEditId(selected.id); setSelected(null) }}
           onDelete={() => handleDelete(selected.id)}
