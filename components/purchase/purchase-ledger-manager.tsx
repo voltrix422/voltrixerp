@@ -332,8 +332,8 @@ export function PurchaseLedgerManager() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-5" onClick={() => setShowForm(false)}>
-          <div className="w-full sm:max-w-5xl max-h-[94vh] flex flex-col rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4" onClick={() => setShowForm(false)}>
+          <div className="w-full sm:max-w-6xl max-h-[94vh] flex flex-col rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/15">
               <div>
                 <p className="text-sm font-semibold">New purchase entry</p>
@@ -430,7 +430,7 @@ export function PurchaseLedgerManager() {
                       <Plus className="h-3 w-3" /> Add item
                     </Button>
                   </div>
-                  <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_72px_96px_108px_32px] gap-2 px-3 py-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-b bg-[hsl(var(--muted))]/10">
+                  <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] gap-3 px-3 py-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-b bg-[hsl(var(--muted))]/10">
                     <span>Product</span>
                     <span>Qty</span>
                     <span>Unit price</span>
@@ -439,7 +439,7 @@ export function PurchaseLedgerManager() {
                   </div>
                   <div className="divide-y">
                     {lineItems.map((item, index) => (
-                      <div key={item.id} className="grid grid-cols-12 sm:grid-cols-[minmax(0,1fr)_72px_96px_108px_32px] gap-2 px-3 py-2 items-center">
+                      <div key={item.id} className="grid grid-cols-12 sm:grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] gap-3 px-3 py-2 items-center">
                         <div className="col-span-12 sm:col-span-1">
                           <label className="text-[10px] text-[hsl(var(--muted-foreground))] sm:hidden mb-0.5 block">Product</label>
                           <input required value={item.productName} onChange={e => setLineItems(prev => prev.map(row => row.id === item.id ? { ...row, productName: e.target.value } : row))} placeholder={`Item ${index + 1}`} className={inputCls} />
