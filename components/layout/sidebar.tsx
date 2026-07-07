@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import type { Module } from "@/lib/auth"
-import { isSuperadmin, roleHasAllModules } from "@/lib/auth"
+import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
 
 const NAV_ORDER: Array<{
   key: string
@@ -38,7 +38,7 @@ const NAV_ORDER: Array<{
 ]
 
 const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any; module?: Module }> = [
-  { href: "/dashboard?manageUsers=1", label: "Manage Users", icon: Users2, module: "users" },
+  { href: "/manage-users", label: "Manage Users", icon: Users2, module: "users" },
 ]
 
 const navSecondary = [
@@ -71,7 +71,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   const visibleAdminNav = ADMIN_ONLY_NAV.filter((item) => (
-    isSuperadminUser || (item.module ? hasModule(item.module) : false)
+    item.module ? hasModuleAccess(user, item.module) : isSuperadminUser
   ))
 
   const linkClass = (active: boolean) =>

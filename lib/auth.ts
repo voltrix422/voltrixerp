@@ -82,6 +82,18 @@ export function isSuperadmin(role: UserRole | string | undefined | null) {
   return normalizeRole(role) === "superadmin"
 }
 
+/** Page/module access — users management is superadmin-only unless explicitly granted. */
+export function hasModuleAccess(
+  user: { role?: string; modules?: Module[] } | null | undefined,
+  module: Module,
+): boolean {
+  if (!user) return false
+  if (module === "users") {
+    return isSuperadmin(user.role) || (user.modules?.includes("users") ?? false)
+  }
+  return roleHasAllModules(user.role) || (user.modules?.includes(module) ?? false)
+}
+
 export function modulesForRole(role: UserRole, selected: Module[]): Module[] {
   if (roleHasAllModules(role)) return [...ALL_MODULES]
   if (role === "sales_agent" && selected.length === 0) return ["crm"]

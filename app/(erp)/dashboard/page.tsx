@@ -1,5 +1,6 @@
 ﻿"use client"
 import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { useAuth } from "@/components/auth-provider"
 import { getPOs, savePO, getSuppliers, STATUS_LABELS, STATUS_VARIANT, type PurchaseOrder, type Supplier } from "@/lib/purchase"
@@ -240,10 +241,18 @@ function POsWidget({ showFilters, setShowFilters, onPendingChange }: { showFilte
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [mainTab, setMainTab] = useState<DashboardMainTab>("overview")
   const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
   const approvalCounts = useDashboardApprovalCounts(!!user && isErpAdmin(user.role))
+
+  useEffect(() => {
+    if (searchParams?.get("manageUsers") === "1") {
+      router.replace("/manage-users")
+    }
+  }, [searchParams, router])
 
   if (!user) return null
 

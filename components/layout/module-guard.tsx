@@ -1,14 +1,14 @@
 "use client"
 import { useAuth } from "@/components/auth-provider"
 import type { Module } from "@/lib/auth"
-import { roleHasAllModules } from "@/lib/auth"
+import { hasModuleAccess } from "@/lib/auth"
 import { ShieldOff } from "lucide-react"
 
 export function ModuleGuard({ module, children }: { module: Module; children: React.ReactNode }) {
   const { user } = useAuth()
   if (!user) return null
 
-  const hasAccess = roleHasAllModules(user.role) || user.modules.includes(module)
+  const hasAccess = hasModuleAccess(user, module)
 
   if (!hasAccess) {
     return (

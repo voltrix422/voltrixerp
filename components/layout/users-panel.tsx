@@ -1,10 +1,9 @@
 "use client"
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, type User, type Module, type UserRole } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Users, Copy } from "lucide-react"
+import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Copy } from "lucide-react"
 import { NotificationEmailsEditor } from "@/components/settings/notification-emails-editor"
 
 function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; onDelete: (id: string) => void }) {
@@ -235,24 +234,15 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
   )
 }
 
-export function UsersPanel() {
-  const [open, setOpen] = useState(false)
-  const searchParams = useSearchParams()
+export function UsersManager() {
   const [users, setUsers] = useState<User[]>([])
   const [adding, setAdding] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (searchParams?.get("manageUsers") === "1") {
-      setOpen(true)
-    }
-  }, [searchParams])
-
-  useEffect(() => {
-    if (!open) return
     setLoading(true)
     getUsers().then(u => { setUsers(u); setLoading(false) })
-  }, [open])
+  }, [])
 
   async function handleSave(updated: User) {
     await saveUser(updated)
@@ -271,39 +261,27 @@ export function UsersPanel() {
   }
 
   return (
-    <>
-      <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 cursor-pointer" onClick={() => setOpen(true)}>
-        <Users className="h-3.5 w-3.5" /> Manage Users
-      </Button>
-
-      {open && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <aside className="relative z-10 flex flex-col w-full max-w-sm h-full bg-[hsl(var(--background))] border-l shadow-xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-              <div>
-                <p className="text-sm font-semibold">User Accounts</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Credentials, page access & notification emails</p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button size="sm" className="h-7 text-xs cursor-pointer" onClick={() => setAdding(v => !v)}>
-                  <Plus className="h-3.5 w-3.5" /> Add
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={() => setOpen(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {loading && <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">Loading...</p>}
-              {adding && <AddUserForm onAdd={handleAdd} onCancel={() => setAdding(false)} />}
-              {users.map(u => (
-                <UserRow key={u.id} u={u} onSave={handleSave} onDelete={handleDelete} />
-              ))}
-            </div>
-          </aside>
+    <div className="flex-1 overflow-auto">
+      <div className="p-6 max-w-3xl">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-base font-semibold">User Accounts</h2>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+              Credentials, page access, and notification emails
+            </p>
+          </div>
+          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setAdding(v => !v)}>
+            <Plus className="h-3.5 w-3.5" /> Add user
+          </Button>
         </div>
-      )}
-    </>
+        <div className="space-y-3">
+          {loading && <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">Loading...</p>}
+          {adding && <AddUserForm onAdd={handleAdd} onCancel={() => setAdding(false)} />}
+          {!loading && users.map(u => (
+            <UserRow key={u.id} u={u} onSave={handleSave} onDelete={handleDelete} />
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
