@@ -332,12 +332,12 @@ export function PurchaseLedgerManager() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-lg border bg-[hsl(var(--card))] shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-5" onClick={() => setShowForm(false)}>
+          <div className="w-full sm:max-w-5xl max-h-[94vh] flex flex-col rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/15">
               <div>
                 <p className="text-sm font-semibold">New purchase entry</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Add multiple items and record partial payments</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Multiple items · partial payments · auto totals</p>
               </div>
               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setShowForm(false)}>
                 <X className="h-4 w-4" />
@@ -345,142 +345,170 @@ export function PurchaseLedgerManager() {
             </div>
 
             <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
-              <div className="overflow-y-auto px-4 py-3 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Ledger No." hint="Auto-generated">
-                    <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
-                  </Field>
-                  <Field label="Date" hint="Defaults to today">
-                    <input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} className={inputCls} />
-                  </Field>
-                  <Field label="Link type">
-                    <select value={linkMode} onChange={e => setLinkMode(e.target.value as PurchaseLinkMode)} className={inputCls}>
-                      <option value="general">General</option>
-                      <option value="project">Project based</option>
-                      <option value="order">Order based</option>
-                    </select>
-                  </Field>
-                  {linkMode === "project" && (
-                    <Field label="Project">
-                      <input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" className={inputCls} />
+              <div className="overflow-y-auto px-5 py-4 space-y-4">
+                <section>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Entry details</p>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
+                    <Field label="Ledger No." hint="Auto-generated">
+                      <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
                     </Field>
-                  )}
-                  {linkMode === "order" && (
-                    <Field label="Order" hint="Loads order items into lines">
-                      <select required value={orderId} onChange={e => onOrderChange(e.target.value)} className={inputCls}>
-                        <option value="">Select order</option>
-                        {orders.map(o => (
-                          <option key={o.id} value={o.id}>{o.orderNumber} — {o.clientName}</option>
+                    <Field label="Date" hint="Today">
+                      <input type="date" required value={transactionDate} onChange={e => setTransactionDate(e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Link type">
+                      <select value={linkMode} onChange={e => setLinkMode(e.target.value as PurchaseLinkMode)} className={inputCls}>
+                        <option value="general">General</option>
+                        <option value="project">Project based</option>
+                        <option value="order">Order based</option>
+                      </select>
+                    </Field>
+                    {linkMode === "project" ? (
+                      <Field label="Project">
+                        <input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" className={inputCls} />
+                      </Field>
+                    ) : linkMode === "order" ? (
+                      <Field label="Order" hint="Loads items">
+                        <select required value={orderId} onChange={e => onOrderChange(e.target.value)} className={inputCls}>
+                          <option value="">Select order</option>
+                          {orders.map(o => (
+                            <option key={o.id} value={o.id}>{o.orderNumber} — {o.clientName}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    ) : (
+                      <Field label="Transaction type">
+                        <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
+                          {PURCHASE_TRANSACTION_TYPES.map(t => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    )}
+                    {linkMode !== "general" && (
+                      <Field label="Transaction type">
+                        <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
+                          {PURCHASE_TRANSACTION_TYPES.map(t => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    )}
+                    <Field label="Category">
+                      <select value={category} onChange={e => setCategory(e.target.value as PurchaseCategory)} className={inputCls}>
+                        {PURCHASE_CATEGORIES.map(c => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>
                     </Field>
-                  )}
-                  <div className="sm:col-span-2">
-                    <SupplierPicker
-                      suppliers={suppliers}
-                      supplierId={supplierId}
-                      onSupplierIdChange={setSupplierId}
-                      onSuppliersChange={setSuppliers}
-                      onAccountDetailsChange={onSupplierAccountDetails}
-                    />
-                  </div>
-                  <Field label="Transaction type">
-                    <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
-                      {PURCHASE_TRANSACTION_TYPES.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Category">
-                    <select value={category} onChange={e => setCategory(e.target.value as PurchaseCategory)} className={inputCls}>
-                      {PURCHASE_CATEGORIES.map(c => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Due date">
-                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
-                  </Field>
-                  <div className="sm:col-span-2">
-                    <Field label="Account details" hint="Auto-filled from supplier bank info">
-                      <input value={accountDetails} onChange={e => setAccountDetails(e.target.value)} placeholder="Bank account / IBAN" className={inputCls} />
+                    <Field label="Due date">
+                      <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
                     </Field>
                   </div>
-                </div>
+                </section>
 
-                <div className="rounded-md border p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold">Items</p>
+                <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <SupplierPicker
+                    suppliers={suppliers}
+                    supplierId={supplierId}
+                    onSupplierIdChange={setSupplierId}
+                    onSuppliersChange={setSuppliers}
+                    onAccountDetailsChange={onSupplierAccountDetails}
+                    compact
+                  />
+                  <Field label="Account details" hint="From supplier bank info">
+                    <input value={accountDetails} onChange={e => setAccountDetails(e.target.value)} placeholder="Bank account / IBAN" className={inputCls} />
+                  </Field>
+                </section>
+
+                <section className="rounded-lg border overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2 border-b bg-[hsl(var(--muted))]/25">
+                    <div>
+                      <p className="text-xs font-semibold">Line items</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Qty × unit price ↔ line total</p>
+                    </div>
                     <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => setLineItems(prev => [...prev, newLedgerItem()])}>
                       <Plus className="h-3 w-3" /> Add item
                     </Button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_72px_96px_108px_32px] gap-2 px-3 py-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-b bg-[hsl(var(--muted))]/10">
+                    <span>Product</span>
+                    <span>Qty</span>
+                    <span>Unit price</span>
+                    <span>Line total</span>
+                    <span />
+                  </div>
+                  <div className="divide-y">
                     {lineItems.map((item, index) => (
-                      <div key={item.id} className="grid grid-cols-12 gap-2 items-end">
-                        <div className="col-span-12 sm:col-span-4">
-                          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Product</label>
+                      <div key={item.id} className="grid grid-cols-12 sm:grid-cols-[minmax(0,1fr)_72px_96px_108px_32px] gap-2 px-3 py-2 items-center">
+                        <div className="col-span-12 sm:col-span-1">
+                          <label className="text-[10px] text-[hsl(var(--muted-foreground))] sm:hidden mb-0.5 block">Product</label>
                           <input required value={item.productName} onChange={e => setLineItems(prev => prev.map(row => row.id === item.id ? { ...row, productName: e.target.value } : row))} placeholder={`Item ${index + 1}`} className={inputCls} />
                         </div>
-                        <div className="col-span-4 sm:col-span-2">
-                          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Qty</label>
+                        <div className="col-span-4 sm:col-span-1">
+                          <label className="text-[10px] text-[hsl(var(--muted-foreground))] sm:hidden mb-0.5 block">Qty</label>
                           <input type="number" min="0" step="any" value={item.quantity || ""} onChange={e => setLineItems(prev => updateItemField(prev, item.id, "quantity", e.target.value))} className={inputCls} />
                         </div>
-                        <div className="col-span-4 sm:col-span-2">
-                          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Unit price</label>
+                        <div className="col-span-4 sm:col-span-1">
+                          <label className="text-[10px] text-[hsl(var(--muted-foreground))] sm:hidden mb-0.5 block">Unit price</label>
                           <input type="number" min="0" step="any" value={item.unitPrice || ""} onChange={e => setLineItems(prev => updateItemField(prev, item.id, "unitPrice", e.target.value))} className={inputCls} />
                         </div>
-                        <div className="col-span-4 sm:col-span-3">
-                          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Line total</label>
+                        <div className="col-span-4 sm:col-span-1">
+                          <label className="text-[10px] text-[hsl(var(--muted-foreground))] sm:hidden mb-0.5 block">Line total</label>
                           <input type="number" min="0" step="any" value={item.lineTotal || ""} onChange={e => setLineItems(prev => updateItemField(prev, item.id, "lineTotal", e.target.value))} className={inputCls} />
                         </div>
-                        <div className="col-span-12 sm:col-span-1 flex justify-end">
-                          {lineItems.length > 1 && (
-                            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => setLineItems(prev => prev.filter(row => row.id !== item.id))}>
+                        <div className="col-span-12 sm:col-span-1 flex sm:justify-center">
+                          {lineItems.length > 1 ? (
+                            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-red-500 shrink-0" onClick={() => setLineItems(prev => prev.filter(row => row.id !== item.id))}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                          )}
+                          ) : <span className="hidden sm:block w-8" />}
                         </div>
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Enter qty + unit price to get line total, or enter qty + line total to auto-calculate unit price.
-                  </p>
-                  <p className="text-xs font-semibold text-right">Grand total: {fmtMoney(grandTotal)}</p>
+                  <div className="flex items-center justify-end gap-2 px-3 py-2 border-t bg-[hsl(var(--muted))]/10">
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</span>
+                    <span className="text-sm font-semibold text-[#1faca6]">{fmtMoney(grandTotal)}</span>
+                  </div>
+                </section>
+
+                <section className="rounded-lg border bg-[hsl(var(--muted))]/15 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Payment</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2">
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</p>
+                      <p className="text-sm font-semibold mt-0.5">{fmtMoney(grandTotal)}</p>
+                    </div>
+                    <Field label="Paying now" hint="e.g. 50,000">
+                      <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
+                    </Field>
+                    <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2">
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount due</p>
+                      <p className="text-sm font-semibold mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <Field label="Note">
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inputCls + " h-auto py-1.5 resize-none"} placeholder="Optional notes..." />
+                  </Field>
+                  <Field label="Payment proof">
+                    <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30 w-full sm:w-auto">
+                      <Upload className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{proofPreview || "Upload screenshot or PDF"}</span>
+                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
+                        const file = e.target.files?.[0] ?? null
+                        setProofFile(file)
+                        setProofPreview(file?.name ?? "")
+                      }} />
+                    </label>
+                  </Field>
                 </div>
-
-                <div className="rounded-md border p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[hsl(var(--muted))]/20">
-                  <Field label="Grand total" hint="Sum of all items">
-                    <input readOnly value={fmtMoney(grandTotal)} className={inputCls + " bg-[hsl(var(--muted))]/30 font-medium"} />
-                  </Field>
-                  <Field label="Paying now" hint="Partial payment e.g. 50,000">
-                    <input type="number" min="0" step="any" value={amountPayingNow} onChange={e => setAmountPayingNow(e.target.value)} placeholder="0" className={inputCls} />
-                  </Field>
-                  <Field label="Amount due" hint="Auto: total − paid">
-                    <input readOnly value={fmtMoney(amountDueNow)} className={inputCls + " bg-[hsl(var(--muted))]/30 font-medium text-amber-700 dark:text-amber-400"} />
-                  </Field>
-                </div>
-
-                <Field label="Note">
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inputCls + " h-auto py-1.5 resize-none"} />
-                </Field>
-
-                <Field label="Payment proof (for amount paying now)">
-                  <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30">
-                    <Upload className="h-3.5 w-3.5" /> Upload proof
-                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
-                      const file = e.target.files?.[0] ?? null
-                      setProofFile(file)
-                      setProofPreview(file?.name ?? "")
-                    }} />
-                  </label>
-                  {proofPreview && <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 truncate">{proofPreview}</p>}
-                </Field>
               </div>
 
-              <div className="flex gap-2 px-4 py-3 border-t shrink-0 bg-[hsl(var(--card))]">
-                <Button type="submit" size="sm" disabled={saving} className="h-8 text-xs flex-1 cursor-pointer">
+              <div className="flex gap-2 px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
+                <Button type="submit" size="sm" disabled={saving} className="h-8 text-xs flex-1 sm:flex-none sm:min-w-[120px] cursor-pointer">
                   {saving ? "Saving..." : "Save entry"}
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setShowForm(false)}>

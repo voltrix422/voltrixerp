@@ -101,12 +101,14 @@ export function SupplierPicker({
   onSupplierIdChange,
   onSuppliersChange,
   onAccountDetailsChange,
+  compact = false,
 }: {
   suppliers: Supplier[]
   supplierId: string
   onSupplierIdChange: (id: string) => void
   onSuppliersChange: (suppliers: Supplier[]) => void
   onAccountDetailsChange?: (details: string) => void
+  compact?: boolean
 }) {
   const [quickOpen, setQuickOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -171,9 +173,11 @@ export function SupplierPicker({
             </Button>
           )}
         </div>
-        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Quick add a supplier now, then edit full profile anytime.
-        </p>
+        {!compact && (
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Quick add a supplier now, then edit full profile anytime.
+          </p>
+        )}
       </div>
 
       {quickOpen && (
