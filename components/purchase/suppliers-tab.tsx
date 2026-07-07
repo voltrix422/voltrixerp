@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useMemo, useState } from "react"
 import { getSuppliers, saveSupplier, deleteSupplier, getPOs, type Supplier, type PurchaseOrder } from "@/lib/purchase"
-import { getPurchaseLedgerEntries, formatLedgerItemsSummary, formatLedgerProject, type PurchaseLedgerEntry } from "@/lib/purchase-ledger"
+import { getPurchaseLedgerEntries, formatLedgerItemsSummary, formatLedgerProject, formatLinkModeLabel, type PurchaseLedgerEntry } from "@/lib/purchase-ledger"
 import {
   assignSupplierPurchaseRanks,
   getEntriesForSupplier,
@@ -113,7 +113,6 @@ function SupplierDetail({
 }) {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
 
   const supplierEntries = useMemo(
     () => getEntriesForSupplier(allEntries, supplier),
@@ -128,13 +127,12 @@ function SupplierDetail({
   const filteredEntries = useMemo(() => {
     return supplierEntries
       .filter(entry => {
-        if (categoryFilter !== "all" && entry.category !== categoryFilter) return false
         if (dateFrom && entry.transactionDate < dateFrom) return false
         if (dateTo && entry.transactionDate > dateTo) return false
         return true
       })
       .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate))
-  }, [supplierEntries, categoryFilter, dateFrom, dateTo])
+  }, [supplierEntries, dateFrom, dateTo])
 
   const entriesTotal = filteredEntries.reduce((s, e) => s + e.totalAmount, 0)
   const entriesPaid = filteredEntries.reduce((s, e) => s + e.amountPaid, 0)
@@ -208,14 +206,6 @@ function SupplierDetail({
                 <Receipt className="h-3.5 w-3.5 text-[#1faca6]" />
                 Purchase ledger
               </div>
-              <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs">
-                <option value="all">All categories</option>
-                <option value="expense">Expense</option>
-                <option value="service_charge">Service charge</option>
-                <option value="inventory">Inventory / purchase</option>
-                <option value="transport">Transport</option>
-                <option value="other">Other</option>
-              </select>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs" />
               <span className="text-[11px] text-[hsl(var(--muted-foreground))]">to</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs" />
@@ -257,7 +247,7 @@ function SupplierDetail({
                       <div className="min-w-0">
                         <p className="text-xs font-medium truncate">{formatLedgerItemsSummary(entry)}</p>
                         <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate capitalize">
-                          {entry.category.replace("_", " ")} · {formatLedgerProject(entry)}
+                          {formatLinkModeLabel(entry.linkMode)} · {formatLedgerProject(entry)}
                         </p>
                       </div>
                       <p className="text-[11px] tabular-nums">{entry.transactionDate}</p>

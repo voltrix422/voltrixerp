@@ -129,6 +129,7 @@ model ErpPurchaseLedger {
   amountPaid        Float    @default(0) @map("amount_paid")
   amountDue         Float    @default(0) @map("amount_due")
   items             Json     @default("[]")
+  supplierGroups    Json     @default("[]") @map("supplier_groups")
   payments          Json     @default("[]")
   notes             String   @default("")
   dueDate           String   @default("") @map("due_date")

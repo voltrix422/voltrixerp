@@ -49,8 +49,37 @@ function sumPayments(payments: LedgerPayment[]) {
   return payments.reduce((sum, p) => sum + p.amount, 0)
 }
 
+type LedgerSupplierGroup = {
+  id: string
+  supplierId: string | null
+  supplierName: string
+  accountDetails: string
+  items: LedgerItem[]
+}
+
+function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map((group, index) => ({
+    id: String((group as LedgerSupplierGroup).id ?? `group-${index}`),
+    supplierId: (group as LedgerSupplierGroup).supplierId || null,
+    supplierName: String((group as LedgerSupplierGroup).supplierName ?? ""),
+    accountDetails: String((group as LedgerSupplierGroup).accountDetails ?? ""),
+    items: parseItems((group as LedgerSupplierGroup).items),
+  }))
+}
+
 function sumItems(items: LedgerItem[]) {
   return items.reduce((sum, item) => sum + item.lineTotal, 0)
+}
+
+function sumSupplierGroups(groups: LedgerSupplierGroup[]) {
+  return groups.reduce((sum, group) => sum + sumItems(group.items), 0)
+}
+
+function normalizeLinkMode(mode: string) {
+  if (mode === "order") return "supplier"
+  if (mode === "project" || mode === "supplier" || mode === "general") return mode
+  return "general"
 }
 
 async function nextLedgerNumber(): Promise<string> {
@@ -114,23 +143,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(row)
   }
 
-  const items = parseItems(body.items)
-  const totalAmount = items.length > 0 ? sumItems(items) : Number(body.totalAmount) || 0
+  const supplierGroups = parseSupplierGroups(body.supplierGroups)
+  const items = supplierGroups.length > 0
+    ? supplierGroups.flatMap(group => group.items)
+    : parseItems(body.items)
+  const totalAmount = supplierGroups.length > 0
+    ? sumSupplierGroups(supplierGroups)
+    : items.length > 0 ? sumItems(items) : Number(body.totalAmount) || 0
   const firstItem = items[0]
   const payments = parsePayments(body.payments)
   const amountPaid = payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0
   const amountDue = Math.max(0, totalAmount - amountPaid)
   const ledgerNumber = body.ledgerNumber || (await nextLedgerNumber())
+  const primaryGroup = supplierGroups[0]
+  const supplierNames = supplierGroups.map(group => group.supplierName).filter(Boolean)
 
   const data = {
     ledgerNumber,
     transactionDate: body.transactionDate || new Date().toISOString().slice(0, 10),
-    linkMode: body.linkMode || "general",
+    linkMode: normalizeLinkMode(body.linkMode || "general"),
     projectName: body.projectName || "",
-    orderId: body.orderId || null,
-    orderNumber: body.orderNumber || "",
-    supplierId: body.supplierId || null,
-    supplierName: body.supplierName || "",
+    orderId: null,
+    orderNumber: "",
+    supplierId: primaryGroup?.supplierId || body.supplierId || null,
+    supplierName: supplierNames.join(", ") || body.supplierName || "",
     productName: firstItem?.productName || body.productName || "",
     transactionType: body.transactionType || "purchase",
     category: body.category || "expense",
@@ -140,10 +176,11 @@ export async function POST(req: NextRequest) {
     amountPaid,
     amountDue,
     items,
+    supplierGroups,
     payments,
     notes: body.notes || "",
     dueDate: body.dueDate || "",
-    accountDetails: body.accountDetails || "",
+    accountDetails: primaryGroup?.accountDetails || body.accountDetails || "",
     paymentProofUrl: payments[0]?.proofUrl || body.paymentProofUrl || "",
     paymentProofName: payments[0]?.proofName || body.paymentProofName || "",
     createdBy: body.createdBy || "",

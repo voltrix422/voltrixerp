@@ -1,5 +1,6 @@
 import type { Supplier } from "@/lib/purchase"
-import type { PurchaseLedgerEntry } from "@/lib/purchase-ledger"
+import type { PurchaseLedgerEntry, PurchaseLedgerSupplierGroup } from "@/lib/purchase-ledger"
+import { sumItemTotals } from "@/lib/purchase-ledger"
 
 export type SupplierPurchaseInfo = {
   totalPurchases: number
@@ -13,13 +14,34 @@ function normalizeName(value: string) {
   return value.trim().toLowerCase()
 }
 
+function groupMatchesSupplier(group: PurchaseLedgerSupplierGroup, supplier: Supplier): boolean {
+  if (group.supplierId && group.supplierId === supplier.id) return true
+  if (!group.supplierName) return false
+  const groupName = normalizeName(group.supplierName)
+  const supplierName = normalizeName(supplier.name)
+  const companyName = normalizeName(supplier.company || "")
+  return groupName === supplierName || (!!companyName && groupName === companyName)
+}
+
 export function entryMatchesSupplier(entry: PurchaseLedgerEntry, supplier: Supplier): boolean {
+  if (entry.supplierGroups.length > 0) {
+    return entry.supplierGroups.some(group => groupMatchesSupplier(group, supplier))
+  }
   if (entry.supplierId && entry.supplierId === supplier.id) return true
   if (!entry.supplierName) return false
   const entryName = normalizeName(entry.supplierName)
   const supplierName = normalizeName(supplier.name)
   const companyName = normalizeName(supplier.company || "")
   return entryName === supplierName || (!!companyName && entryName === companyName)
+}
+
+export function getSupplierAmountFromEntry(entry: PurchaseLedgerEntry, supplier: Supplier): number {
+  if (entry.supplierGroups.length > 0) {
+    return entry.supplierGroups
+      .filter(group => groupMatchesSupplier(group, supplier))
+      .reduce((sum, group) => sum + sumItemTotals(group.items), 0)
+  }
+  return entryMatchesSupplier(entry, supplier) ? entry.totalAmount || 0 : 0
 }
 
 export function getEntriesForSupplier(
@@ -35,6 +57,22 @@ export function buildSupplierPurchaseMap(
   const map = new Map<string, Omit<SupplierPurchaseInfo, "purchaseRank">>()
 
   for (const entry of entries) {
+    if (entry.supplierGroups.length > 0) {
+      for (const group of entry.supplierGroups) {
+        const key = group.supplierId || `name:${normalizeName(group.supplierName)}`
+        if (!group.supplierId && !group.supplierName) continue
+        const prev = map.get(key) || { totalPurchases: 0, totalPaid: 0, totalDue: 0, entryCount: 0 }
+        const groupTotal = sumItemTotals(group.items)
+        const share = entry.totalAmount > 0 ? groupTotal / entry.totalAmount : 0
+        prev.totalPurchases += groupTotal
+        prev.totalPaid += (entry.amountPaid || 0) * share
+        prev.totalDue += (entry.amountDue || 0) * share
+        prev.entryCount += 1
+        map.set(key, prev)
+      }
+      continue
+    }
+
     const key = entry.supplierId || `name:${normalizeName(entry.supplierName)}`
     const prev = map.get(key) || { totalPurchases: 0, totalPaid: 0, totalDue: 0, entryCount: 0 }
     prev.totalPurchases += entry.totalAmount || 0
@@ -51,10 +89,21 @@ export function getSupplierPurchaseInfo(
   entries: PurchaseLedgerEntry[],
 ): Omit<SupplierPurchaseInfo, "purchaseRank"> {
   const linked = getEntriesForSupplier(entries, supplier)
+  const totalPurchases = linked.reduce((s, e) => s + getSupplierAmountFromEntry(e, supplier), 0)
+  const totalPaid = linked.reduce((s, e) => {
+    const amount = getSupplierAmountFromEntry(e, supplier)
+    const share = e.totalAmount > 0 ? amount / e.totalAmount : 0
+    return s + (e.amountPaid || 0) * share
+  }, 0)
+  const totalDue = linked.reduce((s, e) => {
+    const amount = getSupplierAmountFromEntry(e, supplier)
+    const share = e.totalAmount > 0 ? amount / e.totalAmount : 0
+    return s + (e.amountDue || 0) * share
+  }, 0)
   return {
-    totalPurchases: linked.reduce((s, e) => s + (e.totalAmount || 0), 0),
-    totalPaid: linked.reduce((s, e) => s + (e.amountPaid || 0), 0),
-    totalDue: linked.reduce((s, e) => s + (e.amountDue || 0), 0),
+    totalPurchases,
+    totalPaid,
+    totalDue,
     entryCount: linked.length,
   }
 }
