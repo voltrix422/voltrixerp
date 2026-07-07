@@ -26,6 +26,7 @@ import {
   type PurchaseTransactionType,
 } from "@/lib/purchase-ledger"
 import { uploadFile } from "@/lib/upload"
+import { SupplierPicker } from "@/components/purchase/supplier-picker"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -163,14 +164,6 @@ export function PurchaseLedgerManager() {
     setShowForm(true)
   }
 
-  function onSupplierChange(id: string) {
-    setSupplierId(id)
-    const supplier = suppliers.find(s => s.id === id)
-    if (!supplier) return
-    const parts = [supplier.bankAccountName, supplier.bankIban].filter(Boolean)
-    if (parts.length) setAccountDetails(parts.join(" · "))
-  }
-
   function onOrderChange(id: string) {
     setOrderId(id)
     const order = orders.find(o => o.id === id)
@@ -182,6 +175,10 @@ export function PurchaseLedgerManager() {
       unitPrice: 0,
       lineTotal: 0,
     })))
+  }
+
+  function onSupplierAccountDetails(details: string) {
+    if (details) setAccountDetails(details)
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -378,14 +375,15 @@ export function PurchaseLedgerManager() {
                       </select>
                     </Field>
                   )}
-                  <Field label="Supplier">
-                    <select value={supplierId} onChange={e => onSupplierChange(e.target.value)} className={inputCls}>
-                      <option value="">Select supplier</option>
-                      {suppliers.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </Field>
+                  <div className="sm:col-span-2">
+                    <SupplierPicker
+                      suppliers={suppliers}
+                      supplierId={supplierId}
+                      onSupplierIdChange={setSupplierId}
+                      onSuppliersChange={setSuppliers}
+                      onAccountDetailsChange={onSupplierAccountDetails}
+                    />
+                  </div>
                   <Field label="Transaction type">
                     <select value={transactionType} onChange={e => setTransactionType(e.target.value as PurchaseTransactionType)} className={inputCls}>
                       {PURCHASE_TRANSACTION_TYPES.map(t => (

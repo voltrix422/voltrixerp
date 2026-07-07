@@ -156,7 +156,8 @@ export async function getSuppliers(): Promise<Supplier[]> {
     return (data ?? []).map((r: Record<string, unknown>) => ({
       id: r.id as string, name: r.name as string, type: r.type as SupplierType,
       contact: r.contact as string, email: r.email as string, address: r.address as string, company: r.company as string,
-      bankAccountName: r.bank_account_name as string | undefined, bankIban: r.bank_iban as string | undefined,
+      bankAccountName: (r.bankAccountName as string | undefined) ?? (r.bank_account_name as string | undefined),
+      bankIban: (r.bankIban as string | undefined) ?? (r.bank_iban as string | undefined),
       image: (r.image as string) || undefined,
     }))
   } catch { return [] }
