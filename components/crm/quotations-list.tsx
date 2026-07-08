@@ -414,7 +414,7 @@ export function QuotationsList({
         }
         confirmText={converting ? "Converting…" : "Convert to Order"}
         cancelText="Cancel"
-        variant="default"
+        variant="info"
         onConfirm={() => { if (convertConfirm) void handleConvertToOrder(convertConfirm) }}
         onCancel={() => setConvertConfirm(null)}
       />
@@ -777,8 +777,14 @@ function QuotationForm({ currentUser, currentUserId, workspace, clients, existin
 }
 
 // ─── Detail View ──────────────────────────────────────────────────────────────
-function QuotationDetail({ quotation, onClose, onEdit, onDuplicate, onDelete, readOnly }: {
-  quotation: Quotation; onClose: () => void; onEdit: () => void; onDuplicate: () => void; onDelete: (id: string) => void; readOnly?: boolean
+function QuotationDetail({ quotation, onClose, onEdit, onDuplicate, onDelete, onConvertToOrder, readOnly }: {
+  quotation: Quotation
+  onClose: () => void
+  onEdit: () => void
+  onDuplicate: () => void
+  onDelete: (id: string) => void
+  onConvertToOrder?: () => void
+  readOnly?: boolean
 }) {
   const [deleting, setDeleting] = useState(false)
 
@@ -866,6 +872,17 @@ function QuotationDetail({ quotation, onClose, onEdit, onDuplicate, onDelete, re
             <>
               <Button size="sm" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onEdit}><Edit className="h-3.5 w-3.5 mr-1"/>Edit</Button>
               <Button size="sm" variant="outline" className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer" onClick={onDuplicate}><Copy className="h-3.5 w-3.5 mr-1"/>Duplicate</Button>
+              {onConvertToOrder && quotation.status !== "converted" && !quotation.convertedToOrderId && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 sm:h-8 w-full sm:w-auto text-xs cursor-pointer text-violet-700 border-violet-200 hover:bg-violet-50 dark:text-violet-300 dark:border-violet-800 dark:hover:bg-violet-950/40"
+                  onClick={onConvertToOrder}
+                >
+                  <ShoppingCart className="h-3.5 w-3.5 mr-1" />
+                  Convert to Order
+                </Button>
+              )}
               <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer sm:ml-auto" onClick={handleDelete} disabled={deleting}><Trash2 className="h-3.5 w-3.5 mr-1"/>{deleting?"Deleting...":"Delete"}</Button>
             </>
           )}

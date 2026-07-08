@@ -408,6 +408,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         accountDetails: primary?.accountDetails ?? "",
         paymentProofUrl: payments[0]?.proofUrl ?? "",
         paymentProofName: payments[0]?.proofName ?? "",
+        billUrl,
+        billName,
         createdBy: isEditing ? originalCreatedBy : user.name,
         purchaseScopeId,
       })
