@@ -17,7 +17,6 @@ const links = [
   { label: "Contact",             hash: "contact"   },
   { label: "Dealerships",         href: "/dealerships" },
   { label: "Warranty",            href: "/warranty" },
-  { label: "ERP",                 href: "/login" },
 ]
 
 const primaryLinks = links.slice(0, 7)
@@ -123,7 +122,14 @@ export default function Navbar() {
           </div>
         </div>
 
-        <div className={`hidden lg:flex shrink-0 items-center pl-4 xl:pl-6 ml-1 border-l ${dividerClass}`}>
+        <div className={`hidden lg:flex shrink-0 items-center gap-3 xl:gap-4 pl-4 xl:pl-6 ml-1 border-l ${dividerClass}`}>
+          <a
+            href="/login"
+            className={`text-sm xl:text-[15px] transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
+            style={{ letterSpacing: "-0.3px" }}
+          >
+            ERP
+          </a>
           <GetQuoteButton variant={transparent ? "ghost" : "solid"} />
         </div>
 
@@ -147,6 +153,13 @@ export default function Navbar() {
               {l.label}
             </a>
           ))}
+          <a
+            href="/login"
+            onClick={closeMenu}
+            className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer"
+          >
+            ERP
+          </a>
           <div className="pt-3 border-t border-neutral-100">
             <GetQuoteButton onClick={closeMenu} />
           </div>
