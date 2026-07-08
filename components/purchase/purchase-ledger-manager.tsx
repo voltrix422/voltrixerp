@@ -102,7 +102,7 @@ function LineItemsEditor({
           <Plus className="h-3 w-3" /> Add item
         </Button>
       </div>
-      <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] gap-3 px-3 py-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-b bg-[hsl(var(--muted))]/10">
+      <div className="hidden md:grid grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] gap-3 px-3 py-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-b bg-[hsl(var(--muted))]/10">
         <span>Product</span>
         <span>Qty</span>
         <span>Unit price</span>
@@ -111,25 +111,31 @@ function LineItemsEditor({
       </div>
       <div className="divide-y">
         {items.map((item, index) => (
-          <div key={item.id} className="grid grid-cols-12 sm:grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] gap-3 px-3 py-2 items-center">
-            <div className="col-span-12 sm:col-span-1">
+          <div key={item.id} className="px-3 py-3 space-y-2 md:space-y-0 md:grid md:grid-cols-[minmax(0,1fr)_88px_120px_128px_36px] md:gap-3 md:items-end">
+            <div className="min-w-0">
+              <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Product</label>
               <input required value={item.productName} onChange={e => onChange(items.map(row => row.id === item.id ? { ...row, productName: e.target.value } : row))} placeholder={`Item ${index + 1}`} className={inputCls} />
             </div>
-            <div className="col-span-4 sm:col-span-1">
-              <input type="number" min="0" step="any" value={item.quantity || ""} onChange={e => onChange(updateItemField(items, item.id, "quantity", e.target.value))} className={inputCls} />
+            <div className="grid grid-cols-3 gap-2 md:contents">
+              <div className="min-w-0">
+                <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Qty</label>
+                <input type="number" min="0" step="any" value={item.quantity || ""} onChange={e => onChange(updateItemField(items, item.id, "quantity", e.target.value))} className={inputCls} inputMode="decimal" />
+              </div>
+              <div className="min-w-0">
+                <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Unit price</label>
+                <input type="number" min="0" step="any" value={item.unitPrice || ""} onChange={e => onChange(updateItemField(items, item.id, "unitPrice", e.target.value))} className={inputCls} inputMode="decimal" />
+              </div>
+              <div className="min-w-0">
+                <label className="md:hidden text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1 block">Total</label>
+                <input type="number" min="0" step="any" value={item.lineTotal || ""} onChange={e => onChange(updateItemField(items, item.id, "lineTotal", e.target.value))} className={inputCls} inputMode="decimal" />
+              </div>
             </div>
-            <div className="col-span-4 sm:col-span-1">
-              <input type="number" min="0" step="any" value={item.unitPrice || ""} onChange={e => onChange(updateItemField(items, item.id, "unitPrice", e.target.value))} className={inputCls} />
-            </div>
-            <div className="col-span-4 sm:col-span-1">
-              <input type="number" min="0" step="any" value={item.lineTotal || ""} onChange={e => onChange(updateItemField(items, item.id, "lineTotal", e.target.value))} className={inputCls} />
-            </div>
-            <div className="col-span-12 sm:col-span-1 flex sm:justify-center">
+            <div className="flex justify-end md:justify-center">
               {items.length > 1 ? (
                 <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-red-500 shrink-0" onClick={() => onChange(items.filter(row => row.id !== item.id))}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
-              ) : <span className="hidden sm:block w-8" />}
+              ) : <span className="hidden md:block w-8" />}
             </div>
           </div>
         ))}
@@ -142,7 +148,7 @@ function LineItemsEditor({
   )
 }
 
-const filterSelectCls = "h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs min-w-0"
+const filterSelectCls = "h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs min-w-0"
 
 export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: string }) {
   const { user } = useAuth()
@@ -643,7 +649,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
 
           {filtersOpen && (
             <div className="space-y-3 pt-1 border-t border-[hsl(var(--border))]/60">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
                 <select value={filterLinkMode} onChange={e => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
                   <option value="all">All link types</option>
                   {PURCHASE_LINK_MODES.map(mode => (
@@ -656,7 +662,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
-                <select value={filterSupplierId} onChange={e => setFilterSupplierId(e.target.value)} className={filterSelectCls + " max-w-[180px]"}>
+                <select value={filterSupplierId} onChange={e => setFilterSupplierId(e.target.value)} className={filterSelectCls + " lg:max-w-[180px]"}>
                   <option value="all">All suppliers</option>
                   {suppliers.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -669,15 +675,19 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   <option value="due">Has amount due</option>
                 </select>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0 w-8">Date</span>
-                <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={filterSelectCls + " w-[132px]"} />
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-                <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={filterSelectCls + " w-[132px]"} />
-                <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0 ml-2 w-8">Due</span>
-                <input type="date" value={filterDueFrom} onChange={e => setFilterDueFrom(e.target.value)} className={filterSelectCls + " w-[132px]"} />
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
-                <input type="date" value={filterDueTo} onChange={e => setFilterDueTo(e.target.value)} className={filterSelectCls + " w-[132px]"} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0">Date</span>
+                  <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+                  <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0">Due</span>
+                  <input type="date" value={filterDueFrom} onChange={e => setFilterDueFrom(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+                  <input type="date" value={filterDueTo} onChange={e => setFilterDueTo(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
+                </div>
               </div>
             </div>
           )}
@@ -692,23 +702,23 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       </section>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4" onClick={closeForm}>
-          <div className="w-full sm:max-w-6xl max-h-[94vh] flex flex-col rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/15">
-              <div>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4" onClick={closeForm}>
+          <div className="w-full sm:max-w-6xl max-h-[96vh] sm:max-h-[94vh] flex flex-col rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/15">
+              <div className="min-w-0 pr-2">
                 <p className="text-sm font-semibold">{isEditing ? "Edit purchase entry" : "New purchase entry"}</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
                   {isEditing ? "Update entry details · payments kept as recorded" : "Multiple items · partial payments · auto totals"}
                 </p>
               </div>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={closeForm}>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={closeForm}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
             <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
-              <div className="overflow-y-auto px-5 py-4 space-y-3">
-                <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-2 gap-y-2">
+              <div className="overflow-y-auto px-4 sm:px-5 py-4 space-y-3 overscroll-contain">
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <Field label="Ledger No." hint="Auto-generated">
                     <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
                   </Field>
@@ -852,12 +862,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 </div>
               </div>
 
-              <div className="flex gap-2 px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
-                <Button type="submit" size="sm" disabled={saving} className="h-8 text-xs flex-1 sm:flex-none sm:min-w-[120px] cursor-pointer">
-                  {saving ? "Saving..." : isEditing ? "Save changes" : "Save entry"}
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="h-8 text-xs cursor-pointer" onClick={closeForm}>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10 safe-area-pb">
+                <Button type="button" variant="outline" size="sm" className="h-10 sm:h-8 text-xs cursor-pointer w-full sm:w-auto" onClick={closeForm}>
                   Cancel
+                </Button>
+                <Button type="submit" size="sm" disabled={saving} className="h-10 sm:h-8 text-xs w-full sm:w-auto sm:min-w-[120px] cursor-pointer">
+                  {saving ? "Saving..." : isEditing ? "Save changes" : "Save entry"}
                 </Button>
               </div>
             </form>
@@ -922,8 +932,75 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         </div>
       )}
 
-      <div className="rounded-lg border overflow-x-auto">
-        <table className="w-full text-xs min-w-[1200px]">
+      <div className="space-y-3 md:hidden">
+        {loading && (
+          <div className="rounded-lg border px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">Loading...</div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+            {entries.length === 0 ? "No purchase entries yet. Tap \"New purchase\" to add one." : "No entries match your filters."}
+          </div>
+        )}
+        {filtered.map(entry => (
+          <div
+            key={entry.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => setDetailEntryId(entry.id)}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") setDetailEntryId(entry.id) }}
+            className="w-full text-left rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2 hover:bg-[hsl(var(--muted))]/15 cursor-pointer"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold font-mono text-[#1faca6]">{entry.ledgerNumber}</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{entry.transactionDate}{entry.dueDate ? ` · Due ${entry.dueDate}` : ""}</p>
+              </div>
+              <Badge variant="outline" className="text-[10px] shrink-0">{formatLinkModeLabel(entry.linkMode)}</Badge>
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-xs font-medium truncate">{formatLedgerProject(entry)}</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{formatLedgerSuppliers(entry)}</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{formatLedgerItemsSummary(entry)}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-[hsl(var(--border))]/60">
+              <div>
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Total</p>
+                <p className="text-xs font-semibold">{fmtMoney(entry.totalAmount)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Paid</p>
+                <p className="text-xs font-semibold text-emerald-600">{fmtMoney(entry.amountPaid)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Due</p>
+                <p className="text-xs font-semibold text-amber-600">{fmtMoney(entry.amountDue)}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-1" onClick={e => e.stopPropagation()}>
+              <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => exportEntryExcel(entry)}>
+                <FileSpreadsheet className="h-3 w-3" /> Excel
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => void exportEntryPdf(entry)}>
+                <Download className="h-3 w-3" /> PDF
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => openEditForm(entry)}>
+                <Pencil className="h-3 w-3" /> Edit
+              </Button>
+              {entry.amountDue > 0 && (
+                <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => openPayModal(entry)}>
+                  <Wallet className="h-3 w-3" /> Pay due
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-500 cursor-pointer" onClick={() => void handleDelete(entry.id)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden md:block rounded-lg border overflow-x-auto">
+        <table className="w-full text-xs min-w-[1100px]">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
               {[

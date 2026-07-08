@@ -387,9 +387,9 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
   const editingSupplier = suppliers.find(s => s.id === editId)
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-48">
+    <div className="p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative w-full sm:w-48">
           <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
           <input
             value={search}
@@ -398,8 +398,8 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
             className="w-full h-9 pl-6 pr-2 border-b-2 border-t-0 border-x-0 border-[hsl(var(--border))] bg-transparent text-sm focus:outline-none focus:border-[hsl(var(--primary))]"
           />
         </div>
-        <div className="flex items-center gap-3">
-          <p className="text-xs text-[hsl(var(--muted-foreground))] hidden sm:block">
+        <div className="flex items-center justify-between sm:justify-end gap-3">
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
             {loading ? "Loading..." : `${suppliers.length} supplier${suppliers.length !== 1 ? "s" : ""}`}
           </p>
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => { setAdding(true); setEditId(null) }}>
@@ -423,7 +423,7 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
           {filtered.map(supplier => {
             const stats = statsMap.get(supplier.id)
             const isTop = stats?.purchaseRank != null && stats.purchaseRank > 0 && stats.purchaseRank <= 3

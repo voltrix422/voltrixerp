@@ -160,25 +160,27 @@ export function SupplierPicker({
     <>
       <div className="space-y-1">
         <label className="text-[11px] font-medium text-[hsl(var(--foreground))]">Supplier</label>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={supplierId}
             onChange={e => selectSupplier(e.target.value)}
-            className={inputCls + " flex-1"}
+            className={inputCls + " flex-1 min-w-0"}
           >
             <option value="">Select supplier</option>
             {suppliers.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-          <Button type="button" size="sm" variant="outline" className="h-8 text-[10px] shrink-0 cursor-pointer" onClick={() => setQuickOpen(true)}>
-            <Plus className="h-3 w-3" /> Quick add
-          </Button>
-          {selected && (
-            <Button type="button" size="sm" variant="outline" className="h-8 text-[10px] shrink-0 cursor-pointer" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-3 w-3" /> Edit
+          <div className="flex gap-2 shrink-0">
+            <Button type="button" size="sm" variant="outline" className="h-8 text-[10px] flex-1 sm:flex-none cursor-pointer" onClick={() => setQuickOpen(true)}>
+              <Plus className="h-3 w-3" /> Quick add
             </Button>
-          )}
+            {selected && (
+              <Button type="button" size="sm" variant="outline" className="h-8 text-[10px] flex-1 sm:flex-none cursor-pointer" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-3 w-3" /> Edit
+              </Button>
+            )}
+          </div>
         </div>
         {!compact && (
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">

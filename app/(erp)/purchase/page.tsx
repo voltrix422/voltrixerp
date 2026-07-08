@@ -49,9 +49,9 @@ export default function PurchasePage() {
       />
       <div className="flex-1 overflow-auto">
         <div className="max-w-[1400px] mx-auto w-full">
-          <div className="px-6 pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="inline-flex items-center gap-1 rounded-lg border bg-[hsl(var(--muted))]/20 p-1">
+          <div className="px-4 pt-4 sm:px-6">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
+              <div className="inline-flex w-full sm:w-auto items-center gap-1 rounded-lg border bg-[hsl(var(--muted))]/20 p-1 overflow-x-auto">
                 {tabs.map(t => {
                   const Icon = t.icon
                   const active = tab === t.key
@@ -59,7 +59,7 @@ export default function PurchasePage() {
                     <button
                       key={t.key}
                       onClick={() => setTab(t.key)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                      className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                         active
                           ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
                           : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
@@ -71,12 +71,12 @@ export default function PurchasePage() {
                   )
                 })}
               </div>
-              <div className="inline-flex items-center gap-2">
-                <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Purchase ledger</span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">Purchase ledger</span>
                 <select
                   value={scopeId}
                   onChange={e => setScopeId(e.target.value)}
-                  className="h-8 min-w-[160px] rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
+                  className="h-9 sm:h-8 flex-1 sm:min-w-[160px] rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
                 >
                   {allowedScopes.map(id => (
                     <option key={id} value={id}>
@@ -89,8 +89,8 @@ export default function PurchasePage() {
           </div>
 
           {!hasPurchaseAccess ? (
-            <div className="p-6">
-              <div className="rounded-lg border border-dashed px-6 py-10 text-center">
+            <div className="p-4 sm:p-6">
+              <div className="rounded-lg border border-dashed px-4 sm:px-6 py-10 text-center">
                 <FolderLock className="h-8 w-8 mx-auto mb-3 text-[hsl(var(--muted-foreground))]" />
                 <p className="text-sm font-medium">No purchase ledgers assigned</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
@@ -99,7 +99,7 @@ export default function PurchasePage() {
               </div>
             </div>
           ) : tab === "ledger" ? (
-            <div className="p-6 pt-4">
+            <div className="p-4 sm:p-6 pt-4">
               <PurchaseLedgerManager purchaseScopeId={scopeId || "P1"} />
             </div>
           ) : (
