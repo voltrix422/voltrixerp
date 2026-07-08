@@ -8,6 +8,8 @@ import {
   formatLinkModeLabel,
   PURCHASE_TRANSACTION_TYPES,
   sumItemTotals,
+  resolveGroupAmountPaid,
+  resolveGroupAmountDue,
   type PurchaseLedgerEntry,
   type PurchaseTransactionType,
 } from "@/lib/purchase-ledger"
@@ -118,6 +120,18 @@ export function LedgerEntryDetailModal({
                 <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Subtotal</span>
                 <span className="text-sm font-semibold text-[#1faca6]">{fmtMoney(sumItemTotals(group.items))}</span>
               </div>
+              {entry.linkMode === "project" && (
+                <div className="grid grid-cols-2 gap-2 px-3 py-2 border-t bg-[hsl(var(--muted))]/5">
+                  <div className="rounded-md border bg-[hsl(var(--card))] px-2.5 py-2 text-center">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Paid</p>
+                    <p className="text-xs font-semibold mt-0.5 text-emerald-600">{fmtMoney(resolveGroupAmountPaid(group))}</p>
+                  </div>
+                  <div className="rounded-md border bg-[hsl(var(--card))] px-2.5 py-2 text-center">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Remaining</p>
+                    <p className="text-xs font-semibold mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(resolveGroupAmountDue(group))}</p>
+                  </div>
+                </div>
+              )}
             </section>
           ))}
 
@@ -190,6 +204,7 @@ export function LedgerEntryDetailModal({
                       <p className="font-semibold text-emerald-600">{fmtMoney(p.amount)}</p>
                       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
                         {p.date}
+                        {p.supplierName && <> · {p.supplierName}</>}
                         {p.notes && <> · {p.notes}</>}
                         {p.createdBy && <> · {p.createdBy}</>}
                       </p>

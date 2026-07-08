@@ -18,6 +18,8 @@ export interface PurchaseLedgerSupplierGroup {
   supplierName: string
   accountDetails: string
   items: PurchaseLedgerItem[]
+  amountPaid?: number
+  amountDue?: number
 }
 
 export interface PurchaseLedgerPayment {
@@ -29,6 +31,8 @@ export interface PurchaseLedgerPayment {
   notes: string
   createdAt: string
   createdBy: string
+  supplierGroupId?: string
+  supplierName?: string
 }
 
 export interface PurchaseLedgerEntry {
@@ -101,6 +105,8 @@ export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>)
     supplierName: partial?.supplierName ?? "",
     accountDetails: partial?.accountDetails ?? "",
     items: partial?.items?.length ? partial.items.map(item => ({ ...item })) : [newLedgerItem()],
+    amountPaid: partial?.amountPaid ?? 0,
+    amountDue: partial?.amountDue,
   }
 }
 
@@ -120,6 +126,44 @@ export function sumItemTotals(items: PurchaseLedgerItem[]) {
 
 export function sumSupplierGroups(groups: PurchaseLedgerSupplierGroup[]) {
   return groups.reduce((sum, group) => sum + sumItemTotals(group.items), 0)
+}
+
+export function getGroupSubtotal(group: PurchaseLedgerSupplierGroup) {
+  return sumItemTotals(group.items)
+}
+
+export function resolveGroupAmountPaid(group: PurchaseLedgerSupplierGroup) {
+  return Math.max(0, group.amountPaid ?? 0)
+}
+
+export function resolveGroupAmountDue(group: PurchaseLedgerSupplierGroup) {
+  const subtotal = getGroupSubtotal(group)
+  const paid = resolveGroupAmountPaid(group)
+  if (typeof group.amountDue === "number" && group.amountDue >= 0) {
+    return Math.max(0, Math.min(group.amountDue, subtotal))
+  }
+  return Math.max(0, subtotal - paid)
+}
+
+export function sumGroupAmountPaid(groups: PurchaseLedgerSupplierGroup[]) {
+  return groups.reduce((sum, group) => sum + resolveGroupAmountPaid(group), 0)
+}
+
+export function sumGroupAmountDue(groups: PurchaseLedgerSupplierGroup[]) {
+  return groups.reduce((sum, group) => sum + resolveGroupAmountDue(group), 0)
+}
+
+export function withGroupPaymentTotals(
+  group: PurchaseLedgerSupplierGroup,
+  amountPaid: number,
+): PurchaseLedgerSupplierGroup {
+  const subtotal = getGroupSubtotal(group)
+  const paid = Math.max(0, Math.min(amountPaid, subtotal))
+  return {
+    ...group,
+    amountPaid: paid,
+    amountDue: Math.max(0, subtotal - paid),
+  }
 }
 
 export function flattenSupplierGroupItems(groups: PurchaseLedgerSupplierGroup[]) {
@@ -147,19 +191,25 @@ function parseSupplierGroups(raw: unknown, fallback: {
   accountDetails?: string
   items: PurchaseLedgerItem[]
 }): PurchaseLedgerSupplierGroup[] {
-  const groups = parseJsonArray<Record<string, unknown>>(raw).map((group, index) => ({
-    id: String(group.id ?? `group-${index}`),
-    supplierId: (group.supplierId as string | null) ?? null,
-    supplierName: String(group.supplierName ?? ""),
-    accountDetails: String(group.accountDetails ?? ""),
-    items: parseJsonArray<PurchaseLedgerItem>(group.items).map((item, itemIndex) => ({
+  const groups = parseJsonArray<Record<string, unknown>>(raw).map((group, index) => {
+    const items = parseJsonArray<PurchaseLedgerItem>(group.items).map((item, itemIndex) => ({
       id: String((item as PurchaseLedgerItem).id ?? `item-${index}-${itemIndex}`),
       productName: String((item as PurchaseLedgerItem).productName ?? ""),
       quantity: Number((item as PurchaseLedgerItem).quantity) || 0,
       unitPrice: Number((item as PurchaseLedgerItem).unitPrice) || 0,
       lineTotal: Number((item as PurchaseLedgerItem).lineTotal) || 0,
-    })),
-  }))
+    }))
+    const parsedGroup: PurchaseLedgerSupplierGroup = {
+      id: String(group.id ?? `group-${index}`),
+      supplierId: (group.supplierId as string | null) ?? null,
+      supplierName: String(group.supplierName ?? ""),
+      accountDetails: String(group.accountDetails ?? ""),
+      items,
+      amountPaid: Number(group.amountPaid) || 0,
+      amountDue: group.amountDue == null ? undefined : Number(group.amountDue) || 0,
+    }
+    return withGroupPaymentTotals(parsedGroup, parsedGroup.amountPaid ?? 0)
+  })
 
   if (groups.length > 0) return groups
 
@@ -175,7 +225,22 @@ function parseSupplierGroups(raw: unknown, fallback: {
 
 function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   let items = parseJsonArray<PurchaseLedgerItem>(row.items)
-  const payments = parseJsonArray<PurchaseLedgerPayment>(row.payments)
+  const payments = parseJsonArray<PurchaseLedgerPayment>(row.payments).map((payment, index) => ({
+    id: String((payment as PurchaseLedgerPayment).id ?? `pay-${index}`),
+    amount: Number((payment as PurchaseLedgerPayment).amount) || 0,
+    date: String((payment as PurchaseLedgerPayment).date ?? ""),
+    proofUrl: String((payment as PurchaseLedgerPayment).proofUrl ?? ""),
+    proofName: String((payment as PurchaseLedgerPayment).proofName ?? ""),
+    notes: String((payment as PurchaseLedgerPayment).notes ?? ""),
+    createdAt: String((payment as PurchaseLedgerPayment).createdAt ?? new Date().toISOString()),
+    createdBy: String((payment as PurchaseLedgerPayment).createdBy ?? ""),
+    supplierGroupId: (payment as PurchaseLedgerPayment).supplierGroupId
+      ? String((payment as PurchaseLedgerPayment).supplierGroupId)
+      : undefined,
+    supplierName: (payment as PurchaseLedgerPayment).supplierName
+      ? String((payment as PurchaseLedgerPayment).supplierName)
+      : undefined,
+  }))
   const totalAmount = Number(row.totalAmount) || 0
   const amountPaid = Number(row.amountPaid) || sumPayments(payments)
   const amountDue = Number(row.amountDue) || Math.max(0, totalAmount - amountPaid)
@@ -191,12 +256,24 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     }]
   }
 
-  const supplierGroups = parseSupplierGroups(row.supplierGroups, {
+  let supplierGroups = parseSupplierGroups(row.supplierGroups, {
     supplierId: (row.supplierId as string | null) ?? null,
     supplierName: (row.supplierName as string) ?? "",
     accountDetails: (row.accountDetails as string) ?? "",
     items,
   })
+
+  if (
+    linkMode === "project"
+    && supplierGroups.length > 1
+    && sumGroupAmountPaid(supplierGroups) === 0
+    && amountPaid > 0
+  ) {
+    supplierGroups = supplierGroups.map(group => {
+      const share = totalAmount > 0 ? getGroupSubtotal(group) / totalAmount : 0
+      return withGroupPaymentTotals(group, amountPaid * share)
+    })
+  }
 
   const resolvedItems = items.length > 0 ? items : flattenSupplierGroupItems(supplierGroups)
   const rawNotes = (row.notes as string) ?? ""

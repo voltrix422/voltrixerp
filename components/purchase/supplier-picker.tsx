@@ -6,6 +6,7 @@ import { Plus, Pencil, X, Loader2 } from "lucide-react"
 import { saveSupplier, type Supplier } from "@/lib/purchase"
 import { formatSupplierAccountDetails, SUPPLIER_TYPE_OPTIONS } from "@/lib/supplier-bank"
 import { SupplierBankFields } from "@/components/purchase/supplier-bank-fields"
+import { useToast } from "@/components/ui/toast"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -120,6 +121,7 @@ export function SupplierPicker({
   const [quickOpen, setQuickOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { toast } = useToast()
 
   const selected = suppliers.find(s => s.id === supplierId)
 
@@ -137,6 +139,10 @@ export function SupplierPicker({
       onSuppliersChange([...suppliers, supplier])
       selectSupplier(supplier.id)
       setQuickOpen(false)
+      toast({ type: "success", title: "Supplier created", message: `${supplier.name} added.`, duration: 3000 })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create supplier."
+      toast({ type: "error", title: "Error", message, duration: 5000 })
     } finally {
       setSaving(false)
     }
@@ -151,6 +157,10 @@ export function SupplierPicker({
       onSuppliersChange(suppliers.map(s => s.id === supplier.id ? supplier : s))
       selectSupplier(supplier.id)
       setEditOpen(false)
+      toast({ type: "success", title: "Supplier updated", message: `${supplier.name} saved.`, duration: 3000 })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update supplier."
+      toast({ type: "error", title: "Error", message, duration: 5000 })
     } finally {
       setSaving(false)
     }

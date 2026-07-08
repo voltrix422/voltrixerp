@@ -33,17 +33,31 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const s = await req.json()
-  const data = supplierPayload(s)
-  const supplier = await prisma.erpSupplier.upsert({
-    where: { id: s.id ?? "__new__" },
-    update: data,
-    create: {
-      id: s.id,
-      ...data,
-    },
-  })
-  return NextResponse.json(supplier)
+  try {
+    const s = await req.json()
+    const data = supplierPayload(s)
+    const supplier = await prisma.erpSupplier.upsert({
+      where: { id: s.id ?? "__new__" },
+      update: data,
+      create: {
+        id: s.id,
+        ...data,
+      },
+    })
+    return NextResponse.json(supplier)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown supplier save error"
+    const needsMigration =
+      /account_title|bank_names|Unknown arg `accountTitle`|Unknown arg `bankNames`/i.test(message)
+    return NextResponse.json(
+      {
+        error: needsMigration
+          ? "Supplier update failed because database migration is pending. Run: npx prisma migrate deploy"
+          : "Failed to save supplier.",
+      },
+      { status: 500 },
+    )
+  }
 }
 
 export async function DELETE(req: NextRequest) {

@@ -18,6 +18,8 @@ type LedgerPayment = {
   notes: string
   createdAt: string
   createdBy: string
+  supplierGroupId?: string
+  supplierName?: string
 }
 
 function parseItems(raw: unknown): LedgerItem[] {
@@ -42,6 +44,8 @@ function parsePayments(raw: unknown): LedgerPayment[] {
     notes: String((p as LedgerPayment).notes ?? ""),
     createdAt: String((p as LedgerPayment).createdAt ?? new Date().toISOString()),
     createdBy: String((p as LedgerPayment).createdBy ?? ""),
+    supplierGroupId: (p as LedgerPayment).supplierGroupId ? String((p as LedgerPayment).supplierGroupId) : undefined,
+    supplierName: (p as LedgerPayment).supplierName ? String((p as LedgerPayment).supplierName) : undefined,
   }))
 }
 
@@ -55,17 +59,35 @@ type LedgerSupplierGroup = {
   supplierName: string
   accountDetails: string
   items: LedgerItem[]
+  amountPaid?: number
+  amountDue?: number
 }
 
 function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((group, index) => ({
-    id: String((group as LedgerSupplierGroup).id ?? `group-${index}`),
-    supplierId: (group as LedgerSupplierGroup).supplierId || null,
-    supplierName: String((group as LedgerSupplierGroup).supplierName ?? ""),
-    accountDetails: String((group as LedgerSupplierGroup).accountDetails ?? ""),
-    items: parseItems((group as LedgerSupplierGroup).items),
-  }))
+  return raw.map((group, index) => {
+    const items = parseItems((group as LedgerSupplierGroup).items)
+    const subtotal = sumItems(items)
+    const amountPaid = Number((group as LedgerSupplierGroup).amountPaid) || 0
+    const amountDue = Math.max(0, subtotal - amountPaid)
+    return {
+      id: String((group as LedgerSupplierGroup).id ?? `group-${index}`),
+      supplierId: (group as LedgerSupplierGroup).supplierId || null,
+      supplierName: String((group as LedgerSupplierGroup).supplierName ?? ""),
+      accountDetails: String((group as LedgerSupplierGroup).accountDetails ?? ""),
+      items,
+      amountPaid,
+      amountDue,
+    }
+  })
+}
+
+function sumGroupAmountPaid(groups: LedgerSupplierGroup[]) {
+  return groups.reduce((sum, group) => sum + (group.amountPaid || 0), 0)
+}
+
+function sumGroupAmountDue(groups: LedgerSupplierGroup[]) {
+  return groups.reduce((sum, group) => sum + (group.amountDue || 0), 0)
 }
 
 function sumItems(items: LedgerItem[]) {
@@ -120,25 +142,50 @@ export async function POST(req: NextRequest) {
 
     const payments = parsePayments(existing.payments)
     const payment = body.payment ?? {}
+    const paymentAmount = Number(payment.amount) || 0
+    const supplierGroupId = payment.supplierGroupId ? String(payment.supplierGroupId) : ""
+    const supplierGroups = parseSupplierGroups(existing.supplierGroups)
+
     payments.push({
       id: payment.id || Date.now().toString(),
-      amount: Number(payment.amount) || 0,
+      amount: paymentAmount,
       date: payment.date || new Date().toISOString().slice(0, 10),
       proofUrl: payment.proofUrl || "",
       proofName: payment.proofName || "",
       notes: payment.notes || "",
       createdAt: new Date().toISOString(),
       createdBy: payment.createdBy || "",
+      supplierGroupId: supplierGroupId || undefined,
+      supplierName: payment.supplierName || undefined,
     })
 
-    const amountPaid = sumPayments(payments)
-    const amountDue = Math.max(0, existing.totalAmount - amountPaid)
+    let nextSupplierGroups = supplierGroups
+    if (supplierGroupId && supplierGroups.length > 0) {
+      nextSupplierGroups = supplierGroups.map(group => {
+        if (group.id !== supplierGroupId) return group
+        const subtotal = sumItems(group.items)
+        const amountPaid = Math.min(subtotal, (group.amountPaid || 0) + paymentAmount)
+        return {
+          ...group,
+          amountPaid,
+          amountDue: Math.max(0, subtotal - amountPaid),
+        }
+      })
+    }
+
+    const amountPaid = nextSupplierGroups.length > 0
+      ? sumGroupAmountPaid(nextSupplierGroups)
+      : sumPayments(payments)
+    const amountDue = nextSupplierGroups.length > 0
+      ? sumGroupAmountDue(nextSupplierGroups)
+      : Math.max(0, existing.totalAmount - amountPaid)
     const latest = payments[payments.length - 1]
 
     const row = await prisma.erpPurchaseLedger.update({
       where: { id: body.id },
       data: {
         payments,
+        supplierGroups: nextSupplierGroups,
         amountPaid,
         amountDue,
         paymentProofUrl: latest?.proofUrl || existing.paymentProofUrl,
@@ -157,8 +204,12 @@ export async function POST(req: NextRequest) {
     : items.length > 0 ? sumItems(items) : Number(body.totalAmount) || 0
   const firstItem = items[0]
   const payments = parsePayments(body.payments)
-  const amountPaid = payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0
-  const amountDue = Math.max(0, totalAmount - amountPaid)
+  const amountPaid = supplierGroups.length > 0
+    ? sumGroupAmountPaid(supplierGroups)
+    : payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0
+  const amountDue = supplierGroups.length > 0
+    ? sumGroupAmountDue(supplierGroups)
+    : Math.max(0, totalAmount - amountPaid)
   const purchaseScopeId = String(body.purchaseScopeId || "P1").trim().toUpperCase()
   const ledgerNumber = body.ledgerNumber || (await nextLedgerNumber(purchaseScopeId))
   const primaryGroup = supplierGroups[0]

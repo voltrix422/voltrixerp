@@ -25,6 +25,12 @@ import {
   sumItemTotals,
   sumPayments,
   sumSupplierGroups,
+  sumGroupAmountPaid,
+  sumGroupAmountDue,
+  getGroupSubtotal,
+  resolveGroupAmountPaid,
+  resolveGroupAmountDue,
+  withGroupPaymentTotals,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
   type PurchaseLedgerPayment,
@@ -172,6 +178,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const [payEntry, setPayEntry] = useState<PurchaseLedgerEntry | null>(null)
+  const [paySupplierGroupId, setPaySupplierGroupId] = useState("")
   const [payAmount, setPayAmount] = useState("")
   const [payNotes, setPayNotes] = useState("")
   const [payProofFile, setPayProofFile] = useState<File | null>(null)
@@ -189,6 +196,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [supplierGroups, setSupplierGroups] = useState<PurchaseLedgerSupplierGroup[]>([newSupplierGroup()])
   const [transactionType, setTransactionType] = useState<PurchaseTransactionType>("purchase")
   const [amountPayingNow, setAmountPayingNow] = useState("")
+  const [groupPayingNow, setGroupPayingNow] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [proofFile, setProofFile] = useState<File | null>(null)
@@ -200,11 +208,29 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
 
   const grandTotal = useMemo(() => sumSupplierGroups(supplierGroups), [supplierGroups])
   const payingNow = parseFloat(amountPayingNow) || 0
-  const existingPaid = useMemo(() => sumPayments(existingPayments), [existingPayments])
-  const amountDueNow = editingEntryId
-    ? Math.max(0, grandTotal - existingPaid)
-    : Math.max(0, grandTotal - payingNow)
   const isEditing = Boolean(editingEntryId)
+  const existingPaid = useMemo(() => sumPayments(existingPayments), [existingPayments])
+  const isProjectMode = linkMode === "project"
+  const projectGroupPaid = useMemo(() => {
+    if (!isProjectMode) return 0
+    if (isEditing) return sumGroupAmountPaid(supplierGroups)
+    return supplierGroups.reduce((sum, group) => sum + (parseFloat(groupPayingNow[group.id] || "") || 0), 0)
+  }, [isProjectMode, isEditing, supplierGroups, groupPayingNow])
+  const projectGroupDue = useMemo(() => {
+    if (!isProjectMode) return 0
+    if (isEditing) return sumGroupAmountDue(supplierGroups)
+    return supplierGroups.reduce((sum, group) => {
+      const subtotal = getGroupSubtotal(group)
+      const paying = parseFloat(groupPayingNow[group.id] || "") || 0
+      return sum + Math.max(0, subtotal - paying)
+    }, 0)
+  }, [isProjectMode, isEditing, supplierGroups, groupPayingNow])
+  const totalPaidNow = isProjectMode ? projectGroupPaid : (isEditing ? existingPaid : payingNow)
+  const amountDueNow = isProjectMode
+    ? projectGroupDue
+    : isEditing
+      ? Math.max(0, grandTotal - existingPaid)
+      : Math.max(0, grandTotal - payingNow)
 
   const billDisplayUrl = useMemo(() => {
     if (billFile) return URL.createObjectURL(billFile)
@@ -264,6 +290,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setSupplierGroups([newSupplierGroup()])
     setTransactionType("purchase")
     setAmountPayingNow("")
+    setGroupPayingNow({})
     setNotes("")
     setDueDate("")
     setProofFile(null)
@@ -310,6 +337,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setNotes(entry.notes || "")
     setDueDate(entry.dueDate || "")
     setAmountPayingNow("")
+    setGroupPayingNow({})
     setProofFile(null)
     setProofPreview("")
     setBillFile(null)
@@ -346,14 +374,48 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     try {
       const flatItems = groups.flatMap(group => group.items)
       const totalAmount = sumSupplierGroups(groups)
+      let groupsWithPayments = groups
       let payments: PurchaseLedgerPayment[] = []
       let amountPaid = 0
       let amountDue = totalAmount
 
       if (isEditing) {
+        groupsWithPayments = groups.map(group => withGroupPaymentTotals(group, resolveGroupAmountPaid(group)))
         payments = existingPayments
-        amountPaid = sumPayments(payments)
-        amountDue = Math.max(0, totalAmount - amountPaid)
+        amountPaid = isProjectMode ? sumGroupAmountPaid(groupsWithPayments) : sumPayments(payments)
+        amountDue = isProjectMode ? sumGroupAmountDue(groupsWithPayments) : Math.max(0, totalAmount - amountPaid)
+      } else if (isProjectMode) {
+        let proofUrl = ""
+        let proofName = ""
+        if (proofFile) {
+          proofUrl = await uploadFile(proofFile, "payment-proofs")
+          proofName = proofFile.name
+        }
+        groupsWithPayments = []
+        payments = []
+        let proofAttached = false
+        for (const group of groups) {
+          const paying = parseFloat(groupPayingNow[group.id] || "") || 0
+          const withPayment = withGroupPaymentTotals(group, paying)
+          groupsWithPayments.push(withPayment)
+          if (paying > 0) {
+            payments.push({
+              id: `${Date.now()}-${group.id}`,
+              amount: paying,
+              date: transactionDate,
+              proofUrl: !proofAttached ? proofUrl : "",
+              proofName: !proofAttached ? proofName : "",
+              notes: `Initial payment${group.supplierName ? ` · ${group.supplierName}` : ""}`,
+              createdAt: new Date().toISOString(),
+              createdBy: user.name,
+              supplierGroupId: group.id,
+              supplierName: group.supplierName,
+            })
+            if (proofUrl) proofAttached = true
+          }
+        }
+        amountPaid = sumGroupAmountPaid(groupsWithPayments)
+        amountDue = sumGroupAmountDue(groupsWithPayments)
       } else if (payingNow > 0) {
         let proofUrl = ""
         let proofName = ""
@@ -373,6 +435,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         }]
         amountPaid = payingNow
         amountDue = Math.max(0, totalAmount - payingNow)
+        groupsWithPayments = groups.map(group => withGroupPaymentTotals(group, groups.length === 1 ? payingNow : 0))
+      } else {
+        groupsWithPayments = groups.map(group => withGroupPaymentTotals(group, 0))
       }
 
       let billUrl = existingBillUrl
@@ -402,7 +467,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         amountPaid,
         amountDue,
         items: flatItems,
-        supplierGroups: groups,
+        supplierGroups: groupsWithPayments,
         payments,
         notes: embedBillInNotes(notes.trim(), { billUrl, billName }),
         dueDate,
@@ -437,7 +502,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
 
   function openPayModal(entry: PurchaseLedgerEntry) {
     setPayEntry(entry)
-    setPayAmount(String(entry.amountDue || 0))
+    const projectGroups = entry.linkMode === "project" && entry.supplierGroups.length > 0
+      ? entry.supplierGroups
+      : []
+    const defaultGroup = projectGroups.find(group => resolveGroupAmountDue(group) > 0) ?? projectGroups[0]
+    setPaySupplierGroupId(defaultGroup?.id ?? "")
+    setPayAmount(String(defaultGroup ? resolveGroupAmountDue(defaultGroup) : (entry.amountDue || 0)))
     setPayNotes("")
     setPayProofFile(null)
     setPayProofPreview("")
@@ -448,6 +518,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     if (!user || !payEntry) return
     const amount = parseFloat(payAmount) || 0
     if (amount <= 0) return
+    const selectedGroup = payEntry.supplierGroups.find(group => group.id === paySupplierGroupId)
     setPaySaving(true)
     try {
       let proofUrl = ""
@@ -461,8 +532,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         date: new Date().toISOString().slice(0, 10),
         proofUrl,
         proofName,
-        notes: payNotes,
+        notes: payNotes || (selectedGroup?.supplierName ? `Payment · ${selectedGroup.supplierName}` : ""),
         createdBy: user.name,
+        supplierGroupId: paySupplierGroupId || undefined,
+        supplierName: selectedGroup?.supplierName,
       })
       if (updated) {
         setEntries(prev => prev.map(row => row.id === updated.id ? updated : row))
@@ -834,6 +907,53 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         items={group.items}
                         onChange={items => updateSupplierGroup(group.id, { items })}
                       />
+
+                      {isProjectMode && (
+                        <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
+                            Supplier payment
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                            <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 min-h-8">
+                              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Supplier total</p>
+                              <p className="text-xs font-semibold sm:mt-0.5">{fmtMoney(getGroupSubtotal(group))}</p>
+                            </div>
+                            {isEditing ? (
+                              <>
+                                <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 min-h-8">
+                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Paid</p>
+                                  <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">{fmtMoney(resolveGroupAmountPaid(group))}</p>
+                                </div>
+                                <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 min-h-8">
+                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Remaining</p>
+                                  <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(resolveGroupAmountDue(group))}</p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="min-w-0">
+                                  <label className="text-[10px] font-medium text-[hsl(var(--foreground))] block mb-0.5">Paying now</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={groupPayingNow[group.id] || ""}
+                                    onChange={e => setGroupPayingNow(prev => ({ ...prev, [group.id]: e.target.value }))}
+                                    placeholder="0"
+                                    className={inputCls}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 min-h-8">
+                                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Remaining</p>
+                                  <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">
+                                    {fmtMoney(Math.max(0, getGroupSubtotal(group) - (parseFloat(groupPayingNow[group.id] || "") || 0)))}
+                                  </p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </section>
                   ))}
                 </div>
@@ -944,13 +1064,26 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 </section>
 
                 <section className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Payment</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
+                    {isProjectMode ? "Project payment summary" : "Payment"}
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
                     <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{isProjectMode ? "Project total" : "Grand total"}</p>
                       <p className="text-xs font-semibold sm:mt-0.5">{fmtMoney(grandTotal)}</p>
                     </div>
-                    {isEditing ? (
+                    {isProjectMode ? (
+                      <>
+                        <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total paid</p>
+                          <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">{fmtMoney(totalPaidNow)}</p>
+                        </div>
+                        <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total remaining</p>
+                          <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
+                        </div>
+                      </>
+                    ) : isEditing ? (
                       <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
                         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Paid</p>
                         <p className="text-xs font-semibold sm:mt-0.5 text-emerald-600">{fmtMoney(existingPaid)}</p>
@@ -962,13 +1095,19 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">e.g. 50,000</p>
                       </div>
                     )}
-                    <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount due</p>
-                      <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
-                    </div>
+                    {!isProjectMode && (
+                      <div className="flex items-center justify-between sm:block rounded-md border bg-[hsl(var(--card))] px-2.5 py-1.5 min-h-8">
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount due</p>
+                        <p className="text-xs font-semibold sm:mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(amountDueNow)}</p>
+                      </div>
+                    )}
                   </div>
                   {isEditing && (
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-2">Use Pay due from the ledger to add more payments.</p>
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-2">
+                      {isProjectMode
+                        ? "Use Pay due from the ledger to add payments per supplier."
+                        : "Use Pay due from the ledger to add more payments."}
+                    </p>
                   )}
                 </section>
 
@@ -1017,6 +1156,26 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               </Button>
             </div>
             <form onSubmit={handleAddPayment} className="p-4 space-y-3">
+              {payEntry.linkMode === "project" && payEntry.supplierGroups.length > 0 && (
+                <Field label="Supplier">
+                  <select
+                    value={paySupplierGroupId}
+                    onChange={e => {
+                      const groupId = e.target.value
+                      const group = payEntry.supplierGroups.find(row => row.id === groupId)
+                      setPaySupplierGroupId(groupId)
+                      setPayAmount(String(group ? resolveGroupAmountDue(group) : 0))
+                    }}
+                    className={inputCls}
+                  >
+                    {payEntry.supplierGroups.map(group => (
+                      <option key={group.id} value={group.id}>
+                        {group.supplierName || "Supplier"} · Due {fmtMoney(resolveGroupAmountDue(group))}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label="Payment amount">
                 <input type="number" min="0" step="any" required value={payAmount} onChange={e => setPayAmount(e.target.value)} className={inputCls} />
               </Field>

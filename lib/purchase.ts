@@ -190,11 +190,21 @@ export async function saveSupplier(s: Supplier, purchaseScopeId?: string): Promi
     bankAccountName: bankNames[0] || s.bankAccountName || "",
     purchaseScopeId: s.purchaseScopeId || purchaseScopeId || "P1",
   }
-  await fetch("/api/db/suppliers", {
+  const res = await fetch("/api/db/suppliers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
+  if (!res.ok) {
+    let message = "Failed to save supplier."
+    try {
+      const body = await res.json()
+      if (typeof body?.error === "string" && body.error.trim()) message = body.error
+    } catch {
+      // keep fallback message
+    }
+    throw new Error(message)
+  }
 }
 
 export async function deleteSupplier(id: string): Promise<void> {

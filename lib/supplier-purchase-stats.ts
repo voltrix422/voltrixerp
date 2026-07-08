@@ -1,6 +1,6 @@
 import type { Supplier } from "@/lib/purchase"
 import type { PurchaseLedgerEntry, PurchaseLedgerSupplierGroup } from "@/lib/purchase-ledger"
-import { sumItemTotals } from "@/lib/purchase-ledger"
+import { resolveGroupAmountDue, resolveGroupAmountPaid, sumItemTotals } from "@/lib/purchase-ledger"
 
 export type SupplierPurchaseInfo = {
   totalPurchases: number
@@ -63,10 +63,9 @@ export function buildSupplierPurchaseMap(
         if (!group.supplierId && !group.supplierName) continue
         const prev = map.get(key) || { totalPurchases: 0, totalPaid: 0, totalDue: 0, entryCount: 0 }
         const groupTotal = sumItemTotals(group.items)
-        const share = entry.totalAmount > 0 ? groupTotal / entry.totalAmount : 0
         prev.totalPurchases += groupTotal
-        prev.totalPaid += (entry.amountPaid || 0) * share
-        prev.totalDue += (entry.amountDue || 0) * share
+        prev.totalPaid += resolveGroupAmountPaid(group)
+        prev.totalDue += resolveGroupAmountDue(group)
         prev.entryCount += 1
         map.set(key, prev)
       }
@@ -91,14 +90,20 @@ export function getSupplierPurchaseInfo(
   const linked = getEntriesForSupplier(entries, supplier)
   const totalPurchases = linked.reduce((s, e) => s + getSupplierAmountFromEntry(e, supplier), 0)
   const totalPaid = linked.reduce((s, e) => {
-    const amount = getSupplierAmountFromEntry(e, supplier)
-    const share = e.totalAmount > 0 ? amount / e.totalAmount : 0
-    return s + (e.amountPaid || 0) * share
+    if (e.supplierGroups.length > 0) {
+      return s + e.supplierGroups
+        .filter(group => groupMatchesSupplier(group, supplier))
+        .reduce((sum, group) => sum + resolveGroupAmountPaid(group), 0)
+    }
+    return s + (entryMatchesSupplier(e, supplier) ? (e.amountPaid || 0) : 0)
   }, 0)
   const totalDue = linked.reduce((s, e) => {
-    const amount = getSupplierAmountFromEntry(e, supplier)
-    const share = e.totalAmount > 0 ? amount / e.totalAmount : 0
-    return s + (e.amountDue || 0) * share
+    if (e.supplierGroups.length > 0) {
+      return s + e.supplierGroups
+        .filter(group => groupMatchesSupplier(group, supplier))
+        .reduce((sum, group) => sum + resolveGroupAmountDue(group), 0)
+    }
+    return s + (entryMatchesSupplier(e, supplier) ? (e.amountDue || 0) : 0)
   }, 0)
   return {
     totalPurchases,
