@@ -4,14 +4,11 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Plus, Pencil, X, Loader2 } from "lucide-react"
 import { saveSupplier, type Supplier } from "@/lib/purchase"
+import { formatSupplierAccountDetails, SUPPLIER_TYPE_OPTIONS } from "@/lib/supplier-bank"
+import { SupplierBankFields } from "@/components/purchase/supplier-bank-fields"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
-
-function accountDetailsFromSupplier(supplier?: Supplier | null) {
-  if (!supplier) return ""
-  return [supplier.bankAccountName, supplier.bankIban].filter(Boolean).join(" · ")
-}
 
 function SupplierQuickForm({
   initial,
@@ -47,8 +44,9 @@ function SupplierQuickForm({
         <div className="space-y-1">
           <label className="text-[11px] font-medium">Type *</label>
           <select required value={form.type} onChange={e => set("type", e.target.value)} className={inputCls}>
-            <option value="local">Local</option>
-            <option value="imported">Imported</option>
+            {SUPPLIER_TYPE_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
         </div>
         <div className="space-y-1">
@@ -67,14 +65,15 @@ function SupplierQuickForm({
           <label className="text-[11px] font-medium">Address</label>
           <input value={form.address} onChange={e => set("address", e.target.value)} className={inputCls} />
         </div>
-        <div className="space-y-1">
-          <label className="text-[11px] font-medium">Bank account name</label>
-          <input value={form.bankAccountName || ""} onChange={e => set("bankAccountName", e.target.value)} className={inputCls} />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[11px] font-medium">Bank IBAN</label>
-          <input value={form.bankIban || ""} onChange={e => set("bankIban", e.target.value)} className={inputCls} />
-        </div>
+        <SupplierBankFields
+          compact
+          accountTitle={form.accountTitle || ""}
+          bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
+          bankIban={form.bankIban || ""}
+          onAccountTitleChange={value => setForm(prev => ({ ...prev, accountTitle: value }))}
+          onBankNamesChange={names => setForm(prev => ({ ...prev, bankNames: names }))}
+          onBankIbanChange={value => setForm(prev => ({ ...prev, bankIban: value }))}
+        />
       </div>
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" className="h-8 text-xs flex-1 cursor-pointer" disabled={saving}>
@@ -95,7 +94,8 @@ const emptySupplier = (): Omit<Supplier, "id"> => ({
   email: "",
   address: "",
   company: "",
-  bankAccountName: "",
+  accountTitle: "",
+  bankNames: [""],
   bankIban: "",
   image: "",
 })
@@ -126,7 +126,7 @@ export function SupplierPicker({
   function selectSupplier(id: string) {
     onSupplierIdChange(id)
     const supplier = suppliers.find(s => s.id === id)
-    onAccountDetailsChange?.(accountDetailsFromSupplier(supplier))
+    onAccountDetailsChange?.(formatSupplierAccountDetails(supplier))
   }
 
   async function handleQuickAdd(data: Omit<Supplier, "id">) {
@@ -191,7 +191,7 @@ export function SupplierPicker({
 
       {quickOpen && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setQuickOpen(false)}>
-          <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl p-4" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl p-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-end mb-1">
               <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setQuickOpen(false)}>
                 <X className="h-4 w-4" />
@@ -211,7 +211,7 @@ export function SupplierPicker({
 
       {editOpen && selected && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setEditOpen(false)}>
-          <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl p-4" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl p-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-end mb-1">
               <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditOpen(false)}>
                 <X className="h-4 w-4" />
@@ -226,7 +226,8 @@ export function SupplierPicker({
                 email: selected.email,
                 address: selected.address,
                 company: selected.company,
-                bankAccountName: selected.bankAccountName || "",
+                accountTitle: selected.accountTitle || "",
+                bankNames: selected.bankNames?.length ? selected.bankNames : selected.bankAccountName ? [selected.bankAccountName] : [""],
                 bankIban: selected.bankIban || "",
                 image: selected.image || "",
               }}

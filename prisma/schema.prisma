@@ -81,6 +81,8 @@ model ErpSupplier {
   company          String  @default("")
   bankAccountName  String? @map("bank_account_name")
   bankIban         String? @map("bank_iban")
+  accountTitle     String  @default("") @map("account_title")
+  bankNames        Json    @default("[]") @map("bank_names")
   image            String? @default("")
 
   @@index([purchaseScopeId])

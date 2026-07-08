@@ -1,5 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { normalizeSupplierBankNames } from "@/lib/supplier-bank"
+
+function supplierPayload(s: Record<string, unknown>) {
+  const bankNames = normalizeSupplierBankNames(s.bankNames as string[] | undefined)
+  const legacyBank = String(s.bankAccountName ?? "").trim()
+  const resolvedBanks = bankNames.length > 0 ? bankNames : legacyBank ? [legacyBank] : []
+  return {
+    purchaseScopeId: String(s.purchaseScopeId || "P1").trim().toUpperCase(),
+    name: String(s.name ?? ""),
+    type: String(s.type ?? "local"),
+    contact: String(s.contact ?? ""),
+    email: String(s.email ?? ""),
+    address: String(s.address ?? ""),
+    company: String(s.company ?? ""),
+    accountTitle: String(s.accountTitle ?? ""),
+    bankNames: resolvedBanks,
+    bankAccountName: resolvedBanks[0] || legacyBank || null,
+    bankIban: s.bankIban ? String(s.bankIban) : null,
+    image: String(s.image ?? ""),
+  }
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -13,32 +34,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const s = await req.json()
+  const data = supplierPayload(s)
   const supplier = await prisma.erpSupplier.upsert({
     where: { id: s.id ?? "__new__" },
-    update: {
-      purchaseScopeId: String(s.purchaseScopeId || "P1").trim().toUpperCase(),
-      name: s.name,
-      type: s.type,
-      contact: s.contact,
-      email: s.email,
-      address: s.address,
-      company: s.company,
-      bankAccountName: s.bankAccountName,
-      bankIban: s.bankIban,
-      image: s.image ?? "",
-    },
+    update: data,
     create: {
       id: s.id,
-      purchaseScopeId: String(s.purchaseScopeId || "P1").trim().toUpperCase(),
-      name: s.name,
-      type: s.type,
-      contact: s.contact,
-      email: s.email,
-      address: s.address,
-      company: s.company,
-      bankAccountName: s.bankAccountName,
-      bankIban: s.bankIban,
-      image: s.image ?? "",
+      ...data,
     },
   })
   return NextResponse.json(supplier)

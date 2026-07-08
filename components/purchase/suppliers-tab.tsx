@@ -13,6 +13,8 @@ import {
   sortSuppliersByPurchases,
   type SupplierPurchaseInfo,
 } from "@/lib/supplier-purchase-stats"
+import { formatSupplierAccountDetails, SUPPLIER_TYPE_OPTIONS, supplierTypeLabel } from "@/lib/supplier-bank"
+import { SupplierBankFields } from "@/components/purchase/supplier-bank-fields"
 import { formatCurrency } from "@/lib/pos"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,7 +26,16 @@ import {
 } from "lucide-react"
 
 const empty = (): Omit<Supplier, "id"> => ({
-  name: "", type: "local", contact: "", email: "", address: "", company: "", bankAccountName: "", bankIban: "", image: "",
+  name: "",
+  type: "local",
+  contact: "",
+  email: "",
+  address: "",
+  company: "",
+  accountTitle: "",
+  bankNames: [""],
+  bankIban: "",
+  image: "",
 })
 
 function SupplierForm({ initial, onSave, onCancel, isLoading }: {
@@ -50,8 +61,9 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
         <div className="space-y-1">
           <label className="text-xs font-medium">Type *</label>
           <select required value={form.type} onChange={e => set("type", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm">
-            <option value="local">Local</option>
-            <option value="imported">Imported</option>
+            {SUPPLIER_TYPE_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
         </div>
         <div className="space-y-1">
@@ -66,14 +78,14 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
           <label className="text-xs font-medium">Address</label>
           <input value={form.address} onChange={e => set("address", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Bank account name</label>
-          <input value={form.bankAccountName || ""} onChange={e => set("bankAccountName", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Bank IBAN</label>
-          <input value={form.bankIban || ""} onChange={e => set("bankIban", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
-        </div>
+        <SupplierBankFields
+          accountTitle={form.accountTitle || ""}
+          bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
+          bankIban={form.bankIban || ""}
+          onAccountTitleChange={value => setForm(f => ({ ...f, accountTitle: value }))}
+          onBankNamesChange={names => setForm(f => ({ ...f, bankNames: names }))}
+          onBankIbanChange={value => setForm(f => ({ ...f, bankIban: value }))}
+        />
       </div>
       <div className="flex gap-2">
         <Button type="submit" size="sm" className="h-8 cursor-pointer" disabled={isLoading}>
@@ -129,12 +141,15 @@ function SupplierDetail({
   const entriesDue = filteredEntries.reduce((s, e) => s + e.amountDue, 0)
   const isTopSupplier = purchaseInfo?.purchaseRank != null && purchaseInfo.purchaseRank > 0 && purchaseInfo.purchaseRank <= 3
 
+  const bankNames = (supplier.bankNames?.length ? supplier.bankNames : supplier.bankAccountName ? [supplier.bankAccountName] : []).join(", ")
+
   const infoItems = [
     { icon: Phone, label: "Phone", value: supplier.contact },
     { icon: Mail, label: "Email", value: supplier.email },
     { icon: MapPin, label: "Address", value: supplier.address },
     { icon: Building2, label: "Company", value: supplier.company },
-    { icon: Landmark, label: "Bank account", value: supplier.bankAccountName },
+    { icon: Landmark, label: "Account title", value: supplier.accountTitle },
+    { icon: Landmark, label: "Bank name", value: bankNames },
     { icon: CreditCard, label: "IBAN", value: supplier.bankIban },
   ]
 
@@ -159,7 +174,12 @@ function SupplierDetail({
                   Top {purchaseInfo!.purchaseRank} supplier
                 </span>
               )}
-              <Badge variant={supplier.type === "local" ? "success" : "info"} className="text-[10px]">{supplier.type}</Badge>
+              <Badge
+                variant={supplier.type === "local" ? "success" : supplier.type === "trade" ? "warning" : "info"}
+                className="text-[10px]"
+              >
+                {supplierTypeLabel(supplier.type)}
+              </Badge>
             </div>
             {supplier.company && <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 truncate">{supplier.company}</p>}
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
@@ -462,7 +482,12 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
                 {(stats?.entryCount ?? 0) > 0 && (
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{stats!.entryCount} entries</p>
                 )}
-                <Badge variant={supplier.type === "local" ? "success" : "info"} className="text-[10px] px-1.5 py-0">{supplier.type}</Badge>
+                <Badge
+                  variant={supplier.type === "local" ? "success" : supplier.type === "trade" ? "warning" : "info"}
+                  className="text-[10px] px-1.5 py-0"
+                >
+                  {supplierTypeLabel(supplier.type)}
+                </Badge>
               </div>
             )
           })}
@@ -492,9 +517,16 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
             </div>
             <SupplierForm
               initial={{
-                name: editingSupplier.name, type: editingSupplier.type, contact: editingSupplier.contact,
-                email: editingSupplier.email, address: editingSupplier.address, company: editingSupplier.company,
-                bankAccountName: editingSupplier.bankAccountName, bankIban: editingSupplier.bankIban, image: editingSupplier.image || "",
+                name: editingSupplier.name,
+                type: editingSupplier.type,
+                contact: editingSupplier.contact,
+                email: editingSupplier.email,
+                address: editingSupplier.address,
+                company: editingSupplier.company,
+                accountTitle: editingSupplier.accountTitle || "",
+                bankNames: editingSupplier.bankNames?.length ? editingSupplier.bankNames : editingSupplier.bankAccountName ? [editingSupplier.bankAccountName] : [""],
+                bankIban: editingSupplier.bankIban || "",
+                image: editingSupplier.image || "",
               }}
               onSave={data => handleEdit(editId, data)}
               onCancel={() => setEditId(null)}

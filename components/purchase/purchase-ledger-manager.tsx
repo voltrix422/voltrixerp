@@ -35,6 +35,7 @@ import {
 import { embedBillInNotes, isImageBillUrl } from "@/lib/purchase-ledger-bill"
 import { uploadFile } from "@/lib/upload"
 import { SupplierPicker } from "@/components/purchase/supplier-picker"
+import { formatSupplierAccountDetails } from "@/lib/supplier-bank"
 import { LedgerEntryDetailModal } from "@/components/purchase/ledger-entry-detail-modal"
 import {
   downloadPurchaseLedgerEntryExcel,
@@ -817,7 +818,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                             updateSupplierGroup(group.id, {
                               supplierId: id || null,
                               supplierName: supplier?.name ?? "",
-                              accountDetails: [supplier?.bankAccountName, supplier?.bankIban].filter(Boolean).join(" · "),
+                              accountDetails: formatSupplierAccountDetails(supplier),
                             })
                           }}
                           onSuppliersChange={setSuppliers}

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { getPOs, savePO, type PurchaseOrder, type Supplier, type PaymentRecord, STATUS_LABELS, STATUS_VARIANT, calcQuoteTotal } from "@/lib/purchase"
 import { getSuppliers } from "@/lib/purchase"
+import { formatSupplierAccountDetails } from "@/lib/supplier-bank"
 import { uploadFile } from "@/lib/upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -458,8 +459,32 @@ function FinalizedOrderDetail({ po, suppliers, onClose, onUpdate }: {
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">Order Summary</p>
                 <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--muted-foreground))]">PO Number</span><span className="text-xs font-semibold">{po.poNumber}</span></div>
                 <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--muted-foreground))]">Supplier</span><span className="text-xs font-semibold">{supplier?.name}</span></div>
-                {supplier?.bankAccountName && <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--muted-foreground))]">Bank Account</span><span className="text-xs font-semibold">{supplier.bankAccountName}</span></div>}
-                {supplier?.bankIban && <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--muted-foreground))]">IBAN</span><span className="text-xs font-mono font-semibold">{supplier.bankIban}</span></div>}
+                {supplier?.accountTitle?.trim() && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">Account title</span>
+                    <span className="text-xs font-semibold">{supplier.accountTitle}</span>
+                  </div>
+                )}
+                {(supplier?.bankNames?.length || supplier?.bankAccountName) && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">Bank name</span>
+                    <span className="text-xs font-semibold">
+                      {(supplier.bankNames?.length ? supplier.bankNames : [supplier.bankAccountName!]).filter(Boolean).join(", ")}
+                    </span>
+                  </div>
+                )}
+                {supplier?.bankIban && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">IBAN</span>
+                    <span className="text-xs font-mono font-semibold">{supplier.bankIban}</span>
+                  </div>
+                )}
+                {formatSupplierAccountDetails(supplier) && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">Account details</span>
+                    <span className="text-xs font-semibold text-right max-w-[60%]">{formatSupplierAccountDetails(supplier)}</span>
+                  </div>
+                )}
                 <div className="border-t pt-2 space-y-1.5">
                   <div className="flex items-center justify-between"><span className="text-xs font-medium">Total Amount</span><span className="text-sm font-bold">PKR {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
                   <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--muted-foreground))]">Paid</span><span className="text-xs font-semibold">PKR {totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>

@@ -1,0 +1,2 @@
+ALTER TABLE "erp_suppliers" ADD COLUMN IF NOT EXISTS "account_title" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "erp_suppliers" ADD COLUMN IF NOT EXISTS "bank_names" JSONB NOT NULL DEFAULT '[]';

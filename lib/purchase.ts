@@ -1,6 +1,8 @@
 // DB access via /api/db routes (Prisma)
 
-export type SupplierType = "local" | "imported"
+import { parseSupplierBankNames, normalizeSupplierBankNames } from "@/lib/supplier-bank"
+
+export type SupplierType = "local" | "imported" | "trade"
 
 export interface Supplier {
   id: string
@@ -11,6 +13,9 @@ export interface Supplier {
   email: string
   address: string
   company: string
+  accountTitle?: string
+  bankNames?: string[]
+  /** @deprecated use bankNames */
   bankAccountName?: string
   bankIban?: string
   image?: string
@@ -155,20 +160,34 @@ export async function getSuppliers(purchaseScopeId?: string): Promise<Supplier[]
     const res = await fetch(`/api/db/suppliers${qs}`)
     if (!res.ok) return []
     const data = await res.json()
-    return (data ?? []).map((r: Record<string, unknown>) => ({
-      id: r.id as string, name: r.name as string, type: r.type as SupplierType,
-      purchaseScopeId: (r.purchaseScopeId as string | undefined) ?? undefined,
-      contact: r.contact as string, email: r.email as string, address: r.address as string, company: r.company as string,
-      bankAccountName: (r.bankAccountName as string | undefined) ?? (r.bank_account_name as string | undefined),
-      bankIban: (r.bankIban as string | undefined) ?? (r.bank_iban as string | undefined),
-      image: (r.image as string) || undefined,
-    }))
+    return (data ?? []).map((r: Record<string, unknown>) => {
+      const legacyBank = (r.bankAccountName as string | undefined) ?? (r.bank_account_name as string | undefined)
+      const bankNames = parseSupplierBankNames(r.bankNames ?? r.bank_names, legacyBank)
+      return {
+        id: r.id as string,
+        name: r.name as string,
+        type: r.type as SupplierType,
+        purchaseScopeId: (r.purchaseScopeId as string | undefined) ?? undefined,
+        contact: r.contact as string,
+        email: r.email as string,
+        address: r.address as string,
+        company: r.company as string,
+        accountTitle: (r.accountTitle as string | undefined) ?? (r.account_title as string | undefined) ?? "",
+        bankNames,
+        bankAccountName: legacyBank,
+        bankIban: (r.bankIban as string | undefined) ?? (r.bank_iban as string | undefined),
+        image: (r.image as string) || undefined,
+      }
+    })
   } catch { return [] }
 }
 
 export async function saveSupplier(s: Supplier, purchaseScopeId?: string): Promise<void> {
+  const bankNames = normalizeSupplierBankNames(s.bankNames)
   const payload = {
     ...s,
+    bankNames,
+    bankAccountName: bankNames[0] || s.bankAccountName || "",
     purchaseScopeId: s.purchaseScopeId || purchaseScopeId || "P1",
   }
   await fetch("/api/db/suppliers", {
