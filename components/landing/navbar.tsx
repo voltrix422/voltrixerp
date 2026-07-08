@@ -7,7 +7,7 @@ import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import { usePathname } from "next/navigation"
 
-const links = [
+const primaryLinks = [
   { label: "Products",            hash: "products"  },
   { label: "Solar Calculator",    href: "/solar-calculator" },
   { label: "Services",            hash: "services"  },
@@ -15,12 +15,15 @@ const links = [
   { label: "R&D & Manufacturing", hash: "rd"        },
   { label: "About Us",            hash: "about"     },
   { label: "Contact",             hash: "contact"   },
-  { label: "Dealerships",         href: "/dealerships" },
-  { label: "Warranty",            href: "/warranty" },
 ]
 
-const primaryLinks = links.slice(0, 7)
-const locationLinks = links.slice(7)
+const secondaryLinks = [
+  { label: "Dealerships", href: "/dealerships" },
+  { label: "Warranty",    href: "/warranty" },
+  { label: "ERP",         href: "/login" },
+]
+
+const allLinks = [...primaryLinks, ...secondaryLinks]
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -59,8 +62,8 @@ export default function Navbar() {
     : "text-neutral-900 hover:text-neutral-500"
 
   const dividerClass = transparent
-    ? "border-white/20"
-    : "border-neutral-200/80"
+    ? "bg-white/30"
+    : "bg-neutral-300"
 
   const toggleClass = transparent
     ? "text-white hover:text-white/70"
@@ -81,7 +84,7 @@ export default function Navbar() {
       }}
     >
       <nav
-        className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-x-4 xl:gap-x-6 px-4 sm:px-6 xl:px-8 py-2.5 rounded-xl w-full max-w-7xl transition-all duration-500 ${navClass}`}
+        className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-x-3 xl:gap-x-5 px-4 sm:px-5 xl:px-7 py-2.5 rounded-xl w-full max-w-7xl transition-all duration-500 ${navClass}`}
       >
         <a href="/" onClick={closeMenu} className="shrink-0 flex items-center">
           <Image
@@ -94,27 +97,29 @@ export default function Navbar() {
           />
         </a>
 
-        <div className="hidden lg:flex items-center justify-center min-w-0">
-          <div className="flex items-center gap-x-4 xl:gap-x-5">
+        <div className="hidden lg:flex items-center justify-center min-w-0 gap-x-3 xl:gap-x-4">
+          <div className="flex items-center gap-x-3 xl:gap-x-4">
             {primaryLinks.map((l) => (
               <a
                 key={l.label}
                 href={l.href || getHref(l.hash)}
-                className={`text-sm xl:text-[15px] transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
-                style={{ letterSpacing: "-0.3px" }}
+                className={`text-[13px] xl:text-sm transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
+                style={{ letterSpacing: "-0.2px" }}
               >
                 {l.label}
               </a>
             ))}
           </div>
-          <span className={`hidden xl:block w-px h-4 mx-3 xl:mx-4 shrink-0 border-l ${dividerClass}`} aria-hidden />
-          <div className="flex items-center gap-x-4 xl:gap-x-5">
-            {locationLinks.map((l) => (
+
+          <span className={`hidden xl:block w-px h-3.5 shrink-0 ${dividerClass}`} aria-hidden />
+
+          <div className="flex items-center gap-x-3 xl:gap-x-4">
+            {secondaryLinks.map((l) => (
               <a
                 key={l.label}
-                href={l.href || getHref(l.hash)}
-                className={`text-sm xl:text-[15px] transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
-                style={{ letterSpacing: "-0.3px" }}
+                href={l.href}
+                className={`text-[13px] xl:text-sm transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
+                style={{ letterSpacing: "-0.2px" }}
               >
                 {l.label}
               </a>
@@ -122,14 +127,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        <div className={`hidden lg:flex shrink-0 items-center gap-3 xl:gap-4 pl-4 xl:pl-6 ml-1 border-l ${dividerClass}`}>
-          <a
-            href="/login"
-            className={`text-sm xl:text-[15px] transition-colors font-medium whitespace-nowrap cursor-pointer ${linkClass}`}
-            style={{ letterSpacing: "-0.3px" }}
-          >
-            ERP
-          </a>
+        <div className="hidden lg:flex shrink-0 items-center pl-3 xl:pl-4">
           <GetQuoteButton variant={transparent ? "ghost" : "solid"} />
         </div>
 
@@ -143,7 +141,7 @@ export default function Navbar() {
 
       {open && (
         <div className="absolute top-14 left-4 right-4 bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl shadow-xl p-5 flex flex-col gap-4 lg:hidden">
-          {links.map((l) => (
+          {allLinks.map((l) => (
             <a
               key={l.label}
               href={l.href || getHref(l.hash)}
@@ -153,19 +151,11 @@ export default function Navbar() {
               {l.label}
             </a>
           ))}
-          <a
-            href="/login"
-            onClick={closeMenu}
-            className="text-base text-neutral-900 hover:text-neutral-500 transition-colors font-medium cursor-pointer"
-          >
-            ERP
-          </a>
           <div className="pt-3 border-t border-neutral-100">
             <GetQuoteButton onClick={closeMenu} />
           </div>
         </div>
       )}
-
     </div>
   )
 }
