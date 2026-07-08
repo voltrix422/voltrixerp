@@ -60,6 +60,16 @@ model ErpSalesAgentCompensationHistory {
   @@map("erp_sales_agent_compensation_history")
 }
 
+model ErpPurchaseScope {
+  id        String   @id
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("erp_purchase_scopes")
+}
+
 model ErpSupplier {
   id               String  @id @default(cuid())
   purchaseScopeId  String  @default("P1") @map("purchase_scope_id")
@@ -73,6 +83,7 @@ model ErpSupplier {
   bankIban         String? @map("bank_iban")
   image            String? @default("")
 
+  @@index([purchaseScopeId])
   @@map("erp_suppliers")
 }
 

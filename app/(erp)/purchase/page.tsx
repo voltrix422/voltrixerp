@@ -7,22 +7,32 @@ import { SuppliersTab } from "@/components/purchase/suppliers-tab"
 import { BookOpen, Users, FolderLock } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { normalizePurchaseScopes, roleHasAllModules } from "@/lib/auth"
+import { getPurchaseScopes, purchaseScopeLabel, type PurchaseScope } from "@/lib/purchase-scopes"
 
 export default function PurchasePage() {
   const { user } = useAuth()
   const [tab, setTab] = useState<"ledger" | "suppliers">("ledger")
-  const allowedScopes = useMemo(() => {
-    if (roleHasAllModules(user?.role)) return []
-    return normalizePurchaseScopes(user?.purchaseScopes)
-  }, [user?.purchaseScopes, user?.role])
+  const [allScopes, setAllScopes] = useState<PurchaseScope[]>([])
   const isAdminLike = roleHasAllModules(user?.role)
-  const [scopeId, setScopeId] = useState<string>((normalizePurchaseScopes(user?.purchaseScopes)[0] || "P1"))
+  const allowedScopes = useMemo(() => {
+    if (isAdminLike) return allScopes.map(s => s.id)
+    return normalizePurchaseScopes(user?.purchaseScopes)
+  }, [allScopes, isAdminLike, user?.purchaseScopes])
+  const [scopeId, setScopeId] = useState("P1")
   const hasPurchaseAccess = isAdminLike || allowedScopes.length > 0
+
   useEffect(() => {
-    if (!isAdminLike && allowedScopes.length > 0 && !allowedScopes.includes(scopeId)) {
+    void getPurchaseScopes().then(setAllScopes)
+  }, [])
+
+  useEffect(() => {
+    if (allowedScopes.length === 0) return
+    if (!allowedScopes.includes(scopeId)) {
       setScopeId(allowedScopes[0])
     }
-  }, [allowedScopes, isAdminLike, scopeId])
+  }, [allowedScopes, scopeId])
+
+  const activeScopeName = purchaseScopeLabel(scopeId, allScopes)
 
   const tabs = [
     { key: "ledger" as const, label: "Purchase Ledger", icon: BookOpen },
@@ -31,7 +41,12 @@ export default function PurchasePage() {
 
   return (
     <ModuleGuard module="purchase">
-      <Topbar title="Purchase" description="Purchase ledger, suppliers, and payment tracking" />
+      <Topbar
+        title="Purchase"
+        description={activeScopeName
+          ? `Purchase ledger for ${activeScopeName}`
+          : "Purchase ledger, suppliers, and payment tracking"}
+      />
       <div className="flex-1 overflow-auto">
         <div className="max-w-[1400px] mx-auto w-full">
           <div className="px-6 pt-4">
@@ -57,18 +72,18 @@ export default function PurchasePage() {
                 })}
               </div>
               <div className="inline-flex items-center gap-2">
-                <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Purchase ID</span>
-                <input
+                <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Purchase ledger</span>
+                <select
                   value={scopeId}
-                  onChange={e => setScopeId(e.target.value.toUpperCase().trim())}
-                  list={allowedScopes.length > 0 ? "purchase-scopes" : undefined}
-                  className="h-8 w-24 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                />
-                {allowedScopes.length > 0 && (
-                  <datalist id="purchase-scopes">
-                    {allowedScopes.map(scope => <option key={scope} value={scope} />)}
-                  </datalist>
-                )}
+                  onChange={e => setScopeId(e.target.value)}
+                  className="h-8 min-w-[160px] rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
+                >
+                  {allowedScopes.map(id => (
+                    <option key={id} value={id}>
+                      {purchaseScopeLabel(id, allScopes)} ({id})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -77,8 +92,10 @@ export default function PurchasePage() {
             <div className="p-6">
               <div className="rounded-lg border border-dashed px-6 py-10 text-center">
                 <FolderLock className="h-8 w-8 mx-auto mb-3 text-[hsl(var(--muted-foreground))]" />
-                <p className="text-sm font-medium">No Purchase IDs assigned</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Ask admin to assign at least one Purchase ID (P1, P2, etc.).</p>
+                <p className="text-sm font-medium">No purchase ledgers assigned</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  Ask admin to assign at least one purchase ledger (Main Office, Attock, Wah Cantt, etc.).
+                </p>
               </div>
             </div>
           ) : tab === "ledger" ? (

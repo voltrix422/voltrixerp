@@ -41,6 +41,7 @@ import {
   downloadPurchaseLedgerExcel,
   downloadPurchaseLedgerReportPDF,
 } from "@/lib/purchase-ledger-export"
+import { purchaseScopeLabel } from "@/lib/purchase-scopes"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -564,9 +565,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold">Purchase Ledger</h2>
+          <h2 className="text-base font-semibold">
+            Purchase Ledger
+            <span className="text-[hsl(var(--muted-foreground))] font-normal"> · {purchaseScopeLabel(purchaseScopeId)}</span>
+          </h2>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            {entries.length} entries · track purchases, partial payments, and supplier spend
+            {entries.length} entries · {purchaseScopeLabel(purchaseScopeId)} ({purchaseScopeId})
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

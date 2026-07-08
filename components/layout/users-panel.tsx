@@ -1,12 +1,70 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
+import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Copy } from "lucide-react"
 import { NotificationEmailsEditor } from "@/components/settings/notification-emails-editor"
 
-function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; onDelete: (id: string) => void }) {
+function PurchaseScopePicker({
+  scopes,
+  selected,
+  editing,
+  onChange,
+}: {
+  scopes: PurchaseScope[]
+  selected: string[]
+  editing: boolean
+  onChange: (next: string[]) => void
+}) {
+  function toggle(id: string) {
+    const has = selected.includes(id)
+    onChange(has ? selected.filter(x => x !== id) : [...selected, id])
+  }
+
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Purchase ledgers</label>
+      <div className="flex flex-wrap gap-1.5">
+        {scopes.map(scope => {
+          const active = selected.includes(scope.id)
+          return (
+            <button
+              key={scope.id}
+              type="button"
+              disabled={!editing}
+              onClick={() => toggle(scope.id)}
+              className={`px-2 py-1 rounded-md text-[10px] font-medium border transition-colors cursor-pointer ${
+                active
+                  ? "bg-[#1faca6] text-white border-transparent"
+                  : "text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))] hover:border-[#1faca6]/40"
+              } disabled:cursor-default`}
+            >
+              {scope.name}
+              <span className="opacity-70 ml-1">({scope.id})</span>
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+        User will only see selected purchase ledgers (e.g. Attock, Wah Cantt, Main Office).
+      </p>
+    </div>
+  )
+}
+
+function UserRow({
+  u,
+  onSave,
+  onDelete,
+  purchaseScopes,
+}: {
+  u: User
+  onSave: (u: User) => void
+  onDelete: (id: string) => void
+  purchaseScopes: PurchaseScope[]
+}) {
   const [editing, setEditing] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [draft, setDraft] = useState<User>(u)
@@ -119,17 +177,13 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
               View only users can open the selected pages and browse data, but cannot create, edit, or delete records.
             </p>
           )}
-          {draft.modules.includes("purchase") && (
-            <div className="space-y-1">
-              <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Purchase IDs (comma separated)</label>
-              <input
-                value={(draft.purchaseScopes ?? []).join(", ")}
-                onChange={e => setDraft(d => ({ ...d, purchaseScopes: normalizePurchaseScopes(e.target.value) }))}
-                placeholder="P1, P2"
-                className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-              />
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Only these purchase IDs will be visible to this user.</p>
-            </div>
+          {(draft.modules.includes("purchase") || roleHasAllModules(draft.role)) && (
+            <PurchaseScopePicker
+              scopes={purchaseScopes}
+              selected={draft.purchaseScopes ?? []}
+              editing={editing}
+              onChange={next => setDraft(d => ({ ...d, purchaseScopes: next }))}
+            />
           )}
         </div>
       )}
@@ -149,23 +203,31 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
           )
         })}
       </div>
-      {draft.modules.includes("purchase") && (
+      {(draft.modules.includes("purchase") || roleHasAllModules(draft.role)) && (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Purchase IDs: {(draft.purchaseScopes ?? []).join(", ") || "None"}
+          Purchase ledgers: {(draft.purchaseScopes ?? []).map(id => formatPurchaseScope(id, purchaseScopes)).join(" · ") || "None"}
         </p>
       )}
     </div>
   )
 }
 
-function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: () => void }) {
+function AddUserForm({
+  onAdd,
+  onCancel,
+  purchaseScopes,
+}: {
+  onAdd: (u: User) => void
+  onCancel: () => void
+  purchaseScopes: PurchaseScope[]
+}) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [role, setRole] = useState<UserRole>("user")
   const [modules, setModules] = useState<Module[]>([])
   const [notificationEmails, setNotificationEmails] = useState<string[]>([])
-  const [purchaseScopesInput, setPurchaseScopesInput] = useState("P1")
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(["P1"])
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true)
   const [showPw, setShowPw] = useState(false)
 
@@ -184,7 +246,7 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
       modules: modulesForRole(role, modules),
       notificationEmails,
       emailNotificationsEnabled,
-      purchaseScopes: normalizePurchaseScopes(purchaseScopesInput),
+      purchaseScopes: normalizePurchaseScopes(selectedScopes),
     })
   }
 
@@ -231,17 +293,13 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
         onEnabledChange={setEmailNotificationsEnabled}
         compact
       />
-      {modules.includes("purchase") && (
-        <div className="space-y-1">
-          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Purchase IDs (comma separated)</label>
-          <input
-            value={purchaseScopesInput}
-            onChange={e => setPurchaseScopesInput(e.target.value)}
-            placeholder="P1, P2"
-            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-          />
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Example: P1 for one team, P2 for another team.</p>
-        </div>
+      {(modules.includes("purchase") || roleHasAllModules(role)) && (
+        <PurchaseScopePicker
+          scopes={purchaseScopes}
+          selected={selectedScopes}
+          editing
+          onChange={setSelectedScopes}
+        />
       )}
       {roleHasAllModules(role) ? (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages — full access to every module</p>
@@ -271,12 +329,17 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
 
 export function UsersManager() {
   const [users, setUsers] = useState<User[]>([])
+  const [purchaseScopes, setPurchaseScopes] = useState<PurchaseScope[]>([])
   const [adding, setAdding] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    getUsers().then(u => { setUsers(u); setLoading(false) })
+    Promise.all([getUsers(), getPurchaseScopes()]).then(([u, scopes]) => {
+      setUsers(u)
+      setPurchaseScopes(scopes)
+      setLoading(false)
+    })
   }, [])
 
   async function handleSave(updated: User) {
@@ -302,7 +365,7 @@ export function UsersManager() {
           <div>
             <h2 className="text-base font-semibold">User Accounts</h2>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Credentials, page access, and notification emails
+              Credentials, page access, purchase ledgers, and notification emails
             </p>
           </div>
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setAdding(v => !v)}>
@@ -311,9 +374,9 @@ export function UsersManager() {
         </div>
         <div className="space-y-3">
           {loading && <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">Loading...</p>}
-          {adding && <AddUserForm onAdd={handleAdd} onCancel={() => setAdding(false)} />}
+          {adding && <AddUserForm onAdd={handleAdd} onCancel={() => setAdding(false)} purchaseScopes={purchaseScopes} />}
           {!loading && users.map(u => (
-            <UserRow key={u.id} u={u} onSave={handleSave} onDelete={handleDelete} />
+            <UserRow key={u.id} u={u} onSave={handleSave} onDelete={handleDelete} purchaseScopes={purchaseScopes} />
           ))}
         </div>
       </div>
