@@ -66,8 +66,121 @@ const DottedRule = () => (
   <div className="border-t border-dotted border-[hsl(var(--border))]" aria-hidden />
 )
 
+function SupplierGroupAttachments({
+  group,
+  isEditing,
+  billFile,
+  billPreview,
+  proofFile,
+  proofPreview,
+  onBillFileChange,
+  onProofFileChange,
+  onRemoveBill,
+}: {
+  group: PurchaseLedgerSupplierGroup
+  isEditing: boolean
+  billFile: File | null
+  billPreview: string
+  proofFile: File | null
+  proofPreview: string
+  onBillFileChange: (file: File | null) => void
+  onProofFileChange: (file: File | null) => void
+  onRemoveBill: () => void
+}) {
+  const existingBillUrl = group.billUrl || ""
+  const existingBillName = group.billName || ""
+  const billDisplayUrl = billFile ? URL.createObjectURL(billFile) : existingBillUrl
+
+  useEffect(() => {
+    if (!billFile || !billDisplayUrl.startsWith("blob:")) return
+    return () => URL.revokeObjectURL(billDisplayUrl)
+  }, [billFile, billDisplayUrl])
+
+  const billLabel = billPreview || existingBillName || "Click to upload bill"
+
+  return (
+    <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2.5 space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+        Attachments
+      </p>
+      <div className={`grid gap-3 ${isEditing ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+        <div className="space-y-2">
+          <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
+            <Receipt className="h-3.5 w-3.5 text-[#1faca6]" />
+            Purchase bill
+          </label>
+          <label className="flex flex-col items-center justify-center gap-2 min-h-[72px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-3 cursor-pointer hover:bg-[hsl(var(--muted))]/25 hover:border-[#1faca6]/40 transition-colors">
+            <Upload className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+            <span className="text-[10px] font-medium text-center">{billLabel}</span>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={e => onBillFileChange(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          {(billPreview || existingBillName) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {existingBillUrl && !billFile && (
+                <a href={existingBillUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline">
+                  <FileText className="h-3 w-3" />
+                  View current bill
+                </a>
+              )}
+              <button type="button" className="text-[10px] text-red-500 hover:underline" onClick={onRemoveBill}>
+                Remove bill
+              </button>
+            </div>
+          )}
+          {billDisplayUrl && isImageBillUrl(billDisplayUrl) && (
+            <a href={billDisplayUrl} target="_blank" rel="noreferrer" className="block">
+              <img src={billDisplayUrl} alt="Purchase bill preview" className="max-h-32 w-full rounded-md border object-contain bg-white" />
+            </a>
+          )}
+        </div>
+
+        {!isEditing && (
+          <div className="space-y-2">
+            <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
+              <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+              Payment proof
+            </label>
+            <label className="flex flex-col items-center justify-center gap-2 min-h-[72px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-3 cursor-pointer hover:bg-[hsl(var(--muted))]/25 transition-colors">
+              <Upload className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+              <span className="text-[10px] font-medium text-center">
+                {proofPreview || "Click to upload screenshot"}
+              </span>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={e => onProofFileChange(e.target.files?.[0] ?? null)}
+              />
+            </label>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function fmtMoney(n: number) {
   return `Rs. ${n.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`
+}
+
+function getEntryBillLinks(entry: PurchaseLedgerEntry) {
+  if (entry.linkMode === "project" && entry.supplierGroups.length > 0) {
+    return entry.supplierGroups
+      .filter(group => group.billUrl)
+      .map(group => ({
+        url: group.billUrl!,
+        name: group.billName || group.supplierName || "Bill",
+      }))
+  }
+  if (entry.billUrl) {
+    return [{ url: entry.billUrl, name: entry.billName || "Bill attached" }]
+  }
+  return []
 }
 
 type ItemEditField = "quantity" | "unitPrice" | "lineTotal"
@@ -205,6 +318,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [billPreview, setBillPreview] = useState("")
   const [existingBillUrl, setExistingBillUrl] = useState("")
   const [existingBillName, setExistingBillName] = useState("")
+  const [groupBillFiles, setGroupBillFiles] = useState<Record<string, File | null>>({})
+  const [groupBillPreviews, setGroupBillPreviews] = useState<Record<string, string>>({})
+  const [groupProofFiles, setGroupProofFiles] = useState<Record<string, File | null>>({})
+  const [groupProofPreviews, setGroupProofPreviews] = useState<Record<string, string>>({})
 
   const grandTotal = useMemo(() => sumSupplierGroups(supplierGroups), [supplierGroups])
   const payingNow = parseFloat(amountPayingNow) || 0
@@ -299,6 +416,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setBillPreview("")
     setExistingBillUrl("")
     setExistingBillName("")
+    setGroupBillFiles({})
+    setGroupBillPreviews({})
+    setGroupProofFiles({})
+    setGroupProofPreviews({})
     setLinkMode("general")
     setTransactionDate(new Date().toISOString().slice(0, 10))
   }
@@ -342,8 +463,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setProofPreview("")
     setBillFile(null)
     setBillPreview("")
-    setExistingBillUrl(entry.billUrl || "")
-    setExistingBillName(entry.billName || "")
+    setExistingBillUrl(entry.linkMode === "project" ? "" : (entry.billUrl || ""))
+    setExistingBillName(entry.linkMode === "project" ? "" : (entry.billName || ""))
+    setGroupBillFiles({})
+    setGroupBillPreviews({})
+    setGroupProofFiles({})
+    setGroupProofPreviews({})
     setDetailEntryId(null)
     setShowForm(true)
   }
@@ -380,38 +505,58 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       let amountDue = totalAmount
 
       if (isEditing) {
-        groupsWithPayments = groups.map(group => withGroupPaymentTotals(group, resolveGroupAmountPaid(group)))
+        groupsWithPayments = []
+        for (const group of groups) {
+          let billUrl = group.billUrl || ""
+          let billName = group.billName || ""
+          const pendingBill = groupBillFiles[group.id]
+          if (pendingBill) {
+            billUrl = await uploadFile(pendingBill, "purchase-bills")
+            billName = pendingBill.name
+          }
+          groupsWithPayments.push({
+            ...withGroupPaymentTotals(group, resolveGroupAmountPaid(group)),
+            billUrl,
+            billName,
+          })
+        }
         payments = existingPayments
         amountPaid = isProjectMode ? sumGroupAmountPaid(groupsWithPayments) : sumPayments(payments)
         amountDue = isProjectMode ? sumGroupAmountDue(groupsWithPayments) : Math.max(0, totalAmount - amountPaid)
       } else if (isProjectMode) {
-        let proofUrl = ""
-        let proofName = ""
-        if (proofFile) {
-          proofUrl = await uploadFile(proofFile, "payment-proofs")
-          proofName = proofFile.name
-        }
         groupsWithPayments = []
         payments = []
-        let proofAttached = false
         for (const group of groups) {
+          let proofUrl = ""
+          let proofName = ""
+          const pendingProof = groupProofFiles[group.id]
+          if (pendingProof) {
+            proofUrl = await uploadFile(pendingProof, "payment-proofs")
+            proofName = pendingProof.name
+          }
+          let billUrl = group.billUrl || ""
+          let billName = group.billName || ""
+          const pendingBill = groupBillFiles[group.id]
+          if (pendingBill) {
+            billUrl = await uploadFile(pendingBill, "purchase-bills")
+            billName = pendingBill.name
+          }
           const paying = parseFloat(groupPayingNow[group.id] || "") || 0
           const withPayment = withGroupPaymentTotals(group, paying)
-          groupsWithPayments.push(withPayment)
+          groupsWithPayments.push({ ...withPayment, billUrl, billName })
           if (paying > 0) {
             payments.push({
               id: `${Date.now()}-${group.id}`,
               amount: paying,
               date: transactionDate,
-              proofUrl: !proofAttached ? proofUrl : "",
-              proofName: !proofAttached ? proofName : "",
+              proofUrl,
+              proofName,
               notes: `Initial payment${group.supplierName ? ` · ${group.supplierName}` : ""}`,
               createdAt: new Date().toISOString(),
               createdBy: user.name,
               supplierGroupId: group.id,
               supplierName: group.supplierName,
             })
-            if (proofUrl) proofAttached = true
           }
         }
         amountPaid = sumGroupAmountPaid(groupsWithPayments)
@@ -442,9 +587,15 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
 
       let billUrl = existingBillUrl
       let billName = existingBillName
-      if (billFile) {
-        billUrl = await uploadFile(billFile, "purchase-bills")
-        billName = billFile.name
+      if (!isProjectMode) {
+        if (billFile) {
+          billUrl = await uploadFile(billFile, "purchase-bills")
+          billName = billFile.name
+        }
+      } else {
+        const firstGroupBill = groupsWithPayments.find(group => group.billUrl)
+        billUrl = firstGroupBill?.billUrl || ""
+        billName = firstGroupBill?.billName || ""
       }
 
       const primary = groups[0]
@@ -469,7 +620,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         items: flatItems,
         supplierGroups: groupsWithPayments,
         payments,
-        notes: embedBillInNotes(notes.trim(), { billUrl, billName }),
+        notes: isProjectMode
+          ? notes.trim()
+          : embedBillInNotes(notes.trim(), { billUrl, billName }),
         dueDate,
         accountDetails: primary?.accountDetails ?? "",
         paymentProofUrl: payments[0]?.proofUrl ?? "",
@@ -954,6 +1107,30 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                           </div>
                         </div>
                       )}
+
+                      {isProjectMode && (
+                        <SupplierGroupAttachments
+                          group={group}
+                          isEditing={isEditing}
+                          billFile={groupBillFiles[group.id] ?? null}
+                          billPreview={groupBillPreviews[group.id] || ""}
+                          proofFile={groupProofFiles[group.id] ?? null}
+                          proofPreview={groupProofPreviews[group.id] || ""}
+                          onBillFileChange={file => {
+                            setGroupBillFiles(prev => ({ ...prev, [group.id]: file }))
+                            setGroupBillPreviews(prev => ({ ...prev, [group.id]: file?.name ?? "" }))
+                          }}
+                          onProofFileChange={file => {
+                            setGroupProofFiles(prev => ({ ...prev, [group.id]: file }))
+                            setGroupProofPreviews(prev => ({ ...prev, [group.id]: file?.name ?? "" }))
+                          }}
+                          onRemoveBill={() => {
+                            setGroupBillFiles(prev => ({ ...prev, [group.id]: null }))
+                            setGroupBillPreviews(prev => ({ ...prev, [group.id]: "" }))
+                            updateSupplierGroup(group.id, { billUrl: "", billName: "" })
+                          }}
+                        />
+                      )}
                     </section>
                   ))}
                 </div>
@@ -965,6 +1142,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   <span className="text-base font-semibold text-[#1faca6]">{fmtMoney(grandTotal)}</span>
                 </div>
 
+                {!isProjectMode && (
                 <section className="rounded-lg border border-[#1faca6]/25 bg-[#1faca6]/5 px-3 py-3 space-y-3">
                   <div className="flex items-center gap-2">
                     <Paperclip className="h-4 w-4 text-[#1faca6] shrink-0" />
@@ -1062,6 +1240,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                     )}
                   </div>
                 </section>
+                )}
 
                 <section className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-2.5">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
@@ -1250,14 +1429,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 <p className="text-xs font-semibold text-amber-600">{fmtMoney(entry.amountDue)}</p>
               </div>
             </div>
-            {entry.billUrl && (
-              <div className="flex items-center gap-1.5 text-[10px] text-[#1faca6]" onClick={e => e.stopPropagation()}>
+            {getEntryBillLinks(entry).map(bill => (
+              <div key={bill.url} className="flex items-center gap-1.5 text-[10px] text-[#1faca6]" onClick={e => e.stopPropagation()}>
                 <Receipt className="h-3 w-3 shrink-0" />
-                <a href={entry.billUrl} target="_blank" rel="noreferrer" className="hover:underline truncate">
-                  {entry.billName || "Bill attached"}
+                <a href={bill.url} target="_blank" rel="noreferrer" className="hover:underline truncate">
+                  {bill.name}
                 </a>
               </div>
-            )}
+            ))}
             <div className="flex flex-wrap gap-1.5 pt-1" onClick={e => e.stopPropagation()}>
               <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => exportEntryExcel(entry)}>
                 <FileSpreadsheet className="h-3 w-3" /> Excel
@@ -1332,18 +1511,19 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 <td className="px-2 py-2 whitespace-nowrap">{entry.dueDate || "—"}</td>
                 <td className="px-2 py-2">
                   <div className="flex flex-col gap-1">
-                    {entry.billUrl && (
+                    {getEntryBillLinks(entry).map(bill => (
                       <a
-                        href={entry.billUrl}
+                        key={bill.url}
+                        href={bill.url}
                         target="_blank"
                         rel="noreferrer"
                         onClick={e => e.stopPropagation()}
                         className="inline-flex items-center gap-1 text-[#1faca6] hover:underline w-fit"
                       >
                         <Receipt className="h-3 w-3" />
-                        <span className="truncate max-w-[100px]">{entry.billName || "Bill"}</span>
+                        <span className="truncate max-w-[100px]">{bill.name}</span>
                       </a>
-                    )}
+                    ))}
                     {entry.payments.map(p => (
                       <div key={p.id} className="flex items-center gap-1">
                         <span>{fmtMoney(p.amount)}</span>

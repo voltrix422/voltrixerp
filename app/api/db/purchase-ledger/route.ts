@@ -61,6 +61,8 @@ type LedgerSupplierGroup = {
   items: LedgerItem[]
   amountPaid?: number
   amountDue?: number
+  billUrl?: string
+  billName?: string
 }
 
 function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
@@ -78,6 +80,8 @@ function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
       items,
       amountPaid,
       amountDue,
+      billUrl: String((group as LedgerSupplierGroup).billUrl ?? ""),
+      billName: String((group as LedgerSupplierGroup).billName ?? ""),
     }
   })
 }

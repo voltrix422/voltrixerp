@@ -132,6 +132,29 @@ export function LedgerEntryDetailModal({
                   </div>
                 </div>
               )}
+              {"billUrl" in group && group.billUrl && (
+                <div className="px-3 py-2.5 border-t bg-[hsl(var(--muted))]/5 space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Purchase bill</p>
+                  <a
+                    href={group.billUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    {group.billName || "View purchase bill"}
+                  </a>
+                  {isImageBillUrl(group.billUrl) && (
+                    <a href={group.billUrl} target="_blank" rel="noreferrer" className="block">
+                      <img
+                        src={group.billUrl}
+                        alt={group.billName || "Purchase bill"}
+                        className="max-h-40 w-full rounded-md border object-contain bg-white"
+                      />
+                    </a>
+                  )}
+                </div>
+              )}
             </section>
           ))}
 
@@ -163,7 +186,11 @@ export function LedgerEntryDetailModal({
               <FileText className="h-3.5 w-3.5 text-[#1faca6]" />
               <p className="text-xs font-semibold">Purchase bill</p>
             </div>
-            {entry.billUrl ? (
+            {entry.linkMode === "project" && entry.supplierGroups.some(group => group.billUrl) ? (
+              <p className="px-3 py-4 text-xs text-[hsl(var(--muted-foreground))]">
+                Bills are attached per supplier above.
+              </p>
+            ) : entry.billUrl ? (
               <div className="px-3 py-3 space-y-3">
                 <a
                   href={entry.billUrl}

@@ -20,6 +20,8 @@ export interface PurchaseLedgerSupplierGroup {
   items: PurchaseLedgerItem[]
   amountPaid?: number
   amountDue?: number
+  billUrl?: string
+  billName?: string
 }
 
 export interface PurchaseLedgerPayment {
@@ -107,6 +109,8 @@ export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>)
     items: partial?.items?.length ? partial.items.map(item => ({ ...item })) : [newLedgerItem()],
     amountPaid: partial?.amountPaid ?? 0,
     amountDue: partial?.amountDue,
+    billUrl: partial?.billUrl ?? "",
+    billName: partial?.billName ?? "",
   }
 }
 
@@ -207,6 +211,8 @@ function parseSupplierGroups(raw: unknown, fallback: {
       items,
       amountPaid: Number(group.amountPaid) || 0,
       amountDue: group.amountDue == null ? undefined : Number(group.amountDue) || 0,
+      billUrl: String(group.billUrl ?? ""),
+      billName: String(group.billName ?? ""),
     }
     return withGroupPaymentTotals(parsedGroup, parsedGroup.amountPaid ?? 0)
   })
@@ -278,6 +284,17 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   const resolvedItems = items.length > 0 ? items : flattenSupplierGroupItems(supplierGroups)
   const rawNotes = (row.notes as string) ?? ""
   const billMeta = extractBillFromNotes(rawNotes)
+
+  if (
+    linkMode === "project"
+    && billMeta.billUrl
+    && supplierGroups.length > 0
+    && !supplierGroups.some(group => group.billUrl)
+  ) {
+    supplierGroups = supplierGroups.map((group, index) => (
+      index === 0 ? { ...group, billUrl: billMeta.billUrl, billName: billMeta.billName } : group
+    ))
+  }
 
   return {
     id: row.id as string,
