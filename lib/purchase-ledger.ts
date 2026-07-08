@@ -31,6 +31,7 @@ export interface PurchaseLedgerPayment {
 
 export interface PurchaseLedgerEntry {
   id: string
+  purchaseScopeId?: string
   ledgerNumber: string
   transactionDate: string
   linkMode: PurchaseLinkMode
@@ -197,6 +198,7 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
 
   return {
     id: row.id as string,
+    purchaseScopeId: (row.purchaseScopeId as string) || "P1",
     ledgerNumber: row.ledgerNumber as string,
     transactionDate: row.transactionDate as string,
     linkMode,
@@ -226,15 +228,19 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   }
 }
 
-export async function getPurchaseLedgerEntries(): Promise<PurchaseLedgerEntry[]> {
-  const res = await fetch("/api/db/purchase-ledger")
+export async function getPurchaseLedgerEntries(purchaseScopeId?: string): Promise<PurchaseLedgerEntry[]> {
+  const qs = purchaseScopeId ? `?scope=${encodeURIComponent(purchaseScopeId)}` : ""
+  const res = await fetch(`/api/db/purchase-ledger${qs}`)
   if (!res.ok) return []
   const data = await res.json()
   return (data ?? []).map(mapRow)
 }
 
-export async function getNextLedgerNumber(): Promise<string> {
-  const res = await fetch("/api/db/purchase-ledger?nextNumber=1")
+export async function getNextLedgerNumber(purchaseScopeId?: string): Promise<string> {
+  const qs = new URLSearchParams()
+  qs.set("nextNumber", "1")
+  if (purchaseScopeId) qs.set("scope", purchaseScopeId)
+  const res = await fetch(`/api/db/purchase-ledger?${qs.toString()}`)
   if (!res.ok) return "PL-0001"
   const data = await res.json()
   return data.ledgerNumber ?? "PL-0001"

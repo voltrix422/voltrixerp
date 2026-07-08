@@ -4,6 +4,7 @@ export type SupplierType = "local" | "imported"
 
 export interface Supplier {
   id: string
+  purchaseScopeId?: string
   name: string
   type: SupplierType
   contact: string
@@ -148,13 +149,15 @@ export interface PurchaseOrder {
 }
 
 // ── Suppliers ────────────────────────────────────────────────────
-export async function getSuppliers(): Promise<Supplier[]> {
+export async function getSuppliers(purchaseScopeId?: string): Promise<Supplier[]> {
   try {
-    const res = await fetch("/api/db/suppliers")
+    const qs = purchaseScopeId ? `?scope=${encodeURIComponent(purchaseScopeId)}` : ""
+    const res = await fetch(`/api/db/suppliers${qs}`)
     if (!res.ok) return []
     const data = await res.json()
     return (data ?? []).map((r: Record<string, unknown>) => ({
       id: r.id as string, name: r.name as string, type: r.type as SupplierType,
+      purchaseScopeId: (r.purchaseScopeId as string | undefined) ?? undefined,
       contact: r.contact as string, email: r.email as string, address: r.address as string, company: r.company as string,
       bankAccountName: (r.bankAccountName as string | undefined) ?? (r.bank_account_name as string | undefined),
       bankIban: (r.bankIban as string | undefined) ?? (r.bank_iban as string | undefined),
@@ -163,11 +166,15 @@ export async function getSuppliers(): Promise<Supplier[]> {
   } catch { return [] }
 }
 
-export async function saveSupplier(s: Supplier): Promise<void> {
+export async function saveSupplier(s: Supplier, purchaseScopeId?: string): Promise<void> {
+  const payload = {
+    ...s,
+    purchaseScopeId: s.purchaseScopeId || purchaseScopeId || "P1",
+  }
   await fetch("/api/db/suppliers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(s),
+    body: JSON.stringify(payload),
   })
 }
 

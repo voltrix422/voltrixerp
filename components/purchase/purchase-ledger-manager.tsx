@@ -143,7 +143,7 @@ function LineItemsEditor({
 
 const filterSelectCls = "h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs min-w-0"
 
-export function PurchaseLedgerManager() {
+export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: string }) {
   const { user } = useAuth()
   const [entries, setEntries] = useState<PurchaseLedgerEntry[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -197,15 +197,15 @@ export function PurchaseLedgerManager() {
     async function load() {
       setLoading(true)
       const [ledgerRows, supplierRows] = await Promise.all([
-        getPurchaseLedgerEntries(),
-        getSuppliers(),
+        getPurchaseLedgerEntries(purchaseScopeId),
+        getSuppliers(purchaseScopeId),
       ])
       setEntries(ledgerRows)
       setSuppliers(supplierRows)
       setLoading(false)
     }
     void load()
-  }, [])
+  }, [purchaseScopeId])
 
   function updateSupplierGroup(groupId: string, patch: Partial<PurchaseLedgerSupplierGroup>) {
     setSupplierGroups(prev => prev.map(group => group.id === groupId ? { ...group, ...patch } : group))
@@ -256,7 +256,7 @@ export function PurchaseLedgerManager() {
 
   async function openNewForm() {
     resetForm()
-    const next = await getNextLedgerNumber()
+    const next = await getNextLedgerNumber(purchaseScopeId)
     setLedgerNumber(next)
     setShowForm(true)
   }
@@ -372,6 +372,7 @@ export function PurchaseLedgerManager() {
         paymentProofUrl: payments[0]?.proofUrl ?? "",
         paymentProofName: payments[0]?.proofName ?? "",
         createdBy: isEditing ? originalCreatedBy : user.name,
+        purchaseScopeId,
       })
 
       if (saved) {
@@ -764,6 +765,7 @@ export function PurchaseLedgerManager() {
                         <SupplierPicker
                           suppliers={suppliers}
                           supplierId={group.supplierId || ""}
+                          purchaseScopeId={purchaseScopeId}
                           onSupplierIdChange={id => {
                             const supplier = suppliers.find(s => s.id === id)
                             updateSupplierGroup(group.id, {

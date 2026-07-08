@@ -14,6 +14,16 @@ function mapRow(row: Record<string, unknown>): any {
       modules = []
     }
   }
+  let purchaseScopes: string[] = []
+  if (row.purchaseScopes) {
+    try {
+      purchaseScopes = Array.isArray(row.purchaseScopes)
+        ? row.purchaseScopes.map(v => String(v || "").trim().toUpperCase()).filter(Boolean)
+        : String(row.purchaseScopes).split(/[,\s]+/).map(v => v.trim().toUpperCase()).filter(Boolean)
+    } catch {
+      purchaseScopes = []
+    }
+  }
 
   return {
     id: row.id as string,
@@ -22,6 +32,7 @@ function mapRow(row: Record<string, unknown>): any {
     password: row.password as string,
     role: row.role as string,
     modules,
+    purchaseScopes,
     managerId: row.managerId ?? null,
     branchId: row.branchId ?? null,
     location: row.location ?? "",

@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, type User, type Module, type UserRole } from "@/lib/auth"
+import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Copy } from "lucide-react"
@@ -19,7 +19,11 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
   }
 
   function save() {
-    onSave({ ...draft, modules: modulesForRole(draft.role, draft.modules) })
+    onSave({
+      ...draft,
+      modules: modulesForRole(draft.role, draft.modules),
+      purchaseScopes: normalizePurchaseScopes(draft.purchaseScopes),
+    })
     setEditing(false)
   }
   function cancel() { setDraft(u); setEditing(false) }
@@ -92,7 +96,7 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
         />
       </div>
       {editing && u.role !== "superadmin" && (
-        <div className="space-y-1">
+        <div className="space-y-2">
           <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Role</label>
           <select
             value={draft.role}
@@ -115,6 +119,18 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
               View only users can open the selected pages and browse data, but cannot create, edit, or delete records.
             </p>
           )}
+          {draft.modules.includes("purchase") && (
+            <div className="space-y-1">
+              <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Purchase IDs (comma separated)</label>
+              <input
+                value={(draft.purchaseScopes ?? []).join(", ")}
+                onChange={e => setDraft(d => ({ ...d, purchaseScopes: normalizePurchaseScopes(e.target.value) }))}
+                placeholder="P1, P2"
+                className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+              />
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Only these purchase IDs will be visible to this user.</p>
+            </div>
+          )}
         </div>
       )}
       <div className="flex flex-wrap gap-1">
@@ -133,6 +149,11 @@ function UserRow({ u, onSave, onDelete }: { u: User; onSave: (u: User) => void; 
           )
         })}
       </div>
+      {draft.modules.includes("purchase") && (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          Purchase IDs: {(draft.purchaseScopes ?? []).join(", ") || "None"}
+        </p>
+      )}
     </div>
   )
 }
@@ -144,6 +165,7 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
   const [role, setRole] = useState<UserRole>("user")
   const [modules, setModules] = useState<Module[]>([])
   const [notificationEmails, setNotificationEmails] = useState<string[]>([])
+  const [purchaseScopesInput, setPurchaseScopesInput] = useState("P1")
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true)
   const [showPw, setShowPw] = useState(false)
 
@@ -162,6 +184,7 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
       modules: modulesForRole(role, modules),
       notificationEmails,
       emailNotificationsEnabled,
+      purchaseScopes: normalizePurchaseScopes(purchaseScopesInput),
     })
   }
 
@@ -208,6 +231,18 @@ function AddUserForm({ onAdd, onCancel }: { onAdd: (u: User) => void; onCancel: 
         onEnabledChange={setEmailNotificationsEnabled}
         compact
       />
+      {modules.includes("purchase") && (
+        <div className="space-y-1">
+          <label className="text-[10px] text-[hsl(var(--muted-foreground))]">Purchase IDs (comma separated)</label>
+          <input
+            value={purchaseScopesInput}
+            onChange={e => setPurchaseScopesInput(e.target.value)}
+            placeholder="P1, P2"
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          />
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Example: P1 for one team, P2 for another team.</p>
+        </div>
+      )}
       {roleHasAllModules(role) ? (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages — full access to every module</p>
       ) : (

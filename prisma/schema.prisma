@@ -22,6 +22,7 @@ model ErpUser {
   notificationEmails        Json     @default("[]") @map("notification_emails")
   emailNotificationsEnabled Boolean  @default(true) @map("email_notifications_enabled")
   branchId                  String?  @map("branch_id")
+  purchaseScopes            Json     @default("[]") @map("purchase_scopes")
   createdAt                 DateTime @default(now()) @map("created_at")
 
   @@index([role])
@@ -61,6 +62,7 @@ model ErpSalesAgentCompensationHistory {
 
 model ErpSupplier {
   id               String  @id @default(cuid())
+  purchaseScopeId  String  @default("P1") @map("purchase_scope_id")
   name             String
   type             String
   contact          String  @default("")
@@ -112,6 +114,7 @@ model ErpPurchaseOrder {
 
 model ErpPurchaseLedger {
   id                String   @id @default(cuid())
+  purchaseScopeId   String   @default("P1") @map("purchase_scope_id")
   ledgerNumber      String   @unique @map("ledger_number")
   transactionDate   String   @map("transaction_date")
   linkMode          String   @default("general") @map("link_mode")

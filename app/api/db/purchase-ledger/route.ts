@@ -82,8 +82,9 @@ function normalizeLinkMode(mode: string) {
   return "general"
 }
 
-async function nextLedgerNumber(): Promise<string> {
+async function nextLedgerNumber(purchaseScopeId?: string): Promise<string> {
   const rows = await prisma.erpPurchaseLedger.findMany({
+    where: purchaseScopeId ? { purchaseScopeId } : undefined,
     select: { ledgerNumber: true },
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -98,11 +99,15 @@ async function nextLedgerNumber(): Promise<string> {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
+  const purchaseScopeId = (searchParams.get("scope") || "").trim().toUpperCase()
   if (searchParams.get("nextNumber") === "1") {
-    return NextResponse.json({ ledgerNumber: await nextLedgerNumber() })
+    return NextResponse.json({ ledgerNumber: await nextLedgerNumber(purchaseScopeId || undefined) })
   }
 
-  const rows = await prisma.erpPurchaseLedger.findMany({ orderBy: { createdAt: "desc" } })
+  const rows = await prisma.erpPurchaseLedger.findMany({
+    where: purchaseScopeId ? { purchaseScopeId } : undefined,
+    orderBy: { createdAt: "desc" },
+  })
   return NextResponse.json(rows)
 }
 
@@ -154,11 +159,13 @@ export async function POST(req: NextRequest) {
   const payments = parsePayments(body.payments)
   const amountPaid = payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0
   const amountDue = Math.max(0, totalAmount - amountPaid)
-  const ledgerNumber = body.ledgerNumber || (await nextLedgerNumber())
+  const purchaseScopeId = String(body.purchaseScopeId || "P1").trim().toUpperCase()
+  const ledgerNumber = body.ledgerNumber || (await nextLedgerNumber(purchaseScopeId))
   const primaryGroup = supplierGroups[0]
   const supplierNames = supplierGroups.map(group => group.supplierName).filter(Boolean)
 
   const data = {
+    purchaseScopeId,
     ledgerNumber,
     transactionDate: body.transactionDate || new Date().toISOString().slice(0, 10),
     linkMode: normalizeLinkMode(body.linkMode || "general"),

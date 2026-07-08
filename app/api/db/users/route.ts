@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       notificationEmails: body.notificationEmails ?? [],
       emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
       branchId: body.branchId ?? null,
+      purchaseScopes: body.purchaseScopes ?? [],
     },
     create: {
       id: body.id,
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
       notificationEmails: body.notificationEmails ?? [],
       emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
       branchId: body.branchId ?? null,
+      purchaseScopes: body.purchaseScopes ?? [],
     },
   })
   return NextResponse.json(user)

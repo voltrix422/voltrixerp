@@ -103,6 +103,7 @@ const emptySupplier = (): Omit<Supplier, "id"> => ({
 export function SupplierPicker({
   suppliers,
   supplierId,
+  purchaseScopeId,
   onSupplierIdChange,
   onSuppliersChange,
   onAccountDetailsChange,
@@ -110,6 +111,7 @@ export function SupplierPicker({
 }: {
   suppliers: Supplier[]
   supplierId: string
+  purchaseScopeId: string
   onSupplierIdChange: (id: string) => void
   onSuppliersChange: (suppliers: Supplier[]) => void
   onAccountDetailsChange?: (details: string) => void
@@ -131,7 +133,7 @@ export function SupplierPicker({
     setSaving(true)
     try {
       const supplier: Supplier = { ...data, id: Date.now().toString() }
-      await saveSupplier(supplier)
+      await saveSupplier(supplier, purchaseScopeId)
       onSuppliersChange([...suppliers, supplier])
       selectSupplier(supplier.id)
       setQuickOpen(false)
@@ -145,7 +147,7 @@ export function SupplierPicker({
     setSaving(true)
     try {
       const supplier: Supplier = { ...data, id: selected.id }
-      await saveSupplier(supplier)
+      await saveSupplier(supplier, purchaseScopeId)
       onSuppliersChange(suppliers.map(s => s.id === supplier.id ? supplier : s))
       selectSupplier(supplier.id)
       setEditOpen(false)

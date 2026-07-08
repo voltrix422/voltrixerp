@@ -291,7 +291,7 @@ function SupplierDetail({
   )
 }
 
-export function SuppliersTab() {
+export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [entries, setEntries] = useState<PurchaseLedgerEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -307,8 +307,8 @@ export function SuppliersTab() {
     async function load() {
       setLoading(true)
       const [supplierRows, entryRows] = await Promise.all([
-        getSuppliers(),
-        getPurchaseLedgerEntries(),
+        getSuppliers(purchaseScopeId),
+        getPurchaseLedgerEntries(purchaseScopeId),
       ])
       setSuppliers(supplierRows)
       setEntries(entryRows)
@@ -316,13 +316,13 @@ export function SuppliersTab() {
     }
     void load()
     const interval = setInterval(() => {
-      Promise.all([getSuppliers(), getPurchaseLedgerEntries()]).then(([s, e]) => {
+      Promise.all([getSuppliers(purchaseScopeId), getPurchaseLedgerEntries(purchaseScopeId)]).then(([s, e]) => {
         setSuppliers(s)
         setEntries(e)
       })
     }, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [purchaseScopeId])
 
   const statsMap = useMemo(
     () => assignSupplierPurchaseRanks(suppliers, entries),
@@ -344,7 +344,7 @@ export function SuppliersTab() {
     setSaving(true)
     const s: Supplier = { ...data, id: Date.now().toString() }
     try {
-      await saveSupplier(s)
+      await saveSupplier(s, purchaseScopeId)
       setSuppliers(prev => [...prev, s])
       setAdding(false)
       toast({ type: "success", title: "Supplier created", message: `${s.name} added.`, duration: 3000 })
@@ -359,7 +359,7 @@ export function SuppliersTab() {
     setSaving(true)
     const s: Supplier = { ...data, id }
     try {
-      await saveSupplier(s)
+      await saveSupplier(s, purchaseScopeId)
       setSuppliers(prev => prev.map(x => x.id === id ? s : x))
       setEditId(null)
       setSelected(s)

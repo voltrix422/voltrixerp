@@ -17,6 +17,21 @@ export interface User {
   commissionPercent?: number
   notificationEmails?: string[]
   emailNotificationsEnabled?: boolean
+  purchaseScopes?: string[]
+}
+
+export const DEFAULT_PURCHASE_SCOPE = "P1"
+
+export function normalizePurchaseScopes(raw: unknown): string[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? raw.split(/[,\s]+/)
+      : []
+  const normalized = list
+    .map(v => String(v || "").trim().toUpperCase())
+    .filter(Boolean)
+  return Array.from(new Set(normalized))
 }
 
 function normalizeRole(rawRole: unknown): UserRole {
@@ -142,6 +157,8 @@ function mapRow(row: Record<string, unknown>): User {
     }
   }
 
+  const purchaseScopes = normalizePurchaseScopes(row.purchaseScopes)
+
   return {
     id: row.id as string,
     name: row.name as string,
@@ -157,6 +174,7 @@ function mapRow(row: Record<string, unknown>): User {
     commissionPercent: (row.commissionPercent as number) ?? undefined,
     notificationEmails,
     emailNotificationsEnabled: row.emailNotificationsEnabled !== false,
+    purchaseScopes,
   }
 }
 
