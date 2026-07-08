@@ -17,6 +17,7 @@ const links = [
   { label: "Contact",             hash: "contact"   },
   { label: "Dealerships",         href: "/dealerships" },
   { label: "Warranty",            href: "/warranty" },
+  { label: "ERP",                 href: "/login" },
 ]
 
 const primaryLinks = links.slice(0, 7)
