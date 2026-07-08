@@ -34,6 +34,8 @@ type Props = {
   onChange: Dispatch<SetStateAction<Record<string, string[]>>>
   manualMeta?: Record<string, ManualDispatchMeta>
   warehouseStockByModel?: Record<string, number>
+  /** Per-line scan target (partial dispatch). Falls back to order qty. */
+  dispatchableQtyByLineId?: Record<string, number>
   orderId?: string
   orderNumber?: string
   disabled?: boolean
@@ -98,6 +100,7 @@ export function DispatchSerialScanPanel({
   onChange,
   manualMeta = {},
   warehouseStockByModel = {},
+  dispatchableQtyByLineId = {},
   disabled,
   allowFocus = true,
 }: Props) {
@@ -115,7 +118,12 @@ export function DispatchSerialScanPanel({
   const lineStates = useMemo(() => {
     return lines.map((item) => {
       const model = resolveOrderItemModel(item)
-      const need = Math.max(0, Math.floor(Number(item.qty) || 0))
+      const orderQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+      const dispatchable = dispatchableQtyByLineId[item.id]
+      const need =
+        dispatchable !== undefined
+          ? Math.max(0, Math.floor(dispatchable))
+          : orderQty
       const selectedSerials = value[item.id] ?? []
       const records = scanRecords[item.id] ?? []
       const manualInfo = model ? manualMeta[modelKey(model)] : undefined
@@ -123,15 +131,17 @@ export function DispatchSerialScanPanel({
       return {
         item,
         model,
+        orderQty,
         need,
         selectedSerials,
         records,
         manualInfo,
         stockQty,
-        done: need > 0 && selectedSerials.length >= need,
+        done: need === 0 || (need > 0 && selectedSerials.length >= need),
+        skipped: need === 0 && orderQty > 0,
       }
     })
-  }, [lines, manualMeta, scanRecords, value, warehouseStockByModel])
+  }, [lines, manualMeta, scanRecords, value, warehouseStockByModel, dispatchableQtyByLineId])
 
   const activeLine = useMemo(
     () => lineStates.find((l) => !l.done) ?? null,
@@ -153,7 +163,7 @@ export function DispatchSerialScanPanel({
 
   const totalNeed = lineStates.reduce((s, l) => s + l.need, 0)
   const totalScanned = lineStates.reduce((s, l) => s + l.selectedSerials.length, 0)
-  const allDone = totalNeed > 0 && totalScanned >= totalNeed
+  const allDone = lineStates.every((l) => l.done)
 
   useEffect(() => {
     if (allDone) setScannerOpen(false)
@@ -330,9 +340,9 @@ export function DispatchSerialScanPanel({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Scan QR codes</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            Scan exactly {totalNeed} unit{totalNeed === 1 ? "" : "s"} for this order. Serials go to
-            Website → Warranty (Delivered, not started). Inventory qty is reduced — SNs are not added
-            to stock.
+            {totalNeed > 0
+              ? `Scan ${totalNeed} unit${totalNeed === 1 ? "" : "s"} available in warehouse. Serials register pending warranty; only scanned qty is deducted from inventory.`
+              : "No warehouse stock available for inventory lines — dispatch can proceed without scans."}
           </p>
           <div className="mt-3 flex items-center gap-3">
             <div className="flex-1 h-2 rounded-full bg-[hsl(var(--muted))]/50 overflow-hidden">

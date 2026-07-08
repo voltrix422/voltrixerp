@@ -9,6 +9,7 @@ import {
   orderLinesRequiringSerials,
   validateSerialSelections,
   warehouseStockByModelFromRows,
+  type ValidateSerialOptions,
 } from "@/lib/order-fulfillment-serials"
 import { type Order } from "@/lib/orders"
 
@@ -18,6 +19,8 @@ type Props = {
   onChange: Dispatch<SetStateAction<Record<string, string[]>>>
   disabled?: boolean
   allowFocus?: boolean
+  dispatchableQtyByLineId?: Record<string, number>
+  partialDispatch?: boolean
   onValidationChange?: (valid: boolean, errors: string[]) => void
 }
 
@@ -35,6 +38,8 @@ export function OrderDispatchSerialPicker({
   onChange,
   disabled,
   allowFocus = true,
+  dispatchableQtyByLineId,
+  partialDispatch = false,
   onValidationChange,
 }: Props) {
   const [manualMeta, setManualMeta] = useState(manualDispatchMetaByModel([]))
@@ -70,9 +75,17 @@ export function OrderDispatchSerialPicker({
     }
   }, [])
 
+  const validationOptions: ValidateSerialOptions = useMemo(
+    () => ({
+      partialDispatch,
+      dispatchableQtyByLineId,
+    }),
+    [partialDispatch, dispatchableQtyByLineId],
+  )
+
   const validation = useMemo(
-    () => validateSerialSelections(order, value, manualMeta, warehouseStockByModel),
-    [order, value, manualMeta, warehouseStockByModel],
+    () => validateSerialSelections(order, value, manualMeta, warehouseStockByModel, validationOptions),
+    [order, value, manualMeta, warehouseStockByModel, validationOptions],
   )
 
   const blockingErrors = useMemo(
@@ -113,6 +126,7 @@ export function OrderDispatchSerialPicker({
         onChange={onChange}
         manualMeta={manualMeta}
         warehouseStockByModel={warehouseStockByModel}
+        dispatchableQtyByLineId={dispatchableQtyByLineId}
         orderId={order.id}
         orderNumber={order.orderNumber}
         disabled={disabled}

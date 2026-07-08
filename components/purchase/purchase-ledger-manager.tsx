@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal, Receipt, Paperclip } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -32,6 +32,7 @@ import {
   type PurchaseLinkMode,
   type PurchaseTransactionType,
 } from "@/lib/purchase-ledger"
+import { embedBillInNotes, isImageBillUrl } from "@/lib/purchase-ledger-bill"
 import { uploadFile } from "@/lib/upload"
 import { SupplierPicker } from "@/components/purchase/supplier-picker"
 import { LedgerEntryDetailModal } from "@/components/purchase/ledger-entry-detail-modal"
@@ -191,6 +192,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [dueDate, setDueDate] = useState("")
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState("")
+  const [billFile, setBillFile] = useState<File | null>(null)
+  const [billPreview, setBillPreview] = useState("")
+  const [existingBillUrl, setExistingBillUrl] = useState("")
+  const [existingBillName, setExistingBillName] = useState("")
 
   const grandTotal = useMemo(() => sumSupplierGroups(supplierGroups), [supplierGroups])
   const payingNow = parseFloat(amountPayingNow) || 0
@@ -199,6 +204,16 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     ? Math.max(0, grandTotal - existingPaid)
     : Math.max(0, grandTotal - payingNow)
   const isEditing = Boolean(editingEntryId)
+
+  const billDisplayUrl = useMemo(() => {
+    if (billFile) return URL.createObjectURL(billFile)
+    return existingBillUrl || ""
+  }, [billFile, existingBillUrl])
+
+  useEffect(() => {
+    if (!billFile || !billDisplayUrl.startsWith("blob:")) return
+    return () => URL.revokeObjectURL(billDisplayUrl)
+  }, [billFile, billDisplayUrl])
 
   useEffect(() => {
     async function load() {
@@ -252,6 +267,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setDueDate("")
     setProofFile(null)
     setProofPreview("")
+    setBillFile(null)
+    setBillPreview("")
+    setExistingBillUrl("")
+    setExistingBillName("")
     setLinkMode("general")
     setTransactionDate(new Date().toISOString().slice(0, 10))
   }
@@ -292,6 +311,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setAmountPayingNow("")
     setProofFile(null)
     setProofPreview("")
+    setBillFile(null)
+    setBillPreview("")
+    setExistingBillUrl(entry.billUrl || "")
+    setExistingBillName(entry.billName || "")
     setDetailEntryId(null)
     setShowForm(true)
   }
@@ -351,6 +374,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         amountDue = Math.max(0, totalAmount - payingNow)
       }
 
+      let billUrl = existingBillUrl
+      let billName = existingBillName
+      if (billFile) {
+        billUrl = await uploadFile(billFile, "purchase-bills")
+        billName = billFile.name
+      }
+
       const primary = groups[0]
       const saved = await savePurchaseLedgerEntry({
         ...(isEditing ? { id: editingEntryId! } : {}),
@@ -373,7 +403,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         items: flatItems,
         supplierGroups: groups,
         payments,
-        notes,
+        notes: embedBillInNotes(notes.trim(), { billUrl, billName }),
         dueDate,
         accountDetails: primary?.accountDetails ?? "",
         paymentProofUrl: payments[0]?.proofUrl ?? "",
@@ -708,7 +738,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               <div className="min-w-0 pr-2">
                 <p className="text-sm font-semibold">{isEditing ? "Edit purchase entry" : "New purchase entry"}</p>
                 <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-                  {isEditing ? "Update entry details · payments kept as recorded" : "Multiple items · partial payments · auto totals"}
+                  {isEditing ? "Update entry details · payments kept as recorded" : "Multiple items · partial payments · bill attachment · auto totals"}
                 </p>
               </div>
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={closeForm}>
@@ -812,6 +842,104 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   <span className="text-base font-semibold text-[#1faca6]">{fmtMoney(grandTotal)}</span>
                 </div>
 
+                <section className="rounded-lg border border-[#1faca6]/25 bg-[#1faca6]/5 px-3 py-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="h-4 w-4 text-[#1faca6] shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold">Attachments</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Attach supplier bill / invoice for this purchase</p>
+                    </div>
+                  </div>
+
+                  <div className={`grid gap-3 ${isEditing ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+                    <div className="rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2">
+                      <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
+                        <Receipt className="h-3.5 w-3.5 text-[#1faca6]" />
+                        Purchase bill
+                      </label>
+                      <label className="flex flex-col items-center justify-center gap-2 min-h-[88px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-4 cursor-pointer hover:bg-[hsl(var(--muted))]/25 hover:border-[#1faca6]/40 transition-colors">
+                        <Upload className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+                        <span className="text-xs font-medium text-center">
+                          {billPreview || existingBillName || "Click to upload bill"}
+                        </span>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Image or PDF</span>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0] ?? null
+                            setBillFile(file)
+                            setBillPreview(file?.name ?? "")
+                          }}
+                        />
+                      </label>
+                      {(billPreview || existingBillName) && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {existingBillUrl && !billFile && (
+                            <a
+                              href={existingBillUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline"
+                            >
+                              <FileText className="h-3 w-3" />
+                              View current bill
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            className="text-[10px] text-red-500 hover:underline"
+                            onClick={() => {
+                              setBillFile(null)
+                              setBillPreview("")
+                              setExistingBillUrl("")
+                              setExistingBillName("")
+                            }}
+                          >
+                            Remove bill
+                          </button>
+                        </div>
+                      )}
+                      {billDisplayUrl && isImageBillUrl(billDisplayUrl) && (
+                        <a href={billDisplayUrl} target="_blank" rel="noreferrer" className="block">
+                          <img
+                            src={billDisplayUrl}
+                            alt="Purchase bill preview"
+                            className="max-h-40 w-full rounded-md border object-contain bg-white"
+                          />
+                        </a>
+                      )}
+                    </div>
+
+                    {!isEditing && (
+                      <div className="rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2">
+                        <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
+                          <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+                          Payment proof
+                        </label>
+                        <label className="flex flex-col items-center justify-center gap-2 min-h-[88px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-4 cursor-pointer hover:bg-[hsl(var(--muted))]/25 transition-colors">
+                          <Upload className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+                          <span className="text-xs font-medium text-center">
+                            {proofPreview || "Click to upload screenshot"}
+                          </span>
+                          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Optional · image or PDF</span>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0] ?? null
+                              setProofFile(file)
+                              setProofPreview(file?.name ?? "")
+                            }}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
                 <section className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-2.5">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Payment</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
@@ -841,25 +969,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   )}
                 </section>
 
-                <div className={`grid gap-2 items-end ${isEditing ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-[1fr_auto]"}`}>
-                  <Field label="Note">
-                    <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes..." className={inputCls} />
-                  </Field>
-                  {!isEditing && (
-                    <div className="min-w-0 sm:min-w-[220px]">
-                      <label className="text-[11px] font-medium text-[hsl(var(--foreground))] block mb-1">Payment proof</label>
-                      <label className="inline-flex items-center gap-2 h-8 px-3 rounded-md border text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/30 w-full">
-                        <Upload className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{proofPreview || "Upload screenshot"}</span>
-                        <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => {
-                          const file = e.target.files?.[0] ?? null
-                          setProofFile(file)
-                          setProofPreview(file?.name ?? "")
-                        }} />
-                      </label>
-                    </div>
-                  )}
-                </div>
+                <Field label="Note">
+                  <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes..." className={inputCls} />
+                </Field>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row gap-2 px-4 sm:px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10 safe-area-pb">
@@ -976,6 +1088,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 <p className="text-xs font-semibold text-amber-600">{fmtMoney(entry.amountDue)}</p>
               </div>
             </div>
+            {entry.billUrl && (
+              <div className="flex items-center gap-1.5 text-[10px] text-[#1faca6]" onClick={e => e.stopPropagation()}>
+                <Receipt className="h-3 w-3 shrink-0" />
+                <a href={entry.billUrl} target="_blank" rel="noreferrer" className="hover:underline truncate">
+                  {entry.billName || "Bill attached"}
+                </a>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 pt-1" onClick={e => e.stopPropagation()}>
               <Button size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => exportEntryExcel(entry)}>
                 <FileSpreadsheet className="h-3 w-3" /> Excel
@@ -1050,6 +1170,18 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 <td className="px-2 py-2 whitespace-nowrap">{entry.dueDate || "—"}</td>
                 <td className="px-2 py-2">
                   <div className="flex flex-col gap-1">
+                    {entry.billUrl && (
+                      <a
+                        href={entry.billUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-[#1faca6] hover:underline w-fit"
+                      >
+                        <Receipt className="h-3 w-3" />
+                        <span className="truncate max-w-[100px]">{entry.billName || "Bill"}</span>
+                      </a>
+                    )}
                     {entry.payments.map(p => (
                       <div key={p.id} className="flex items-center gap-1">
                         <span>{fmtMoney(p.amount)}</span>

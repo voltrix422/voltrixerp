@@ -11,6 +11,7 @@ import {
   type PurchaseLedgerEntry,
   type PurchaseTransactionType,
 } from "@/lib/purchase-ledger"
+import { isImageBillUrl } from "@/lib/purchase-ledger-bill"
 
 function fmtMoney(n: number) {
   return `Rs. ${n.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`
@@ -141,6 +142,37 @@ export function LedgerEntryDetailModal({
                 <p className="text-sm font-semibold mt-0.5 text-amber-700 dark:text-amber-400">{fmtMoney(entry.amountDue)}</p>
               </div>
             </div>
+          </section>
+
+          <section className="rounded-lg border overflow-hidden">
+            <div className="px-3 py-2 border-b bg-[hsl(var(--muted))]/25 flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-[#1faca6]" />
+              <p className="text-xs font-semibold">Purchase bill</p>
+            </div>
+            {entry.billUrl ? (
+              <div className="px-3 py-3 space-y-3">
+                <a
+                  href={entry.billUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  {entry.billName || "View purchase bill"}
+                </a>
+                {isImageBillUrl(entry.billUrl) && (
+                  <a href={entry.billUrl} target="_blank" rel="noreferrer" className="block">
+                    <img
+                      src={entry.billUrl}
+                      alt={entry.billName || "Purchase bill"}
+                      className="max-h-56 w-full rounded-md border object-contain bg-white"
+                    />
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="px-3 py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">No bill attached.</p>
+            )}
           </section>
 
           <section className="rounded-lg border overflow-hidden">

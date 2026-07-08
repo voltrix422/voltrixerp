@@ -1,7 +1,8 @@
 ﻿"use client"
 import { useState, useEffect } from "react"
-import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, duplicateQuotation, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
+import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, duplicateQuotation, buildOrderFromQuotation, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
 import { getClients, type Client } from "@/lib/crm"
+import { generateOrderNumber, saveOrder } from "@/lib/orders"
 import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { SalesDateRangePanel } from "@/components/crm/sales-date-range-panel"
@@ -74,6 +75,8 @@ export function QuotationsList({
   const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null)
   const [duplicatingQuotation, setDuplicatingQuotation] = useState<Quotation | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Quotation | null>(null)
+  const [convertConfirm, setConvertConfirm] = useState<Quotation | null>(null)
+  const [converting, setConverting] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
   const [dateFrom, setDateFrom] = useState(defaultFromDate)
@@ -154,6 +157,28 @@ export function QuotationsList({
     setSelected(null)
     setEditingQuotation(null)
     setDuplicatingQuotation({ ...duplicateQuotation(q), quotationNumber: q.quotationNumber })
+  }
+
+  async function handleConvertToOrder(q: Quotation) {
+    setConverting(true)
+    try {
+      const orderNumber = await generateOrderNumber()
+      const { order, updatedQuotation } = buildOrderFromQuotation(q, orderNumber, workspace)
+      await saveOrder(order)
+      await saveQuotation(updatedQuotation)
+      setQuotations(prev => prev.map(x => x.id === q.id ? updatedQuotation : x))
+      setSelected(prev => (prev?.id === q.id ? updatedQuotation : prev))
+      setConvertConfirm(null)
+      toast({
+        title: "Order created",
+        message: `${q.quotationNumber} converted to ${order.orderNumber}. Custom and manual inventory lines are included.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not convert quotation to order.", type: "error" })
+    } finally {
+      setConverting(false)
+    }
   }
 
   return (
@@ -338,6 +363,15 @@ export function QuotationsList({
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </button>
+                            {q.status !== "converted" && !q.convertedToOrderId && (
+                              <button
+                                onClick={() => setConvertConfirm(q)}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-violet-600 hover:text-violet-800 hover:bg-violet-500/10 cursor-pointer"
+                                title="Convert to Order"
+                              >
+                                <ShoppingCart className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => setDeleteConfirm(q)}
                               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-500 hover:text-red-700 hover:bg-red-500/10 cursor-pointer"
@@ -366,10 +400,24 @@ export function QuotationsList({
       {showForm&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} onClose={()=>setShowForm(false)} onSave={q=>{setQuotations(prev=>[q,...prev.filter(x=>x.id!==q.id)]);setShowForm(false)}}/>}
       {editingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} existing={editingQuotation} onClose={()=>setEditingQuotation(null)} onSave={q=>{setQuotations(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQuotation(null)}}/>}
       {duplicatingQuotation&&<QuotationForm currentUser={currentUser} currentUserId={currentUserId} workspace={workspace} clients={clients} duplicateFrom={duplicatingQuotation} onClose={()=>setDuplicatingQuotation(null)} onSave={q=>{setQuotations(prev=>[q,...prev]);setDuplicatingQuotation(null)}}/>}
-      {selected&&!editingQuotation&&!duplicatingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDuplicate={()=>startDuplicate(selected)} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}}/>}
+      {selected&&!editingQuotation&&!duplicatingQuotation&&<QuotationDetail quotation={selected} readOnly={!!workspace?.readOnly} onClose={()=>setSelected(null)} onEdit={()=>{setEditingQuotation(selected);setSelected(null)}} onDuplicate={()=>startDuplicate(selected)} onDelete={id=>{setQuotations(prev=>prev.filter(x=>x.id!==id));setSelected(null)}} onConvertToOrder={()=>setConvertConfirm(selected)}/>}
       <ConfirmDialog isOpen={!!deleteConfirm} title="Delete Quotation" message={`Delete ${deleteConfirm?.quotationNumber}?`} confirmText="Delete" cancelText="Cancel" variant="danger"
         onConfirm={()=>{if(deleteConfirm){deleteQuotation(deleteConfirm.id);setQuotations(prev=>prev.filter(x=>x.id!==deleteConfirm.id))}setDeleteConfirm(null)}}
         onCancel={()=>setDeleteConfirm(null)}/>
+      <ConfirmDialog
+        isOpen={!!convertConfirm}
+        title="Convert to Order"
+        message={
+          convertConfirm
+            ? `Create an order from ${convertConfirm.quotationNumber}? All line items will be copied — including custom products and manual/custom inventory. Stock is checked at dispatch; only available qty will be deducted.`
+            : ""
+        }
+        confirmText={converting ? "Converting…" : "Convert to Order"}
+        cancelText="Cancel"
+        variant="default"
+        onConfirm={() => { if (convertConfirm) void handleConvertToOrder(convertConfirm) }}
+        onCancel={() => setConvertConfirm(null)}
+      />
     </div>
   )
 }

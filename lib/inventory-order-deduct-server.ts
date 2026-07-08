@@ -351,12 +351,13 @@ async function processDispatchAllocationsForLine(
   )
   if (explicit.length === 0) return { ok: false, count: 0, error: "no dispatch scans" }
 
-  const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
-  if (explicit.length !== qty) {
+  const orderQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+  const scannedQty = explicit.length
+  if (scannedQty > orderQty) {
     return {
       ok: false,
       count: 0,
-      error: `expected ${qty} serial(s), got ${explicit.length}`,
+      error: `expected at most ${orderQty} serial(s), got ${scannedQty}`,
     }
   }
 
@@ -416,12 +417,12 @@ async function processDispatchAllocationsForLine(
   const manualItem = await resolveManualInventoryForOrderLine(item)
   if (manualItem) {
     const alreadyOut = await manualQtyAlreadyDeductedForOrder(order, manualItem, item)
-    const need = qty - alreadyOut
+    const need = scannedQty - alreadyOut
     if (need > 0) {
       await decrementManualInventoryByModel(manualItem.model, need)
     }
   } else {
-    const stock = await deductStockForLine(order, item)
+    const stock = await deductStockForLine(order, item, scannedQty)
     if (!stock.ok) {
       return { ok: false, count: 0, error: stock.error || "stock deduction failed" }
     }
@@ -429,7 +430,7 @@ async function processDispatchAllocationsForLine(
 
   await logHistory(
     await historyItemLabel(item),
-    qty,
+    scannedQty,
     item.unit || "pcs",
     order,
     `Dispatch scan: ${explicit.map((a) => a.serialNumber).join(", ")} → ${order.clientName}`,
@@ -551,9 +552,10 @@ async function deductSerialsForLine(
 async function deductStockForLine(
   order: OrderDeductInput,
   item: OrderDeductLine,
+  deductQty?: number,
 ): Promise<{ ok: boolean; error?: string }> {
   const keys = getOrderLineMatchKeys(item)
-  const qty = Math.max(0, Number(item.qty) || 0)
+  const qty = deductQty ?? Math.max(0, Number(item.qty) || 0)
   if (qty === 0) return { ok: true }
 
   let remaining = qty
@@ -705,6 +707,8 @@ export async function deductInventoryForOrderServer(
     }
   }
 
+  const scanDispatch = (order.fulfillmentSerialAllocations?.length ?? 0) > 0
+
   for (const item of nonCustom) {
     const label =
       item.model?.trim() || item.description?.trim() || item.inventoryItemId || "item"
@@ -712,6 +716,18 @@ export async function deductInventoryForOrderServer(
     const lineAllocations = (order.fulfillmentSerialAllocations ?? []).filter(
       (a) => item.id && a.orderItemId === item.id,
     )
+
+    if (scanDispatch) {
+      if (lineAllocations.length === 0) continue
+      const dispatch = await processDispatchAllocationsForLine(order, item)
+      serialUnitsDeducted += dispatch.count
+      if (dispatch.ok) {
+        deductedLines += 1
+        continue
+      }
+      failedLines.push(`${label} (${dispatch.error || "dispatch scan failed"})`)
+      continue
+    }
 
     if (lineAllocations.length === 0) {
       const manualOnly = await deductManualQtyForLine(order, item)
@@ -723,17 +739,6 @@ export async function deductInventoryForOrderServer(
         failedLines.push(`${label} (${manualOnly.error})`)
         continue
       }
-    }
-
-    if (lineAllocations.length > 0) {
-      const dispatch = await processDispatchAllocationsForLine(order, item)
-      serialUnitsDeducted += dispatch.count
-      if (dispatch.ok) {
-        deductedLines += 1
-        continue
-      }
-      failedLines.push(`${label} (${dispatch.error || "dispatch scan failed"})`)
-      continue
     }
 
     const serial = await deductSerialsForLine(order, item)

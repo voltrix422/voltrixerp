@@ -1,5 +1,8 @@
 // Quotations library for CRM module
 
+import type { Order, OrderItem } from "@/lib/orders"
+import { initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
+
 export type QuotationStatus = "draft" | "pending_approval" | "sent" | "accepted" | "rejected" | "expired" | "converted"
 
 export interface QuotationItem {
@@ -130,6 +133,71 @@ export function duplicateQuotation(source: Quotation): Quotation {
       id: `${Date.now()}-${idx}`,
     })),
   }
+}
+
+export function quotationItemToOrderItem(item: QuotationItem, id?: string): OrderItem {
+  return {
+    id: id || item.id || `${Date.now()}-${Math.random()}`,
+    description: item.description,
+    qty: item.qty,
+    unit: item.unit,
+    unitPrice: item.unitPrice,
+    isCustom: item.isCustom,
+    inventoryItemId: item.inventoryItemId,
+    model: item.model,
+    costPrice: item.costPrice,
+  }
+}
+
+/** Build an order from a quotation (does not save). Includes custom and manual inventory lines. */
+export function buildOrderFromQuotation(
+  quotation: Quotation,
+  orderNumber: string,
+  workspace?: CrmWorkspaceScope,
+): { order: Order; updatedQuotation: Quotation } {
+  const orderId = `${Date.now()}`
+  const convertedNote = `Converted from quotation ${quotation.quotationNumber}`
+  const order: Order = {
+    id: orderId,
+    orderNumber,
+    clientId: quotation.clientId,
+    clientName: quotation.clientName,
+    items: quotation.items.map((item, idx) =>
+      quotationItemToOrderItem(item, `${orderId}-${idx}`),
+    ),
+    subtotal: quotation.subtotal,
+    taxPercent: quotation.taxPercent,
+    tax: quotation.tax,
+    transportCost: quotation.transportCost,
+    transportLabel: quotation.transportLabel,
+    transportIsPercentage: quotation.transportIsPercentage,
+    transportCostValue: quotation.transportCostValue,
+    otherCost: quotation.otherCost,
+    otherCostLabel: quotation.otherCostLabel,
+    otherCostIsPercentage: quotation.otherCostIsPercentage,
+    otherCostValue: quotation.otherCostValue,
+    shipping: 0,
+    discount: quotation.discount,
+    discountIsPercentage: quotation.discountIsPercentage,
+    discountValue: quotation.discountValue,
+    total: quotation.total,
+    status: initialOrderStatus(workspace),
+    notes: quotation.notes?.trim()
+      ? `${quotation.notes.trim()}\n\n${convertedNote}`
+      : convertedNote,
+    createdAt: new Date().toISOString(),
+    createdBy: quotation.createdBy,
+    ownerUserId: quotation.ownerUserId,
+    deliveryAddress: quotation.deliveryAddress,
+    deliveryDate: quotation.validUntil || "",
+    payments: [],
+  }
+  const updatedQuotation: Quotation = {
+    ...quotation,
+    status: "converted",
+    convertedToOrderId: orderId,
+  }
+  return { order, updatedQuotation }
 }
 
 export const STATUS_LABELS: Record<QuotationStatus, string> = {

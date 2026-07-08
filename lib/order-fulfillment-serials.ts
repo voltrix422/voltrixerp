@@ -14,6 +14,23 @@ export type ManualDispatchMeta = {
   manualId?: string
 }
 
+export type LineDispatchAvailability = {
+  orderItemId: string
+  description: string
+  model: string | null
+  orderedQty: number
+  availableQty: number
+  dispatchableQty: number
+  isCustom: boolean
+  hasShortage: boolean
+}
+
+export type ValidateSerialOptions = {
+  /** When true, only require scans up to warehouse availability (partial dispatch). */
+  partialDispatch?: boolean
+  dispatchableQtyByLineId?: Record<string, number>
+}
+
 export type OrderFulfillmentSerialAllocation = {
   orderItemId: string
   model: string
@@ -125,6 +142,86 @@ export function warehouseStockByModelFromRows(
   return map
 }
 
+export function serialCountByModelFromUnits(
+  units: Array<{ model?: string | null; status?: string | null }>,
+): Record<string, number> {
+  const map: Record<string, number> = {}
+  for (const unit of units) {
+    if (unit.status !== "in_stock") continue
+    const model = unit.model?.trim()
+    if (!model) continue
+    const key = modelKey(model)
+    map[key] = (map[key] ?? 0) + 1
+  }
+  return map
+}
+
+export function getLineAvailableQty(
+  item: OrderItem,
+  manualMeta: Record<string, ManualDispatchMeta>,
+  warehouseStockByModel: Record<string, number>,
+  serialCountByModel: Record<string, number> = {},
+): number {
+  if (item.isCustom) return 0
+  const model = resolveOrderItemModel(item)
+  if (!model) return 0
+  const key = modelKey(model)
+  if (isManualDispatchLine(item)) {
+    return Math.max(0, Math.floor(manualMeta[key]?.availableQty ?? 0))
+  }
+  const serialCount = serialCountByModel[key] ?? 0
+  if (serialCount > 0) return serialCount
+  if (key in warehouseStockByModel) {
+    return Math.max(0, Math.floor(warehouseStockByModel[key]))
+  }
+  return 0
+}
+
+export function computeOrderDispatchAvailability(
+  order: Pick<Order, "items">,
+  manualMeta: Record<string, ManualDispatchMeta>,
+  warehouseStockByModel: Record<string, number>,
+  serialCountByModel: Record<string, number> = {},
+): LineDispatchAvailability[] {
+  return order.items.map((item) => {
+    const orderedQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+    const model = resolveOrderItemModel(item)
+    const availableQty = getLineAvailableQty(
+      item,
+      manualMeta,
+      warehouseStockByModel,
+      serialCountByModel,
+    )
+    const dispatchableQty = item.isCustom ? 0 : Math.min(orderedQty, availableQty)
+    return {
+      orderItemId: item.id,
+      description: item.description,
+      model,
+      orderedQty,
+      availableQty,
+      dispatchableQty,
+      isCustom: !!item.isCustom,
+      hasShortage: !item.isCustom && availableQty < orderedQty,
+    }
+  })
+}
+
+export function buildDispatchableQtyMap(
+  availability: LineDispatchAvailability[],
+): Record<string, number> {
+  const map: Record<string, number> = {}
+  for (const line of availability) {
+    if (!line.isCustom) {
+      map[line.orderItemId] = line.dispatchableQty
+    }
+  }
+  return map
+}
+
+export function orderHasDispatchShortage(availability: LineDispatchAvailability[]): boolean {
+  return availability.some((line) => line.hasShortage)
+}
+
 export function inStockUnitsForOrderLine(
   units: InventorySerialUnit[],
   item: OrderItem,
@@ -165,20 +262,36 @@ export function validateSerialSelections(
   selections: Record<string, string[]>,
   manualMeta: Record<string, ManualDispatchMeta> = {},
   warehouseStockByModel: Record<string, number> = {},
+  options: ValidateSerialOptions = {},
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = []
   const usedSerials = new Set<string>()
+  const partial = options.partialDispatch === true
+  const dispatchableMap = options.dispatchableQtyByLineId ?? {}
 
   for (const item of orderLinesRequiringSerials(order)) {
     const model = resolveOrderItemModel(item)!
-    const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+    const orderQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+    const available = getLineAvailableQty(item, manualMeta, warehouseStockByModel)
+    const requiredQty = partial
+      ? (dispatchableMap[item.id] ?? Math.min(orderQty, available))
+      : orderQty
     const selected = selections[item.id] ?? []
 
-    if (needQty === 0) continue
+    if (orderQty === 0) continue
 
-    if (selected.length !== needQty) {
+    if (partial && requiredQty === 0) {
+      if (selected.length > 0) {
+        errors.push(`${model}: no stock available — remove ${selected.length} scan(s)`)
+      }
+      continue
+    }
+
+    if (selected.length !== requiredQty) {
       errors.push(
-        `${model}: scan ${needQty} serial number(s) (scanned ${selected.length})`,
+        partial
+          ? `${model}: scan ${requiredQty} serial number(s) for available stock (scanned ${selected.length})`
+          : `${model}: scan ${requiredQty} serial number(s) (scanned ${selected.length})`,
       )
       continue
     }
@@ -196,22 +309,21 @@ export function validateSerialSelections(
       usedSerials.add(key)
     }
 
-    if (isManualDispatchLine(item)) {
+    if (!partial && isManualDispatchLine(item)) {
       const meta = manualMeta[modelKey(model)]
-      const available = meta?.availableQty ?? 0
-      if (available < needQty) {
+      const stockAvailable = meta?.availableQty ?? 0
+      if (stockAvailable < orderQty) {
         errors.push(
-          `${model}: only ${available} unit(s) available (order needs ${needQty})`,
+          `${model}: only ${stockAvailable} unit(s) available (order needs ${orderQty})`,
         )
       }
-    } else {
+    } else if (!partial) {
       const key = modelKey(model)
-      // Only enforce when stock row exists — serial-tracked models may not have a stock row.
       if (key in warehouseStockByModel) {
-        const available = warehouseStockByModel[key]
-        if (available < needQty) {
+        const stockAvailable = warehouseStockByModel[key]
+        if (stockAvailable < orderQty) {
           errors.push(
-            `${model}: only ${available} unit(s) in stock (order needs ${needQty})`,
+            `${model}: only ${stockAvailable} unit(s) in stock (order needs ${orderQty})`,
           )
         }
       }

@@ -1,3 +1,5 @@
+import { extractBillFromNotes } from "@/lib/purchase-ledger-bill"
+
 export type PurchaseLinkMode = "project" | "supplier" | "general"
 export type PurchaseCategory = "expense" | "service_charge" | "inventory" | "transport" | "other"
 export type PurchaseTransactionType = "purchase" | "expense" | "service" | "payment" | "other"
@@ -56,6 +58,8 @@ export interface PurchaseLedgerEntry {
   accountDetails: string
   paymentProofUrl: string
   paymentProofName: string
+  billUrl: string
+  billName: string
   createdBy: string
   createdAt: string
 }
@@ -195,6 +199,8 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   })
 
   const resolvedItems = items.length > 0 ? items : flattenSupplierGroupItems(supplierGroups)
+  const rawNotes = (row.notes as string) ?? ""
+  const billMeta = extractBillFromNotes(rawNotes)
 
   return {
     id: row.id as string,
@@ -218,11 +224,13 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     items: resolvedItems,
     supplierGroups,
     payments,
-    notes: (row.notes as string) ?? "",
+    notes: billMeta.notes,
     dueDate: (row.dueDate as string) ?? "",
     accountDetails: (row.accountDetails as string) ?? "",
     paymentProofUrl: (row.paymentProofUrl as string) ?? "",
     paymentProofName: (row.paymentProofName as string) ?? "",
+    billUrl: billMeta.billUrl,
+    billName: billMeta.billName,
     createdBy: (row.createdBy as string) ?? "",
     createdAt: row.createdAt as string,
   }
