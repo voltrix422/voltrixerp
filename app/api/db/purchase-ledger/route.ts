@@ -177,6 +177,11 @@ async function handlePost(req: NextRequest) {
       supplierName: payment.supplierName || undefined,
     })
 
+    // Payments are attributed to individual supplier groups only in project
+    // mode. For supplier/general entries the payments list is the source of
+    // truth — using group totals there would ignore every payment.
+    const isProject = normalizeLinkMode(existing.linkMode || "general") === "project"
+
     let nextSupplierGroups = supplierGroups
     if (supplierGroupId && supplierGroups.length > 0) {
       nextSupplierGroups = supplierGroups.map(group => {
@@ -191,12 +196,19 @@ async function handlePost(req: NextRequest) {
       })
     }
 
-    const amountPaid = nextSupplierGroups.length > 0
+    const amountPaid = isProject && nextSupplierGroups.length > 0
       ? sumGroupAmountPaid(nextSupplierGroups)
       : sumPayments(payments)
-    const amountDue = nextSupplierGroups.length > 0
+    const amountDue = isProject && nextSupplierGroups.length > 0
       ? sumGroupAmountDue(nextSupplierGroups)
       : Math.max(0, existing.totalAmount - amountPaid)
+
+    if (!isProject && nextSupplierGroups.length === 1) {
+      const group = nextSupplierGroups[0]
+      const subtotal = sumItems(group.items)
+      const groupPaid = Math.min(subtotal, amountPaid)
+      nextSupplierGroups = [{ ...group, amountPaid: groupPaid, amountDue: Math.max(0, subtotal - groupPaid) }]
+    }
     const latest = payments[payments.length - 1]
 
     const row = await prisma.erpPurchaseLedger.update({
@@ -213,7 +225,9 @@ async function handlePost(req: NextRequest) {
     return NextResponse.json(row)
   }
 
-  const supplierGroups = parseSupplierGroups(body.supplierGroups)
+  const linkMode = normalizeLinkMode(body.linkMode || "general")
+  const isProject = linkMode === "project"
+  let supplierGroups = parseSupplierGroups(body.supplierGroups)
   const items = supplierGroups.length > 0
     ? supplierGroups.flatMap(group => group.items)
     : parseItems(body.items)
@@ -222,12 +236,21 @@ async function handlePost(req: NextRequest) {
     : items.length > 0 ? sumItems(items) : Number(body.totalAmount) || 0
   const firstItem = items[0]
   const payments = parsePayments(body.payments)
-  const amountPaid = supplierGroups.length > 0
+  // Group-level paid/due is only reliable in project mode, where payments are
+  // attributed per supplier. Otherwise trust the payments list.
+  const amountPaid = isProject && supplierGroups.length > 0
     ? sumGroupAmountPaid(supplierGroups)
     : payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0
-  const amountDue = supplierGroups.length > 0
+  const amountDue = isProject && supplierGroups.length > 0
     ? sumGroupAmountDue(supplierGroups)
     : Math.max(0, totalAmount - amountPaid)
+
+  if (!isProject && supplierGroups.length === 1) {
+    const group = supplierGroups[0]
+    const subtotal = sumItems(group.items)
+    const groupPaid = Math.min(subtotal, amountPaid)
+    supplierGroups = [{ ...group, amountPaid: groupPaid, amountDue: Math.max(0, subtotal - groupPaid) }]
+  }
   const purchaseScopeId = String(body.purchaseScopeId || "P1").trim().toUpperCase()
   const ledgerNumber = body.ledgerNumber || (await nextLedgerNumber(purchaseScopeId))
   const primaryGroup = supplierGroups[0]
@@ -237,7 +260,7 @@ async function handlePost(req: NextRequest) {
     purchaseScopeId,
     ledgerNumber,
     transactionDate: body.transactionDate || new Date().toISOString().slice(0, 10),
-    linkMode: normalizeLinkMode(body.linkMode || "general"),
+    linkMode,
     projectName: body.projectName || "",
     orderId: null,
     orderNumber: "",

@@ -248,9 +248,13 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
       : undefined,
   }))
   const totalAmount = Number(row.totalAmount) || 0
-  const amountPaid = Number(row.amountPaid) || sumPayments(payments)
-  const amountDue = Number(row.amountDue) || Math.max(0, totalAmount - amountPaid)
   const linkMode = normalizeLinkMode(String(row.linkMode ?? "general"))
+  const amountPaid = Math.max(Number(row.amountPaid) || 0, sumPayments(payments))
+  // Outside project mode, due is always total minus payments. Older rows can
+  // have a stale amountDue column (group totals overwrote payment totals).
+  const amountDue = linkMode === "project"
+    ? (Number(row.amountDue) || Math.max(0, totalAmount - amountPaid))
+    : Math.max(0, totalAmount - amountPaid)
 
   if (items.length === 0 && row.productName) {
     items = [{
