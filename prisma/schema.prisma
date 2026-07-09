@@ -163,6 +163,25 @@ model ErpPurchaseLedger {
   @@map("erp_purchase_ledger")
 }
 
+model ErpAdvanceAccount {
+  id              String   @id @default(cuid())
+  purchaseScopeId String   @default("P1") @map("purchase_scope_id")
+  personName      String   @map("person_name")
+  purpose         String   @default("")
+  notes           String   @default("")
+  status          String   @default("open")
+  transactions    Json     @default("[]")
+  totalDeposited  Float    @default(0) @map("total_deposited")
+  totalSpent      Float    @default(0) @map("total_spent")
+  balance         Float    @default(0)
+  createdBy       String   @default("") @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([purchaseScopeId])
+  @@index([status])
+  @@map("erp_advance_accounts")
+}
+
 model ErpOrder {
   id               String   @id @default(cuid())
   orderNumber      String   @map("order_number")
