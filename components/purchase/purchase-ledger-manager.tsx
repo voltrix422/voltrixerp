@@ -491,9 +491,18 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       return { ...group, ...resolved }
     }))
 
-    if (groups.length === 0 || !groups.some(g => g.items.some(i => i.productName.trim()))) return
-    if (linkMode === "project" && !projectName.trim()) return
-    if (linkMode === "supplier" && !groups[0]?.supplierId && !groups[0]?.supplierName) return
+    if (groups.length === 0 || !groups.some(g => g.items.some(i => i.productName.trim()))) {
+      alert("Add at least one item with a product name before saving.")
+      return
+    }
+    if (linkMode === "project" && !projectName.trim()) {
+      alert("Enter a project name before saving.")
+      return
+    }
+    if (linkMode === "supplier" && !groups[0]?.supplierId && !groups[0]?.supplierName) {
+      alert("Select a supplier before saving.")
+      return
+    }
 
     setSaving(true)
     try {
@@ -633,14 +642,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         purchaseScopeId,
       })
 
-      if (saved) {
-        setEntries(prev => isEditing
-          ? prev.map(row => row.id === saved.id ? saved : row)
-          : [saved, ...prev])
-        const wasEditing = isEditing
-        closeForm()
-        if (wasEditing) setDetailEntryId(saved.id)
-      }
+      setEntries(prev => isEditing
+        ? prev.map(row => row.id === saved.id ? saved : row)
+        : [saved, ...prev])
+      const wasEditing = isEditing
+      closeForm()
+      if (wasEditing) setDetailEntryId(saved.id)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to save purchase ledger entry. Please try again.")
     } finally {
       setSaving(false)
     }
@@ -690,10 +699,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         supplierGroupId: paySupplierGroupId || undefined,
         supplierName: selectedGroup?.supplierName,
       })
-      if (updated) {
-        setEntries(prev => prev.map(row => row.id === updated.id ? updated : row))
-        setPayEntry(null)
-      }
+      setEntries(prev => prev.map(row => row.id === updated.id ? updated : row))
+      setPayEntry(null)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to record payment. Please try again.")
     } finally {
       setPaySaving(false)
     }

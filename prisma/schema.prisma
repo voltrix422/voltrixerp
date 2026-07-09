@@ -128,7 +128,7 @@ model ErpPurchaseOrder {
 model ErpPurchaseLedger {
   id                String   @id @default(cuid())
   purchaseScopeId   String   @default("P1") @map("purchase_scope_id")
-  ledgerNumber      String   @unique @map("ledger_number")
+  ledgerNumber      String   @map("ledger_number")
   transactionDate   String   @map("transaction_date")
   linkMode          String   @default("general") @map("link_mode")
   projectName       String   @default("") @map("project_name")
@@ -155,6 +155,7 @@ model ErpPurchaseLedger {
   createdBy         String   @default("") @map("created_by")
   createdAt         DateTime @default(now()) @map("created_at")
 
+  @@unique([purchaseScopeId, ledgerNumber])
   @@index([transactionDate])
   @@index([supplierId])
   @@index([orderId])

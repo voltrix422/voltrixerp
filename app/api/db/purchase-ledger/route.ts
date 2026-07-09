@@ -137,7 +137,21 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(rows)
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && (error as { code?: string }).code === "P2002")
+}
+
 export async function POST(req: NextRequest) {
+  try {
+    return await handlePost(req)
+  } catch (error) {
+    console.error("Purchase ledger save failed:", error)
+    const message = error instanceof Error ? error.message : "Failed to save purchase ledger entry"
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+async function handlePost(req: NextRequest) {
   const body = await req.json()
 
   if (body.action === "addPayment") {
@@ -248,11 +262,23 @@ export async function POST(req: NextRequest) {
     createdBy: body.createdBy || "",
   }
 
-  const row = body.id
-    ? await prisma.erpPurchaseLedger.update({ where: { id: body.id }, data })
-    : await prisma.erpPurchaseLedger.create({ data })
+  if (body.id) {
+    const row = await prisma.erpPurchaseLedger.update({ where: { id: body.id }, data })
+    return NextResponse.json(row)
+  }
 
-  return NextResponse.json(row)
+  try {
+    const row = await prisma.erpPurchaseLedger.create({ data })
+    return NextResponse.json(row)
+  } catch (error) {
+    // The client-supplied ledger number can be stale (fetched when the form
+    // was opened). Recompute and retry once instead of failing the save.
+    if (!isUniqueConstraintError(error)) throw error
+    const row = await prisma.erpPurchaseLedger.create({
+      data: { ...data, ledgerNumber: await nextLedgerNumber(purchaseScopeId) },
+    })
+    return NextResponse.json(row)
+  }
 }
 
 export async function DELETE(req: NextRequest) {

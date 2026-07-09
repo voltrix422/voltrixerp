@@ -348,28 +348,38 @@ export async function getNextLedgerNumber(purchaseScopeId?: string): Promise<str
   return data.ledgerNumber ?? "PL-0001"
 }
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json()
+    if (data && typeof data.error === "string" && data.error) return data.error
+  } catch {
+    // ignore non-JSON bodies
+  }
+  return `${fallback} (HTTP ${res.status})`
+}
+
 export async function savePurchaseLedgerEntry(
   entry: Omit<PurchaseLedgerEntry, "id" | "createdAt"> & { id?: string },
-): Promise<PurchaseLedgerEntry | null> {
+): Promise<PurchaseLedgerEntry> {
   const res = await fetch("/api/db/purchase-ledger", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(entry),
   })
-  if (!res.ok) return null
+  if (!res.ok) throw new Error(await readErrorMessage(res, "Failed to save purchase ledger entry"))
   return mapRow(await res.json())
 }
 
 export async function addPurchaseLedgerPayment(
   id: string,
   payment: Omit<PurchaseLedgerPayment, "id" | "createdAt"> & { id?: string },
-): Promise<PurchaseLedgerEntry | null> {
+): Promise<PurchaseLedgerEntry> {
   const res = await fetch("/api/db/purchase-ledger", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "addPayment", id, payment }),
   })
-  if (!res.ok) return null
+  if (!res.ok) throw new Error(await readErrorMessage(res, "Failed to record payment"))
   return mapRow(await res.json())
 }
 
