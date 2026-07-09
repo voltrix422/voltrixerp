@@ -11,6 +11,7 @@
     "deploy:vps": "bash scripts/vps-deploy.sh",
     "backup:weekly": "bash scripts/weekly-backup.sh",
     "backup:pc": "powershell -ExecutionPolicy Bypass -File scripts/backup-to-pc.ps1",
+    "db:excel": "powershell -ExecutionPolicy Bypass -File scripts/db-to-excel.ps1",
     "sync-lead-phones": "node scripts/sync-all-lead-phones.mjs",
     "backfill-lead-outreach": "node scripts/backfill-lead-status-outreach.mjs",
     "check-product-images": "node scripts/check-product-images.mjs",
