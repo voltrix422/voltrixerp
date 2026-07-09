@@ -38,6 +38,9 @@ Thumbs.db
 # Uploads (if you want to exclude uploaded files)
 public/uploads/
 
+# Saved VPS address for backup-to-pc script (per machine)
+scripts/.vps-host
+
 # Live product catalog — managed in admin on each server; never ship from git
 data/products.json
 data/products.json.vps-backup-*
