@@ -27,7 +27,8 @@ if (-not $VpsHost) {
 Write-Host ""
 Write-Host "==> Step 1/3: Exporting all tables to CSV on $VpsHost ..." -ForegroundColor Cyan
 scp (Join-Path $scriptDir "export-db-csv.sh") "${VpsHost}:/tmp/export-db-csv.sh" | Out-Null
-$output = ssh $VpsHost "bash /tmp/export-db-csv.sh"
+# Strip Windows line endings in case the file was checked out with CRLF
+$output = ssh $VpsHost "sed -i 's/\r$//' /tmp/export-db-csv.sh && bash /tmp/export-db-csv.sh"
 if ($LASTEXITCODE -ne 0) { Write-Error "Export failed on the VPS."; exit 1 }
 $output | ForEach-Object { Write-Host $_ }
 $remoteArchive = ($output | Select-Object -Last 1).Trim()
