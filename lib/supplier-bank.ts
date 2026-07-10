@@ -81,6 +81,18 @@ export function parseSupplierBankAccounts(
   return []
 }
 
+export function coerceSupplierBankAccounts(raw: unknown): SupplierBankAccount[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map(item => {
+    const row = (typeof item === "object" && item !== null ? item : {}) as Record<string, unknown>
+    return {
+      accountTitle: String(row.accountTitle ?? "").trim(),
+      bankName: String(row.bankName ?? "").trim(),
+      bankIban: String(row.bankIban ?? "").trim(),
+    }
+  })
+}
+
 export function normalizeSupplierBankAccounts(accounts: SupplierBankAccount[] | undefined): SupplierBankAccount[] {
   return (accounts ?? [])
     .map(account => ({

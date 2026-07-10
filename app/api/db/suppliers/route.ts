@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { normalizeSupplierBankAccounts, parseSupplierBankAccounts } from "@/lib/supplier-bank"
+import { coerceSupplierBankAccounts, normalizeSupplierBankAccounts, parseSupplierBankAccounts } from "@/lib/supplier-bank"
 
 function supplierPayload(s: Record<string, unknown>) {
   const legacyBank = String(s.bankAccountName ?? "").trim()
   const bankAccounts = normalizeSupplierBankAccounts(
     Array.isArray(s.bankAccounts)
-      ? s.bankAccounts as Array<{ accountTitle?: string; bankName?: string; bankIban?: string }>
+      ? coerceSupplierBankAccounts(s.bankAccounts)
       : parseSupplierBankAccounts(s.bankNames, {
           accountTitle: String(s.accountTitle ?? ""),
           bankAccountName: legacyBank,
