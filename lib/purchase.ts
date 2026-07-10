@@ -1,6 +1,6 @@
 // DB access via /api/db routes (Prisma)
 
-import { parseSupplierBankNames, normalizeSupplierBankNames } from "@/lib/supplier-bank"
+import { parseSupplierBankAccounts, parseSupplierBankNames, normalizeSupplierBankAccounts, type SupplierBankAccount } from "@/lib/supplier-bank"
 
 export type SupplierType = "local" | "imported" | "trade"
 
@@ -13,9 +13,10 @@ export interface Supplier {
   email: string
   address: string
   company: string
+  bankAccounts?: SupplierBankAccount[]
   accountTitle?: string
   bankNames?: string[]
-  /** @deprecated use bankNames */
+  /** @deprecated use bankAccounts */
   bankAccountName?: string
   bankIban?: string
   image?: string
@@ -162,7 +163,16 @@ export async function getSuppliers(purchaseScopeId?: string): Promise<Supplier[]
     const data = await res.json()
     return (data ?? []).map((r: Record<string, unknown>) => {
       const legacyBank = (r.bankAccountName as string | undefined) ?? (r.bank_account_name as string | undefined)
-      const bankNames = parseSupplierBankNames(r.bankNames ?? r.bank_names, legacyBank)
+      const accountTitle = (r.accountTitle as string | undefined) ?? (r.account_title as string | undefined) ?? ""
+      const bankIban = (r.bankIban as string | undefined) ?? (r.bank_iban as string | undefined)
+      const bankAccounts = parseSupplierBankAccounts(r.bankNames ?? r.bank_names, {
+        accountTitle,
+        bankAccountName: legacyBank,
+        bankIban,
+      })
+      const bankNames = bankAccounts.length > 0
+        ? bankAccounts.map(account => account.bankName).filter(Boolean)
+        : parseSupplierBankNames(r.bankNames ?? r.bank_names, legacyBank)
       return {
         id: r.id as string,
         name: r.name as string,
@@ -172,10 +182,11 @@ export async function getSuppliers(purchaseScopeId?: string): Promise<Supplier[]
         email: r.email as string,
         address: r.address as string,
         company: r.company as string,
-        accountTitle: (r.accountTitle as string | undefined) ?? (r.account_title as string | undefined) ?? "",
+        bankAccounts,
+        accountTitle: bankAccounts[0]?.accountTitle || accountTitle,
         bankNames,
-        bankAccountName: legacyBank,
-        bankIban: (r.bankIban as string | undefined) ?? (r.bank_iban as string | undefined),
+        bankAccountName: bankAccounts[0]?.bankName || legacyBank,
+        bankIban: bankAccounts[0]?.bankIban || bankIban,
         image: (r.image as string) || undefined,
       }
     })
@@ -183,11 +194,23 @@ export async function getSuppliers(purchaseScopeId?: string): Promise<Supplier[]
 }
 
 export async function saveSupplier(s: Supplier, purchaseScopeId?: string): Promise<void> {
-  const bankNames = normalizeSupplierBankNames(s.bankNames)
+  const bankAccounts = normalizeSupplierBankAccounts(
+    s.bankAccounts?.length
+      ? s.bankAccounts
+      : parseSupplierBankAccounts(s.bankNames, {
+          accountTitle: s.accountTitle,
+          bankAccountName: s.bankAccountName,
+          bankIban: s.bankIban,
+        }),
+  )
+  const bankNames = bankAccounts.map(account => account.bankName).filter(Boolean)
   const payload = {
     ...s,
+    bankAccounts,
     bankNames,
-    bankAccountName: bankNames[0] || s.bankAccountName || "",
+    accountTitle: bankAccounts[0]?.accountTitle || s.accountTitle || "",
+    bankAccountName: bankAccounts[0]?.bankName || bankNames[0] || s.bankAccountName || "",
+    bankIban: bankAccounts[0]?.bankIban || s.bankIban || "",
     purchaseScopeId: s.purchaseScopeId || purchaseScopeId || "P1",
   }
   const res = await fetch("/api/db/suppliers", {

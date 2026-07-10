@@ -4,7 +4,7 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Plus, Pencil, X, Loader2 } from "lucide-react"
 import { saveSupplier, type Supplier } from "@/lib/purchase"
-import { formatSupplierAccountDetails, normalizeSupplierBankNames, SUPPLIER_TYPE_OPTIONS } from "@/lib/supplier-bank"
+import { formatSupplierAccountDetails, normalizeSupplierBankAccounts, supplierBankAccountsForForm, SUPPLIER_TYPE_OPTIONS } from "@/lib/supplier-bank"
 import { SupplierBankFields } from "@/components/purchase/supplier-bank-fields"
 import { useToast } from "@/components/ui/toast"
 
@@ -34,7 +34,7 @@ function SupplierQuickForm({
         e.stopPropagation()
         onSave({
           ...form,
-          bankNames: normalizeSupplierBankNames(form.bankNames),
+          bankAccounts: normalizeSupplierBankAccounts(form.bankAccounts),
         })
       }}
       className="space-y-3"
@@ -72,12 +72,8 @@ function SupplierQuickForm({
       </div>
       <SupplierBankFields
         compact
-        accountTitle={form.accountTitle || ""}
-        bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
-        bankIban={form.bankIban || ""}
-        onAccountTitleChange={value => setForm(prev => ({ ...prev, accountTitle: value }))}
-        onBankNamesChange={names => setForm(prev => ({ ...prev, bankNames: names }))}
-        onBankIbanChange={value => setForm(prev => ({ ...prev, bankIban: value }))}
+        bankAccounts={form.bankAccounts && form.bankAccounts.length > 0 ? form.bankAccounts : [{ accountTitle: "", bankName: "", bankIban: "" }]}
+        onBankAccountsChange={accounts => setForm(prev => ({ ...prev, bankAccounts: accounts }))}
       />
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" className="h-8 text-xs flex-1 cursor-pointer" disabled={saving}>
@@ -98,6 +94,7 @@ const emptySupplier = (): Omit<Supplier, "id"> => ({
   email: "",
   address: "",
   company: "",
+  bankAccounts: [{ accountTitle: "", bankName: "", bankIban: "" }],
   accountTitle: "",
   bankNames: [""],
   bankIban: "",
@@ -276,9 +273,7 @@ export function SupplierPicker({
                 email: selected.email,
                 address: selected.address,
                 company: selected.company,
-                accountTitle: selected.accountTitle || "",
-                bankNames: selected.bankNames?.length ? selected.bankNames : selected.bankAccountName ? [selected.bankAccountName] : [""],
-                bankIban: selected.bankIban || "",
+                bankAccounts: supplierBankAccountsForForm(selected),
                 image: selected.image || "",
               }}
               onSave={data => void handleEdit(data)}

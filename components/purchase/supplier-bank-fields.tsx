@@ -2,85 +2,61 @@
 
 import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { emptySupplierBankAccount, type SupplierBankAccount } from "@/lib/supplier-bank"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
 
 type Props = {
-  accountTitle: string
-  bankNames: string[]
-  bankIban: string
-  onAccountTitleChange: (value: string) => void
-  onBankNamesChange: (names: string[]) => void
-  onBankIbanChange: (value: string) => void
+  bankAccounts: SupplierBankAccount[]
+  onBankAccountsChange: (accounts: SupplierBankAccount[]) => void
   compact?: boolean
 }
 
 export function SupplierBankFields({
-  accountTitle,
-  bankNames,
-  bankIban,
-  onAccountTitleChange,
-  onBankNamesChange,
-  onBankIbanChange,
+  bankAccounts,
+  onBankAccountsChange,
   compact = false,
 }: Props) {
-  const banks = bankNames.length > 0 ? bankNames : [""]
+  const accounts = bankAccounts.length > 0 ? bankAccounts : [emptySupplierBankAccount()]
 
-  function updateBank(index: number, value: string) {
-    const next = [...banks]
-    next[index] = value
-    onBankNamesChange(next)
+  function updateAccount(index: number, key: keyof SupplierBankAccount, value: string) {
+    const next = accounts.map((account, i) => (i === index ? { ...account, [key]: value } : account))
+    onBankAccountsChange(next)
   }
 
   function addBank() {
-    onBankNamesChange([...banks, ""])
+    onBankAccountsChange([...accounts, emptySupplierBankAccount()])
   }
 
   function removeBank(index: number) {
-    const next = banks.filter((_, i) => i !== index)
-    onBankNamesChange(next.length > 0 ? next : [""])
+    const next = accounts.filter((_, i) => i !== index)
+    onBankAccountsChange(next.length > 0 ? next : [emptySupplierBankAccount()])
   }
 
   const labelCls = compact ? "text-[11px] font-medium" : "text-xs font-medium"
   const sectionTitleCls = compact ? "text-[11px] font-semibold" : "text-xs font-semibold"
 
   return (
-    <div className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3 sm:col-span-2">
-      <p className={sectionTitleCls}>Bank account details</p>
-
-      <div className="space-y-1">
-        <label className={labelCls}>Account title / title name</label>
-        <input
-          value={accountTitle}
-          onChange={e => onAccountTitleChange(e.target.value)}
-          placeholder="e.g. Voltrix Batteries Pvt Ltd"
-          className={inputCls}
-        />
+    <div className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className={sectionTitleCls}>Bank account details</p>
+        <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={addBank}>
+          <Plus className="h-3 w-3" /> Add bank
+        </Button>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <label className={labelCls}>Bank name</label>
-          <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={addBank}>
-            <Plus className="h-3 w-3" /> Add bank
-          </Button>
-        </div>
-        <div className="space-y-2">
-          {banks.map((bank, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <input
-                value={bank}
-                onChange={e => updateBank(index, e.target.value)}
-                placeholder={`Bank name ${index + 1}`}
-                className={inputCls}
-              />
-              {banks.length > 1 && (
+      <div className="space-y-3">
+        {accounts.map((account, index) => (
+          <div key={index} className="rounded-md border bg-[hsl(var(--card))] p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className={labelCls}>Bank {index + 1}</p>
+              {accounts.length > 1 && (
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8 shrink-0 text-red-500"
+                  className="h-7 w-7 shrink-0 text-red-500"
                   onClick={() => removeBank(index)}
                   title="Remove bank"
                 >
@@ -88,18 +64,38 @@ export function SupplierBankFields({
                 </Button>
               )}
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div className="space-y-1">
-        <label className={labelCls}>Bank IBAN</label>
-        <input
-          value={bankIban}
-          onChange={e => onBankIbanChange(e.target.value)}
-          placeholder="PK00XXXX0000000000000000"
-          className={inputCls}
-        />
+            <div className="space-y-1">
+              <label className={labelCls}>Account title / title name</label>
+              <input
+                value={account.accountTitle}
+                onChange={e => updateAccount(index, "accountTitle", e.target.value)}
+                placeholder="e.g. Voltrix Batteries Pvt Ltd"
+                className={inputCls}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className={labelCls}>Bank name</label>
+              <input
+                value={account.bankName}
+                onChange={e => updateAccount(index, "bankName", e.target.value)}
+                placeholder={`Bank name ${index + 1}`}
+                className={inputCls}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className={labelCls}>Bank IBAN</label>
+              <input
+                value={account.bankIban}
+                onChange={e => updateAccount(index, "bankIban", e.target.value)}
+                placeholder="PK00XXXX0000000000000000"
+                className={inputCls}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { normalizeSupplierBankNames } from "@/lib/supplier-bank"
+import { normalizeSupplierBankAccounts, parseSupplierBankAccounts } from "@/lib/supplier-bank"
 
 function supplierPayload(s: Record<string, unknown>) {
-  const bankNames = normalizeSupplierBankNames(s.bankNames as string[] | undefined)
   const legacyBank = String(s.bankAccountName ?? "").trim()
-  const resolvedBanks = bankNames.length > 0 ? bankNames : legacyBank ? [legacyBank] : []
+  const bankAccounts = normalizeSupplierBankAccounts(
+    Array.isArray(s.bankAccounts)
+      ? s.bankAccounts as Array<{ accountTitle?: string; bankName?: string; bankIban?: string }>
+      : parseSupplierBankAccounts(s.bankNames, {
+          accountTitle: String(s.accountTitle ?? ""),
+          bankAccountName: legacyBank,
+          bankIban: s.bankIban ? String(s.bankIban) : "",
+        }),
+  )
+  const resolvedBanks = bankAccounts.length > 0
+    ? bankAccounts
+    : parseSupplierBankAccounts(s.bankNames, {
+        accountTitle: String(s.accountTitle ?? ""),
+        bankAccountName: legacyBank,
+        bankIban: s.bankIban ? String(s.bankIban) : "",
+      })
+
   return {
     purchaseScopeId: String(s.purchaseScopeId || "P1").trim().toUpperCase(),
     name: String(s.name ?? ""),
@@ -14,10 +29,10 @@ function supplierPayload(s: Record<string, unknown>) {
     email: String(s.email ?? ""),
     address: String(s.address ?? ""),
     company: String(s.company ?? ""),
-    accountTitle: String(s.accountTitle ?? ""),
+    accountTitle: resolvedBanks[0]?.accountTitle || String(s.accountTitle ?? ""),
     bankNames: resolvedBanks,
-    bankAccountName: resolvedBanks[0] || legacyBank || null,
-    bankIban: s.bankIban ? String(s.bankIban) : null,
+    bankAccountName: resolvedBanks[0]?.bankName || legacyBank || null,
+    bankIban: resolvedBanks[0]?.bankIban || (s.bankIban ? String(s.bankIban) : null),
     image: String(s.image ?? ""),
   }
 }

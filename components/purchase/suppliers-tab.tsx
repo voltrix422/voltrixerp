@@ -13,7 +13,7 @@ import {
   sortSuppliersByPurchases,
   type SupplierPurchaseInfo,
 } from "@/lib/supplier-purchase-stats"
-import { formatSupplierAccountDetails, normalizeSupplierBankNames, SUPPLIER_TYPE_OPTIONS, supplierTypeLabel } from "@/lib/supplier-bank"
+import { formatSupplierAccountDetails, getSupplierBankAccounts, normalizeSupplierBankAccounts, supplierBankAccountsForForm, SUPPLIER_TYPE_OPTIONS, supplierTypeLabel } from "@/lib/supplier-bank"
 import { SupplierBankFields } from "@/components/purchase/supplier-bank-fields"
 import { formatCurrency } from "@/lib/pos"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,7 @@ import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import {
   Plus, Search, X, Phone, Mail, MapPin, Building2, Loader2, Pencil, Trash2,
-  Landmark, CreditCard, Package, Receipt, Crown, FileText,
+  Package, Receipt, Crown, FileText,
 } from "lucide-react"
 
 const empty = (): Omit<Supplier, "id"> => ({
@@ -32,6 +32,7 @@ const empty = (): Omit<Supplier, "id"> => ({
   email: "",
   address: "",
   company: "",
+  bankAccounts: [{ accountTitle: "", bankName: "", bankIban: "" }],
   accountTitle: "",
   bankNames: [""],
   bankIban: "",
@@ -52,7 +53,7 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
       e.preventDefault()
       onSave({
         ...form,
-        bankNames: normalizeSupplierBankNames(form.bankNames),
+        bankAccounts: normalizeSupplierBankAccounts(form.bankAccounts),
       })
     }} className="border rounded-lg p-4 space-y-3 bg-[hsl(var(--muted))]/20">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -86,12 +87,8 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
         </div>
       </div>
       <SupplierBankFields
-        accountTitle={form.accountTitle || ""}
-        bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
-        bankIban={form.bankIban || ""}
-        onAccountTitleChange={value => setForm(f => ({ ...f, accountTitle: value }))}
-        onBankNamesChange={names => setForm(f => ({ ...f, bankNames: names }))}
-        onBankIbanChange={value => setForm(f => ({ ...f, bankIban: value }))}
+        bankAccounts={form.bankAccounts && form.bankAccounts.length > 0 ? form.bankAccounts : [{ accountTitle: "", bankName: "", bankIban: "" }]}
+        onBankAccountsChange={accounts => setForm(f => ({ ...f, bankAccounts: accounts }))}
       />
       <div className="flex gap-2">
         <Button type="submit" size="sm" className="h-8 cursor-pointer" disabled={isLoading}>
@@ -147,16 +144,13 @@ function SupplierDetail({
   const entriesDue = filteredEntries.reduce((s, e) => s + e.amountDue, 0)
   const isTopSupplier = purchaseInfo?.purchaseRank != null && purchaseInfo.purchaseRank > 0 && purchaseInfo.purchaseRank <= 3
 
-  const bankNames = (supplier.bankNames?.length ? supplier.bankNames : supplier.bankAccountName ? [supplier.bankAccountName] : []).join(", ")
+  const bankAccounts = normalizeSupplierBankAccounts(getSupplierBankAccounts(supplier))
 
   const infoItems = [
     { icon: Phone, label: "Phone", value: supplier.contact },
     { icon: Mail, label: "Email", value: supplier.email },
     { icon: MapPin, label: "Address", value: supplier.address },
     { icon: Building2, label: "Company", value: supplier.company },
-    { icon: Landmark, label: "Account title", value: supplier.accountTitle },
-    { icon: Landmark, label: "Bank name", value: bankNames },
-    { icon: CreditCard, label: "IBAN", value: supplier.bankIban },
   ]
 
   return (
@@ -215,6 +209,20 @@ function SupplierDetail({
                 </div>
               ))}
             </div>
+
+            {bankAccounts.length > 0 && (
+              <div className="mt-3 rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Bank account details</p>
+                {bankAccounts.map((account, index) => (
+                  <div key={index} className="rounded-md border bg-[hsl(var(--card))] px-2.5 py-2 space-y-1">
+                    <p className="text-[10px] font-semibold">Bank {index + 1}</p>
+                    <p className="text-xs"><span className="text-[hsl(var(--muted-foreground))]">Account title:</span> {account.accountTitle || "—"}</p>
+                    <p className="text-xs"><span className="text-[hsl(var(--muted-foreground))]">Bank name:</span> {account.bankName || "—"}</p>
+                    <p className="text-xs font-mono"><span className="text-[hsl(var(--muted-foreground))] font-sans">IBAN:</span> {account.bankIban || "—"}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="px-4 sm:px-5 py-3 border-b">
@@ -529,9 +537,7 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
                 email: editingSupplier.email,
                 address: editingSupplier.address,
                 company: editingSupplier.company,
-                accountTitle: editingSupplier.accountTitle || "",
-                bankNames: editingSupplier.bankNames?.length ? editingSupplier.bankNames : editingSupplier.bankAccountName ? [editingSupplier.bankAccountName] : [""],
-                bankIban: editingSupplier.bankIban || "",
+                bankAccounts: supplierBankAccountsForForm(editingSupplier),
                 image: editingSupplier.image || "",
               }}
               onSave={data => handleEdit(editId, data)}
