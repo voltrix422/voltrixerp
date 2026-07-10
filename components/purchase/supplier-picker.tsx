@@ -43,16 +43,16 @@ function SupplierQuickForm({
           <input required value={form.name} onChange={e => set("name", e.target.value)} className={inputCls} />
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] font-medium">Type *</label>
-          <select required value={form.type} onChange={e => set("type", e.target.value)} className={inputCls}>
+          <label className="text-[11px] font-medium">Type</label>
+          <select value={form.type} onChange={e => set("type", e.target.value)} className={inputCls}>
             {SUPPLIER_TYPE_OPTIONS.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] font-medium">Phone / WhatsApp *</label>
-          <input required value={form.contact} onChange={e => set("contact", e.target.value)} placeholder="+92 300 0000000" className={inputCls} />
+          <label className="text-[11px] font-medium">Phone / WhatsApp</label>
+          <input value={form.contact} onChange={e => set("contact", e.target.value)} placeholder="+92 300 0000000" className={inputCls} />
         </div>
         <div className="space-y-1">
           <label className="text-[11px] font-medium">Company</label>
@@ -104,16 +104,20 @@ const emptySupplier = (): Omit<Supplier, "id"> => ({
 export function SupplierPicker({
   suppliers,
   supplierId,
+  supplierName = "",
   purchaseScopeId,
   onSupplierIdChange,
+  onSupplierNameChange,
   onSuppliersChange,
   onAccountDetailsChange,
   compact = false,
 }: {
   suppliers: Supplier[]
   supplierId: string
+  supplierName?: string
   purchaseScopeId: string
   onSupplierIdChange: (id: string) => void
+  onSupplierNameChange?: (name: string) => void
   onSuppliersChange: (suppliers: Supplier[]) => void
   onAccountDetailsChange?: (details: string) => void
   compact?: boolean
@@ -121,6 +125,9 @@ export function SupplierPicker({
   const [quickOpen, setQuickOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [mode, setMode] = useState<"select" | "type">(() =>
+    onSupplierNameChange && supplierName && !supplierId ? "type" : "select"
+  )
   const { toast } = useToast()
 
   const selected = suppliers.find(s => s.id === supplierId)
@@ -138,6 +145,7 @@ export function SupplierPicker({
       await saveSupplier(supplier, purchaseScopeId)
       onSuppliersChange([...suppliers, supplier])
       selectSupplier(supplier.id)
+      setMode("select")
       setQuickOpen(false)
       toast({ type: "success", title: "Supplier created", message: `${supplier.name} added.`, duration: 3000 })
     } catch (error) {
@@ -169,23 +177,52 @@ export function SupplierPicker({
   return (
     <>
       <div className="space-y-1">
-        <label className="text-[11px] font-medium text-[hsl(var(--foreground))]">Supplier</label>
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-[11px] font-medium text-[hsl(var(--foreground))]">Supplier</label>
+          {onSupplierNameChange && (
+            <div className="flex rounded-md border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setMode("select")}
+                className={`px-2 py-0.5 text-[10px] font-medium cursor-pointer transition-colors ${mode === "select" ? "bg-[#1faca6] text-white" : "bg-transparent text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40"}`}
+              >
+                Select
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("type")}
+                className={`px-2 py-0.5 text-[10px] font-medium cursor-pointer transition-colors ${mode === "type" ? "bg-[#1faca6] text-white" : "bg-transparent text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40"}`}
+              >
+                Type name
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          <select
-            value={supplierId}
-            onChange={e => selectSupplier(e.target.value)}
-            className={inputCls + " flex-1 min-w-0"}
-          >
-            <option value="">Select supplier</option>
-            {suppliers.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          {mode === "type" && onSupplierNameChange ? (
+            <input
+              value={supplierName}
+              onChange={e => onSupplierNameChange(e.target.value)}
+              placeholder="Type supplier name"
+              className={inputCls + " flex-1 min-w-0"}
+            />
+          ) : (
+            <select
+              value={supplierId}
+              onChange={e => selectSupplier(e.target.value)}
+              className={inputCls + " flex-1 min-w-0"}
+            >
+              <option value="">Select supplier</option>
+              {suppliers.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          )}
           <div className="flex gap-2 shrink-0">
             <Button type="button" size="sm" variant="outline" className="h-8 text-[10px] flex-1 sm:flex-none cursor-pointer" onClick={() => setQuickOpen(true)}>
               <Plus className="h-3 w-3" /> Quick add
             </Button>
-            {selected && (
+            {mode === "select" && selected && (
               <Button type="button" size="sm" variant="outline" className="h-8 text-[10px] flex-1 sm:flex-none cursor-pointer" onClick={() => setEditOpen(true)}>
                 <Pencil className="h-3 w-3" /> Edit
               </Button>

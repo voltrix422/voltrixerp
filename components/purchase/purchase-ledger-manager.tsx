@@ -1047,6 +1047,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         <SupplierPicker
                           suppliers={suppliers}
                           supplierId={group.supplierId || ""}
+                          supplierName={group.supplierName || ""}
                           purchaseScopeId={purchaseScopeId}
                           onSupplierIdChange={id => {
                             const supplier = suppliers.find(s => s.id === id)
@@ -1054,6 +1055,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                               supplierId: id || null,
                               supplierName: supplier?.name ?? "",
                               accountDetails: formatSupplierAccountDetails(supplier),
+                            })
+                          }}
+                          onSupplierNameChange={name => {
+                            updateSupplierGroup(group.id, {
+                              supplierId: null,
+                              supplierName: name,
                             })
                           }}
                           onSuppliersChange={setSuppliers}
