@@ -4,7 +4,7 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Plus, Pencil, X, Loader2 } from "lucide-react"
 import { saveSupplier, type Supplier } from "@/lib/purchase"
-import { formatSupplierAccountDetails, SUPPLIER_TYPE_OPTIONS } from "@/lib/supplier-bank"
+import { formatSupplierAccountDetails, normalizeSupplierBankNames, SUPPLIER_TYPE_OPTIONS } from "@/lib/supplier-bank"
 import { SupplierBankFields } from "@/components/purchase/supplier-bank-fields"
 import { useToast } from "@/components/ui/toast"
 
@@ -32,7 +32,10 @@ function SupplierQuickForm({
       onSubmit={e => {
         e.preventDefault()
         e.stopPropagation()
-        onSave(form)
+        onSave({
+          ...form,
+          bankNames: normalizeSupplierBankNames(form.bankNames),
+        })
       }}
       className="space-y-3"
     >
@@ -66,16 +69,16 @@ function SupplierQuickForm({
           <label className="text-[11px] font-medium">Address</label>
           <input value={form.address} onChange={e => set("address", e.target.value)} className={inputCls} />
         </div>
-        <SupplierBankFields
-          compact
-          accountTitle={form.accountTitle || ""}
-          bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
-          bankIban={form.bankIban || ""}
-          onAccountTitleChange={value => setForm(prev => ({ ...prev, accountTitle: value }))}
-          onBankNamesChange={names => setForm(prev => ({ ...prev, bankNames: names }))}
-          onBankIbanChange={value => setForm(prev => ({ ...prev, bankIban: value }))}
-        />
       </div>
+      <SupplierBankFields
+        compact
+        accountTitle={form.accountTitle || ""}
+        bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
+        bankIban={form.bankIban || ""}
+        onAccountTitleChange={value => setForm(prev => ({ ...prev, accountTitle: value }))}
+        onBankNamesChange={names => setForm(prev => ({ ...prev, bankNames: names }))}
+        onBankIbanChange={value => setForm(prev => ({ ...prev, bankIban: value }))}
+      />
       <div className="flex gap-2 pt-1">
         <Button type="submit" size="sm" className="h-8 text-xs flex-1 cursor-pointer" disabled={saving}>
           {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Saving...</> : "Save supplier"}

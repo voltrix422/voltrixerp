@@ -2,7 +2,6 @@
 
 import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { normalizeSupplierBankNames } from "@/lib/supplier-bank"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -31,22 +30,25 @@ export function SupplierBankFields({
   function updateBank(index: number, value: string) {
     const next = [...banks]
     next[index] = value
-    onBankNamesChange(normalizeSupplierBankNames(next))
+    onBankNamesChange(next)
   }
 
   function addBank() {
-    onBankNamesChange(normalizeSupplierBankNames([...banks, ""]))
+    onBankNamesChange([...banks, ""])
   }
 
   function removeBank(index: number) {
     const next = banks.filter((_, i) => i !== index)
-    onBankNamesChange(normalizeSupplierBankNames(next.length > 0 ? next : [""]))
+    onBankNamesChange(next.length > 0 ? next : [""])
   }
 
   const labelCls = compact ? "text-[11px] font-medium" : "text-xs font-medium"
+  const sectionTitleCls = compact ? "text-[11px] font-semibold" : "text-xs font-semibold"
 
   return (
-    <div className="space-y-3 sm:col-span-2">
+    <div className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3 sm:col-span-2">
+      <p className={sectionTitleCls}>Bank account details</p>
+
       <div className="space-y-1">
         <label className={labelCls}>Account title / title name</label>
         <input

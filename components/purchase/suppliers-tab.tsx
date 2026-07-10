@@ -13,7 +13,7 @@ import {
   sortSuppliersByPurchases,
   type SupplierPurchaseInfo,
 } from "@/lib/supplier-purchase-stats"
-import { formatSupplierAccountDetails, SUPPLIER_TYPE_OPTIONS, supplierTypeLabel } from "@/lib/supplier-bank"
+import { formatSupplierAccountDetails, normalizeSupplierBankNames, SUPPLIER_TYPE_OPTIONS, supplierTypeLabel } from "@/lib/supplier-bank"
 import { SupplierBankFields } from "@/components/purchase/supplier-bank-fields"
 import { formatCurrency } from "@/lib/pos"
 import { Button } from "@/components/ui/button"
@@ -48,7 +48,13 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }))
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave(form) }} className="border rounded-lg p-4 space-y-3 bg-[hsl(var(--muted))]/20">
+    <form onSubmit={e => {
+      e.preventDefault()
+      onSave({
+        ...form,
+        bankNames: normalizeSupplierBankNames(form.bankNames),
+      })
+    }} className="border rounded-lg p-4 space-y-3 bg-[hsl(var(--muted))]/20">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1 sm:col-span-2">
           <label className="text-xs font-medium">Supplier name *</label>
@@ -59,16 +65,16 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
           <input value={form.company} onChange={e => set("company", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium">Type *</label>
-          <select required value={form.type} onChange={e => set("type", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm">
+          <label className="text-xs font-medium">Type</label>
+          <select value={form.type} onChange={e => set("type", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm">
             {SUPPLIER_TYPE_OPTIONS.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium">Phone / WhatsApp *</label>
-          <input required value={form.contact} onChange={e => set("contact", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
+          <label className="text-xs font-medium">Phone / WhatsApp</label>
+          <input value={form.contact} onChange={e => set("contact", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium">Email</label>
@@ -78,15 +84,15 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
           <label className="text-xs font-medium">Address</label>
           <input value={form.address} onChange={e => set("address", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
-        <SupplierBankFields
-          accountTitle={form.accountTitle || ""}
-          bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
-          bankIban={form.bankIban || ""}
-          onAccountTitleChange={value => setForm(f => ({ ...f, accountTitle: value }))}
-          onBankNamesChange={names => setForm(f => ({ ...f, bankNames: names }))}
-          onBankIbanChange={value => setForm(f => ({ ...f, bankIban: value }))}
-        />
       </div>
+      <SupplierBankFields
+        accountTitle={form.accountTitle || ""}
+        bankNames={form.bankNames && form.bankNames.length > 0 ? form.bankNames : [""]}
+        bankIban={form.bankIban || ""}
+        onAccountTitleChange={value => setForm(f => ({ ...f, accountTitle: value }))}
+        onBankNamesChange={names => setForm(f => ({ ...f, bankNames: names }))}
+        onBankIbanChange={value => setForm(f => ({ ...f, bankIban: value }))}
+      />
       <div className="flex gap-2">
         <Button type="submit" size="sm" className="h-8 cursor-pointer" disabled={isLoading}>
           {isLoading ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Saving...</> : "Save supplier"}
