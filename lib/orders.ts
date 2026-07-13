@@ -16,6 +16,8 @@ export interface OrderItem {
   unitPrice: number
   isCustom: boolean // true if custom item, false if from inventory
   inventoryItemId?: string // reference to inventory item if not custom
+  /** Branch inventory row id (Branch POS) — used to deduct local stock */
+  branchInventoryId?: string
   model?: string // warehouse model number when from inventory
   availableQty?: number // available quantity in stock (for validation, not saved to DB)
   costPrice?: number // cost price from inventory (for reference, not saved to DB)
@@ -118,6 +120,10 @@ export interface Order {
   fulfillmentProductImageUrls?: string[]
   fulfillmentSerialAllocations?: OrderFulfillmentSerialAllocation[]
   inventoryDeductedAt?: string
+  /** Branch that owns this order when created from Branch POS */
+  branchId?: string
+  /** "branch_pos" when created from Branch POS */
+  source?: string
 }
 
 export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"
@@ -370,6 +376,8 @@ function rowToOrder(r: Record<string, unknown>): Order {
       ? (r.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
       : undefined,
     inventoryDeductedAt: (r.inventoryDeductedAt as string) ?? undefined,
+    branchId: (r.branchId as string) ?? undefined,
+    source: (r.source as string) ?? undefined,
     paymentTerms: (r.paymentTerms as OrderPaymentTerms) ?? "full",
     creditApprovedAt: (r.creditApprovedAt as string) ?? undefined,
     creditApprovedBy: (r.creditApprovedBy as string) ?? undefined,
@@ -432,8 +440,8 @@ export async function saveOrder(order: Order): Promise<Order> {
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
-    console.error("saveOrder error:", res.statusText)
-    return order
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || "Failed to save order")
   }
   const data = await res.json().catch(() => null)
   return data ? rowToOrder(data) : order

@@ -15,6 +15,7 @@ export type OrderDeductLine = {
   isCustom?: boolean
   model?: string
   inventoryItemId?: string
+  branchInventoryId?: string
 }
 
 export type OrderDeductInput = {
@@ -26,6 +27,9 @@ export type OrderDeductInput = {
   dispatcher?: string | null
   fulfillmentDispatcher?: string | null
   inventoryDeductedAt?: string | null
+  /** When "branch_pos", warehouse stock must not be deducted (branch already deducted on create). */
+  source?: string | null
+  branchId?: string | null
   fulfillmentSerialAllocations?: OrderFulfillmentSerialAllocation[]
   items: OrderDeductLine[]
 }
@@ -83,6 +87,9 @@ function orderWasDispatched(order: OrderDeductInput): boolean {
 /** Whether deleting this order should restore inventory. */
 export function orderMayNeedInventoryRestore(order: OrderDeductInput): boolean {
   if (order.items.every((item) => item.isCustom)) return false
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") {
+    return !!order.inventoryDeductedAt || !!order.branchId
+  }
   if (order.inventoryDeductedAt) return true
   if ((order.fulfillmentSerialAllocations?.length ?? 0) > 0) return true
   const hasInventoryLines = order.items.some(
@@ -678,6 +685,17 @@ export async function deductInventoryForOrderServer(
   let deductedLines = 0
   let serialUnitsDeducted = 0
 
+  // Branch POS orders deduct from branch inventory on create — never touch main warehouse.
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") {
+    return {
+      success: true,
+      alreadyDeducted: true,
+      deductedLines: 0,
+      failedLines: [],
+      serialUnitsDeducted: 0,
+    }
+  }
+
   const nonCustom = order.items.filter((i) => !i.isCustom)
   if (nonCustom.length === 0) {
     return { success: true, alreadyDeducted: true, deductedLines: 0, failedLines: [], serialUnitsDeducted: 0 }
@@ -778,6 +796,7 @@ export async function deductInventoryForOrderServer(
 
 /** True if delivery still needs serial/stock deduction (read-only). */
 export async function orderNeedsInventoryDeductionServer(order: OrderDeductInput): Promise<boolean> {
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
   if (order.items.every((i) => i.isCustom)) return false
 
   const nonCustom = order.items.filter((i) => !i.isCustom)
@@ -840,6 +859,9 @@ async function findDeliveredSerialsForKeys(keys: string[], limit: number) {
 }
 
 export async function restoreInventoryForOrderServer(order: OrderDeductInput): Promise<void> {
+  // Branch POS stock is restored separately via restoreBranchStockForPosOrder.
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") return
+
   const tag = orderUnitTag(order.id)
   const restoredIds = new Set<string>()
   const models = new Set<string>()

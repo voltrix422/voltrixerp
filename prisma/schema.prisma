@@ -225,7 +225,13 @@ model ErpOrder {
   creditApprovedAt               String? @map("credit_approved_at")
   creditApprovedBy               String? @map("credit_approved_by")
   creditNote                     String? @map("credit_note")
+  /** Set when order is created from Branch POS — stock comes from branch inventory only. */
+  branchId                       String? @map("branch_id")
+  /** "branch_pos" | "crm" (null/crm = normal ERP order) */
+  source                         String? @map("source")
 
+  @@index([branchId])
+  @@index([source])
   @@map("erp_orders")
 }
 

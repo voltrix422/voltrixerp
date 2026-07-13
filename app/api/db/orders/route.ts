@@ -8,6 +8,11 @@ import {
   orderMayNeedInventoryRestore,
   type OrderDeductInput,
 } from "@/lib/inventory-order-deduct-server"
+import {
+  deductBranchStockForPosOrder,
+  isBranchPosOrderSource,
+  restoreBranchStockForPosOrder,
+} from "@/lib/branch-pos-order-stock-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 import { generateNextOrderNumber } from "@/lib/order-number-server"
 import { notifyOnOrderStatusChange } from "@/lib/notifications-server"
@@ -20,14 +25,22 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get("status")
   const statusGroup = searchParams.get("statusGroup")
+  const branchId = searchParams.get("branchId")
+  const source = searchParams.get("source")
 
-  let where: { status?: string | { in: string[] } } | undefined
+  let where: Record<string, unknown> | undefined
   if (status) {
     where = { status }
   } else if (statusGroup === "pending") {
     where = { status: PENDING_APPROVAL_STATUS }
   } else if (statusGroup === "approved") {
     where = { status: { in: [...APPROVED_ORDER_STATUSES] } }
+  }
+  if (branchId) {
+    where = { ...(where || {}), branchId }
+  }
+  if (source) {
+    where = { ...(where || {}), source }
   }
 
   const orders = await prisma.erpOrder.findMany({
@@ -47,6 +60,8 @@ function toOrderDeductInput(record: {
   dispatcher: string | null
   fulfillmentDispatcher: string | null
   inventoryDeductedAt: string | null
+  source?: string | null
+  branchId?: string | null
   fulfillmentSerialAllocations: unknown
   items: unknown
 }): OrderDeductInput {
@@ -59,6 +74,8 @@ function toOrderDeductInput(record: {
     dispatcher: record.dispatcher,
     fulfillmentDispatcher: record.fulfillmentDispatcher,
     inventoryDeductedAt: record.inventoryDeductedAt,
+    source: record.source ?? null,
+    branchId: record.branchId ?? null,
     fulfillmentSerialAllocations: Array.isArray(record.fulfillmentSerialAllocations)
       ? (record.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
       : [],
@@ -90,7 +107,7 @@ export async function POST(req: NextRequest) {
   const existing = orderId
     ? await prisma.erpOrder.findUnique({
         where: { id: orderId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, inventoryDeductedAt: true, source: true, branchId: true },
       })
     : null
 
@@ -104,87 +121,129 @@ export async function POST(req: NextRequest) {
     }))?.orderNumber ?? (await generateNextOrderNumber())
   }
 
-  const record = await prisma.erpOrder.upsert({
-    where: { id: orderId || "__new__" },
-    update: {
-      orderNumber, clientId: o.clientId, clientName: o.clientName,
-      items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
-      transportCost: o.transportCost, transportLabel: o.transportLabel,
-      otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,
-      shipping: o.shipping, discount: o.discount, total: o.total,
-      status: o.status, notes: o.notes, createdBy: o.createdBy,
-      deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
-      dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
-      salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
-      salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
-      paymentTerms: o.paymentTerms ?? "full",
-      creditApprovedAt: o.creditApprovedAt ?? null,
-      creditApprovedBy: o.creditApprovedBy ?? null,
-      creditNote: o.creditNote ?? null,
-      ...fulfillment,
-    },
-    create: {
-      id: o.id, orderNumber, clientId: o.clientId, clientName: o.clientName,
-      items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
-      transportCost: o.transportCost, transportLabel: o.transportLabel,
-      otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,
-      shipping: o.shipping, discount: o.discount, total: o.total,
-      status: o.status, notes: o.notes, createdBy: o.createdBy,
-      createdAt: o.createdAt ? new Date(o.createdAt) : undefined,
-      deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
-      dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
-      salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
-      salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
-      paymentTerms: o.paymentTerms ?? "full",
-      creditApprovedAt: o.creditApprovedAt ?? null,
-      creditApprovedBy: o.creditApprovedBy ?? null,
-      creditNote: o.creditNote ?? null,
-      ...fulfillment,
-    },
-  })
+  const branchId = (o.branchId as string | undefined)?.trim() || existing?.branchId || null
+  const source =
+    (o.source as string | undefined)?.trim() ||
+    existing?.source ||
+    null
 
-  let responseRecord = record
+  const isNewBranchPos =
+    !existing && isBranchPosOrderSource(source) && !!branchId
 
-  if (record.status === "delivered") {
-    const deductInput = toOrderDeductInput(record)
-    try {
-      const needsDeduction = await orderNeedsInventoryDeductionServer(deductInput)
-      if (needsDeduction) {
-        const result = await deductInventoryForOrderServer(deductInput)
-        if (result.success || result.alreadyDeducted) {
-          const inventoryDeductedAt =
-            record.inventoryDeductedAt ?? new Date().toISOString()
-          responseRecord = await prisma.erpOrder.update({
-            where: { id: record.id },
-            data: { inventoryDeductedAt },
-          })
-        }
+  try {
+    const record = await prisma.$transaction(async (tx) => {
+      const saved = await tx.erpOrder.upsert({
+        where: { id: orderId || "__new__" },
+        update: {
+          orderNumber, clientId: o.clientId, clientName: o.clientName,
+          items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
+          transportCost: o.transportCost, transportLabel: o.transportLabel,
+          otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,
+          shipping: o.shipping, discount: o.discount, total: o.total,
+          status: o.status, notes: o.notes, createdBy: o.createdBy,
+          deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
+          dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
+          salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
+          salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
+          paymentTerms: o.paymentTerms ?? "full",
+          creditApprovedAt: o.creditApprovedAt ?? null,
+          creditApprovedBy: o.creditApprovedBy ?? null,
+          creditNote: o.creditNote ?? null,
+          branchId,
+          source,
+          ...fulfillment,
+        },
+        create: {
+          id: o.id, orderNumber, clientId: o.clientId, clientName: o.clientName,
+          items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
+          transportCost: o.transportCost, transportLabel: o.transportLabel,
+          otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,
+          shipping: o.shipping, discount: o.discount, total: o.total,
+          status: o.status, notes: o.notes, createdBy: o.createdBy,
+          createdAt: o.createdAt ? new Date(o.createdAt) : undefined,
+          deliveryAddress: o.deliveryAddress, deliveryDate: o.deliveryDate,
+          dispatcher: o.dispatcher, pdfUrl: o.pdfUrl, payments: o.payments, ownerUserId: o.ownerUserId,
+          salesAgentCommissionPercent: o.salesAgentCommissionPercent ?? null,
+          salesAgentCommissionAmount: o.salesAgentCommissionAmount ?? null,
+          paymentTerms: o.paymentTerms ?? "full",
+          creditApprovedAt: o.creditApprovedAt ?? null,
+          creditApprovedBy: o.creditApprovedBy ?? null,
+          creditNote: o.creditNote ?? null,
+          branchId,
+          source,
+          ...fulfillment,
+        },
+      })
+
+      if (isNewBranchPos) {
+        const { deductedAt } = await deductBranchStockForPosOrder(
+          {
+            id: saved.id,
+            orderNumber: saved.orderNumber,
+            clientName: saved.clientName,
+            createdBy: saved.createdBy,
+            branchId: branchId!,
+            items: Array.isArray(o.items) ? o.items : [],
+          },
+          tx,
+        )
+        return tx.erpOrder.update({
+          where: { id: saved.id },
+          data: { inventoryDeductedAt: deductedAt },
+        })
       }
-    } catch (err) {
-      console.error("[orders POST] inventory deduction failed:", err)
+
+      return saved
+    })
+
+    let responseRecord = record
+
+    // Warehouse deduct only for non–branch-POS orders on deliver.
+    if (record.status === "delivered" && !isBranchPosOrderSource(record.source)) {
+      const deductInput = toOrderDeductInput(record)
+      try {
+        const needsDeduction = await orderNeedsInventoryDeductionServer(deductInput)
+        if (needsDeduction) {
+          const result = await deductInventoryForOrderServer(deductInput)
+          if (result.success || result.alreadyDeducted) {
+            const inventoryDeductedAt =
+              record.inventoryDeductedAt ?? new Date().toISOString()
+            responseRecord = await prisma.erpOrder.update({
+              where: { id: record.id },
+              data: { inventoryDeductedAt },
+            })
+          }
+        }
+      } catch (err) {
+        console.error("[orders POST] inventory deduction failed:", err)
+      }
     }
-  }
 
-  if (existing?.status !== responseRecord.status) {
-    void notifyOnOrderStatusChange(
-      responseRecord.id,
-      responseRecord.orderNumber,
-      responseRecord.clientName,
-      existing?.status,
-      responseRecord.status,
-      responseRecord.ownerUserId,
-    )
-  }
+    if (existing?.status !== responseRecord.status) {
+      void notifyOnOrderStatusChange(
+        responseRecord.id,
+        responseRecord.orderNumber,
+        responseRecord.clientName,
+        existing?.status,
+        responseRecord.status,
+        responseRecord.ownerUserId,
+      )
+    }
 
-  return NextResponse.json({
-    ...responseRecord,
-    discountIsPercentage: o.discountIsPercentage,
-    discountValue: o.discountValue,
-    transportIsPercentage: o.transportIsPercentage,
-    transportCostValue: o.transportCostValue,
-    otherCostIsPercentage: o.otherCostIsPercentage,
-    otherCostValue: o.otherCostValue,
-  })
+    return NextResponse.json({
+      ...responseRecord,
+      discountIsPercentage: o.discountIsPercentage,
+      discountValue: o.discountValue,
+      transportIsPercentage: o.transportIsPercentage,
+      transportCostValue: o.transportCostValue,
+      otherCostIsPercentage: o.otherCostIsPercentage,
+      otherCostValue: o.otherCostValue,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not save order"
+    console.error("[orders POST]", err)
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }
 
 export async function DELETE(req: NextRequest) {
@@ -195,25 +254,21 @@ export async function DELETE(req: NextRequest) {
 
   const record = await prisma.erpOrder.findUnique({ where: { id } })
   if (record) {
-    const order: OrderDeductInput = {
-      id: record.id,
-      orderNumber: record.orderNumber,
-      clientName: record.clientName,
-      createdBy: record.createdBy ?? undefined,
-      status: record.status,
-      dispatcher: record.dispatcher,
-      fulfillmentDispatcher: record.fulfillmentDispatcher,
-      inventoryDeductedAt: record.inventoryDeductedAt,
-      fulfillmentSerialAllocations: Array.isArray(record.fulfillmentSerialAllocations)
-        ? (record.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
-        : [],
-      items: Array.isArray(record.items)
-        ? (record.items as OrderDeductInput["items"])
-        : [],
-    }
+    const order = toOrderDeductInput(record)
     if (orderMayNeedInventoryRestore(order)) {
       try {
-        await restoreInventoryForOrderServer(order)
+        if (isBranchPosOrderSource(record.source) && record.branchId) {
+          await restoreBranchStockForPosOrder({
+            id: record.id,
+            orderNumber: record.orderNumber,
+            clientName: record.clientName,
+            createdBy: record.createdBy ?? undefined,
+            branchId: record.branchId,
+            items: Array.isArray(record.items) ? (record.items as OrderDeductInput["items"]) : [],
+          })
+        } else {
+          await restoreInventoryForOrderServer(order)
+        }
       } catch (err) {
         console.error("[orders DELETE] inventory restore failed:", err)
         return NextResponse.json(

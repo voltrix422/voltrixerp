@@ -36,12 +36,14 @@ export function BranchPosSaleForm({
   kind,
   products,
   branchName,
+  branchId,
   userName,
   onSaved,
 }: {
   kind: DocKind
   products: PosStockProduct[]
   branchName: string
+  branchId: string
   userName: string
   onSaved?: () => void
 }) {
@@ -117,13 +119,20 @@ export function BranchPosSaleForm({
   const { total, discountOnBase: discountAmount, taxAmount } = pricing
 
   function addFromInventory(product: PosStockProduct) {
+    const branchInventoryId = product.branchInventoryId || product.id
     const invId = product.inventoryId || product.id
     const unitPrice = lookupCrmUnitPrice(priceMap, product.model, priceTier)
-    const existing = items.find((i) => i.inventoryItemId === invId)
+    const existing = items.find(
+      (i) =>
+        (i.branchInventoryId && i.branchInventoryId === branchInventoryId) ||
+        i.inventoryItemId === invId,
+    )
     if (existing) {
       if (existing.qty < product.availableQty) {
         setItems((prev) =>
-          prev.map((i) => (i.inventoryItemId === invId ? { ...i, qty: i.qty + 1 } : i)),
+          prev.map((i) =>
+            i.id === existing.id ? { ...i, qty: i.qty + 1 } : i,
+          ),
         )
       }
     } else {
@@ -137,6 +146,7 @@ export function BranchPosSaleForm({
           unitPrice,
           isCustom: false,
           inventoryItemId: invId,
+          branchInventoryId,
           model: product.model,
           availableQty: product.availableQty,
         },
@@ -259,17 +269,23 @@ export function BranchPosSaleForm({
           createdAt: new Date().toISOString(),
           createdBy: userName,
           payments: [],
+          branchId,
+          source: "branch_pos",
         }
         await saveOrder(order)
-        toast({ type: "success", title: `Order ${order.orderNumber} created` })
+        toast({ type: "success", title: `Order ${order.orderNumber} created`, message: "Branch stock updated" })
       }
       setClientId("")
       setClientSearch("")
       setItems([])
       setNotes("")
       onSaved?.()
-    } catch {
-      toast({ type: "error", title: `Could not save ${kind}` })
+    } catch (err) {
+      toast({
+        type: "error",
+        title: `Could not save ${kind}`,
+        message: err instanceof Error ? err.message : undefined,
+      })
     } finally {
       setSaving(false)
     }

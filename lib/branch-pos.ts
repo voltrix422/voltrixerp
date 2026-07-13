@@ -40,10 +40,16 @@ export function branchPosNotesTag(branchName: string): string {
 }
 
 export function isBranchPosDoc(
-  doc: { notes?: string; createdBy?: string },
+  doc: { notes?: string; createdBy?: string; source?: string; branchId?: string },
   branchName: string,
   userName: string,
+  branchId?: string,
 ): boolean {
+  if (doc.source === "branch_pos") {
+    if (branchId && doc.branchId) return doc.branchId === branchId
+    return true
+  }
+  if (branchId && doc.branchId === branchId) return true
   if (doc.createdBy === userName) return true
   return !!doc.notes?.includes(branchPosNotesTag(branchName))
 }

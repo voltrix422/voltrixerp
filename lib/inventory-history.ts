@@ -27,6 +27,8 @@ export type InventoryHistoryFilters = {
   referenceType?: string
   item?: string
   referenceId?: string
+  locationLabel?: string
+  branchId?: string
 }
 
 type RawInventoryTransaction = Record<string, unknown>
@@ -55,6 +57,8 @@ function buildHistoryQuery(filters?: InventoryHistoryFilters): string {
   if (filters?.referenceType) params.set("referenceType", filters.referenceType)
   if (filters?.item) params.set("item", filters.item)
   if (filters?.referenceId) params.set("referenceId", filters.referenceId)
+  if (filters?.locationLabel) params.set("locationLabel", filters.locationLabel)
+  if (filters?.branchId) params.set("branchId", filters.branchId)
   const qs = params.toString()
   return qs ? `?${qs}` : ""
 }

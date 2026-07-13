@@ -13,6 +13,7 @@ export interface QuotationItem {
   unitPrice: number
   isCustom: boolean // true if custom item, false if from inventory
   inventoryItemId?: string // reference to inventory item if not custom
+  branchInventoryId?: string
   model?: string // warehouse / manual model when from inventory
   availableQty?: number // available quantity in stock (for validation, not saved to DB)
   costPrice?: number // cost price from inventory (for reference, not saved to DB)

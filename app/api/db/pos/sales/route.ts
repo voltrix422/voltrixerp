@@ -104,6 +104,9 @@ async function deductBranchStock(
       referenceId: params.receiptNumber,
       referenceNumber: params.receiptNumber,
       notes: `Branch POS sale · ${branch.name} · ${params.terminalName}`,
+      stockBefore: branchRow.quantity,
+      stockAfter: branchRow.quantity - params.qty,
+      locationLabel: branch.name,
       createdBy: params.cashierName,
     },
   })

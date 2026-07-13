@@ -15,9 +15,10 @@ import { isBranchPosDoc } from "@/lib/branch-pos"
 import { getPosSales, getPosStockProducts, type PosStockProduct } from "@/lib/pos"
 import { BranchPosSaleForm } from "@/components/pos/branch-pos-sale-form"
 import { BranchPosDocsList } from "@/components/pos/branch-pos-docs-list"
+import { BranchPosStockHistory } from "@/components/pos/branch-pos-stock-history"
 import { Loader2 } from "lucide-react"
 
-type Tab = "order" | "orders" | "quotation" | "quotations" | "stock" | "sales"
+type Tab = "order" | "orders" | "quotation" | "quotations" | "stock" | "history" | "sales"
 
 export function BranchPosApp() {
   const { user } = useAuth()
@@ -34,12 +35,12 @@ export function BranchPosApp() {
   const [priceMap, setPriceMap] = useState<Map<string, CrmProductPrice>>(() => new Map())
 
   const branchOrders = useMemo(
-    () => orders.filter((o) => isBranchPosDoc(o, branchName, userName)),
-    [orders, branchName, userName],
+    () => orders.filter((o) => isBranchPosDoc(o, branchName, userName, branchId)),
+    [orders, branchName, userName, branchId],
   )
   const branchQuotations = useMemo(
-    () => quotations.filter((q) => isBranchPosDoc(q, branchName, userName)),
-    [quotations, branchName, userName],
+    () => quotations.filter((q) => isBranchPosDoc(q, branchName, userName, branchId)),
+    [quotations, branchName, userName, branchId],
   )
 
   const loadAll = useCallback(async () => {
@@ -80,6 +81,7 @@ export function BranchPosApp() {
     { id: "quotation", label: "Create quotation" },
     { id: "quotations", label: "My quotations" },
     { id: "stock", label: "My stock" },
+    { id: "history", label: "Stock history" },
     { id: "sales", label: "Sales" },
   ]
 
@@ -93,7 +95,7 @@ export function BranchPosApp() {
         <div className="rounded-lg border bg-[hsl(var(--card))] px-4 py-3">
           <p className="text-base font-bold">{branchName}</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Branch POS — same workflow as ERP orders, using only this branch&apos;s stock.
+            Branch POS — orders use this branch&apos;s stock only (main warehouse is not reduced).
           </p>
         </div>
 
@@ -119,6 +121,7 @@ export function BranchPosApp() {
             kind="order"
             products={products}
             branchName={branchName}
+            branchId={branchId}
             userName={userName}
             onSaved={() => {
               void loadAll()
@@ -134,6 +137,7 @@ export function BranchPosApp() {
             kind="quotation"
             products={products}
             branchName={branchName}
+            branchId={branchId}
             userName={userName}
             onSaved={() => {
               void loadAll()
@@ -186,6 +190,14 @@ export function BranchPosApp() {
               </table>
             </div>
           </div>
+        )}
+
+        {tab === "history" && (
+          <BranchPosStockHistory
+            branchId={branchId}
+            branchName={branchName}
+            userName={userName}
+          />
         )}
 
         {tab === "sales" && (

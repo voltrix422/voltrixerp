@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@prisma/client"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -9,8 +10,10 @@ export async function GET(req: NextRequest) {
   const to = searchParams.get("to")
   const type = searchParams.get("type")
   const referenceType = searchParams.get("referenceType")
+  const locationLabel = searchParams.get("locationLabel")
+  const branchId = searchParams.get("branchId")
 
-  const where: Record<string, unknown> = {}
+  const where: Prisma.ErpInventoryHistoryWhereInput = {}
   if (item) where.itemDescription = item
   if (referenceId) {
     where.referenceId = referenceId
@@ -26,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (from || to) {
-    const createdAt: Record<string, Date> = {}
+    const createdAt: { gte?: Date; lte?: Date } = {}
     if (from) {
       const start = new Date(from)
       start.setHours(0, 0, 0, 0)
@@ -40,9 +43,23 @@ export async function GET(req: NextRequest) {
     where.createdAt = createdAt
   }
 
+  // Branch POS / location filter: match label, branch id on reference, or notes text.
+  if (locationLabel || branchId) {
+    const or: Prisma.ErpInventoryHistoryWhereInput[] = []
+    if (locationLabel) {
+      or.push({ locationLabel })
+      or.push({ notes: { contains: locationLabel, mode: "insensitive" } })
+    }
+    if (branchId) {
+      or.push({ referenceId: branchId })
+    }
+    where.OR = or
+  }
+
   const records = await prisma.erpInventoryHistory.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    take: 500,
   })
   return NextResponse.json(records)
 }
@@ -60,6 +77,9 @@ export async function POST(req: NextRequest) {
       referenceId: t.reference_id,
       referenceNumber: t.reference_number,
       notes: t.notes,
+      stockBefore: t.stock_before ?? t.stockBefore ?? null,
+      stockAfter: t.stock_after ?? t.stockAfter ?? null,
+      locationLabel: t.location_label ?? t.locationLabel ?? null,
       createdBy: t.created_by,
     },
   })
