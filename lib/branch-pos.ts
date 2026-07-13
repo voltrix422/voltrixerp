@@ -39,6 +39,33 @@ export function branchPosNotesTag(branchName: string): string {
   return `Branch POS · ${branchName.trim()}`
 }
 
+/** Notes tag for clients created in Branch POS (Quick add / Clients tab). */
+export function branchPosClientTag(branchName: string): string {
+  return `Branch POS client · ${branchName.trim()}`
+}
+
+export function isBranchPosClient(
+  client: { notes?: string | null },
+  branchName: string,
+): boolean {
+  const name = branchName.trim()
+  if (!name || !client.notes) return false
+  if (client.notes.includes(branchPosClientTag(name))) return true
+  // Legacy quick-add note from earlier POS builds
+  if (client.notes.includes(`Added from ${name} POS`)) return true
+  return false
+}
+
+/** Branch POS clients stay in POS — hide from ERP CRM Clients. */
+export function isBranchPosClientHiddenFromErp(client: {
+  notes?: string | null
+}): boolean {
+  const notes = client.notes || ""
+  if (notes.includes("Branch POS client ·")) return true
+  if (/Added from .+ POS/.test(notes)) return true
+  return false
+}
+
 export function isBranchPosDoc(
   doc: { notes?: string; createdBy?: string; source?: string; branchId?: string },
   branchName: string,

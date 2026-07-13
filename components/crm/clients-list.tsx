@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react"
 import { getClients, saveClient, deleteClient, type Client, CLIENT_STATUS_COLORS, CLIENT_STATUS_LABELS } from "@/lib/crm"
 import { initialClientStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
 import { matchesOwnerRecord, resolveOwnerUserId } from "@/lib/crm-workspace"
+import { isBranchPosClientHiddenFromErp } from "@/lib/branch-pos"
 import { SalesAgentSourceBadge } from "@/components/crm/sales-agent-source-badge"
 import { useAuth } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
@@ -42,9 +43,10 @@ export function ClientsList({ currentUser, currentUserId, workspace }: { current
 
   useEffect(() => {
     Promise.all([getClients(), getOrders()]).then(([c, o]) => {
+      const withoutPos = c.filter((client) => !isBranchPosClientHiddenFromErp(client))
       const scoped = workspace?.ownerUserId
-        ? c.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
-        : c
+        ? withoutPos.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
+        : withoutPos
       setClients(scoped)
       setOrders(o)
       setLoading(false)

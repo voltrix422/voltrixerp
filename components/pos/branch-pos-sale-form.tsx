@@ -28,7 +28,7 @@ import { BranchPosInventoryPicker } from "@/components/pos/branch-pos-inventory-
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import type { PosStockProduct } from "@/lib/pos"
-import { branchPosNotesTag } from "@/lib/branch-pos"
+import { branchPosClientTag, branchPosNotesTag, isBranchPosClient } from "@/lib/branch-pos"
 import {
   DEFAULT_GST_PERCENT,
   calculateGstInclusiveTotals,
@@ -98,6 +98,7 @@ export function BranchPosSaleForm({
           setClientResults(
             all
               .filter((c) => c.status === "active")
+              .filter((c) => isBranchPosClient(c, branchName))
               .filter(
                 (c) =>
                   c.name.toLowerCase().includes(q.toLowerCase()) ||
@@ -110,7 +111,7 @@ export function BranchPosSaleForm({
         .finally(() => setSearchingClients(false))
     }, 300)
     return () => clearTimeout(timer)
-  }, [clientSearch])
+  }, [clientSearch, branchName])
 
   const selectedClient = clientResults.find((c) => c.id === clientId) || null
 
@@ -196,7 +197,7 @@ export function BranchPosSaleForm({
       ntn: "",
       industry: "",
       contactPerson: "",
-      notes: `Added from ${branchName} POS`,
+      notes: branchPosClientTag(branchName),
       createdAt: new Date().toISOString(),
       createdBy: userName,
       status: "active",
@@ -378,7 +379,7 @@ export function BranchPosSaleForm({
                 {searchingClients ? (
                   <p className="text-xs text-center py-3 text-[hsl(var(--muted-foreground))]">Searching…</p>
                 ) : clientResults.length === 0 ? (
-                  <p className="text-xs text-center py-3 text-[hsl(var(--muted-foreground))]">No clients found — use Quick add</p>
+                  <p className="text-xs text-center py-3 text-[hsl(var(--muted-foreground))]">No branch POS clients found — use Quick add</p>
                 ) : (
                   clientResults.map((c) => (
                     <button

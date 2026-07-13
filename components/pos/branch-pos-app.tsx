@@ -16,9 +16,10 @@ import { getPosSales, getPosStockProducts, type PosStockProduct } from "@/lib/po
 import { BranchPosSaleForm } from "@/components/pos/branch-pos-sale-form"
 import { BranchPosDocsList } from "@/components/pos/branch-pos-docs-list"
 import { BranchPosStockHistory } from "@/components/pos/branch-pos-stock-history"
+import { BranchPosClientsList } from "@/components/pos/branch-pos-clients-list"
 import { Loader2, X } from "lucide-react"
 
-type Tab = "orders" | "quotations" | "inventory" | "history" | "sales"
+type Tab = "orders" | "quotations" | "clients" | "inventory" | "history" | "sales"
 
 export function BranchPosApp() {
   const { user } = useAuth()
@@ -80,6 +81,7 @@ export function BranchPosApp() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "orders", label: "Orders" },
     { id: "quotations", label: "Quotations" },
+    { id: "clients", label: "Clients" },
     { id: "inventory", label: "Inventory" },
     { id: "history", label: "Stock history" },
     { id: "sales", label: "Sales" },
@@ -134,6 +136,10 @@ export function BranchPosApp() {
             onRefresh={() => void loadAll()}
             onNew={() => setShowNewQuotation(true)}
           />
+        )}
+
+        {tab === "clients" && (
+          <BranchPosClientsList branchName={branchName} userName={userName} />
         )}
 
         {tab === "inventory" && (

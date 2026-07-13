@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { getClients, type Client } from "@/lib/crm"
+import { isBranchPosClient } from "@/lib/branch-pos"
 import { generateOrderNumber, saveOrder, type Order, type OrderItem } from "@/lib/orders"
 import {
   generateQuotationNumber,
@@ -45,9 +46,11 @@ export function BranchPosClientDocForm({
 
   useEffect(() => {
     void getClients()
-      .then((rows) => setClients(rows.filter((c) => c.status === "active")))
+      .then((rows) =>
+        setClients(rows.filter((c) => c.status === "active" && isBranchPosClient(c, branchName))),
+      )
       .finally(() => setLoadingClients(false))
-  }, [])
+  }, [branchName])
 
   const selectedClient = clients.find((c) => c.id === clientId)
   const filteredClients = clients.filter((c) => {
