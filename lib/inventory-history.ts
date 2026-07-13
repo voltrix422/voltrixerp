@@ -125,3 +125,42 @@ export async function logInventoryTransaction(
     return
   }
 }
+
+/** Removes ledger row(s) only — does not restore stock. */
+export async function deleteInventoryHistoryEntry(id: string): Promise<void> {
+  const res = await fetch(`/api/db/inventory-history?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}))
+    throw new Error(payload?.error || "Failed to delete history entry")
+  }
+}
+
+export async function deleteInventoryHistoryEntries(ids: string[]): Promise<number> {
+  const res = await fetch("/api/db/inventory-history", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}))
+    throw new Error(payload?.error || "Failed to delete history entries")
+  }
+  const data = await res.json()
+  return Number(data?.deleted ?? 0)
+}
+
+export async function clearPosOutboundInventoryHistory(locationLabel: string): Promise<number> {
+  const params = new URLSearchParams({
+    clearPosOutbound: "1",
+    locationLabel,
+  })
+  const res = await fetch(`/api/db/inventory-history?${params}`, { method: "DELETE" })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}))
+    throw new Error(payload?.error || "Failed to clear stock history")
+  }
+  const data = await res.json()
+  return Number(data?.deleted ?? 0)
+}

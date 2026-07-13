@@ -100,3 +100,55 @@ export async function POST(req: NextRequest) {
   })
   return NextResponse.json(record)
 }
+
+/** Delete ledger rows only (does not restore stock). */
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get("id")
+  const clearPosOutbound = searchParams.get("clearPosOutbound") === "1"
+  const locationLabel = searchParams.get("locationLabel")
+
+  if (id) {
+    const existing = await prisma.erpInventoryHistory.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: "History entry not found" }, { status: 404 })
+    }
+    await prisma.erpInventoryHistory.delete({ where: { id } })
+    return NextResponse.json({ ok: true, deleted: 1 })
+  }
+
+  if (clearPosOutbound) {
+    if (!locationLabel) {
+      return NextResponse.json({ error: "locationLabel is required to clear POS history" }, { status: 400 })
+    }
+    const result = await prisma.erpInventoryHistory.deleteMany({
+      where: {
+        referenceType: { in: ["branch_pos_order", "pos_sale"] },
+        transactionType: "out",
+        OR: [
+          { locationLabel },
+          { notes: { contains: locationLabel, mode: "insensitive" } },
+        ],
+      },
+    })
+    return NextResponse.json({ ok: true, deleted: result.count })
+  }
+
+  const body = await req.json().catch(() => null)
+  const bodyIds =
+    body && Array.isArray(body.ids)
+      ? body.ids.map((x: unknown) => String(x)).filter(Boolean)
+      : []
+
+  if (bodyIds.length > 0) {
+    const result = await prisma.erpInventoryHistory.deleteMany({
+      where: { id: { in: bodyIds } },
+    })
+    return NextResponse.json({ ok: true, deleted: result.count })
+  }
+
+  return NextResponse.json(
+    { error: "Provide id, ids, or clearPosOutbound=1 with locationLabel" },
+    { status: 400 }
+  )
+}

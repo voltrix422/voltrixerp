@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
+  clearPosOutboundInventoryHistory,
+  deleteInventoryHistoryEntry,
   getInventoryHistory,
   type InventoryTransaction,
 } from "@/lib/inventory-history"
 import { downloadBranchPosStockHistoryPDF } from "@/lib/generate-branch-pos-stock-history-pdf"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
-import { FileDown, Loader2, TrendingDown } from "lucide-react"
+import { useDialog } from "@/components/ui/dialog-provider"
+import { FileDown, Loader2, Trash2, TrendingDown } from "lucide-react"
 
 function absQty(t: InventoryTransaction) {
   return Math.abs(Number(t.quantity) || 0)
@@ -31,9 +34,12 @@ export function BranchPosStockHistory({
   userName: string
 }) {
   const { toast } = useToast()
+  const { confirm } = useDialog()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<InventoryTransaction[]>([])
   const [exporting, setExporting] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [clearing, setClearing] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,6 +81,60 @@ export function BranchPosStockHistory({
     }
   }
 
+  async function handleDeleteOne(row: InventoryTransaction) {
+    const ok = await confirm({
+      type: "confirm",
+      title: "Delete history entry?",
+      message: `Remove this stock-out record for ${row.item_description} (${row.reference_number || "no ref"})? Stock quantities are not changed.`,
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
+    setBusyId(row.id)
+    try {
+      await deleteInventoryHistoryEntry(row.id)
+      setRows((prev) => prev.filter((r) => r.id !== row.id))
+      toast({ type: "success", title: "History entry deleted" })
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not delete",
+        message: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleClearAll() {
+    const ok = await confirm({
+      type: "confirm",
+      title: "Clear stock history?",
+      message: `Remove all POS stock-out history for ${branchName}? This cannot be undone. Stock quantities are not changed.`,
+      confirmLabel: "Clear all",
+    })
+    if (!ok) return
+    setClearing(true)
+    try {
+      const deleted = await clearPosOutboundInventoryHistory(branchName)
+      setRows([])
+      toast({
+        type: "success",
+        title: "History cleared",
+        message: deleted > 0 ? `${deleted} entr${deleted === 1 ? "y" : "ies"} removed.` : undefined,
+      })
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not clear history",
+        message: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  const actionBusy = busyId !== null || clearing
+
   return (
     <div className="rounded-xl border bg-[hsl(var(--card))] overflow-hidden space-y-0">
       <div className="px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -84,17 +144,30 @@ export function BranchPosStockHistory({
             Stock going outside this branch (POS orders &amp; sales only). Warehouse transfers are not listed here.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs cursor-pointer"
-          disabled={exporting || rows.length === 0}
-          onClick={() => void handleExportPdf()}
-        >
-          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-          Export PDF
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
+            disabled={actionBusy || rows.length === 0}
+            onClick={() => void handleClearAll()}
+          >
+            {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            Clear all
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer"
+            disabled={exporting || rows.length === 0}
+            onClick={() => void handleExportPdf()}
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <div className="p-3 border-b bg-[hsl(var(--muted))]/10">
@@ -123,6 +196,7 @@ export function BranchPosStockHistory({
                 <th className="text-right px-3 py-2.5">Qty</th>
                 <th className="text-left px-3 py-2.5">Ref</th>
                 <th className="text-left px-3 py-2.5">Notes</th>
+                <th className="text-right px-3 py-2.5 w-14"> </th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -149,11 +223,28 @@ export function BranchPosStockHistory({
                   <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[200px] truncate">
                     {r.notes || "—"}
                   </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      disabled={actionBusy}
+                      title="Delete this entry"
+                      onClick={() => void handleDeleteOne(r)}
+                    >
+                      {busyId === r.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
+                  <td colSpan={7} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
                     No stock-out movements yet for this branch
                   </td>
                 </tr>
