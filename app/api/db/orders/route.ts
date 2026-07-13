@@ -127,8 +127,11 @@ export async function POST(req: NextRequest) {
     existing?.source ||
     null
 
-  const isNewBranchPos =
-    !existing && isBranchPosOrderSource(source) && !!branchId
+  const needsBranchPosDeduct =
+    isBranchPosOrderSource(source) &&
+    !!branchId &&
+    String(o.status || "").toLowerCase() === "delivered" &&
+    !existing?.inventoryDeductedAt
 
   try {
     const record = await prisma.$transaction(async (tx) => {
@@ -175,7 +178,8 @@ export async function POST(req: NextRequest) {
         },
       })
 
-      if (isNewBranchPos) {
+      // Branch POS: deduct stock only when delivered (not on create).
+      if (needsBranchPosDeduct && !saved.inventoryDeductedAt) {
         const { deductedAt } = await deductBranchStockForPosOrder(
           {
             id: saved.id,

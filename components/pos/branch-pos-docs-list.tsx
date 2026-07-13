@@ -461,14 +461,14 @@ export function BranchPosDocsList({
     const ok = await confirm({
       type: "confirm",
       title: "Mark delivered?",
-      message: `${order.orderNumber} will be marked delivered. Branch stock was already deducted when the order was created.`,
+      message: `${order.orderNumber} will be marked delivered and branch stock will be deducted. This appears in Stock history.`,
       confirmLabel: "Deliver",
     })
     if (!ok) return
     setBusyId(order.id)
     try {
       const saved = await saveOrder({ ...order, status: "delivered" })
-      toast({ type: "success", title: `${order.orderNumber} delivered` })
+      toast({ type: "success", title: `${order.orderNumber} delivered`, message: "Branch stock deducted" })
       setSelected(saved)
       onRefresh?.()
     } catch (err) {
@@ -480,12 +480,16 @@ export function BranchPosDocsList({
 
   async function handleDelete(doc: Order | Quotation) {
     const number = kind === "order" ? (doc as Order).orderNumber : (doc as Quotation).quotationNumber
+    const order = kind === "order" ? (doc as Order) : null
+    const willRestoreStock = !!order?.inventoryDeductedAt
     const ok = await confirm({
       type: "confirm",
       title: `Delete ${kind}?`,
       message:
         kind === "order"
-          ? `${number} will be deleted and branch stock restored.`
+          ? willRestoreStock
+            ? `${number} will be deleted and branch stock restored (shown in Stock history).`
+            : `${number} will be deleted. Stock was not deducted yet, so inventory stays unchanged.`
           : `${number} will be permanently deleted.`,
       confirmLabel: "Delete",
     })
@@ -494,7 +498,11 @@ export function BranchPosDocsList({
     try {
       if (kind === "order") await deleteOrder(doc.id)
       else await deleteQuotation(doc.id)
-      toast({ type: "success", title: `${number} deleted` })
+      toast({
+        type: "success",
+        title: `${number} deleted`,
+        message: willRestoreStock ? "Branch stock restored" : undefined,
+      })
       setSelected(null)
       onRefresh?.()
     } catch (err) {

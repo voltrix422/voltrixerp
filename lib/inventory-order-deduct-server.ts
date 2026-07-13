@@ -27,7 +27,7 @@ export type OrderDeductInput = {
   dispatcher?: string | null
   fulfillmentDispatcher?: string | null
   inventoryDeductedAt?: string | null
-  /** When "branch_pos", warehouse stock must not be deducted (branch already deducted on create). */
+  /** When "branch_pos", warehouse stock must not be deducted (branch deducts on deliver). */
   source?: string | null
   branchId?: string | null
   fulfillmentSerialAllocations?: OrderFulfillmentSerialAllocation[]
@@ -88,7 +88,8 @@ function orderWasDispatched(order: OrderDeductInput): boolean {
 export function orderMayNeedInventoryRestore(order: OrderDeductInput): boolean {
   if (order.items.every((item) => item.isCustom)) return false
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") {
-    return !!order.inventoryDeductedAt || !!order.branchId
+    // Only restore if stock was deducted on deliver.
+    return !!order.inventoryDeductedAt
   }
   if (order.inventoryDeductedAt) return true
   if ((order.fulfillmentSerialAllocations?.length ?? 0) > 0) return true
@@ -685,7 +686,7 @@ export async function deductInventoryForOrderServer(
   let deductedLines = 0
   let serialUnitsDeducted = 0
 
-  // Branch POS orders deduct from branch inventory on create — never touch main warehouse.
+  // Branch POS orders deduct from branch inventory on deliver — never touch main warehouse.
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") {
     return {
       success: true,

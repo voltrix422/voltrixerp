@@ -78,7 +78,7 @@ async function resolveBranchRows(
   return []
 }
 
-/** Deduct branch inventory only (never main warehouse) when a Branch POS order is created. */
+/** Deduct branch inventory only (never main warehouse) when a Branch POS order is delivered. */
 export async function deductBranchStockForPosOrder(
   order: BranchPosOrderStockInput,
   txClient?: Prisma.TransactionClient,
@@ -130,7 +130,7 @@ export async function deductBranchStockForPosOrder(
           referenceType: "branch_pos_order",
           referenceId: order.id,
           referenceNumber: order.orderNumber,
-          notes: `Branch POS order · ${branch.name}${order.clientName ? ` · ${order.clientName}` : ""}`,
+          notes: `Branch POS delivered · ${branch.name}${order.clientName ? ` · ${order.clientName}` : ""}`,
           stockBefore,
           stockAfter,
           locationLabel,
@@ -146,7 +146,7 @@ export async function deductBranchStockForPosOrder(
   return prisma.$transaction(run)
 }
 
-/** Restore branch inventory when a Branch POS order is deleted/cancelled. */
+/** Restore branch inventory when a delivered Branch POS order is deleted (stock was deducted). */
 export async function restoreBranchStockForPosOrder(
   order: BranchPosOrderStockInput,
   txClient?: Prisma.TransactionClient,
@@ -186,7 +186,7 @@ export async function restoreBranchStockForPosOrder(
             referenceType: "branch_pos_order",
             referenceId: order.id,
             referenceNumber: order.orderNumber,
-            notes: `Branch POS order restored · ${branch.name}`,
+            notes: `Branch POS order deleted · stock restored · ${branch.name}`,
             stockBefore: 0,
             stockAfter: qty,
             locationLabel,
@@ -215,7 +215,7 @@ export async function restoreBranchStockForPosOrder(
           referenceType: "branch_pos_order",
           referenceId: order.id,
           referenceNumber: order.orderNumber,
-          notes: `Branch POS order restored · ${branch.name}`,
+          notes: `Branch POS order deleted · stock restored · ${branch.name}`,
           stockBefore,
           stockAfter,
           locationLabel,

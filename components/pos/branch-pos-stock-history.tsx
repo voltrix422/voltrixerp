@@ -11,10 +11,14 @@ import { downloadBranchPosStockHistoryPDF } from "@/lib/generate-branch-pos-stoc
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { useDialog } from "@/components/ui/dialog-provider"
-import { FileDown, Loader2, Trash2, TrendingDown } from "lucide-react"
+import { FileDown, Loader2, Trash2, TrendingDown, TrendingUp } from "lucide-react"
 
 function absQty(t: InventoryTransaction) {
   return Math.abs(Number(t.quantity) || 0)
+}
+
+function isInbound(t: InventoryTransaction) {
+  return t.transaction_type === "in"
 }
 
 function refLabel(refType: string) {
@@ -23,7 +27,7 @@ function refLabel(refType: string) {
   return refType || "—"
 }
 
-/** Outbound-only stock history: POS orders & sales leaving this branch (not warehouse transfers). */
+/** Branch POS stock ledger: OUT on deliver / sale, IN when a delivered order is deleted. */
 export function BranchPosStockHistory({
   branchId,
   branchName,
@@ -60,8 +64,14 @@ export function BranchPosStockHistory({
   }, [load])
 
   const summary = useMemo(() => {
-    const qtyOut = rows.reduce((s, r) => s + absQty(r), 0)
-    return { outCount: rows.length, qtyOut }
+    const outbound = rows.filter((r) => !isInbound(r))
+    const inbound = rows.filter((r) => isInbound(r))
+    return {
+      outCount: outbound.length,
+      qtyOut: outbound.reduce((s, r) => s + absQty(r), 0),
+      inCount: inbound.length,
+      qtyIn: inbound.reduce((s, r) => s + absQty(r), 0),
+    }
   }, [rows])
 
   async function handleExportPdf() {
@@ -71,7 +81,7 @@ export function BranchPosStockHistory({
         branchName,
         movements: rows,
         exportedBy: userName,
-        dateLabel: "Stock going out (POS orders & sales)",
+        dateLabel: "POS deliver (out) & deleted-order restore (in)",
       })
       toast({ type: "success", title: "PDF downloaded" })
     } catch {
@@ -85,7 +95,7 @@ export function BranchPosStockHistory({
     const ok = await confirm({
       type: "confirm",
       title: "Delete history entry?",
-      message: `Remove this stock-out record for ${row.item_description} (${row.reference_number || "no ref"})? Stock quantities are not changed.`,
+      message: `Remove this stock record for ${row.item_description} (${row.reference_number || "no ref"})? Stock quantities are not changed.`,
       confirmLabel: "Delete",
     })
     if (!ok) return
@@ -109,7 +119,7 @@ export function BranchPosStockHistory({
     const ok = await confirm({
       type: "confirm",
       title: "Clear stock history?",
-      message: `Remove all POS stock-out history for ${branchName}? This cannot be undone. Stock quantities are not changed.`,
+      message: `Remove all POS stock history for ${branchName}? This cannot be undone. Stock quantities are not changed.`,
       confirmLabel: "Clear all",
     })
     if (!ok) return
@@ -141,7 +151,7 @@ export function BranchPosStockHistory({
         <div>
           <p className="text-sm font-semibold">Stock history</p>
           <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            Stock going outside this branch (POS orders &amp; sales only). Warehouse transfers are not listed here.
+            Stock out when an order is delivered (or POS sale). Stock in when a delivered order is deleted. Warehouse transfers are not listed here.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -171,13 +181,23 @@ export function BranchPosStockHistory({
       </div>
 
       <div className="p-3 border-b bg-[hsl(var(--muted))]/10">
-        <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2 max-w-xs">
-          <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] flex items-center gap-1">
-            <TrendingDown className="h-3 w-3 text-orange-600" /> Stock out
-          </p>
-          <p className="text-sm font-semibold tabular-nums mt-0.5">
-            {summary.outCount} · {summary.qtyOut.toLocaleString()} units
-          </p>
+        <div className="grid grid-cols-2 gap-2 max-w-md">
+          <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] flex items-center gap-1">
+              <TrendingDown className="h-3 w-3 text-orange-600" /> Stock out
+            </p>
+            <p className="text-sm font-semibold tabular-nums mt-0.5">
+              {summary.outCount} · {summary.qtyOut.toLocaleString()} units
+            </p>
+          </div>
+          <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-emerald-600" /> Stock in
+            </p>
+            <p className="text-sm font-semibold tabular-nums mt-0.5">
+              {summary.inCount} · {summary.qtyIn.toLocaleString()} units
+            </p>
+          </div>
         </div>
       </div>
 
@@ -200,52 +220,62 @@ export function BranchPosStockHistory({
               </tr>
             </thead>
             <tbody className="divide-y">
-              {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-[hsl(var(--muted))]/10">
-                  <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
-                    {new Date(r.created_at).toLocaleString("en-PK")}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300">
-                      OUT
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 font-medium min-w-0">
-                    <p className="truncate max-w-[220px]">{r.item_description}</p>
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold">
-                    −{absQty(r)} {r.unit}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs">
-                    <p className="font-medium">{refLabel(r.reference_type)}</p>
-                    <p className="font-mono text-[hsl(var(--muted-foreground))]">{r.reference_number}</p>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[200px] truncate">
-                    {r.notes || "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      disabled={actionBusy}
-                      title="Delete this entry"
-                      onClick={() => void handleDeleteOne(r)}
-                    >
-                      {busyId === r.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const inbound = isInbound(r)
+                return (
+                  <tr key={r.id} className="hover:bg-[hsl(var(--muted))]/10">
+                    <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                      {new Date(r.created_at).toLocaleString("en-PK")}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          inbound
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300"
+                        }`}
+                      >
+                        {inbound ? "IN" : "OUT"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 font-medium min-w-0">
+                      <p className="truncate max-w-[220px]">{r.item_description}</p>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold">
+                      {inbound ? "+" : "−"}
+                      {absQty(r)} {r.unit}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs">
+                      <p className="font-medium">{refLabel(r.reference_type)}</p>
+                      <p className="font-mono text-[hsl(var(--muted-foreground))]">{r.reference_number}</p>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[200px] truncate">
+                      {r.notes || "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={actionBusy}
+                        title="Delete this entry"
+                        onClick={() => void handleDeleteOne(r)}
+                      >
+                        {busyId === r.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </td>
+                  </tr>
+                )
+              })}
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
-                    No stock-out movements yet for this branch
+                    No stock movements yet — appear when an order is delivered or a delivered order is deleted
                   </td>
                 </tr>
               )}

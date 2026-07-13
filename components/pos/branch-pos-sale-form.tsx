@@ -293,8 +293,8 @@ export function BranchPosSaleForm({
           type: "success",
           title: `Order ${order.orderNumber} created`,
           message: markDelivered
-            ? "Delivered · branch stock updated · add payment anytime from order details"
-            : "Branch stock updated · add payment from order details",
+            ? "Delivered · branch stock deducted · add payment anytime from order details"
+            : "Stock held at branch until delivered · add payment from order details",
         })
       }
       onSaved?.()

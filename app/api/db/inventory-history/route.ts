@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const referenceTypes = searchParams.get("referenceTypes")
   const locationLabel = searchParams.get("locationLabel")
   const branchId = searchParams.get("branchId")
-  /** Branch POS outbound ledger: only stock leaving via POS order/sale */
+  /** Branch POS ledger: POS order/sale movements (out on deliver, in on delete restore) */
   const posOutbound = searchParams.get("posOutbound") === "1"
 
   const where: Prisma.ErpInventoryHistoryWhereInput = {}
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   if (posOutbound) {
     where.referenceType = { in: ["branch_pos_order", "pos_sale"] }
-    where.transactionType = "out"
+    where.transactionType = { in: ["out", "in"] }
   } else if (referenceTypes) {
     const types = referenceTypes.split(",").map((t) => t.trim()).filter(Boolean)
     if (types.length === 1) where.referenceType = types[0]
@@ -124,7 +124,7 @@ export async function DELETE(req: NextRequest) {
     const result = await prisma.erpInventoryHistory.deleteMany({
       where: {
         referenceType: { in: ["branch_pos_order", "pos_sale"] },
-        transactionType: "out",
+        transactionType: { in: ["out", "in"] },
         OR: [
           { locationLabel },
           { notes: { contains: locationLabel, mode: "insensitive" } },
