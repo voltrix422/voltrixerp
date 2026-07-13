@@ -289,22 +289,25 @@ function parseSupplierGroups(raw: unknown, fallback: {
 
 function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   let items = parseJsonArray<PurchaseLedgerItem>(row.items)
-  let payments = parseJsonArray<PurchaseLedgerPayment>(row.payments).map((payment, index) => ({
-    id: String((payment as PurchaseLedgerPayment).id ?? `pay-${index}`),
-    amount: Number((payment as PurchaseLedgerPayment).amount) || 0,
-    date: String((payment as PurchaseLedgerPayment).date ?? ""),
-    proofUrl: String((payment as PurchaseLedgerPayment).proofUrl ?? ""),
-    proofName: String((payment as PurchaseLedgerPayment).proofName ?? ""),
-    notes: String((payment as PurchaseLedgerPayment).notes ?? ""),
-    createdAt: String((payment as PurchaseLedgerPayment).createdAt ?? new Date().toISOString()),
-    createdBy: String((payment as PurchaseLedgerPayment).createdBy ?? ""),
-    supplierGroupId: (payment as PurchaseLedgerPayment).supplierGroupId
-      ? String((payment as PurchaseLedgerPayment).supplierGroupId)
-      : undefined,
-    supplierName: (payment as PurchaseLedgerPayment).supplierName
-      ? String((payment as PurchaseLedgerPayment).supplierName)
-      : undefined,
-  }))
+  let payments: PurchaseLedgerPayment[] = parseJsonArray<PurchaseLedgerPayment>(row.payments).map((payment, index) => {
+    const mapped: PurchaseLedgerPayment = {
+      id: String((payment as PurchaseLedgerPayment).id ?? `pay-${index}`),
+      amount: Number((payment as PurchaseLedgerPayment).amount) || 0,
+      date: String((payment as PurchaseLedgerPayment).date ?? ""),
+      proofUrl: String((payment as PurchaseLedgerPayment).proofUrl ?? ""),
+      proofName: String((payment as PurchaseLedgerPayment).proofName ?? ""),
+      notes: String((payment as PurchaseLedgerPayment).notes ?? ""),
+      createdAt: String((payment as PurchaseLedgerPayment).createdAt ?? new Date().toISOString()),
+      createdBy: String((payment as PurchaseLedgerPayment).createdBy ?? ""),
+    }
+    if ((payment as PurchaseLedgerPayment).supplierGroupId) {
+      mapped.supplierGroupId = String((payment as PurchaseLedgerPayment).supplierGroupId)
+    }
+    if ((payment as PurchaseLedgerPayment).supplierName) {
+      mapped.supplierName = String((payment as PurchaseLedgerPayment).supplierName)
+    }
+    return mapped
+  })
   const totalAmount = Number(row.totalAmount) || 0
   const linkMode = normalizeLinkMode(String(row.linkMode ?? "general"))
   payments = clampPaymentsToTotal(payments, totalAmount)
