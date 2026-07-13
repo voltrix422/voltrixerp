@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { getOrders, saveOrder, hasOutstandingCredit, type Order } from "@/lib/orders"
+import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
@@ -103,11 +104,13 @@ export function ClientOrdersInventory() {
   useEffect(() => {
     getOrders().then(o => {
       // Show confirmed orders (sent from Finance) and processing/shipped/delivered orders
-      const filtered = o.filter(order => 
-        order.status === "confirmed" || 
-        order.status === "processing" || 
-        order.status === "shipped" || 
-        order.status === "delivered"
+      // Branch POS orders are handled entirely in POS — keep them out of ERP inventory.
+      const filtered = o.filter(order =>
+        !isBranchPosOrderHiddenFromErp(order) &&
+        (order.status === "confirmed" ||
+        order.status === "processing" ||
+        order.status === "shipped" ||
+        order.status === "delivered")
       )
       setOrders(filtered)
       setSelectedOrder(prev => (prev ? filtered.find(order => order.id === prev.id) ?? prev : null))
@@ -115,11 +118,12 @@ export function ClientOrdersInventory() {
     })
     const interval = setInterval(() => {
       getOrders().then(o => {
-        const filtered = o.filter(order => 
-          order.status === "confirmed" || 
-          order.status === "processing" || 
-          order.status === "shipped" || 
-          order.status === "delivered"
+        const filtered = o.filter(order =>
+          !isBranchPosOrderHiddenFromErp(order) &&
+          (order.status === "confirmed" ||
+          order.status === "processing" ||
+          order.status === "shipped" ||
+          order.status === "delivered")
         )
         setOrders(filtered)
         setSelectedOrder(prev => (prev ? filtered.find(order => order.id === prev.id) ?? prev : null))

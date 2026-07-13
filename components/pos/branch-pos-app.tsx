@@ -16,9 +16,9 @@ import { getPosSales, getPosStockProducts, type PosStockProduct } from "@/lib/po
 import { BranchPosSaleForm } from "@/components/pos/branch-pos-sale-form"
 import { BranchPosDocsList } from "@/components/pos/branch-pos-docs-list"
 import { BranchPosStockHistory } from "@/components/pos/branch-pos-stock-history"
-import { Loader2 } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 
-type Tab = "order" | "orders" | "quotation" | "quotations" | "stock" | "history" | "sales"
+type Tab = "orders" | "quotations" | "inventory" | "history" | "sales"
 
 export function BranchPosApp() {
   const { user } = useAuth()
@@ -26,13 +26,15 @@ export function BranchPosApp() {
   const branchName = user?.location || "Branch"
   const userName = user?.name || "POS"
 
-  const [tab, setTab] = useState<Tab>("order")
+  const [tab, setTab] = useState<Tab>("orders")
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<PosStockProduct[]>([])
   const [sales, setSales] = useState<Awaited<ReturnType<typeof getPosSales>>>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [priceMap, setPriceMap] = useState<Map<string, CrmProductPrice>>(() => new Map())
+  const [showNewOrder, setShowNewOrder] = useState(false)
+  const [showNewQuotation, setShowNewQuotation] = useState(false)
 
   const branchOrders = useMemo(
     () => orders.filter((o) => isBranchPosDoc(o, branchName, userName, branchId)),
@@ -76,11 +78,9 @@ export function BranchPosApp() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "order", label: "Create order" },
-    { id: "orders", label: "My orders" },
-    { id: "quotation", label: "Create quotation" },
-    { id: "quotations", label: "My quotations" },
-    { id: "stock", label: "My stock" },
+    { id: "orders", label: "Orders" },
+    { id: "quotations", label: "Quotations" },
+    { id: "inventory", label: "Inventory" },
     { id: "history", label: "Stock history" },
     { id: "sales", label: "Sales" },
   ]
@@ -95,7 +95,7 @@ export function BranchPosApp() {
         <div className="rounded-lg border bg-[hsl(var(--card))] px-4 py-3">
           <p className="text-base font-bold">{branchName}</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Branch POS — orders use this branch&apos;s stock only (main warehouse is not reduced).
+            Branch POS — create, deliver, and delete orders here. Stock comes from this branch only; orders stay in POS (not ERP CRM).
           </p>
         </div>
 
@@ -116,42 +116,28 @@ export function BranchPosApp() {
           ))}
         </div>
 
-        {tab === "order" && (
-          <BranchPosSaleForm
+        {tab === "orders" && (
+          <BranchPosDocsList
             kind="order"
-            products={products}
-            branchName={branchName}
-            branchId={branchId}
-            userName={userName}
-            onSaved={() => {
-              void loadAll()
-              setTab("orders")
-            }}
+            orders={branchOrders}
+            onRefresh={() => void loadAll()}
+            onNew={() => setShowNewOrder(true)}
           />
         )}
 
-        {tab === "orders" && <BranchPosDocsList kind="order" orders={branchOrders} />}
-
-        {tab === "quotation" && (
-          <BranchPosSaleForm
+        {tab === "quotations" && (
+          <BranchPosDocsList
             kind="quotation"
-            products={products}
-            branchName={branchName}
-            branchId={branchId}
-            userName={userName}
-            onSaved={() => {
-              void loadAll()
-              setTab("quotations")
-            }}
+            quotations={branchQuotations}
+            onRefresh={() => void loadAll()}
+            onNew={() => setShowNewQuotation(true)}
           />
         )}
 
-        {tab === "quotations" && <BranchPosDocsList kind="quotation" quotations={branchQuotations} />}
-
-        {tab === "stock" && (
+        {tab === "inventory" && (
           <div className="rounded-xl border bg-[hsl(var(--card))] overflow-hidden">
             <div className="px-4 py-3 border-b">
-              <p className="text-sm font-semibold">Branch inventory</p>
+              <p className="text-sm font-semibold">Inventory</p>
               <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Stock and price lists at this location</p>
             </div>
             <div className="overflow-x-auto">
@@ -239,6 +225,54 @@ export function BranchPosApp() {
           </div>
         )}
       </div>
+
+      {showNewOrder && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
+          <div className="w-full sm:max-w-3xl max-h-[96dvh] overflow-y-auto overscroll-contain">
+            <BranchPosSaleForm
+              kind="order"
+              products={products}
+              branchName={branchName}
+              branchId={branchId}
+              userName={userName}
+              onCancel={() => setShowNewOrder(false)}
+              onSaved={() => {
+                setShowNewOrder(false)
+                void loadAll()
+                setTab("orders")
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {showNewQuotation && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
+          <div className="w-full sm:max-w-3xl max-h-[96dvh] overflow-y-auto overscroll-contain relative">
+            <button
+              type="button"
+              className="absolute right-3 top-3 z-10 sm:hidden"
+              onClick={() => setShowNewQuotation(false)}
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <BranchPosSaleForm
+              kind="quotation"
+              products={products}
+              branchName={branchName}
+              branchId={branchId}
+              userName={userName}
+              onCancel={() => setShowNewQuotation(false)}
+              onSaved={() => {
+                setShowNewQuotation(false)
+                void loadAll()
+                setTab("quotations")
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

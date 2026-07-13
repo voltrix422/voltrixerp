@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, hasOutstandingCredit, isOrderOnCredit, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, initialOrderStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
@@ -155,9 +156,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
   useEffect(() => {
     Promise.all([getOrders(), getClients()]).then(([o, c]) => {
+      const withoutPos = o.filter(order => !isBranchPosOrderHiddenFromErp(order))
       const scopedOrders = workspace?.ownerUserId
-        ? o.filter(order => matchesOwnerRecord(order.ownerUserId, workspace.ownerUserId))
-        : o
+        ? withoutPos.filter(order => matchesOwnerRecord(order.ownerUserId, workspace.ownerUserId))
+        : withoutPos
       const scopedClients = workspace?.ownerUserId
         ? c.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
         : c
@@ -167,9 +169,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     })
     const interval = setInterval(() => {
       getOrders().then(o => {
+        const withoutPos = o.filter(order => !isBranchPosOrderHiddenFromErp(order))
         const scopedOrders = workspace?.ownerUserId
-          ? o.filter(order => matchesOwnerRecord(order.ownerUserId, workspace.ownerUserId))
-          : o
+          ? withoutPos.filter(order => matchesOwnerRecord(order.ownerUserId, workspace.ownerUserId))
+          : withoutPos
         setOrders(scopedOrders)
       })
     }, 30000)

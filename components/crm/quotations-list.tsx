@@ -1,6 +1,7 @@
 ﻿"use client"
 import { useState, useEffect } from "react"
 import { getQuotations, saveQuotation, deleteQuotation, generateQuotationNumber, duplicateQuotation, buildOrderFromQuotation, type Quotation, type QuotationItem, STATUS_LABELS, STATUS_COLORS } from "@/lib/quotations"
+import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { getClients, type Client } from "@/lib/crm"
 import { generateOrderNumber, saveOrder } from "@/lib/orders"
 import { matchesOwnerRecord, resolveOwnerUserId, initialQuotationStatus, type CrmWorkspaceScope } from "@/lib/crm-workspace"
@@ -86,9 +87,10 @@ export function QuotationsList({
 
   useEffect(() => {
     Promise.all([getQuotations(), getClients()]).then(([q, c]) => {
+      const withoutPos = q.filter(quotation => !isBranchPosOrderHiddenFromErp(quotation))
       const scopedQuotations = workspace?.ownerUserId
-        ? q.filter(quotation => matchesOwnerRecord(quotation.ownerUserId, workspace.ownerUserId))
-        : q
+        ? withoutPos.filter(quotation => matchesOwnerRecord(quotation.ownerUserId, workspace.ownerUserId))
+        : withoutPos
       const scopedClients = workspace?.ownerUserId
         ? c.filter(client => matchesOwnerRecord(client.ownerUserId, workspace.ownerUserId))
         : c

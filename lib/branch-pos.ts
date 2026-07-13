@@ -53,3 +53,15 @@ export function isBranchPosDoc(
   if (doc.createdBy === userName) return true
   return !!doc.notes?.includes(branchPosNotesTag(branchName))
 }
+
+/** Branch POS orders stay in POS only — never show in ERP CRM / Finance / Inventory queues. */
+export function isBranchPosOrderHiddenFromErp(order: {
+  source?: string | null
+  notes?: string | null
+  branchId?: string | null
+}): boolean {
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") return true
+  if (order.notes?.includes("Branch POS ·")) return true
+  return false
+}
+

@@ -242,7 +242,9 @@ export function orderHasPendingFinancePayments(order: Pick<Order, "payments" | "
   )
 }
 
-export function shouldShowOrderInFinance(order: Pick<Order, "status" | "payments">) {
+export function shouldShowOrderInFinance(order: Pick<Order, "status" | "payments" | "source" | "notes">) {
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
+  if (order.notes?.includes("Branch POS ·")) return false
   return (
     order.status === "finalized" ||
     order.status === "payment_added" ||

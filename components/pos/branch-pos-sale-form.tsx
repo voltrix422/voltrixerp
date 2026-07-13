@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { getClients, saveClient, type Client } from "@/lib/crm"
-import { generateOrderNumber, saveOrder, type Order, type OrderItem } from "@/lib/orders"
+import {
+  generateOrderNumber,
+  saveOrder,
+  type Order,
+  type OrderItem,
+  type OrderPayment,
+  type OrderStatus,
+} from "@/lib/orders"
 import {
   generateQuotationNumber,
   saveQuotation,
@@ -23,14 +30,17 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import type { PosStockProduct } from "@/lib/pos"
 import { branchPosNotesTag } from "@/lib/branch-pos"
+import { uploadFiles } from "@/lib/upload"
 import {
   DEFAULT_GST_PERCENT,
   calculateGstInclusiveTotals,
   splitGstInclusiveAmount,
 } from "@/lib/gst-inclusive-pricing"
-import { Loader2, Plus, ShoppingCart, UserPlus } from "lucide-react"
+import { Loader2, Paperclip, Plus, ShoppingCart, UserPlus, X } from "lucide-react"
 
 type DocKind = "order" | "quotation"
+
+const PAYMENT_METHODS = ["Cash", "Bank transfer", "Card", "JazzCash", "EasyPaisa", "Other"] as const
 
 export function BranchPosSaleForm({
   kind,
@@ -39,6 +49,7 @@ export function BranchPosSaleForm({
   branchId,
   userName,
   onSaved,
+  onCancel,
 }: {
   kind: DocKind
   products: PosStockProduct[]
@@ -46,6 +57,7 @@ export function BranchPosSaleForm({
   branchId: string
   userName: string
   onSaved?: () => void
+  onCancel?: () => void
 }) {
   const { toast } = useToast()
   const [priceMap, setPriceMap] = useState(() => new Map())
@@ -62,8 +74,13 @@ export function BranchPosSaleForm({
   const [deliveryAddress, setDeliveryAddress] = useState("")
   const [deliveryDate, setDeliveryDate] = useState("")
   const [paymentTerms, setPaymentTerms] = useState<"full" | "credit">("full")
+  const [paymentAmount, setPaymentAmount] = useState(0)
+  const [paymentMethod, setPaymentMethod] = useState<string>("Cash")
+  const [paymentNotes, setPaymentNotes] = useState("")
+  const [proofFiles, setProofFiles] = useState<File[]>([])
+  const [markDelivered, setMarkDelivered] = useState(false)
   const [discount, setDiscount] = useState(0)
-  const [discountIsPercentage, setDiscountIsPercentage] = useState(true)
+  const [discountIsPercentage] = useState(true)
   const [showInventory, setShowInventory] = useState(false)
   const [inventorySearch, setInventorySearch] = useState("")
   const [saving, setSaving] = useState(false)
@@ -117,6 +134,8 @@ export function BranchPosSaleForm({
     discountIsPercentage,
   })
   const { total, discountOnBase: discountAmount, taxAmount } = pricing
+
+  const creditDue = useMemo(() => Math.max(0, total - (Number(paymentAmount) || 0)), [total, paymentAmount])
 
   function addFromInventory(product: PosStockProduct) {
     const branchInventoryId = product.branchInventoryId || product.id
@@ -243,6 +262,36 @@ export function BranchPosSaleForm({
         await saveQuotation(q)
         toast({ type: "success", title: `Quotation ${quotationNumber} created` })
       } else {
+        let proofUrls: string[] = []
+        if (proofFiles.length > 0) {
+          proofUrls = await uploadFiles(proofFiles, "payment-proofs")
+        }
+
+        const paid = Math.max(0, Number(paymentAmount) || 0)
+        const payments: OrderPayment[] = []
+        if (paid > 0 || proofUrls.length > 0) {
+          payments.push({
+            id: `pay-${Date.now()}`,
+            amount: paid,
+            method: paymentMethod,
+            date: new Date().toISOString().slice(0, 10),
+            notes: paymentNotes.trim() || (paymentTerms === "credit" ? "Partial / advance (POS)" : "POS payment"),
+            proofUrls: proofUrls.length ? proofUrls : undefined,
+            proofUrl: proofUrls[0],
+            submissionStatus: "approved",
+            createdAt: new Date().toISOString(),
+            createdBy: userName,
+          })
+        }
+
+        const due = Math.max(0, total - paid)
+        const terms: "full" | "credit" =
+          paymentTerms === "credit" || due > 0.004 ? "credit" : "full"
+
+        let status: OrderStatus = "confirmed"
+        if (markDelivered) status = "delivered"
+        else if (paid > 0) status = "payment_added"
+
         const order: Order = {
           id: Date.now().toString(),
           orderNumber: await generateOrderNumber(),
@@ -261,24 +310,31 @@ export function BranchPosSaleForm({
           discountIsPercentage,
           discountValue: discountAmount,
           total,
-          status: "draft",
+          status,
           notes: docNotes,
           deliveryAddress: deliveryAddress.trim(),
           deliveryDate: deliveryDate || "",
-          paymentTerms,
+          paymentTerms: terms,
+          creditApprovedAt: terms === "credit" ? new Date().toISOString() : undefined,
+          creditApprovedBy: terms === "credit" ? userName : undefined,
+          creditNote: terms === "credit" ? `Branch POS credit · due ${due.toLocaleString()}` : undefined,
           createdAt: new Date().toISOString(),
           createdBy: userName,
-          payments: [],
+          payments,
           branchId,
           source: "branch_pos",
         }
         await saveOrder(order)
-        toast({ type: "success", title: `Order ${order.orderNumber} created`, message: "Branch stock updated" })
+        toast({
+          type: "success",
+          title: `Order ${order.orderNumber} created`,
+          message: markDelivered
+            ? "Delivered · branch stock updated"
+            : due > 0
+              ? `Branch stock updated · ${due.toLocaleString()} on credit`
+              : "Branch stock updated",
+        })
       }
-      setClientId("")
-      setClientSearch("")
-      setItems([])
-      setNotes("")
       onSaved?.()
     } catch (err) {
       toast({
@@ -291,20 +347,26 @@ export function BranchPosSaleForm({
     }
   }
 
-  const title = kind === "order" ? "Create order" : "Create quotation"
+  const title = kind === "order" ? "New order" : "New quotation"
 
   return (
     <>
-      <div className="rounded-xl border bg-[hsl(var(--card))] shadow-sm overflow-hidden max-w-5xl">
-        <div className="px-4 sm:px-6 py-4 border-b bg-[hsl(var(--muted))]/10">
-          <h2 className="text-lg font-bold">{title}</h2>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            {branchName} — branch stock only
-          </p>
+      <div className="rounded-xl border bg-[hsl(var(--card))] shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b bg-[hsl(var(--muted))]/10 flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold">{title}</h2>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+              {branchName} — branch stock only · stays in POS (not ERP CRM)
+            </p>
+          </div>
+          {onCancel && (
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onCancel}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
-        <div className="p-4 sm:p-6 space-y-5">
-          {/* Client */}
+        <div className="p-4 sm:p-6 space-y-5 max-h-[70vh] overflow-y-auto">
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <label className="text-sm font-semibold">Client *</label>
@@ -378,7 +440,6 @@ export function BranchPosSaleForm({
             )}
           </div>
 
-          {/* Delivery */}
           <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Delivery address</label>
@@ -401,27 +462,6 @@ export function BranchPosSaleForm({
             )}
           </div>
 
-          {kind === "order" && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Payment terms</label>
-              <div className="flex gap-2">
-                {(["full", "credit"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setPaymentTerms(t)}
-                    className={`h-9 px-4 rounded-md text-xs font-medium border cursor-pointer capitalize ${
-                      paymentTerms === t ? "bg-[#1faca6] text-white border-[#1faca6]" : ""
-                    }`}
-                  >
-                    {t === "full" ? "Full payment" : "Credit"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Items */}
           <div className="pt-2 border-t space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
               <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
@@ -488,6 +528,118 @@ export function BranchPosSaleForm({
             </div>
           )}
 
+          {kind === "order" && items.length > 0 && (
+            <div className="pt-2 border-t space-y-3">
+              <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
+                Payment
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(["full", "credit"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setPaymentTerms(t)}
+                    className={`h-9 px-4 rounded-md text-xs font-medium border cursor-pointer capitalize ${
+                      paymentTerms === t ? "bg-[#1faca6] text-white border-[#1faca6]" : ""
+                    }`}
+                  >
+                    {t === "full" ? "Full payment" : "Credit / partial"}
+                  </button>
+                ))}
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">Amount received (PKR)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={paymentAmount || ""}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
+                    placeholder={String(Math.round(total))}
+                    className="w-full h-10 rounded-md border px-3 text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-[10px] text-[#1faca6] underline cursor-pointer"
+                      onClick={() => setPaymentAmount(Math.round(total))}
+                    >
+                      Pay full total
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[10px] text-[hsl(var(--muted-foreground))] underline cursor-pointer"
+                      onClick={() => setPaymentAmount(0)}
+                    >
+                      Zero (full credit)
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">Method</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full h-10 rounded-md border px-3 text-sm bg-[hsl(var(--background))]"
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">Payment notes</label>
+                <input
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className="w-full h-10 rounded-md border px-3 text-sm"
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5" /> Attachments / payment proof
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  onChange={(e) => setProofFiles(Array.from(e.target.files || []))}
+                  className="w-full text-xs"
+                />
+                {proofFiles.length > 0 && (
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                    {proofFiles.length} file{proofFiles.length === 1 ? "" : "s"} selected
+                  </p>
+                )}
+              </div>
+              <div className="rounded-lg border bg-[hsl(var(--muted))]/15 px-3 py-2 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Order total</p>
+                  <p className="font-semibold tabular-nums">PKR {total.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Received</p>
+                  <p className="font-semibold tabular-nums text-emerald-700">PKR {(paymentAmount || 0).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">On credit / due</p>
+                  <p className="font-semibold tabular-nums text-amber-700">PKR {creditDue.toLocaleString()}</p>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={markDelivered}
+                  onChange={(e) => setMarkDelivered(e.target.checked)}
+                  className="rounded border"
+                />
+                Mark as delivered now
+              </label>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Notes</label>
             <input
@@ -512,7 +664,12 @@ export function BranchPosSaleForm({
           )}
         </div>
 
-        <div className="flex justify-end gap-2 px-4 sm:px-6 py-4 border-t bg-[hsl(var(--muted))]/10">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-4 sm:px-6 py-4 border-t bg-[hsl(var(--muted))]/10">
+          {onCancel && (
+            <Button type="button" variant="outline" className="h-10" onClick={onCancel} disabled={saving}>
+              Cancel
+            </Button>
+          )}
           <Button
             type="button"
             className="bg-[#1faca6] hover:bg-[#17857f] text-white h-10 px-6"
@@ -520,7 +677,11 @@ export function BranchPosSaleForm({
             onClick={() => void handleSubmit()}
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            {kind === "order" ? "Create order" : "Create quotation"}
+            {kind === "order"
+              ? markDelivered
+                ? "Create & deliver"
+                : "Create order"
+              : "Create quotation"}
           </Button>
         </div>
       </div>
