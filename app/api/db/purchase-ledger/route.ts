@@ -160,9 +160,37 @@ async function handlePost(req: NextRequest) {
 
     const payments = parsePayments(existing.payments)
     const payment = body.payment ?? {}
-    const paymentAmount = Number(payment.amount) || 0
+    const requestedAmount = Number(payment.amount) || 0
+    if (requestedAmount <= 0) {
+      return NextResponse.json({ error: "Payment amount must be greater than 0" }, { status: 400 })
+    }
     const supplierGroupId = payment.supplierGroupId ? String(payment.supplierGroupId) : ""
     const supplierGroups = parseSupplierGroups(existing.supplierGroups)
+    const isProject = normalizeLinkMode(existing.linkMode || "general") === "project"
+
+    const alreadyPaid = Math.min(
+      Number(existing.totalAmount) || 0,
+      Math.max(
+        isProject && supplierGroups.length > 0 ? sumGroupAmountPaid(supplierGroups) : 0,
+        sumPayments(payments),
+      ),
+    )
+    const remainingDue = Math.max(0, Number(existing.totalAmount) - alreadyPaid)
+    if (remainingDue <= 0) {
+      return NextResponse.json({ error: "This entry is already fully paid" }, { status: 400 })
+    }
+
+    let paymentAmount = Math.min(requestedAmount, remainingDue)
+    if (supplierGroupId && supplierGroups.length > 0) {
+      const group = supplierGroups.find((g) => g.id === supplierGroupId)
+      if (group) {
+        const groupRemaining = Math.max(0, sumItems(group.items) - (group.amountPaid || 0))
+        paymentAmount = Math.min(paymentAmount, groupRemaining)
+      }
+    }
+    if (paymentAmount <= 0) {
+      return NextResponse.json({ error: "No remaining due for this supplier" }, { status: 400 })
+    }
 
     payments.push({
       id: payment.id || Date.now().toString(),
@@ -180,7 +208,6 @@ async function handlePost(req: NextRequest) {
     // Payments are attributed to individual supplier groups only in project
     // mode. For supplier/general entries the payments list is the source of
     // truth — using group totals there would ignore every payment.
-    const isProject = normalizeLinkMode(existing.linkMode || "general") === "project"
 
     let nextSupplierGroups = supplierGroups
     if (supplierGroupId && supplierGroups.length > 0) {
@@ -196,9 +223,12 @@ async function handlePost(req: NextRequest) {
       })
     }
 
-    const amountPaid = Math.max(
-      isProject && nextSupplierGroups.length > 0 ? sumGroupAmountPaid(nextSupplierGroups) : 0,
-      sumPayments(payments),
+    const amountPaid = Math.min(
+      Number(existing.totalAmount) || 0,
+      Math.max(
+        isProject && nextSupplierGroups.length > 0 ? sumGroupAmountPaid(nextSupplierGroups) : 0,
+        sumPayments(payments),
+      ),
     )
     const amountDue = Math.max(0, Number(existing.totalAmount) - amountPaid)
 
@@ -244,9 +274,13 @@ async function handlePost(req: NextRequest) {
   const firstItem = items[0]
   const payments = parsePayments(body.payments)
   // Group-level paid is used in project mode; payments list is always a floor.
-  const amountPaid = Math.max(
-    isProject && supplierGroups.length > 0 ? sumGroupAmountPaid(supplierGroups) : 0,
-    payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0,
+  // Cap paid at total so ledger never shows Paid > Total.
+  const amountPaid = Math.min(
+    totalAmount,
+    Math.max(
+      isProject && supplierGroups.length > 0 ? sumGroupAmountPaid(supplierGroups) : 0,
+      payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0,
+    ),
   )
   const amountDue = Math.max(0, totalAmount - amountPaid)
 

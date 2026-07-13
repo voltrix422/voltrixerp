@@ -585,7 +585,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             billUrl = await uploadFile(pendingBill, "purchase-bills")
             billName = pendingBill.name
           }
-          const paying = parseFloat(groupPayingNow[group.id] || "") || 0
+          const payingRaw = parseFloat(groupPayingNow[group.id] || "") || 0
+          const paying = Math.min(payingRaw, getGroupSubtotal(group))
           const withPayment = withGroupPaymentTotals(group, paying)
           groupsWithPayments.push({ ...withPayment, billUrl, billName })
           if (paying > 0) {
@@ -713,9 +714,20 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   async function handleAddPayment(e: React.FormEvent) {
     e.preventDefault()
     if (!user || !payEntry) return
-    const amount = parseFloat(payAmount) || 0
-    if (amount <= 0) return
+    const requested = parseFloat(payAmount) || 0
+    if (requested <= 0) return
     const selectedGroup = payEntry.supplierGroups.find(group => group.id === paySupplierGroupId)
+    const maxAllowed = selectedGroup
+      ? resolveGroupAmountDue(selectedGroup)
+      : payEntry.amountDue
+    if (maxAllowed <= 0) {
+      alert("This entry is already fully paid.")
+      return
+    }
+    const amount = Math.min(requested, maxAllowed)
+    if (requested > maxAllowed) {
+      alert(`Amount capped at due ${fmtMoney(maxAllowed)}.`)
+    }
     setPaySaving(true)
     try {
       let proofUrl = ""
@@ -1469,6 +1481,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               <div>
                 <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Paid</p>
                 <p className="text-xs font-semibold text-emerald-600">{fmtMoney(entry.amountPaid)}</p>
+                {(entry.amountOverpaid || 0) > 0 && (
+                  <p className="text-[9px] text-red-600">Overpaid {fmtMoney(entry.amountOverpaid || 0)}</p>
+                )}
               </div>
               <div>
                 <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Due</p>
@@ -1552,7 +1567,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   )}
                 </td>
                 <td className="px-2 py-2 font-medium">{fmtMoney(entry.totalAmount)}</td>
-                <td className="px-2 py-2 text-emerald-600">{fmtMoney(entry.amountPaid)}</td>
+                <td className="px-2 py-2 text-emerald-600">
+                  {fmtMoney(entry.amountPaid)}
+                  {(entry.amountOverpaid || 0) > 0 && (
+                    <p className="text-[9px] text-red-600 font-normal">+{fmtMoney(entry.amountOverpaid || 0)} over</p>
+                  )}
+                </td>
                 <td className="px-2 py-2 text-amber-600 font-medium">{fmtMoney(entry.amountDue)}</td>
                 <td className="px-2 py-2 whitespace-nowrap">{entry.dueDate || "—"}</td>
                 <td className="px-2 py-2">

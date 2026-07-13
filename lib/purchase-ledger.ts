@@ -56,6 +56,8 @@ export interface PurchaseLedgerEntry {
   totalAmount: number
   amountPaid: number
   amountDue: number
+  /** Payments recorded above totalAmount (display Paid is still capped at total). */
+  amountOverpaid?: number
   items: PurchaseLedgerItem[]
   supplierGroups: PurchaseLedgerSupplierGroup[]
   payments: PurchaseLedgerPayment[]
@@ -247,10 +249,11 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   }))
   const totalAmount = Number(row.totalAmount) || 0
   const linkMode = normalizeLinkMode(String(row.linkMode ?? "general"))
-  const amountPaid = Math.max(Number(row.amountPaid) || 0, sumPayments(payments))
-  // Always derive due from total − paid. Project rows previously trusted a
-  // stored amountDue that could stay stale after payments (e.g. PL fully paid
-  // still showing the original due).
+  const paymentsTotal = sumPayments(payments)
+  const rawPaid = Math.max(Number(row.amountPaid) || 0, paymentsTotal)
+  // Paid cannot exceed bill total in the ledger. Extra payment lines show as overpaid.
+  const amountOverpaid = Math.max(0, rawPaid - totalAmount)
+  const amountPaid = Math.min(totalAmount, rawPaid)
   const amountDue = Math.max(0, totalAmount - amountPaid)
 
   if (items.length === 0 && row.productName) {
@@ -316,6 +319,7 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     totalAmount,
     amountPaid,
     amountDue,
+    amountOverpaid,
     items: resolvedItems,
     supplierGroups,
     payments,
