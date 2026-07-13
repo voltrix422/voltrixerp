@@ -196,18 +196,25 @@ async function handlePost(req: NextRequest) {
       })
     }
 
-    const amountPaid = isProject && nextSupplierGroups.length > 0
-      ? sumGroupAmountPaid(nextSupplierGroups)
-      : sumPayments(payments)
-    const amountDue = isProject && nextSupplierGroups.length > 0
-      ? sumGroupAmountDue(nextSupplierGroups)
-      : Math.max(0, existing.totalAmount - amountPaid)
+    const amountPaid = Math.max(
+      isProject && nextSupplierGroups.length > 0 ? sumGroupAmountPaid(nextSupplierGroups) : 0,
+      sumPayments(payments),
+    )
+    const amountDue = Math.max(0, Number(existing.totalAmount) - amountPaid)
 
     if (!isProject && nextSupplierGroups.length === 1) {
       const group = nextSupplierGroups[0]
       const subtotal = sumItems(group.items)
       const groupPaid = Math.min(subtotal, amountPaid)
       nextSupplierGroups = [{ ...group, amountPaid: groupPaid, amountDue: Math.max(0, subtotal - groupPaid) }]
+    }
+    // Keep project group dues in sync with their paid amounts after any payment.
+    if (isProject && nextSupplierGroups.length > 0) {
+      nextSupplierGroups = nextSupplierGroups.map((group) => {
+        const subtotal = sumItems(group.items)
+        const groupPaid = Math.min(subtotal, group.amountPaid || 0)
+        return { ...group, amountPaid: groupPaid, amountDue: Math.max(0, subtotal - groupPaid) }
+      })
     }
     const latest = payments[payments.length - 1]
 
@@ -236,14 +243,12 @@ async function handlePost(req: NextRequest) {
     : items.length > 0 ? sumItems(items) : Number(body.totalAmount) || 0
   const firstItem = items[0]
   const payments = parsePayments(body.payments)
-  // Group-level paid/due is only reliable in project mode, where payments are
-  // attributed per supplier. Otherwise trust the payments list.
-  const amountPaid = isProject && supplierGroups.length > 0
-    ? sumGroupAmountPaid(supplierGroups)
-    : payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0
-  const amountDue = isProject && supplierGroups.length > 0
-    ? sumGroupAmountDue(supplierGroups)
-    : Math.max(0, totalAmount - amountPaid)
+  // Group-level paid is used in project mode; payments list is always a floor.
+  const amountPaid = Math.max(
+    isProject && supplierGroups.length > 0 ? sumGroupAmountPaid(supplierGroups) : 0,
+    payments.length > 0 ? sumPayments(payments) : Number(body.amountPaid) || 0,
+  )
+  const amountDue = Math.max(0, totalAmount - amountPaid)
 
   if (!isProject && supplierGroups.length === 1) {
     const group = supplierGroups[0]

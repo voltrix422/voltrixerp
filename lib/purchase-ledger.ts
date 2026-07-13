@@ -143,9 +143,7 @@ export function resolveGroupAmountPaid(group: PurchaseLedgerSupplierGroup) {
 export function resolveGroupAmountDue(group: PurchaseLedgerSupplierGroup) {
   const subtotal = getGroupSubtotal(group)
   const paid = resolveGroupAmountPaid(group)
-  if (typeof group.amountDue === "number" && group.amountDue >= 0) {
-    return Math.max(0, Math.min(group.amountDue, subtotal))
-  }
+  // Always derive due from subtotal − paid (never trust a stale stored amountDue).
   return Math.max(0, subtotal - paid)
 }
 
@@ -250,11 +248,10 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   const totalAmount = Number(row.totalAmount) || 0
   const linkMode = normalizeLinkMode(String(row.linkMode ?? "general"))
   const amountPaid = Math.max(Number(row.amountPaid) || 0, sumPayments(payments))
-  // Outside project mode, due is always total minus payments. Older rows can
-  // have a stale amountDue column (group totals overwrote payment totals).
-  const amountDue = linkMode === "project"
-    ? (Number(row.amountDue) || Math.max(0, totalAmount - amountPaid))
-    : Math.max(0, totalAmount - amountPaid)
+  // Always derive due from total − paid. Project rows previously trusted a
+  // stored amountDue that could stay stale after payments (e.g. PL fully paid
+  // still showing the original due).
+  const amountDue = Math.max(0, totalAmount - amountPaid)
 
   if (items.length === 0 && row.productName) {
     items = [{

@@ -566,7 +566,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           })
         }
         amountPaid = isProjectMode ? sumGroupAmountPaid(groupsWithPayments) : sumPayments(payments)
-        amountDue = isProjectMode ? sumGroupAmountDue(groupsWithPayments) : Math.max(0, totalAmount - amountPaid)
+        amountDue = Math.max(0, totalAmount - amountPaid)
       } else if (isProjectMode) {
         groupsWithPayments = []
         payments = []
@@ -604,7 +604,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           }
         }
         amountPaid = sumGroupAmountPaid(groupsWithPayments)
-        amountDue = sumGroupAmountDue(groupsWithPayments)
+        amountDue = Math.max(0, totalAmount - amountPaid)
       } else if (payingNow > 0) {
         let proofUrl = ""
         let proofName = ""
