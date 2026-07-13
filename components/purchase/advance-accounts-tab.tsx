@@ -40,6 +40,8 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
   const [newPersonName, setNewPersonName] = useState("")
   const [newPurpose, setNewPurpose] = useState("")
   const [newDeposit, setNewDeposit] = useState("")
+  const [newDepositDate, setNewDepositDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [newDepositReceipt, setNewDepositReceipt] = useState<File | null>(null)
   const [newNotes, setNewNotes] = useState("")
   const [savingNew, setSavingNew] = useState(false)
 
@@ -106,12 +108,22 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
     }
     setSavingNew(true)
     try {
+      const depositAmount = parseFloat(newDeposit) || 0
+      let receiptUrl = ""
+      let receiptName = ""
+      if (depositAmount > 0 && newDepositReceipt) {
+        receiptUrl = await uploadFile(newDepositReceipt, "advance-receipts")
+        receiptName = newDepositReceipt.name
+      }
       const saved = await saveAdvanceAccount({
         purchaseScopeId,
         personName: newPersonName.trim(),
         purpose: newPurpose.trim(),
         notes: newNotes.trim(),
-        initialDeposit: parseFloat(newDeposit) || 0,
+        initialDeposit: depositAmount,
+        initialDepositDate: newDepositDate || new Date().toISOString().slice(0, 10),
+        initialDepositReceiptUrl: receiptUrl,
+        initialDepositReceiptName: receiptName,
         createdBy: user.name,
       })
       setAccounts(prev => [saved, ...prev])
@@ -119,6 +131,8 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
       setNewPersonName("")
       setNewPurpose("")
       setNewDeposit("")
+      setNewDepositDate(new Date().toISOString().slice(0, 10))
+      setNewDepositReceipt(null)
       setNewNotes("")
       openDetail(saved.id)
     } catch (error) {
@@ -328,6 +342,16 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
               </Field>
               <Field label="Initial deposit" hint="Money handed over now — you can add more later">
                 <input type="number" min="0" step="any" value={newDeposit} onChange={e => setNewDeposit(e.target.value)} placeholder="e.g. 20,000" className={inputCls} inputMode="decimal" />
+              </Field>
+              <Field label="Payment date" hint="Date this deposit was given">
+                <input type="date" value={newDepositDate} onChange={e => setNewDepositDate(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Deposit receipt / proof" hint="Optional · image or PDF for the initial deposit">
+                <label className="flex items-center gap-2 h-9 rounded-md border border-dashed px-3 cursor-pointer hover:bg-[hsl(var(--muted))]/25 transition-colors">
+                  <Upload className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
+                  <span className="text-[11px] truncate">{newDepositReceipt ? newDepositReceipt.name : "Click to attach receipt"}</span>
+                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={e => setNewDepositReceipt(e.target.files?.[0] ?? null)} />
+                </label>
               </Field>
               <Field label="Notes">
                 <input value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Optional" className={inputCls} />

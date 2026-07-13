@@ -79,6 +79,7 @@ model ErpSupplier {
   email            String  @default("")
   address          String  @default("")
   company          String  @default("")
+  tradingAs        String  @default("") @map("trading_as")
   bankAccountName  String? @map("bank_account_name")
   bankIban         String? @map("bank_iban")
   accountTitle     String  @default("") @map("account_title")

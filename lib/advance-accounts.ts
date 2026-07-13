@@ -90,6 +90,9 @@ export async function saveAdvanceAccount(account: {
   notes?: string
   status?: "open" | "closed"
   initialDeposit?: number
+  initialDepositDate?: string
+  initialDepositReceiptUrl?: string
+  initialDepositReceiptName?: string
   createdBy?: string
 }): Promise<AdvanceAccount> {
   const res = await fetch("/api/db/advance-accounts", {

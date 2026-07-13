@@ -13,6 +13,8 @@ export interface Supplier {
   email: string
   address: string
   company: string
+  /** Trading-as / trade name for the business */
+  tradingAs?: string
   bankAccounts?: SupplierBankAccount[]
   accountTitle?: string
   bankNames?: string[]
@@ -182,6 +184,7 @@ export async function getSuppliers(purchaseScopeId?: string): Promise<Supplier[]
         email: r.email as string,
         address: r.address as string,
         company: r.company as string,
+        tradingAs: String(r.tradingAs ?? r.trading_as ?? ""),
         bankAccounts,
         accountTitle: bankAccounts[0]?.accountTitle || accountTitle,
         bankNames,

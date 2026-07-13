@@ -126,10 +126,10 @@ async function handlePost(req: NextRequest) {
       id: Date.now().toString(),
       type: "deposit",
       amount: initialDeposit,
-      date: new Date().toISOString().slice(0, 10),
+      date: String(body.initialDepositDate || "").trim() || new Date().toISOString().slice(0, 10),
       description: "Initial deposit",
-      receiptUrl: "",
-      receiptName: "",
+      receiptUrl: String(body.initialDepositReceiptUrl || ""),
+      receiptName: String(body.initialDepositReceiptName || ""),
       createdBy: String(body.createdBy || ""),
       createdAt: new Date().toISOString(),
     })

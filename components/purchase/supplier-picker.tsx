@@ -59,7 +59,11 @@ function SupplierQuickForm({
         </div>
         <div className="space-y-1">
           <label className="text-[11px] font-medium">Company</label>
-          <input value={form.company} onChange={e => set("company", e.target.value)} className={inputCls} />
+          <input value={form.company} onChange={e => set("company", e.target.value)} placeholder="Legal company name" className={inputCls} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium">Trading as</label>
+          <input value={form.tradingAs || ""} onChange={e => set("tradingAs", e.target.value)} placeholder="Trade name (if different)" className={inputCls} />
         </div>
         <div className="space-y-1">
           <label className="text-[11px] font-medium">Email</label>
@@ -94,6 +98,7 @@ const emptySupplier = (): Omit<Supplier, "id"> => ({
   email: "",
   address: "",
   company: "",
+  tradingAs: "",
   bankAccounts: [{ accountTitle: "", bankName: "", bankIban: "" }],
   accountTitle: "",
   bankNames: [""],
@@ -273,6 +278,7 @@ export function SupplierPicker({
                 email: selected.email,
                 address: selected.address,
                 company: selected.company,
+                tradingAs: selected.tradingAs || "",
                 bankAccounts: supplierBankAccountsForForm(selected),
                 image: selected.image || "",
               }}

@@ -32,6 +32,7 @@ const empty = (): Omit<Supplier, "id"> => ({
   email: "",
   address: "",
   company: "",
+  tradingAs: "",
   bankAccounts: [{ accountTitle: "", bankName: "", bankIban: "" }],
   accountTitle: "",
   bankNames: [""],
@@ -67,7 +68,11 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
         </div>
         <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Company</label>
-          <input value={form.company} onChange={e => set("company", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
+          <input value={form.company} onChange={e => set("company", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" placeholder="Legal company name" />
+        </div>
+        <div className="space-y-1 min-w-0">
+          <label className="text-xs font-medium">Trading as</label>
+          <input value={form.tradingAs || ""} onChange={e => set("tradingAs", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" placeholder="Trade name (if different)" />
         </div>
         <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Type</label>
@@ -168,6 +173,7 @@ function SupplierDetail({
     { icon: Mail, label: "Email", value: supplier.email },
     { icon: MapPin, label: "Address", value: supplier.address },
     { icon: Building2, label: "Company", value: supplier.company },
+    { icon: Building2, label: "Trading as", value: supplier.tradingAs },
   ]
 
   return (
@@ -556,6 +562,7 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
                   email: editingSupplier.email,
                   address: editingSupplier.address,
                   company: editingSupplier.company,
+                  tradingAs: editingSupplier.tradingAs || "",
                   bankAccounts: supplierBankAccountsForForm(editingSupplier),
                   image: editingSupplier.image || "",
                 }}

@@ -29,6 +29,7 @@ function supplierPayload(s: Record<string, unknown>) {
     email: String(s.email ?? ""),
     address: String(s.address ?? ""),
     company: String(s.company ?? ""),
+    tradingAs: String(s.tradingAs ?? ""),
     accountTitle: resolvedBanks[0]?.accountTitle || String(s.accountTitle ?? ""),
     bankNames: resolvedBanks,
     bankAccountName: resolvedBanks[0]?.bankName || legacyBank || null,
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown supplier save error"
     const needsMigration =
-      /account_title|bank_names|Unknown arg `accountTitle`|Unknown arg `bankNames`/i.test(message)
+      /account_title|bank_names|trading_as|Unknown arg `accountTitle`|Unknown arg `bankNames`|Unknown arg `tradingAs`/i.test(message)
     return NextResponse.json(
       {
         error: needsMigration
