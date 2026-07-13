@@ -18,11 +18,28 @@ function absQty(t: InventoryTransaction) {
 }
 
 function isInbound(t: InventoryTransaction) {
-  return t.transaction_type === "in"
+  const type = String(t.transaction_type || "").trim().toLowerCase()
+  if (type === "in") return true
+  if (type === "out") {
+    // Defensive: mis-tagged restore rows still show as stock in
+    return /stock restored|order deleted/i.test(t.notes || "")
+  }
+  return /stock restored|order deleted/i.test(t.notes || "")
 }
 
-function refLabel(refType: string) {
+function typeBadge(t: InventoryTransaction) {
+  if (isInbound(t)) {
+    if (/stock restored|order deleted/i.test(t.notes || "")) return { label: "IN · Restored", inbound: true }
+    return { label: "IN", inbound: true }
+  }
+  if (/delivered/i.test(t.notes || "")) return { label: "OUT · Delivered", inbound: false }
+  return { label: "OUT", inbound: false }
+}
+
+function refLabel(refType: string, notes?: string) {
+  if (/stock restored|order deleted/i.test(notes || "")) return "Order deleted"
   if (refType === "branch_pos_order") return "POS Order"
+  if (refType === "branch_pos_restore") return "Order deleted"
   if (refType === "pos_sale") return "POS Sale"
   return refType || "—"
 }
@@ -221,7 +238,8 @@ export function BranchPosStockHistory({
             </thead>
             <tbody className="divide-y">
               {rows.map((r) => {
-                const inbound = isInbound(r)
+                const badge = typeBadge(r)
+                const inbound = badge.inbound
                 return (
                   <tr key={r.id} className="hover:bg-[hsl(var(--muted))]/10">
                     <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
@@ -235,7 +253,7 @@ export function BranchPosStockHistory({
                             : "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300"
                         }`}
                       >
-                        {inbound ? "IN" : "OUT"}
+                        {badge.label}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 font-medium min-w-0">
@@ -246,7 +264,7 @@ export function BranchPosStockHistory({
                       {absQty(r)} {r.unit}
                     </td>
                     <td className="px-3 py-2.5 text-xs">
-                      <p className="font-medium">{refLabel(r.reference_type)}</p>
+                      <p className="font-medium">{refLabel(r.reference_type, r.notes)}</p>
                       <p className="font-mono text-[hsl(var(--muted-foreground))]">{r.reference_number}</p>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[200px] truncate">
