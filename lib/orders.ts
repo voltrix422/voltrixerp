@@ -18,6 +18,8 @@ export interface OrderItem {
   inventoryItemId?: string // reference to inventory item if not custom
   /** Branch inventory row id (Branch POS) — used to deduct local stock */
   branchInventoryId?: string
+  /** All duplicate branch row ids for FIFO deduct when inventory is aggregated */
+  branchInventoryIds?: string[]
   model?: string // warehouse model number when from inventory
   availableQty?: number // available quantity in stock (for validation, not saved to DB)
   costPrice?: number // cost price from inventory (for reference, not saved to DB)

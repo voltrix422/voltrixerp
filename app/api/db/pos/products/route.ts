@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
         costPrice: row.costPrice,
         inventoryId: row.inventoryId,
         branchInventoryId: row.branchInventoryId,
+        branchInventoryIds: row.branchInventoryIds,
         isManual: row.isManual,
       })),
     )

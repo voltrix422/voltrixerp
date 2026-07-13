@@ -10,7 +10,47 @@ export type BranchPosProductRow = {
   costPrice: number
   inventoryId: string
   branchInventoryId?: string
+  /** All branch inventory row ids merged into this display line (do not delete — display aggregate only). */
+  branchInventoryIds: string[]
   isManual: boolean
+}
+
+function normalizeKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+/** Group duplicate branch rows by inventory link / model so POS matches a single qty line (no data deleted). */
+function aggregateBranchRows(
+  mapped: Omit<BranchPosProductRow, "branchInventoryIds">[],
+): BranchPosProductRow[] {
+  const groups = new Map<string, BranchPosProductRow>()
+
+  for (const row of mapped) {
+    const key =
+      (row.inventoryId ? `inv:${normalizeKey(row.inventoryId)}` : "") ||
+      `model:${normalizeKey(row.model || row.description)}`
+    const existing = groups.get(key)
+    if (!existing) {
+      groups.set(key, {
+        ...row,
+        branchInventoryIds: [row.id],
+        branchInventoryId: row.branchInventoryId || row.id,
+      })
+      continue
+    }
+    existing.availableQty += row.availableQty
+    existing.branchInventoryIds.push(row.id)
+    if (!existing.costPrice && row.costPrice) existing.costPrice = row.costPrice
+    // Prefer the longer / clearer description
+    if ((row.description || "").length > (existing.description || "").length) {
+      existing.description = row.description
+      existing.name = row.name
+    }
+  }
+
+  return [...groups.values()].sort((a, b) =>
+    a.description.localeCompare(b.description, undefined, { sensitivity: "base" }),
+  )
 }
 
 export async function getBranchPosProducts(
@@ -34,6 +74,7 @@ export async function getBranchPosProducts(
       availableQty: row.availableQty,
       costPrice: row.costPrice,
       inventoryId: row.id,
+      branchInventoryIds: [row.id],
       isManual: false,
     }))
   }
@@ -64,7 +105,7 @@ export async function getBranchPosProducts(
     : []
   const manualById = new Map(manualRows.map((m) => [m.id, m]))
 
-  return rows.map((row) => {
+  const mapped = rows.map((row) => {
     const stock = stockById.get(row.inventoryId)
     const manual = row.inventoryId.startsWith("man:")
       ? manualById.get(row.inventoryId.slice(4))
@@ -84,4 +125,6 @@ export async function getBranchPosProducts(
       isManual: !!manual || row.inventoryId.startsWith("man:"),
     }
   })
+
+  return aggregateBranchRows(mapped)
 }

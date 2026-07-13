@@ -10,22 +10,37 @@ export async function GET(req: NextRequest) {
   const to = searchParams.get("to")
   const type = searchParams.get("type")
   const referenceType = searchParams.get("referenceType")
+  const referenceTypes = searchParams.get("referenceTypes")
   const locationLabel = searchParams.get("locationLabel")
   const branchId = searchParams.get("branchId")
+  /** Branch POS outbound ledger: only stock leaving via POS order/sale */
+  const posOutbound = searchParams.get("posOutbound") === "1"
 
   const where: Prisma.ErpInventoryHistoryWhereInput = {}
   if (item) where.itemDescription = item
-  if (referenceId) {
+  if (referenceId && !posOutbound) {
     where.referenceId = referenceId
     where.referenceType = "order"
     where.transactionType = "out"
   }
-  if (referenceType) where.referenceType = referenceType
 
-  if (type === "in") {
-    where.transactionType = "in"
-  } else if (type === "out") {
-    where.transactionType = { in: ["out", "assigned_to_branch", "branch_transfer"] }
+  if (posOutbound) {
+    where.referenceType = { in: ["branch_pos_order", "pos_sale"] }
+    where.transactionType = "out"
+  } else if (referenceTypes) {
+    const types = referenceTypes.split(",").map((t) => t.trim()).filter(Boolean)
+    if (types.length === 1) where.referenceType = types[0]
+    else if (types.length > 1) where.referenceType = { in: types }
+  } else if (referenceType) {
+    where.referenceType = referenceType
+  }
+
+  if (!posOutbound) {
+    if (type === "in") {
+      where.transactionType = "in"
+    } else if (type === "out") {
+      where.transactionType = { in: ["out", "assigned_to_branch", "branch_transfer"] }
+    }
   }
 
   if (from || to) {
@@ -43,14 +58,14 @@ export async function GET(req: NextRequest) {
     where.createdAt = createdAt
   }
 
-  // Branch POS / location filter: match label, branch id on reference, or notes text.
+  // Branch POS location: prefer locationLabel (set on POS movements), fall back to notes.
   if (locationLabel || branchId) {
     const or: Prisma.ErpInventoryHistoryWhereInput[] = []
     if (locationLabel) {
       or.push({ locationLabel })
       or.push({ notes: { contains: locationLabel, mode: "insensitive" } })
     }
-    if (branchId) {
+    if (branchId && !posOutbound) {
       or.push({ referenceId: branchId })
     }
     where.OR = or

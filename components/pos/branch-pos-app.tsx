@@ -120,6 +120,7 @@ export function BranchPosApp() {
           <BranchPosDocsList
             kind="order"
             orders={branchOrders}
+            userName={userName}
             onRefresh={() => void loadAll()}
             onNew={() => setShowNewOrder(true)}
           />
@@ -129,6 +130,7 @@ export function BranchPosApp() {
           <BranchPosDocsList
             kind="quotation"
             quotations={branchQuotations}
+            userName={userName}
             onRefresh={() => void loadAll()}
             onNew={() => setShowNewQuotation(true)}
           />
@@ -144,8 +146,7 @@ export function BranchPosApp() {
               <table className="w-full text-sm">
                 <thead className="bg-[hsl(var(--muted))]/30 text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                   <tr>
-                    <th className="text-left px-3 py-2.5">Product</th>
-                    <th className="text-left px-3 py-2.5">Model</th>
+                    <th className="text-left px-3 py-2.5">Product / Model</th>
                     <th className="text-right px-3 py-2.5">Qty</th>
                     <th className="text-right px-3 py-2.5">{CRM_PRICE_TIER_LABELS.retail}</th>
                     <th className="text-right px-3 py-2.5">{CRM_PRICE_TIER_LABELS.wholesale}</th>
@@ -155,8 +156,12 @@ export function BranchPosApp() {
                 <tbody className="divide-y">
                   {products.map((p) => (
                       <tr key={p.id} className="hover:bg-[hsl(var(--muted))]/10">
-                        <td className="px-3 py-2.5 font-medium">{p.description}</td>
-                        <td className="px-3 py-2.5 font-mono text-xs text-[hsl(var(--muted-foreground))]">{p.model}</td>
+                        <td className="px-3 py-2.5 min-w-0">
+                          <p className="font-medium truncate">{p.description}</p>
+                          {p.model && p.model !== p.description && (
+                            <p className="font-mono text-[10px] text-[hsl(var(--muted-foreground))] truncate">{p.model}</p>
+                          )}
+                        </td>
                         <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-[#1faca6]">
                           {p.availableQty} {p.unit}
                         </td>
@@ -167,7 +172,7 @@ export function BranchPosApp() {
                     ))}
                   {products.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
+                      <td colSpan={5} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
                         No stock at this branch
                       </td>
                     </tr>

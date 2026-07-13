@@ -8,11 +8,7 @@ import {
 import { downloadBranchPosStockHistoryPDF } from "@/lib/generate-branch-pos-stock-history-pdf"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
-import { FileDown, Loader2, TrendingDown, TrendingUp } from "lucide-react"
-
-function isOut(t: InventoryTransaction) {
-  return t.transaction_type !== "in"
-}
+import { FileDown, Loader2, TrendingDown } from "lucide-react"
 
 function absQty(t: InventoryTransaction) {
   return Math.abs(Number(t.quantity) || 0)
@@ -21,11 +17,10 @@ function absQty(t: InventoryTransaction) {
 function refLabel(refType: string) {
   if (refType === "branch_pos_order") return "POS Order"
   if (refType === "pos_sale") return "POS Sale"
-  if (refType === "branch") return "Transfer"
-  if (refType === "order") return "Order"
   return refType || "—"
 }
 
+/** Outbound-only stock history: POS orders & sales leaving this branch (not warehouse transfers). */
 export function BranchPosStockHistory({
   branchId,
   branchName,
@@ -38,7 +33,6 @@ export function BranchPosStockHistory({
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<InventoryTransaction[]>([])
-  const [filter, setFilter] = useState<"all" | "in" | "out">("all")
   const [exporting, setExporting] = useState(false)
 
   const load = useCallback(async () => {
@@ -47,27 +41,21 @@ export function BranchPosStockHistory({
       const data = await getInventoryHistory({
         locationLabel: branchName,
         branchId,
-        type: filter,
+        posOutbound: true,
       })
       setRows(data)
     } finally {
       setLoading(false)
     }
-  }, [branchId, branchName, filter])
+  }, [branchId, branchName])
 
   useEffect(() => {
     void load()
   }, [load])
 
   const summary = useMemo(() => {
-    const inbound = rows.filter((r) => r.transaction_type === "in")
-    const outbound = rows.filter((r) => r.transaction_type !== "in")
-    return {
-      inCount: inbound.length,
-      outCount: outbound.length,
-      qtyIn: inbound.reduce((s, r) => s + absQty(r), 0),
-      qtyOut: outbound.reduce((s, r) => s + absQty(r), 0),
-    }
+    const qtyOut = rows.reduce((s, r) => s + absQty(r), 0)
+    return { outCount: rows.length, qtyOut }
   }, [rows])
 
   async function handleExportPdf() {
@@ -77,6 +65,7 @@ export function BranchPosStockHistory({
         branchName,
         movements: rows,
         exportedBy: userName,
+        dateLabel: "Stock going out (POS orders & sales)",
       })
       toast({ type: "success", title: "PDF downloaded" })
     } catch {
@@ -92,50 +81,24 @@ export function BranchPosStockHistory({
         <div>
           <p className="text-sm font-semibold">Stock history</p>
           <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            Stock going out (orders/sales) and coming in (restores/transfers) at {branchName}
+            Stock going outside this branch (POS orders &amp; sales only). Warehouse transfers are not listed here.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-md border overflow-hidden text-xs">
-            {(["all", "in", "out"] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 cursor-pointer ${
-                  filter === f
-                    ? "bg-[#1faca6] text-white"
-                    : "bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))]"
-                }`}
-              >
-                {f === "all" ? "All" : f === "in" ? "In" : "Out"}
-              </button>
-            ))}
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs cursor-pointer"
-            disabled={exporting || rows.length === 0}
-            onClick={() => void handleExportPdf()}
-          >
-            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-            Export PDF
-          </Button>
-        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs cursor-pointer"
+          disabled={exporting || rows.length === 0}
+          onClick={() => void handleExportPdf()}
+        >
+          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+          Export PDF
+        </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 p-3 border-b bg-[hsl(var(--muted))]/10">
-        <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] flex items-center gap-1">
-            <TrendingUp className="h-3 w-3 text-emerald-600" /> Stock in
-          </p>
-          <p className="text-sm font-semibold tabular-nums mt-0.5">
-            {summary.inCount} · {summary.qtyIn.toLocaleString()} units
-          </p>
-        </div>
-        <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2">
+      <div className="p-3 border-b bg-[hsl(var(--muted))]/10">
+        <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2 max-w-xs">
           <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] flex items-center gap-1">
             <TrendingDown className="h-3 w-3 text-orange-600" /> Stock out
           </p>
@@ -163,45 +126,35 @@ export function BranchPosStockHistory({
               </tr>
             </thead>
             <tbody className="divide-y">
-              {rows.map((r) => {
-                const out = isOut(r)
-                return (
-                  <tr key={r.id} className="hover:bg-[hsl(var(--muted))]/10">
-                    <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
-                      {new Date(r.created_at).toLocaleString("en-PK")}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span
-                        className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          out
-                            ? "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300"
-                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
-                        }`}
-                      >
-                        {out ? "OUT" : "IN"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 font-medium min-w-0">
-                      <p className="truncate max-w-[220px]">{r.item_description}</p>
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold">
-                      {out ? "−" : "+"}
-                      {absQty(r)} {r.unit}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs">
-                      <p className="font-medium">{refLabel(r.reference_type)}</p>
-                      <p className="font-mono text-[hsl(var(--muted-foreground))]">{r.reference_number}</p>
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[200px] truncate">
-                      {r.notes || "—"}
-                    </td>
-                  </tr>
-                )
-              })}
+              {rows.map((r) => (
+                <tr key={r.id} className="hover:bg-[hsl(var(--muted))]/10">
+                  <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                    {new Date(r.created_at).toLocaleString("en-PK")}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300">
+                      OUT
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 font-medium min-w-0">
+                    <p className="truncate max-w-[220px]">{r.item_description}</p>
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold">
+                    −{absQty(r)} {r.unit}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs">
+                    <p className="font-medium">{refLabel(r.reference_type)}</p>
+                    <p className="font-mono text-[hsl(var(--muted-foreground))]">{r.reference_number}</p>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] max-w-[200px] truncate">
+                    {r.notes || "—"}
+                  </td>
+                </tr>
+              ))}
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
-                    No stock movements yet for this branch
+                    No stock-out movements yet for this branch
                   </td>
                 </tr>
               )}

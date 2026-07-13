@@ -25,10 +25,13 @@ export type InventoryHistoryFilters = {
   to?: string
   type?: "all" | "in" | "out"
   referenceType?: string
+  referenceTypes?: string
   item?: string
   referenceId?: string
   locationLabel?: string
   branchId?: string
+  /** Only POS order/sale outbound movements for a branch */
+  posOutbound?: boolean
 }
 
 type RawInventoryTransaction = Record<string, unknown>
@@ -55,10 +58,12 @@ function buildHistoryQuery(filters?: InventoryHistoryFilters): string {
   if (filters?.to) params.set("to", filters.to)
   if (filters?.type && filters.type !== "all") params.set("type", filters.type)
   if (filters?.referenceType) params.set("referenceType", filters.referenceType)
+  if (filters?.referenceTypes) params.set("referenceTypes", filters.referenceTypes)
   if (filters?.item) params.set("item", filters.item)
   if (filters?.referenceId) params.set("referenceId", filters.referenceId)
   if (filters?.locationLabel) params.set("locationLabel", filters.locationLabel)
   if (filters?.branchId) params.set("branchId", filters.branchId)
+  if (filters?.posOutbound) params.set("posOutbound", "1")
   const qs = params.toString()
   return qs ? `?${qs}` : ""
 }

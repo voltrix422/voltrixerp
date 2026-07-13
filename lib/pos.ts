@@ -45,6 +45,7 @@ export type PosStockProduct = {
   costPrice: number
   inventoryId?: string
   branchInventoryId?: string
+  branchInventoryIds?: string[]
   isManual?: boolean
 }
 

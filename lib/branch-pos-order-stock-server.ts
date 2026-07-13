@@ -8,6 +8,8 @@ export type BranchPosOrderLine = {
   isCustom?: boolean
   inventoryItemId?: string
   branchInventoryId?: string
+  /** When POS aggregates duplicates, all matching row ids for FIFO deduct */
+  branchInventoryIds?: string[]
   model?: string
 }
 
@@ -20,35 +22,60 @@ export type BranchPosOrderStockInput = {
   items: BranchPosOrderLine[]
 }
 
-async function resolveBranchRow(
+/** Resolve all matching branch inventory rows (supports duplicate split stock). */
+async function resolveBranchRows(
   tx: Prisma.TransactionClient,
   branchId: string,
   item: BranchPosOrderLine,
 ) {
-  const branchInventoryId = item.branchInventoryId?.trim()
-  if (branchInventoryId) {
-    const byId = await tx.erpBranchInventory.findFirst({
-      where: { id: branchInventoryId, branchId },
+  const ids = [
+    ...(item.branchInventoryIds || []),
+    item.branchInventoryId,
+  ]
+    .map((id) => id?.trim())
+    .filter((id): id is string => !!id)
+
+  if (ids.length > 0) {
+    const byIds = await tx.erpBranchInventory.findMany({
+      where: { branchId, id: { in: [...new Set(ids)] } },
+      orderBy: { assignedAt: "asc" },
     })
-    if (byId) return byId
+    if (byIds.length > 0) return byIds
   }
 
   const inventoryId = item.inventoryItemId?.trim()
   if (inventoryId) {
-    const byLink = await tx.erpBranchInventory.findFirst({
+    const byLink = await tx.erpBranchInventory.findMany({
       where: { branchId, inventoryId },
+      orderBy: { assignedAt: "asc" },
     })
-    if (byLink) return byLink
+    if (byLink.length > 0) return byLink
   }
 
   const description = item.description?.trim()
   if (description) {
-    return tx.erpBranchInventory.findFirst({
-      where: { branchId, productDescription: description },
+    const byDesc = await tx.erpBranchInventory.findMany({
+      where: {
+        branchId,
+        productDescription: { equals: description, mode: "insensitive" },
+      },
+      orderBy: { assignedAt: "asc" },
+    })
+    if (byDesc.length > 0) return byDesc
+  }
+
+  const model = item.model?.trim()
+  if (model) {
+    return tx.erpBranchInventory.findMany({
+      where: {
+        branchId,
+        productDescription: { contains: model, mode: "insensitive" },
+      },
+      orderBy: { assignedAt: "asc" },
     })
   }
 
-  return null
+  return []
 }
 
 /** Deduct branch inventory only (never main warehouse) when a Branch POS order is created. */
@@ -66,30 +93,40 @@ export async function deductBranchStockForPosOrder(
 
     for (const item of lines) {
       const qty = Number(item.qty) || 0
-      const row = await resolveBranchRow(tx, order.branchId, item)
-      if (!row) {
+      const rows = await resolveBranchRows(tx, order.branchId, item)
+      if (rows.length === 0) {
         throw new Error(`Branch stock not found for ${item.description || item.model || "item"}`)
       }
-      if (row.quantity < qty) {
+
+      const totalAvail = rows.reduce((s, r) => s + r.quantity, 0)
+      if (totalAvail < qty) {
         throw new Error(
-          `Insufficient branch stock for ${row.productDescription || item.description} (have ${row.quantity}, need ${qty})`,
+          `Insufficient branch stock for ${rows[0].productDescription || item.description} (have ${totalAvail}, need ${qty})`,
         )
       }
 
-      const stockBefore = row.quantity
-      const stockAfter = stockBefore - qty
+      const stockBefore = totalAvail
+      let remaining = qty
 
-      await tx.erpBranchInventory.update({
-        where: { id: row.id },
-        data: { quantity: stockAfter },
-      })
+      for (const row of rows) {
+        if (remaining <= 0) break
+        if (row.quantity <= 0) continue
+        const take = Math.min(row.quantity, remaining)
+        await tx.erpBranchInventory.update({
+          where: { id: row.id },
+          data: { quantity: row.quantity - take },
+        })
+        remaining -= take
+      }
+
+      const stockAfter = stockBefore - qty
 
       await tx.erpInventoryHistory.create({
         data: {
-          itemDescription: row.productDescription || item.description || item.model || "Item",
+          itemDescription: rows[0].productDescription || item.description || item.model || "Item",
           transactionType: "out",
           quantity: qty,
-          unit: item.unit || row.unit || "pcs",
+          unit: item.unit || rows[0].unit || "pcs",
           referenceType: "branch_pos_order",
           referenceId: order.id,
           referenceNumber: order.orderNumber,
@@ -124,9 +161,9 @@ export async function restoreBranchStockForPosOrder(
 
     for (const item of lines) {
       const qty = Number(item.qty) || 0
-      const row = await resolveBranchRow(tx, order.branchId, item)
-      if (!row) {
-        // Recreate a branch row if the link still exists but qty row was removed
+      const rows = await resolveBranchRows(tx, order.branchId, item)
+
+      if (rows.length === 0) {
         const inventoryId = item.inventoryItemId?.trim() || item.branchInventoryId?.trim()
         if (!inventoryId) continue
         const created = await tx.erpBranchInventory.create({
@@ -159,20 +196,22 @@ export async function restoreBranchStockForPosOrder(
         continue
       }
 
-      const stockBefore = row.quantity
+      // Put stock back on the first (oldest) matching row — no new duplicate row.
+      const target = rows[0]
+      const stockBefore = rows.reduce((s, r) => s + r.quantity, 0)
       const stockAfter = stockBefore + qty
 
       await tx.erpBranchInventory.update({
-        where: { id: row.id },
-        data: { quantity: stockAfter },
+        where: { id: target.id },
+        data: { quantity: target.quantity + qty },
       })
 
       await tx.erpInventoryHistory.create({
         data: {
-          itemDescription: row.productDescription || item.description || item.model || "Item",
+          itemDescription: target.productDescription || item.description || item.model || "Item",
           transactionType: "in",
           quantity: qty,
-          unit: item.unit || row.unit || "pcs",
+          unit: item.unit || target.unit || "pcs",
           referenceType: "branch_pos_order",
           referenceId: order.id,
           referenceNumber: order.orderNumber,
