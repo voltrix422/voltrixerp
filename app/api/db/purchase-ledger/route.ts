@@ -134,7 +134,87 @@ export async function GET(req: NextRequest) {
     where: purchaseScopeId ? { purchaseScopeId } : undefined,
     orderBy: { createdAt: "desc" },
   })
-  return NextResponse.json(rows)
+
+  // Heal any entries where payment lines exceed bill total (silent, one-time fix).
+  const healed = await Promise.all(rows.map(async (row) => {
+    const totalAmount = Number(row.totalAmount) || 0
+    const payments = parsePayments(row.payments)
+    const paymentsSum = sumPayments(payments)
+    if (paymentsSum <= totalAmount + 0.004) return row
+
+    const nextPayments = clampPaymentsToTotal(payments, totalAmount)
+    let nextGroups = parseSupplierGroups(row.supplierGroups)
+    nextGroups = syncGroupsFromPaymentsLocal(nextGroups, nextPayments)
+    const amountPaid = Math.min(totalAmount, sumPayments(nextPayments))
+    const amountDue = Math.max(0, totalAmount - amountPaid)
+
+    try {
+      return await prisma.erpPurchaseLedger.update({
+        where: { id: row.id },
+        data: {
+          payments: nextPayments,
+          supplierGroups: nextGroups,
+          amountPaid,
+          amountDue,
+        },
+      })
+    } catch {
+      return row
+    }
+  }))
+
+  return NextResponse.json(healed)
+}
+
+function clampPaymentsToTotal(payments: LedgerPayment[], totalAmount: number): LedgerPayment[] {
+  const limit = Math.max(0, totalAmount)
+  let remaining = limit
+  const result: LedgerPayment[] = []
+  for (const payment of payments) {
+    if (remaining <= 0) break
+    const amount = Math.max(0, payment.amount || 0)
+    if (amount <= 0) continue
+    const take = Math.min(amount, remaining)
+    result.push(take === amount ? payment : { ...payment, amount: take })
+    remaining -= take
+  }
+  return result
+}
+
+function syncGroupsFromPaymentsLocal(
+  groups: LedgerSupplierGroup[],
+  payments: LedgerPayment[],
+): LedgerSupplierGroup[] {
+  if (groups.length === 0) return groups
+  const paidByGroup = new Map<string, number>()
+  let unassigned = 0
+  for (const payment of payments) {
+    const amount = Math.max(0, payment.amount || 0)
+    if (amount <= 0) continue
+    if (payment.supplierGroupId) {
+      paidByGroup.set(payment.supplierGroupId, (paidByGroup.get(payment.supplierGroupId) || 0) + amount)
+    } else {
+      unassigned += amount
+    }
+  }
+  let next = groups.map((group) => {
+    const subtotal = sumItems(group.items)
+    const paid = Math.min(subtotal, paidByGroup.get(group.id) || 0)
+    return { ...group, amountPaid: paid, amountDue: Math.max(0, subtotal - paid) }
+  })
+  if (unassigned > 0) {
+    next = next.map((group) => {
+      if (unassigned <= 0) return group
+      const subtotal = sumItems(group.items)
+      const room = Math.max(0, subtotal - (group.amountPaid || 0))
+      if (room <= 0) return group
+      const take = Math.min(room, unassigned)
+      unassigned -= take
+      const amountPaid = (group.amountPaid || 0) + take
+      return { ...group, amountPaid, amountDue: Math.max(0, subtotal - amountPaid) }
+    })
+  }
+  return next
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -272,9 +352,12 @@ async function handlePost(req: NextRequest) {
     ? sumSupplierGroups(supplierGroups)
     : items.length > 0 ? sumItems(items) : Number(body.totalAmount) || 0
   const firstItem = items[0]
-  const payments = parsePayments(body.payments)
+  let payments = clampPaymentsToTotal(parsePayments(body.payments), totalAmount)
   // Group-level paid is used in project mode; payments list is always a floor.
   // Cap paid at total so ledger never shows Paid > Total.
+  if (isProject && supplierGroups.length > 0) {
+    supplierGroups = syncGroupsFromPaymentsLocal(supplierGroups, payments)
+  }
   const amountPaid = Math.min(
     totalAmount,
     Math.max(

@@ -56,8 +56,6 @@ export interface PurchaseLedgerEntry {
   totalAmount: number
   amountPaid: number
   amountDue: number
-  /** Payments recorded above totalAmount (display Paid is still capped at total). */
-  amountOverpaid?: number
   items: PurchaseLedgerItem[]
   supplierGroups: PurchaseLedgerSupplierGroup[]
   payments: PurchaseLedgerPayment[]
@@ -178,6 +176,66 @@ export function sumPayments(payments: PurchaseLedgerPayment[]) {
   return payments.reduce((sum, p) => sum + (p.amount || 0), 0)
 }
 
+/** Keep payment lines within bill total (trim from the end). Prevents Paid > Total permanently. */
+export function clampPaymentsToTotal(
+  payments: PurchaseLedgerPayment[],
+  totalAmount: number,
+): PurchaseLedgerPayment[] {
+  const limit = Math.max(0, Number(totalAmount) || 0)
+  let remaining = limit
+  const result: PurchaseLedgerPayment[] = []
+  for (const payment of payments) {
+    if (remaining <= 0) break
+    const amount = Math.max(0, Number(payment.amount) || 0)
+    if (amount <= 0) continue
+    const take = Math.min(amount, remaining)
+    result.push(take === amount ? payment : { ...payment, amount: take })
+    remaining -= take
+  }
+  return result
+}
+
+/** Realign supplier-group paid/due to payment lines (and bill subtotals). */
+export function syncSupplierGroupsToPayments(
+  groups: PurchaseLedgerSupplierGroup[],
+  payments: PurchaseLedgerPayment[],
+): PurchaseLedgerSupplierGroup[] {
+  if (groups.length === 0) return groups
+
+  const paidByGroup = new Map<string, number>()
+  let unassigned = 0
+  for (const payment of payments) {
+    const amount = Math.max(0, Number(payment.amount) || 0)
+    if (amount <= 0) continue
+    const groupId = payment.supplierGroupId?.trim()
+    if (groupId) {
+      paidByGroup.set(groupId, (paidByGroup.get(groupId) || 0) + amount)
+    } else {
+      unassigned += amount
+    }
+  }
+
+  let next = groups.map((group) => {
+    const subtotal = getGroupSubtotal(group)
+    const fromPayments = paidByGroup.get(group.id) || 0
+    return withGroupPaymentTotals(group, Math.min(subtotal, fromPayments))
+  })
+
+  if (unassigned > 0) {
+    next = next.map((group) => {
+      if (unassigned <= 0) return group
+      const subtotal = getGroupSubtotal(group)
+      const room = Math.max(0, subtotal - resolveGroupAmountPaid(group))
+      if (room <= 0) return group
+      const take = Math.min(room, unassigned)
+      unassigned -= take
+      return withGroupPaymentTotals(group, resolveGroupAmountPaid(group) + take)
+    })
+  }
+
+  return next
+}
+
 function parseJsonArray<T>(value: unknown): T[] {
   if (!value) return []
   if (Array.isArray(value)) return value as T[]
@@ -231,7 +289,7 @@ function parseSupplierGroups(raw: unknown, fallback: {
 
 function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   let items = parseJsonArray<PurchaseLedgerItem>(row.items)
-  const payments = parseJsonArray<PurchaseLedgerPayment>(row.payments).map((payment, index) => ({
+  let payments = parseJsonArray<PurchaseLedgerPayment>(row.payments).map((payment, index) => ({
     id: String((payment as PurchaseLedgerPayment).id ?? `pay-${index}`),
     amount: Number((payment as PurchaseLedgerPayment).amount) || 0,
     date: String((payment as PurchaseLedgerPayment).date ?? ""),
@@ -249,11 +307,8 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   }))
   const totalAmount = Number(row.totalAmount) || 0
   const linkMode = normalizeLinkMode(String(row.linkMode ?? "general"))
-  const paymentsTotal = sumPayments(payments)
-  const rawPaid = Math.max(Number(row.amountPaid) || 0, paymentsTotal)
-  // Paid cannot exceed bill total in the ledger. Extra payment lines show as overpaid.
-  const amountOverpaid = Math.max(0, rawPaid - totalAmount)
-  const amountPaid = Math.min(totalAmount, rawPaid)
+  payments = clampPaymentsToTotal(payments, totalAmount)
+  const amountPaid = Math.min(totalAmount, Math.max(Number(row.amountPaid) || 0, sumPayments(payments)))
   const amountDue = Math.max(0, totalAmount - amountPaid)
 
   if (items.length === 0 && row.productName) {
@@ -272,6 +327,8 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     accountDetails: (row.accountDetails as string) ?? "",
     items,
   })
+
+  supplierGroups = syncSupplierGroupsToPayments(supplierGroups, payments)
 
   if (
     linkMode === "project"
@@ -319,7 +376,6 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     totalAmount,
     amountPaid,
     amountDue,
-    amountOverpaid,
     items: resolvedItems,
     supplierGroups,
     payments,

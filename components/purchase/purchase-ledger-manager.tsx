@@ -31,6 +31,8 @@ import {
   resolveGroupAmountPaid,
   resolveGroupAmountDue,
   withGroupPaymentTotals,
+  clampPaymentsToTotal,
+  syncSupplierGroupsToPayments,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
   type PurchaseLedgerPayment,
@@ -644,6 +646,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       }
 
       const primary = groups[0]
+      const clampedPayments = clampPaymentsToTotal(payments, totalAmount)
+      const syncedGroups = isProjectMode
+        ? syncSupplierGroupsToPayments(groupsWithPayments, clampedPayments)
+        : groupsWithPayments
+      const finalPaid = Math.min(totalAmount, Math.max(amountPaid, sumPayments(clampedPayments)))
+      const finalDue = Math.max(0, totalAmount - finalPaid)
       const saved = await savePurchaseLedgerEntry({
         ...(isEditing ? { id: editingEntryId! } : {}),
         ledgerNumber,
@@ -660,18 +668,18 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         quantity: flatItems.reduce((s, i) => s + i.quantity, 0),
         unitPrice: flatItems[0]?.unitPrice ?? 0,
         totalAmount,
-        amountPaid,
-        amountDue,
+        amountPaid: finalPaid,
+        amountDue: finalDue,
         items: flatItems,
-        supplierGroups: groupsWithPayments,
-        payments,
+        supplierGroups: syncedGroups,
+        payments: clampedPayments,
         notes: isProjectMode
           ? notes.trim()
           : embedBillInNotes(notes.trim(), { billUrl, billName }),
         dueDate,
         accountDetails: primary?.accountDetails ?? "",
-        paymentProofUrl: payments[0]?.proofUrl ?? "",
-        paymentProofName: payments[0]?.proofName ?? "",
+        paymentProofUrl: clampedPayments[0]?.proofUrl ?? "",
+        paymentProofName: clampedPayments[0]?.proofName ?? "",
         billUrl,
         billName,
         createdBy: isEditing ? originalCreatedBy : user.name,
@@ -1481,9 +1489,6 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               <div>
                 <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Paid</p>
                 <p className="text-xs font-semibold text-emerald-600">{fmtMoney(entry.amountPaid)}</p>
-                {(entry.amountOverpaid || 0) > 0 && (
-                  <p className="text-[9px] text-red-600">Overpaid {fmtMoney(entry.amountOverpaid || 0)}</p>
-                )}
               </div>
               <div>
                 <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Due</p>
@@ -1567,12 +1572,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   )}
                 </td>
                 <td className="px-2 py-2 font-medium">{fmtMoney(entry.totalAmount)}</td>
-                <td className="px-2 py-2 text-emerald-600">
-                  {fmtMoney(entry.amountPaid)}
-                  {(entry.amountOverpaid || 0) > 0 && (
-                    <p className="text-[9px] text-red-600 font-normal">+{fmtMoney(entry.amountOverpaid || 0)} over</p>
-                  )}
-                </td>
+                <td className="px-2 py-2 text-emerald-600">{fmtMoney(entry.amountPaid)}</td>
                 <td className="px-2 py-2 text-amber-600 font-medium">{fmtMoney(entry.amountDue)}</td>
                 <td className="px-2 py-2 whitespace-nowrap">{entry.dueDate || "—"}</td>
                 <td className="px-2 py-2">
