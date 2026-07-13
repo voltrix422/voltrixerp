@@ -49,54 +49,71 @@ function SupplierForm({ initial, onSave, onCancel, isLoading }: {
   const set = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }))
 
   return (
-    <form onSubmit={e => {
-      e.preventDefault()
-      onSave({
-        ...form,
-        bankAccounts: normalizeSupplierBankAccounts(form.bankAccounts),
-      })
-    }} className="border rounded-lg p-4 space-y-3 bg-[hsl(var(--muted))]/20">
+    <form
+      id="supplier-form"
+      onSubmit={e => {
+        e.preventDefault()
+        onSave({
+          ...form,
+          bankAccounts: normalizeSupplierBankAccounts(form.bankAccounts),
+        })
+      }}
+      className="space-y-3 sm:border sm:rounded-lg sm:p-4 sm:bg-[hsl(var(--muted))]/20"
+    >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1 sm:col-span-2">
+        <div className="space-y-1 sm:col-span-2 min-w-0">
           <label className="text-xs font-medium">Supplier name *</label>
-          <input required value={form.name} onChange={e => set("name", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
+          <input required value={form.name} onChange={e => set("name", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Company</label>
-          <input value={form.company} onChange={e => set("company", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
+          <input value={form.company} onChange={e => set("company", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Type</label>
-          <select value={form.type} onChange={e => set("type", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm">
+          <select value={form.type} onChange={e => set("type", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm">
             {SUPPLIER_TYPE_OPTIONS.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Phone / WhatsApp</label>
-          <input value={form.contact} onChange={e => set("contact", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
+          <input value={form.contact} onChange={e => set("contact", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Email</label>
-          <input type="email" value={form.email} onChange={e => set("email", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
+          <input type="email" value={form.email} onChange={e => set("email", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
-        <div className="space-y-1 sm:col-span-2">
+        <div className="space-y-1 sm:col-span-2 min-w-0">
           <label className="text-xs font-medium">Address</label>
-          <input value={form.address} onChange={e => set("address", e.target.value)} className="w-full h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
+          <input value={form.address} onChange={e => set("address", e.target.value)} className="w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-sm" />
         </div>
       </div>
       <SupplierBankFields
         bankAccounts={form.bankAccounts && form.bankAccounts.length > 0 ? form.bankAccounts : [{ accountTitle: "", bankName: "", bankIban: "" }]}
         onBankAccountsChange={accounts => setForm(f => ({ ...f, bankAccounts: accounts }))}
       />
-      <div className="flex gap-2">
+      <div className="hidden sm:flex gap-2 pt-1">
         <Button type="submit" size="sm" className="h-8 cursor-pointer" disabled={isLoading}>
           {isLoading ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Saving...</> : "Save supplier"}
         </Button>
         <Button type="button" variant="outline" size="sm" className="h-8 cursor-pointer" onClick={onCancel} disabled={isLoading}>Cancel</Button>
       </div>
     </form>
+  )
+}
+
+function SupplierFormActions({ onCancel, isLoading }: { onCancel: () => void; isLoading?: boolean }) {
+  return (
+    <div className="flex flex-col-reverse sm:hidden gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <Button type="button" variant="outline" size="sm" className="h-10 w-full cursor-pointer" onClick={onCancel} disabled={isLoading}>
+        Cancel
+      </Button>
+      <Button type="submit" form="supplier-form" size="sm" className="h-10 w-full cursor-pointer" disabled={isLoading}>
+        {isLoading ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Saving...</> : "Save supplier"}
+      </Button>
+    </div>
   )
 }
 
@@ -509,41 +526,45 @@ export function SuppliersTab({ purchaseScopeId }: { purchaseScopeId: string }) {
       )}
 
       {adding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setAdding(false)}>
-          <div className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4" onClick={() => setAdding(false)}>
+          <div className="w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b shrink-0">
               <p className="text-sm font-semibold">Add supplier</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setAdding(false)}><X className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-7 sm:w-7" onClick={() => setAdding(false)}><X className="h-4 w-4" /></Button>
             </div>
-            <div className="p-5">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4">
               <SupplierForm initial={empty()} onSave={handleAdd} onCancel={() => setAdding(false)} isLoading={saving} />
             </div>
+            <SupplierFormActions onCancel={() => setAdding(false)} isLoading={saving} />
           </div>
         </div>
       )}
 
       {editId && editingSupplier && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setEditId(null)}>
-          <div className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4" onClick={() => setEditId(null)}>
+          <div className="w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b shrink-0">
               <p className="text-sm font-semibold">Edit supplier</p>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditId(null)}><X className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-7 sm:w-7" onClick={() => setEditId(null)}><X className="h-4 w-4" /></Button>
             </div>
-            <SupplierForm
-              initial={{
-                name: editingSupplier.name,
-                type: editingSupplier.type,
-                contact: editingSupplier.contact,
-                email: editingSupplier.email,
-                address: editingSupplier.address,
-                company: editingSupplier.company,
-                bankAccounts: supplierBankAccountsForForm(editingSupplier),
-                image: editingSupplier.image || "",
-              }}
-              onSave={data => handleEdit(editId, data)}
-              onCancel={() => setEditId(null)}
-              isLoading={saving}
-            />
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4">
+              <SupplierForm
+                initial={{
+                  name: editingSupplier.name,
+                  type: editingSupplier.type,
+                  contact: editingSupplier.contact,
+                  email: editingSupplier.email,
+                  address: editingSupplier.address,
+                  company: editingSupplier.company,
+                  bankAccounts: supplierBankAccountsForForm(editingSupplier),
+                  image: editingSupplier.image || "",
+                }}
+                onSave={data => handleEdit(editId, data)}
+                onCancel={() => setEditId(null)}
+                isLoading={saving}
+              />
+            </div>
+            <SupplierFormActions onCancel={() => setEditId(null)} isLoading={saving} />
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { emptySupplierBankAccount, type SupplierBankAccount } from "@/lib/supplier-bank"
 
 const inputCls =
-  "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
+  "w-full min-w-0 h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-sm sm:text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
 
 type Props = {
   bankAccounts: SupplierBankAccount[]
@@ -38,17 +38,17 @@ export function SupplierBankFields({
   const sectionTitleCls = compact ? "text-[11px] font-semibold" : "text-xs font-semibold"
 
   return (
-    <div className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className={sectionTitleCls}>Bank account details</p>
-        <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={addBank}>
+    <div className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-2.5 sm:p-3 space-y-2.5 sm:space-y-3 min-w-0">
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <p className={`${sectionTitleCls} min-w-0 truncate`}>Bank account details</p>
+        <Button type="button" size="sm" variant="outline" className="h-7 shrink-0 text-[10px] cursor-pointer px-2" onClick={addBank}>
           <Plus className="h-3 w-3" /> Add bank
         </Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5 sm:space-y-3">
         {accounts.map((account, index) => (
-          <div key={index} className="rounded-md border bg-[hsl(var(--card))] p-3 space-y-2">
+          <div key={index} className="rounded-md border bg-[hsl(var(--card))] p-2.5 sm:p-3 space-y-2 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <p className={labelCls}>Bank {index + 1}</p>
               {accounts.length > 1 && (
@@ -65,17 +65,17 @@ export function SupplierBankFields({
               )}
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <label className={labelCls}>Account title / title name</label>
               <input
                 value={account.accountTitle}
                 onChange={e => updateAccount(index, "accountTitle", e.target.value)}
-                placeholder="e.g. Voltrix Batteries Pvt Ltd"
+                placeholder="Account title"
                 className={inputCls}
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <label className={labelCls}>Bank name</label>
               <input
                 value={account.bankName}
@@ -85,13 +85,16 @@ export function SupplierBankFields({
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <label className={labelCls}>Bank IBAN</label>
               <input
                 value={account.bankIban}
                 onChange={e => updateAccount(index, "bankIban", e.target.value)}
-                placeholder="PK00XXXX0000000000000000"
-                className={inputCls}
+                placeholder="PK00...0000"
+                inputMode="text"
+                autoComplete="off"
+                spellCheck={false}
+                className={`${inputCls} font-mono tracking-tight`}
               />
             </div>
           </div>
