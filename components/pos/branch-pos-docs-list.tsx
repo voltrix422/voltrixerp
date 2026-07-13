@@ -21,6 +21,7 @@ import { uploadFiles } from "@/lib/upload"
 import {
   CheckCircle2,
   DollarSign,
+  FileDown,
   Loader2,
   Pencil,
   Plus,
@@ -28,6 +29,8 @@ import {
   Truck,
   X,
 } from "lucide-react"
+import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
+import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
 
 type DocKind = "order" | "quotation"
 type CreditFilter = "all" | "credit" | "paid"
@@ -85,6 +88,7 @@ function DocDetailModal({
   const [editing, setEditing] = useState(false)
   const [addingPayment, setAddingPayment] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const [deliveryAddress, setDeliveryAddress] = useState(order?.deliveryAddress || doc.deliveryAddress || "")
   const [deliveryDate, setDeliveryDate] = useState(order?.deliveryDate || "")
@@ -99,6 +103,27 @@ function DocDetailModal({
   const paid = order ? getOrderAmountPaid(order) : 0
   const debt = order ? getOrderCreditBalance(order) : 0
   const onCredit = order ? hasOutstandingCredit(order) : false
+
+  async function handleDownloadPdf() {
+    setExportingPdf(true)
+    try {
+      if (kind === "order") {
+        await downloadInvoicePDF(doc as Order)
+        toast({ type: "success", title: "Invoice PDF downloaded" })
+      } else {
+        await downloadQuotationPDF(doc as Quotation)
+        toast({ type: "success", title: "Quotation PDF downloaded" })
+      }
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not export PDF",
+        message: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   async function handleSaveEdit() {
     if (!order) return
@@ -369,6 +394,19 @@ function DocDetailModal({
         </div>
 
         <div className="flex flex-wrap gap-2 px-4 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
+          {!editing && !addingPayment && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs"
+              disabled={busy || saving || exportingPdf}
+              onClick={() => void handleDownloadPdf()}
+            >
+              {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+              {kind === "order" ? "Download invoice" : "Download PDF"}
+            </Button>
+          )}
           {kind === "order" && order && !editing && !addingPayment && (
             <>
               <Button type="button" size="sm" variant="outline" className="h-9 text-xs" disabled={busy || saving} onClick={() => setEditing(true)}>
@@ -401,7 +439,7 @@ function DocDetailModal({
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </Button>
           )}
-          <Button type="button" size="sm" variant="outline" className="h-9 text-xs ml-auto" disabled={busy || saving} onClick={onClose}>
+          <Button type="button" size="sm" variant="outline" className="h-9 text-xs ml-auto" disabled={busy || saving || exportingPdf} onClick={onClose}>
             Close
           </Button>
         </div>
@@ -656,6 +694,33 @@ export function BranchPosDocsList({
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[10px] px-2"
+                          disabled={rowBusy}
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            try {
+                              if (kind === "order") await downloadInvoicePDF(doc as Order)
+                              else await downloadQuotationPDF(doc as Quotation)
+                              toast({
+                                type: "success",
+                                title: kind === "order" ? "Invoice PDF downloaded" : "Quotation PDF downloaded",
+                              })
+                            } catch (err) {
+                              toast({
+                                type: "error",
+                                title: "Could not export PDF",
+                                message: err instanceof Error ? err.message : undefined,
+                              })
+                            }
+                          }}
+                          title={kind === "order" ? "Download invoice PDF" : "Download quotation PDF"}
+                        >
+                          <FileDown className="h-3 w-3" />
+                        </Button>
                         {kind === "order" && (
                           <Button
                             type="button"
