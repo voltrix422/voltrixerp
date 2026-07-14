@@ -183,6 +183,28 @@ model ErpAdvanceAccount {
   @@map("erp_advance_accounts")
 }
 
+/** Client installation / solar projects: budget, client payments, expenses, profit */
+model ErpClientProject {
+  id              String   @id @default(cuid())
+  purchaseScopeId String   @default("P1") @map("purchase_scope_id")
+  projectName     String   @map("project_name")
+  clientName      String   @default("") @map("client_name")
+  clientPhone     String   @default("") @map("client_phone")
+  budget          Float    @default(0)
+  notes           String   @default("")
+  status          String   @default("open")
+  transactions    Json     @default("[]")
+  totalReceived   Float    @default(0) @map("total_received")
+  totalExpenses   Float    @default(0) @map("total_expenses")
+  profit          Float    @default(0)
+  createdBy       String   @default("") @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([purchaseScopeId])
+  @@index([status])
+  @@map("erp_client_projects")
+}
+
 model ErpOrder {
   id               String   @id @default(cuid())
   orderNumber      String   @map("order_number")
