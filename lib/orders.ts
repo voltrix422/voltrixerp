@@ -23,6 +23,11 @@ export interface OrderItem {
   model?: string // warehouse model number when from inventory
   availableQty?: number // available quantity in stock (for validation, not saved to DB)
   costPrice?: number // cost price from inventory (for reference, not saved to DB)
+  /**
+   * Branch POS: company price-list amount (what company sets).
+   * `unitPrice` is what the customer is actually charged.
+   */
+  companyPrice?: number
 }
 
 export function resolveOrderItemModel(item: Pick<OrderItem, "model" | "inventoryItemId">): string | null {

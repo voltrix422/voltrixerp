@@ -31,6 +31,11 @@ import {
 } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { downloadQuotationPDF } from "@/lib/generate-quotation-pdf"
+import {
+  getPosOrderCompanyAmount,
+  getPosOrderProfit,
+  summarizePosOrdersProfit,
+} from "@/lib/branch-pos-profit"
 
 type DocKind = "order" | "quotation"
 type CreditFilter = "all" | "credit" | "paid"
@@ -272,6 +277,20 @@ function DocDetailModal({
                   <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">On credit / due</p>
                   <p className="font-medium mt-0.5 tabular-nums text-amber-700">{formatPkr(debt)}</p>
                 </div>
+                <div>
+                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Owed to company</p>
+                  <p className="font-medium mt-0.5 tabular-nums">{formatPkr(getPosOrderCompanyAmount(order))}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Profit</p>
+                  <p
+                    className={`font-medium mt-0.5 tabular-nums ${
+                      getPosOrderProfit(order) >= 0 ? "text-emerald-700" : "text-red-600"
+                    }`}
+                  >
+                    {formatPkr(getPosOrderProfit(order))}
+                  </p>
+                </div>
               </>
             )}
             <div className="sm:col-span-2">
@@ -310,7 +329,7 @@ function DocDetailModal({
 
           <div>
             <p className="text-[10px] uppercase font-semibold text-[hsl(var(--muted-foreground))] mb-2">Items</p>
-            <CrmLineItemsDisplay items={doc.items} />
+            <CrmLineItemsDisplay items={doc.items} showCompanyPrice={kind === "order"} />
           </div>
 
           {order && (order.payments?.length ?? 0) > 0 && (
@@ -468,6 +487,23 @@ export function BranchPosDocsList({
   const [selected, setSelected] = useState<Order | Quotation | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [creditFilter, setCreditFilter] = useState<CreditFilter>("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+
+  const filteredOrders = useMemo(() => {
+    let list = [...orders]
+    if (creditFilter === "credit") list = list.filter(hasOutstandingCredit)
+    if (creditFilter === "paid") list = list.filter((o) => getOrderCreditBalance(o) <= 0.004)
+    if (dateFrom) {
+      const fromMs = new Date(`${dateFrom}T00:00:00`).getTime()
+      list = list.filter((o) => new Date(o.createdAt).getTime() >= fromMs)
+    }
+    if (dateTo) {
+      const toMs = new Date(`${dateTo}T23:59:59.999`).getTime()
+      list = list.filter((o) => new Date(o.createdAt).getTime() <= toMs)
+    }
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [orders, creditFilter, dateFrom, dateTo])
 
   const rows = useMemo(() => {
     if (kind === "quotation") {
@@ -475,22 +511,26 @@ export function BranchPosDocsList({
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )
     }
-    let list = [...orders]
-    if (creditFilter === "credit") list = list.filter(hasOutstandingCredit)
-    if (creditFilter === "paid") list = list.filter((o) => getOrderCreditBalance(o) <= 0.004)
-    return list.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-  }, [kind, orders, quotations, creditFilter])
+    return filteredOrders
+  }, [kind, quotations, filteredOrders])
 
   const summary = useMemo(() => {
     if (kind !== "order") return null
-    const total = orders.reduce((s, o) => s + (Number(o.total) || 0), 0)
-    const paid = orders.reduce((s, o) => s + getOrderAmountPaid(o), 0)
-    const debt = orders.reduce((s, o) => s + getOrderCreditBalance(o), 0)
-    const creditCount = orders.filter(hasOutstandingCredit).length
-    return { total, paid, debt, count: orders.length, creditCount }
-  }, [kind, orders])
+    const total = filteredOrders.reduce((s, o) => s + (Number(o.total) || 0), 0)
+    const paid = filteredOrders.reduce((s, o) => s + getOrderAmountPaid(o), 0)
+    const debt = filteredOrders.reduce((s, o) => s + getOrderCreditBalance(o), 0)
+    const creditCount = filteredOrders.filter(hasOutstandingCredit).length
+    const profitSummary = summarizePosOrdersProfit(filteredOrders)
+    return {
+      total,
+      paid,
+      debt,
+      count: filteredOrders.length,
+      creditCount,
+      companyAmount: profitSummary.companyAmount,
+      profit: profitSummary.profit,
+    }
+  }, [kind, filteredOrders])
 
   const emptyLabel =
     kind === "order" ? "No orders yet — create your first order" : "No quotations yet — create your first quotation"
@@ -567,26 +607,79 @@ export function BranchPosDocsList({
   return (
     <>
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
-          <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Orders</p>
-            <p className="text-base font-bold tabular-nums mt-0.5">{summary.count}</p>
+        <div className="space-y-3 mb-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">From</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-9 rounded-md border bg-[hsl(var(--background))] px-2 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">To</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="h-9 rounded-md border bg-[hsl(var(--background))] px-2 text-sm"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 text-xs"
+                onClick={() => {
+                  setDateFrom("")
+                  setDateTo("")
+                }}
+              >
+                Clear dates
+              </Button>
+            )}
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] pb-2">
+              Filter POS orders by created date — company owed &amp; profit update with the filter
+            </p>
           </div>
-          <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total amount</p>
-            <p className="text-sm font-bold tabular-nums mt-0.5">{formatPkr(summary.total)}</p>
-          </div>
-          <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Paid</p>
-            <p className="text-sm font-bold tabular-nums mt-0.5 text-emerald-700">{formatPkr(summary.paid)}</p>
-          </div>
-          <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">On credit / debt</p>
-            <p className="text-sm font-bold tabular-nums mt-0.5 text-amber-700">{formatPkr(summary.debt)}</p>
-          </div>
-          <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Credit orders</p>
-            <p className="text-base font-bold tabular-nums mt-0.5 text-amber-700">{summary.creditCount}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Orders</p>
+              <p className="text-base font-bold tabular-nums mt-0.5">{summary.count}</p>
+            </div>
+            <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Customer total</p>
+              <p className="text-sm font-bold tabular-nums mt-0.5">{formatPkr(summary.total)}</p>
+            </div>
+            <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Owed to company</p>
+              <p className="text-sm font-bold tabular-nums mt-0.5">{formatPkr(summary.companyAmount)}</p>
+            </div>
+            <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Profit</p>
+              <p
+                className={`text-sm font-bold tabular-nums mt-0.5 ${
+                  summary.profit >= 0 ? "text-emerald-700" : "text-red-600"
+                }`}
+              >
+                {formatPkr(summary.profit)}
+              </p>
+            </div>
+            <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Paid</p>
+              <p className="text-sm font-bold tabular-nums mt-0.5 text-emerald-700">{formatPkr(summary.paid)}</p>
+            </div>
+            <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">On credit / debt</p>
+              <p className="text-sm font-bold tabular-nums mt-0.5 text-amber-700">{formatPkr(summary.debt)}</p>
+            </div>
+            <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Credit orders</p>
+              <p className="text-base font-bold tabular-nums mt-0.5 text-amber-700">{summary.creditCount}</p>
+            </div>
           </div>
         </div>
       )}
@@ -638,6 +731,8 @@ export function BranchPosDocsList({
                 <th className="text-left px-3 py-2.5">Client</th>
                 <th className="text-left px-3 py-2.5">Status</th>
                 <th className="text-right px-3 py-2.5">Total</th>
+                {kind === "order" && <th className="text-right px-3 py-2.5">Company</th>}
+                {kind === "order" && <th className="text-right px-3 py-2.5">Profit</th>}
                 {kind === "order" && <th className="text-right px-3 py-2.5">Paid</th>}
                 {kind === "order" && <th className="text-right px-3 py-2.5">Due</th>}
                 <th className="text-left px-3 py-2.5">Date</th>
@@ -683,6 +778,18 @@ export function BranchPosDocsList({
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right font-medium tabular-nums">{formatPkr(doc.total)}</td>
+                    {kind === "order" && order && (
+                      <td className="px-3 py-2.5 text-right tabular-nums">{formatPkr(getPosOrderCompanyAmount(order))}</td>
+                    )}
+                    {kind === "order" && order && (
+                      <td
+                        className={`px-3 py-2.5 text-right tabular-nums ${
+                          getPosOrderProfit(order) >= 0 ? "text-emerald-700" : "text-red-600"
+                        }`}
+                      >
+                        {formatPkr(getPosOrderProfit(order))}
+                      </td>
+                    )}
                     {kind === "order" && (
                       <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700">{formatPkr(paid)}</td>
                     )}

@@ -91,16 +91,31 @@ export function lookupCrmUnitPrice(
   return unitPriceForTier(priceMap.get(model.trim().toLowerCase()), tier)
 }
 
-export function applyCrmPriceTierToItems<T extends { model?: string; unitPrice: number }>(
+export function applyCrmPriceTierToItems<
+  T extends { model?: string; unitPrice: number; companyPrice?: number },
+>(
   items: T[],
   tier: CrmPriceTier,
   priceMap: Map<string, CrmProductPrice>,
+  opts?: { preserveCustomerPrice?: boolean },
 ): T[] {
   return items.map((item) => {
     if (!item.model?.trim()) return item
+    const listPrice = lookupCrmUnitPrice(priceMap, item.model, tier)
+    if (opts?.preserveCustomerPrice) {
+      const prevCompany = Number(item.companyPrice)
+      const hadCompany = Number.isFinite(prevCompany) && prevCompany >= 0
+      const customerMatchesCompany = !hadCompany || Math.abs((Number(item.unitPrice) || 0) - prevCompany) < 0.01
+      return {
+        ...item,
+        companyPrice: listPrice,
+        unitPrice: customerMatchesCompany ? listPrice : item.unitPrice,
+      }
+    }
     return {
       ...item,
-      unitPrice: lookupCrmUnitPrice(priceMap, item.model, tier),
+      unitPrice: listPrice,
+      companyPrice: listPrice,
     }
   })
 }

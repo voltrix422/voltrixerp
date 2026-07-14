@@ -34,7 +34,16 @@ import {
   calculateGstInclusiveTotals,
   splitGstInclusiveAmount,
 } from "@/lib/gst-inclusive-pricing"
+import {
+  getPosLineCompanyAmount,
+  getPosLineProfit,
+  getPosLineSellAmount,
+} from "@/lib/branch-pos-profit"
 import { Loader2, Plus, ShoppingCart, UserPlus, X } from "lucide-react"
+
+function formatPkr(n: number) {
+  return `PKR ${n.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+}
 
 type DocKind = "order" | "quotation"
 export function BranchPosSaleForm({
@@ -82,8 +91,12 @@ export function BranchPosSaleForm({
   }, [])
 
   useEffect(() => {
-    setItems((prev) => applyCrmPriceTierToItems(prev, priceTier, priceMap) as typeof prev)
-  }, [priceTier, priceMap])
+    setItems((prev) =>
+      applyCrmPriceTierToItems(prev, priceTier, priceMap, {
+        preserveCustomerPrice: kind === "order",
+      }) as typeof prev,
+    )
+  }, [priceTier, priceMap, kind])
 
   useEffect(() => {
     const q = clientSearch.trim()
@@ -116,6 +129,8 @@ export function BranchPosSaleForm({
   const selectedClient = clientResults.find((c) => c.id === clientId) || null
 
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
+  const companySubtotal = items.reduce((s, i) => s + getPosLineCompanyAmount(i), 0)
+  const orderProfit = items.reduce((s, i) => s + getPosLineProfit(i), 0)
   const taxPercent = DEFAULT_GST_PERCENT
   const subtotalGstBreakdown = splitGstInclusiveAmount(subtotal, taxPercent)
   const pricing = calculateGstInclusiveTotals({
@@ -155,6 +170,7 @@ export function BranchPosSaleForm({
           qty: 1,
           unit: product.unit,
           unitPrice,
+          companyPrice: unitPrice,
           isCustom: false,
           inventoryItemId: invId,
           branchInventoryId,
@@ -431,6 +447,16 @@ export function BranchPosSaleForm({
               </p>
               <CrmPriceTierSelect value={priceTier} onChange={setPriceTier} className="sm:max-w-md" />
             </div>
+            {kind === "order" ? (
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Company price starts from the price list (e.g. Retail). Set Customer price to what you charge —
+                profit is Customer − Company per line.
+              </p>
+            ) : (
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Default unit prices come from Product Prices — you can adjust them per line item.
+              </p>
+            )}
             <Button
               type="button"
               size="sm"
@@ -455,6 +481,7 @@ export function BranchPosSaleForm({
                   size="md"
                   removeIcon="trash"
                   gstPercent={taxPercent}
+                  showCompanyPrice={kind === "order"}
                 />
                 {subtotal > 0 && (
                   <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
@@ -469,6 +496,27 @@ export function BranchPosSaleForm({
                     <div>
                       <p className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Subtotal (incl. GST)</p>
                       <p className="font-semibold tabular-nums mt-1">PKR {subtotalGstBreakdown.total.toLocaleString()}</p>
+                    </div>
+                  </div>
+                )}
+                {kind === "order" && items.length > 0 && (
+                  <div className="rounded-lg border bg-[hsl(var(--card))] p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Company total</p>
+                      <p className="font-semibold tabular-nums mt-1">{formatPkr(companySubtotal)}</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Price list amount</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Customer total</p>
+                      <p className="font-semibold tabular-nums mt-1">{formatPkr(items.reduce((s, i) => s + getPosLineSellAmount(i), 0))}</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">What you charge</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">Profit</p>
+                      <p className={`font-semibold tabular-nums mt-1 ${orderProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                        {formatPkr(orderProfit)}
+                      </p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Customer − company</p>
                     </div>
                   </div>
                 )}

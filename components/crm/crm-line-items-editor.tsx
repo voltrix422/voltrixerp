@@ -12,9 +12,10 @@ export type CrmLineItem = {
   isCustom: boolean
   availableQty?: number
   costPrice?: number
+  companyPrice?: number
 }
 
-type CrmLineItemField = "description" | "qty" | "unit" | "unitPrice"
+type CrmLineItemField = "description" | "qty" | "unit" | "unitPrice" | "companyPrice"
 
 const inputSm =
   "w-full rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
@@ -25,6 +26,12 @@ function formatPkr(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function resolveCompanyPrice(item: CrmLineItem) {
+  const c = Number(item.companyPrice)
+  if (Number.isFinite(c) && c >= 0) return c
+  return Number(item.unitPrice) || 0
+}
+
 export function CrmLineItemsEditor({
   items,
   onUpdate,
@@ -33,6 +40,8 @@ export function CrmLineItemsEditor({
   removeIcon = "x",
   gstPercent,
   lockUnitPrice = false,
+  /** Branch POS: show company list price + editable customer price + line profit */
+  showCompanyPrice = false,
 }: {
   items: CrmLineItem[]
   onUpdate: (id: string, key: CrmLineItemField, value: string | number) => void
@@ -43,6 +52,7 @@ export function CrmLineItemsEditor({
   gstPercent?: number
   /** When true, unit price is read-only (set from CRM price list). */
   lockUnitPrice?: boolean
+  showCompanyPrice?: boolean
 }) {
   const inputClass = size === "md" ? inputMd : inputSm
   const inputH = size === "md" ? "h-9" : "h-8"
@@ -63,6 +73,8 @@ export function CrmLineItemsEditor({
       <div className="sm:hidden divide-y divide-[hsl(var(--border))]">
         {items.map((item) => {
           const lineTotal = item.qty * item.unitPrice
+          const company = resolveCompanyPrice(item)
+          const lineProfit = (item.unitPrice - company) * item.qty
           const gstBreakdown =
             gstPercent != null && gstPercent > 0 && lineTotal > 0
               ? splitGstInclusiveAmount(lineTotal, gstPercent)
@@ -119,30 +131,62 @@ export function CrmLineItemsEditor({
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  Unit price
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={size === "md" ? "0.01" : undefined}
-                  value={item.unitPrice}
-                  readOnly={lockUnitPrice}
-                  onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
-                  className={`${inputClass} ${inputH} ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
-                />
-                {gstPercent != null && gstPercent > 0 && (
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    GST-inclusive price
-                  </p>
-                )}
-                {item.costPrice !== undefined && (
-                  <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
-                    Cost: PKR {item.costPrice.toLocaleString()}
-                  </p>
-                )}
-              </div>
+              {showCompanyPrice ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      Company price
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={company}
+                      onChange={(e) => onUpdate(item.id, "companyPrice", Number(e.target.value))}
+                      className={`${inputClass} ${inputH}`}
+                    />
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Price list / company</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      Customer price
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={item.unitPrice}
+                      readOnly={lockUnitPrice}
+                      onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
+                      className={`${inputClass} ${inputH} ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
+                    />
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">What you charge</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Unit price
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={size === "md" ? "0.01" : undefined}
+                    value={item.unitPrice}
+                    readOnly={lockUnitPrice}
+                    onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
+                    className={`${inputClass} ${inputH} ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
+                  />
+                  {gstPercent != null && gstPercent > 0 && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">GST-inclusive price</p>
+                  )}
+                  {item.costPrice !== undefined && (
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                      Cost: PKR {item.costPrice.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="flex items-center justify-between pt-1 border-t border-[hsl(var(--border))]/60">
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
@@ -157,6 +201,11 @@ export function CrmLineItemsEditor({
                       Base PKR {formatPkr(gstBreakdown.base)} · GST ({gstPercent}%) PKR {formatPkr(gstBreakdown.gst)}
                     </p>
                   )}
+                  {showCompanyPrice && (
+                    <p className={`text-[10px] font-medium mt-0.5 ${lineProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                      Profit PKR {lineProfit.toLocaleString()}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -164,14 +213,22 @@ export function CrmLineItemsEditor({
         })}
       </div>
 
-      <div className="hidden sm:block">
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[hsl(var(--muted))]/40 border-b">
               <th className={thClass}>Description</th>
-              <th className={`${thClass} text-center w-24`}>Qty</th>
-              <th className={`${thClass} text-center w-20`}>Unit</th>
-              <th className={`${thClass} text-right w-32`}>Unit Price</th>
+              <th className={`${thClass} text-center w-20`}>Qty</th>
+              <th className={`${thClass} text-center w-16`}>Unit</th>
+              {showCompanyPrice ? (
+                <>
+                  <th className={`${thClass} text-right w-28`}>Company</th>
+                  <th className={`${thClass} text-right w-28`}>Customer</th>
+                  <th className={`${thClass} text-right w-24`}>Profit</th>
+                </>
+              ) : (
+                <th className={`${thClass} text-right w-32`}>Unit Price</th>
+              )}
               <th className={`${thClass} text-right w-28`}>Total</th>
               <th className="w-10" />
             </tr>
@@ -179,81 +236,119 @@ export function CrmLineItemsEditor({
           <tbody className="divide-y">
             {items.map((item) => {
               const lineTotal = item.qty * item.unitPrice
+              const company = resolveCompanyPrice(item)
+              const lineProfit = (item.unitPrice - company) * item.qty
               const gstBreakdown =
                 gstPercent != null && gstPercent > 0 && lineTotal > 0
                   ? splitGstInclusiveAmount(lineTotal, gstPercent)
                   : null
               return (
-              <tr key={item.id}>
-                <td className={tdClass}>
-                  <input
-                    value={item.description}
-                    onChange={(e) => onUpdate(item.id, "description", e.target.value)}
-                    disabled={!item.isCustom}
-                    placeholder="Product description"
-                    className={`${inputClass} ${inputH} disabled:opacity-60`}
-                  />
-                  {item.availableQty !== undefined && (
-                    <p className={`text-green-600 mt-0.5 px-1 ${size === "md" ? "text-xs font-medium" : "text-[10px]"}`}>
-                      Stock: {item.availableQty} {item.unit}
-                    </p>
+                <tr key={item.id}>
+                  <td className={tdClass}>
+                    <input
+                      value={item.description}
+                      onChange={(e) => onUpdate(item.id, "description", e.target.value)}
+                      disabled={!item.isCustom}
+                      placeholder="Product description"
+                      className={`${inputClass} ${inputH} disabled:opacity-60`}
+                    />
+                    {item.availableQty !== undefined && (
+                      <p className={`text-green-600 mt-0.5 px-1 ${size === "md" ? "text-xs font-medium" : "text-[10px]"}`}>
+                        Stock: {item.availableQty} {item.unit}
+                      </p>
+                    )}
+                  </td>
+                  <td className={tdClass}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={item.availableQty}
+                      value={item.qty}
+                      onChange={(e) => onUpdate(item.id, "qty", Number(e.target.value))}
+                      className={`${inputClass} ${inputH} text-center`}
+                    />
+                  </td>
+                  <td className={tdClass}>
+                    <input
+                      value={item.unit}
+                      onChange={(e) => onUpdate(item.id, "unit", e.target.value)}
+                      disabled={!item.isCustom}
+                      className={`${inputClass} ${inputH} text-center disabled:opacity-60`}
+                    />
+                  </td>
+                  {showCompanyPrice ? (
+                    <>
+                      <td className={tdClass}>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={company}
+                          onChange={(e) => onUpdate(item.id, "companyPrice", Number(e.target.value))}
+                          className={`${inputClass} ${inputH} text-right`}
+                          title="Company price list"
+                        />
+                      </td>
+                      <td className={tdClass}>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={item.unitPrice}
+                          readOnly={lockUnitPrice}
+                          onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
+                          className={`${inputClass} ${inputH} text-right ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
+                          title="Customer / selling price"
+                        />
+                        {gstPercent != null && gstPercent > 0 && (
+                          <p className={`text-[hsl(var(--muted-foreground))] mt-1 px-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>
+                            GST-inclusive
+                          </p>
+                        )}
+                      </td>
+                      <td className={`${tdClass} text-right tabular-nums font-medium ${lineProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                        PKR {lineProfit.toLocaleString()}
+                      </td>
+                    </>
+                  ) : (
+                    <td className={tdClass}>
+                      <input
+                        type="number"
+                        min={0}
+                        step={size === "md" ? "0.01" : undefined}
+                        value={item.unitPrice}
+                        readOnly={lockUnitPrice}
+                        onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
+                        className={`${inputClass} ${inputH} text-right ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
+                      />
+                      {gstPercent != null && gstPercent > 0 && (
+                        <p className={`text-[hsl(var(--muted-foreground))] mt-1 px-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>
+                          GST-inclusive
+                        </p>
+                      )}
+                      {item.costPrice !== undefined && (
+                        <p className={`text-blue-600 dark:text-blue-400 font-medium mt-1 px-1 ${size === "md" ? "text-xs" : "text-[10px]"}`}>
+                          Cost: PKR {item.costPrice.toLocaleString()}
+                        </p>
+                      )}
+                    </td>
                   )}
-                </td>
-                <td className={tdClass}>
-                  <input
-                    type="number"
-                    min={1}
-                    max={item.availableQty}
-                    value={item.qty}
-                    onChange={(e) => onUpdate(item.id, "qty", Number(e.target.value))}
-                    className={`${inputClass} ${inputH} text-center`}
-                  />
-                </td>
-                <td className={tdClass}>
-                  <input
-                    value={item.unit}
-                    onChange={(e) => onUpdate(item.id, "unit", e.target.value)}
-                    disabled={!item.isCustom}
-                    className={`${inputClass} ${inputH} text-center disabled:opacity-60`}
-                  />
-                </td>
-                <td className={tdClass}>
-                  <input
-                    type="number"
-                    min={0}
-                    step={size === "md" ? "0.01" : undefined}
-                    value={item.unitPrice}
-                    readOnly={lockUnitPrice}
-                    onChange={(e) => onUpdate(item.id, "unitPrice", Number(e.target.value))}
-                    className={`${inputClass} ${inputH} text-right ${lockUnitPrice ? "opacity-70 cursor-not-allowed bg-[hsl(var(--muted))]/20" : ""}`}
-                  />
-                  {gstPercent != null && gstPercent > 0 && (
-                    <p className={`text-[hsl(var(--muted-foreground))] mt-1 px-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>
-                      GST-inclusive
-                    </p>
-                  )}
-                  {item.costPrice !== undefined && (
-                    <p className={`text-blue-600 dark:text-blue-400 font-medium mt-1 px-1 ${size === "md" ? "text-xs" : "text-[10px]"}`}>
-                      Cost: PKR {item.costPrice.toLocaleString()}
-                    </p>
-                  )}
-                </td>
-                <td className={`${tdClass} text-right font-medium ${size === "md" ? "" : "text-xs"}`}>
-                  <div>PKR {(item.qty * item.unitPrice).toLocaleString()}</div>
-                  {gstBreakdown && (
-                    <p className={`text-[hsl(var(--muted-foreground))] font-normal mt-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>
-                      Base {formatPkr(gstBreakdown.base)}
-                      <br />
-                      GST ({gstPercent}%) {formatPkr(gstBreakdown.gst)}
-                    </p>
-                  )}
-                </td>
-                <td className={tdClass}>
-                  <button type="button" onClick={() => onRemove(item.id)} className={removeBtnClass}>
-                    <RemoveIcon className={size === "md" ? "h-4 w-4" : "h-3.5 w-3.5"} />
-                  </button>
-                </td>
-              </tr>
+                  <td className={`${tdClass} text-right font-medium ${size === "md" ? "" : "text-xs"}`}>
+                    <div>PKR {(item.qty * item.unitPrice).toLocaleString()}</div>
+                    {gstBreakdown && (
+                      <p className={`text-[hsl(var(--muted-foreground))] font-normal mt-1 ${size === "md" ? "text-[10px]" : "text-[9px]"}`}>
+                        Base {formatPkr(gstBreakdown.base)}
+                        <br />
+                        GST ({gstPercent}%) {formatPkr(gstBreakdown.gst)}
+                      </p>
+                    )}
+                  </td>
+                  <td className={tdClass}>
+                    <button type="button" onClick={() => onRemove(item.id)} className={removeBtnClass}>
+                      <RemoveIcon className={size === "md" ? "h-4 w-4" : "h-3.5 w-3.5"} />
+                    </button>
+                  </td>
+                </tr>
               )
             })}
           </tbody>
