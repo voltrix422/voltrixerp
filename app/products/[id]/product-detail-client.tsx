@@ -40,9 +40,9 @@ const META_CHIP_CLASS =
   "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-[#1a9f9a]/30 bg-[#1a9f9a]/[0.07] text-neutral-700"
 
 const STOCK_CHIPS: Record<StockKey, { label: string; icon: typeof CheckCircle2 }> = {
-  in: { label: "In stock", icon: CheckCircle2 },
-  low: { label: "Low stock", icon: AlertCircle },
-  out: { label: "Out of stock", icon: XCircle },
+  in: { label: "In Stock", icon: CheckCircle2 },
+  low: { label: "Low Stock", icon: AlertCircle },
+  out: { label: "Out Of Stock", icon: XCircle },
 }
 
 function ProductImages({ images, productName }: { images: string[]; productName: string }) {
@@ -215,7 +215,7 @@ export default function ProductDetailClient({
           href="/products"
           className="inline-flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-[#1a9f9a] transition-colors py-3 rounded-lg hover:bg-white/80 px-2 -ml-2"
         >
-          <ArrowLeft className="w-4 h-4" /> All products
+          <ArrowLeft className="w-4 h-4" /> All Products
         </Link>
       </div>
 
@@ -228,14 +228,14 @@ export default function ProductDetailClient({
 
             <div className="min-w-0 flex flex-col gap-5">
               <span
-                className={`inline-flex w-fit items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border ${catClass}`}
+                className={`inline-flex w-fit items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border capitalize ${catClass}`}
               >
                 <Tag className="w-3 h-3 opacity-70" />
                 {getCategoryDisplayLabel(category)}
               </span>
 
               <div>
-                <h1 className="text-2xl sm:text-[1.75rem] font-bold tracking-tight text-neutral-900 leading-tight">
+                <h1 className="text-2xl sm:text-[1.75rem] font-bold tracking-tight text-neutral-900 leading-tight capitalize">
                   {title}
                 </h1>
                 {model ? (
@@ -249,7 +249,7 @@ export default function ProductDetailClient({
               </div>
 
               {showShortAbove ? (
-                <p className="text-sm text-neutral-600 leading-relaxed -mt-1">{shortDesc}</p>
+                <p className="text-sm text-neutral-600 leading-relaxed -mt-1 capitalize">{shortDesc}</p>
               ) : null}
 
               <div className="flex flex-wrap items-center gap-1.5">
@@ -312,7 +312,7 @@ export default function ProductDetailClient({
                   )}
                 </div>
                 <GetQuoteButton
-                  label={requestQuote ? "Request a quote" : "Get a quote"}
+                  label={requestQuote ? "Request A Quote" : "Get A Quote"}
                   size="md"
                   className="w-fit"
                 />
@@ -323,7 +323,7 @@ export default function ProductDetailClient({
                   <h2 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">
                     Description
                   </h2>
-                  <p className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap capitalize">
                     {descriptionBody}
                   </p>
                 </section>
@@ -343,7 +343,7 @@ export default function ProductDetailClient({
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-neutral-900">Product brochure</h2>
+              <h2 className="text-lg font-semibold text-neutral-900">Product Brochure</h2>
               <button
                 type="button"
                 onClick={() => setBrochureOpen(false)}
@@ -356,8 +356,8 @@ export default function ProductDetailClient({
               documentUrl={String(product.brochureUrl)}
               documentName={product.brochureName ? String(product.brochureName) : undefined}
               productName={title}
-              heading="Product brochure"
-              description="View the brochure below or download a copy for offline reading."
+              heading="Product Brochure"
+              description="View The Brochure Below Or Download A Copy For Offline Reading."
             />
           </div>
         </div>
@@ -373,7 +373,7 @@ export default function ProductDetailClient({
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-neutral-900">User manual</h2>
+              <h2 className="text-lg font-semibold text-neutral-900">User Manual</h2>
               <button
                 type="button"
                 onClick={() => setManualOpen(false)}
@@ -386,8 +386,8 @@ export default function ProductDetailClient({
               documentUrl={String(product.userManualUrl)}
               documentName={product.userManualName ? String(product.userManualName) : undefined}
               productName={title}
-              heading="User manual"
-              description="Read the user manual below or download it for offline reference."
+              heading="User Manual"
+              description="Read The User Manual Below Or Download It For Offline Reference."
             />
           </div>
         </div>
@@ -395,7 +395,7 @@ export default function ProductDetailClient({
 
       {related.length > 0 && (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-5">Related products</h2>
+          <h2 className="text-lg font-semibold text-neutral-900 mb-5">Related Products</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {related.map((r: Record<string, unknown>) => {
               const rThumb = getProductImageList(r)[0] ?? null
@@ -428,12 +428,12 @@ export default function ProductDetailClient({
                     >
                       {getCategoryDisplayLabel(rCat)}
                     </span>
-                    <p className="font-semibold text-sm text-neutral-900">{rDisplay.title}</p>
+                    <p className="font-semibold text-sm text-neutral-900 capitalize">{rDisplay.title}</p>
                     {rDisplay.model ? (
                       <p className="text-xs font-mono text-neutral-500">{rDisplay.model}</p>
                     ) : null}
                     {shouldRequestQuote(r) ? (
-                      <span className="text-xs font-medium text-[#1a9f9a]">Request a Quote</span>
+                      <span className="text-xs font-medium text-[#1a9f9a]">Request A Quote</span>
                     ) : (
                       <p className="text-sm font-semibold text-neutral-900">
                         {formatProductPrice(r.price as string | number | null | undefined) ?? "—"}

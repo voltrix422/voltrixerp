@@ -124,8 +124,8 @@ const productsToImport = [
   {
     name: "HS-25.6V100Ah",
     category: "Energy Storage",
-    description: "25.6V 100Ah 2560Wh LiFePO4 battery",
-    full_desc: "25.6V 100Ah 2560Wh LiFePO4 energy storage battery with 6000+ cycle life. Features square cell 3.2V100Ah technology.",
+    description: "25.6V 100Ah 2560Wh LiFePO4 Battery",
+    full_desc: "A Robust 25.6V 100Ah Lithium Iron Phosphate Battery Module Supplying 2,560 Wh Of Energy, Built With Durable Prismatic Cells And An ABS Enclosure With Built-In BMS For Efficient, Space-Saving Power Storage.",
     specification: "Nominal Voltage: 25.6V, Nominal Capacity: 100Ah, Energy: 2560Wh, Dimensions: 532x207x215mm",
     price: 0,
     warranty: "",
