@@ -45,6 +45,7 @@ import {
 } from "@/lib/crm-product-prices"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed"
+type PaymentFilter = "all" | "on_credit" | "paid" | "not_credit"
 type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
 const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -52,6 +53,25 @@ const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
   { value: "approved", label: "Approved" },
   { value: "confirmed", label: "Confirmed" },
 ]
+
+const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "on_credit", label: "On Credit" },
+  { value: "paid", label: "Fully Paid" },
+  { value: "not_credit", label: "Not Credit" },
+]
+
+function formatOrderPkr(amount: number) {
+  return `PKR ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+}
+
+function orderMatchesPaymentFilter(order: Order, filter: PaymentFilter): boolean {
+  if (filter === "all") return true
+  if (filter === "on_credit") return hasOutstandingCredit(order)
+  if (filter === "paid") return getOrderCreditBalance(order) <= 0.004
+  if (filter === "not_credit") return !isOrderOnCredit(order)
+  return true
+}
 
 const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
   { value: "today", label: "Today" },
@@ -135,6 +155,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("all")
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all")
   const [datePreset, setDatePreset] = useState<DatePreset>("")
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<Order | null>(null)
   const [exportingExcel, setExportingExcel] = useState(false)
@@ -187,12 +208,15 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       (o.clientName?.toLowerCase() || "").includes(q)
 
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
+    const matchesPayment = orderMatchesPaymentFilter(o, paymentFilter)
     const matchesDateRange = orderMatchesDateRange(o.createdAt, fromDate, toDate)
 
-    return matchesSearch && matchesStatus && matchesDateRange
+    return matchesSearch && matchesStatus && matchesPayment && matchesDateRange
   })
 
-  const hasActiveFilters = Boolean(search || fromDate || toDate || statusFilter !== "all")
+  const hasActiveFilters = Boolean(
+    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all",
+  )
 
   function applyDatePreset(preset: DatePreset) {
     if (datePreset === preset) {
@@ -213,6 +237,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     setFromDate("")
     setToDate("")
     setStatusFilter("all")
+    setPaymentFilter("all")
     setDatePreset("")
   }
 
@@ -234,6 +259,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
   const totalOrderValue = filtered.reduce((sum, o) => sum + (o.total || 0), 0)
   const totalOrderQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
+  const totalPaid = filtered.reduce((sum, o) => sum + getOrderAmountPaid(o), 0)
+  const totalOnCredit = filtered.reduce((sum, o) => sum + getOrderCreditBalance(o), 0)
+  const creditOrderCount = filtered.filter(hasOutstandingCredit).length
+  const notCreditCount = filtered.filter((o) => !isOrderOnCredit(o)).length
 
   return (
     <div className="space-y-4">
@@ -252,6 +281,28 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   onClick={() => setStatusFilter(opt.value)}
                   className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                     statusFilter === opt.value
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Payment
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {PAYMENT_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPaymentFilter(opt.value)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    paymentFilter === opt.value
                       ? "bg-[#1faca6] text-white border-[#1faca6]"
                       : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
                   }`}
@@ -371,7 +422,33 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 Total value
               </p>
               <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight">
-                PKR {totalOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatOrderPkr(totalOrderValue)}
+              </p>
+            </div>
+            <div className="sm:border-l sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                Paid
+              </p>
+              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-emerald-700">
+                {formatOrderPkr(totalPaid)}
+              </p>
+            </div>
+            <div className="sm:border-l sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                On credit
+              </p>
+              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-amber-700">
+                {formatOrderPkr(totalOnCredit)}
+              </p>
+            </div>
+            <div className="sm:border-l sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                Credit / Not credit
+              </p>
+              <p className="text-sm font-bold tabular-nums leading-tight">
+                <span className="text-amber-700">{creditOrderCount}</span>
+                <span className="text-[hsl(var(--muted-foreground))] font-normal"> / </span>
+                <span className="text-emerald-700">{notCreditCount}</span>
               </p>
             </div>
           </div>
@@ -392,13 +469,21 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Client</th>
                 <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Qty</th>
                 <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total</th>
+                <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Paid</th>
+                <th className="h-9 px-4 text-right text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Credit</th>
+                <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Payment</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
                 <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Date</th>
                 <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-20">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filtered.map(order => (
+              {filtered.map(order => {
+                const paid = getOrderAmountPaid(order)
+                const due = getOrderCreditBalance(order)
+                const onCredit = hasOutstandingCredit(order)
+                const notCredit = !isOrderOnCredit(order)
+                return (
                 <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
                   <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>
                     <span>{order.orderNumber || "—"}</span>
@@ -415,7 +500,30 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>
                     <CrmItemsQtyCell items={order.items} />
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-right font-semibold cursor-pointer" onClick={() => setSelected(order)}>PKR {(order.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-2.5 text-xs text-right font-semibold cursor-pointer" onClick={() => setSelected(order)}>
+                    {formatOrderPkr(order.total || 0)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-right tabular-nums text-emerald-700 cursor-pointer" onClick={() => setSelected(order)}>
+                    {formatOrderPkr(paid)}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-right tabular-nums text-amber-700 cursor-pointer" onClick={() => setSelected(order)}>
+                    {formatOrderPkr(due)}
+                  </td>
+                  <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
+                    {onCredit ? (
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        On Credit
+                      </span>
+                    ) : notCredit ? (
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Not Credit
+                      </span>
+                    ) : (
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                        Paid
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelected(order)}>
                     <OrderStatusBadge status={order.status} />
                   </td>
@@ -447,7 +555,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                     </div>
                   </td>
                 </tr>
-              ))}
+              )
+              })}
             </tbody>
           </table>
           </div>
