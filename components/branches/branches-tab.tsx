@@ -23,6 +23,14 @@ import { summarizeBranchProductResults } from "@/lib/branch-product-search"
 import { getBranchPosAccounts, setupBranchPos } from "@/lib/pos"
 import { branchPosEmail, branchPosPassword } from "@/lib/branch-pos"
 import { isErpAdmin } from "@/lib/auth"
+import {
+  downloadGrandInventoryExcel,
+  downloadGrandInventoryPDF,
+  summarizeGrandInventory,
+  type GrandInventoryDetailRow,
+  type GrandInventorySummary,
+} from "@/lib/branch-inventory-grand-export"
+import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 
 const empty = (code: string = ""): Omit<Branch, "id" | "createdAt" | "createdBy"> => ({
   name: "", code, type: "outlet", address: "", city: "", country: "", phone: "", email: "", manager: "", status: "active", notes: "",
@@ -218,16 +226,12 @@ export function BranchesTab() {
   const [autoCode, setAutoCode] = useState("")
   const [exportPreviewOpen, setExportPreviewOpen] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
+  const [exportingGrandPdf, setExportingGrandPdf] = useState(false)
+  const [exportingGrandExcel, setExportingGrandExcel] = useState(false)
+  const [grandLoading, setGrandLoading] = useState(false)
+  const [grandSummary, setGrandSummary] = useState<GrandInventorySummary | null>(null)
   const [resettingAll, setResettingAll] = useState(false)
-  const [exportRows, setExportRows] = useState<Array<{
-    branchName: string
-    branchCode: string
-    branchType: string
-    item: string
-    qty: number
-    unit: string
-    transferredAt: string
-  }>>([])
+  const [exportRows, setExportRows] = useState<GrandInventoryDetailRow[]>([])
   const [search, setSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
   const [selectedProductId, setSelectedProductId] = useState("")
@@ -406,6 +410,7 @@ export function BranchesTab() {
         message: "All stock is back in the main warehouse and transfer history has been cleared.",
         duration: 4000,
       })
+      void refreshGrandInventory()
     } catch {
       toast({
         type: "error",
@@ -431,58 +436,76 @@ export function BranchesTab() {
     setViewBranch(null)
   }
 
-  async function buildInventoryExportRows() {
+  async function buildInventoryExportRows(): Promise<GrandInventoryDetailRow[]> {
     const targetBranches = branches.filter(b =>
       ["main_warehouse", "branch_warehouse", "warehouse", "store"].includes(b.type)
     )
     const rows = await Promise.all(
       targetBranches.map(async b => {
         const items = await getBranchInventory(b.id)
-        return items.map(item => ({
-          branchName: b.name,
-          branchCode: b.code,
-          branchType: b.type,
-          item: item.productDescription || item.inventoryId,
-          qty: item.quantity,
-          unit: item.unit,
-          transferredAt: item.assignedAt ? new Date(item.assignedAt).toLocaleDateString() : "-",
-        }))
+        return items
+          .filter((item) => (item.quantity || 0) > 0)
+          .map(item => ({
+            branchName: b.name,
+            branchCode: b.code,
+            branchType: b.type,
+            item: item.itemName || item.productDescription || item.inventoryId,
+            model: item.model || item.productDescription || item.itemName || item.inventoryId,
+            qty: item.quantity,
+            unit: item.unit || "pcs",
+            transferredAt: item.assignedAt ? new Date(item.assignedAt).toLocaleDateString() : "-",
+          }))
       })
     )
     return rows.flat()
   }
 
-  async function handleOpenExportPreview() {
-    setExportLoading(true)
+  async function refreshGrandInventory() {
+    setGrandLoading(true)
     try {
       const rows = await buildInventoryExportRows()
       setExportRows(rows)
+      setGrandSummary(summarizeGrandInventory(rows))
+      return rows
+    } finally {
+      setGrandLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (loading || branches.length === 0) return
+    void refreshGrandInventory()
+  }, [loading, branches.length])
+
+  async function handleOpenExportPreview() {
+    setExportLoading(true)
+    try {
+      await refreshGrandInventory()
       setExportPreviewOpen(true)
     } finally {
       setExportLoading(false)
     }
   }
 
-  async function handleExportPdf() {
-    const rows = exportRows.length ? exportRows : await buildInventoryExportRows()
-    const [{ default: jsPDF }, autoTableModule] = await Promise.all([
-      import("jspdf"),
-      import("jspdf-autotable"),
-    ])
-    const autoTable = (autoTableModule as any).default || autoTableModule
-    const doc = new jsPDF("p", "mm", "a4")
-    doc.setFontSize(14)
-    doc.text("Warehouse and Store Inventory Report", 14, 16)
-    doc.setFontSize(10)
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22)
-    autoTable(doc, {
-      startY: 26,
-      head: [["Branch", "Code", "Type", "Item", "Qty", "Unit", "Transferred/Added Date"]],
-      body: rows.map(r => [r.branchName, r.branchCode, r.branchType, r.item, String(r.qty), r.unit, r.transferredAt]),
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [31, 172, 166] },
-    })
-    doc.save(`branch-inventory-report-${new Date().toISOString().slice(0, 10)}.pdf`)
+  async function handleExportGrandPdf() {
+    setExportingGrandPdf(true)
+    try {
+      const rows = exportRows.length ? exportRows : await refreshGrandInventory()
+      const summary = grandSummary ?? summarizeGrandInventory(rows)
+      await downloadGrandInventoryPDF(rows, summary)
+    } finally {
+      setExportingGrandPdf(false)
+    }
+  }
+
+  function handleExportGrandExcel() {
+    setExportingGrandExcel(true)
+    try {
+      const summary = grandSummary ?? summarizeGrandInventory(exportRows)
+      downloadGrandInventoryExcel(exportRows, summary, user?.name)
+    } finally {
+      setExportingGrandExcel(false)
+    }
   }
 
   const editingBranch = branches.find(b => b.id === editId)
@@ -597,10 +620,10 @@ export function BranchesTab() {
                 variant="outline"
                 className="h-8 px-2.5 text-xs cursor-pointer border"
                 onClick={handleOpenExportPreview}
-                disabled={exportLoading}
+                disabled={exportLoading || grandLoading}
               >
-                {exportLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
-                Export PDF
+                {exportLoading || grandLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
+                Grand inventory
               </Button>
               <Button
                 size="sm"
@@ -705,6 +728,85 @@ export function BranchesTab() {
               </div>
             )}
           </div>
+
+          {!isProductFiltered && (
+            <div className="rounded-lg border bg-[hsl(var(--background))] px-4 py-3 shrink-0">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold">Grand inventory overview</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                    Total quantity across all branches and warehouses
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs cursor-pointer"
+                  onClick={() => void handleOpenExportPreview()}
+                  disabled={exportLoading || grandLoading}
+                >
+                  {exportLoading || grandLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : (
+                    <FileDown className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Export PDF / Excel
+                </Button>
+              </div>
+              {grandLoading ? (
+                <div className="flex items-center gap-2 py-3 text-xs text-[hsl(var(--muted-foreground))]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading inventory totals…
+                </div>
+              ) : grandSummary ? (
+                <>
+                  <div className="flex flex-wrap items-end gap-x-6 gap-y-2 mt-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Products</p>
+                      <p className="text-xl font-bold tabular-nums">{grandSummary.productCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total qty</p>
+                      <p className="text-xl font-bold text-[#1faca6] tabular-nums">{grandSummary.totalQty.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations</p>
+                      <p className="text-xl font-bold tabular-nums">{grandSummary.locationCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Branches</p>
+                      <p className="text-xl font-bold tabular-nums">{grandSummary.branchCount}</p>
+                    </div>
+                  </div>
+                  {grandSummary.products.length > 0 && (
+                    <div className="mt-3 max-h-48 overflow-y-auto rounded-md border divide-y">
+                      {grandSummary.products.slice(0, 12).map((product) => (
+                        <div key={`${product.model}-${product.item}`} className="px-3 py-2">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{product.item}</p>
+                              <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] truncate">{product.model}</p>
+                            </div>
+                            <p className="text-sm font-bold text-[#1faca6] tabular-nums shrink-0">
+                              {product.totalQty} {product.unit}
+                            </p>
+                          </div>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">
+                            {product.locationLabel}
+                          </p>
+                        </div>
+                      ))}
+                      {grandSummary.products.length > 12 && (
+                        <p className="px-3 py-2 text-[10px] text-[hsl(var(--muted-foreground))]">
+                          + {grandSummary.products.length - 12} more products — open Grand inventory export for full list
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+          )}
 
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] px-0.5 -mt-1">
             {isProductFiltered
@@ -960,49 +1062,99 @@ export function BranchesTab() {
 
       {exportPreviewOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setExportPreviewOpen(false)}>
-          <div className="w-full max-w-5xl rounded-lg border bg-[hsl(var(--card))] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <p className="text-sm font-semibold">Inventory Export Preview</p>
+          <div className="w-full max-w-6xl rounded-lg border bg-[hsl(var(--card))] overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+              <div>
+                <p className="text-sm font-semibold">Grand inventory export</p>
+                {grandSummary && (
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                    {grandSummary.productCount} products · {grandSummary.totalQty.toLocaleString()} total qty · {grandSummary.locationCount} locations · {grandSummary.branchCount} branches
+                  </p>
+                )}
+              </div>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExportPreviewOpen(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-5">
+            <div className="p-5 overflow-y-auto min-h-0 space-y-4">
               {exportRows.length === 0 ? (
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">No inventory rows found for warehouses/stores.</p>
               ) : (
-                <div className="max-h-[55vh] overflow-auto rounded-md border">
-                  <table className="w-full text-xs">
-                    <thead className="bg-[hsl(var(--muted))]/40 sticky top-0">
-                      <tr>
-                        {["Branch", "Code", "Type", "Item", "Qty", "Unit", "Transferred/Added Date"].map(h => (
-                          <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {exportRows.map((row, index) => (
-                        <tr key={`${row.branchCode}-${row.item}-${index}`} className="border-t">
-                          <td className="px-3 py-2">{row.branchName}</td>
-                          <td className="px-3 py-2">{row.branchCode}</td>
-                          <td className="px-3 py-2">{row.branchType}</td>
-                          <td className="px-3 py-2">{row.item}</td>
-                          <td className="px-3 py-2">{row.qty}</td>
-                          <td className="px-3 py-2">{row.unit}</td>
-                          <td className="px-3 py-2">{row.transferredAt}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div>
+                    <p className="text-xs font-semibold mb-2">By product — total qty and where held</p>
+                    <div className="max-h-[32vh] overflow-auto rounded-md border">
+                      <table className="w-full text-xs">
+                        <thead className="bg-[hsl(var(--muted))]/40 sticky top-0">
+                          <tr>
+                            {["Product", "Model", "Total Qty", "Unit", "Locations", "Where held"].map(h => (
+                              <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(grandSummary?.products ?? []).map((row) => (
+                            <tr key={`${row.model}-${row.item}`} className="border-t align-top">
+                              <td className="px-3 py-2">{row.item}</td>
+                              <td className="px-3 py-2 font-mono">{row.model}</td>
+                              <td className="px-3 py-2 tabular-nums font-semibold">{row.totalQty}</td>
+                              <td className="px-3 py-2">{row.unit}</td>
+                              <td className="px-3 py-2 tabular-nums">{row.locationCount}</td>
+                              <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-md">{row.locationLabel}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold mb-2">By branch — detail rows</p>
+                    <div className="max-h-[32vh] overflow-auto rounded-md border">
+                      <table className="w-full text-xs">
+                        <thead className="bg-[hsl(var(--muted))]/40 sticky top-0">
+                          <tr>
+                            {["Branch", "Code", "Type", "Product", "Model", "Qty", "Unit", "Date"].map(h => (
+                              <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {exportRows.map((row, index) => (
+                            <tr key={`${row.branchCode}-${row.model}-${index}`} className="border-t">
+                              <td className="px-3 py-2">{row.branchName}</td>
+                              <td className="px-3 py-2">{row.branchCode}</td>
+                              <td className="px-3 py-2">{row.branchType.replace(/_/g, " ")}</td>
+                              <td className="px-3 py-2">{row.item}</td>
+                              <td className="px-3 py-2 font-mono">{row.model}</td>
+                              <td className="px-3 py-2 tabular-nums">{row.qty}</td>
+                              <td className="px-3 py-2">{row.unit}</td>
+                              <td className="px-3 py-2">{row.transferredAt}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-            <div className="px-5 py-3 border-t flex justify-end gap-2 bg-[hsl(var(--muted))]/20">
+            <div className="px-5 py-3 border-t flex justify-end gap-2 bg-[hsl(var(--muted))]/20 shrink-0">
               <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setExportPreviewOpen(false)}>
                 Close
               </Button>
-              <Button size="sm" className="h-8 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white" onClick={handleExportPdf}>
-                <FileDown className="h-3.5 w-3.5" />
+              <CrmExcelExportButton
+                onExport={handleExportGrandExcel}
+                exporting={exportingGrandExcel}
+                disabled={exportRows.length === 0}
+                label="Export Excel"
+              />
+              <Button
+                size="sm"
+                className="h-8 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+                onClick={() => void handleExportGrandPdf()}
+                disabled={exportRows.length === 0 || exportingGrandPdf}
+              >
+                {exportingGrandPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
                 Export PDF
               </Button>
             </div>
