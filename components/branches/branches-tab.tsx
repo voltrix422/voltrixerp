@@ -28,6 +28,7 @@ import {
   downloadGrandInventoryPDF,
   summarizeGrandInventory,
   type GrandInventoryDetailRow,
+  type GrandInventoryProductSummary,
   type GrandInventorySummary,
 } from "@/lib/branch-inventory-grand-export"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
@@ -72,6 +73,64 @@ function PosLoginCredentials({
       <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
         Login at <span className="text-[#1faca6]">/pos/login</span>
       </p>
+    </div>
+  )
+}
+
+function GrandInventoryByProductList({
+  products,
+  className = "max-h-96",
+}: {
+  products: GrandInventoryProductSummary[]
+  className?: string
+}) {
+  if (products.length === 0) {
+    return (
+      <p className="text-xs text-[hsl(var(--muted-foreground))] py-4 text-center">
+        No products in stock at any branch or warehouse.
+      </p>
+    )
+  }
+
+  return (
+    <div className={`overflow-y-auto rounded-md border divide-y ${className}`}>
+      {products.map((product) => (
+        <div key={`${product.model}-${product.item}`} className="px-3 py-3 bg-[hsl(var(--background))]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{product.item}</p>
+              <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] mt-0.5">{product.model}</p>
+            </div>
+            <div className="text-right shrink-0 rounded-md border border-[#1faca6]/30 bg-[#1faca6]/[0.06] px-3 py-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                Total available
+              </p>
+              <p className="text-lg font-bold text-[#1faca6] tabular-nums leading-tight">
+                {product.totalQty.toLocaleString()} {product.unit}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Available where
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {product.locations.map((loc) => (
+                <span
+                  key={`${product.model}-${loc.branchCode}`}
+                  className="inline-flex items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-2 py-1 text-[11px] leading-snug"
+                >
+                  <span className="font-medium text-[hsl(var(--foreground))]">{loc.branchName}</span>
+                  <span className="mx-1 text-[hsl(var(--muted-foreground))]">({loc.branchCode})</span>
+                  <span className="font-semibold text-[#1faca6] tabular-nums">
+                    {loc.qty.toLocaleString()} {loc.unit}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -698,10 +757,16 @@ export function BranchesTab() {
                 </div>
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">At outlets &amp; branches</p>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total available</p>
                     <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
-                      {productSummary.branchQty}{" "}
+                      {productSummary.totalQty}{" "}
                       <span className="text-sm font-medium">{productSummary.unit}</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">At branches</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {productSummary.branchQty} {productSummary.unit}
                     </p>
                   </div>
                   <div>
@@ -711,17 +776,7 @@ export function BranchesTab() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total everywhere</p>
-                    <p className="text-lg font-semibold tabular-nums">
-                      {productSummary.totalQty} {productSummary.unit}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Outlets</p>
-                    <p className="text-lg font-semibold tabular-nums">{productSummary.branchCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations listed</p>
+                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations</p>
                     <p className="text-lg font-semibold tabular-nums">{productSummary.locationCount}</p>
                   </div>
                 </div>
@@ -733,9 +788,9 @@ export function BranchesTab() {
             <div className="rounded-lg border bg-[hsl(var(--background))] px-4 py-3 shrink-0">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold">Grand inventory overview</p>
+                  <p className="text-xs font-semibold">Grand inventory — by product</p>
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                    Total quantity across all branches and warehouses
+                    Total available now, then where stock is held at each branch
                   </p>
                 </div>
                 <Button
@@ -766,7 +821,7 @@ export function BranchesTab() {
                       <p className="text-xl font-bold tabular-nums">{grandSummary.productCount}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total qty</p>
+                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total available</p>
                       <p className="text-xl font-bold text-[#1faca6] tabular-nums">{grandSummary.totalQty.toLocaleString()}</p>
                     </div>
                     <div>
@@ -779,29 +834,7 @@ export function BranchesTab() {
                     </div>
                   </div>
                   {grandSummary.products.length > 0 && (
-                    <div className="mt-3 max-h-48 overflow-y-auto rounded-md border divide-y">
-                      {grandSummary.products.slice(0, 12).map((product) => (
-                        <div key={`${product.model}-${product.item}`} className="px-3 py-2">
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{product.item}</p>
-                              <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] truncate">{product.model}</p>
-                            </div>
-                            <p className="text-sm font-bold text-[#1faca6] tabular-nums shrink-0">
-                              {product.totalQty} {product.unit}
-                            </p>
-                          </div>
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">
-                            {product.locationLabel}
-                          </p>
-                        </div>
-                      ))}
-                      {grandSummary.products.length > 12 && (
-                        <p className="px-3 py-2 text-[10px] text-[hsl(var(--muted-foreground))]">
-                          + {grandSummary.products.length - 12} more products — open Grand inventory export for full list
-                        </p>
-                      )}
-                    </div>
+                    <GrandInventoryByProductList products={grandSummary.products} />
                   )}
                 </>
               ) : null}
@@ -818,7 +851,7 @@ export function BranchesTab() {
             <div className="rounded-lg border overflow-hidden shrink-0">
               <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/10">
                 <p className="text-xs font-semibold">
-                  Stock locations
+                  Available where
                 </p>
                 <span className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
                   {productSearchLoading ? "Searching…" : `${productResults.length} location${productResults.length === 1 ? "" : "s"}`}
@@ -1082,30 +1115,8 @@ export function BranchesTab() {
               ) : (
                 <>
                   <div>
-                    <p className="text-xs font-semibold mb-2">By product — total qty and where held</p>
-                    <div className="max-h-[32vh] overflow-auto rounded-md border">
-                      <table className="w-full text-xs">
-                        <thead className="bg-[hsl(var(--muted))]/40 sticky top-0">
-                          <tr>
-                            {["Product", "Model", "Total Qty", "Unit", "Locations", "Where held"].map(h => (
-                              <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(grandSummary?.products ?? []).map((row) => (
-                            <tr key={`${row.model}-${row.item}`} className="border-t align-top">
-                              <td className="px-3 py-2">{row.item}</td>
-                              <td className="px-3 py-2 font-mono">{row.model}</td>
-                              <td className="px-3 py-2 tabular-nums font-semibold">{row.totalQty}</td>
-                              <td className="px-3 py-2">{row.unit}</td>
-                              <td className="px-3 py-2 tabular-nums">{row.locationCount}</td>
-                              <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] max-w-md">{row.locationLabel}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <p className="text-xs font-semibold mb-2">By product — total available and where held</p>
+                    <GrandInventoryByProductList products={grandSummary?.products ?? []} className="max-h-[40vh]" />
                   </div>
                   <div>
                     <p className="text-xs font-semibold mb-2">By branch — detail rows</p>

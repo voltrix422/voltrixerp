@@ -149,7 +149,7 @@ export function downloadGrandInventoryExcel(
   )
 
   const byProduct = rowsToCsv(
-    ["Product", "Model", "Total Qty", "Unit", "Locations", "Where (branch: qty)"],
+    ["Product", "Model", "Total Available", "Unit", "Locations", "Available Where"],
     summary.products.map((p) => [
       p.item,
       p.model,
@@ -203,7 +203,7 @@ export async function downloadGrandInventoryPDF(
 
   autoTable(doc, {
     startY: 32,
-    head: [["Product", "Model", "Total Qty", "Unit", "Locations", "Where held"]],
+    head: [["Product", "Model", "Total Available", "Unit", "Locations", "Available Where"]],
     body: summary.products.map((p) => [
       p.item,
       p.model,
