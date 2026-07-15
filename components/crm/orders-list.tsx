@@ -84,6 +84,75 @@ function isDeliveredFullyPaid(order: Order): boolean {
   return getOrderCreditBalance(order) <= 0.004
 }
 
+function isPartiallyPaid(order: Order): boolean {
+  const paid = getOrderAmountPaid(order)
+  return paid > 0.004 && getOrderCreditBalance(order) > 0.004
+}
+
+function OrderSummaryHoverPanel({
+  label,
+  count,
+  amount,
+  amountClassName,
+  hint,
+  orders,
+  emptyLabel = "No partially paid orders",
+}: {
+  label: string
+  count: number
+  amount: string
+  amountClassName?: string
+  hint: string
+  orders: { order: Order; paid: number; balance: number }[]
+  emptyLabel?: string
+}) {
+  return (
+    <div className="relative group sm:border-l sm:pl-6 focus-within:z-50" tabIndex={0}>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+        {label} ({count})
+      </p>
+      <p className={`text-sm sm:text-lg font-bold tabular-nums leading-tight cursor-default ${amountClassName || ""}`}>
+        {amount}
+      </p>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{hint}</p>
+
+      <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 w-[min(20rem,calc(100vw-2rem))] opacity-0 translate-y-1 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0">
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
+            Partially paid orders
+          </p>
+          {orders.length === 0 ? (
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">{emptyLabel}</p>
+          ) : (
+            <ul className="space-y-2 max-h-56 overflow-y-auto">
+              {orders.map(({ order, paid, balance }) => (
+                <li
+                  key={order.id}
+                  className="rounded-md border border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/20 px-2.5 py-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#1faca6]">{order.orderNumber || "—"}</p>
+                      <p className="text-[11px] text-[hsl(var(--foreground))] truncate">{order.clientName || "—"}</p>
+                    </div>
+                    <span className="shrink-0 text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
+                      {order.status.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
+                    <span className="text-emerald-700">Paid {formatOrderPkr(paid)}</span>
+                    <span className="text-amber-700">Due {formatOrderPkr(balance)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "tomorrow", label: "Tomorrow" },
@@ -274,6 +343,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const deliveredFullyPaid = filtered.filter(isDeliveredFullyPaid)
   const creditOrders = filtered.filter(hasOutstandingCredit)
   const approvedAwaitingPayment = filtered.filter(isApprovedAwaitingPayment)
+  const partiallyPaidOrders = filtered
+    .filter(isPartiallyPaid)
+    .map((order) => ({
+      order,
+      paid: getOrderAmountPaid(order),
+      balance: getOrderCreditBalance(order),
+    }))
+    .sort((a, b) => b.paid - a.paid)
 
   const deliveredPaidAmount = deliveredFullyPaid.reduce((sum, o) => sum + (o.total || 0), 0)
   const onCreditAmount = creditOrders.reduce((sum, o) => sum + getOrderCreditBalance(o), 0)
@@ -281,6 +358,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     (sum, o) => sum + getOrderCreditBalance(o),
     0,
   )
+  const partialPaymentAmount = partiallyPaidOrders.reduce((sum, row) => sum + row.paid, 0)
 
   return (
     <div className="space-y-4">
@@ -465,6 +543,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 Outstanding credit balance
               </p>
             </div>
+            <OrderSummaryHoverPanel
+              label="Partial payment"
+              count={partiallyPaidOrders.length}
+              amount={formatOrderPkr(partialPaymentAmount)}
+              amountClassName="text-sky-700"
+              hint="Hover to see partially paid orders"
+              orders={partiallyPaidOrders}
+            />
             <div className="sm:border-l sm:pl-6">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
                 Approved unpaid ({approvedAwaitingPayment.length})
