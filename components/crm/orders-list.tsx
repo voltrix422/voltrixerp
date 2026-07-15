@@ -79,6 +79,11 @@ function isApprovedAwaitingPayment(order: Order): boolean {
   return getOrderCreditBalance(order) > 0.004
 }
 
+function isDeliveredFullyPaid(order: Order): boolean {
+  if (order.status !== "delivered") return false
+  return getOrderCreditBalance(order) <= 0.004
+}
+
 const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "tomorrow", label: "Tomorrow" },
@@ -266,11 +271,11 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const totalOrderValue = filtered.reduce((sum, o) => sum + (o.total || 0), 0)
   const totalOrderQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
 
-  const deliveredOrders = filtered.filter((o) => o.status === "delivered")
+  const deliveredFullyPaid = filtered.filter(isDeliveredFullyPaid)
   const creditOrders = filtered.filter(hasOutstandingCredit)
   const approvedAwaitingPayment = filtered.filter(isApprovedAwaitingPayment)
 
-  const deliveredAmount = deliveredOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+  const deliveredPaidAmount = deliveredFullyPaid.reduce((sum, o) => sum + (o.total || 0), 0)
   const onCreditAmount = creditOrders.reduce((sum, o) => sum + getOrderCreditBalance(o), 0)
   const approvedUnpaidAmount = approvedAwaitingPayment.reduce(
     (sum, o) => sum + getOrderCreditBalance(o),
@@ -440,10 +445,13 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             </div>
             <div className="sm:border-l sm:pl-6">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Delivered ({deliveredOrders.length})
+                Delivered paid ({deliveredFullyPaid.length})
               </p>
-              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-blue-700">
-                {formatOrderPkr(deliveredAmount)}
+              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-emerald-700">
+                {formatOrderPkr(deliveredPaidAmount)}
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                Delivered · full payment received
               </p>
             </div>
             <div className="sm:border-l sm:pl-6">
@@ -452,6 +460,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               </p>
               <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-amber-700">
                 {formatOrderPkr(onCreditAmount)}
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                Outstanding credit balance
               </p>
             </div>
             <div className="sm:border-l sm:pl-6">
