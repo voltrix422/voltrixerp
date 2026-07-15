@@ -188,7 +188,7 @@ export async function downloadGrandInventoryPDF(
     import("jspdf"),
     import("jspdf-autotable"),
   ])
-  const autoTable = (autoTableModule as { default?: typeof import("jspdf-autotable") }).default || autoTableModule
+  const autoTable = (autoTableModule as any).default || autoTableModule
   const doc = new jsPDF("l", "mm", "a4")
 
   doc.setFontSize(14)
