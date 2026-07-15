@@ -34,6 +34,43 @@ export type GrandInventorySummary = {
   products: GrandInventoryProductSummary[]
 }
 
+export function resolveGrandInventoryProductFields(
+  source: {
+    itemName?: string | null
+    model?: string | null
+    productDescription?: string | null
+    inventoryId?: string | null
+  },
+  labelMap: Record<string, string> = {},
+): { item: string; model: string } {
+  const explicitName = String(source.itemName ?? "").trim()
+  const explicitModel = String(source.model ?? "").trim()
+  const desc = String(source.productDescription ?? "").trim()
+
+  if (desc.includes(" · ")) {
+    const dotIdx = desc.lastIndexOf(" · ")
+    const namePart = desc.slice(0, dotIdx).trim()
+    const modelPart = desc.slice(dotIdx + 3).trim()
+    const model = explicitModel || modelPart || "—"
+    const item =
+      explicitName ||
+      labelMap[model] ||
+      labelMap[modelPart] ||
+      namePart ||
+      model
+    return { item, model }
+  }
+
+  const model = explicitModel || desc || String(source.inventoryId ?? "").trim() || "—"
+  const item =
+    explicitName ||
+    labelMap[model] ||
+    (desc && desc !== model ? desc : "") ||
+    model
+
+  return { item, model }
+}
+
 function productKey(row: Pick<GrandInventoryDetailRow, "item" | "model">) {
   const model = row.model.trim().toLowerCase()
   const item = row.item.trim().toLowerCase()
@@ -215,7 +252,9 @@ export async function downloadGrandInventoryPDF(
     styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
     headStyles: { fillColor: [31, 172, 166] },
     columnStyles: {
-      5: { cellWidth: 90 },
+      0: { cellWidth: 52 },
+      1: { cellWidth: 42 },
+      5: { cellWidth: 78 },
     },
   })
 

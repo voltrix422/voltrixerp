@@ -26,11 +26,14 @@ import { isErpAdmin } from "@/lib/auth"
 import {
   downloadGrandInventoryExcel,
   downloadGrandInventoryPDF,
+  resolveGrandInventoryProductFields,
   summarizeGrandInventory,
   type GrandInventoryDetailRow,
   type GrandInventoryProductSummary,
   type GrandInventorySummary,
 } from "@/lib/branch-inventory-grand-export"
+import { getInventoryModelLabels } from "@/lib/inventory-model-labels"
+import { getManualInventoryItems } from "@/lib/manual-inventory"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 
 const empty = (code: string = ""): Omit<Branch, "id" | "createdAt" | "createdBy"> => ({
@@ -99,7 +102,9 @@ function GrandInventoryByProductList({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{product.item}</p>
-              <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] mt-0.5">{product.model}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                Model: <span className="font-mono text-[hsl(var(--foreground))]">{product.model}</span>
+              </p>
             </div>
             <div className="text-right shrink-0 rounded-md border border-[#1faca6]/30 bg-[#1faca6]/[0.06] px-3 py-1.5">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
@@ -499,21 +504,34 @@ export function BranchesTab() {
     const targetBranches = branches.filter(b =>
       ["main_warehouse", "branch_warehouse", "warehouse", "store"].includes(b.type)
     )
+    const labels = await getInventoryModelLabels().catch(() => [])
+    const manualItems = await getManualInventoryItems().catch(() => [])
+    const labelMap = Object.fromEntries(
+      labels.map((label) => [label.model.trim(), label.displayName.trim()]).filter(([model, name]) => model && name),
+    )
+    for (const manual of manualItems) {
+      const model = manual.model?.trim()
+      const name = manual.name?.trim()
+      if (model && name) labelMap[model] = name
+    }
     const rows = await Promise.all(
       targetBranches.map(async b => {
         const items = await getBranchInventory(b.id)
         return items
           .filter((item) => (item.quantity || 0) > 0)
-          .map(item => ({
-            branchName: b.name,
-            branchCode: b.code,
-            branchType: b.type,
-            item: item.itemName || item.productDescription || item.inventoryId,
-            model: item.model || item.productDescription || item.itemName || item.inventoryId,
-            qty: item.quantity,
-            unit: item.unit || "pcs",
-            transferredAt: item.assignedAt ? new Date(item.assignedAt).toLocaleDateString() : "-",
-          }))
+          .map(item => {
+            const { item: productName, model } = resolveGrandInventoryProductFields(item, labelMap)
+            return {
+              branchName: b.name,
+              branchCode: b.code,
+              branchType: b.type,
+              item: productName,
+              model,
+              qty: item.quantity,
+              unit: item.unit || "pcs",
+              transferredAt: item.assignedAt ? new Date(item.assignedAt).toLocaleDateString() : "-",
+            }
+          })
       })
     )
     return rows.flat()
