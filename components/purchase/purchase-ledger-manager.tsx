@@ -919,12 +919,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   }
 
   const projectOptions = useMemo(
-    () =>
-      buildProjectOptions(
-        clientProjects,
-        entries.filter(e => e.linkMode === "project").map(e => e.projectName),
-      ),
-    [clientProjects, entries],
+    () => buildProjectOptions(clientProjects),
+    [clientProjects],
   )
 
   const filtered = useMemo(() => {

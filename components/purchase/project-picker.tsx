@@ -10,17 +10,14 @@ export type ProjectOption = {
   name: string
   clientName?: string
   status?: ClientProject["status"]
-  source: "client" | "ledger"
 }
 
 function normalizeName(name: string) {
   return name.trim().toLowerCase()
 }
 
-export function buildProjectOptions(
-  clientProjects: ClientProject[],
-  ledgerProjectNames: string[] = [],
-): ProjectOption[] {
+/** Only real Projects-tab entries — not leftover names from old ledger rows. */
+export function buildProjectOptions(clientProjects: ClientProject[]): ProjectOption[] {
   const byName = new Map<string, ProjectOption>()
 
   for (const p of clientProjects) {
@@ -30,16 +27,7 @@ export function buildProjectOptions(
       name,
       clientName: p.clientName?.trim() || undefined,
       status: p.status,
-      source: "client",
     })
-  }
-
-  for (const raw of ledgerProjectNames) {
-    const name = raw.trim()
-    if (!name) continue
-    const key = normalizeName(name)
-    if (byName.has(key)) continue
-    byName.set(key, { name, source: "ledger" })
   }
 
   return Array.from(byName.values()).sort((a, b) => {
@@ -119,10 +107,12 @@ export function ProjectPicker({
           className={inputCls}
         >
           <option value="">
-            {value.trim() && !matched ? `Using “${value.trim()}” (new) — or pick below` : "Select a project…"}
+            {isNew
+              ? `“${value.trim()}” not in Projects — pick below or Type name`
+              : "Select a project…"}
           </option>
           {options.map(opt => (
-            <option key={`${opt.source}-${opt.name}`} value={opt.name}>
+            <option key={opt.name} value={opt.name}>
               {opt.clientName
                 ? `${opt.name} — ${opt.clientName}${opt.status && opt.status !== "open" ? ` (${opt.status})` : ""}`
                 : `${opt.name}${opt.status && opt.status !== "open" ? ` (${opt.status})` : ""}`}
@@ -160,11 +150,11 @@ export function ProjectPicker({
         </p>
       ) : isNew ? (
         <p className="text-[10px] text-[#1faca6] leading-tight font-medium">
-          New project — will be created when you save
+          Not in Projects list — will be created when you save
         </p>
       ) : (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-tight">
-          Pick an existing project, or switch to Type name to create one
+          Only projects from the Projects tab appear here. Type a name to create a new one.
         </p>
       )}
     </div>
