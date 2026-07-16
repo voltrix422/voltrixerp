@@ -11,6 +11,7 @@ import {
   resolveGroupAmountPaid,
   resolveGroupAmountDue,
   type PurchaseLedgerEntry,
+  type PurchaseLedgerSupplierGroup,
   type PurchaseTransactionType,
 } from "@/lib/purchase-ledger"
 import { isImageBillUrl } from "@/lib/purchase-ledger-bill"
@@ -79,7 +80,6 @@ export function LedgerEntryDetailModal({
             <DetailCell label="Supplier(s)">{formatLedgerSuppliers(entry)}</DetailCell>
             <DetailCell label="Project / Supplier">{formatLedgerProject(entry)}</DetailCell>
             <DetailCell label="Transaction type">{transactionTypeLabel(entry.transactionType)}</DetailCell>
-            <DetailCell label="Due date">{entry.dueDate || "—"}</DetailCell>
             <DetailCell label="Note">{entry.notes?.trim() || "—"}</DetailCell>
           </div>
 
@@ -91,12 +91,19 @@ export function LedgerEntryDetailModal({
               supplierName: entry.supplierName,
               accountDetails: entry.accountDetails,
               items: entry.items,
-            }]
+              amountPaid: entry.amountPaid,
+              amountDue: entry.amountDue,
+              date: entry.transactionDate,
+              billUrl: entry.billUrl,
+              billName: entry.billName,
+              paymentProofUrl: entry.paymentProofUrl,
+              paymentProofName: entry.paymentProofName,
+            }] as PurchaseLedgerSupplierGroup[]
           ).map((group, groupIndex) => (
             <section key={group.id} className="rounded-lg border overflow-hidden">
               <div className="px-3 py-2 border-b bg-[hsl(var(--muted))]/25">
                 <p className="text-xs font-semibold">{group.supplierName || `Supplier ${groupIndex + 1}`}</p>
-                {("date" in group && group.date) ? (
+                {group.date ? (
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Date {group.date}</p>
                 ) : null}
                 {group.accountDetails && (

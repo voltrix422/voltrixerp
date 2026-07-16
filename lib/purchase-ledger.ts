@@ -21,7 +21,7 @@ export interface PurchaseLedgerSupplierGroup {
   amountPaid?: number
   amountDue?: number
   /** Date for this supplier’s purchase / payment (shown per supplier). */
-  date: string
+  date?: string
   billUrl?: string
   billName?: string
   /** Payment screenshot / proof for this supplier (independent of payment amount). */

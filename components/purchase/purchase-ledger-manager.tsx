@@ -592,7 +592,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     try {
       const flatItems = groups.flatMap(group => group.items)
       const totalAmount = sumSupplierGroups(groups)
-      let groupsWithPayments = groups
+      let groupsWithPayments: PurchaseLedgerSupplierGroup[] = groups
       let payments: PurchaseLedgerPayment[] = []
       let amountPaid = 0
       let amountDue = totalAmount
