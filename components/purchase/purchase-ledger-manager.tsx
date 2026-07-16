@@ -43,6 +43,7 @@ import {
 import { embedBillInNotes, isImageBillUrl } from "@/lib/purchase-ledger-bill"
 import { uploadFile } from "@/lib/upload"
 import { SupplierPicker } from "@/components/purchase/supplier-picker"
+import { ProjectPicker, buildProjectOptions } from "@/components/purchase/project-picker"
 import { formatSupplierAccountDetails } from "@/lib/supplier-bank"
 import { LedgerEntryDetailModal } from "@/components/purchase/ledger-entry-detail-modal"
 import { getClientProjects, saveClientProject, type ClientProject } from "@/lib/client-projects"
@@ -917,6 +918,15 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     }
   }
 
+  const projectOptions = useMemo(
+    () =>
+      buildProjectOptions(
+        clientProjects,
+        entries.filter(e => e.linkMode === "project").map(e => e.projectName),
+      ),
+    [clientProjects, entries],
+  )
+
   const filtered = useMemo(() => {
     const q = filterSearch.trim().toLowerCase()
     return entries.filter(e => {
@@ -1223,30 +1233,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 <DottedRule />
 
                 {linkMode === "project" && (
-                  <Field
-                    label="Project"
-                    hint="Pick an existing project, or type a new name to create one"
-                  >
-                    <input
-                      list="purchase-ledger-project-options"
-                      required
-                      value={projectName}
-                      onChange={e => setProjectName(e.target.value)}
-                      placeholder="Select or type project name"
-                      className={inputCls}
-                    />
-                    <datalist id="purchase-ledger-project-options">
-                      {Array.from(new Set([
-                        ...clientProjects.map(p => p.projectName.trim()).filter(Boolean),
-                        ...entries
-                          .filter(e => e.linkMode === "project")
-                          .map(e => e.projectName.trim())
-                          .filter(Boolean),
-                      ])).sort((a, b) => a.localeCompare(b)).map(name => (
-                        <option key={name} value={name} />
-                      ))}
-                    </datalist>
-                  </Field>
+                  <ProjectPicker
+                    required
+                    value={projectName}
+                    onChange={setProjectName}
+                    options={projectOptions}
+                  />
                 )}
 
                 <div className="space-y-3">
