@@ -96,9 +96,9 @@ export function LedgerEntryDetailModal({
             <section key={group.id} className="rounded-lg border overflow-hidden">
               <div className="px-3 py-2 border-b bg-[hsl(var(--muted))]/25">
                 <p className="text-xs font-semibold">{group.supplierName || `Supplier ${groupIndex + 1}`}</p>
-                {group.date && (
+                {("date" in group && group.date) ? (
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Date {group.date}</p>
-                )}
+                ) : null}
                 {group.accountDetails && (
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{group.accountDetails}</p>
                 )}
