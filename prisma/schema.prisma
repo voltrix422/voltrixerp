@@ -252,9 +252,16 @@ model ErpOrder {
   branchId                       String? @map("branch_id")
   /** "branch_pos" | "crm" (null/crm = normal ERP order) */
   source                         String? @map("source")
+  /** CRM order return — stock restored and refunds tracked separately from payments. */
+  returnedAt                     String? @map("returned_at")
+  returnedBy                     String? @map("returned_by")
+  returnReason                   String  @default("") @map("return_reason")
+  inventoryReturnedAt            String? @map("inventory_returned_at")
+  returnPayments                 Json    @default("[]") @map("return_payments")
 
   @@index([branchId])
   @@index([source])
+  @@index([status])
   @@map("erp_orders")
 }
 

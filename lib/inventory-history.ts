@@ -41,8 +41,8 @@ function normalizeTransaction(row: RawInventoryTransaction): InventoryTransactio
     .trim()
     .toLowerCase()
   const notes = row.notes ? String(row.notes) : undefined
-  // Restore rows must always display as stock in
-  if (notes && /stock restored|order deleted/i.test(notes)) {
+  // Restore / return rows must always display as stock in
+  if (notes && /stock restored|order deleted|returned from order/i.test(notes)) {
     transactionType = "in"
   }
   return {

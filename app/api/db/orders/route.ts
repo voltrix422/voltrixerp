@@ -107,7 +107,14 @@ export async function POST(req: NextRequest) {
   const existing = orderId
     ? await prisma.erpOrder.findUnique({
         where: { id: orderId },
-        select: { id: true, status: true, inventoryDeductedAt: true, source: true, branchId: true },
+        select: {
+          id: true,
+          status: true,
+          inventoryDeductedAt: true,
+          inventoryReturnedAt: true,
+          source: true,
+          branchId: true,
+        },
       })
     : null
 
@@ -133,6 +140,47 @@ export async function POST(req: NextRequest) {
     String(o.status || "").toLowerCase() === "delivered" &&
     !existing?.inventoryDeductedAt
 
+  const becomingReturned =
+    String(o.status || "").toLowerCase() === "returned" &&
+    !!existing &&
+    existing.status !== "returned" &&
+    !existing.inventoryReturnedAt
+
+  // Restore stock before marking returned so a failed restore never leaves a half-saved return.
+  if (becomingReturned) {
+    const fullExisting = await prisma.erpOrder.findUnique({ where: { id: orderId } })
+    if (fullExisting) {
+      const deductInput = toOrderDeductInput(fullExisting)
+      try {
+        if (isBranchPosOrderSource(fullExisting.source) && fullExisting.branchId) {
+          await restoreBranchStockForPosOrder({
+            id: fullExisting.id,
+            orderNumber: fullExisting.orderNumber,
+            clientName: fullExisting.clientName,
+            createdBy: fullExisting.createdBy ?? undefined,
+            branchId: fullExisting.branchId,
+            items: Array.isArray(fullExisting.items)
+              ? (fullExisting.items as OrderDeductInput["items"])
+              : [],
+          })
+        } else if (orderMayNeedInventoryRestore(deductInput)) {
+          await restoreInventoryForOrderServer(deductInput, {
+            historyNotes: `Returned from order · ${fullExisting.clientName} · stock restored`,
+          })
+        }
+        o.inventoryReturnedAt = o.inventoryReturnedAt || new Date().toISOString()
+        o.inventoryDeductedAt = null
+        fulfillment.inventoryDeductedAt = null
+      } catch (err) {
+        console.error("[orders POST] inventory restore on return failed:", err)
+        return NextResponse.json(
+          { error: "Could not restore inventory for this return. Order was not marked returned." },
+          { status: 500 },
+        )
+      }
+    }
+  }
+
   try {
     const record = await prisma.$transaction(async (tx) => {
       const saved = await tx.erpOrder.upsert({
@@ -152,6 +200,11 @@ export async function POST(req: NextRequest) {
           creditApprovedAt: o.creditApprovedAt ?? null,
           creditApprovedBy: o.creditApprovedBy ?? null,
           creditNote: o.creditNote ?? null,
+          returnedAt: o.returnedAt ?? null,
+          returnedBy: o.returnedBy ?? null,
+          returnReason: o.returnReason ?? "",
+          inventoryReturnedAt: o.inventoryReturnedAt ?? null,
+          returnPayments: o.returnPayments ?? [],
           branchId,
           source,
           ...fulfillment,
@@ -172,6 +225,11 @@ export async function POST(req: NextRequest) {
           creditApprovedAt: o.creditApprovedAt ?? null,
           creditApprovedBy: o.creditApprovedBy ?? null,
           creditNote: o.creditNote ?? null,
+          returnedAt: o.returnedAt ?? null,
+          returnedBy: o.returnedBy ?? null,
+          returnReason: o.returnReason ?? "",
+          inventoryReturnedAt: o.inventoryReturnedAt ?? null,
+          returnPayments: o.returnPayments ?? [],
           branchId,
           source,
           ...fulfillment,

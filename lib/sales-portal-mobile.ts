@@ -36,6 +36,7 @@ export const ORDER_PORTAL_TABS = [
   { key: "payment_added", short: "Pay" },
   { key: "finalized", short: "Final" },
   { key: "delivered", short: "Done" },
+  { key: "returned", short: "Return" },
 ] as const
 
 export const ORDER_STATUS_SHORT: Record<string, string> = {
@@ -46,6 +47,7 @@ export const ORDER_STATUS_SHORT: Record<string, string> = {
   payment_added: "Payment",
   finalized: "Final",
   delivered: "Done",
+  returned: "Return",
   draft: "Draft",
   confirmed: "Conf",
   processing: "Proc",

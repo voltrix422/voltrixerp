@@ -122,12 +122,13 @@ async function logHistory(
   unit: string,
   order: OrderDeductInput,
   notes: string,
+  transactionType: "in" | "out" = "out",
 ) {
   try {
     await prisma.erpInventoryHistory.create({
       data: {
         itemDescription,
-        transactionType: "out",
+        transactionType,
         quantity,
         unit,
         referenceType: "order",
@@ -859,9 +860,15 @@ async function findDeliveredSerialsForKeys(keys: string[], limit: number) {
     .slice(0, limit)
 }
 
-export async function restoreInventoryForOrderServer(order: OrderDeductInput): Promise<void> {
+export async function restoreInventoryForOrderServer(
+  order: OrderDeductInput,
+  options?: { historyNotes?: string },
+): Promise<void> {
   // Branch POS stock is restored separately via restoreBranchStockForPosOrder.
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") return
+  const historyNotes =
+    options?.historyNotes?.trim() ||
+    `Stock restored · ${order.clientName}`
 
   const tag = orderUnitTag(order.id)
   const restoredIds = new Set<string>()
@@ -998,6 +1005,7 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
 
     const restoredQty = restoredCountByLine.get(item.id) ?? 0
     const lineQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+    let loggedQty = 0
 
     const manualItem = await resolveManualInventoryForOrderLine(item)
     if (manualItem) {
@@ -1009,23 +1017,35 @@ export async function restoreInventoryForOrderServer(order: OrderDeductInput): P
             : 0
       if (qtyToRestore > 0) {
         await restoreManualInventoryByModel(manualItem.model, qtyToRestore)
+        loggedQty = qtyToRestore
       }
-      continue
+    } else if (restoredQty > 0) {
+      // Warehouse lines with serials restored — stock synced via ensureInventoryStockForModel
+      loggedQty = restoredQty
+    } else if (orderWasDispatched(order)) {
+      // Stock-only deduction (no serial units) — put qty back on stock row
+      for (const key of getOrderLineMatchKeys(item)) {
+        const stock = await findStockByModel(key)
+        if (!stock) continue
+        await prisma.erpInventoryStock.update({
+          where: { id: stock.id },
+          data: { availableQty: (stock.availableQty ?? 0) + lineQty },
+        })
+        loggedQty = lineQty
+        break
+      }
     }
 
-    // Warehouse lines with serials restored — stock synced via ensureInventoryStockForModel
-    if (restoredQty > 0) continue
-
-    // Stock-only deduction (no serial units) — put qty back on stock row
-    if (!orderWasDispatched(order)) continue
-    for (const key of getOrderLineMatchKeys(item)) {
-      const stock = await findStockByModel(key)
-      if (!stock) continue
-      await prisma.erpInventoryStock.update({
-        where: { id: stock.id },
-        data: { availableQty: (stock.availableQty ?? 0) + lineQty },
-      })
-      break
+    if (loggedQty > 0) {
+      const label = await historyItemLabel(item)
+      await logHistory(
+        label,
+        loggedQty,
+        item.unit || "pcs",
+        order,
+        historyNotes,
+        "in",
+      )
     }
   }
 }

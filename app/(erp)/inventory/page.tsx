@@ -5,12 +5,13 @@ import { ModuleGuard } from "@/components/layout/module-guard"
 import { InventoryList } from "@/components/inventory/inventory-list"
 import { ManualInventoryTab } from "@/components/inventory/manual-inventory-tab"
 import { ClientOrdersInventory } from "@/components/inventory/client-orders-inventory"
+import { OrderReturnsInventory } from "@/components/inventory/order-returns-inventory"
 import { BranchesTab } from "@/components/branches/branches-tab"
 import { InventoryMovementOverview } from "@/components/inventory/inventory-movement-overview"
 
 const HISTORY_TAB_ENABLED = false
 
-type InventoryTab = "orders" | "inventory" | "manual" | "branches" | "history"
+type InventoryTab = "orders" | "inventory" | "manual" | "returns" | "branches" | "history"
 
 export default function InventoryPage() {
   const [tab, setTab] = useState<InventoryTab>("orders")
@@ -19,6 +20,7 @@ export default function InventoryPage() {
     { id: "orders", label: "Client Orders", shortLabel: "Orders" },
     { id: "inventory", label: "Inventory", shortLabel: "Inventory" },
     { id: "manual", label: "Manual added inventory", shortLabel: "Manual" },
+    { id: "returns", label: "Order returns", shortLabel: "Returns" },
     { id: "branches", label: "Branches", shortLabel: "Branches" },
     ...(HISTORY_TAB_ENABLED
       ? [{ id: "history" as const, label: "History", shortLabel: "History" }]
@@ -53,6 +55,7 @@ export default function InventoryPage() {
           {tab === "orders" && <ClientOrdersInventory />}
           {tab === "inventory" && <InventoryList />}
           {tab === "manual" && <ManualInventoryTab />}
+          {tab === "returns" && <OrderReturnsInventory />}
           {tab === "branches" && <BranchesTab />}
           {HISTORY_TAB_ENABLED && tab === "history" && <InventoryMovementOverview />}
         </div>

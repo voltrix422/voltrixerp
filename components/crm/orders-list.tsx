@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, hasOutstandingCredit, isOrderOnCredit, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, canReturnOrder, canAddReturnPayment, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
@@ -20,11 +20,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2 } from "lucide-react"
+import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
+import { OrderReturn, ReturnPaymentCapture } from "@/components/crm/order-return"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 import { InvoiceEditModal } from "@/components/crm/invoice-edit-modal"
@@ -44,7 +45,7 @@ import {
   type CrmProductPrice,
 } from "@/lib/crm-product-prices"
 
-type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed"
+type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed" | "returned"
 type PaymentFilter = "all" | "on_credit" | "paid" | "not_credit"
 type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
 const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
@@ -52,6 +53,7 @@ const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
   { value: "delivered", label: "Delivered" },
   { value: "approved", label: "Approved" },
   { value: "confirmed", label: "Confirmed" },
+  { value: "returned", label: "Returned" },
 ]
 
 const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
@@ -85,6 +87,7 @@ function isDeliveredFullyPaid(order: Order): boolean {
 }
 
 function isPartiallyPaid(order: Order): boolean {
+  if (isOrderReturned(order)) return false
   const paid = getOrderAmountPaid(order)
   return paid > 0.004 && getOrderCreditBalance(order) > 0.004
 }
@@ -337,12 +340,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     }
   }
 
-  const totalOrderValue = filtered.reduce((sum, o) => sum + (o.total || 0), 0)
+  // Returned refunds subtract from total value; returned orders drop out of paid/credit stats.
+  const totalOrderValue = filtered.reduce((sum, o) => sum + getOrderNetSalesValue(o), 0)
   const totalOrderQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
 
   const deliveredFullyPaid = filtered.filter(isDeliveredFullyPaid)
   const creditOrders = filtered.filter(hasOutstandingCredit)
   const approvedAwaitingPayment = filtered.filter(isApprovedAwaitingPayment)
+  const returnedOrders = filtered.filter(isOrderReturned)
   const partiallyPaidOrders = filtered
     .filter(isPartiallyPaid)
     .map((order) => ({
@@ -359,6 +364,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     0,
   )
   const partialPaymentAmount = partiallyPaidOrders.reduce((sum, row) => sum + row.paid, 0)
+  const returnedRefundAmount = returnedOrders.reduce((sum, o) => sum + getOrderReturnAmount(o), 0)
 
   return (
     <div className="space-y-4">
@@ -560,6 +566,17 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               </p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
                 Not credit · not delivered · payment pending
+              </p>
+            </div>
+            <div className="sm:border-l sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+                Returned ({returnedOrders.length})
+              </p>
+              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-orange-700">
+                {formatOrderPkr(returnedRefundAmount)}
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                Refunded to clients · stock restored
               </p>
             </div>
           </div>
@@ -1396,6 +1413,8 @@ function OrderDetail({
   const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [showInvoiceEdit, setShowInvoiceEdit] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
+  const [showReturn, setShowReturn] = useState(false)
+  const [showReturnPayment, setShowReturnPayment] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
   const [deletingPayment, setDeletingPayment] = useState(false)
@@ -1462,8 +1481,11 @@ function OrderDetail({
   const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
   const canManagePayments = canCapturePaymentsForOrder(detailOrder)
   const canDeletePayments = detailOrder.status === "delivered" && canManagePayments
+  const canReturn = canReturnOrder(detailOrder) && detailOrder.status === "delivered" && !workspace?.readOnly
+  const canManageReturnPayments = canAddReturnPayment(detailOrder) && !workspace?.readOnly
   const creditBalance = getOrderCreditBalance(detailOrder)
   const amountPaid = getOrderAmountPaid(detailOrder)
+  const returnAmount = getOrderReturnAmount(detailOrder)
 
   async function handleDeletePayment(paymentId: string) {
     const payment = detailOrder.payments?.find(p => p.id === paymentId)
@@ -1536,6 +1558,28 @@ function OrderDetail({
           order={detailOrder}
           currentUser={currentUser}
           onClose={() => setShowPayment(false)}
+          onUpdate={o => {
+            setDetailOrder(o)
+            setStatus(o.status)
+            onUpdate(o)
+          }}
+        />
+      ) : showReturn ? (
+        <OrderReturn
+          order={detailOrder}
+          currentUser={currentUser}
+          onClose={() => setShowReturn(false)}
+          onUpdate={o => {
+            setDetailOrder(o)
+            setStatus(o.status)
+            onUpdate(o)
+          }}
+        />
+      ) : showReturnPayment ? (
+        <ReturnPaymentCapture
+          order={detailOrder}
+          currentUser={currentUser}
+          onClose={() => setShowReturnPayment(false)}
           onUpdate={o => {
             setDetailOrder(o)
             setStatus(o.status)
@@ -1630,6 +1674,93 @@ function OrderDetail({
           </div>
 
           <CrmOrderSummaryDisplay order={detailOrder} />
+
+          {isOrderReturned(detailOrder) && (
+            <div className="rounded-lg border bg-orange-50 dark:bg-orange-950/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-orange-900 dark:text-orange-100">
+                  Order return
+                </p>
+                {canManageReturnPayments && (
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
+                    onClick={() => setShowReturnPayment(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add return payment
+                  </Button>
+                )}
+              </div>
+              {detailOrder.returnReason && (
+                <div>
+                  <p className="text-[10px] font-bold text-orange-800 dark:text-orange-200 uppercase">Reason</p>
+                  <p className="text-sm text-orange-900 dark:text-orange-100 mt-0.5 whitespace-pre-wrap">
+                    {detailOrder.returnReason}
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2 text-xs text-orange-800 dark:text-orange-200">
+                {detailOrder.returnedAt && (
+                  <div>
+                    <p className="font-bold uppercase text-[10px]">Returned</p>
+                    <p className="mt-0.5">
+                      {new Date(detailOrder.returnedAt).toLocaleDateString()}
+                      {detailOrder.returnedBy ? ` by ${detailOrder.returnedBy}` : ""}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="font-bold uppercase text-[10px]">Refunded</p>
+                  <p className="mt-0.5 font-medium">
+                    PKR {returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                {detailOrder.inventoryReturnedAt && (
+                  <div className="col-span-2">
+                    <p className="font-bold uppercase text-[10px]">Stock</p>
+                    <p className="mt-0.5">Restored to inventory</p>
+                  </div>
+                )}
+              </div>
+              {(detailOrder.returnPayments?.length ?? 0) > 0 && (
+                <div className="space-y-2 pt-1 border-t border-orange-200 dark:border-orange-800">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-orange-800 dark:text-orange-200">
+                    Return payments
+                  </p>
+                  {detailOrder.returnPayments!.map((p, i) => {
+                    const proofs = getOrderReturnPaymentProofUrls(p)
+                    return (
+                      <div key={p.id} className="flex items-start justify-between gap-2 text-xs">
+                        <div>
+                          <p className="font-medium text-orange-900 dark:text-orange-100">
+                            Return {i + 1}: PKR {p.amount.toLocaleString()} · {p.method} ·{" "}
+                            {new Date(p.date).toLocaleDateString()}
+                          </p>
+                          {p.notes && (
+                            <p className="text-orange-700 dark:text-orange-300 text-[10px] mt-0.5">{p.notes}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 shrink-0">
+                          {proofs.map((url, idx) => (
+                            <a
+                              key={`${p.id}-${idx}`}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="underline text-orange-700 dark:text-orange-300 text-[10px]"
+                            >
+                              {proofs.length > 1 ? `Proof ${idx + 1}` : "View Proof"}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rounded-lg border bg-blue-50 dark:bg-blue-950 p-4">
             <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
@@ -1813,6 +1944,25 @@ function OrderDetail({
                   {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
                 </Button>
               )}
+          {canReturn && (
+            <Button
+              size="sm"
+              className="h-10 text-sm bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
+              onClick={() => setShowReturn(true)}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" /> Return order
+            </Button>
+          )}
+          {canManageReturnPayments && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-10 text-sm cursor-pointer border-orange-300 text-orange-800 hover:bg-orange-50"
+              onClick={() => setShowReturnPayment(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Return payment
+            </Button>
+          )}
           {canEditInvoice && (
             <Button
               size="sm"

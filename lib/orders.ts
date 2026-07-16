@@ -4,7 +4,7 @@ import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-s
 
 export type { OrderFulfillmentSerialAllocation }
 
-export type OrderStatus = "draft" | "pending_approval" | "approved" | "rejected" | "finalized" | "payment_added" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
+export type OrderStatus = "draft" | "pending_approval" | "approved" | "rejected" | "finalized" | "payment_added" | "confirmed" | "processing" | "shipped" | "delivered" | "returned" | "cancelled"
 
 export type OrderPaymentTerms = "full" | "credit"
 
@@ -74,7 +74,20 @@ export function orderHasInvoiceDetails(order: Pick<Order, "tax" | "transportCost
 
 export function canShowOrderInvoiceActions(order: Order): boolean {
   if (!orderHasInvoiceDetails(order)) return false
-  return ["finalized", "payment_added", "approved", "confirmed", "processing", "shipped", "delivered"].includes(order.status)
+  return ["finalized", "payment_added", "approved", "confirmed", "processing", "shipped", "delivered", "returned"].includes(order.status)
+}
+
+/** Money returned to the client when an order is returned. */
+export interface OrderReturnPayment {
+  id: string
+  amount: number
+  method: string
+  date: string
+  notes: string
+  proofUrl?: string
+  proofUrls?: string[]
+  createdAt: string
+  createdBy: string
 }
 
 export interface Order {
@@ -131,6 +144,14 @@ export interface Order {
   branchId?: string
   /** "branch_pos" when created from Branch POS */
   source?: string
+  /** When the order was returned from CRM */
+  returnedAt?: string
+  returnedBy?: string
+  returnReason?: string
+  /** Set after inventory was restored for a return */
+  inventoryReturnedAt?: string
+  /** Refunds / money sent back to the client for a returned order */
+  returnPayments?: OrderReturnPayment[]
 }
 
 export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"
@@ -198,6 +219,37 @@ export function getOrderCreditBalance(order: Pick<Order, "total" | "payments" | 
   return Math.max(0, Number(order.total) - getOrderAmountPaid(order))
 }
 
+export function isOrderReturned(order: Pick<Order, "status">) {
+  return order.status === "returned"
+}
+
+export function getOrderReturnAmount(order: Pick<Order, "returnPayments">) {
+  return (order.returnPayments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+}
+
+/** Order contribution to CRM totals — return refunds subtract from the order total. */
+export function getOrderNetSalesValue(order: Pick<Order, "total" | "status" | "returnPayments">) {
+  const total = Number(order.total) || 0
+  if (!isOrderReturned(order)) return total
+  return Math.max(0, total - getOrderReturnAmount(order))
+}
+
+export function getOrderReturnPaymentProofUrls(payment: OrderReturnPayment): string[] {
+  if (payment.proofUrls && payment.proofUrls.length > 0) return payment.proofUrls
+  if (payment.proofUrl) return [payment.proofUrl]
+  return []
+}
+
+/** Delivered (or already returned) CRM orders can be returned / have return refunds. */
+export function canReturnOrder(order: Pick<Order, "status" | "source">) {
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
+  return order.status === "delivered" || order.status === "returned"
+}
+
+export function canAddReturnPayment(order: Pick<Order, "status">) {
+  return order.status === "returned"
+}
+
 export function isOrderOnCredit(order: Pick<Order, "paymentTerms" | "creditApprovedAt">) {
   return order.paymentTerms === "credit" || !!order.creditApprovedAt
 }
@@ -208,6 +260,7 @@ export function isCreditCleared(order: Pick<Order, "total" | "payments" | "statu
 }
 
 export function hasOutstandingCredit(order: Pick<Order, "total" | "payments" | "status" | "paymentTerms" | "creditApprovedAt">) {
+  if (isOrderReturned(order)) return false
   return isOrderOnCredit(order) && getOrderCreditBalance(order) > 0.004
 }
 
@@ -224,6 +277,7 @@ export function isDeliveredCreditPaymentCapture(
 }
 
 export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymentTerms" | "creditApprovedAt" | "total" | "payments">) {
+  if (isOrderReturned(order)) return false
   if (order.status === "approved" || order.status === "finalized" || order.status === "payment_added") {
     return true
   }
@@ -237,7 +291,7 @@ export function canCapturePaymentsForOrder(order: Pick<Order, "status" | "paymen
 }
 
 export function isOrderPaymentLocked(order: Pick<Order, "status" | "paymentTerms" | "total" | "payments" | "creditApprovedAt">) {
-  if (["cancelled", "rejected", "draft", "pending_approval"].includes(order.status)) return true
+  if (["cancelled", "rejected", "draft", "pending_approval", "returned"].includes(order.status)) return true
   if (isPostDeliveryPaymentCapture(order)) return false
   if (hasOutstandingCredit(order)) return false
   return ["confirmed", "processing", "shipped"].includes(order.status)
@@ -391,6 +445,13 @@ function rowToOrder(r: Record<string, unknown>): Order {
     creditApprovedAt: (r.creditApprovedAt as string) ?? undefined,
     creditApprovedBy: (r.creditApprovedBy as string) ?? undefined,
     creditNote: (r.creditNote as string) ?? undefined,
+    returnedAt: (r.returnedAt as string) ?? undefined,
+    returnedBy: (r.returnedBy as string) ?? undefined,
+    returnReason: (r.returnReason as string) ?? undefined,
+    inventoryReturnedAt: (r.inventoryReturnedAt as string) ?? undefined,
+    returnPayments: Array.isArray(r.returnPayments)
+      ? (r.returnPayments as OrderReturnPayment[])
+      : [],
   }
 }
 
@@ -516,6 +577,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   processing: "Processing",
   shipped: "Shipped",
   delivered: "Delivered",
+  returned: "Returned",
   cancelled: "Cancelled",
 }
 
@@ -530,5 +592,6 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   processing: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-300 dark:border-cyan-800",
   shipped: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800",
   delivered: "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/30 dark:text-pink-300 dark:border-pink-800",
+  returned: "bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800",
   cancelled: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800",
 }
