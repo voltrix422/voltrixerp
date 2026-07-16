@@ -65,6 +65,7 @@ type LedgerSupplierGroup = {
   items: LedgerItem[]
   amountPaid?: number
   amountDue?: number
+  date?: string
   billUrl?: string
   billName?: string
   paymentProofUrl?: string
@@ -86,6 +87,7 @@ function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
       items,
       amountPaid,
       amountDue,
+      date: String((group as LedgerSupplierGroup).date ?? ""),
       billUrl: String((group as LedgerSupplierGroup).billUrl ?? ""),
       billName: String((group as LedgerSupplierGroup).billName ?? ""),
       paymentProofUrl: String((group as LedgerSupplierGroup).paymentProofUrl ?? ""),
@@ -489,6 +491,7 @@ type SyncGroupLike = {
   id: string
   supplierName: string
   items: { productName?: string; lineTotal?: number }[]
+  date?: string
   billUrl?: string
   billName?: string
   paymentProofUrl?: string

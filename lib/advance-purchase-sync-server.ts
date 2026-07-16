@@ -4,6 +4,7 @@ type SyncGroup = {
   id: string
   supplierName: string
   items: { productName?: string; lineTotal?: number }[]
+  date?: string
   billUrl?: string
   billName?: string
   paymentProofUrl?: string
@@ -141,7 +142,7 @@ export async function syncPurchaseLedgerToAdvances(entry: SyncEntry): Promise<vo
       id: ledgerTxnId(entry.id, group.id),
       type: "expense",
       amount,
-      date: entry.transactionDate || new Date().toISOString().slice(0, 10),
+      date: group.date || entry.transactionDate || new Date().toISOString().slice(0, 10),
       description: `Purchase ${entry.ledgerNumber}${projectBit} · ${itemSummary(group)}`,
       receiptUrl,
       receiptName,

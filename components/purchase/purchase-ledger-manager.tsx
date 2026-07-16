@@ -45,6 +45,7 @@ import { uploadFile } from "@/lib/upload"
 import { SupplierPicker } from "@/components/purchase/supplier-picker"
 import { formatSupplierAccountDetails } from "@/lib/supplier-bank"
 import { LedgerEntryDetailModal } from "@/components/purchase/ledger-entry-detail-modal"
+import { getClientProjects, saveClientProject, type ClientProject } from "@/lib/client-projects"
 import {
   downloadPurchaseLedgerEntryExcel,
   downloadPurchaseLedgerEntryPDF,
@@ -359,7 +360,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [amountPayingNow, setAmountPayingNow] = useState("")
   const [groupPayingNow, setGroupPayingNow] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState("")
-  const [dueDate, setDueDate] = useState("")
+  const [clientProjects, setClientProjects] = useState<ClientProject[]>([])
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [proofPreview, setProofPreview] = useState("")
   const [billFile, setBillFile] = useState<File | null>(null)
@@ -427,12 +428,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [ledgerRows, supplierRows] = await Promise.all([
+      const [ledgerRows, supplierRows, projectRows] = await Promise.all([
         getPurchaseLedgerEntries(purchaseScopeId),
         getSuppliers(purchaseScopeId),
+        getClientProjects(purchaseScopeId),
       ])
       setEntries(ledgerRows)
       setSuppliers(supplierRows)
+      setClientProjects(projectRows)
       setLoading(false)
     }
     void load()
@@ -454,6 +457,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   function normalizeGroups(groups: PurchaseLedgerSupplierGroup[]) {
     return groups.map(group => ({
       ...group,
+      date: group.date || transactionDate,
       items: group.items
         .filter(item => item.productName.trim())
         .map(item => ({
@@ -469,12 +473,11 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setExistingPayments([])
     setOriginalCreatedBy("")
     setProjectName("")
-    setSupplierGroups([newSupplierGroup()])
+    setSupplierGroups([newSupplierGroup({ date: new Date().toISOString().slice(0, 10) })])
     setTransactionType("purchase")
     setAmountPayingNow("")
     setGroupPayingNow({})
     setNotes("")
-    setDueDate("")
     setProofFile(null)
     setProofPreview("")
     setBillFile(null)
@@ -524,7 +527,6 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     )
     setTransactionType(entry.transactionType)
     setNotes(entry.notes || "")
-    setDueDate(entry.dueDate || "")
     setAmountPayingNow("")
     setGroupPayingNow({})
     setProofFile(null)
@@ -801,7 +803,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         notes: isProjectMode
           ? notes.trim()
           : embedBillInNotes(notes.trim(), { billUrl, billName }),
-        dueDate,
+        dueDate: "",
         accountDetails: primary?.accountDetails ?? "",
         paymentProofUrl: clampedPayments.find(p => p.proofUrl)?.proofUrl
           || syncedGroups.find(g => g.paymentProofUrl)?.paymentProofUrl
@@ -816,6 +818,25 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         createdBy: isEditing ? originalCreatedBy : user.name,
         purchaseScopeId,
       })
+
+      if (linkMode === "project" && projectName.trim()) {
+        const exists = clientProjects.some(
+          p => p.projectName.trim().toLowerCase() === projectName.trim().toLowerCase(),
+        )
+        if (!exists) {
+          try {
+            const created = await saveClientProject({
+              purchaseScopeId,
+              projectName: projectName.trim(),
+              clientName: "",
+              createdBy: user.name,
+            })
+            setClientProjects(prev => [created, ...prev])
+          } catch (err) {
+            console.error("Could not create client project from ledger:", err)
+          }
+        }
+      }
 
       setEntries(prev => isEditing
         ? prev.map(row => row.id === saved.id ? saved : row)
@@ -1174,7 +1195,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
 
             <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1">
               <div className="overflow-y-auto px-4 sm:px-5 py-4 space-y-3 overscroll-contain">
-                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <Field label="Ledger No." hint="Auto-generated">
                     <input readOnly value={ledgerNumber} className={inputCls + " bg-[hsl(var(--muted))]/30"} />
                   </Field>
@@ -1195,16 +1216,34 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                       ))}
                     </select>
                   </Field>
-                  <Field label="Due date">
-                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} />
-                  </Field>
                 </section>
 
                 <DottedRule />
 
                 {linkMode === "project" && (
-                  <Field label="Project name">
-                    <input required value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project name" className={inputCls} />
+                  <Field
+                    label="Project"
+                    hint="Pick an existing project, or type a new name to create one"
+                  >
+                    <input
+                      list="purchase-ledger-project-options"
+                      required
+                      value={projectName}
+                      onChange={e => setProjectName(e.target.value)}
+                      placeholder="Select or type project name"
+                      className={inputCls}
+                    />
+                    <datalist id="purchase-ledger-project-options">
+                      {Array.from(new Set([
+                        ...clientProjects.map(p => p.projectName.trim()).filter(Boolean),
+                        ...entries
+                          .filter(e => e.linkMode === "project")
+                          .map(e => e.projectName.trim())
+                          .filter(Boolean),
+                      ])).sort((a, b) => a.localeCompare(b)).map(name => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
                   </Field>
                 )}
 
@@ -1212,7 +1251,16 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   {linkMode === "project" && (
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold">Suppliers & items</p>
-                      <Button type="button" size="sm" variant="outline" className="h-7 text-[10px] cursor-pointer" onClick={() => setSupplierGroups(prev => [...prev, newSupplierGroup()])}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] cursor-pointer"
+                        onClick={() => setSupplierGroups(prev => [
+                          ...prev,
+                          newSupplierGroup({ date: transactionDate }),
+                        ])}
+                      >
                         <Plus className="h-3 w-3" /> Add supplier
                       </Button>
                     </div>
@@ -1222,7 +1270,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                     <section key={group.id} className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3">
                       {linkMode === "project" && (
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold">Supplier {groupIndex + 1}</p>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold">Supplier {groupIndex + 1}</p>
+                            {(group.date || transactionDate) && (
+                              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                                Date {group.date || transactionDate}
+                              </p>
+                            )}
+                          </div>
                           {supplierGroups.length > 1 && (
                             <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px] text-red-500 cursor-pointer" onClick={() => setSupplierGroups(prev => prev.filter(g => g.id !== group.id))}>
                               <Trash2 className="h-3 w-3" /> Remove
@@ -1231,7 +1286,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                         </div>
                       )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 items-start">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 items-start">
                         <SupplierPicker
                           suppliers={suppliers}
                           supplierId={group.supplierId || ""}
@@ -1255,6 +1310,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                           onAccountDetailsChange={details => updateSupplierGroup(group.id, { accountDetails: details })}
                           compact
                         />
+                        <Field label="Date" hint="Supplier purchase / payment date">
+                          <input
+                            type="date"
+                            value={group.date || transactionDate}
+                            onChange={e => updateSupplierGroup(group.id, { date: e.target.value })}
+                            className={inputCls}
+                          />
+                        </Field>
                         <Field label="Account details" hint="From supplier bank info">
                           <input value={group.accountDetails} onChange={e => updateSupplierGroup(group.id, { accountDetails: e.target.value })} placeholder="Bank account / IBAN" className={inputCls} />
                         </Field>

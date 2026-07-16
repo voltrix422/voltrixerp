@@ -112,8 +112,27 @@ async function handlePost(req: NextRequest) {
   const personName = String(body.personName || "").trim()
   if (!personName) return NextResponse.json({ error: "Person name is required" }, { status: 400 })
 
+  const purchaseScopeId = String(body.purchaseScopeId || "P1").trim().toUpperCase()
+
+  if (!body.id) {
+    const existingOpen = await prisma.erpAdvanceAccount.findMany({
+      where: { purchaseScopeId, status: "open" },
+      select: { id: true, personName: true },
+    })
+    const key = personName.toLowerCase().replace(/\s+/g, " ")
+    const clash = existingOpen.find(
+      a => String(a.personName || "").trim().toLowerCase().replace(/\s+/g, " ") === key,
+    )
+    if (clash) {
+      return NextResponse.json(
+        { error: `Already account open for "${clash.personName}"` },
+        { status: 400 },
+      )
+    }
+  }
+
   const data = {
-    purchaseScopeId: String(body.purchaseScopeId || "P1").trim().toUpperCase(),
+    purchaseScopeId,
     personName,
     purpose: String(body.purpose || ""),
     notes: String(body.notes || ""),

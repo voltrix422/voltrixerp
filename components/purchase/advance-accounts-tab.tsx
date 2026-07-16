@@ -12,6 +12,7 @@ import {
   saveAdvanceAccount,
   type AdvanceAccount,
 } from "@/lib/advance-accounts"
+import { getSuppliers, type Supplier } from "@/lib/purchase"
 import { uploadFile } from "@/lib/upload"
 
 const inputCls =
@@ -32,11 +33,13 @@ const Field = ({ label, hint, children }: { label: string; hint?: string; childr
 export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: string }) {
   const { user } = useAuth()
   const [accounts, setAccounts] = useState<AdvanceAccount[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all")
 
   const [showNewForm, setShowNewForm] = useState(false)
+  const [newSupplierId, setNewSupplierId] = useState("")
   const [newPersonName, setNewPersonName] = useState("")
   const [newPurpose, setNewPurpose] = useState("")
   const [newDeposit, setNewDeposit] = useState("")
@@ -58,11 +61,26 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
   useEffect(() => {
     async function load() {
       setLoading(true)
-      setAccounts(await getAdvanceAccounts(purchaseScopeId))
+      const [advanceRows, supplierRows] = await Promise.all([
+        getAdvanceAccounts(purchaseScopeId),
+        getSuppliers(purchaseScopeId),
+      ])
+      setAccounts(advanceRows)
+      setSuppliers(supplierRows)
       setLoading(false)
     }
     void load()
   }, [purchaseScopeId])
+
+  function normalizePersonName(name: string) {
+    return name.trim().toLowerCase().replace(/\s+/g, " ")
+  }
+
+  const existingOpenAccount = useMemo(() => {
+    const key = normalizePersonName(newPersonName)
+    if (!key) return null
+    return accounts.find(a => a.status === "open" && normalizePersonName(a.personName) === key) ?? null
+  }, [accounts, newPersonName])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -103,7 +121,12 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
     e.preventDefault()
     if (!user) return
     if (!newPersonName.trim()) {
-      alert("Enter the person's name.")
+      alert("Enter the person's name or select a supplier.")
+      return
+    }
+    if (existingOpenAccount) {
+      alert(`An open advance account already exists for "${existingOpenAccount.personName}".`)
+      openDetail(existingOpenAccount.id)
       return
     }
     setSavingNew(true)
@@ -128,6 +151,7 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
       })
       setAccounts(prev => [saved, ...prev])
       setShowNewForm(false)
+      setNewSupplierId("")
       setNewPersonName("")
       setNewPurpose("")
       setNewDeposit("")
@@ -334,9 +358,55 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
               </Button>
             </div>
             <form onSubmit={handleCreateAccount} className="px-4 py-4 space-y-3">
-              <Field label="Person name">
-                <input value={newPersonName} onChange={e => setNewPersonName(e.target.value)} placeholder="e.g. Yasir masih" className={inputCls} autoFocus />
+              <Field label="Supplier" hint="Select from suppliers, or type a person name below">
+                <select
+                  value={newSupplierId}
+                  onChange={e => {
+                    const id = e.target.value
+                    setNewSupplierId(id)
+                    if (!id) return
+                    const supplier = suppliers.find(s => s.id === id)
+                    if (supplier) setNewPersonName(supplier.name)
+                  }}
+                  className={inputCls}
+                >
+                  <option value="">Select supplier (optional)</option>
+                  {suppliers
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                </select>
               </Field>
+              <Field label="Person name">
+                <input
+                  value={newPersonName}
+                  onChange={e => {
+                    setNewPersonName(e.target.value)
+                    setNewSupplierId("")
+                  }}
+                  placeholder="e.g. Yasir masih"
+                  className={inputCls}
+                  autoFocus
+                />
+              </Field>
+              {existingOpenAccount && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                  Already account open for <span className="font-semibold">{existingOpenAccount.personName}</span>
+                  {existingOpenAccount.purpose ? ` · ${existingOpenAccount.purpose}` : ""}.
+                  <button
+                    type="button"
+                    className="ml-1 underline font-medium cursor-pointer"
+                    onClick={() => {
+                      setShowNewForm(false)
+                      openDetail(existingOpenAccount.id)
+                    }}
+                  >
+                    Open existing
+                  </button>
+                </div>
+              )}
               <Field label="Purpose" hint="What is this budget for?">
                 <input value={newPurpose} onChange={e => setNewPurpose(e.target.value)} placeholder="e.g. Social media marketing" className={inputCls} />
               </Field>
@@ -360,8 +430,8 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
                 <Button type="button" size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowNewForm(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" className="h-8 text-xs cursor-pointer" disabled={savingNew}>
-                  {savingNew ? "Creating..." : "Create account"}
+                <Button type="submit" size="sm" className="h-8 text-xs cursor-pointer" disabled={savingNew || !!existingOpenAccount}>
+                  {savingNew ? "Creating..." : existingOpenAccount ? "Already open" : "Create account"}
                 </Button>
               </div>
             </form>

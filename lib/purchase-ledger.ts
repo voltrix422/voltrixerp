@@ -20,6 +20,8 @@ export interface PurchaseLedgerSupplierGroup {
   items: PurchaseLedgerItem[]
   amountPaid?: number
   amountDue?: number
+  /** Date for this supplier’s purchase / payment (shown per supplier). */
+  date?: string
   billUrl?: string
   billName?: string
   /** Payment screenshot / proof for this supplier (independent of payment amount). */
@@ -112,6 +114,7 @@ export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>)
     items: partial?.items?.length ? partial.items.map(item => ({ ...item })) : [newLedgerItem()],
     amountPaid: partial?.amountPaid ?? 0,
     amountDue: partial?.amountDue,
+    date: partial?.date ?? "",
     billUrl: partial?.billUrl ?? "",
     billName: partial?.billName ?? "",
     paymentProofUrl: partial?.paymentProofUrl ?? "",
@@ -281,6 +284,7 @@ function parseSupplierGroups(raw: unknown, fallback: {
       items,
       amountPaid: Number(group.amountPaid) || 0,
       amountDue: group.amountDue == null ? undefined : Number(group.amountDue) || 0,
+      date: String(group.date ?? ""),
       billUrl: String(group.billUrl ?? ""),
       billName: String(group.billName ?? ""),
       paymentProofUrl: String(group.paymentProofUrl ?? ""),
