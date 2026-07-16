@@ -15,13 +15,17 @@ import {
   ArrowUpCircle,
   FolderKanban,
   Pencil,
+  Merge,
+  RefreshCw,
 } from "lucide-react"
 import {
   addClientProjectTransaction,
   deleteClientProject,
   deleteClientProjectTransaction,
   getClientProjects,
+  mergeClientProjects,
   saveClientProject,
+  syncClientProjectsFromLedger,
   type ClientProject,
 } from "@/lib/client-projects"
 import { uploadFile } from "@/lib/upload"
@@ -83,6 +87,13 @@ export function ClientProjectsTab({ purchaseScopeId }: { purchaseScopeId: string
   const [txnDescription, setTxnDescription] = useState("")
   const [txnReceipt, setTxnReceipt] = useState<File | null>(null)
   const [savingTxn, setSavingTxn] = useState(false)
+
+  const [mergeOpen, setMergeOpen] = useState(false)
+  const [mergeSelected, setMergeSelected] = useState<string[]>([])
+  const [mergeTargetId, setMergeTargetId] = useState("")
+  const [mergeCanonicalName, setMergeCanonicalName] = useState("")
+  const [merging, setMerging] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -284,9 +295,107 @@ export function ClientProjectsTab({ purchaseScopeId }: { purchaseScopeId: string
     if (detailId === id) setDetailId(null)
   }
 
+  function openMergeDialog() {
+    setMergeSelected([])
+    setMergeTargetId("")
+    setMergeCanonicalName("")
+    setMergeOpen(true)
+  }
+
+  function toggleMergeSelect(id: string) {
+    setMergeSelected((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      if (mergeTargetId && !next.includes(mergeTargetId)) {
+        setMergeTargetId(next[0] || "")
+      } else if (!mergeTargetId && next.length > 0) {
+        setMergeTargetId(next[0])
+      }
+      const target = projects.find((p) => p.id === (mergeTargetId && next.includes(mergeTargetId) ? mergeTargetId : next[0]))
+      if (target && !mergeCanonicalName.trim()) setMergeCanonicalName(target.projectName)
+      return next
+    })
+  }
+
+  async function handleSyncFromLedger() {
+    if (!user) return
+    setSyncing(true)
+    try {
+      const result = await syncClientProjectsFromLedger(purchaseScopeId, user.name)
+      setProjects(result.projects)
+      alert(
+        result.createdCount > 0
+          ? `Added ${result.createdCount} project(s) from purchase ledger.`
+          : "All ledger project names are already in Projects.",
+      )
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to sync from ledger.")
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function handleMergeProjects() {
+    if (mergeSelected.length < 2) {
+      alert("Select at least two projects to merge.")
+      return
+    }
+    const targetId = mergeTargetId || mergeSelected[0]
+    const sourceIds = mergeSelected.filter((id) => id !== targetId)
+    if (sourceIds.length === 0) {
+      alert("Pick a keep / target project.")
+      return
+    }
+    const target = projects.find((p) => p.id === targetId)
+    const canonical = mergeCanonicalName.trim() || target?.projectName || ""
+    if (!canonical) {
+      alert("Enter the final project name.")
+      return
+    }
+    if (
+      !confirm(
+        `Merge ${sourceIds.length} project(s) into “${canonical}”?\n\nAll purchase ledger rows with these names will move to the final name.`,
+      )
+    ) {
+      return
+    }
+    setMerging(true)
+    try {
+      const result = await mergeClientProjects({
+        targetId,
+        sourceIds,
+        canonicalName: canonical,
+      })
+      setProjects((prev) => {
+        const withoutSources = prev.filter((p) => !sourceIds.includes(p.id))
+        return withoutSources.map((p) => (p.id === result.project.id ? result.project : p))
+      })
+      setMergeOpen(false)
+      openDetail(result.project.id)
+      alert(
+        `Merged ${result.mergedCount} project(s). Updated ${result.ledgerUpdated} ledger entr${result.ledgerUpdated === 1 ? "y" : "ies"}.`,
+      )
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to merge projects.")
+    } finally {
+      setMerging(false)
+    }
+  }
+
   const sortedTxns = detail
     ? [...detail.transactions].sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt))
     : []
+
+  const similarNameGroups = useMemo(() => {
+    const groups = new Map<string, ClientProject[]>()
+    for (const p of projects) {
+      const key = p.projectName.trim().toLowerCase().replace(/\s+/g, " ")
+      if (!key) continue
+      const list = groups.get(key) || []
+      list.push(p)
+      groups.set(key, list)
+    }
+    return Array.from(groups.values()).filter((g) => g.length > 1)
+  }, [projects])
 
   return (
     <div className="p-4 sm:p-6 pt-4 space-y-4">
@@ -297,10 +406,42 @@ export function ClientProjectsTab({ purchaseScopeId }: { purchaseScopeId: string
             Track whole client jobs (e.g. solar system): budget, money received, expenses, and profit.
           </p>
         </div>
-        <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={openCreateForm}>
-          <Plus className="h-3.5 w-3.5" /> New project
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer"
+            onClick={() => void handleSyncFromLedger()}
+            disabled={syncing}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing…" : "Import from ledger"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs cursor-pointer"
+            onClick={openMergeDialog}
+            disabled={projects.length < 2}
+          >
+            <Merge className="h-3.5 w-3.5" /> Merge projects
+          </Button>
+          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={openCreateForm}>
+            <Plus className="h-3.5 w-3.5" /> New project
+          </Button>
+        </div>
       </div>
+
+      {similarNameGroups.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-[11px]">
+          <p className="font-medium text-amber-800 dark:text-amber-300">
+            {similarNameGroups.length} duplicate name group{similarNameGroups.length === 1 ? "" : "s"} found
+          </p>
+          <p className="text-[hsl(var(--muted-foreground))] mt-0.5">
+            Use <span className="font-medium">Merge projects</span> to combine them into one (ledger entries move with them).
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <div className="rounded-lg border bg-[hsl(var(--card))] px-3 py-2.5">
@@ -832,6 +973,115 @@ export function ClientProjectsTab({ purchaseScopeId }: { purchaseScopeId: string
                   Done
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mergeOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
+          onClick={() => !merging && setMergeOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+              <div>
+                <p className="text-sm font-semibold">Merge projects</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Combine duplicates into one name · purchase ledger rows move with them
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={merging}
+                onClick={() => setMergeOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="overflow-y-auto px-4 py-3 space-y-3 flex-1 min-h-0">
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Select 2 or more projects, choose which one to keep, and set the final name.
+              </p>
+
+              <ul className="space-y-1.5 max-h-56 overflow-y-auto rounded-lg border p-2">
+                {projects.map((p) => {
+                  const checked = mergeSelected.includes(p.id)
+                  return (
+                    <li key={p.id}>
+                      <label className="flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-[hsl(var(--muted))]/40 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={checked}
+                          onChange={() => toggleMergeSelect(p.id)}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-xs font-medium block truncate">{p.projectName}</span>
+                          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                            {p.clientName || "No client"} · {fmtMoney(p.totalExpenses)} expenses
+                          </span>
+                        </span>
+                        {checked && (
+                          <button
+                            type="button"
+                            className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 cursor-pointer ${
+                              mergeTargetId === p.id
+                                ? "bg-[#1faca6] text-white border-[#1faca6]"
+                                : "hover:bg-[hsl(var(--muted))]/50"
+                            }`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setMergeTargetId(p.id)
+                              setMergeCanonicalName(p.projectName)
+                            }}
+                          >
+                            {mergeTargetId === p.id ? "Keep" : "Set keep"}
+                          </button>
+                        )}
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              <Field label="Final project name" hint="All selected ledger entries will use this name">
+                <input
+                  value={mergeCanonicalName}
+                  onChange={(e) => setMergeCanonicalName(e.target.value)}
+                  placeholder="e.g. Business Expo 2026"
+                  className={inputCls}
+                />
+              </Field>
+            </div>
+
+            <div className="flex gap-2 px-4 py-3 border-t shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs flex-1 cursor-pointer"
+                disabled={merging}
+                onClick={() => setMergeOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs flex-1 cursor-pointer"
+                disabled={merging || mergeSelected.length < 2}
+                onClick={() => void handleMergeProjects()}
+              >
+                {merging ? "Merging…" : `Merge ${mergeSelected.length || ""}`}
+              </Button>
             </div>
           </div>
         </div>

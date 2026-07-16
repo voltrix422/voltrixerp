@@ -10,14 +10,19 @@ export type ProjectOption = {
   name: string
   clientName?: string
   status?: ClientProject["status"]
+  /** From Projects tab vs only seen on purchase ledger rows */
+  source: "client" | "ledger"
 }
 
 function normalizeName(name: string) {
-  return name.trim().toLowerCase()
+  return name.trim().toLowerCase().replace(/\s+/g, " ")
 }
 
-/** Only real Projects-tab entries — not leftover names from old ledger rows. */
-export function buildProjectOptions(clientProjects: ClientProject[]): ProjectOption[] {
+/** Projects tab entries + unique names from project-based ledger rows. */
+export function buildProjectOptions(
+  clientProjects: ClientProject[],
+  ledgerProjectNames: string[] = [],
+): ProjectOption[] {
   const byName = new Map<string, ProjectOption>()
 
   for (const p of clientProjects) {
@@ -27,10 +32,20 @@ export function buildProjectOptions(clientProjects: ClientProject[]): ProjectOpt
       name,
       clientName: p.clientName?.trim() || undefined,
       status: p.status,
+      source: "client",
     })
   }
 
+  for (const raw of ledgerProjectNames) {
+    const name = raw.trim()
+    if (!name) continue
+    const key = normalizeName(name)
+    if (byName.has(key)) continue
+    byName.set(key, { name, source: "ledger" })
+  }
+
   return Array.from(byName.values()).sort((a, b) => {
+    if (a.source !== b.source) return a.source === "client" ? -1 : 1
     const statusRank = (s?: ClientProject["status"]) => (s === "open" || !s ? 0 : s === "completed" ? 1 : 2)
     const byStatus = statusRank(a.status) - statusRank(b.status)
     if (byStatus !== 0) return byStatus
@@ -108,14 +123,16 @@ export function ProjectPicker({
         >
           <option value="">
             {isNew
-              ? `“${value.trim()}” not in Projects — pick below or Type name`
+              ? `“${value.trim()}” is new — pick below or keep Type name`
               : "Select a project…"}
           </option>
           {options.map(opt => (
-            <option key={opt.name} value={opt.name}>
-              {opt.clientName
-                ? `${opt.name} — ${opt.clientName}${opt.status && opt.status !== "open" ? ` (${opt.status})` : ""}`
-                : `${opt.name}${opt.status && opt.status !== "open" ? ` (${opt.status})` : ""}`}
+            <option key={`${opt.source}-${opt.name}`} value={opt.name}>
+              {opt.source === "ledger"
+                ? `${opt.name} (from ledger)`
+                : opt.clientName
+                  ? `${opt.name} — ${opt.clientName}${opt.status && opt.status !== "open" ? ` (${opt.status})` : ""}`
+                  : `${opt.name}${opt.status && opt.status !== "open" ? ` (${opt.status})` : ""}`}
             </option>
           ))}
         </select>
@@ -138,7 +155,7 @@ export function ProjectPicker({
         </div>
       )}
 
-      {matched ? (
+      {matched?.source === "client" ? (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-tight">
           Linked to existing project
           {matched.clientName ? (
@@ -148,13 +165,17 @@ export function ProjectPicker({
             <> · <span className="capitalize">{matched.status}</span></>
           ) : null}
         </p>
+      ) : matched?.source === "ledger" ? (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-tight">
+          Used on purchase ledger · will be added to Projects on save if missing
+        </p>
       ) : isNew ? (
         <p className="text-[10px] text-[#1faca6] leading-tight font-medium">
-          Not in Projects list — will be created when you save
+          New project — will be created when you save
         </p>
       ) : (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-tight">
-          Only projects from the Projects tab appear here. Type a name to create a new one.
+          Pick a project from the list, or Type name to create one. Merge duplicates in Projects tab.
         </p>
       )}
     </div>

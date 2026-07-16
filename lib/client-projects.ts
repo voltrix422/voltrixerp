@@ -155,3 +155,39 @@ export async function deleteClientProject(id: string): Promise<void> {
     body: JSON.stringify({ id }),
   })
 }
+
+export async function syncClientProjectsFromLedger(
+  purchaseScopeId: string,
+  createdBy?: string,
+): Promise<{ createdCount: number; projects: ClientProject[] }> {
+  const res = await fetch("/api/db/client-projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "syncFromLedger", purchaseScopeId, createdBy }),
+  })
+  if (!res.ok) throw new Error(await readErrorMessage(res, "Failed to sync projects from ledger"))
+  const data = await res.json()
+  return {
+    createdCount: Number(data.createdCount) || 0,
+    projects: (data.projects ?? []).map(mapRow),
+  }
+}
+
+export async function mergeClientProjects(input: {
+  targetId: string
+  sourceIds: string[]
+  canonicalName?: string
+}): Promise<{ project: ClientProject; mergedCount: number; ledgerUpdated: number }> {
+  const res = await fetch("/api/db/client-projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "merge", ...input }),
+  })
+  if (!res.ok) throw new Error(await readErrorMessage(res, "Failed to merge projects"))
+  const data = await res.json()
+  return {
+    project: mapRow(data.project),
+    mergedCount: Number(data.mergedCount) || 0,
+    ledgerUpdated: Number(data.ledgerUpdated) || 0,
+  }
+}
