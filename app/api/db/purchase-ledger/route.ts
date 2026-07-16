@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import {
+  removePurchaseLedgerFromAdvances,
+  syncPurchaseLedgerToAdvances,
+} from "@/lib/advance-purchase-sync-server"
 
 type LedgerItem = {
   id: string
@@ -419,11 +423,41 @@ async function handlePost(req: NextRequest) {
 
   if (body.id) {
     const row = await prisma.erpPurchaseLedger.update({ where: { id: body.id }, data })
+    try {
+      await syncPurchaseLedgerToAdvances({
+        id: row.id,
+        purchaseScopeId: row.purchaseScopeId,
+        ledgerNumber: row.ledgerNumber,
+        projectName: row.projectName || "",
+        transactionDate: row.transactionDate,
+        linkMode: row.linkMode,
+        supplierName: row.supplierName || "",
+        createdBy: row.createdBy || "",
+        supplierGroups: Array.isArray(row.supplierGroups) ? (row.supplierGroups as SyncGroupLike[]) : supplierGroups,
+      })
+    } catch (err) {
+      console.error("[purchase-ledger] advance sync failed:", err)
+    }
     return NextResponse.json(row)
   }
 
   try {
     const row = await prisma.erpPurchaseLedger.create({ data })
+    try {
+      await syncPurchaseLedgerToAdvances({
+        id: row.id,
+        purchaseScopeId: row.purchaseScopeId,
+        ledgerNumber: row.ledgerNumber,
+        projectName: row.projectName || "",
+        transactionDate: row.transactionDate,
+        linkMode: row.linkMode,
+        supplierName: row.supplierName || "",
+        createdBy: row.createdBy || "",
+        supplierGroups: Array.isArray(row.supplierGroups) ? (row.supplierGroups as SyncGroupLike[]) : supplierGroups,
+      })
+    } catch (err) {
+      console.error("[purchase-ledger] advance sync failed:", err)
+    }
     return NextResponse.json(row)
   } catch (error) {
     // The client-supplied ledger number can be stale (fetched when the form
@@ -432,12 +466,45 @@ async function handlePost(req: NextRequest) {
     const row = await prisma.erpPurchaseLedger.create({
       data: { ...data, ledgerNumber: await nextLedgerNumber(purchaseScopeId) },
     })
+    try {
+      await syncPurchaseLedgerToAdvances({
+        id: row.id,
+        purchaseScopeId: row.purchaseScopeId,
+        ledgerNumber: row.ledgerNumber,
+        projectName: row.projectName || "",
+        transactionDate: row.transactionDate,
+        linkMode: row.linkMode,
+        supplierName: row.supplierName || "",
+        createdBy: row.createdBy || "",
+        supplierGroups: Array.isArray(row.supplierGroups) ? (row.supplierGroups as SyncGroupLike[]) : supplierGroups,
+      })
+    } catch (err) {
+      console.error("[purchase-ledger] advance sync failed:", err)
+    }
     return NextResponse.json(row)
   }
 }
 
+type SyncGroupLike = {
+  id: string
+  supplierName: string
+  items: { productName?: string; lineTotal?: number }[]
+  billUrl?: string
+  billName?: string
+  paymentProofUrl?: string
+  paymentProofName?: string
+}
+
 export async function DELETE(req: NextRequest) {
   const { id } = await req.json()
+  const existing = await prisma.erpPurchaseLedger.findUnique({ where: { id } })
+  if (existing) {
+    try {
+      await removePurchaseLedgerFromAdvances(existing.id, existing.purchaseScopeId)
+    } catch (err) {
+      console.error("[purchase-ledger] advance cleanup failed:", err)
+    }
+  }
   await prisma.erpPurchaseLedger.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

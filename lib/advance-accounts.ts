@@ -10,6 +10,10 @@ export interface AdvanceTransaction {
   receiptName: string
   createdBy: string
   createdAt: string
+  /** Linked source, e.g. purchase_ledger */
+  referenceType?: string
+  referenceId?: string
+  referenceNumber?: string
 }
 
 export interface AdvanceAccount {
@@ -39,6 +43,9 @@ function parseTransactions(raw: unknown): AdvanceTransaction[] {
     receiptName: String((t as AdvanceTransaction).receiptName ?? ""),
     createdBy: String((t as AdvanceTransaction).createdBy ?? ""),
     createdAt: String((t as AdvanceTransaction).createdAt ?? ""),
+    referenceType: String((t as AdvanceTransaction).referenceType ?? "") || undefined,
+    referenceId: String((t as AdvanceTransaction).referenceId ?? "") || undefined,
+    referenceNumber: String((t as AdvanceTransaction).referenceNumber ?? "") || undefined,
   }))
 }
 

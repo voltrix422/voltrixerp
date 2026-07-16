@@ -478,7 +478,15 @@ export function AdvanceAccountsTab({ purchaseScopeId }: { purchaseScopeId: strin
                           </p>
                           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
                             {txn.date}{txn.createdBy ? ` · ${txn.createdBy}` : ""}
+                            {txn.referenceType === "purchase_ledger" && txn.referenceNumber
+                              ? ` · Ledger ${txn.referenceNumber}`
+                              : ""}
                           </p>
+                          {txn.referenceType === "purchase_ledger" && (
+                            <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5">
+                              From purchase ledger
+                            </p>
+                          )}
                         </div>
                         {txn.receiptUrl && (
                           <a href={txn.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline shrink-0">
