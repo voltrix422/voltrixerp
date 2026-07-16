@@ -185,9 +185,16 @@ export function clampPaymentsToTotal(
   let remaining = limit
   const result: PurchaseLedgerPayment[] = []
   for (const payment of payments) {
-    if (remaining <= 0) break
     const amount = Math.max(0, Number(payment.amount) || 0)
-    if (amount <= 0) continue
+    if (amount <= 0) {
+      // Keep proof-only attachment rows (amount 0 with a file).
+      if (payment.proofUrl) result.push({ ...payment, amount: 0 })
+      continue
+    }
+    if (remaining <= 0) {
+      if (payment.proofUrl) result.push({ ...payment, amount: 0 })
+      continue
+    }
     const take = Math.min(amount, remaining)
     result.push(take === amount ? payment : { ...payment, amount: take })
     remaining -= take
