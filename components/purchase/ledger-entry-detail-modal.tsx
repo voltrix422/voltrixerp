@@ -155,6 +155,29 @@ export function LedgerEntryDetailModal({
                   )}
                 </div>
               )}
+              {"paymentProofUrl" in group && group.paymentProofUrl && (
+                <div className="px-3 py-2.5 border-t bg-[hsl(var(--muted))]/5 space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Payment proof</p>
+                  <a
+                    href={group.paymentProofUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    {group.paymentProofName || "View payment proof"}
+                  </a>
+                  {isImageBillUrl(group.paymentProofUrl) && (
+                    <a href={group.paymentProofUrl} target="_blank" rel="noreferrer" className="block">
+                      <img
+                        src={group.paymentProofUrl}
+                        alt={group.paymentProofName || "Payment proof"}
+                        className="max-h-40 w-full rounded-md border object-contain bg-white"
+                      />
+                    </a>
+                  )}
+                </div>
+              )}
             </section>
           ))}
 

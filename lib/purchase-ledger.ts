@@ -22,6 +22,9 @@ export interface PurchaseLedgerSupplierGroup {
   amountDue?: number
   billUrl?: string
   billName?: string
+  /** Payment screenshot / proof for this supplier (independent of payment amount). */
+  paymentProofUrl?: string
+  paymentProofName?: string
 }
 
 export interface PurchaseLedgerPayment {
@@ -111,6 +114,8 @@ export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>)
     amountDue: partial?.amountDue,
     billUrl: partial?.billUrl ?? "",
     billName: partial?.billName ?? "",
+    paymentProofUrl: partial?.paymentProofUrl ?? "",
+    paymentProofName: partial?.paymentProofName ?? "",
   }
 }
 
@@ -278,6 +283,8 @@ function parseSupplierGroups(raw: unknown, fallback: {
       amountDue: group.amountDue == null ? undefined : Number(group.amountDue) || 0,
       billUrl: String(group.billUrl ?? ""),
       billName: String(group.billName ?? ""),
+      paymentProofUrl: String(group.paymentProofUrl ?? ""),
+      paymentProofName: String(group.paymentProofName ?? ""),
     }
     return withGroupPaymentTotals(parsedGroup, parsedGroup.amountPaid ?? 0)
   })

@@ -69,11 +69,18 @@ const DottedRule = () => (
 )
 
 function findGroupPaymentProof(
+  group: PurchaseLedgerSupplierGroup,
   payments: PurchaseLedgerPayment[],
-  groupId: string,
-): { url: string; name: string; paymentId?: string } | null {
+): { url: string; name: string; paymentId?: string; fromGroup?: boolean } | null {
+  if (group.paymentProofUrl) {
+    return {
+      url: group.paymentProofUrl,
+      name: group.paymentProofName || "Payment proof",
+      fromGroup: true,
+    }
+  }
   const forGroup = [...payments]
-    .filter(p => p.supplierGroupId === groupId && p.proofUrl)
+    .filter(p => p.supplierGroupId === group.id && p.proofUrl)
     .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
   const hit = forGroup.at(-1)
   if (hit?.proofUrl) {
@@ -612,8 +619,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             : 0
           const nextPaid = alreadyPaid + paying
 
-          let proofUrl = ""
-          let proofName = ""
+          let proofUrl = group.paymentProofUrl || ""
+          let proofName = group.paymentProofName || ""
           const pendingProof = groupProofFiles[group.id]
           if (pendingProof) {
             proofUrl = await uploadFile(pendingProof, "payment-proofs")
@@ -633,30 +640,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               supplierGroupId: group.id,
               supplierName: group.supplierName,
             })
-          } else if (isProjectMode && proofUrl) {
-            // Attach / replace proof on the latest payment for this supplier (no new payment amount).
-            let attached = false
+          } else if (isProjectMode && proofUrl && pendingProof) {
+            // Also mirror onto an existing payment row when present.
             for (let i = payments.length - 1; i >= 0; i--) {
               const p = payments[i]
               if (p.supplierGroupId === group.id || (!p.supplierGroupId && groups.length === 1)) {
                 payments[i] = { ...p, proofUrl, proofName }
-                attached = true
                 break
               }
-            }
-            if (!attached) {
-              payments.push({
-                id: `${Date.now()}-proof-${group.id}`,
-                amount: 0,
-                date: transactionDate,
-                proofUrl,
-                proofName,
-                notes: `Payment proof${group.supplierName ? ` · ${group.supplierName}` : ""}`,
-                createdAt: new Date().toISOString(),
-                createdBy: user.name,
-                supplierGroupId: group.id,
-                supplierName: group.supplierName,
-              })
             }
           }
 
@@ -664,6 +655,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             ...withGroupPaymentTotals(group, isProjectMode ? nextPaid : alreadyPaid),
             billUrl,
             billName,
+            paymentProofUrl: proofUrl,
+            paymentProofName: proofName,
           })
         }
 
@@ -699,8 +692,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         groupsWithPayments = []
         payments = []
         for (const group of groups) {
-          let proofUrl = ""
-          let proofName = ""
+          let proofUrl = group.paymentProofUrl || ""
+          let proofName = group.paymentProofName || ""
           const pendingProof = groupProofFiles[group.id]
           if (pendingProof) {
             proofUrl = await uploadFile(pendingProof, "payment-proofs")
@@ -716,7 +709,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           const payingRaw = parseFloat(groupPayingNow[group.id] || "") || 0
           const paying = Math.min(payingRaw, getGroupSubtotal(group))
           const withPayment = withGroupPaymentTotals(group, paying)
-          groupsWithPayments.push({ ...withPayment, billUrl, billName })
+          groupsWithPayments.push({
+            ...withPayment,
+            billUrl,
+            billName,
+            paymentProofUrl: proofUrl,
+            paymentProofName: proofName,
+          })
           if (paying > 0) {
             payments.push({
               id: `${Date.now()}-${group.id}`,
@@ -805,11 +804,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         dueDate,
         accountDetails: primary?.accountDetails ?? "",
         paymentProofUrl: clampedPayments.find(p => p.proofUrl)?.proofUrl
-          ?? (isEditing && !isProjectMode ? existingProofUrl : "")
-          ?? "",
+          || syncedGroups.find(g => g.paymentProofUrl)?.paymentProofUrl
+          || (isEditing && !isProjectMode ? existingProofUrl : "")
+          || "",
         paymentProofName: clampedPayments.find(p => p.proofUrl)?.proofName
-          ?? (isEditing && !isProjectMode ? existingProofName : "")
-          ?? "",
+          || syncedGroups.find(g => g.paymentProofUrl)?.paymentProofName
+          || (isEditing && !isProjectMode ? existingProofName : "")
+          || "",
         billUrl,
         billName,
         createdBy: isEditing ? originalCreatedBy : user.name,
@@ -1318,12 +1319,12 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                           existingProofUrl={
                             groupProofFiles[group.id]
                               ? undefined
-                              : findGroupPaymentProof(existingPayments, group.id)?.url
+                              : findGroupPaymentProof(group, existingPayments)?.url
                           }
                           existingProofName={
                             groupProofFiles[group.id]
                               ? undefined
-                              : findGroupPaymentProof(existingPayments, group.id)?.name
+                              : findGroupPaymentProof(group, existingPayments)?.name
                           }
                           onBillFileChange={file => {
                             setGroupBillFiles(prev => ({ ...prev, [group.id]: file }))
@@ -1332,7 +1333,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                           onProofFileChange={file => {
                             setGroupProofFiles(prev => ({ ...prev, [group.id]: file }))
                             setGroupProofPreviews(prev => ({ ...prev, [group.id]: file?.name ?? "" }))
-                            const existing = findGroupPaymentProof(existingPayments, group.id)
+                            const existing = findGroupPaymentProof(group, existingPayments)
                             if (existing?.paymentId) {
                               setClearedProofPaymentIds(prev => prev.filter(id => id !== existing.paymentId))
                             }
@@ -1345,7 +1346,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                           onRemoveProof={() => {
                             setGroupProofFiles(prev => ({ ...prev, [group.id]: null }))
                             setGroupProofPreviews(prev => ({ ...prev, [group.id]: "" }))
-                            const existing = findGroupPaymentProof(existingPayments, group.id)
+                            updateSupplierGroup(group.id, { paymentProofUrl: "", paymentProofName: "" })
+                            const existing = findGroupPaymentProof(group, existingPayments)
                             if (existing?.paymentId) {
                               setClearedProofPaymentIds(prev =>
                                 prev.includes(existing.paymentId!)

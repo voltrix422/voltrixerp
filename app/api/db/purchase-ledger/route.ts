@@ -63,6 +63,8 @@ type LedgerSupplierGroup = {
   amountDue?: number
   billUrl?: string
   billName?: string
+  paymentProofUrl?: string
+  paymentProofName?: string
 }
 
 function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
@@ -82,6 +84,8 @@ function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
       amountDue,
       billUrl: String((group as LedgerSupplierGroup).billUrl ?? ""),
       billName: String((group as LedgerSupplierGroup).billName ?? ""),
+      paymentProofUrl: String((group as LedgerSupplierGroup).paymentProofUrl ?? ""),
+      paymentProofName: String((group as LedgerSupplierGroup).paymentProofName ?? ""),
     }
   })
 }
@@ -171,9 +175,15 @@ function clampPaymentsToTotal(payments: LedgerPayment[], totalAmount: number): L
   let remaining = limit
   const result: LedgerPayment[] = []
   for (const payment of payments) {
-    if (remaining <= 0) break
     const amount = Math.max(0, payment.amount || 0)
-    if (amount <= 0) continue
+    if (amount <= 0) {
+      if (payment.proofUrl) result.push({ ...payment, amount: 0 })
+      continue
+    }
+    if (remaining <= 0) {
+      if (payment.proofUrl) result.push({ ...payment, amount: 0 })
+      continue
+    }
     const take = Math.min(amount, remaining)
     result.push(take === amount ? payment : { ...payment, amount: take })
     remaining -= take
@@ -402,8 +412,8 @@ async function handlePost(req: NextRequest) {
     notes: body.notes || "",
     dueDate: body.dueDate || "",
     accountDetails: primaryGroup?.accountDetails || body.accountDetails || "",
-    paymentProofUrl: payments[0]?.proofUrl || body.paymentProofUrl || "",
-    paymentProofName: payments[0]?.proofName || body.paymentProofName || "",
+    paymentProofUrl: payments.find((p) => p.proofUrl)?.proofUrl || body.paymentProofUrl || "",
+    paymentProofName: payments.find((p) => p.proofUrl)?.proofName || body.paymentProofName || "",
     createdBy: body.createdBy || "",
   }
 
