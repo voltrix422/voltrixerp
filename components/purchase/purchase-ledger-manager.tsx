@@ -659,6 +659,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             billName,
             paymentProofUrl: proofUrl,
             paymentProofName: proofName,
+            date: group.date || transactionDate,
           })
         }
 
@@ -717,12 +718,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             billName,
             paymentProofUrl: proofUrl,
             paymentProofName: proofName,
+            date: group.date || transactionDate,
           })
           if (paying > 0) {
             payments.push({
               id: `${Date.now()}-${group.id}`,
               amount: paying,
-              date: transactionDate,
+              date: group.date || transactionDate,
               proofUrl,
               proofName,
               notes: `Initial payment${group.supplierName ? ` · ${group.supplierName}` : ""}`,
