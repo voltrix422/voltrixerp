@@ -56,6 +56,7 @@ const STATUS_COLORS = {
   processing: "bg-purple-100 text-purple-800 border-purple-200",
   shipped: "bg-indigo-100 text-indigo-800 border-indigo-200",
   delivered: "bg-green-100 text-green-800 border-green-200",
+  returned: "bg-orange-100 text-orange-800 border-orange-200",
   cancelled: "bg-red-100 text-red-800 border-red-200"
 }
 
@@ -70,6 +71,7 @@ const STATUS_LABELS = {
   processing: "Processing",
   shipped: "Shipped",
   delivered: "Delivered",
+  returned: "Returned",
   cancelled: "Cancelled"
 }
 
