@@ -33,6 +33,8 @@ import {
   withGroupPaymentTotals,
   clampPaymentsToTotal,
   syncSupplierGroupsToPayments,
+  reconcilePaymentsToSupplierGroups,
+  normalizeSupplierKey,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
   type PurchaseLedgerPayment,
@@ -81,8 +83,13 @@ function findGroupPaymentProof(
       fromGroup: true,
     }
   }
+  const groupName = normalizeSupplierKey(group.supplierName)
   const forGroup = [...payments]
-    .filter(p => p.supplierGroupId === group.id && p.proofUrl)
+    .filter(p => {
+      if (!p.proofUrl) return false
+      if (p.supplierGroupId === group.id) return true
+      return Boolean(groupName && normalizeSupplierKey(p.supplierName) === groupName)
+    })
     .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
   const hit = forGroup.at(-1)
   if (hit?.proofUrl) {
@@ -600,10 +607,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
 
       if (isEditing) {
         groupsWithPayments = []
-        payments = existingPayments.map(p =>
-          clearedProofPaymentIds.includes(p.id)
-            ? { ...p, proofUrl: "", proofName: "" }
-            : { ...p },
+        payments = reconcilePaymentsToSupplierGroups(
+          existingPayments.map(p =>
+            clearedProofPaymentIds.includes(p.id)
+              ? { ...p, proofUrl: "", proofName: "" }
+              : { ...p },
+          ),
+          groups,
         )
         for (const group of groups) {
           let billUrl = group.billUrl || ""
@@ -615,7 +625,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           }
 
           const subtotal = getGroupSubtotal(group)
-          const alreadyPaid = resolveGroupAmountPaid(group)
+          // Use reconciled payment lines for this group (fixes stale/orphan group ids).
+          const alreadyPaid = Math.min(
+            subtotal,
+            payments
+              .filter(p => p.supplierGroupId === group.id)
+              .reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+          )
           const remaining = Math.max(0, subtotal - alreadyPaid)
           const paying = isProjectMode
             ? Math.min(parseFloat(groupPayingNow[group.id] || "") || 0, remaining)
@@ -629,12 +645,19 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             proofUrl = await uploadFile(pendingProof, "payment-proofs")
             proofName = pendingProof.name
           }
+          if (!proofUrl) {
+            const existingProof = findGroupPaymentProof(group, payments)
+            if (existingProof) {
+              proofUrl = existingProof.url
+              proofName = existingProof.name
+            }
+          }
 
           if (isProjectMode && paying > 0) {
             payments.push({
               id: `${Date.now()}-${group.id}`,
               amount: paying,
-              date: transactionDate,
+              date: group.date || transactionDate,
               proofUrl,
               proofName,
               notes: `Payment${group.supplierName ? ` · ${group.supplierName}` : ""}`,
@@ -644,13 +667,29 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               supplierName: group.supplierName,
             })
           } else if (isProjectMode && proofUrl && pendingProof) {
-            // Also mirror onto an existing payment row when present.
+            // Mirror onto an existing payment row when present.
+            let attached = false
             for (let i = payments.length - 1; i >= 0; i--) {
               const p = payments[i]
               if (p.supplierGroupId === group.id || (!p.supplierGroupId && groups.length === 1)) {
                 payments[i] = { ...p, proofUrl, proofName }
+                attached = true
                 break
               }
+            }
+            if (!attached) {
+              payments.push({
+                id: `${Date.now()}-proof-${group.id}`,
+                amount: 0,
+                date: group.date || transactionDate,
+                proofUrl,
+                proofName,
+                notes: `Payment proof${group.supplierName ? ` · ${group.supplierName}` : ""}`,
+                createdAt: new Date().toISOString(),
+                createdBy: user.name,
+                supplierGroupId: group.id,
+                supplierName: group.supplierName,
+              })
             }
           }
 
@@ -776,11 +815,17 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       }
 
       const primary = groups[0]
-      const clampedPayments = clampPaymentsToTotal(payments, totalAmount)
+      const reconciledPayments = isProjectMode
+        ? reconcilePaymentsToSupplierGroups(payments, groupsWithPayments)
+        : payments
+      const clampedPayments = clampPaymentsToTotal(reconciledPayments, totalAmount)
       const syncedGroups = isProjectMode
         ? syncSupplierGroupsToPayments(groupsWithPayments, clampedPayments)
         : groupsWithPayments
-      const finalPaid = Math.min(totalAmount, Math.max(amountPaid, sumPayments(clampedPayments)))
+      const finalPaid = Math.min(
+        totalAmount,
+        Math.max(amountPaid, sumPayments(clampedPayments), sumGroupAmountPaid(syncedGroups)),
+      )
       const finalDue = Math.max(0, totalAmount - finalPaid)
       const saved = await savePurchaseLedgerEntry({
         ...(isEditing ? { id: editingEntryId! } : {}),

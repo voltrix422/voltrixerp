@@ -10,6 +10,7 @@ import {
   sumItemTotals,
   resolveGroupAmountPaid,
   resolveGroupAmountDue,
+  normalizeSupplierKey,
   type PurchaseLedgerEntry,
   type PurchaseLedgerSupplierGroup,
   type PurchaseTransactionType,
@@ -31,6 +32,26 @@ function DetailCell({ label, children }: { label: string; children: React.ReactN
       <div className="text-xs font-medium mt-0.5 break-words">{children}</div>
     </div>
   )
+}
+
+function proofsForGroup(entry: PurchaseLedgerEntry, group: PurchaseLedgerSupplierGroup) {
+  const seen = new Set<string>()
+  const proofs: { url: string; name: string }[] = []
+  const push = (url?: string, name?: string) => {
+    const clean = String(url || "").trim()
+    if (!clean || seen.has(clean)) return
+    seen.add(clean)
+    proofs.push({ url: clean, name: name || "Payment proof" })
+  }
+  push(group.paymentProofUrl, group.paymentProofName)
+  const groupName = normalizeSupplierKey(group.supplierName)
+  for (const payment of entry.payments) {
+    if (!payment.proofUrl) continue
+    const matchId = payment.supplierGroupId === group.id
+    const matchName = Boolean(groupName && normalizeSupplierKey(payment.supplierName) === groupName)
+    if (matchId || matchName) push(payment.proofUrl, payment.proofName)
+  }
+  return proofs
 }
 
 export function LedgerEntryDetailModal({
@@ -99,7 +120,9 @@ export function LedgerEntryDetailModal({
               paymentProofUrl: entry.paymentProofUrl,
               paymentProofName: entry.paymentProofName,
             }] as PurchaseLedgerSupplierGroup[]
-          ).map((group, groupIndex) => (
+          ).map((group, groupIndex) => {
+            const groupProofs = proofsForGroup(entry, group)
+            return (
             <section key={group.id} className="rounded-lg border overflow-hidden">
               <div className="px-3 py-2 border-b bg-[hsl(var(--muted))]/25">
                 <p className="text-xs font-semibold">{group.supplierName || `Supplier ${groupIndex + 1}`}</p>
@@ -165,31 +188,36 @@ export function LedgerEntryDetailModal({
                   )}
                 </div>
               )}
-              {"paymentProofUrl" in group && group.paymentProofUrl && (
+              {groupProofs.length > 0 && (
                 <div className="px-3 py-2.5 border-t bg-[hsl(var(--muted))]/5 space-y-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Payment proof</p>
-                  <a
-                    href={group.paymentProofUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0" />
-                    {group.paymentProofName || "View payment proof"}
-                  </a>
-                  {isImageBillUrl(group.paymentProofUrl) && (
-                    <a href={group.paymentProofUrl} target="_blank" rel="noreferrer" className="block">
-                      <img
-                        src={group.paymentProofUrl}
-                        alt={group.paymentProofName || "Payment proof"}
-                        className="max-h-40 w-full rounded-md border object-contain bg-white"
-                      />
-                    </a>
-                  )}
+                  {groupProofs.map(proof => (
+                    <div key={proof.url} className="space-y-2">
+                      <a
+                        href={proof.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        {proof.name || "View payment proof"}
+                      </a>
+                      {isImageBillUrl(proof.url) && (
+                        <a href={proof.url} target="_blank" rel="noreferrer" className="block">
+                          <img
+                            src={proof.url}
+                            alt={proof.name || "Payment proof"}
+                            className="max-h-40 w-full rounded-md border object-contain bg-white"
+                          />
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
-          ))}
+            )
+          })}
 
           <div className="flex items-center justify-end gap-2 px-1">
             <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</span>
@@ -258,7 +286,9 @@ export function LedgerEntryDetailModal({
               <p className="px-3 py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">No payments recorded yet.</p>
             ) : (
               <ul className="divide-y">
-                {entry.payments.map(p => (
+                {entry.payments
+                  .filter(p => (Number(p.amount) || 0) > 0)
+                  .map(p => (
                   <li key={p.id} className="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div>
                       <p className="font-semibold text-emerald-600">{fmtMoney(p.amount)}</p>
@@ -276,7 +306,7 @@ export function LedgerEntryDetailModal({
                     )}
                   </li>
                 ))}
-                {entry.payments.length === 0 && entry.paymentProofUrl && (
+                {entry.payments.filter(p => (Number(p.amount) || 0) > 0).length === 0 && entry.paymentProofUrl && (
                   <li className="px-3 py-2.5">
                     <a href={entry.paymentProofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-[#1faca6] hover:underline">
                       <FileText className="h-3.5 w-3.5" /> {entry.paymentProofName || "Payment proof"}

@@ -184,6 +184,118 @@ export function sumPayments(payments: PurchaseLedgerPayment[]) {
   return payments.reduce((sum, p) => sum + (p.amount || 0), 0)
 }
 
+export function normalizeSupplierKey(name: string | undefined | null) {
+  return String(name ?? "").replace(/\s+/g, " ").trim().toLowerCase()
+}
+
+/** Pull supplier hint from notes like "Initial payment · ARAMCO". */
+export function supplierNameFromPaymentNotes(notes: string | undefined | null) {
+  const parts = String(notes ?? "")
+    .split("·")
+    .map(part => part.trim())
+    .filter(Boolean)
+  if (parts.length < 2) return ""
+  const last = parts[parts.length - 1]
+  // Ignore trailing person names when pattern is "… · Supplier · Person"
+  if (parts.length >= 3 && /payment/i.test(parts[0])) {
+    return parts[1] || last
+  }
+  return last
+}
+
+/**
+ * Re-attach payments to current supplier groups.
+ * Fixes orphan/stale supplierGroupId (common after edits) by matching supplier name.
+ * Also folds proof-only (amount 0) rows onto the latest real payment for that group.
+ */
+export function reconcilePaymentsToSupplierGroups(
+  payments: PurchaseLedgerPayment[],
+  groups: PurchaseLedgerSupplierGroup[],
+): PurchaseLedgerPayment[] {
+  if (payments.length === 0) return payments
+
+  const byId = new Map(groups.map(group => [group.id, group]))
+  const byName = new Map<string, PurchaseLedgerSupplierGroup>()
+  for (const group of groups) {
+    const key = normalizeSupplierKey(group.supplierName)
+    if (key && !byName.has(key)) byName.set(key, group)
+  }
+
+  const linked = payments.map((payment) => {
+    const rawId = payment.supplierGroupId?.trim()
+    if (rawId && byId.has(rawId)) {
+      const group = byId.get(rawId)!
+      return {
+        ...payment,
+        supplierGroupId: group.id,
+        supplierName: payment.supplierName?.trim() || group.supplierName,
+      }
+    }
+
+    const nameHint =
+      payment.supplierName?.trim()
+      || supplierNameFromPaymentNotes(payment.notes)
+    const byNameHit = nameHint ? byName.get(normalizeSupplierKey(nameHint)) : undefined
+    if (byNameHit) {
+      return {
+        ...payment,
+        supplierGroupId: byNameHit.id,
+        supplierName: payment.supplierName?.trim() || byNameHit.supplierName,
+      }
+    }
+
+    // Drop orphan ids so amounts can fall into the unassigned pool when syncing.
+    if (rawId && !byId.has(rawId)) {
+      return { ...payment, supplierGroupId: undefined }
+    }
+    return payment
+  })
+
+  // Merge zero-amount proof rows into the latest positive payment for the same group.
+  const proofOnly = linked.filter(p => (Number(p.amount) || 0) <= 0 && p.proofUrl)
+  const keep: PurchaseLedgerPayment[] = []
+  for (const payment of linked) {
+    const amount = Math.max(0, Number(payment.amount) || 0)
+    if (amount <= 0) continue
+    keep.push(payment)
+  }
+
+  for (const proof of proofOnly) {
+    const groupId = proof.supplierGroupId?.trim()
+    let targetIndex = -1
+    for (let i = keep.length - 1; i >= 0; i--) {
+      const candidate = keep[i]
+      if (groupId && candidate.supplierGroupId === groupId) {
+        targetIndex = i
+        break
+      }
+      if (
+        !groupId
+        && normalizeSupplierKey(candidate.supplierName) === normalizeSupplierKey(proof.supplierName)
+        && normalizeSupplierKey(proof.supplierName)
+      ) {
+        targetIndex = i
+        break
+      }
+    }
+    if (targetIndex >= 0) {
+      const target = keep[targetIndex]
+      if (!target.proofUrl) {
+        keep[targetIndex] = {
+          ...target,
+          proofUrl: proof.proofUrl,
+          proofName: proof.proofName || target.proofName,
+        }
+      }
+    } else {
+      // Keep standalone proof if nothing to merge onto.
+      keep.push({ ...proof, amount: 0 })
+    }
+  }
+
+  return keep
+}
+
 /** Keep payment lines within bill total (trim from the end). Prevents Paid > Total permanently. */
 export function clampPaymentsToTotal(
   payments: PurchaseLedgerPayment[],
@@ -217,13 +329,16 @@ export function syncSupplierGroupsToPayments(
 ): PurchaseLedgerSupplierGroup[] {
   if (groups.length === 0) return groups
 
+  const reconciled = reconcilePaymentsToSupplierGroups(payments, groups)
+  const validIds = new Set(groups.map(group => group.id))
   const paidByGroup = new Map<string, number>()
   let unassigned = 0
-  for (const payment of payments) {
+
+  for (const payment of reconciled) {
     const amount = Math.max(0, Number(payment.amount) || 0)
     if (amount <= 0) continue
     const groupId = payment.supplierGroupId?.trim()
-    if (groupId) {
+    if (groupId && validIds.has(groupId)) {
       paidByGroup.set(groupId, (paidByGroup.get(groupId) || 0) + amount)
     } else {
       unassigned += amount
@@ -248,7 +363,20 @@ export function syncSupplierGroupsToPayments(
     })
   }
 
-  return next
+  // Carry latest payment proof onto the group when group has none.
+  return next.map((group) => {
+    if (group.paymentProofUrl) return group
+    const withProof = [...reconciled]
+      .filter(p => p.supplierGroupId === group.id && p.proofUrl)
+      .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
+      .at(-1)
+    if (!withProof?.proofUrl) return group
+    return {
+      ...group,
+      paymentProofUrl: withProof.proofUrl,
+      paymentProofName: withProof.proofName || group.paymentProofName || "Payment proof",
+    }
+  })
 }
 
 function parseJsonArray<T>(value: unknown): T[] {
@@ -328,9 +456,6 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
   })
   const totalAmount = Number(row.totalAmount) || 0
   const linkMode = normalizeLinkMode(String(row.linkMode ?? "general"))
-  payments = clampPaymentsToTotal(payments, totalAmount)
-  const amountPaid = Math.min(totalAmount, Math.max(Number(row.amountPaid) || 0, sumPayments(payments)))
-  const amountDue = Math.max(0, totalAmount - amountPaid)
 
   if (items.length === 0 && row.productName) {
     items = [{
@@ -349,7 +474,15 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     items,
   })
 
+  payments = reconcilePaymentsToSupplierGroups(payments, supplierGroups)
+  payments = clampPaymentsToTotal(payments, totalAmount)
   supplierGroups = syncSupplierGroupsToPayments(supplierGroups, payments)
+
+  const amountPaid = Math.min(
+    totalAmount,
+    Math.max(Number(row.amountPaid) || 0, sumPayments(payments), sumGroupAmountPaid(supplierGroups)),
+  )
+  const amountDue = Math.max(0, totalAmount - amountPaid)
 
   if (
     linkMode === "project"

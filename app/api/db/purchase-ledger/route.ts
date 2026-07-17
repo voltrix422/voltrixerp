@@ -197,18 +197,30 @@ function clampPaymentsToTotal(payments: LedgerPayment[], totalAmount: number): L
   return result
 }
 
+function normalizeSupplierKey(name: string | undefined) {
+  return String(name ?? "").replace(/\s+/g, " ").trim().toLowerCase()
+}
+
 function syncGroupsFromPaymentsLocal(
   groups: LedgerSupplierGroup[],
   payments: LedgerPayment[],
 ): LedgerSupplierGroup[] {
   if (groups.length === 0) return groups
+  const validIds = new Set(groups.map(g => g.id))
+  const byName = new Map(groups.map(g => [normalizeSupplierKey(g.supplierName), g.id]))
   const paidByGroup = new Map<string, number>()
   let unassigned = 0
   for (const payment of payments) {
     const amount = Math.max(0, payment.amount || 0)
     if (amount <= 0) continue
-    if (payment.supplierGroupId) {
-      paidByGroup.set(payment.supplierGroupId, (paidByGroup.get(payment.supplierGroupId) || 0) + amount)
+    let groupId = payment.supplierGroupId?.trim() || ""
+    if (groupId && !validIds.has(groupId)) groupId = ""
+    if (!groupId) {
+      const named = byName.get(normalizeSupplierKey(payment.supplierName))
+      if (named) groupId = named
+    }
+    if (groupId && validIds.has(groupId)) {
+      paidByGroup.set(groupId, (paidByGroup.get(groupId) || 0) + amount)
     } else {
       unassigned += amount
     }
