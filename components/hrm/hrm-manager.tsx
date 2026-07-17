@@ -4,7 +4,7 @@ import { useAuth } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard, Wallet, Banknote } from "lucide-react"
+import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, IdCard, Wallet, Banknote, Eye } from "lucide-react"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { StaffSalaryAdvanceModal } from "@/components/hrm/staff-salary-advance-modal"
 import { MakeSalariesModal } from "@/components/hrm/make-salaries-modal"
@@ -174,7 +174,6 @@ export function HrmManager() {
   const [search, setSearch] = useState("")
   const [filterDept, setFilterDept] = useState("All")
   const [filterStatus, setFilterStatus] = useState("All")
-  const [showFilters, setShowFilters] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showResetSuccess, setShowResetSuccess] = useState(false)
   const [showSalarySlip, setShowSalarySlip] = useState(false)
@@ -929,30 +928,23 @@ export function HrmManager() {
   //   }
   // }, [staff])
 
-  // Points Progress Bar Component
   function PointsBar({ points }: { points: number }) {
-    const getColor = () => {
-      if (points <= 20) return 'bg-red-500'
-      if (points <= 50) return 'bg-orange-500'
-      if (points <= 70) return 'bg-yellow-500'
-      return 'bg-emerald-500'
-    }
+    const color =
+      points <= 20 ? "bg-red-500" :
+      points <= 50 ? "bg-orange-500" :
+      points <= 70 ? "bg-yellow-500" :
+      "bg-emerald-500"
 
     return (
-      <div className="w-full">
-        <div className="flex items-center justify-between text-xs mb-1">
-          <span className={points <= 20 ? 'text-red-600 font-bold' : 'text-[hsl(var(--muted-foreground))]'}>
-            {points} / 100 points
+      <div className="w-full max-w-[120px]">
+        <div className="flex items-center justify-between gap-1 mb-0.5">
+          <span className={`text-[10px] tabular-nums ${points <= 20 ? "text-red-600 font-semibold" : "text-[hsl(var(--muted-foreground))]"}`}>
+            {points}/100
           </span>
-          {points <= 20 && <span className="text-red-600 font-bold">CRITICAL</span>}
-          {points <= 50 && points > 20 && <span className="text-orange-600 font-medium">Warning</span>}
-          {points <= 70 && points > 50 && <span className="text-yellow-600 font-medium">Caution</span>}
+          {points <= 20 && <span className="text-[9px] text-red-600 font-semibold">Low</span>}
         </div>
-        <div className="h-2 w-full rounded-full bg-[hsl(var(--muted))]">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${getColor()}`}
-            style={{ width: `${points}%` }}
-          />
+        <div className="h-1.5 w-full rounded-full bg-[hsl(var(--muted))]">
+          <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, points))}%` }} />
         </div>
       </div>
     )
@@ -1108,219 +1100,237 @@ export function HrmManager() {
   const slipFigures = showSalarySlip && viewMember ? resolveSalarySlipFigures(viewMember) : null
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 py-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-[hsl(var(--foreground))]">Staff Management</h2>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Manage staff profiles, performance, and HR information</p>
+          <h2 className="text-lg font-semibold tracking-tight text-[hsl(var(--foreground))]">Staff</h2>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+            {staff.length > 0
+              ? `${activeCount} active · ${staff.length - activeCount} inactive · ${filtered.length} shown`
+              : "Manage staff profiles and payroll"}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {staff.length > 0 && (
             <>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-9 text-sm gap-2 cursor-pointer"
-                onClick={() => openMakeSalaries()}
+                className="h-8 text-xs gap-1.5 cursor-pointer"
+                onClick={() => openMakeSalaries(payrollMonth)}
               >
-                <Banknote className="h-4 w-4" />
+                <Banknote className="h-3.5 w-3.5" />
                 Make Salaries
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={() => setShowPayrollHistory(true)}>
+                <FileText className="h-3.5 w-3.5" /> History
               </Button>
               <CrmExcelExportButton
                 onExport={exportStaffExcel}
                 exporting={exportingStaff}
-                label="Export Excel"
-                className="h-9 text-sm gap-2"
+                label="Export"
+                className="h-8 text-xs gap-1.5"
               />
             </>
           )}
-          <Button size="sm" className="h-9 px-4 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer rounded-lg" onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4" /> New Staff
+          <Button size="sm" className="h-8 px-3 text-xs gap-1.5 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer" onClick={() => setShowForm(true)}>
+            <Plus className="h-3.5 w-3.5" /> New Staff
           </Button>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Compact stats + payroll */}
       {staff.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-            <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Total Staff</p>
-            <p className="text-2xl font-bold text-[hsl(var(--foreground))] mt-1">{staff.length}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2.5">
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total</p>
+            <p className="text-lg font-semibold text-[hsl(var(--foreground))] leading-tight mt-0.5">{staff.length}</p>
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-            <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Active</p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">{activeCount}</p>
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2.5">
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Active</p>
+            <p className="text-lg font-semibold text-emerald-600 leading-tight mt-0.5">{activeCount}</p>
           </div>
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-            <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Inactive</p>
-            <p className="text-2xl font-bold text-rose-600 mt-1">{staff.length - activeCount}</p>
+          <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2.5">
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Inactive</p>
+            <p className="text-lg font-semibold text-rose-600 leading-tight mt-0.5">{staff.length - activeCount}</p>
           </div>
-        </div>
-      )}
-
-      {staff.length > 0 && (
-        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Monthly Payroll KPI</p>
-              <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mt-1">
+          <div className="col-span-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2.5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Payroll · {monthLabel(payrollMonth)}</p>
+              <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate mt-0.5">
                 {monthPaidSlips[0]?.currency || "PKR"} {monthPaidTotal.toLocaleString()}
-              </h3>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                {monthPaidCount} employees paid in {monthLabel(payrollMonth)}
               </p>
-              <div className="mt-2 flex items-center gap-2">
-                <Badge variant="success" className="text-[10px] px-2 py-0.5">Paid: {monthPaidCount}</Badge>
-                <Badge variant="destructive" className="text-[10px] px-2 py-0.5">Unpaid: {monthUnpaidCount}</Badge>
-              </div>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                Paid {monthPaidCount} · Unpaid {monthUnpaidCount}
+              </p>
             </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                type="month"
-                value={payrollMonth}
-                onChange={(e) => setPayrollMonth(e.target.value)}
-                className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent"
-              />
-              <Button size="sm" variant="outline" className="h-9 text-xs gap-2" onClick={() => setShowPayrollHistory(true)}>
-                <FileText className="h-3.5 w-3.5" /> Payroll History
-              </Button>
-              <Button size="sm" className="h-9 text-xs gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => openMakeSalaries(payrollMonth)}>
-                <Banknote className="h-3.5 w-3.5" /> Make Salaries
-              </Button>
-            </div>
+            <input
+              type="month"
+              value={payrollMonth}
+              onChange={(e) => setPayrollMonth(e.target.value)}
+              className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-[11px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] shrink-0"
+            />
           </div>
         </div>
       )}
 
-      {/* Filters Toggle */}
+      {/* Always-visible filters */}
       {staff.length > 0 && (
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
-        >
-          <svg className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7" />
-          </svg>
-          Filter staff
-        </button>
-      )}
-
-      {/* Filters */}
-      {staff.length > 0 && showFilters && (
-        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 flex flex-wrap gap-2 items-center animate-in slide-in-from-top-2">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, role, email..."
-              className="w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent" />
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search name, role, email..."
+              className="w-full h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] pl-8 pr-3 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a]"
+            />
           </div>
-          <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
-            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
-            <option value="All">All Departments</option>
+          <select
+            value={filterDept}
+            onChange={e => setFilterDept(e.target.value)}
+            className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a]"
+          >
+            <option value="All">All departments</option>
             {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
           </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] focus:border-transparent">
-            <option value="All">All Status</option>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a]"
+          >
+            <option value="All">All status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
           {(search || filterDept !== "All" || filterStatus !== "All") && (
-            <button onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All") }}
-              className="h-9 px-3 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-lg hover:bg-[hsl(var(--muted))]/10">Clear</button>
+            <button
+              type="button"
+              onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All") }}
+              className="h-8 px-2.5 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-md hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
+            >
+              Clear
+            </button>
           )}
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))] ml-auto">{filtered.length} of {staff.length}</span>
         </div>
       )}
 
-      {/* Staff list */}
+      {/* Staff table */}
       {loading ? (
         <div className="text-center py-12 text-sm text-[hsl(var(--muted-foreground))]">Loading...</div>
       ) : staff.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-[hsl(var(--border))]/30 rounded-xl bg-[hsl(var(--card))]">
-          <div className="h-12 w-12 rounded-full bg-[hsl(var(--muted))]/30 flex items-center justify-center mx-auto mb-3">
-            <UserCog className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />
+        <div className="text-center py-16 border border-dashed border-[hsl(var(--border))] rounded-xl bg-[hsl(var(--card))]">
+          <div className="h-11 w-11 rounded-full bg-[hsl(var(--muted))]/30 flex items-center justify-center mx-auto mb-3">
+            <UserCog className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
           </div>
-          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">No staff yet</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Add your first staff member to get started</p>
+          <p className="text-sm font-medium text-[hsl(var(--foreground))]">No staff yet</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 mb-4">Add your first staff member to get started</p>
+          <Button size="sm" className="h-8 text-xs gap-1.5 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
+            <Plus className="h-3.5 w-3.5" /> New Staff
+          </Button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-8 text-xs text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))]/30 rounded-lg bg-[hsl(var(--card))]">No staff match your filters.</div>
+        <div className="text-center py-10 text-xs text-[hsl(var(--muted-foreground))] border border-dashed border-[hsl(var(--border))] rounded-lg bg-[hsl(var(--card))]">
+          No staff match your filters.
+        </div>
       ) : (
         <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30">
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Staff</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Points</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Contact</th>
-                <th className="text-left px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Salary</th>
-                <th className="text-right px-4 py-3 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(s => (
-                <tr key={s.id} onClick={() => setViewMember(s)}
-                  className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/10 cursor-pointer transition-colors ${(s.points || 100) <= 20 ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center ring-1 ring-[hsl(var(--border))]">
-                        {s.photo_url
-                          ? <img src={s.photo_url} alt={s.name} className="h-full w-full object-cover" />
-                          : <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
-                        }
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{s.name}</p>
-                        <p className="text-xs text-[hsl(var(--muted-foreground))]">{s.role}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-sm text-[hsl(var(--foreground))]">{s.department}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={s.status === "active" ? "success" : "destructive"} className="text-xs px-2 py-1">{s.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3 w-40">
-                    <PointsBar points={s.points || 100} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-sm text-[hsl(var(--foreground))]">{s.email || "—"}</p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))]">{s.phone || "—"}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    {s.salary > 0 ? (
-                      <>
-                        <p className="text-sm font-medium text-[hsl(var(--foreground))]">{s.currency} {s.salary.toLocaleString()}</p>
-                        {(advanceByStaff[s.id] || 0) > 0 && (
-                          <p className="text-[10px] text-amber-700 font-medium mt-0.5">
-                            Advance: {s.currency} {(advanceByStaff[s.id] || 0).toLocaleString()}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm text-[hsl(var(--muted-foreground))]">—</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button size="icon" variant="ghost"
-                        className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                        onClick={e => { e.stopPropagation(); handleDelete(s.id) }}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[780px] text-sm">
+              <thead>
+                <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/25">
+                  <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider sticky left-0 bg-[hsl(var(--muted))]/25">Staff</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider w-36">Points</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Contact</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Salary</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[hsl(var(--border))]">
+                {filtered.map(s => (
+                  <tr
+                    key={s.id}
+                    onClick={() => setViewMember(s)}
+                    className={`hover:bg-[hsl(var(--muted))]/15 cursor-pointer transition-colors ${(s.points || 100) <= 20 ? "bg-red-50/70 dark:bg-red-950/15" : ""}`}
+                  >
+                    <td className="px-3 py-2.5 sticky left-0 bg-[hsl(var(--card))]">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-8 w-8 rounded-full shrink-0 overflow-hidden bg-[#1a9f9a]/10 flex items-center justify-center text-[#1a9f9a]">
+                          {s.photo_url
+                            ? <img src={s.photo_url} alt={s.name} className="h-full w-full object-cover" />
+                            : <span className="text-[10px] font-semibold">{s.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
+                          }
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">{s.name}</p>
+                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{s.role}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-[hsl(var(--foreground))] whitespace-nowrap">{s.department}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${
+                        s.status === "active"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900"
+                          : "bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900"
+                      }`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <PointsBar points={s.points || 100} />
+                    </td>
+                    <td className="px-3 py-2.5 min-w-[140px]">
+                      <p className="text-xs text-[hsl(var(--foreground))] truncate max-w-[180px]">{s.email || "—"}</p>
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{s.phone || "—"}</p>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      {s.salary > 0 ? (
+                        <>
+                          <p className="text-xs font-medium text-[hsl(var(--foreground))] tabular-nums">
+                            {s.currency} {s.salary.toLocaleString()}
+                          </p>
+                          {(advanceByStaff[s.id] || 0) > 0 && (
+                            <p className="text-[10px] text-amber-700 font-medium mt-0.5">
+                              Adv. {(advanceByStaff[s.id] || 0).toLocaleString()}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">—</p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-0.5">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="View"
+                          className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                          onClick={e => { e.stopPropagation(); setViewMember(s) }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Delete"
+                          className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          onClick={e => { e.stopPropagation(); handleDelete(s.id) }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
