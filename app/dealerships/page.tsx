@@ -1,5 +1,6 @@
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
+import DealershipsLocationBg from "@/components/landing/dealerships-location-bg"
 import { MapPin, Phone, Mail, Clock, ExternalLink, Store } from "lucide-react"
 import { mapsHref, normalizeDealership, type DealershipRecord } from "@/lib/dealership-display"
 
@@ -15,10 +16,11 @@ export default async function DealershipsPage() {
   const cities = [...new Set(dealerships.map(d => d.city).filter(Boolean))]
 
   return (
-    <main className="min-h-screen bg-white text-neutral-900">
+    <main className="relative min-h-screen bg-white text-neutral-900">
+      <DealershipsLocationBg />
       <Navbar />
 
-      <section className="pt-36 pb-24 px-4">
+      <section className="relative z-10 pt-36 pb-24 px-4">
         <div className="max-w-5xl mx-auto space-y-12">
           <div className="text-center space-y-4">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#1a9f9a" }}>
@@ -37,7 +39,7 @@ export default async function DealershipsPage() {
           </div>
 
           {dealerships.length === 0 ? (
-            <div className="text-center py-16 rounded-2xl border border-dashed border-neutral-200">
+            <div className="text-center py-16 rounded-2xl border border-dashed border-neutral-200 bg-white/70 backdrop-blur-sm">
               <Store className="w-8 h-8 text-neutral-300 mx-auto mb-3" />
               <p className="text-neutral-400">Authorized dealerships coming soon.</p>
             </div>
@@ -50,7 +52,7 @@ export default async function DealershipsPage() {
                 return (
                   <article
                     key={dealership.id}
-                    className="rounded-2xl border border-neutral-100 p-6 space-y-4 hover:border-neutral-200 transition-colors"
+                    className="rounded-2xl border border-neutral-100 bg-white/75 backdrop-blur-sm p-6 space-y-4 hover:border-neutral-200 hover:bg-white/90 transition-colors shadow-sm shadow-neutral-100/50"
                   >
                     <div className="flex items-start gap-3">
                       <div
@@ -129,7 +131,9 @@ export default async function DealershipsPage() {
         </div>
       </section>
 
-      <Footer />
+      <div className="relative z-10">
+        <Footer />
+      </div>
     </main>
   )
 }
