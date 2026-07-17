@@ -1,4 +1,5 @@
 import type { PettyCashAllocation, PettyCashReceipt } from "@/lib/petty-cash"
+import { isPersonalLedgerAllocation } from "@/lib/petty-cash-personal"
 import { parsePettyCashTopUps } from "@/lib/petty-cash-topup"
 
 export type PettyCashHistoryEventType =
@@ -21,22 +22,35 @@ export interface PettyCashHistoryEvent {
   proofUrl?: string
   proofName?: string
   status?: string
+  /** Receipt id when this event is a receipt submission awaiting review. */
+  receiptId?: string
 }
 
 export function buildPettyCashHistory(
   allocation: PettyCashAllocation,
   receipts: PettyCashReceipt[]
 ): PettyCashHistoryEvent[] {
+  const isPersonal = isPersonalLedgerAllocation(allocation)
   const events: PettyCashHistoryEvent[] = [
-    {
-      id: `${allocation.id}-request`,
-      type: "request",
-      title: "Petty cash requested",
-      description: allocation.purpose,
-      amount: allocation.amount,
-      occurredAt: allocation.allocatedAt,
-      actor: allocation.employeeName,
-    },
+    isPersonal
+      ? {
+          id: `${allocation.id}-ledger-opened`,
+          type: "request",
+          title: "Personal expense ledger opened",
+          description: "Employee can submit receipts for reimbursement. Admin approves receipts, then pays what is owed.",
+          occurredAt: allocation.allocatedAt,
+          actor: allocation.employeeName,
+        }
+      : {
+          id: `${allocation.id}-request`,
+          type: "request",
+          title: "Petty cash requested",
+          description: allocation.purpose,
+          amount: allocation.amount,
+          occurredAt: allocation.allocatedAt,
+          actor: allocation.employeeName,
+          status: allocation.status === "pending" ? "pending" : undefined,
+        },
   ]
 
   if (allocation.reviewedAt) {
@@ -98,12 +112,13 @@ export function buildPettyCashHistory(
       type: "settlement",
       title: submitTitle,
       description: receipt.description,
-      amount: receipt.status === "approved" ? expenseAmount : undefined,
+      amount: receipt.status === "pending" ? expenseAmount : receipt.status === "approved" ? expenseAmount : undefined,
       occurredAt: receipt.submittedAt,
       actor: receipt.employeeName,
       proofUrl: receipt.receiptProof,
       proofName: receipt.receiptProofName,
       status: receipt.status,
+      receiptId: receipt.status === "pending" ? receipt.id : undefined,
     })
 
     if (receipt.reviewedAt) {

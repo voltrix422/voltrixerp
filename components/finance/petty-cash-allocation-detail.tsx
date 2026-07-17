@@ -27,6 +27,7 @@ import { isErpAdmin } from "@/lib/auth"
 import { PettyCashActivityTimeline } from "./petty-cash-history-panel"
 import { PettyCashTopUp } from "./petty-cash-top-up"
 import { PettyCashPayOwed } from "./petty-cash-pay-owed"
+import { PettyCashApprovalForm } from "./petty-cash-approval"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Receipt, CheckCircle, XCircle, FileText, DollarSign, Calendar, Target, Trash2, Clock, Banknote } from "lucide-react"
@@ -59,6 +60,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   const [reviewingReceiptId, setReviewingReceiptId] = useState<string | null>(null)
   const [showTopUp, setShowTopUp] = useState(false)
   const [showPayOwed, setShowPayOwed] = useState(false)
+  const [showApproveRequest, setShowApproveRequest] = useState(false)
 
   useEffect(() => {
     loadReceipts()
@@ -276,13 +278,16 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
     }
   }
 
-  const canManagePettyCash = isErpAdmin(userRole)
+  const canManagePettyCash = isErpAdmin(userRole) || isErpAdmin(user?.role)
   const isOwnAllocation = allocationBelongsToUser(allocation, currentUserId, currentUser)
   const canAddReceipt =
     (isOwnAllocation || canManagePettyCash) &&
     canAddReceiptToAllocation(allocation, receipts)
   const canSettle = canManagePettyCash && allocation.status === "active" && receipts.some(r => r.status === "approved")
   const canReopen = canManagePettyCash && allocation.status === "settled"
+  const canApproveCashRequest =
+    canManagePettyCash && allocation.status === "pending" && !isPersonal
+  const pendingReceipts = receipts.filter(r => r.status === "pending")
   const isImage = (value?: string) => !!value && (value.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(value))
   const isPdf = (value?: string) => !!value && (value.startsWith("data:application/pdf") || /\.pdf$/i.test(value))
 
@@ -356,6 +361,16 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 Pay {formatPettyCashExpense(owedToEmployee)} & settle
               </Button>
             )}
+            {canApproveCashRequest && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-green-600 hover:bg-green-700"
+                onClick={() => setShowApproveRequest(true)}
+              >
+                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                Approve request
+              </Button>
+            )}
             {canManagePettyCash && isPersonal && allocation.status === "active" && !owedToEmployee && (
               <Button
                 size="sm"
@@ -374,15 +389,82 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-6 space-y-6">
-            {canManagePettyCash && pendingTotal > 0 && projectedOwed && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-                <p className="font-semibold">Pending receipts — approve first</p>
-                <p className="text-xs mt-1">
-                  {formatPettyCashExpense(pendingTotal)} awaiting approval.
-                  If all pending receipts are approved,{" "}
-                  <span className="font-semibold">{formatPettyCashExpense(projectedOwed)}</span> will be
-                  owed to {allocation.employeeName}.
+            {canApproveCashRequest && (
+              <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 px-4 py-3 text-sm">
+                <p className="font-semibold text-green-900 dark:text-green-100">Cash request awaiting approval</p>
+                <p className="text-xs mt-1 text-green-800 dark:text-green-200">
+                  {allocation.employeeName} requested PKR {allocation.amount.toLocaleString()} for{" "}
+                  {allocation.purpose}. Approve and attach payment proof to release cash.
                 </p>
+                <Button
+                  size="sm"
+                  className="mt-3 h-8 text-xs bg-green-600 hover:bg-green-700"
+                  onClick={() => setShowApproveRequest(true)}
+                >
+                  <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                  Approve request &amp; add proof
+                </Button>
+              </div>
+            )}
+
+            {canManagePettyCash && pendingReceipts.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 space-y-3">
+                <div>
+                  <p className="font-semibold text-amber-900 dark:text-amber-100">
+                    Pending receipts — approve first
+                  </p>
+                  <p className="text-xs mt-1 text-amber-800 dark:text-amber-200">
+                    {formatPettyCashExpense(pendingTotal)} awaiting approval.
+                    {projectedOwed
+                      ? <> If approved, <span className="font-semibold">{formatPettyCashExpense(projectedOwed)}</span> will be owed to {allocation.employeeName}.</>
+                      : <> Approve below to release the expense to {allocation.employeeName}&apos;s ledger.</>}
+                  </p>
+                </div>
+                {pendingReceipts.map(receipt => (
+                  <div
+                    key={receipt.id}
+                    className="rounded-md border border-amber-200 bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-semibold">{receipt.description}</p>
+                      <p className="text-sm font-bold text-red-600">
+                        {formatPettyCashExpense(receipt.amount)}
+                      </p>
+                      {receipt.receiptProof && (
+                        <a
+                          href={receipt.receiptProof}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-[#1faca6] hover:underline"
+                        >
+                          <FileText className="h-3 w-3" />
+                          {receipt.receiptProofName || "View receipt proof"}
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-green-600 hover:bg-green-700"
+                        disabled={reviewingReceiptId === receipt.id}
+                        onClick={() => handleReviewReceipt(receipt, "approved")}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-8 text-xs"
+                        disabled={reviewingReceiptId === receipt.id}
+                        onClick={() => handleReviewReceipt(receipt, "rejected")}
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1" />
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -403,16 +485,6 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 >
                   Pay {formatPettyCashExpense(owedToEmployee)} & settle
                 </Button>
-              </div>
-            )}
-
-            {canManagePettyCash && isPersonal && pendingTotal > 0 && !projectedOwed && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-                <p className="font-semibold">Pending receipt approval</p>
-                <p className="text-xs mt-1">
-                  {formatPettyCashExpense(pendingTotal)} waiting — approve below to release the expense to{" "}
-                  {allocation.employeeName}&apos;s ledger.
-                </p>
               </div>
             )}
 
@@ -575,7 +647,20 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
               </div>
             ) : null}
 
-            <PettyCashActivityTimeline allocation={allocation} receipts={receipts} />
+            <PettyCashActivityTimeline
+              allocation={allocation}
+              receipts={receipts}
+              canReviewReceipts={canManagePettyCash}
+              reviewingReceiptId={reviewingReceiptId}
+              onApproveReceipt={receiptId => {
+                const receipt = receipts.find(r => r.id === receiptId)
+                if (receipt) void handleReviewReceipt(receipt, "approved")
+              }}
+              onRejectReceipt={receiptId => {
+                const receipt = receipts.find(r => r.id === receiptId)
+                if (receipt) void handleReviewReceipt(receipt, "rejected")
+              }}
+            />
 
             {/* Settlement Form */}
             {showReceiptForm && (
@@ -771,9 +856,10 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                                 size="sm"
                                 disabled={reviewingReceiptId === receipt.id}
                                 onClick={() => handleReviewReceipt(receipt, 'approved')}
-                                className="bg-green-600 hover:bg-green-700 h-7 px-2 cursor-pointer"
+                                className="bg-green-600 hover:bg-green-700 h-7 text-xs cursor-pointer"
                               >
-                                <CheckCircle className="h-3 w-3" />
+                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                Approve
                               </Button>
                               <Button
                                 type="button"
@@ -781,9 +867,10 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                                 variant="destructive"
                                 disabled={reviewingReceiptId === receipt.id}
                                 onClick={() => handleReviewReceipt(receipt, 'rejected')}
-                                className="h-7 px-2 cursor-pointer"
+                                className="h-7 text-xs cursor-pointer"
                               >
-                                <XCircle className="h-3 w-3" />
+                                <XCircle className="h-3.5 w-3.5 mr-1" />
+                                Reject
                               </Button>
                             </>
                           )}
@@ -850,6 +937,19 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
           onSave={() => {
             setShowTopUp(false)
             onUpdate()
+          }}
+        />
+      )}
+
+      {showApproveRequest && (
+        <PettyCashApprovalForm
+          allocation={allocation}
+          reviewedBy={currentUser || "Admin"}
+          onClose={() => setShowApproveRequest(false)}
+          onSave={() => {
+            setShowApproveRequest(false)
+            onUpdate()
+            onClose()
           }}
         />
       )}

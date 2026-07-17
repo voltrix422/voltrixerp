@@ -10,7 +10,7 @@ import {
 } from "@/lib/petty-cash-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { History, Eye } from "lucide-react"
+import { History, Eye, CheckCircle, XCircle } from "lucide-react"
 
 type Props = {
   allocations: PettyCashAllocation[]
@@ -120,9 +120,17 @@ export function PettyCashHistoryPanel({ allocations, receipts, onViewHistory }: 
 export function PettyCashActivityTimeline({
   allocation,
   receipts,
+  canReviewReceipts = false,
+  reviewingReceiptId = null,
+  onApproveReceipt,
+  onRejectReceipt,
 }: {
   allocation: PettyCashAllocation
   receipts: PettyCashReceipt[]
+  canReviewReceipts?: boolean
+  reviewingReceiptId?: string | null
+  onApproveReceipt?: (receiptId: string) => void
+  onRejectReceipt?: (receiptId: string) => void
 }) {
   const events = useMemo(() => buildPettyCashHistory(allocation, receipts), [allocation, receipts])
 
@@ -178,6 +186,33 @@ export function PettyCashActivityTimeline({
                   {event.proofName || "View proof"}
                 </a>
               )}
+              {canReviewReceipts &&
+                event.receiptId &&
+                event.status === "pending" &&
+                onApproveReceipt &&
+                onRejectReceipt && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs bg-green-600 hover:bg-green-700"
+                      disabled={reviewingReceiptId === event.receiptId}
+                      onClick={() => onApproveReceipt(event.receiptId!)}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                      Approve receipt
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="h-7 text-xs"
+                      disabled={reviewingReceiptId === event.receiptId}
+                      onClick={() => onRejectReceipt(event.receiptId!)}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1" />
+                      Reject
+                    </Button>
+                  </div>
+                )}
             </div>
           </div>
         ))}
