@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Edit, Trash2, Eye, EyeOff, MapPin, ExternalLink, Store } from "lucide-react"
+import { Plus, Edit, Trash2, Eye, EyeOff, MapPin, ExternalLink, Store, GripVertical } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 
 type WebsiteDealership = {
@@ -29,7 +29,6 @@ const emptyForm = {
   openingHours: "",
   mapUrl: "",
   published: true,
-  sortOrder: 0,
 }
 
 export default function DealershipsManager() {
@@ -39,6 +38,9 @@ export default function DealershipsManager() {
   const [editing, setEditing] = useState<WebsiteDealership | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [reordering, setReordering] = useState(false)
+  const dragIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
     fetchDealerships()
@@ -67,7 +69,6 @@ export default function DealershipsManager() {
       openingHours: dealership.openingHours,
       mapUrl: dealership.mapUrl,
       published: dealership.published,
-      sortOrder: dealership.sortOrder,
     })
     setShowForm(true)
   }
@@ -76,7 +77,9 @@ export default function DealershipsManager() {
     e.preventDefault()
     setSaving(true)
     try {
-      const payload = editing ? { ...form, id: editing.id } : { ...form, createdBy: user?.id }
+      const payload = editing
+        ? { ...form, id: editing.id, sortOrder: editing.sortOrder }
+        : { ...form, createdBy: user?.id }
       const res = await fetch("/api/db/dealerships", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,6 +118,44 @@ export default function DealershipsManager() {
     fetchDealerships()
   }
 
+  function handleDragStart(index: number) {
+    dragIndexRef.current = index
+    setDraggedIndex(index)
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+  }
+
+  async function handleDrop(dropIndex: number) {
+    const fromIndex = dragIndexRef.current
+    if (fromIndex === null || fromIndex === dropIndex) return
+
+    const nextItems = [...dealerships]
+    const [moved] = nextItems.splice(fromIndex, 1)
+    nextItems.splice(dropIndex, 0, moved)
+
+    setDealerships(nextItems)
+    dragIndexRef.current = null
+    setDraggedIndex(null)
+    setReordering(true)
+
+    try {
+      const res = await fetch("/api/db/dealerships", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: nextItems.map(item => item.id) }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error || "Failed to update order")
+        await fetchDealerships()
+      }
+    } finally {
+      setReordering(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -125,6 +166,10 @@ export default function DealershipsManager() {
             <a href="/dealerships" target="_blank" rel="noreferrer" className="text-[#1a9f9a] hover:underline inline-flex items-center gap-0.5">
               /dealerships <ExternalLink className="h-3 w-3" />
             </a>
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Drag rows up or down to set the order shown on the website.
+            {reordering && <span className="ml-1 text-[#1a9f9a]">Saving order...</span>}
           </p>
         </div>
         <Button onClick={openNew} className="bg-[#1a9f9a] hover:bg-[#158a85] h-8 px-3 text-sm shrink-0">
@@ -206,15 +251,6 @@ export default function DealershipsManager() {
                 placeholder="Mon–Sat 9am–6pm"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">Sort order</label>
-              <input
-                type="number"
-                value={form.sortOrder}
-                onChange={e => setForm({ ...form, sortOrder: Number(e.target.value) || 0 })}
-                className="w-full h-9 rounded-md border px-3 text-sm bg-[hsl(var(--background))]"
-              />
-            </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium mb-1">Google Maps link</label>
               <input
@@ -257,31 +293,53 @@ export default function DealershipsManager() {
         </div>
       ) : (
         <div className="space-y-2">
-          {dealerships.map(dealership => (
-            <div key={dealership.id} className="rounded-lg border p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-              <div className="min-w-0 space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Store className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                  <p className="font-semibold text-sm">{dealership.name}</p>
-                  {dealership.published ? (
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100">
-                      Live on website
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 border">
-                      Hidden
-                    </span>
-                  )}
+          {dealerships.map((dealership, index) => (
+            <div
+              key={dealership.id}
+              onDragOver={handleDragOver}
+              onDrop={() => handleDrop(index)}
+              className={`rounded-lg border p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 transition-opacity ${
+                draggedIndex === index ? "opacity-50 border-[#1a9f9a]/40 bg-[#1a9f9a]/5" : ""
+              }`}
+            >
+              <div className="min-w-0 flex gap-3 flex-1">
+                <div
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragEnd={() => {
+                    dragIndexRef.current = null
+                    setDraggedIndex(null)
+                  }}
+                  className="flex flex-col items-center gap-1 pt-0.5 shrink-0 cursor-grab active:cursor-grabbing"
+                  title="Drag to reorder"
+                >
+                  <GripVertical className="h-4 w-4 text-neutral-300" />
+                  <span className="text-[10px] font-medium text-neutral-400 tabular-nums">{index + 1}</span>
                 </div>
-                {(dealership.city || dealership.address) && (
-                  <p className="text-xs text-muted-foreground flex items-start gap-1">
-                    <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <span>{[dealership.address, dealership.city].filter(Boolean).join(", ")}</span>
-                  </p>
-                )}
-                {dealership.phone && <p className="text-xs text-muted-foreground">{dealership.phone}</p>}
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Store className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                    <p className="font-semibold text-sm">{dealership.name}</p>
+                    {dealership.published ? (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100">
+                        Live on website
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 border">
+                        Hidden
+                      </span>
+                    )}
+                  </div>
+                  {(dealership.city || dealership.address) && (
+                    <p className="text-xs text-muted-foreground flex items-start gap-1">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{[dealership.address, dealership.city].filter(Boolean).join(", ")}</span>
+                    </p>
+                  )}
+                  {dealership.phone && <p className="text-xs text-muted-foreground">{dealership.phone}</p>}
+                </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0 sm:ml-2">
                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => togglePublish(dealership)} title={dealership.published ? "Hide" : "Publish"}>
                   {dealership.published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>

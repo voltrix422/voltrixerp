@@ -29,6 +29,14 @@ export async function POST(req: NextRequest) {
       mapUrl: String(body.mapUrl ?? ""),
     })
 
+    let sortOrder = Number(body.sortOrder) || 0
+    if (!body.id) {
+      const maxSort = await prisma.erpWebsiteDealership.aggregate({
+        _max: { sortOrder: true },
+      })
+      sortOrder = (maxSort._max.sortOrder ?? 0) + 1
+    }
+
     const data = {
       name: normalized.name,
       city: normalized.city,
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest) {
       openingHours: normalized.openingHours,
       mapUrl: normalized.mapUrl,
       published: Boolean(body.published),
-      sortOrder: Number(body.sortOrder) || 0,
+      sortOrder,
     }
 
     if (!data.name) {
@@ -75,4 +83,29 @@ export async function DELETE(req: NextRequest) {
   }
   await prisma.erpWebsiteDealership.delete({ where: { id } })
   return NextResponse.json({ ok: true })
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json()
+  const ids = Array.isArray(body?.ids) ? body.ids.filter((id: unknown) => typeof id === "string") : []
+
+  if (!ids.length) {
+    return NextResponse.json({ error: "ids array is required" }, { status: 400 })
+  }
+
+  try {
+    await prisma.$transaction(
+      ids.map((id, index) =>
+        prisma.erpWebsiteDealership.update({
+          where: { id },
+          data: { sortOrder: index + 1 },
+        })
+      )
+    )
+    return NextResponse.json({ ok: true })
+  } catch (error: unknown) {
+    console.error("Error reordering dealerships:", error)
+    const message = error instanceof Error ? error.message : "Failed to reorder dealerships"
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }
