@@ -95,7 +95,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     await prisma.$transaction(
-      ids.map((id, index) =>
+      ids.map((id: string, index: number) =>
         prisma.erpWebsiteDealership.update({
           where: { id },
           data: { sortOrder: index + 1 },
