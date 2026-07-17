@@ -296,6 +296,155 @@ export function reconcilePaymentsToSupplierGroups(
   return keep
 }
 
+/**
+ * If a supplier is over-paid (payments > subtotal), move the excess amount
+ * onto other suppliers that still have remaining due.
+ */
+export function redistributePaymentOverflow(
+  payments: PurchaseLedgerPayment[],
+  groups: PurchaseLedgerSupplierGroup[],
+): PurchaseLedgerPayment[] {
+  if (payments.length === 0 || groups.length === 0) return payments
+
+  const roomById = new Map(groups.map(group => [group.id, getGroupSubtotal(group)]))
+  const groupById = new Map(groups.map(group => [group.id, group]))
+  const groupOrder = groups.map(group => group.id)
+  const result: PurchaseLedgerPayment[] = []
+
+  for (const payment of payments) {
+    let left = Math.max(0, Number(payment.amount) || 0)
+    if (left <= 0) {
+      if (payment.proofUrl) result.push({ ...payment, amount: 0 })
+      continue
+    }
+
+    const homeId = payment.supplierGroupId?.trim() || ""
+    const tryOrder = homeId
+      ? [homeId, ...groupOrder.filter(id => id !== homeId)]
+      : [...groupOrder]
+
+    let keptProofOnHome = false
+    let chunkIndex = 0
+    for (const groupId of tryOrder) {
+      if (left <= 0) break
+      const room = roomById.get(groupId) || 0
+      if (room <= 0) continue
+      const take = Math.min(left, room)
+      roomById.set(groupId, room - take)
+      left -= take
+      const group = groupById.get(groupId)
+      const isHome = Boolean(homeId && groupId === homeId)
+      const attachProof = Boolean(payment.proofUrl) && (isHome || (!homeId && chunkIndex === 0))
+      if (attachProof && isHome) keptProofOnHome = true
+      result.push({
+        ...payment,
+        id: chunkIndex === 0 ? payment.id : `${payment.id}-x${chunkIndex}`,
+        amount: take,
+        supplierGroupId: groupId,
+        supplierName: group?.supplierName || payment.supplierName,
+        // Don't carry a home-supplier proof onto another supplier when overflow moves.
+        proofUrl: attachProof && (isHome || !keptProofOnHome) ? payment.proofUrl : (attachProof ? payment.proofUrl : ""),
+        proofName: attachProof && (isHome || !keptProofOnHome) ? payment.proofName : (attachProof ? payment.proofName : ""),
+      })
+      // Clear proof on overflow chunks when home already kept it (or when reassigning away from home).
+      if (!isHome && homeId) {
+        const last = result[result.length - 1]
+        result[result.length - 1] = { ...last, proofUrl: "", proofName: "" }
+      }
+      chunkIndex += 1
+    }
+
+    if (left > 0) {
+      result.push({
+        ...payment,
+        id: chunkIndex === 0 ? payment.id : `${payment.id}-rest`,
+        amount: left,
+        supplierGroupId: undefined,
+        proofUrl: chunkIndex === 0 ? payment.proofUrl : "",
+        proofName: chunkIndex === 0 ? payment.proofName : "",
+      })
+    }
+  }
+
+  return result
+}
+
+/** Merge multiple payment lines for the same supplier into one (keeps a real proof). */
+export function consolidatePaymentsBySupplier(
+  payments: PurchaseLedgerPayment[],
+  groups: PurchaseLedgerSupplierGroup[],
+): PurchaseLedgerPayment[] {
+  if (payments.length <= 1) return payments
+
+  const groupById = new Map(groups.map(group => [group.id, group]))
+  const buckets = new Map<string, PurchaseLedgerPayment[]>()
+  const passthrough: PurchaseLedgerPayment[] = []
+
+  for (const payment of payments) {
+    const groupId = payment.supplierGroupId?.trim()
+    const nameKey = normalizeSupplierKey(payment.supplierName)
+    const key = groupId || (nameKey ? `name:${nameKey}` : "")
+    if (!key) {
+      passthrough.push(payment)
+      continue
+    }
+    const list = buckets.get(key) ?? []
+    list.push(payment)
+    buckets.set(key, list)
+  }
+
+  const merged: PurchaseLedgerPayment[] = []
+  for (const [key, list] of buckets) {
+    if (list.length === 1) {
+      merged.push(list[0])
+      continue
+    }
+
+    const groupId = key.startsWith("name:") ? list.find(p => p.supplierGroupId)?.supplierGroupId : key
+    const group = groupId ? groupById.get(groupId) : undefined
+    const groupNameKey = normalizeSupplierKey(group?.supplierName || list[0].supplierName)
+    const total = list.reduce((sum, p) => sum + Math.max(0, Number(p.amount) || 0), 0)
+    const proof =
+      [...list].reverse().find(p =>
+        p.proofUrl
+        && normalizeSupplierKey(p.supplierName) === groupNameKey
+      )
+      || [...list].reverse().find(p => p.proofUrl)
+      || list[0]
+    const dates = list.map(p => p.date).filter(Boolean).sort()
+    const creators = list.map(p => p.createdBy).filter(Boolean)
+
+    merged.push({
+      ...list[0],
+      id: list[0].id,
+      amount: total,
+      date: dates[0] || list[0].date,
+      proofUrl: proof.proofUrl || "",
+      proofName: proof.proofName || "",
+      notes: `Combined payment${group?.supplierName || list[0].supplierName ? ` · ${group?.supplierName || list[0].supplierName}` : ""}`,
+      createdAt: list[0].createdAt,
+      createdBy: proof.createdBy || creators[creators.length - 1] || list[0].createdBy,
+      supplierGroupId: group?.id || list[0].supplierGroupId,
+      supplierName: group?.supplierName || list[0].supplierName,
+    })
+  }
+
+  return [...merged, ...passthrough]
+}
+
+/** Normalize payments against supplier groups: re-link, move overflow, combine per supplier. */
+export function normalizeProjectPayments(
+  payments: PurchaseLedgerPayment[],
+  groups: PurchaseLedgerSupplierGroup[],
+  totalAmount?: number,
+): PurchaseLedgerPayment[] {
+  let next = reconcilePaymentsToSupplierGroups(payments, groups)
+  next = redistributePaymentOverflow(next, groups)
+  next = consolidatePaymentsBySupplier(next, groups)
+  if (totalAmount != null) next = clampPaymentsToTotal(next, totalAmount)
+  return next
+}
+
 /** Keep payment lines within bill total (trim from the end). Prevents Paid > Total permanently. */
 export function clampPaymentsToTotal(
   payments: PurchaseLedgerPayment[],
@@ -329,12 +478,11 @@ export function syncSupplierGroupsToPayments(
 ): PurchaseLedgerSupplierGroup[] {
   if (groups.length === 0) return groups
 
-  const reconciled = reconcilePaymentsToSupplierGroups(payments, groups)
   const validIds = new Set(groups.map(group => group.id))
   const paidByGroup = new Map<string, number>()
   let unassigned = 0
 
-  for (const payment of reconciled) {
+  for (const payment of payments) {
     const amount = Math.max(0, Number(payment.amount) || 0)
     if (amount <= 0) continue
     const groupId = payment.supplierGroupId?.trim()
@@ -348,7 +496,9 @@ export function syncSupplierGroupsToPayments(
   let next = groups.map((group) => {
     const subtotal = getGroupSubtotal(group)
     const fromPayments = paidByGroup.get(group.id) || 0
-    return withGroupPaymentTotals(group, Math.min(subtotal, fromPayments))
+    const applied = Math.min(subtotal, fromPayments)
+    if (fromPayments > applied) unassigned += fromPayments - applied
+    return withGroupPaymentTotals(group, applied)
   })
 
   if (unassigned > 0) {
@@ -363,11 +513,16 @@ export function syncSupplierGroupsToPayments(
     })
   }
 
-  // Carry latest payment proof onto the group when group has none.
+  // Carry matching payment proof onto the group when group has none.
   return next.map((group) => {
     if (group.paymentProofUrl) return group
-    const withProof = [...reconciled]
-      .filter(p => p.supplierGroupId === group.id && p.proofUrl)
+    const groupName = normalizeSupplierKey(group.supplierName)
+    const withProof = [...payments]
+      .filter(p => {
+        if (!p.proofUrl) return false
+        if (p.supplierGroupId === group.id) return true
+        return Boolean(groupName && normalizeSupplierKey(p.supplierName) === groupName)
+      })
       .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
       .at(-1)
     if (!withProof?.proofUrl) return group
@@ -474,8 +629,7 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     items,
   })
 
-  payments = reconcilePaymentsToSupplierGroups(payments, supplierGroups)
-  payments = clampPaymentsToTotal(payments, totalAmount)
+  payments = normalizeProjectPayments(payments, supplierGroups, totalAmount)
   supplierGroups = syncSupplierGroupsToPayments(supplierGroups, payments)
 
   const amountPaid = Math.min(

@@ -34,6 +34,7 @@ import {
   clampPaymentsToTotal,
   syncSupplierGroupsToPayments,
   reconcilePaymentsToSupplierGroups,
+  normalizeProjectPayments,
   normalizeSupplierKey,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
@@ -607,7 +608,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
 
       if (isEditing) {
         groupsWithPayments = []
-        payments = reconcilePaymentsToSupplierGroups(
+        payments = normalizeProjectPayments(
           existingPayments.map(p =>
             clearedProofPaymentIds.includes(p.id)
               ? { ...p, proofUrl: "", proofName: "" }
@@ -815,10 +816,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       }
 
       const primary = groups[0]
-      const reconciledPayments = isProjectMode
-        ? reconcilePaymentsToSupplierGroups(payments, groupsWithPayments)
-        : payments
-      const clampedPayments = clampPaymentsToTotal(reconciledPayments, totalAmount)
+      const clampedPayments = isProjectMode
+        ? normalizeProjectPayments(payments, groupsWithPayments, totalAmount)
+        : clampPaymentsToTotal(payments, totalAmount)
       const syncedGroups = isProjectMode
         ? syncSupplierGroupsToPayments(groupsWithPayments, clampedPayments)
         : groupsWithPayments
