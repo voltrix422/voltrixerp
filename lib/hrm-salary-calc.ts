@@ -84,9 +84,21 @@ export function computeNetSalary(baseSalary: number, adjustments: SalaryAdjustme
 
 export function buildEffectiveSalaryAdjustments(
   manual: SalaryAdjustment[],
-  options: { deductAdvance: boolean; outstandingAdvance: number },
+  options: { deductAdvance: boolean; outstandingAdvance: number; taxAmount?: number },
 ): SalaryAdjustment[] {
   const list = [...manual]
+  const taxAmount = Number(options.taxAmount) || 0
+  const hasTax = list.some(
+    adj => adj.id === "tax-deduction" || adj.label.trim().toLowerCase() === "tax",
+  )
+  if (taxAmount > 0.004 && !hasTax) {
+    list.push({
+      id: "tax-deduction",
+      type: "deduct",
+      amount: String(taxAmount),
+      label: "Tax",
+    })
+  }
   if (options.deductAdvance && options.outstandingAdvance > 0.004) {
     list.push({
       id: "advance-deduction",
@@ -110,8 +122,8 @@ export function computeBatchSalaryFigures(
   periodFrom: string,
   periodTo: string,
   outstandingAdvance: number,
+  taxAmount = 0,
 ) {
-  const bounds = { from: periodFrom, to: periodTo }
   const fullMonth = monthDateBounds(periodFrom.slice(0, 7))
   const isFullMonth = periodFrom === fullMonth.from && periodTo === fullMonth.to
   const proRate = isFullMonth
@@ -120,6 +132,7 @@ export function computeBatchSalaryFigures(
   const adjustments = buildEffectiveSalaryAdjustments([], {
     deductAdvance: outstandingAdvance > 0,
     outstandingAdvance,
+    taxAmount,
   })
   const netSalary = computeNetSalary(proRate.amount, adjustments)
   return {

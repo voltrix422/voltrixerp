@@ -48,6 +48,7 @@ interface StaffMember {
   phone: string
   address: string
   salary: number
+  tax_amount?: number
   currency: string
   join_date: string
   status: "active" | "inactive"
@@ -223,6 +224,7 @@ export function HrmManager() {
     const effectiveAdjustments = buildEffectiveSalaryAdjustments(salaryAdjustments, {
       deductAdvance,
       outstandingAdvance,
+      taxAmount: Number(member.tax_amount) || 0,
     })
     const netSalary = computeNetSalary(effectiveBase, effectiveAdjustments)
     const payPeriodText = payPeriodLabel(selectedMonth, payPeriodMode, periodFrom, periodTo)
@@ -548,7 +550,9 @@ export function HrmManager() {
   const [phone, setPhone] = useState("")
   const [address, setAddress] = useState("")
   const [salary, setSalary] = useState("")
+  const [taxAmount, setTaxAmount] = useState("")
   const [currency, setCurrency] = useState("USD")
+  const [deletingSlipId, setDeletingSlipId] = useState<string | null>(null)
   const [joinDate, setJoinDate] = useState("")
   const [status, setStatus] = useState<"active" | "inactive">("active")
   const [notes, setNotes] = useState("")
@@ -601,6 +605,7 @@ export function HrmManager() {
     setPhone(member.phone)
     setAddress(member.address)
     setSalary(member.salary.toString())
+    setTaxAmount(member.tax_amount ? String(member.tax_amount) : "")
     setCurrency(member.currency)
     setJoinDate(member.join_date)
     setStatus(member.status)
@@ -753,6 +758,7 @@ export function HrmManager() {
         id: memberId,
         name, role, department, email, phone, address,
         salary: parseFloat(salary) || 0,
+        tax_amount: parseFloat(taxAmount) || 0,
         currency, joinDate, status, notes,
         bank_name: bankName,
         bank_account_number: bankAccountNumber,
@@ -784,13 +790,50 @@ export function HrmManager() {
 
   function resetForm() {
     setName(""); setRole(""); setDepartment("Management"); setEmail("")
-    setPhone(""); setAddress(""); setSalary(""); setCurrency("USD")
+    setPhone(""); setAddress(""); setSalary(""); setTaxAmount(""); setCurrency("USD")
     setJoinDate(""); setStatus("active"); setNotes("")
     setBankName(""); setBankAccountNumber(""); setBankAccountTitle("")
     setPhotoFile(null); setPhotoPreview(""); setShowForm(false)
     setDocuments([])
     setNewDocName("")
     setEditingMember(null)
+  }
+
+  async function handleDeleteSalarySlip(slip: { id: string; month?: string; staffName?: string }) {
+    if (!slip?.id) return
+    const monthText = slip.month
+      ? new Date(slip.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      : "this month"
+    if (!confirm(`Delete salary history for ${slip.staffName || "this staff"} — ${monthText}? This cannot be undone.`)) {
+      return
+    }
+    setDeletingSlipId(slip.id)
+    try {
+      const res = await fetch(`/api/hrm/salary-slips?id=${encodeURIComponent(slip.id)}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || "Failed to delete")
+      }
+      setSalarySlips(prev => prev.filter((s: any) => s.id !== slip.id))
+      setAllSalarySlips(prev => prev.filter((s: any) => s.id !== slip.id))
+      try {
+        const local = JSON.parse(localStorage.getItem("salary_slips") || "[]") as any[]
+        localStorage.setItem(
+          "salary_slips",
+          JSON.stringify(local.filter(s => s.id !== slip.id)),
+        )
+      } catch {
+        // ignore localStorage errors
+      }
+      await refreshAdvanceSummary()
+    } catch (error) {
+      console.error("Error deleting salary slip:", error)
+      alert(error instanceof Error ? error.message : "Failed to delete salary history")
+    } finally {
+      setDeletingSlipId(null)
+    }
   }
 
   async function handleDelete(id: string) {
@@ -1391,6 +1434,12 @@ export function HrmManager() {
                   <label className="text-sm font-medium text-[hsl(var(--foreground))]">Salary</label>
                   <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0"
                     className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax amount</label>
+                  <input value={taxAmount} onChange={e => setTaxAmount(e.target.value)} type="number" min="0" placeholder="0"
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Fixed amount deducted from each salary slip</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-[hsl(var(--foreground))]">Currency</label>
@@ -2067,17 +2116,28 @@ export function HrmManager() {
                           )}
                         </div>
                         
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-2"
-                          onClick={() => {
-                            // Generate PDF for this salary slip
-                            generateSalarySlipPDF(slip, viewMember.name)
-                          }}
-                        >
-                          <Download className="h-4 w-4" /> Download
-                        </Button>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-2"
+                            onClick={() => {
+                              generateSalarySlipPDF(slip, viewMember.name)
+                            }}
+                          >
+                            <Download className="h-4 w-4" /> Download
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={deletingSlipId === slip.id}
+                            onClick={() => handleDeleteSalarySlip(slip)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {deletingSlipId === slip.id ? "Deleting…" : "Delete"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2202,6 +2262,14 @@ export function HrmManager() {
                     <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
                       <span className="text-sm text-[hsl(var(--muted-foreground))]">Full month payable</span>
                       <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {(Number(viewMember.tax_amount) || 0) > 0 && (
+                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Tax (auto deduct)</span>
+                      <span className="text-sm font-semibold text-rose-600">
+                        − {viewMember.currency} {Number(viewMember.tax_amount).toLocaleString()}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -2726,16 +2794,28 @@ export function HrmManager() {
                         </div>
                         <div className="p-3 space-y-2">
                           {slips.map((slip: any) => (
-                            <div key={slip.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 flex items-center justify-between">
-                              <div>
+                            <div key={slip.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 flex items-center justify-between gap-3">
+                              <div className="min-w-0">
                                 <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{slip.staffName}</p>
                                 <p className="text-xs text-[hsl(var(--muted-foreground))]">{slip.staffRole}</p>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm font-semibold text-emerald-600">{slip.currency} {Number(slip.netSalary || 0).toLocaleString()}</p>
-                                <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                                  {slip.status === "draft" ? "Draft" : "Paid"}
-                                </p>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <div className="text-right">
+                                  <p className="text-sm font-semibold text-emerald-600">{slip.currency} {Number(slip.netSalary || 0).toLocaleString()}</p>
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                                    {slip.status === "draft" ? "Draft" : "Paid"}
+                                  </p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Delete payment history"
+                                  disabled={deletingSlipId === slip.id}
+                                  onClick={() => handleDeleteSalarySlip(slip)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
                           ))}

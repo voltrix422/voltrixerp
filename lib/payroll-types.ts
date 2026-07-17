@@ -65,3 +65,13 @@ export async function fetchSalarySlips(params: {
   const data = await res.json()
   return Array.isArray(data) ? data : []
 }
+
+export async function deleteSalarySlip(id: string): Promise<void> {
+  const res = await fetch(`/api/hrm/salary-slips?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || "Failed to delete salary slip")
+  }
+}

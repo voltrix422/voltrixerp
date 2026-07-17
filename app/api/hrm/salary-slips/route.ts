@@ -199,3 +199,54 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = String(searchParams.get("id") || "").trim()
+    if (!id) {
+      return NextResponse.json({ error: "Missing slip id" }, { status: 400 })
+    }
+
+    const existing = await prisma.erpSalarySlip.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: "Salary slip not found" }, { status: 404 })
+    }
+
+    // Re-open advances recovered against this slip month so payroll can be regenerated cleanly.
+    let staffId = existing.staffLocalId || ""
+    if (!staffId && existing.staffName) {
+      const staff = await prisma.erpStaff.findFirst({
+        where: { name: existing.staffName },
+        select: { id: true },
+      })
+      staffId = staff?.id || ""
+    }
+    if (staffId && existing.month) {
+      await prisma.hrmSalaryAdvance.updateMany({
+        where: {
+          staffId,
+          status: "recovered",
+          recoveredInMonth: existing.month,
+        },
+        data: {
+          status: "outstanding",
+          recoveredAt: null,
+          recoveredInMonth: null,
+        },
+      })
+    }
+
+    await prisma.erpSalarySlip.delete({ where: { id } })
+    return NextResponse.json({ success: true, id })
+  } catch (error) {
+    console.error("Error deleting salary slip:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to delete salary slip",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
+  }
+}

@@ -25,6 +25,7 @@ export type MakeSalariesStaff = {
   role: string
   department: string
   salary: number
+  tax_amount?: number
   currency: string
   join_date: string
   status: "active" | "inactive"
@@ -40,6 +41,7 @@ type SalaryRow = {
   department: string
   currency: string
   monthlySalary: number
+  taxAmount: number
   included: boolean
   periodFrom: string
   periodTo: string
@@ -83,6 +85,7 @@ function buildRows(
         department: s.department,
         currency: s.currency || "PKR",
         monthlySalary: s.salary,
+        taxAmount: Number(s.tax_amount) || 0,
         included: true,
         periodFrom: saved?.periodStart || periodStartForJoinDate(month, s.join_date),
         periodTo: saved?.periodEnd || bounds.to,
@@ -138,7 +141,13 @@ export function MakeSalariesModal({
       const advance = advanceByStaff[row.staffId] || 0
       const figures =
         row.periodFrom && row.periodTo && row.periodTo >= row.periodFrom
-          ? computeBatchSalaryFigures(row.monthlySalary, row.periodFrom, row.periodTo, advance)
+          ? computeBatchSalaryFigures(
+              row.monthlySalary,
+              row.periodFrom,
+              row.periodTo,
+              advance,
+              row.taxAmount,
+            )
           : {
               baseSalary: 0,
               adjustments: [],
