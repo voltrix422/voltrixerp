@@ -13,6 +13,7 @@ import {
   buildEffectiveSalaryAdjustments,
   calculateProRatedSalary,
   computeNetSalary,
+  effectiveStaffTaxAmount,
   monthDateBounds,
   payPeriodLabel,
   periodStartForJoinDate,
@@ -49,6 +50,7 @@ interface StaffMember {
   address: string
   salary: number
   tax_amount?: number
+  tax_enabled?: boolean
   currency: string
   join_date: string
   status: "active" | "inactive"
@@ -225,6 +227,7 @@ export function HrmManager() {
       deductAdvance,
       outstandingAdvance,
       taxAmount: Number(member.tax_amount) || 0,
+      taxEnabled: Boolean(member.tax_enabled),
     })
     const netSalary = computeNetSalary(effectiveBase, effectiveAdjustments)
     const payPeriodText = payPeriodLabel(selectedMonth, payPeriodMode, periodFrom, periodTo)
@@ -551,8 +554,10 @@ export function HrmManager() {
   const [address, setAddress] = useState("")
   const [salary, setSalary] = useState("")
   const [taxAmount, setTaxAmount] = useState("")
+  const [taxEnabled, setTaxEnabled] = useState(false)
   const [currency, setCurrency] = useState("USD")
   const [deletingSlipId, setDeletingSlipId] = useState<string | null>(null)
+  const [togglingTaxId, setTogglingTaxId] = useState<string | null>(null)
   const [joinDate, setJoinDate] = useState("")
   const [status, setStatus] = useState<"active" | "inactive">("active")
   const [notes, setNotes] = useState("")
@@ -606,6 +611,7 @@ export function HrmManager() {
     setAddress(member.address)
     setSalary(member.salary.toString())
     setTaxAmount(member.tax_amount ? String(member.tax_amount) : "")
+    setTaxEnabled(Boolean(member.tax_enabled))
     setCurrency(member.currency)
     setJoinDate(member.join_date)
     setStatus(member.status)
@@ -759,6 +765,7 @@ export function HrmManager() {
         name, role, department, email, phone, address,
         salary: parseFloat(salary) || 0,
         tax_amount: parseFloat(taxAmount) || 0,
+        tax_enabled: taxEnabled,
         currency, joinDate, status, notes,
         bank_name: bankName,
         bank_account_number: bankAccountNumber,
@@ -790,13 +797,61 @@ export function HrmManager() {
 
   function resetForm() {
     setName(""); setRole(""); setDepartment("Management"); setEmail("")
-    setPhone(""); setAddress(""); setSalary(""); setTaxAmount(""); setCurrency("USD")
+    setPhone(""); setAddress(""); setSalary(""); setTaxAmount(""); setTaxEnabled(false); setCurrency("USD")
     setJoinDate(""); setStatus("active"); setNotes("")
     setBankName(""); setBankAccountNumber(""); setBankAccountTitle("")
     setPhotoFile(null); setPhotoPreview(""); setShowForm(false)
     setDocuments([])
     setNewDocName("")
     setEditingMember(null)
+  }
+
+  async function handleToggleStaffTax(member: StaffMember, nextEnabled: boolean) {
+    setTogglingTaxId(member.id)
+    try {
+      const res = await fetch("/api/hrm/staff", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: member.id,
+          tax_enabled: nextEnabled,
+          tax_amount: Number(member.tax_amount) || 0,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to update tax setting")
+      const saved = await res.json()
+      setStaff(prev =>
+        prev.map(s =>
+          s.id === member.id
+            ? {
+                ...s,
+                ...saved,
+                tax_enabled: Boolean(saved.tax_enabled),
+                tax_amount: Number(saved.tax_amount) || 0,
+                documents: s.documents,
+                photo_url: s.photo_url,
+              }
+            : s,
+        ),
+      )
+      setViewMember(prev =>
+        prev && prev.id === member.id
+          ? {
+              ...prev,
+              ...saved,
+              tax_enabled: Boolean(saved.tax_enabled),
+              tax_amount: Number(saved.tax_amount) || 0,
+              documents: prev.documents,
+              photo_url: prev.photo_url,
+            }
+          : prev,
+      )
+    } catch (error) {
+      console.error("Error toggling tax:", error)
+      alert("Failed to update tax setting. Please try again.")
+    } finally {
+      setTogglingTaxId(null)
+    }
   }
 
   async function handleDeleteSalarySlip(slip: { id: string; month?: string; staffName?: string }) {
@@ -1435,11 +1490,46 @@ export function HrmManager() {
                   <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0"
                     className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax amount</label>
-                  <input value={taxAmount} onChange={e => setTaxAmount(e.target.value)} type="number" min="0" placeholder="0"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Fixed amount deducted from each salary slip</p>
+                <div className="space-y-2 col-span-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Apply tax on salary</label>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                        When on, this amount is deducted from each salary slip
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={taxEnabled}
+                      onClick={() => setTaxEnabled(v => !v)}
+                      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                        taxEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                          taxEnabled ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax amount</label>
+                    <input
+                      value={taxAmount}
+                      onChange={e => setTaxAmount(e.target.value)}
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                    />
+                    {!taxEnabled && (parseFloat(taxAmount) || 0) > 0 && (
+                      <p className="text-[10px] text-amber-700">
+                        Tax amount is saved but will not be deducted while the toggle is off.
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-[hsl(var(--foreground))]">Currency</label>
@@ -1664,6 +1754,51 @@ export function HrmManager() {
                       Outstanding advance: {viewMember.currency} {(advanceByStaff[viewMember.id] || 0).toLocaleString()}
                     </p>
                   )}
+                  <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Tax</p>
+                        <p className="text-sm font-semibold mt-0.5">
+                          {(Number(viewMember.tax_amount) || 0) > 0
+                            ? `${viewMember.currency} ${Number(viewMember.tax_amount).toLocaleString()} / month`
+                            : "No tax amount set"}
+                        </p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                          {viewMember.tax_enabled
+                            ? "Tax is applied on salary slips"
+                            : "Tax is off — not deducted"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(viewMember.tax_enabled)}
+                        disabled={togglingTaxId === viewMember.id || (Number(viewMember.tax_amount) || 0) <= 0}
+                        title={
+                          (Number(viewMember.tax_amount) || 0) <= 0
+                            ? "Set a tax amount in Edit first"
+                            : viewMember.tax_enabled
+                              ? "Turn tax off"
+                              : "Turn tax on"
+                        }
+                        onClick={() => handleToggleStaffTax(viewMember, !viewMember.tax_enabled)}
+                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                          viewMember.tax_enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                            viewMember.tax_enabled ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {(Number(viewMember.tax_amount) || 0) <= 0 && (
+                      <p className="text-[10px] text-amber-700">
+                        Edit this staff member to set a tax amount, then use the toggle.
+                      </p>
+                    )}
+                  </div>
                   <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">Salary History Snapshot</p>
                     {salarySlips.length === 0 ? (
@@ -2264,14 +2399,28 @@ export function HrmManager() {
                       <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
                     </div>
                   )}
-                  {(Number(viewMember.tax_amount) || 0) > 0 && (
+                  {effectiveStaffTaxAmount({
+                    taxAmount: viewMember.tax_amount,
+                    taxEnabled: viewMember.tax_enabled,
+                  }) > 0 ? (
                     <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Tax (auto deduct)</span>
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Tax (applied)</span>
                       <span className="text-sm font-semibold text-rose-600">
-                        − {viewMember.currency} {Number(viewMember.tax_amount).toLocaleString()}
+                        − {viewMember.currency}{" "}
+                        {effectiveStaffTaxAmount({
+                          taxAmount: viewMember.tax_amount,
+                          taxEnabled: viewMember.tax_enabled,
+                        }).toLocaleString()}
                       </span>
                     </div>
-                  )}
+                  ) : (Number(viewMember.tax_amount) || 0) > 0 ? (
+                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Tax</span>
+                      <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                        Off ({viewMember.currency} {Number(viewMember.tax_amount).toLocaleString()} not deducted)
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 

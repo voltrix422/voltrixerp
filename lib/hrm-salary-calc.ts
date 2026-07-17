@@ -82,12 +82,29 @@ export function computeNetSalary(baseSalary: number, adjustments: SalaryAdjustme
   return Math.max(0, baseSalary + adjustmentSignedTotal(adjustments))
 }
 
+/** Tax deducted only when the profile toggle is on and amount > 0. */
+export function effectiveStaffTaxAmount(options: {
+  taxAmount?: number | null
+  taxEnabled?: boolean | null
+}): number {
+  if (!options.taxEnabled) return 0
+  return Math.max(0, Number(options.taxAmount) || 0)
+}
+
 export function buildEffectiveSalaryAdjustments(
   manual: SalaryAdjustment[],
-  options: { deductAdvance: boolean; outstandingAdvance: number; taxAmount?: number },
+  options: {
+    deductAdvance: boolean
+    outstandingAdvance: number
+    taxAmount?: number
+    taxEnabled?: boolean
+  },
 ): SalaryAdjustment[] {
   const list = [...manual]
-  const taxAmount = Number(options.taxAmount) || 0
+  const taxAmount = effectiveStaffTaxAmount({
+    taxAmount: options.taxAmount,
+    taxEnabled: options.taxEnabled,
+  })
   const hasTax = list.some(
     adj => adj.id === "tax-deduction" || adj.label.trim().toLowerCase() === "tax",
   )
@@ -123,6 +140,7 @@ export function computeBatchSalaryFigures(
   periodTo: string,
   outstandingAdvance: number,
   taxAmount = 0,
+  taxEnabled = true,
 ) {
   const fullMonth = monthDateBounds(periodFrom.slice(0, 7))
   const isFullMonth = periodFrom === fullMonth.from && periodTo === fullMonth.to
@@ -133,6 +151,7 @@ export function computeBatchSalaryFigures(
     deductAdvance: outstandingAdvance > 0,
     outstandingAdvance,
     taxAmount,
+    taxEnabled,
   })
   const netSalary = computeNetSalary(proRate.amount, adjustments)
   return {

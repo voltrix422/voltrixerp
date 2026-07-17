@@ -26,6 +26,7 @@ export type MakeSalariesStaff = {
   department: string
   salary: number
   tax_amount?: number
+  tax_enabled?: boolean
   currency: string
   join_date: string
   status: "active" | "inactive"
@@ -42,6 +43,7 @@ type SalaryRow = {
   currency: string
   monthlySalary: number
   taxAmount: number
+  taxEnabled: boolean
   included: boolean
   periodFrom: string
   periodTo: string
@@ -147,6 +149,7 @@ export function MakeSalariesModal({
               row.periodTo,
               advance,
               row.taxAmount,
+              row.taxEnabled,
             )
           : {
               baseSalary: 0,

@@ -415,6 +415,7 @@ model ErpStaff {
   address       String
   salary        Float
   taxAmount     Float    @default(0) @map("tax_amount")
+  taxEnabled    Boolean  @default(false) @map("tax_enabled")
   currency      String
   joinDate      String   @map("join_date")
   status        String

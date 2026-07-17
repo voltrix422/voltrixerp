@@ -77,6 +77,8 @@ function mapToDB(data: Record<string, any>) {
   if (data.salary !== undefined)      mapped.salary = parseFloat(data.salary) || 0
   const taxAmount = data.taxAmount ?? data.tax_amount
   if (taxAmount !== undefined)        mapped.taxAmount = parseFloat(taxAmount) || 0
+  const taxEnabled = data.taxEnabled ?? data.tax_enabled
+  if (taxEnabled !== undefined)       mapped.taxEnabled = Boolean(taxEnabled)
   if (data.currency !== undefined)    mapped.currency = data.currency
   if (data.status !== undefined)      mapped.status = data.status
   if (data.notes !== undefined)       mapped.notes = data.notes ?? ''
@@ -126,6 +128,7 @@ function mapToFrontend(s: any) {
     address: s.address,
     salary: s.salary,
     tax_amount: s.taxAmount ?? 0,
+    tax_enabled: Boolean(s.taxEnabled),
     currency: s.currency,
     join_date: s.joinDate,
     status: s.status,
