@@ -11,6 +11,7 @@ import {
   resolveGroupAmountPaid,
   resolveGroupAmountDue,
   normalizeSupplierKey,
+  normalizeAttachments,
   type PurchaseLedgerEntry,
   type PurchaseLedgerSupplierGroup,
   type PurchaseTransactionType,
@@ -34,6 +35,10 @@ function DetailCell({ label, children }: { label: string; children: React.ReactN
   )
 }
 
+function billsForGroup(group: PurchaseLedgerSupplierGroup) {
+  return normalizeAttachments(group.billAttachments, group.billUrl, group.billName)
+}
+
 function proofsForGroup(entry: PurchaseLedgerEntry, group: PurchaseLedgerSupplierGroup) {
   const seen = new Set<string>()
   const proofs: { url: string; name: string }[] = []
@@ -43,13 +48,27 @@ function proofsForGroup(entry: PurchaseLedgerEntry, group: PurchaseLedgerSupplie
     seen.add(clean)
     proofs.push({ url: clean, name: name || "Payment proof" })
   }
-  push(group.paymentProofUrl, group.paymentProofName)
+  for (const att of normalizeAttachments(
+    group.paymentProofAttachments,
+    group.paymentProofUrl,
+    group.paymentProofName,
+  )) {
+    push(att.url, att.name)
+  }
   const groupName = normalizeSupplierKey(group.supplierName)
+  const isSynthetic = group.id === "single"
   for (const payment of entry.payments) {
     if (!payment.proofUrl) continue
+    if (isSynthetic) {
+      push(payment.proofUrl, payment.proofName)
+      continue
+    }
     const matchId = payment.supplierGroupId === group.id
     const matchName = Boolean(groupName && normalizeSupplierKey(payment.supplierName) === groupName)
     if (matchId || matchName) push(payment.proofUrl, payment.proofName)
+  }
+  if (isSynthetic && entry.paymentProofUrl) {
+    push(entry.paymentProofUrl, entry.paymentProofName)
   }
   return proofs
 }
@@ -117,10 +136,17 @@ export function LedgerEntryDetailModal({
               date: entry.transactionDate,
               billUrl: entry.billUrl,
               billName: entry.billName,
+              billAttachments: entry.supplierGroups[0]?.billAttachments
+                || (entry.billUrl ? [{ url: entry.billUrl, name: entry.billName || "Bill" }] : []),
               paymentProofUrl: entry.paymentProofUrl,
               paymentProofName: entry.paymentProofName,
+              paymentProofAttachments: entry.supplierGroups[0]?.paymentProofAttachments
+                || (entry.paymentProofUrl
+                  ? [{ url: entry.paymentProofUrl, name: entry.paymentProofName || "Payment proof" }]
+                  : []),
             }] as PurchaseLedgerSupplierGroup[]
           ).map((group, groupIndex) => {
+            const groupBills = billsForGroup(group)
             const groupProofs = proofsForGroup(entry, group)
             return (
             <section key={group.id} className="rounded-lg border overflow-hidden">
@@ -165,32 +191,40 @@ export function LedgerEntryDetailModal({
                   </div>
                 </div>
               )}
-              {"billUrl" in group && group.billUrl && (
+              {groupBills.length > 0 && (
                 <div className="px-3 py-2.5 border-t bg-[hsl(var(--muted))]/5 space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Purchase bill</p>
-                  <a
-                    href={group.billUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0" />
-                    {group.billName || "View purchase bill"}
-                  </a>
-                  {isImageBillUrl(group.billUrl) && (
-                    <a href={group.billUrl} target="_blank" rel="noreferrer" className="block">
-                      <img
-                        src={group.billUrl}
-                        alt={group.billName || "Purchase bill"}
-                        className="max-h-40 w-full rounded-md border object-contain bg-white"
-                      />
-                    </a>
-                  )}
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                    Purchase bill{groupBills.length > 1 ? "s" : ""}
+                  </p>
+                  {groupBills.map(bill => (
+                    <div key={bill.url} className="space-y-2">
+                      <a
+                        href={bill.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        {bill.name || "View purchase bill"}
+                      </a>
+                      {isImageBillUrl(bill.url) && (
+                        <a href={bill.url} target="_blank" rel="noreferrer" className="block">
+                          <img
+                            src={bill.url}
+                            alt={bill.name || "Purchase bill"}
+                            className="max-h-40 w-full rounded-md border object-contain bg-white"
+                          />
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
               {groupProofs.length > 0 && (
                 <div className="px-3 py-2.5 border-t bg-[hsl(var(--muted))]/5 space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Payment proof</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                    Payment proof{groupProofs.length > 1 ? "s" : ""}
+                  </p>
                   {groupProofs.map(proof => (
                     <div key={proof.url} className="space-y-2">
                       <a
@@ -247,34 +281,52 @@ export function LedgerEntryDetailModal({
               <FileText className="h-3.5 w-3.5 text-[#1faca6]" />
               <p className="text-xs font-semibold">Purchase bill</p>
             </div>
-            {entry.linkMode === "project" && entry.supplierGroups.some(group => group.billUrl) ? (
+            {entry.linkMode === "project" && entry.supplierGroups.some(group =>
+              Boolean(group.billUrl) || (group.billAttachments?.length || 0) > 0,
+            ) ? (
               <p className="px-3 py-4 text-xs text-[hsl(var(--muted-foreground))]">
                 Bills are attached per supplier above.
               </p>
-            ) : entry.billUrl ? (
-              <div className="px-3 py-3 space-y-3">
-                <a
-                  href={entry.billUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
-                >
-                  <FileText className="h-3.5 w-3.5 shrink-0" />
-                  {entry.billName || "View purchase bill"}
-                </a>
-                {isImageBillUrl(entry.billUrl) && (
-                  <a href={entry.billUrl} target="_blank" rel="noreferrer" className="block">
-                    <img
-                      src={entry.billUrl}
-                      alt={entry.billName || "Purchase bill"}
-                      className="max-h-56 w-full rounded-md border object-contain bg-white"
-                    />
-                  </a>
-                )}
-              </div>
-            ) : (
-              <p className="px-3 py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">No bill attached.</p>
-            )}
+            ) : (() => {
+              const bills = normalizeAttachments(
+                entry.supplierGroups[0]?.billAttachments,
+                entry.billUrl,
+                entry.billName,
+              )
+              if (bills.length === 0) {
+                return (
+                  <p className="px-3 py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    No bill attached.
+                  </p>
+                )
+              }
+              return (
+                <div className="px-3 py-3 space-y-3">
+                  {bills.map(bill => (
+                    <div key={bill.url} className="space-y-2">
+                      <a
+                        href={bill.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-[#1faca6] hover:underline font-medium"
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        {bill.name || "View purchase bill"}
+                      </a>
+                      {isImageBillUrl(bill.url) && (
+                        <a href={bill.url} target="_blank" rel="noreferrer" className="block">
+                          <img
+                            src={bill.url}
+                            alt={bill.name || "Purchase bill"}
+                            className="max-h-56 w-full rounded-md border object-contain bg-white"
+                          />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
           </section>
 
           <section className="rounded-lg border overflow-hidden">
@@ -282,7 +334,9 @@ export function LedgerEntryDetailModal({
               <CreditCard className="h-3.5 w-3.5 text-[#1faca6]" />
               <p className="text-xs font-semibold">Payments</p>
             </div>
-            {entry.payments.length === 0 && !entry.paymentProofUrl ? (
+            {entry.payments.filter(p => (Number(p.amount) || 0) > 0).length === 0
+              && !entry.paymentProofUrl
+              && !entry.payments.some(p => p.proofUrl) ? (
               <p className="px-3 py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">No payments recorded yet.</p>
             ) : (
               <ul className="divide-y">
@@ -306,7 +360,17 @@ export function LedgerEntryDetailModal({
                     )}
                   </li>
                 ))}
-                {entry.payments.filter(p => (Number(p.amount) || 0) > 0).length === 0 && entry.paymentProofUrl && (
+                {entry.payments
+                  .filter(p => (Number(p.amount) || 0) <= 0 && p.proofUrl)
+                  .map(p => (
+                    <li key={p.id} className="px-3 py-2.5">
+                      <a href={p.proofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-[#1faca6] hover:underline">
+                        <FileText className="h-3.5 w-3.5" /> {p.proofName || "Payment proof"}
+                      </a>
+                    </li>
+                  ))}
+                {entry.payments.filter(p => (Number(p.amount) || 0) > 0 || p.proofUrl).length === 0
+                  && entry.paymentProofUrl && (
                   <li className="px-3 py-2.5">
                     <a href={entry.paymentProofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-[#1faca6] hover:underline">
                       <FileText className="h-3.5 w-3.5" /> {entry.paymentProofName || "Payment proof"}

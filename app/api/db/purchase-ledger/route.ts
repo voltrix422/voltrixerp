@@ -57,6 +57,8 @@ function sumPayments(payments: LedgerPayment[]) {
   return payments.reduce((sum, p) => sum + p.amount, 0)
 }
 
+type LedgerAttachment = { url: string; name: string }
+
 type LedgerSupplierGroup = {
   id: string
   supplierId: string | null
@@ -68,30 +70,56 @@ type LedgerSupplierGroup = {
   date?: string
   billUrl?: string
   billName?: string
+  billAttachments?: LedgerAttachment[]
   paymentProofUrl?: string
   paymentProofName?: string
+  paymentProofAttachments?: LedgerAttachment[]
+}
+
+function parseAttachments(raw: unknown, legacyUrl?: string, legacyName?: string): LedgerAttachment[] {
+  const list = Array.isArray(raw)
+    ? raw
+      .map(item => ({
+        url: String((item as LedgerAttachment)?.url ?? "").trim(),
+        name: String((item as LedgerAttachment)?.name ?? "").trim() || "Attachment",
+      }))
+      .filter(item => item.url)
+    : []
+  if (list.length > 0) return list
+  const url = String(legacyUrl ?? "").trim()
+  if (!url) return []
+  return [{ url, name: String(legacyName ?? "").trim() || "Attachment" }]
 }
 
 function parseSupplierGroups(raw: unknown): LedgerSupplierGroup[] {
   if (!Array.isArray(raw)) return []
   return raw.map((group, index) => {
-    const items = parseItems((group as LedgerSupplierGroup).items)
+    const g = group as LedgerSupplierGroup
+    const items = parseItems(g.items)
     const subtotal = sumItems(items)
-    const amountPaid = Number((group as LedgerSupplierGroup).amountPaid) || 0
+    const amountPaid = Number(g.amountPaid) || 0
     const amountDue = Math.max(0, subtotal - amountPaid)
+    const billAttachments = parseAttachments(g.billAttachments, g.billUrl, g.billName)
+    const paymentProofAttachments = parseAttachments(
+      g.paymentProofAttachments,
+      g.paymentProofUrl,
+      g.paymentProofName,
+    )
     return {
-      id: String((group as LedgerSupplierGroup).id ?? `group-${index}`),
-      supplierId: (group as LedgerSupplierGroup).supplierId || null,
-      supplierName: String((group as LedgerSupplierGroup).supplierName ?? ""),
-      accountDetails: String((group as LedgerSupplierGroup).accountDetails ?? ""),
+      id: String(g.id ?? `group-${index}`),
+      supplierId: g.supplierId || null,
+      supplierName: String(g.supplierName ?? ""),
+      accountDetails: String(g.accountDetails ?? ""),
       items,
       amountPaid,
       amountDue,
-      date: String((group as LedgerSupplierGroup).date ?? ""),
-      billUrl: String((group as LedgerSupplierGroup).billUrl ?? ""),
-      billName: String((group as LedgerSupplierGroup).billName ?? ""),
-      paymentProofUrl: String((group as LedgerSupplierGroup).paymentProofUrl ?? ""),
-      paymentProofName: String((group as LedgerSupplierGroup).paymentProofName ?? ""),
+      date: String(g.date ?? ""),
+      billAttachments,
+      billUrl: billAttachments[0]?.url || "",
+      billName: billAttachments[0]?.name || "",
+      paymentProofAttachments,
+      paymentProofUrl: paymentProofAttachments[0]?.url || "",
+      paymentProofName: paymentProofAttachments[0]?.name || "",
     }
   })
 }

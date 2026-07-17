@@ -35,6 +35,9 @@ import {
   syncSupplierGroupsToPayments,
   normalizeProjectPayments,
   normalizeSupplierKey,
+  normalizeAttachments,
+  withSyncedLegacyAttachments,
+  type LedgerAttachment,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
   type PurchaseLedgerPayment,
@@ -72,74 +75,234 @@ const DottedRule = () => (
   <div className="border-t border-dotted border-[hsl(var(--border))]" aria-hidden />
 )
 
-function findGroupPaymentProof(
+function collectGroupProofAttachments(
   group: PurchaseLedgerSupplierGroup,
   payments: PurchaseLedgerPayment[],
-): { url: string; name: string; paymentId?: string; fromGroup?: boolean } | null {
-  if (group.paymentProofUrl) {
-    return {
-      url: group.paymentProofUrl,
-      name: group.paymentProofName || "Payment proof",
-      fromGroup: true,
-    }
-  }
+): LedgerAttachment[] {
+  const synced = withSyncedLegacyAttachments(group)
+  const fromGroup = normalizeAttachments(
+    synced.paymentProofAttachments,
+    synced.paymentProofUrl,
+    synced.paymentProofName,
+  )
   const groupName = normalizeSupplierKey(group.supplierName)
-  const forGroup = [...payments]
+  const fromPayments = payments
     .filter(p => {
       if (!p.proofUrl) return false
       if (p.supplierGroupId === group.id) return true
       return Boolean(groupName && normalizeSupplierKey(p.supplierName) === groupName)
     })
-    .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
-  const hit = forGroup.at(-1)
-  if (hit?.proofUrl) {
-    return { url: hit.proofUrl, name: hit.proofName || "Payment proof", paymentId: hit.id }
+    .map(p => ({ url: p.proofUrl, name: p.proofName || "Payment proof" }))
+  return normalizeAttachments([...fromGroup, ...fromPayments])
+}
+
+function collectEntryBillAttachments(entry: PurchaseLedgerEntry): LedgerAttachment[] {
+  const fromGroups = entry.supplierGroups.flatMap(group =>
+    normalizeAttachments(group.billAttachments, group.billUrl, group.billName),
+  )
+  return normalizeAttachments([
+    ...fromGroups,
+    ...(entry.billUrl ? [{ url: entry.billUrl, name: entry.billName || "Bill" }] : []),
+  ])
+}
+
+function collectEntryProofAttachments(entry: PurchaseLedgerEntry): LedgerAttachment[] {
+  const fromGroups = entry.supplierGroups.flatMap(group =>
+    normalizeAttachments(group.paymentProofAttachments, group.paymentProofUrl, group.paymentProofName),
+  )
+  const fromPayments = entry.payments
+    .filter(p => p.proofUrl)
+    .map(p => ({ url: p.proofUrl, name: p.proofName || "Payment proof" }))
+  return normalizeAttachments([
+    ...fromGroups,
+    ...fromPayments,
+    ...(entry.paymentProofUrl
+      ? [{ url: entry.paymentProofUrl, name: entry.paymentProofName || "Payment proof" }]
+      : []),
+  ])
+}
+
+async function uploadAttachments(files: File[], folder: string): Promise<LedgerAttachment[]> {
+  const out: LedgerAttachment[] = []
+  for (const file of files) {
+    out.push({ url: await uploadFile(file, folder), name: file.name })
   }
-  return null
+  return out
+}
+
+function appendProofPayments(
+  payments: PurchaseLedgerPayment[],
+  attachments: LedgerAttachment[],
+  meta: {
+    date: string
+    createdBy: string
+    supplierGroupId?: string
+    supplierName?: string
+    notesPrefix?: string
+  },
+): PurchaseLedgerPayment[] {
+  if (attachments.length === 0) return payments
+  const next = [...payments]
+  const first = attachments[0]
+  let attached = false
+  for (let i = next.length - 1; i >= 0; i--) {
+    const p = next[i]
+    const sameGroup = !meta.supplierGroupId || p.supplierGroupId === meta.supplierGroupId
+    if (sameGroup) {
+      next[i] = { ...p, proofUrl: first.url, proofName: first.name }
+      attached = true
+      break
+    }
+  }
+  if (!attached) {
+    next.push({
+      id: `${Date.now()}-proof-0`,
+      amount: 0,
+      date: meta.date,
+      proofUrl: first.url,
+      proofName: first.name,
+      notes: `${meta.notesPrefix || "Payment proof"}${meta.supplierName ? ` · ${meta.supplierName}` : ""}`,
+      createdAt: new Date().toISOString(),
+      createdBy: meta.createdBy,
+      supplierGroupId: meta.supplierGroupId,
+      supplierName: meta.supplierName,
+    })
+  }
+  for (let i = 1; i < attachments.length; i++) {
+    const att = attachments[i]
+    next.push({
+      id: `${Date.now()}-proof-${i}-${Math.random().toString(36).slice(2, 7)}`,
+      amount: 0,
+      date: meta.date,
+      proofUrl: att.url,
+      proofName: att.name,
+      notes: `${meta.notesPrefix || "Payment proof"}${meta.supplierName ? ` · ${meta.supplierName}` : ""}`,
+      createdAt: new Date().toISOString(),
+      createdBy: meta.createdBy,
+      supplierGroupId: meta.supplierGroupId,
+      supplierName: meta.supplierName,
+    })
+  }
+  return next
+}
+
+function AttachmentList({
+  items,
+  onRemove,
+  emptyLabel,
+}: {
+  items: { key: string; name: string; href?: string; previewUrl?: string }[]
+  onRemove: (key: string) => void
+  emptyLabel: string
+}) {
+  if (items.length === 0) {
+    return <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{emptyLabel}</p>
+  }
+  return (
+    <ul className="space-y-1.5">
+      {items.map(item => (
+        <li key={item.key} className="rounded-md border bg-[hsl(var(--muted))]/10 px-2 py-1.5 space-y-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="h-3 w-3 text-[#1faca6] shrink-0" />
+            {item.href ? (
+              <a href={item.href} target="_blank" rel="noreferrer" className="text-[10px] text-[#1faca6] hover:underline truncate flex-1">
+                {item.name}
+              </a>
+            ) : (
+              <span className="text-[10px] truncate flex-1">{item.name}</span>
+            )}
+            <button type="button" className="text-[10px] text-red-500 hover:underline shrink-0" onClick={() => onRemove(item.key)}>
+              Remove
+            </button>
+          </div>
+          {item.previewUrl && isImageBillUrl(item.previewUrl) && (
+            <a href={item.previewUrl} target="_blank" rel="noreferrer" className="block">
+              <img src={item.previewUrl} alt={item.name} className="max-h-24 w-full rounded border object-contain bg-white" />
+            </a>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function MultiFileDropzone({
+  label,
+  icon,
+  hint,
+  accentClass,
+  onAddFiles,
+}: {
+  label: string
+  icon: React.ReactNode
+  hint: string
+  accentClass: string
+  onAddFiles: (files: File[]) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
+        {icon}
+        {label}
+      </label>
+      <label className={`flex flex-col items-center justify-center gap-2 min-h-[72px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-3 cursor-pointer hover:bg-[hsl(var(--muted))]/25 ${accentClass} transition-colors`}>
+        <Upload className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+        <span className="text-[10px] font-medium text-center">{hint}</span>
+        <span className="text-[9px] text-[hsl(var(--muted-foreground))]">Multiple files allowed</span>
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          multiple
+          className="hidden"
+          onChange={e => {
+            const files = Array.from(e.target.files || [])
+            if (files.length) onAddFiles(files)
+            e.target.value = ""
+          }}
+        />
+      </label>
+    </div>
+  )
 }
 
 function SupplierGroupAttachments({
   group,
-  billFile,
-  billPreview,
-  proofFile,
-  proofPreview,
-  existingProofUrl,
-  existingProofName,
-  onBillFileChange,
-  onProofFileChange,
-  onRemoveBill,
-  onRemoveProof,
+  pendingBillFiles,
+  pendingProofFiles,
+  existingProofs,
+  onAddBillFiles,
+  onAddProofFiles,
+  onRemoveExistingBill,
+  onRemoveExistingProof,
+  onRemovePendingBill,
+  onRemovePendingProof,
 }: {
   group: PurchaseLedgerSupplierGroup
-  billFile: File | null
-  billPreview: string
-  proofFile: File | null
-  proofPreview: string
-  existingProofUrl?: string
-  existingProofName?: string
-  onBillFileChange: (file: File | null) => void
-  onProofFileChange: (file: File | null) => void
-  onRemoveBill: () => void
-  onRemoveProof: () => void
+  pendingBillFiles: File[]
+  pendingProofFiles: File[]
+  existingProofs: LedgerAttachment[]
+  onAddBillFiles: (files: File[]) => void
+  onAddProofFiles: (files: File[]) => void
+  onRemoveExistingBill: (url: string) => void
+  onRemoveExistingProof: (url: string) => void
+  onRemovePendingBill: (index: number) => void
+  onRemovePendingProof: (index: number) => void
 }) {
-  const existingBillUrl = group.billUrl || ""
-  const existingBillName = group.billName || ""
-  const billDisplayUrl = billFile ? URL.createObjectURL(billFile) : existingBillUrl
-  const proofDisplayUrl = proofFile ? URL.createObjectURL(proofFile) : (existingProofUrl || "")
+  const existingBills = normalizeAttachments(group.billAttachments, group.billUrl, group.billName)
+  const [billPreviewUrls, setBillPreviewUrls] = useState<string[]>([])
+  const [proofPreviewUrls, setProofPreviewUrls] = useState<string[]>([])
 
   useEffect(() => {
-    if (!billFile || !billDisplayUrl.startsWith("blob:")) return
-    return () => URL.revokeObjectURL(billDisplayUrl)
-  }, [billFile, billDisplayUrl])
+    const urls = pendingBillFiles.map(file => URL.createObjectURL(file))
+    setBillPreviewUrls(urls)
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [pendingBillFiles])
 
   useEffect(() => {
-    if (!proofFile || !proofDisplayUrl.startsWith("blob:")) return
-    return () => URL.revokeObjectURL(proofDisplayUrl)
-  }, [proofFile, proofDisplayUrl])
-
-  const billLabel = billPreview || existingBillName || "Click to upload bill"
-  const proofLabel = proofPreview || existingProofName || "Click to upload screenshot"
+    const urls = pendingProofFiles.map(file => URL.createObjectURL(file))
+    setProofPreviewUrls(urls)
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [pendingProofFiles])
 
   return (
     <div className="rounded-md border bg-[hsl(var(--card))] px-3 py-2.5 space-y-2">
@@ -148,73 +311,63 @@ function SupplierGroupAttachments({
       </p>
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <div className="space-y-2">
-          <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
-            <Receipt className="h-3.5 w-3.5 text-[#1faca6]" />
-            Purchase bill
-          </label>
-          <label className="flex flex-col items-center justify-center gap-2 min-h-[72px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-3 cursor-pointer hover:bg-[hsl(var(--muted))]/25 hover:border-[#1faca6]/40 transition-colors">
-            <Upload className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-            <span className="text-[10px] font-medium text-center">{billLabel}</span>
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              className="hidden"
-              onChange={e => onBillFileChange(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          {(billPreview || existingBillName) && (
-            <div className="flex flex-wrap items-center gap-2">
-              {existingBillUrl && !billFile && (
-                <a href={existingBillUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline">
-                  <FileText className="h-3 w-3" />
-                  View current bill
-                </a>
-              )}
-              <button type="button" className="text-[10px] text-red-500 hover:underline" onClick={onRemoveBill}>
-                Remove bill
-              </button>
-            </div>
-          )}
-          {billDisplayUrl && isImageBillUrl(billDisplayUrl) && (
-            <a href={billDisplayUrl} target="_blank" rel="noreferrer" className="block">
-              <img src={billDisplayUrl} alt="Purchase bill preview" className="max-h-32 w-full rounded-md border object-contain bg-white" />
-            </a>
-          )}
+          <MultiFileDropzone
+            label="Purchase bill"
+            icon={<Receipt className="h-3.5 w-3.5 text-[#1faca6]" />}
+            hint="Click to add bill(s)"
+            accentClass="hover:border-[#1faca6]/40"
+            onAddFiles={onAddBillFiles}
+          />
+          <AttachmentList
+            emptyLabel="No bills attached"
+            onRemove={key => {
+              if (key.startsWith("pending:")) onRemovePendingBill(Number(key.slice(8)))
+              else onRemoveExistingBill(key)
+            }}
+            items={[
+              ...existingBills.map(item => ({
+                key: item.url,
+                name: item.name,
+                href: item.url,
+                previewUrl: item.url,
+              })),
+              ...pendingBillFiles.map((file, index) => ({
+                key: `pending:${index}`,
+                name: file.name,
+                previewUrl: billPreviewUrls[index],
+              })),
+            ]}
+          />
         </div>
 
         <div className="space-y-2">
-          <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
-            <Wallet className="h-3.5 w-3.5 text-emerald-600" />
-            Payment proof
-          </label>
-          <label className="flex flex-col items-center justify-center gap-2 min-h-[72px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-3 cursor-pointer hover:bg-[hsl(var(--muted))]/25 hover:border-emerald-500/40 transition-colors">
-            <Upload className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-            <span className="text-[10px] font-medium text-center">{proofLabel}</span>
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              className="hidden"
-              onChange={e => onProofFileChange(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          {(proofPreview || existingProofName || existingProofUrl) && (
-            <div className="flex flex-wrap items-center gap-2">
-              {existingProofUrl && !proofFile && (
-                <a href={existingProofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline">
-                  <FileText className="h-3 w-3" />
-                  View current proof
-                </a>
-              )}
-              <button type="button" className="text-[10px] text-red-500 hover:underline" onClick={onRemoveProof}>
-                Remove proof
-              </button>
-            </div>
-          )}
-          {proofDisplayUrl && isImageBillUrl(proofDisplayUrl) && (
-            <a href={proofDisplayUrl} target="_blank" rel="noreferrer" className="block">
-              <img src={proofDisplayUrl} alt="Payment proof preview" className="max-h-32 w-full rounded-md border object-contain bg-white" />
-            </a>
-          )}
+          <MultiFileDropzone
+            label="Payment proof"
+            icon={<Wallet className="h-3.5 w-3.5 text-emerald-600" />}
+            hint="Click to add proof(s)"
+            accentClass="hover:border-emerald-500/40"
+            onAddFiles={onAddProofFiles}
+          />
+          <AttachmentList
+            emptyLabel="No payment proofs attached"
+            onRemove={key => {
+              if (key.startsWith("pending:")) onRemovePendingProof(Number(key.slice(8)))
+              else onRemoveExistingProof(key)
+            }}
+            items={[
+              ...existingProofs.map(item => ({
+                key: item.url,
+                name: item.name,
+                href: item.url,
+                previewUrl: item.url,
+              })),
+              ...pendingProofFiles.map((file, index) => ({
+                key: `pending:${index}`,
+                name: file.name,
+                previewUrl: proofPreviewUrls[index],
+              })),
+            ]}
+          />
         </div>
       </div>
     </div>
@@ -227,17 +380,17 @@ function fmtMoney(n: number) {
 
 function getEntryBillLinks(entry: PurchaseLedgerEntry) {
   if (entry.linkMode === "project" && entry.supplierGroups.length > 0) {
-    return entry.supplierGroups
-      .filter(group => group.billUrl)
-      .map(group => ({
-        url: group.billUrl!,
-        name: group.billName || group.supplierName || "Bill",
-      }))
+    return entry.supplierGroups.flatMap(group =>
+      normalizeAttachments(group.billAttachments, group.billUrl, group.billName).map(att => ({
+        url: att.url,
+        name: att.name || group.supplierName || "Bill",
+      })),
+    )
   }
-  if (entry.billUrl) {
-    return [{ url: entry.billUrl, name: entry.billName || "Bill attached" }]
-  }
-  return []
+  return collectEntryBillAttachments(entry).map(att => ({
+    url: att.url,
+    name: att.name || "Bill attached",
+  }))
 }
 
 type ItemEditField = "quantity" | "unitPrice" | "lineTotal"
@@ -369,19 +522,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [groupPayingNow, setGroupPayingNow] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState("")
   const [clientProjects, setClientProjects] = useState<ClientProject[]>([])
-  const [proofFile, setProofFile] = useState<File | null>(null)
-  const [proofPreview, setProofPreview] = useState("")
-  const [billFile, setBillFile] = useState<File | null>(null)
-  const [billPreview, setBillPreview] = useState("")
-  const [existingBillUrl, setExistingBillUrl] = useState("")
-  const [existingBillName, setExistingBillName] = useState("")
-  const [existingProofUrl, setExistingProofUrl] = useState("")
-  const [existingProofName, setExistingProofName] = useState("")
+  const [billFiles, setBillFiles] = useState<File[]>([])
+  const [proofFiles, setProofFiles] = useState<File[]>([])
+  const [existingBillAttachments, setExistingBillAttachments] = useState<LedgerAttachment[]>([])
+  const [existingProofAttachments, setExistingProofAttachments] = useState<LedgerAttachment[]>([])
   const [clearedProofPaymentIds, setClearedProofPaymentIds] = useState<string[]>([])
-  const [groupBillFiles, setGroupBillFiles] = useState<Record<string, File | null>>({})
-  const [groupBillPreviews, setGroupBillPreviews] = useState<Record<string, string>>({})
-  const [groupProofFiles, setGroupProofFiles] = useState<Record<string, File | null>>({})
-  const [groupProofPreviews, setGroupProofPreviews] = useState<Record<string, string>>({})
+  const [groupBillFiles, setGroupBillFiles] = useState<Record<string, File[]>>({})
+  const [groupProofFiles, setGroupProofFiles] = useState<Record<string, File[]>>({})
 
   const grandTotal = useMemo(() => sumSupplierGroups(supplierGroups), [supplierGroups])
   const payingNow = parseFloat(amountPayingNow) || 0
@@ -413,25 +560,20 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       ? Math.max(0, grandTotal - existingPaid)
       : Math.max(0, grandTotal - payingNow)
 
-  const billDisplayUrl = useMemo(() => {
-    if (billFile) return URL.createObjectURL(billFile)
-    return existingBillUrl || ""
-  }, [billFile, existingBillUrl])
-
-  const proofDisplayUrl = useMemo(() => {
-    if (proofFile) return URL.createObjectURL(proofFile)
-    return existingProofUrl || ""
-  }, [proofFile, existingProofUrl])
+  const [billPreviewUrls, setBillPreviewUrls] = useState<string[]>([])
+  const [proofPreviewUrls, setProofPreviewUrls] = useState<string[]>([])
 
   useEffect(() => {
-    if (!billFile || !billDisplayUrl.startsWith("blob:")) return
-    return () => URL.revokeObjectURL(billDisplayUrl)
-  }, [billFile, billDisplayUrl])
+    const urls = billFiles.map(file => URL.createObjectURL(file))
+    setBillPreviewUrls(urls)
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [billFiles])
 
   useEffect(() => {
-    if (!proofFile || !proofDisplayUrl.startsWith("blob:")) return
-    return () => URL.revokeObjectURL(proofDisplayUrl)
-  }, [proofFile, proofDisplayUrl])
+    const urls = proofFiles.map(file => URL.createObjectURL(file))
+    setProofPreviewUrls(urls)
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [proofFiles])
 
   useEffect(() => {
     async function load() {
@@ -486,19 +628,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setAmountPayingNow("")
     setGroupPayingNow({})
     setNotes("")
-    setProofFile(null)
-    setProofPreview("")
-    setBillFile(null)
-    setBillPreview("")
-    setExistingBillUrl("")
-    setExistingBillName("")
-    setExistingProofUrl("")
-    setExistingProofName("")
+    setBillFiles([])
+    setProofFiles([])
+    setExistingBillAttachments([])
+    setExistingProofAttachments([])
     setClearedProofPaymentIds([])
     setGroupBillFiles({})
-    setGroupBillPreviews({})
     setGroupProofFiles({})
-    setGroupProofPreviews({})
     setLinkMode("general")
     setTransactionDate(new Date().toISOString().slice(0, 10))
   }
@@ -537,30 +673,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setNotes(entry.notes || "")
     setAmountPayingNow("")
     setGroupPayingNow({})
-    setProofFile(null)
-    setProofPreview("")
-    setBillFile(null)
-    setBillPreview("")
-    setExistingBillUrl(entry.linkMode === "project" ? "" : (entry.billUrl || ""))
-    setExistingBillName(entry.linkMode === "project" ? "" : (entry.billName || ""))
-    {
-      const firstProof = entry.payments.find(p => p.proofUrl)
-      setExistingProofUrl(
-        entry.linkMode === "project"
-          ? ""
-          : (entry.paymentProofUrl || firstProof?.proofUrl || ""),
-      )
-      setExistingProofName(
-        entry.linkMode === "project"
-          ? ""
-          : (entry.paymentProofName || firstProof?.proofName || ""),
-      )
-    }
+    setBillFiles([])
+    setProofFiles([])
+    setExistingBillAttachments(entry.linkMode === "project" ? [] : collectEntryBillAttachments(entry))
+    setExistingProofAttachments(entry.linkMode === "project" ? [] : collectEntryProofAttachments(entry))
     setClearedProofPaymentIds([])
     setGroupBillFiles({})
-    setGroupBillPreviews({})
     setGroupProofFiles({})
-    setGroupProofPreviews({})
     setDetailEntryId(null)
     setShowForm(true)
   }
@@ -616,13 +735,23 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           groups,
         )
         for (const group of groups) {
-          let billUrl = group.billUrl || ""
-          let billName = group.billName || ""
-          const pendingBill = groupBillFiles[group.id]
-          if (pendingBill) {
-            billUrl = await uploadFile(pendingBill, "purchase-bills")
-            billName = pendingBill.name
-          }
+          const uploadedBills = await uploadAttachments(groupBillFiles[group.id] || [], "purchase-bills")
+          const billAttachments = normalizeAttachments([
+            ...normalizeAttachments(group.billAttachments, group.billUrl, group.billName),
+            ...uploadedBills,
+          ])
+          const uploadedProofs = await uploadAttachments(groupProofFiles[group.id] || [], "payment-proofs")
+          const paymentProofAttachments = normalizeAttachments([
+            ...(isProjectMode
+              ? normalizeAttachments(group.paymentProofAttachments, group.paymentProofUrl, group.paymentProofName)
+              : []),
+            ...uploadedProofs,
+          ])
+          const syncedGroup = withSyncedLegacyAttachments({
+            ...group,
+            billAttachments,
+            paymentProofAttachments,
+          })
 
           const subtotal = getGroupSubtotal(group)
           // Use reconciled payment lines for this group (fixes stale/orphan group ids).
@@ -637,96 +766,80 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             ? Math.min(parseFloat(groupPayingNow[group.id] || "") || 0, remaining)
             : 0
           const nextPaid = alreadyPaid + paying
-
-          let proofUrl = group.paymentProofUrl || ""
-          let proofName = group.paymentProofName || ""
-          const pendingProof = groupProofFiles[group.id]
-          if (pendingProof) {
-            proofUrl = await uploadFile(pendingProof, "payment-proofs")
-            proofName = pendingProof.name
-          }
-          if (!proofUrl) {
-            const existingProof = findGroupPaymentProof(group, payments)
-            if (existingProof) {
-              proofUrl = existingProof.url
-              proofName = existingProof.name
-            }
-          }
+          const proofUrl = syncedGroup.paymentProofUrl || ""
+          const proofName = syncedGroup.paymentProofName || ""
 
           if (isProjectMode && paying > 0) {
             payments.push({
               id: `${Date.now()}-${group.id}`,
               amount: paying,
               date: group.date || transactionDate,
-              proofUrl,
-              proofName,
+              proofUrl: uploadedProofs[0]?.url || proofUrl,
+              proofName: uploadedProofs[0]?.name || proofName,
               notes: `Payment${group.supplierName ? ` · ${group.supplierName}` : ""}`,
               createdAt: new Date().toISOString(),
               createdBy: user.name,
               supplierGroupId: group.id,
               supplierName: group.supplierName,
             })
-          } else if (isProjectMode && proofUrl && pendingProof) {
-            // Mirror onto an existing payment row when present.
-            let attached = false
-            for (let i = payments.length - 1; i >= 0; i--) {
-              const p = payments[i]
-              if (p.supplierGroupId === group.id || (!p.supplierGroupId && groups.length === 1)) {
-                payments[i] = { ...p, proofUrl, proofName }
-                attached = true
-                break
-              }
-            }
-            if (!attached) {
-              payments.push({
-                id: `${Date.now()}-proof-${group.id}`,
-                amount: 0,
+            if (uploadedProofs.length > 1) {
+              payments = appendProofPayments(payments, uploadedProofs.slice(1), {
                 date: group.date || transactionDate,
-                proofUrl,
-                proofName,
-                notes: `Payment proof${group.supplierName ? ` · ${group.supplierName}` : ""}`,
-                createdAt: new Date().toISOString(),
                 createdBy: user.name,
                 supplierGroupId: group.id,
                 supplierName: group.supplierName,
               })
             }
+          } else if (isProjectMode && uploadedProofs.length > 0) {
+            payments = appendProofPayments(payments, uploadedProofs, {
+              date: group.date || transactionDate,
+              createdBy: user.name,
+              supplierGroupId: group.id,
+              supplierName: group.supplierName,
+            })
           }
 
           groupsWithPayments.push({
-            ...withGroupPaymentTotals(group, isProjectMode ? nextPaid : alreadyPaid),
-            billUrl,
-            billName,
-            paymentProofUrl: proofUrl,
-            paymentProofName: proofName,
+            ...withGroupPaymentTotals(syncedGroup, isProjectMode ? nextPaid : alreadyPaid),
             date: group.date || transactionDate,
           })
         }
 
-        if (!isProjectMode && proofFile) {
-          const proofUrl = await uploadFile(proofFile, "payment-proofs")
-          const proofName = proofFile.name
-          if (payments.length > 0) {
-            const idx = payments.findIndex(p => p.proofUrl) >= 0
-              ? payments.findIndex(p => p.proofUrl)
-              : payments.length - 1
-            payments[idx] = { ...payments[idx], proofUrl, proofName }
-          } else {
-            payments = [{
-              id: `${Date.now()}-proof`,
-              amount: 0,
+        if (!isProjectMode) {
+          const uploadedBills = await uploadAttachments(billFiles, "purchase-bills")
+          const uploadedProofs = await uploadAttachments(proofFiles, "payment-proofs")
+          const billAttachments = normalizeAttachments([
+            ...existingBillAttachments,
+            ...uploadedBills,
+          ])
+          const proofAttachments = normalizeAttachments([
+            ...existingProofAttachments,
+            ...uploadedProofs,
+          ])
+          groupsWithPayments = groupsWithPayments.map((group, index) =>
+            index === 0
+              ? withSyncedLegacyAttachments({
+                ...group,
+                billAttachments,
+                paymentProofAttachments: proofAttachments,
+              })
+              : group,
+          )
+          if (uploadedProofs.length > 0 || proofAttachments.length > 0) {
+            payments = appendProofPayments(payments, uploadedProofs.length > 0 ? uploadedProofs : [], {
               date: transactionDate,
-              proofUrl,
-              proofName,
-              notes: "Payment proof",
-              createdAt: new Date().toISOString(),
               createdBy: user.name,
-            }]
+            })
+            // Keep payment proofs in sync with remaining attachment list (removals).
+            const keepUrls = new Set(proofAttachments.map(a => a.url))
+            payments = payments.map(p =>
+              p.proofUrl && !keepUrls.has(p.proofUrl) ? { ...p, proofUrl: "", proofName: "" } : p,
+            )
+          } else {
+            payments = payments.map(p => ({ ...p, proofUrl: "", proofName: "" }))
           }
-          setExistingProofUrl(proofUrl)
-          setExistingProofName(proofName)
-        } else if (!isProjectMode && !existingProofUrl) {
-          payments = payments.map(p => ({ ...p, proofUrl: "", proofName: "" }))
+          setExistingBillAttachments(billAttachments)
+          setExistingProofAttachments(proofAttachments)
         }
 
         amountPaid = isProjectMode ? sumGroupAmountPaid(groupsWithPayments) : sumPayments(payments)
@@ -735,29 +848,24 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         groupsWithPayments = []
         payments = []
         for (const group of groups) {
-          let proofUrl = group.paymentProofUrl || ""
-          let proofName = group.paymentProofName || ""
-          const pendingProof = groupProofFiles[group.id]
-          if (pendingProof) {
-            proofUrl = await uploadFile(pendingProof, "payment-proofs")
-            proofName = pendingProof.name
-          }
-          let billUrl = group.billUrl || ""
-          let billName = group.billName || ""
-          const pendingBill = groupBillFiles[group.id]
-          if (pendingBill) {
-            billUrl = await uploadFile(pendingBill, "purchase-bills")
-            billName = pendingBill.name
-          }
+          const uploadedBills = await uploadAttachments(groupBillFiles[group.id] || [], "purchase-bills")
+          const uploadedProofs = await uploadAttachments(groupProofFiles[group.id] || [], "payment-proofs")
+          const syncedGroup = withSyncedLegacyAttachments({
+            ...group,
+            billAttachments: normalizeAttachments([
+              ...normalizeAttachments(group.billAttachments, group.billUrl, group.billName),
+              ...uploadedBills,
+            ]),
+            paymentProofAttachments: normalizeAttachments([
+              ...normalizeAttachments(group.paymentProofAttachments, group.paymentProofUrl, group.paymentProofName),
+              ...uploadedProofs,
+            ]),
+          })
           const payingRaw = parseFloat(groupPayingNow[group.id] || "") || 0
           const paying = Math.min(payingRaw, getGroupSubtotal(group))
-          const withPayment = withGroupPaymentTotals(group, paying)
+          const withPayment = withGroupPaymentTotals(syncedGroup, paying)
           groupsWithPayments.push({
             ...withPayment,
-            billUrl,
-            billName,
-            paymentProofUrl: proofUrl,
-            paymentProofName: proofName,
             date: group.date || transactionDate,
           })
           if (paying > 0) {
@@ -765,10 +873,25 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               id: `${Date.now()}-${group.id}`,
               amount: paying,
               date: group.date || transactionDate,
-              proofUrl,
-              proofName,
+              proofUrl: uploadedProofs[0]?.url || syncedGroup.paymentProofUrl || "",
+              proofName: uploadedProofs[0]?.name || syncedGroup.paymentProofName || "",
               notes: `Initial payment${group.supplierName ? ` · ${group.supplierName}` : ""}`,
               createdAt: new Date().toISOString(),
+              createdBy: user.name,
+              supplierGroupId: group.id,
+              supplierName: group.supplierName,
+            })
+            if (uploadedProofs.length > 1) {
+              payments = appendProofPayments(payments, uploadedProofs.slice(1), {
+                date: group.date || transactionDate,
+                createdBy: user.name,
+                supplierGroupId: group.id,
+                supplierName: group.supplierName,
+              })
+            }
+          } else if (uploadedProofs.length > 0) {
+            payments = appendProofPayments(payments, uploadedProofs, {
+              date: group.date || transactionDate,
               createdBy: user.name,
               supplierGroupId: group.id,
               supplierName: group.supplierName,
@@ -777,37 +900,59 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         }
         amountPaid = sumGroupAmountPaid(groupsWithPayments)
         amountDue = Math.max(0, totalAmount - amountPaid)
-      } else if (payingNow > 0) {
-        let proofUrl = ""
-        let proofName = ""
-        if (proofFile) {
-          proofUrl = await uploadFile(proofFile, "payment-proofs")
-          proofName = proofFile.name
-        }
-        payments = [{
-          id: Date.now().toString(),
-          amount: payingNow,
-          date: transactionDate,
-          proofUrl,
-          proofName,
-          notes: "Initial payment",
-          createdAt: new Date().toISOString(),
-          createdBy: user.name,
-        }]
-        amountPaid = payingNow
-        amountDue = Math.max(0, totalAmount - payingNow)
-        groupsWithPayments = groups.map(group => withGroupPaymentTotals(group, groups.length === 1 ? payingNow : 0))
       } else {
-        groupsWithPayments = groups.map(group => withGroupPaymentTotals(group, 0))
+        const uploadedBills = await uploadAttachments(billFiles, "purchase-bills")
+        const uploadedProofs = await uploadAttachments(proofFiles, "payment-proofs")
+        const billAttachments = normalizeAttachments(uploadedBills)
+        const proofAttachments = normalizeAttachments(uploadedProofs)
+        const paidOnCreate = payingNow > 0 ? payingNow : 0
+        groupsWithPayments = groups.map((group, index) => {
+          const withPay = withGroupPaymentTotals(group, groups.length === 1 ? paidOnCreate : 0)
+          return index === 0
+            ? withSyncedLegacyAttachments({
+              ...withPay,
+              billAttachments,
+              paymentProofAttachments: proofAttachments,
+            })
+            : withPay
+        })
+        if (paidOnCreate > 0) {
+          payments = [{
+            id: Date.now().toString(),
+            amount: paidOnCreate,
+            date: transactionDate,
+            proofUrl: proofAttachments[0]?.url || "",
+            proofName: proofAttachments[0]?.name || "",
+            notes: "Initial payment",
+            createdAt: new Date().toISOString(),
+            createdBy: user.name,
+          }]
+          if (proofAttachments.length > 1) {
+            payments = appendProofPayments(payments, proofAttachments.slice(1), {
+              date: transactionDate,
+              createdBy: user.name,
+            })
+          }
+          amountPaid = paidOnCreate
+          amountDue = Math.max(0, totalAmount - paidOnCreate)
+        } else if (proofAttachments.length > 0) {
+          payments = appendProofPayments([], proofAttachments, {
+            date: transactionDate,
+            createdBy: user.name,
+          })
+        }
       }
 
-      let billUrl = existingBillUrl
-      let billName = existingBillName
+      let billUrl = ""
+      let billName = ""
       if (!isProjectMode) {
-        if (billFile) {
-          billUrl = await uploadFile(billFile, "purchase-bills")
-          billName = billFile.name
-        }
+        const firstBills = normalizeAttachments(
+          groupsWithPayments[0]?.billAttachments,
+          groupsWithPayments[0]?.billUrl,
+          groupsWithPayments[0]?.billName,
+        )
+        billUrl = firstBills[0]?.url || existingBillAttachments[0]?.url || ""
+        billName = firstBills[0]?.name || existingBillAttachments[0]?.name || ""
       } else {
         const firstGroupBill = groupsWithPayments.find(group => group.billUrl)
         billUrl = firstGroupBill?.billUrl || ""
@@ -854,11 +999,11 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         accountDetails: primary?.accountDetails ?? "",
         paymentProofUrl: clampedPayments.find(p => p.proofUrl)?.proofUrl
           || syncedGroups.find(g => g.paymentProofUrl)?.paymentProofUrl
-          || (isEditing && !isProjectMode ? existingProofUrl : "")
+          || (isEditing && !isProjectMode ? existingProofAttachments[0]?.url : "")
           || "",
         paymentProofName: clampedPayments.find(p => p.proofUrl)?.proofName
           || syncedGroups.find(g => g.paymentProofUrl)?.paymentProofName
-          || (isEditing && !isProjectMode ? existingProofName : "")
+          || (isEditing && !isProjectMode ? existingProofAttachments[0]?.name : "")
           || "",
         billUrl,
         billName,
@@ -1413,53 +1558,61 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                       {isProjectMode && (
                         <SupplierGroupAttachments
                           group={group}
-                          billFile={groupBillFiles[group.id] ?? null}
-                          billPreview={groupBillPreviews[group.id] || ""}
-                          proofFile={groupProofFiles[group.id] ?? null}
-                          proofPreview={groupProofPreviews[group.id] || ""}
-                          existingProofUrl={
-                            groupProofFiles[group.id]
-                              ? undefined
-                              : findGroupPaymentProof(group, existingPayments)?.url
-                          }
-                          existingProofName={
-                            groupProofFiles[group.id]
-                              ? undefined
-                              : findGroupPaymentProof(group, existingPayments)?.name
-                          }
-                          onBillFileChange={file => {
-                            setGroupBillFiles(prev => ({ ...prev, [group.id]: file }))
-                            setGroupBillPreviews(prev => ({ ...prev, [group.id]: file?.name ?? "" }))
+                          pendingBillFiles={groupBillFiles[group.id] || []}
+                          pendingProofFiles={groupProofFiles[group.id] || []}
+                          existingProofs={collectGroupProofAttachments(group, existingPayments)}
+                          onAddBillFiles={files => {
+                            setGroupBillFiles(prev => ({
+                              ...prev,
+                              [group.id]: [...(prev[group.id] || []), ...files],
+                            }))
                           }}
-                          onProofFileChange={file => {
-                            setGroupProofFiles(prev => ({ ...prev, [group.id]: file }))
-                            setGroupProofPreviews(prev => ({ ...prev, [group.id]: file?.name ?? "" }))
-                            const existing = findGroupPaymentProof(group, existingPayments)
-                            if (existing?.paymentId) {
-                              setClearedProofPaymentIds(prev => prev.filter(id => id !== existing.paymentId))
-                            }
+                          onAddProofFiles={files => {
+                            setGroupProofFiles(prev => ({
+                              ...prev,
+                              [group.id]: [...(prev[group.id] || []), ...files],
+                            }))
                           }}
-                          onRemoveBill={() => {
-                            setGroupBillFiles(prev => ({ ...prev, [group.id]: null }))
-                            setGroupBillPreviews(prev => ({ ...prev, [group.id]: "" }))
-                            updateSupplierGroup(group.id, { billUrl: "", billName: "" })
+                          onRemovePendingBill={index => {
+                            setGroupBillFiles(prev => ({
+                              ...prev,
+                              [group.id]: (prev[group.id] || []).filter((_, i) => i !== index),
+                            }))
                           }}
-                          onRemoveProof={() => {
-                            setGroupProofFiles(prev => ({ ...prev, [group.id]: null }))
-                            setGroupProofPreviews(prev => ({ ...prev, [group.id]: "" }))
-                            updateSupplierGroup(group.id, { paymentProofUrl: "", paymentProofName: "" })
-                            const existing = findGroupPaymentProof(group, existingPayments)
-                            if (existing?.paymentId) {
+                          onRemovePendingProof={index => {
+                            setGroupProofFiles(prev => ({
+                              ...prev,
+                              [group.id]: (prev[group.id] || []).filter((_, i) => i !== index),
+                            }))
+                          }}
+                          onRemoveExistingBill={url => {
+                            const remaining = normalizeAttachments(
+                              group.billAttachments,
+                              group.billUrl,
+                              group.billName,
+                            ).filter(att => att.url !== url)
+                            updateSupplierGroup(group.id, withSyncedLegacyAttachments({
+                              ...group,
+                              billAttachments: remaining,
+                            }))
+                          }}
+                          onRemoveExistingProof={url => {
+                            const remaining = collectGroupProofAttachments(group, existingPayments)
+                              .filter(att => att.url !== url)
+                            updateSupplierGroup(group.id, withSyncedLegacyAttachments({
+                              ...group,
+                              paymentProofAttachments: remaining,
+                            }))
+                            const affectedIds = existingPayments
+                              .filter(p => p.proofUrl === url)
+                              .map(p => p.id)
+                            if (affectedIds.length > 0) {
                               setClearedProofPaymentIds(prev =>
-                                prev.includes(existing.paymentId!)
-                                  ? prev
-                                  : [...prev, existing.paymentId!],
+                                Array.from(new Set([...prev, ...affectedIds])),
                               )
                               setExistingPayments(prev =>
                                 prev.map(p =>
-                                  p.id === existing.paymentId
-                                    ? { ...p, proofUrl: "", proofName: "" }
-                                    : p,
+                                  p.proofUrl === url ? { ...p, proofUrl: "", proofName: "" } : p,
                                 ),
                               )
                             }
@@ -1483,137 +1636,84 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                     <Paperclip className="h-4 w-4 text-[#1faca6] shrink-0" />
                     <div>
                       <p className="text-xs font-semibold">Attachments</p>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Attach supplier bill / invoice and payment proof</p>
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        Attach multiple purchase bills and payment proofs
+                      </p>
                     </div>
                   </div>
 
                   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                     <div className="rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2">
-                      <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
-                        <Receipt className="h-3.5 w-3.5 text-[#1faca6]" />
-                        Purchase bill
-                      </label>
-                      <label className="flex flex-col items-center justify-center gap-2 min-h-[88px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-4 cursor-pointer hover:bg-[hsl(var(--muted))]/25 hover:border-[#1faca6]/40 transition-colors">
-                        <Upload className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
-                        <span className="text-xs font-medium text-center">
-                          {billPreview || existingBillName || "Click to upload bill"}
-                        </span>
-                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Image or PDF</span>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          className="hidden"
-                          onChange={e => {
-                            const file = e.target.files?.[0] ?? null
-                            setBillFile(file)
-                            setBillPreview(file?.name ?? "")
-                          }}
-                        />
-                      </label>
-                      {(billPreview || existingBillName) && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          {existingBillUrl && !billFile && (
-                            <a
-                              href={existingBillUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline"
-                            >
-                              <FileText className="h-3 w-3" />
-                              View current bill
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            className="text-[10px] text-red-500 hover:underline"
-                            onClick={() => {
-                              setBillFile(null)
-                              setBillPreview("")
-                              setExistingBillUrl("")
-                              setExistingBillName("")
-                            }}
-                          >
-                            Remove bill
-                          </button>
-                        </div>
-                      )}
-                      {billDisplayUrl && isImageBillUrl(billDisplayUrl) && (
-                        <a href={billDisplayUrl} target="_blank" rel="noreferrer" className="block">
-                          <img
-                            src={billDisplayUrl}
-                            alt="Purchase bill preview"
-                            className="max-h-40 w-full rounded-md border object-contain bg-white"
-                          />
-                        </a>
-                      )}
+                      <MultiFileDropzone
+                        label="Purchase bill"
+                        icon={<Receipt className="h-3.5 w-3.5 text-[#1faca6]" />}
+                        hint="Click to add bill(s)"
+                        accentClass="hover:border-[#1faca6]/40"
+                        onAddFiles={files => setBillFiles(prev => [...prev, ...files])}
+                      />
+                      <AttachmentList
+                        emptyLabel="No bills attached"
+                        onRemove={key => {
+                          if (key.startsWith("pending:")) {
+                            const index = Number(key.slice(8))
+                            setBillFiles(prev => prev.filter((_, i) => i !== index))
+                          } else {
+                            setExistingBillAttachments(prev => prev.filter(att => att.url !== key))
+                          }
+                        }}
+                        items={[
+                          ...existingBillAttachments.map(att => ({
+                            key: att.url,
+                            name: att.name,
+                            href: att.url,
+                            previewUrl: att.url,
+                          })),
+                          ...billFiles.map((file, index) => ({
+                            key: `pending:${index}`,
+                            name: file.name,
+                            previewUrl: billPreviewUrls[index],
+                          })),
+                        ]}
+                      />
                     </div>
 
                     <div className="rounded-lg border bg-[hsl(var(--card))] p-3 space-y-2">
-                      <label className="text-[11px] font-medium text-[hsl(var(--foreground))] flex items-center gap-1.5">
-                        <Wallet className="h-3.5 w-3.5 text-emerald-600" />
-                        Payment proof
-                      </label>
-                      <label className="flex flex-col items-center justify-center gap-2 min-h-[88px] rounded-lg border-2 border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-3 py-4 cursor-pointer hover:bg-[hsl(var(--muted))]/25 hover:border-emerald-500/40 transition-colors">
-                        <Upload className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
-                        <span className="text-xs font-medium text-center">
-                          {proofPreview || existingProofName || "Click to upload screenshot"}
-                        </span>
-                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Optional · image or PDF</span>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          className="hidden"
-                          onChange={e => {
-                            const file = e.target.files?.[0] ?? null
-                            setProofFile(file)
-                            setProofPreview(file?.name ?? "")
-                          }}
-                        />
-                      </label>
-                      {(proofPreview || existingProofName || existingProofUrl) && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          {existingProofUrl && !proofFile && (
-                            <a
-                              href={existingProofUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline"
-                            >
-                              <FileText className="h-3 w-3" />
-                              View current proof
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            className="text-[10px] text-red-500 hover:underline"
-                            onClick={() => {
-                              setProofFile(null)
-                              setProofPreview("")
-                              setExistingProofUrl("")
-                              setExistingProofName("")
-                              setExistingPayments(prev =>
-                                prev.map(p => ({ ...p, proofUrl: "", proofName: "" })),
-                              )
-                            }}
-                          >
-                            Remove proof
-                          </button>
-                        </div>
-                      )}
-                      {(proofFile || existingProofUrl) && proofDisplayUrl && isImageBillUrl(proofDisplayUrl) && (
-                        <a
-                          href={proofDisplayUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block"
-                        >
-                          <img
-                            src={proofDisplayUrl}
-                            alt="Payment proof preview"
-                            className="max-h-40 w-full rounded-md border object-contain bg-white"
-                          />
-                        </a>
-                      )}
+                      <MultiFileDropzone
+                        label="Payment proof"
+                        icon={<Wallet className="h-3.5 w-3.5 text-emerald-600" />}
+                        hint="Click to add proof(s)"
+                        accentClass="hover:border-emerald-500/40"
+                        onAddFiles={files => setProofFiles(prev => [...prev, ...files])}
+                      />
+                      <AttachmentList
+                        emptyLabel="No payment proofs attached"
+                        onRemove={key => {
+                          if (key.startsWith("pending:")) {
+                            const index = Number(key.slice(8))
+                            setProofFiles(prev => prev.filter((_, i) => i !== index))
+                          } else {
+                            setExistingProofAttachments(prev => prev.filter(att => att.url !== key))
+                            setExistingPayments(prev =>
+                              prev.map(p =>
+                                p.proofUrl === key ? { ...p, proofUrl: "", proofName: "" } : p,
+                              ),
+                            )
+                          }
+                        }}
+                        items={[
+                          ...existingProofAttachments.map(att => ({
+                            key: att.url,
+                            name: att.name,
+                            href: att.url,
+                            previewUrl: att.url,
+                          })),
+                          ...proofFiles.map((file, index) => ({
+                            key: `pending:${index}`,
+                            name: file.name,
+                            previewUrl: proofPreviewUrls[index],
+                          })),
+                        ]}
+                      />
                     </div>
                   </div>
                 </section>

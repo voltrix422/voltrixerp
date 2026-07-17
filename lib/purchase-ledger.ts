@@ -12,6 +12,11 @@ export interface PurchaseLedgerItem {
   lineTotal: number
 }
 
+export type LedgerAttachment = {
+  url: string
+  name: string
+}
+
 export interface PurchaseLedgerSupplierGroup {
   id: string
   supplierId: string | null
@@ -22,11 +27,14 @@ export interface PurchaseLedgerSupplierGroup {
   amountDue?: number
   /** Date for this supplier’s purchase / payment (shown per supplier). */
   date?: string
+  /** @deprecated Prefer billAttachments — kept for older rows. */
   billUrl?: string
   billName?: string
-  /** Payment screenshot / proof for this supplier (independent of payment amount). */
+  billAttachments?: LedgerAttachment[]
+  /** @deprecated Prefer paymentProofAttachments — kept for older rows. */
   paymentProofUrl?: string
   paymentProofName?: string
+  paymentProofAttachments?: LedgerAttachment[]
 }
 
 export interface PurchaseLedgerPayment {
@@ -105,8 +113,52 @@ export function newLedgerItem(partial?: Partial<PurchaseLedgerItem>): PurchaseLe
   }
 }
 
-export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>): PurchaseLedgerSupplierGroup {
+export function normalizeAttachments(
+  list: LedgerAttachment[] | undefined,
+  legacyUrl?: string,
+  legacyName?: string,
+): LedgerAttachment[] {
+  const fromList = (Array.isArray(list) ? list : [])
+    .map(item => ({
+      url: String(item?.url ?? "").trim(),
+      name: String(item?.name ?? "").trim() || "Attachment",
+    }))
+    .filter(item => item.url)
+  if (fromList.length > 0) {
+    const seen = new Set<string>()
+    return fromList.filter(item => {
+      if (seen.has(item.url)) return false
+      seen.add(item.url)
+      return true
+    })
+  }
+  const url = String(legacyUrl ?? "").trim()
+  if (!url) return []
+  return [{ url, name: String(legacyName ?? "").trim() || "Attachment" }]
+}
+
+export function withSyncedLegacyAttachments(
+  group: PurchaseLedgerSupplierGroup,
+): PurchaseLedgerSupplierGroup {
+  const billAttachments = normalizeAttachments(group.billAttachments, group.billUrl, group.billName)
+  const paymentProofAttachments = normalizeAttachments(
+    group.paymentProofAttachments,
+    group.paymentProofUrl,
+    group.paymentProofName,
+  )
   return {
+    ...group,
+    billAttachments,
+    paymentProofAttachments,
+    billUrl: billAttachments[0]?.url || "",
+    billName: billAttachments[0]?.name || "",
+    paymentProofUrl: paymentProofAttachments[0]?.url || "",
+    paymentProofName: paymentProofAttachments[0]?.name || "",
+  }
+}
+
+export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>): PurchaseLedgerSupplierGroup {
+  return withSyncedLegacyAttachments({
     id: partial?.id ?? Date.now().toString() + Math.random().toString(36).slice(2, 6),
     supplierId: partial?.supplierId ?? null,
     supplierName: partial?.supplierName ?? "",
@@ -117,9 +169,11 @@ export function newSupplierGroup(partial?: Partial<PurchaseLedgerSupplierGroup>)
     date: partial?.date ?? "",
     billUrl: partial?.billUrl ?? "",
     billName: partial?.billName ?? "",
+    billAttachments: partial?.billAttachments,
     paymentProofUrl: partial?.paymentProofUrl ?? "",
     paymentProofName: partial?.paymentProofName ?? "",
-  }
+    paymentProofAttachments: partial?.paymentProofAttachments,
+  })
 }
 
 export function calcLineTotal(item: Pick<PurchaseLedgerItem, "quantity" | "unitPrice">) {
@@ -513,24 +567,23 @@ export function syncSupplierGroupsToPayments(
     })
   }
 
-  // Carry matching payment proof onto the group when group has none.
+  // Carry matching payment proofs onto the group when group has none.
   return next.map((group) => {
-    if (group.paymentProofUrl) return group
+    const synced = withSyncedLegacyAttachments(group)
+    if ((synced.paymentProofAttachments?.length || 0) > 0) return synced
     const groupName = normalizeSupplierKey(group.supplierName)
-    const withProof = [...payments]
+    const proofs = payments
       .filter(p => {
         if (!p.proofUrl) return false
         if (p.supplierGroupId === group.id) return true
         return Boolean(groupName && normalizeSupplierKey(p.supplierName) === groupName)
       })
-      .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
-      .at(-1)
-    if (!withProof?.proofUrl) return group
-    return {
-      ...group,
-      paymentProofUrl: withProof.proofUrl,
-      paymentProofName: withProof.proofName || group.paymentProofName || "Payment proof",
-    }
+      .map(p => ({ url: p.proofUrl, name: p.proofName || "Payment proof" }))
+    if (proofs.length === 0) return synced
+    return withSyncedLegacyAttachments({
+      ...synced,
+      paymentProofAttachments: proofs,
+    })
   })
 }
 
@@ -559,7 +612,7 @@ function parseSupplierGroups(raw: unknown, fallback: {
       unitPrice: Number((item as PurchaseLedgerItem).unitPrice) || 0,
       lineTotal: Number((item as PurchaseLedgerItem).lineTotal) || 0,
     }))
-    const parsedGroup: PurchaseLedgerSupplierGroup = {
+    const parsedGroup = withSyncedLegacyAttachments({
       id: String(group.id ?? `group-${index}`),
       supplierId: (group.supplierId as string | null) ?? null,
       supplierName: String(group.supplierName ?? ""),
@@ -570,9 +623,11 @@ function parseSupplierGroups(raw: unknown, fallback: {
       date: String(group.date ?? ""),
       billUrl: String(group.billUrl ?? ""),
       billName: String(group.billName ?? ""),
+      billAttachments: parseJsonArray<LedgerAttachment>(group.billAttachments),
       paymentProofUrl: String(group.paymentProofUrl ?? ""),
       paymentProofName: String(group.paymentProofName ?? ""),
-    }
+      paymentProofAttachments: parseJsonArray<LedgerAttachment>(group.paymentProofAttachments),
+    })
     return withGroupPaymentTotals(parsedGroup, parsedGroup.amountPaid ?? 0)
   })
 
