@@ -6,19 +6,25 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import {
   assignStaffKpi,
-  createStaffProfileFromUser,
   fetchKpiTemplates,
   type KpiPeriodType,
   type KpiTemplate,
 } from "@/lib/hrm-kpis"
-import { getUsers, type User } from "@/lib/auth"
+
+type StaffOption = {
+  id: string
+  name: string
+  email: string
+  role?: string
+  department?: string
+}
 
 export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
   const { toast } = useToast()
   const [templates, setTemplates] = useState<KpiTemplate[]>([])
-  const [users, setUsers] = useState<User[]>([])
+  const [staffList, setStaffList] = useState<StaffOption[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedUserId, setSelectedUserId] = useState("")
+  const [selectedStaffId, setSelectedStaffId] = useState("")
   const [templateId, setTemplateId] = useState("")
   const [customPeriodType, setCustomPeriodType] = useState<KpiPeriodType>("weekly")
   const [customStartDate, setCustomStartDate] = useState("")
@@ -28,14 +34,23 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [tpls, userList] = await Promise.all([
+      const [tpls, staffRes] = await Promise.all([
         fetchKpiTemplates(),
-        getUsers(),
+        fetch("/api/hrm/staff"),
       ])
+      const staff = staffRes.ok ? await staffRes.json() : []
       setTemplates(tpls.filter(t => t.active))
-      setUsers(userList)
+      setStaffList(
+        (Array.isArray(staff) ? staff : []).map((s: StaffOption) => ({
+          id: s.id,
+          name: s.name,
+          email: s.email || "",
+          role: s.role,
+          department: s.department,
+        }))
+      )
     } catch {
-      toast({ title: "Error", message: "Could not load users or KPIs.", type: "error" })
+      toast({ title: "Error", message: "Could not load staff or KPIs.", type: "error" })
     } finally {
       setLoading(false)
     }
@@ -45,20 +60,19 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
     load()
   }, [load])
 
-  function selectUser(userId: string) {
-    setSelectedUserId(userId)
-    if (!userId) setTemplateId("")
+  function selectStaff(staffId: string) {
+    setSelectedStaffId(staffId)
+    if (!staffId) setTemplateId("")
   }
 
   async function handleAssign() {
-    if (!selectedUserId || !templateId) return
+    if (!selectedStaffId || !templateId) return
     const tpl = templates.find(t => t.id === templateId)
     if (!tpl) return
     setSaving(true)
     try {
-      const created = await createStaffProfileFromUser(selectedUserId)
       await assignStaffKpi({
-        staffId: created.id,
+        staffId: selectedStaffId,
         templateId: tpl.id,
         name: tpl.name,
         unit: tpl.unit,
@@ -67,9 +81,10 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
         periodType: tpl.periodType,
         assignedBy,
       })
+      const person = staffList.find(s => s.id === selectedStaffId)
       toast({
-        title: "Linked",
-        message: `${tpl.name} assigned to this user. They will see it in KPI Dashboard.`,
+        title: "Assigned",
+        message: `${tpl.name} assigned to ${person?.name || "staff"}.`,
         type: "success",
       })
       setTemplateId("")
@@ -85,7 +100,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
   }
 
   async function handleAssignCustomRangeKpi() {
-    if (!selectedUserId || !templateId || !customStartDate || !customEndDate) return
+    if (!selectedStaffId || !templateId || !customStartDate || !customEndDate) return
     const tpl = templates.find(t => t.id === templateId)
     if (!tpl) return
     if (customEndDate < customStartDate) {
@@ -94,9 +109,8 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
     }
     setSaving(true)
     try {
-      const created = await createStaffProfileFromUser(selectedUserId)
       await assignStaffKpi({
-        staffId: created.id,
+        staffId: selectedStaffId,
         templateId: tpl.id,
         name: tpl.name,
         unit: tpl.unit,
@@ -140,41 +154,34 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
         <h3 className="text-sm font-semibold">Assign KPI</h3>
       </div>
       <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Pick user + template, then assign.
+        Assign templates to people from <span className="font-medium">HRM → Staff</span> only — not Manage Users.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">User account</label>
+          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Staff member</label>
           <select
             className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
-            value={selectedUserId}
-            onChange={e => selectUser(e.target.value)}
+            value={selectedStaffId}
+            onChange={e => selectStaff(e.target.value)}
           >
-            <option value="">Select user ID/email…</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.id.slice(0, 8)} — {u.name} ({u.email}) [{u.role}]
+            <option value="">Select staff…</option>
+            {staffList.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+                {s.department ? ` · ${s.department}` : ""}
+                {s.email ? ` (${s.email})` : ""}
               </option>
             ))}
           </select>
         </div>
-        <div>
-          <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Profile</label>
-          <div className="h-[42px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-3 text-sm flex items-center text-[hsl(var(--muted-foreground))]">
-            Auto-linked
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">KPI template</label>
           <select
             className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
             value={templateId}
             onChange={e => setTemplateId(e.target.value)}
-            disabled={!selectedUserId}
+            disabled={!selectedStaffId}
           >
             <option value="">Select KPI…</option>
             {templates.map(t => (
@@ -184,13 +191,16 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Cycle</label>
           <select
             className="w-full rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-2 text-sm"
             value={customPeriodType}
             onChange={e => setCustomPeriodType(e.target.value as KpiPeriodType)}
-            disabled={!selectedUserId}
+            disabled={!selectedStaffId}
           >
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -204,7 +214,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
       <Button
         size="sm"
         className="gap-1.5"
-        disabled={!selectedUserId || !templateId || saving}
+        disabled={!selectedStaffId || !templateId || saving}
         onClick={handleAssign}
       >
         <Plus className="h-3.5 w-3.5" /> Assign
@@ -230,7 +240,7 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
           <Button
             size="sm"
             variant="outline"
-            disabled={!selectedUserId || !templateId || !customStartDate || !customEndDate || saving}
+            disabled={!selectedStaffId || !templateId || !customStartDate || !customEndDate || saving}
             onClick={handleAssignCustomRangeKpi}
           >
             Assign range KPI

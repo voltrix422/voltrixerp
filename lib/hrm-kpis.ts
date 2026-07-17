@@ -238,15 +238,26 @@ export async function linkStaffToUser(staffId: string, erpUserId: string | null)
   if (!res.ok) throw new Error("Failed to link user to profile")
 }
 
-export async function createStaffProfileFromUser(userId: string): Promise<{ id: string }> {
+/** Link an ERP user to an existing HRM staff profile (never auto-creates staff). */
+export async function linkOrFindStaffForUser(userId: string): Promise<{ id: string }> {
   const res = await fetch("/api/hrm/staff/from-user", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId }),
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((json as { error?: string }).error || "Could not create staff profile")
+  if (!res.ok) {
+    throw new Error(
+      (json as { error?: string }).error ||
+        "No staff profile for this user. Add them under HRM → Staff first."
+    )
+  }
   return json as { id: string }
+}
+
+/** @deprecated Use linkOrFindStaffForUser — does not create staff anymore. */
+export async function createStaffProfileFromUser(userId: string): Promise<{ id: string }> {
+  return linkOrFindStaffForUser(userId)
 }
 
 export async function saveSettlement(body: {

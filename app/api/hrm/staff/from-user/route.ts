@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 
+/**
+ * Link an ERP login user to an existing HRM staff profile.
+ * Does NOT auto-create staff — Manage Users ≠ Staff.
+ * Admin must add the person under HRM → Staff first.
+ */
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const userId = String(body.userId || "").trim()
@@ -33,24 +38,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: existingByEmail.id, linked: true })
   }
 
-  const created = await prisma.erpStaff.create({
-    data: {
-      name: user.name || user.email.split("@")[0],
-      role: user.jobTitle || user.role || "staff",
-      department: "Operations",
-      email: user.email || "",
-      phone: "",
-      address: "",
-      salary: Number(user.baseSalary) || 0,
-      currency: "PKR",
-      joinDate: new Date().toISOString().slice(0, 10),
-      status: "active",
-      notes: "Auto-created from User Accounts for KPI assignment",
-      createdBy: "system",
-      erpUserId: user.id,
+  return NextResponse.json(
+    {
+      error:
+        "No HRM staff profile for this user. Add them under HRM → Staff first (system users are not staff).",
     },
-    select: { id: true },
-  })
-
-  return NextResponse.json({ id: created.id, linked: true })
+    { status: 404 }
+  )
 }

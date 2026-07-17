@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import {
   computeWeightedScore,
-  createStaffProfileFromUser,
   fetchSettlements,
   fetchStaffKpis,
   fetchStaffProfile,
@@ -31,15 +30,7 @@ export function MyKpiPortal() {
       return
     }
     fetchStaffProfile({ email: user?.email, userId: user?.id })
-      .then(async (s) => {
-        let resolved = s
-        if (!resolved && user?.id) {
-          const created = await createStaffProfileFromUser(user.id)
-          resolved = await fetchStaffProfile({ userId: user.id })
-          if (!resolved && created?.id) {
-            resolved = { id: created.id, name: user.name || user.email || "User", email: user.email || "" }
-          }
-        }
+      .then(async (resolved) => {
         setStaff(resolved)
         setNotFound(!resolved)
         if (!resolved) return
@@ -99,10 +90,11 @@ export function MyKpiPortal() {
   if (notFound || !staff) {
     return (
       <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center max-w-lg mx-auto">
-        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Could not load your dashboard</p>
+        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">No staff profile linked</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
-          Please contact admin if this continues for login (
-          <span className="font-medium">{user?.email}</span>).
+          Your login account is not the same as HRM staff. Ask an admin to add you under{" "}
+          <span className="font-medium">HRM → Staff</span> using this email (
+          <span className="font-medium">{user?.email}</span>), then you can use My KPIs.
         </p>
       </div>
     )
