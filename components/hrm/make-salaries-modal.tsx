@@ -88,6 +88,7 @@ function buildRows(
         currency: s.currency || "PKR",
         monthlySalary: s.salary,
         taxAmount: Number(s.tax_amount) || 0,
+        taxEnabled: Boolean(s.tax_enabled),
         included: true,
         periodFrom: saved?.periodStart || periodStartForJoinDate(month, s.join_date),
         periodTo: saved?.periodEnd || bounds.to,
