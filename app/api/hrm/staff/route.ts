@@ -79,6 +79,10 @@ function mapToDB(data: Record<string, any>) {
   if (taxAmount !== undefined)        mapped.taxAmount = parseFloat(taxAmount) || 0
   const taxEnabled = data.taxEnabled ?? data.tax_enabled
   if (taxEnabled !== undefined)       mapped.taxEnabled = Boolean(taxEnabled)
+  const eobiAmount = data.eobiAmount ?? data.eobi_amount
+  if (eobiAmount !== undefined)       mapped.eobiAmount = parseFloat(eobiAmount) || 0
+  const eobiEnabled = data.eobiEnabled ?? data.eobi_enabled
+  if (eobiEnabled !== undefined)      mapped.eobiEnabled = Boolean(eobiEnabled)
   if (data.currency !== undefined)    mapped.currency = data.currency
   if (data.status !== undefined)      mapped.status = data.status
   if (data.notes !== undefined)       mapped.notes = data.notes ?? ''
@@ -129,6 +133,8 @@ function mapToFrontend(s: any) {
     salary: s.salary,
     tax_amount: s.taxAmount ?? 0,
     tax_enabled: Boolean(s.taxEnabled),
+    eobi_amount: s.eobiAmount ?? 0,
+    eobi_enabled: Boolean(s.eobiEnabled),
     currency: s.currency,
     join_date: s.joinDate,
     status: s.status,

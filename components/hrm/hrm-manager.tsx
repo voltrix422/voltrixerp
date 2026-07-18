@@ -13,6 +13,7 @@ import {
   buildEffectiveSalaryAdjustments,
   calculateProRatedSalary,
   computeNetSalary,
+  effectiveStaffEobiAmount,
   effectiveStaffTaxAmount,
   monthDateBounds,
   payPeriodLabel,
@@ -51,6 +52,8 @@ interface StaffMember {
   salary: number
   tax_amount?: number
   tax_enabled?: boolean
+  eobi_amount?: number
+  eobi_enabled?: boolean
   currency: string
   join_date: string
   status: "active" | "inactive"
@@ -228,6 +231,8 @@ export function HrmManager() {
       outstandingAdvance,
       taxAmount: Number(member.tax_amount) || 0,
       taxEnabled: Boolean(member.tax_enabled),
+      eobiAmount: Number(member.eobi_amount) || 0,
+      eobiEnabled: Boolean(member.eobi_enabled),
     })
     const netSalary = computeNetSalary(effectiveBase, effectiveAdjustments)
     const payPeriodText = payPeriodLabel(selectedMonth, payPeriodMode, periodFrom, periodTo)
@@ -555,9 +560,12 @@ export function HrmManager() {
   const [salary, setSalary] = useState("")
   const [taxAmount, setTaxAmount] = useState("")
   const [taxEnabled, setTaxEnabled] = useState(false)
+  const [eobiAmount, setEobiAmount] = useState("")
+  const [eobiEnabled, setEobiEnabled] = useState(false)
   const [currency, setCurrency] = useState("USD")
   const [deletingSlipId, setDeletingSlipId] = useState<string | null>(null)
   const [togglingTaxId, setTogglingTaxId] = useState<string | null>(null)
+  const [togglingEobiId, setTogglingEobiId] = useState<string | null>(null)
   const [joinDate, setJoinDate] = useState("")
   const [status, setStatus] = useState<"active" | "inactive">("active")
   const [notes, setNotes] = useState("")
@@ -612,6 +620,8 @@ export function HrmManager() {
     setSalary(member.salary.toString())
     setTaxAmount(member.tax_amount ? String(member.tax_amount) : "")
     setTaxEnabled(Boolean(member.tax_enabled))
+    setEobiAmount(member.eobi_amount ? String(member.eobi_amount) : "")
+    setEobiEnabled(Boolean(member.eobi_enabled))
     setCurrency(member.currency)
     setJoinDate(member.join_date)
     setStatus(member.status)
@@ -766,6 +776,8 @@ export function HrmManager() {
         salary: parseFloat(salary) || 0,
         tax_amount: parseFloat(taxAmount) || 0,
         tax_enabled: taxEnabled,
+        eobi_amount: parseFloat(eobiAmount) || 0,
+        eobi_enabled: eobiEnabled,
         currency, joinDate, status, notes,
         bank_name: bankName,
         bank_account_number: bankAccountNumber,
@@ -797,7 +809,8 @@ export function HrmManager() {
 
   function resetForm() {
     setName(""); setRole(""); setDepartment("Management"); setEmail("")
-    setPhone(""); setAddress(""); setSalary(""); setTaxAmount(""); setTaxEnabled(false); setCurrency("USD")
+    setPhone(""); setAddress(""); setSalary(""); setTaxAmount(""); setTaxEnabled(false)
+    setEobiAmount(""); setEobiEnabled(false); setCurrency("USD")
     setJoinDate(""); setStatus("active"); setNotes("")
     setBankName(""); setBankAccountNumber(""); setBankAccountTitle("")
     setPhotoFile(null); setPhotoPreview(""); setShowForm(false)
@@ -851,6 +864,54 @@ export function HrmManager() {
       alert("Failed to update tax setting. Please try again.")
     } finally {
       setTogglingTaxId(null)
+    }
+  }
+
+  async function handleToggleStaffEobi(member: StaffMember, nextEnabled: boolean) {
+    setTogglingEobiId(member.id)
+    try {
+      const res = await fetch("/api/hrm/staff", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: member.id,
+          eobi_enabled: nextEnabled,
+          eobi_amount: Number(member.eobi_amount) || 0,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to update EOBI setting")
+      const saved = await res.json()
+      setStaff(prev =>
+        prev.map(s =>
+          s.id === member.id
+            ? {
+                ...s,
+                ...saved,
+                eobi_enabled: Boolean(saved.eobi_enabled),
+                eobi_amount: Number(saved.eobi_amount) || 0,
+                documents: s.documents,
+                photo_url: s.photo_url,
+              }
+            : s,
+        ),
+      )
+      setViewMember(prev =>
+        prev && prev.id === member.id
+          ? {
+              ...prev,
+              ...saved,
+              eobi_enabled: Boolean(saved.eobi_enabled),
+              eobi_amount: Number(saved.eobi_amount) || 0,
+              documents: prev.documents,
+              photo_url: prev.photo_url,
+            }
+          : prev,
+      )
+    } catch (error) {
+      console.error("Error toggling EOBI:", error)
+      alert("Failed to update EOBI setting. Please try again.")
+    } finally {
+      setTogglingEobiId(null)
     }
   }
 
@@ -1490,45 +1551,88 @@ export function HrmManager() {
                   <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0"
                     className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
-                <div className="space-y-2 col-span-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Apply tax on salary</label>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                        When on, this amount is deducted from each salary slip
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={taxEnabled}
-                      onClick={() => setTaxEnabled(v => !v)}
-                      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                        taxEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-                          taxEnabled ? "translate-x-5" : "translate-x-0"
+                <div className="space-y-3 col-span-2">
+                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax deduction</label>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                          Toggle on to deduct tax from each salary slip
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={taxEnabled}
+                        onClick={() => setTaxEnabled(v => !v)}
+                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                          taxEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
                         }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                            taxEnabled ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-1">
+                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax amount</label>
+                      <input
+                        value={taxAmount}
+                        onChange={e => setTaxAmount(e.target.value)}
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
                       />
-                    </button>
+                      {!taxEnabled && (parseFloat(taxAmount) || 0) > 0 && (
+                        <p className="text-[10px] text-amber-700">
+                          Tax amount is saved but will not be deducted while the toggle is off.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-3 space-y-1">
-                    <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax amount</label>
-                    <input
-                      value={taxAmount}
-                      onChange={e => setTaxAmount(e.target.value)}
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
-                    />
-                    {!taxEnabled && (parseFloat(taxAmount) || 0) > 0 && (
-                      <p className="text-[10px] text-amber-700">
-                        Tax amount is saved but will not be deducted while the toggle is off.
-                      </p>
-                    )}
+                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">EOBI deduction</label>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                          Toggle on to deduct EOBI from each salary slip
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={eobiEnabled}
+                        onClick={() => setEobiEnabled(v => !v)}
+                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                          eobiEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                            eobiEnabled ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-1">
+                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">EOBI amount</label>
+                      <input
+                        value={eobiAmount}
+                        onChange={e => setEobiAmount(e.target.value)}
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                      />
+                      {!eobiEnabled && (parseFloat(eobiAmount) || 0) > 0 && (
+                        <p className="text-[10px] text-amber-700">
+                          EOBI amount is saved but will not be deducted while the toggle is off.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1754,50 +1858,97 @@ export function HrmManager() {
                       Outstanding advance: {viewMember.currency} {(advanceByStaff[viewMember.id] || 0).toLocaleString()}
                     </p>
                   )}
-                  <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Tax</p>
-                        <p className="text-sm font-semibold mt-0.5">
-                          {(Number(viewMember.tax_amount) || 0) > 0
-                            ? `${viewMember.currency} ${Number(viewMember.tax_amount).toLocaleString()} / month`
-                            : "No tax amount set"}
-                        </p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                          {viewMember.tax_enabled
-                            ? "Tax is applied on salary slips"
-                            : "Tax is off — not deducted"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={Boolean(viewMember.tax_enabled)}
-                        disabled={togglingTaxId === viewMember.id || (Number(viewMember.tax_amount) || 0) <= 0}
-                        title={
-                          (Number(viewMember.tax_amount) || 0) <= 0
-                            ? "Set a tax amount in Edit first"
-                            : viewMember.tax_enabled
-                              ? "Turn tax off"
-                              : "Turn tax on"
-                        }
-                        onClick={() => handleToggleStaffTax(viewMember, !viewMember.tax_enabled)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                          viewMember.tax_enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-                            viewMember.tax_enabled ? "translate-x-5" : "translate-x-0"
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Tax deduction</p>
+                          <p className="text-sm font-semibold mt-0.5">
+                            {(Number(viewMember.tax_amount) || 0) > 0
+                              ? `${viewMember.currency} ${Number(viewMember.tax_amount).toLocaleString()} / month`
+                              : "No tax amount set"}
+                          </p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                            {viewMember.tax_enabled
+                              ? "Tax is deducted on salary slips"
+                              : "Tax is off — not deducted"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(viewMember.tax_enabled)}
+                          disabled={togglingTaxId === viewMember.id || (Number(viewMember.tax_amount) || 0) <= 0}
+                          title={
+                            (Number(viewMember.tax_amount) || 0) <= 0
+                              ? "Set a tax amount in Edit first"
+                              : viewMember.tax_enabled
+                                ? "Turn tax deduction off"
+                                : "Turn tax deduction on"
+                          }
+                          onClick={() => handleToggleStaffTax(viewMember, !viewMember.tax_enabled)}
+                          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            viewMember.tax_enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
                           }`}
-                        />
-                      </button>
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                              viewMember.tax_enabled ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      {(Number(viewMember.tax_amount) || 0) <= 0 && (
+                        <p className="text-[10px] text-amber-700">
+                          Edit this staff member to set a tax amount, then use the toggle.
+                        </p>
+                      )}
                     </div>
-                    {(Number(viewMember.tax_amount) || 0) <= 0 && (
-                      <p className="text-[10px] text-amber-700">
-                        Edit this staff member to set a tax amount, then use the toggle.
-                      </p>
-                    )}
+                    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">EOBI deduction</p>
+                          <p className="text-sm font-semibold mt-0.5">
+                            {(Number(viewMember.eobi_amount) || 0) > 0
+                              ? `${viewMember.currency} ${Number(viewMember.eobi_amount).toLocaleString()} / month`
+                              : "No EOBI amount set"}
+                          </p>
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                            {viewMember.eobi_enabled
+                              ? "EOBI is deducted on salary slips"
+                              : "EOBI is off — not deducted"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(viewMember.eobi_enabled)}
+                          disabled={togglingEobiId === viewMember.id || (Number(viewMember.eobi_amount) || 0) <= 0}
+                          title={
+                            (Number(viewMember.eobi_amount) || 0) <= 0
+                              ? "Set an EOBI amount in Edit first"
+                              : viewMember.eobi_enabled
+                                ? "Turn EOBI deduction off"
+                                : "Turn EOBI deduction on"
+                          }
+                          onClick={() => handleToggleStaffEobi(viewMember, !viewMember.eobi_enabled)}
+                          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            viewMember.eobi_enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
+                              viewMember.eobi_enabled ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      {(Number(viewMember.eobi_amount) || 0) <= 0 && (
+                        <p className="text-[10px] text-amber-700">
+                          Edit this staff member to set an EOBI amount, then use the toggle.
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">Salary History Snapshot</p>
@@ -2418,6 +2569,28 @@ export function HrmManager() {
                       <span className="text-sm text-[hsl(var(--muted-foreground))]">Tax</span>
                       <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
                         Off ({viewMember.currency} {Number(viewMember.tax_amount).toLocaleString()} not deducted)
+                      </span>
+                    </div>
+                  ) : null}
+                  {effectiveStaffEobiAmount({
+                    eobiAmount: viewMember.eobi_amount,
+                    eobiEnabled: viewMember.eobi_enabled,
+                  }) > 0 ? (
+                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">EOBI (applied)</span>
+                      <span className="text-sm font-semibold text-rose-600">
+                        − {viewMember.currency}{" "}
+                        {effectiveStaffEobiAmount({
+                          eobiAmount: viewMember.eobi_amount,
+                          eobiEnabled: viewMember.eobi_enabled,
+                        }).toLocaleString()}
+                      </span>
+                    </div>
+                  ) : (Number(viewMember.eobi_amount) || 0) > 0 ? (
+                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">EOBI</span>
+                      <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                        Off ({viewMember.currency} {Number(viewMember.eobi_amount).toLocaleString()} not deducted)
                       </span>
                     </div>
                   ) : null}

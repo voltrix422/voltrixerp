@@ -91,6 +91,15 @@ export function effectiveStaffTaxAmount(options: {
   return Math.max(0, Number(options.taxAmount) || 0)
 }
 
+/** EOBI deducted only when the profile toggle is on and amount > 0. */
+export function effectiveStaffEobiAmount(options: {
+  eobiAmount?: number | null
+  eobiEnabled?: boolean | null
+}): number {
+  if (!options.eobiEnabled) return 0
+  return Math.max(0, Number(options.eobiAmount) || 0)
+}
+
 export function buildEffectiveSalaryAdjustments(
   manual: SalaryAdjustment[],
   options: {
@@ -98,6 +107,8 @@ export function buildEffectiveSalaryAdjustments(
     outstandingAdvance: number
     taxAmount?: number
     taxEnabled?: boolean
+    eobiAmount?: number
+    eobiEnabled?: boolean
   },
 ): SalaryAdjustment[] {
   const list = [...manual]
@@ -114,6 +125,21 @@ export function buildEffectiveSalaryAdjustments(
       type: "deduct",
       amount: String(taxAmount),
       label: "Tax",
+    })
+  }
+  const eobiAmount = effectiveStaffEobiAmount({
+    eobiAmount: options.eobiAmount,
+    eobiEnabled: options.eobiEnabled,
+  })
+  const hasEobi = list.some(
+    adj => adj.id === "eobi-deduction" || adj.label.trim().toLowerCase() === "eobi",
+  )
+  if (eobiAmount > 0.004 && !hasEobi) {
+    list.push({
+      id: "eobi-deduction",
+      type: "deduct",
+      amount: String(eobiAmount),
+      label: "EOBI",
     })
   }
   if (options.deductAdvance && options.outstandingAdvance > 0.004) {
@@ -141,6 +167,8 @@ export function computeBatchSalaryFigures(
   outstandingAdvance: number,
   taxAmount = 0,
   taxEnabled = true,
+  eobiAmount = 0,
+  eobiEnabled = false,
 ) {
   const fullMonth = monthDateBounds(periodFrom.slice(0, 7))
   const isFullMonth = periodFrom === fullMonth.from && periodTo === fullMonth.to
@@ -152,6 +180,8 @@ export function computeBatchSalaryFigures(
     outstandingAdvance,
     taxAmount,
     taxEnabled,
+    eobiAmount,
+    eobiEnabled,
   })
   const netSalary = computeNetSalary(proRate.amount, adjustments)
   return {

@@ -416,6 +416,8 @@ model ErpStaff {
   salary        Float
   taxAmount     Float    @default(0) @map("tax_amount")
   taxEnabled    Boolean  @default(false) @map("tax_enabled")
+  eobiAmount    Float    @default(0) @map("eobi_amount")
+  eobiEnabled   Boolean  @default(false) @map("eobi_enabled")
   currency      String
   joinDate      String   @map("join_date")
   status        String
