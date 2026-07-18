@@ -75,6 +75,14 @@ function mapToDB(data: Record<string, any>) {
   if (data.phone !== undefined)       mapped.phone = data.phone ?? ''
   if (data.address !== undefined)     mapped.address = data.address ?? ''
   if (data.salary !== undefined)      mapped.salary = parseFloat(data.salary) || 0
+  const employmentType = data.employmentType ?? data.employment_type
+  if (employmentType !== undefined)   mapped.employmentType = String(employmentType || "Permanent")
+  const basicSalary = data.basicSalary ?? data.basic_salary
+  if (basicSalary !== undefined)      mapped.basicSalary = parseFloat(basicSalary) || 0
+  const medicalAllowance = data.medicalAllowance ?? data.medical_allowance
+  if (medicalAllowance !== undefined) mapped.medicalAllowance = parseFloat(medicalAllowance) || 0
+  const medicalEnabled = data.medicalEnabled ?? data.medical_enabled
+  if (medicalEnabled !== undefined)   mapped.medicalEnabled = Boolean(medicalEnabled)
   const taxAmount = data.taxAmount ?? data.tax_amount
   if (taxAmount !== undefined)        mapped.taxAmount = parseFloat(taxAmount) || 0
   const taxEnabled = data.taxEnabled ?? data.tax_enabled
@@ -83,6 +91,10 @@ function mapToDB(data: Record<string, any>) {
   if (eobiAmount !== undefined)       mapped.eobiAmount = parseFloat(eobiAmount) || 0
   const eobiEnabled = data.eobiEnabled ?? data.eobi_enabled
   if (eobiEnabled !== undefined)      mapped.eobiEnabled = Boolean(eobiEnabled)
+  const customAllowances = data.customAllowances ?? data.custom_allowances
+  if (customAllowances !== undefined) mapped.customAllowances = Array.isArray(customAllowances) ? customAllowances : []
+  const customDeductions = data.customDeductions ?? data.custom_deductions
+  if (customDeductions !== undefined) mapped.customDeductions = Array.isArray(customDeductions) ? customDeductions : []
   if (data.currency !== undefined)    mapped.currency = data.currency
   if (data.status !== undefined)      mapped.status = data.status
   if (data.notes !== undefined)       mapped.notes = data.notes ?? ''
@@ -131,10 +143,16 @@ function mapToFrontend(s: any) {
     phone: s.phone,
     address: s.address,
     salary: s.salary,
+    employment_type: s.employmentType || "Permanent",
+    basic_salary: s.basicSalary ?? 0,
+    medical_allowance: s.medicalAllowance ?? 0,
+    medical_enabled: Boolean(s.medicalEnabled),
     tax_amount: s.taxAmount ?? 0,
     tax_enabled: Boolean(s.taxEnabled),
     eobi_amount: s.eobiAmount ?? 0,
     eobi_enabled: Boolean(s.eobiEnabled),
+    custom_allowances: Array.isArray(s.customAllowances) ? s.customAllowances : [],
+    custom_deductions: Array.isArray(s.customDeductions) ? s.customDeductions : [],
     currency: s.currency,
     join_date: s.joinDate,
     status: s.status,

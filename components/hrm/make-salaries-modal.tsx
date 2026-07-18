@@ -7,7 +7,9 @@ import { X, Save, CheckCircle2, Copy, Download } from "lucide-react"
 import {
   computeBatchSalaryFigures,
   monthDateBounds,
+  normalizeStaffPayLines,
   periodStartForJoinDate,
+  type StaffPayLine,
 } from "@/lib/hrm-salary-calc"
 import {
   downloadPayrollSummaryPdf,
@@ -25,10 +27,15 @@ export type MakeSalariesStaff = {
   role: string
   department: string
   salary: number
+  basic_salary?: number
+  medical_allowance?: number
+  medical_enabled?: boolean
   tax_amount?: number
   tax_enabled?: boolean
   eobi_amount?: number
   eobi_enabled?: boolean
+  custom_allowances?: StaffPayLine[] | unknown
+  custom_deductions?: StaffPayLine[] | unknown
   currency: string
   join_date: string
   status: "active" | "inactive"
@@ -44,10 +51,15 @@ type SalaryRow = {
   department: string
   currency: string
   monthlySalary: number
+  basicSalary: number
+  medicalAllowance: number
+  medicalEnabled: boolean
   taxAmount: number
   taxEnabled: boolean
   eobiAmount: number
   eobiEnabled: boolean
+  customAllowances: StaffPayLine[]
+  customDeductions: StaffPayLine[]
   included: boolean
   periodFrom: string
   periodTo: string
@@ -91,10 +103,15 @@ function buildRows(
         department: s.department,
         currency: s.currency || "PKR",
         monthlySalary: s.salary,
+        basicSalary: Number(s.basic_salary) || 0,
+        medicalAllowance: Number(s.medical_allowance) || 0,
+        medicalEnabled: Boolean(s.medical_enabled),
         taxAmount: Number(s.tax_amount) || 0,
         taxEnabled: Boolean(s.tax_enabled),
         eobiAmount: Number(s.eobi_amount) || 0,
         eobiEnabled: Boolean(s.eobi_enabled),
+        customAllowances: normalizeStaffPayLines(s.custom_allowances),
+        customDeductions: normalizeStaffPayLines(s.custom_deductions),
         included: true,
         periodFrom: saved?.periodStart || periodStartForJoinDate(month, s.join_date),
         periodTo: saved?.periodEnd || bounds.to,
@@ -159,6 +176,11 @@ export function MakeSalariesModal({
               row.taxEnabled,
               row.eobiAmount,
               row.eobiEnabled,
+              row.medicalAllowance,
+              row.medicalEnabled,
+              row.customAllowances,
+              row.customDeductions,
+              row.basicSalary,
             )
           : {
               baseSalary: 0,

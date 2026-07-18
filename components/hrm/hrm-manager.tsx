@@ -8,16 +8,21 @@ import { Plus, X, Search, Trash2, UserCog, Phone, Mail, MapPin, Briefcase, Uploa
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { StaffSalaryAdvanceModal } from "@/components/hrm/staff-salary-advance-modal"
 import { MakeSalariesModal } from "@/components/hrm/make-salaries-modal"
+import { StaffEmployeeDetail } from "@/components/hrm/staff-employee-detail"
 import { fetchSalaryAdvanceSummary, recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
 import {
   buildEffectiveSalaryAdjustments,
   calculateProRatedSalary,
   computeNetSalary,
   effectiveStaffEobiAmount,
+  effectiveStaffMedicalAmount,
   effectiveStaffTaxAmount,
   monthDateBounds,
+  normalizeStaffPayLines,
   payPeriodLabel,
   periodStartForJoinDate,
+  resolveBasicSalary,
+  type StaffPayLine,
 } from "@/lib/hrm-salary-calc"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadStaffExcel } from "@/lib/hrm-excel-export"
@@ -50,10 +55,16 @@ interface StaffMember {
   phone: string
   address: string
   salary: number
+  employment_type?: string
+  basic_salary?: number
+  medical_allowance?: number
+  medical_enabled?: boolean
   tax_amount?: number
   tax_enabled?: boolean
   eobi_amount?: number
   eobi_enabled?: boolean
+  custom_allowances?: StaffPayLine[]
+  custom_deductions?: StaffPayLine[]
   currency: string
   join_date: string
   status: "active" | "inactive"
@@ -72,6 +83,16 @@ interface StaffMember {
 
 const DEPARTMENTS = ["Management", "Engineering", "Sales", "Finance", "HR", "Operations", "Marketing", "Support", "Other"]
 const CURRENCIES = ["USD", "PKR", "EUR", "GBP", "AED"]
+const EMPLOYMENT_TYPES = ["Permanent", "Contract", "Probation", "Part-time", "Intern", "Consultant"]
+
+function newPayLine(label = "", amount = ""): StaffPayLine & { amountInput?: string } {
+  return {
+    id: `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label,
+    amount: parseFloat(amount) || 0,
+    enabled: true,
+  }
+}
 
 // IndexedDB helpers
 function openDB(): Promise<IDBDatabase> {
@@ -221,11 +242,12 @@ export function HrmManager() {
 
   function resolveSalarySlipFigures(member: StaffMember) {
     const outstandingAdvance = advanceByStaff[member.id] || 0
+    const payableBase = resolveBasicSalary(member.salary, member.basic_salary)
     const proRate =
       payPeriodMode === "custom_range" && periodFrom && periodTo
-        ? calculateProRatedSalary(member.salary, periodFrom, periodTo)
+        ? calculateProRatedSalary(payableBase, periodFrom, periodTo)
         : null
-    const effectiveBase = proRate?.amount ?? member.salary
+    const effectiveBase = proRate?.amount ?? payableBase
     const effectiveAdjustments = buildEffectiveSalaryAdjustments(salaryAdjustments, {
       deductAdvance,
       outstandingAdvance,
@@ -233,10 +255,29 @@ export function HrmManager() {
       taxEnabled: Boolean(member.tax_enabled),
       eobiAmount: Number(member.eobi_amount) || 0,
       eobiEnabled: Boolean(member.eobi_enabled),
+      medicalAllowance: Number(member.medical_allowance) || 0,
+      medicalEnabled: Boolean(member.medical_enabled),
+      customAllowances: member.custom_allowances,
+      customDeductions: member.custom_deductions,
     })
     const netSalary = computeNetSalary(effectiveBase, effectiveAdjustments)
     const payPeriodText = payPeriodLabel(selectedMonth, payPeriodMode, periodFrom, periodTo)
     return { outstandingAdvance, proRate, effectiveBase, effectiveAdjustments, netSalary, payPeriodText }
+  }
+
+  function mergeStaffLocal(memberId: string, saved: Partial<StaffMember>) {
+    setStaff(prev =>
+      prev.map(s =>
+        s.id === memberId
+          ? { ...s, ...saved, documents: s.documents, photo_url: s.photo_url }
+          : s,
+      ),
+    )
+    setViewMember(prev =>
+      prev && prev.id === memberId
+        ? { ...prev, ...saved, documents: prev.documents, photo_url: prev.photo_url }
+        : prev,
+    )
   }
 
   function openSalarySlipModal() {
@@ -562,10 +603,15 @@ export function HrmManager() {
   const [taxEnabled, setTaxEnabled] = useState(false)
   const [eobiAmount, setEobiAmount] = useState("")
   const [eobiEnabled, setEobiEnabled] = useState(false)
+  const [employmentType, setEmploymentType] = useState("Permanent")
+  const [basicSalary, setBasicSalary] = useState("")
+  const [medicalAllowance, setMedicalAllowance] = useState("")
+  const [medicalEnabled, setMedicalEnabled] = useState(false)
+  const [customAllowances, setCustomAllowances] = useState<StaffPayLine[]>([])
+  const [customDeductions, setCustomDeductions] = useState<StaffPayLine[]>([])
   const [currency, setCurrency] = useState("USD")
   const [deletingSlipId, setDeletingSlipId] = useState<string | null>(null)
-  const [togglingTaxId, setTogglingTaxId] = useState<string | null>(null)
-  const [togglingEobiId, setTogglingEobiId] = useState<string | null>(null)
+  const [togglingPayKey, setTogglingPayKey] = useState<string | null>(null)
   const [joinDate, setJoinDate] = useState("")
   const [status, setStatus] = useState<"active" | "inactive">("active")
   const [notes, setNotes] = useState("")
@@ -618,10 +664,16 @@ export function HrmManager() {
     setPhone(member.phone)
     setAddress(member.address)
     setSalary(member.salary.toString())
+    setEmploymentType(member.employment_type || "Permanent")
+    setBasicSalary(member.basic_salary ? String(member.basic_salary) : "")
+    setMedicalAllowance(member.medical_allowance ? String(member.medical_allowance) : "")
+    setMedicalEnabled(Boolean(member.medical_enabled))
     setTaxAmount(member.tax_amount ? String(member.tax_amount) : "")
     setTaxEnabled(Boolean(member.tax_enabled))
     setEobiAmount(member.eobi_amount ? String(member.eobi_amount) : "")
     setEobiEnabled(Boolean(member.eobi_enabled))
+    setCustomAllowances(normalizeStaffPayLines(member.custom_allowances))
+    setCustomDeductions(normalizeStaffPayLines(member.custom_deductions))
     setCurrency(member.currency)
     setJoinDate(member.join_date)
     setStatus(member.status)
@@ -774,10 +826,26 @@ export function HrmManager() {
         id: memberId,
         name, role, department, email, phone, address,
         salary: parseFloat(salary) || 0,
+        employment_type: employmentType,
+        basic_salary: parseFloat(basicSalary) || 0,
+        medical_allowance: parseFloat(medicalAllowance) || 0,
+        medical_enabled: medicalEnabled,
         tax_amount: parseFloat(taxAmount) || 0,
         tax_enabled: taxEnabled,
         eobi_amount: parseFloat(eobiAmount) || 0,
         eobi_enabled: eobiEnabled,
+        custom_allowances: customAllowances.map(l => ({
+          id: l.id,
+          label: l.label.trim() || "Allowance",
+          amount: Math.max(0, Number(l.amount) || 0),
+          enabled: l.enabled !== false,
+        })),
+        custom_deductions: customDeductions.map(l => ({
+          id: l.id,
+          label: l.label.trim() || "Deduction",
+          amount: Math.max(0, Number(l.amount) || 0),
+          enabled: l.enabled !== false,
+        })),
         currency, joinDate, status, notes,
         bank_name: bankName,
         bank_account_number: bankAccountNumber,
@@ -810,7 +878,9 @@ export function HrmManager() {
   function resetForm() {
     setName(""); setRole(""); setDepartment("Management"); setEmail("")
     setPhone(""); setAddress(""); setSalary(""); setTaxAmount(""); setTaxEnabled(false)
-    setEobiAmount(""); setEobiEnabled(false); setCurrency("USD")
+    setEobiAmount(""); setEobiEnabled(false)
+    setEmploymentType("Permanent"); setBasicSalary(""); setMedicalAllowance(""); setMedicalEnabled(false)
+    setCustomAllowances([]); setCustomDeductions([]); setCurrency("USD")
     setJoinDate(""); setStatus("active"); setNotes("")
     setBankName(""); setBankAccountNumber(""); setBankAccountTitle("")
     setPhotoFile(null); setPhotoPreview(""); setShowForm(false)
@@ -819,100 +889,70 @@ export function HrmManager() {
     setEditingMember(null)
   }
 
-  async function handleToggleStaffTax(member: StaffMember, nextEnabled: boolean) {
-    setTogglingTaxId(member.id)
+  async function patchStaffPay(member: StaffMember, key: string, body: Record<string, unknown>) {
+    setTogglingPayKey(key)
     try {
       const res = await fetch("/api/hrm/staff", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: member.id,
-          tax_enabled: nextEnabled,
-          tax_amount: Number(member.tax_amount) || 0,
-        }),
+        body: JSON.stringify({ id: member.id, ...body }),
       })
-      if (!res.ok) throw new Error("Failed to update tax setting")
+      if (!res.ok) throw new Error("Failed to update pay setting")
       const saved = await res.json()
-      setStaff(prev =>
-        prev.map(s =>
-          s.id === member.id
-            ? {
-                ...s,
-                ...saved,
-                tax_enabled: Boolean(saved.tax_enabled),
-                tax_amount: Number(saved.tax_amount) || 0,
-                documents: s.documents,
-                photo_url: s.photo_url,
-              }
-            : s,
-        ),
-      )
-      setViewMember(prev =>
-        prev && prev.id === member.id
-          ? {
-              ...prev,
-              ...saved,
-              tax_enabled: Boolean(saved.tax_enabled),
-              tax_amount: Number(saved.tax_amount) || 0,
-              documents: prev.documents,
-              photo_url: prev.photo_url,
-            }
-          : prev,
-      )
+      mergeStaffLocal(member.id, {
+        ...saved,
+        employment_type: saved.employment_type || member.employment_type || "Permanent",
+        basic_salary: Number(saved.basic_salary) || 0,
+        medical_allowance: Number(saved.medical_allowance) || 0,
+        medical_enabled: Boolean(saved.medical_enabled),
+        tax_amount: Number(saved.tax_amount) || 0,
+        tax_enabled: Boolean(saved.tax_enabled),
+        eobi_amount: Number(saved.eobi_amount) || 0,
+        eobi_enabled: Boolean(saved.eobi_enabled),
+        custom_allowances: normalizeStaffPayLines(saved.custom_allowances),
+        custom_deductions: normalizeStaffPayLines(saved.custom_deductions),
+      })
     } catch (error) {
-      console.error("Error toggling tax:", error)
-      alert("Failed to update tax setting. Please try again.")
+      console.error("Error updating pay setting:", error)
+      alert("Failed to update pay setting. Please try again.")
     } finally {
-      setTogglingTaxId(null)
+      setTogglingPayKey(null)
     }
   }
 
+  async function handleToggleStaffTax(member: StaffMember, nextEnabled: boolean) {
+    await patchStaffPay(member, "tax", {
+      tax_enabled: nextEnabled,
+      tax_amount: Number(member.tax_amount) || 0,
+    })
+  }
+
   async function handleToggleStaffEobi(member: StaffMember, nextEnabled: boolean) {
-    setTogglingEobiId(member.id)
-    try {
-      const res = await fetch("/api/hrm/staff", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: member.id,
-          eobi_enabled: nextEnabled,
-          eobi_amount: Number(member.eobi_amount) || 0,
-        }),
-      })
-      if (!res.ok) throw new Error("Failed to update EOBI setting")
-      const saved = await res.json()
-      setStaff(prev =>
-        prev.map(s =>
-          s.id === member.id
-            ? {
-                ...s,
-                ...saved,
-                eobi_enabled: Boolean(saved.eobi_enabled),
-                eobi_amount: Number(saved.eobi_amount) || 0,
-                documents: s.documents,
-                photo_url: s.photo_url,
-              }
-            : s,
-        ),
-      )
-      setViewMember(prev =>
-        prev && prev.id === member.id
-          ? {
-              ...prev,
-              ...saved,
-              eobi_enabled: Boolean(saved.eobi_enabled),
-              eobi_amount: Number(saved.eobi_amount) || 0,
-              documents: prev.documents,
-              photo_url: prev.photo_url,
-            }
-          : prev,
-      )
-    } catch (error) {
-      console.error("Error toggling EOBI:", error)
-      alert("Failed to update EOBI setting. Please try again.")
-    } finally {
-      setTogglingEobiId(null)
-    }
+    await patchStaffPay(member, "eobi", {
+      eobi_enabled: nextEnabled,
+      eobi_amount: Number(member.eobi_amount) || 0,
+    })
+  }
+
+  async function handleToggleStaffMedical(member: StaffMember, nextEnabled: boolean) {
+    await patchStaffPay(member, "medical", {
+      medical_enabled: nextEnabled,
+      medical_allowance: Number(member.medical_allowance) || 0,
+    })
+  }
+
+  async function handleToggleCustomAllowance(member: StaffMember, lineId: string, enabled: boolean) {
+    const next = normalizeStaffPayLines(member.custom_allowances).map(line =>
+      line.id === lineId ? { ...line, enabled } : line,
+    )
+    await patchStaffPay(member, `allowance:${lineId}`, { custom_allowances: next })
+  }
+
+  async function handleToggleCustomDeduction(member: StaffMember, lineId: string, enabled: boolean) {
+    const next = normalizeStaffPayLines(member.custom_deductions).map(line =>
+      line.id === lineId ? { ...line, enabled } : line,
+    )
+    await patchStaffPay(member, `deduction:${lineId}`, { custom_deductions: next })
   }
 
   async function handleDeleteSalarySlip(slip: { id: string; month?: string; staffName?: string }) {
@@ -1547,92 +1587,113 @@ export function HrmManager() {
                     className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Salary</label>
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Employment Type</label>
+                  <select value={employmentType} onChange={e => setEmploymentType(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
+                    {EMPLOYMENT_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Contract Salary</label>
                   <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0"
                     className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Basic Salary</label>
+                  <input value={basicSalary} onChange={e => setBasicSalary(e.target.value)} type="number" min="0" placeholder="Defaults to contract salary"
+                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Leave 0 to use contract salary as basic</p>
                 </div>
                 <div className="space-y-3 col-span-2">
                   <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax deduction</label>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                          Toggle on to deduct tax from each salary slip
-                        </p>
+                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">Medical Allowance</label>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Toggle on to add medical to net pay</p>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={taxEnabled}
-                        onClick={() => setTaxEnabled(v => !v)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                          taxEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-                            taxEnabled ? "translate-x-5" : "translate-x-0"
-                          }`}
-                        />
+                      <button type="button" role="switch" aria-checked={medicalEnabled} onClick={() => setMedicalEnabled(v => !v)}
+                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${medicalEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
+                        <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${medicalEnabled ? "translate-x-5" : "translate-x-0"}`} />
                       </button>
                     </div>
-                    <div className="mt-3 space-y-1">
-                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax amount</label>
-                      <input
-                        value={taxAmount}
-                        onChange={e => setTaxAmount(e.target.value)}
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
-                      />
-                      {!taxEnabled && (parseFloat(taxAmount) || 0) > 0 && (
-                        <p className="text-[10px] text-amber-700">
-                          Tax amount is saved but will not be deducted while the toggle is off.
-                        </p>
-                      )}
+                    <input value={medicalAllowance} onChange={e => setMedicalAllowance(e.target.value)} type="number" min="0" placeholder="0"
+                      className="mt-3 w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]" />
+                  </div>
+                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax deduction</label>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Toggle on to deduct tax from each salary slip</p>
+                      </div>
+                      <button type="button" role="switch" aria-checked={taxEnabled} onClick={() => setTaxEnabled(v => !v)}
+                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${taxEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
+                        <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${taxEnabled ? "translate-x-5" : "translate-x-0"}`} />
+                      </button>
                     </div>
+                    <input value={taxAmount} onChange={e => setTaxAmount(e.target.value)} type="number" min="0" placeholder="0"
+                      className="mt-3 w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]" />
                   </div>
                   <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <label className="text-sm font-medium text-[hsl(var(--foreground))]">EOBI deduction</label>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                          Toggle on to deduct EOBI from each salary slip
-                        </p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Toggle on to deduct EOBI from each salary slip</p>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={eobiEnabled}
-                        onClick={() => setEobiEnabled(v => !v)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                          eobiEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-                            eobiEnabled ? "translate-x-5" : "translate-x-0"
-                          }`}
-                        />
+                      <button type="button" role="switch" aria-checked={eobiEnabled} onClick={() => setEobiEnabled(v => !v)}
+                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${eobiEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
+                        <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${eobiEnabled ? "translate-x-5" : "translate-x-0"}`} />
                       </button>
                     </div>
-                    <div className="mt-3 space-y-1">
-                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">EOBI amount</label>
-                      <input
-                        value={eobiAmount}
-                        onChange={e => setEobiAmount(e.target.value)}
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
-                      />
-                      {!eobiEnabled && (parseFloat(eobiAmount) || 0) > 0 && (
-                        <p className="text-[10px] text-amber-700">
-                          EOBI amount is saved but will not be deducted while the toggle is off.
-                        </p>
-                      )}
+                    <input value={eobiAmount} onChange={e => setEobiAmount(e.target.value)} type="number" min="0" placeholder="0"
+                      className="mt-3 w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]" />
+                  </div>
+                  <div className="rounded-lg border border-[hsl(var(--border))] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Custom allowances</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Added to salary when enabled</p>
+                      </div>
+                      <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setCustomAllowances(prev => [...prev, newPayLine("Allowance")])}>
+                        + Add
+                      </Button>
                     </div>
+                    {customAllowances.map((line, idx) => (
+                      <div key={line.id} className="grid grid-cols-[1fr_120px_auto_auto] gap-2 items-center">
+                        <input value={line.label} onChange={e => setCustomAllowances(prev => prev.map((l, i) => i === idx ? { ...l, label: e.target.value } : l))} placeholder="Label"
+                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
+                        <input type="number" min="0" value={line.amount || ""} onChange={e => setCustomAllowances(prev => prev.map((l, i) => i === idx ? { ...l, amount: parseFloat(e.target.value) || 0 } : l))} placeholder="0"
+                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
+                        <button type="button" role="switch" aria-checked={line.enabled} onClick={() => setCustomAllowances(prev => prev.map((l, i) => i === idx ? { ...l, enabled: !l.enabled } : l))}
+                          className={`relative inline-flex h-6 w-11 rounded-full border-2 border-transparent ${line.enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
+                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${line.enabled ? "translate-x-5" : "translate-x-0"}`} />
+                        </button>
+                        <button type="button" className="text-xs text-rose-600" onClick={() => setCustomAllowances(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-lg border border-[hsl(var(--border))] p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Custom deductions</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Subtracted from salary when enabled</p>
+                      </div>
+                      <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setCustomDeductions(prev => [...prev, newPayLine("Deduction")])}>
+                        + Add
+                      </Button>
+                    </div>
+                    {customDeductions.map((line, idx) => (
+                      <div key={line.id} className="grid grid-cols-[1fr_120px_auto_auto] gap-2 items-center">
+                        <input value={line.label} onChange={e => setCustomDeductions(prev => prev.map((l, i) => i === idx ? { ...l, label: e.target.value } : l))} placeholder="Label"
+                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
+                        <input type="number" min="0" value={line.amount || ""} onChange={e => setCustomDeductions(prev => prev.map((l, i) => i === idx ? { ...l, amount: parseFloat(e.target.value) || 0 } : l))} placeholder="0"
+                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
+                        <button type="button" role="switch" aria-checked={line.enabled} onClick={() => setCustomDeductions(prev => prev.map((l, i) => i === idx ? { ...l, enabled: !l.enabled } : l))}
+                          className={`relative inline-flex h-6 w-11 rounded-full border-2 border-transparent ${line.enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
+                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${line.enabled ? "translate-x-5" : "translate-x-0"}`} />
+                        </button>
+                        <button type="button" className="text-xs text-rose-600" onClick={() => setCustomDeductions(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1769,360 +1830,34 @@ export function HrmManager() {
         </div>
       )}
 
-      {/* View Staff Modal */}
       {viewMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setViewMember(null)}>
-          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
-              <div className="flex items-center gap-3">
-                <div 
-                  className="h-10 w-10 rounded-full shrink-0 overflow-hidden bg-[hsl(var(--muted))]/30 flex items-center justify-center border border-[hsl(var(--border))] cursor-pointer hover:ring-2 hover:ring-[#1a9f9a] transition-all"
-                  onClick={() => viewMember.photo_url && setLightboxPhoto(viewMember.photo_url)}
-                >
-                  {viewMember.photo_url
-                    ? <img src={viewMember.photo_url} alt={viewMember.name} className="h-full w-full object-cover" />
-                    : <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">{viewMember.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}</span>
-                  }
-                </div>
-                <p className="text-base font-semibold text-[hsl(var(--foreground))]">{viewMember.name}</p>
-                <Badge variant={viewMember.status === "active" ? "success" : "destructive"} className="text-[10px] px-1.5 py-0">{viewMember.status}</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => downloadIdCard(viewMember)}>
-                  <IdCard className="h-4 w-4" /> Download ID Card
-                </Button>
-                <Button size="sm" variant="outline" className="h-8" onClick={() => openEditForm(viewMember)}>Edit</Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setViewMember(null)}><X className="h-5 w-5" /></Button>
-              </div>
-            </div>
-            <div className="overflow-y-auto p-6 space-y-6">
-              {/* Role & Department */}
-              <div>
-                <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Role & Department</p>
-                <p className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.role}</p>
-                <p className="text-sm text-[hsl(var(--foreground))]">{viewMember.department}</p>
-              </div>
-
-              {/* Contact Info */}
-              <div className="grid grid-cols-2 gap-4">
-                {viewMember.email && (
-                  <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-4 py-3">
-                    <Mail className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                    <div>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Email</p>
-                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewMember.email}</p>
-                    </div>
-                  </div>
-                )}
-                {viewMember.phone && (
-                  <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 px-4 py-3">
-                    <Phone className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                    <div>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Phone</p>
-                      <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewMember.phone}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Salary */}
-              {viewMember.salary > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Salary</p>
-                    <div className="flex gap-2">
-                      {isErpAdmin(user?.role) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
-                          onClick={() => setShowAdvanceModal(true)}
-                        >
-                          <Wallet className="h-4 w-4" /> Advance
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" className="h-8 gap-2" onClick={openSalarySlipModal}>
-                        <Download className="h-4 w-4" /> Generate
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => {
-                        fetchSalarySlips(viewMember.name)
-                        setShowSalaryHistory(true)
-                      }}>
-                        <FileText className="h-4 w-4" /> History
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-2xl font-bold tabular-nums text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</p>
-                  {(advanceByStaff[viewMember.id] || 0) > 0 && (
-                    <p className="text-sm font-medium text-amber-700 mt-1">
-                      Outstanding advance: {viewMember.currency} {(advanceByStaff[viewMember.id] || 0).toLocaleString()}
-                    </p>
-                  )}
-                  <div className="mt-3 space-y-2">
-                    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Tax deduction</p>
-                          <p className="text-sm font-semibold mt-0.5">
-                            {(Number(viewMember.tax_amount) || 0) > 0
-                              ? `${viewMember.currency} ${Number(viewMember.tax_amount).toLocaleString()} / month`
-                              : "No tax amount set"}
-                          </p>
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {viewMember.tax_enabled
-                              ? "Tax is deducted on salary slips"
-                              : "Tax is off — not deducted"}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={Boolean(viewMember.tax_enabled)}
-                          disabled={togglingTaxId === viewMember.id || (Number(viewMember.tax_amount) || 0) <= 0}
-                          title={
-                            (Number(viewMember.tax_amount) || 0) <= 0
-                              ? "Set a tax amount in Edit first"
-                              : viewMember.tax_enabled
-                                ? "Turn tax deduction off"
-                                : "Turn tax deduction on"
-                          }
-                          onClick={() => handleToggleStaffTax(viewMember, !viewMember.tax_enabled)}
-                          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                            viewMember.tax_enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-                              viewMember.tax_enabled ? "translate-x-5" : "translate-x-0"
-                            }`}
-                          />
-                        </button>
-                      </div>
-                      {(Number(viewMember.tax_amount) || 0) <= 0 && (
-                        <p className="text-[10px] text-amber-700">
-                          Edit this staff member to set a tax amount, then use the toggle.
-                        </p>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))]">EOBI deduction</p>
-                          <p className="text-sm font-semibold mt-0.5">
-                            {(Number(viewMember.eobi_amount) || 0) > 0
-                              ? `${viewMember.currency} ${Number(viewMember.eobi_amount).toLocaleString()} / month`
-                              : "No EOBI amount set"}
-                          </p>
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {viewMember.eobi_enabled
-                              ? "EOBI is deducted on salary slips"
-                              : "EOBI is off — not deducted"}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={Boolean(viewMember.eobi_enabled)}
-                          disabled={togglingEobiId === viewMember.id || (Number(viewMember.eobi_amount) || 0) <= 0}
-                          title={
-                            (Number(viewMember.eobi_amount) || 0) <= 0
-                              ? "Set an EOBI amount in Edit first"
-                              : viewMember.eobi_enabled
-                                ? "Turn EOBI deduction off"
-                                : "Turn EOBI deduction on"
-                          }
-                          onClick={() => handleToggleStaffEobi(viewMember, !viewMember.eobi_enabled)}
-                          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                            viewMember.eobi_enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-                              viewMember.eobi_enabled ? "translate-x-5" : "translate-x-0"
-                            }`}
-                          />
-                        </button>
-                      </div>
-                      {(Number(viewMember.eobi_amount) || 0) <= 0 && (
-                        <p className="text-[10px] text-amber-700">
-                          Edit this staff member to set an EOBI amount, then use the toggle.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">Salary History Snapshot</p>
-                    {salarySlips.length === 0 ? (
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">No paid history yet.</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {salarySlips.slice(0, 3).map((slip: any) => (
-                          <div key={slip.id} className="flex items-center justify-between text-xs">
-                            <span className="text-[hsl(var(--foreground))]">{monthLabel(slip.month)}</span>
-                            <span className="font-semibold text-emerald-600">{slip.currency} {Number(slip.netSalary || 0).toLocaleString()}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Performance Points */}
-              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Performance Points</p>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    (viewMember.points || 100) <= 20 ? 'bg-red-100 text-red-700' :
-                    (viewMember.points || 100) <= 50 ? 'bg-orange-100 text-orange-700' :
-                    (viewMember.points || 100) <= 70 ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-emerald-100 text-emerald-700'
-                  }`}>
-                    {(viewMember.points || 100)} / 100
-                  </span>
-                </div>
-                <PointsBar points={viewMember.points || 100} />
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-[hsl(var(--border))]">
-                  <span className="text-xs text-[hsl(var(--muted-foreground))]">Last reset: {viewMember.last_reset ? new Date(viewMember.last_reset).toLocaleDateString() : 'N/A'}</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updatePoints(viewMember.id, -5)}
-                      disabled={(viewMember.points || 100) <= 0}
-                      className="h-8 px-3 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      -5
-                    </button>
-                    <button
-                      onClick={() => updatePoints(viewMember.id, 5)}
-                      disabled={(viewMember.points || 100) >= 100}
-                      className="h-8 px-3 rounded-lg bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      +5
-                    </button>
-                    <button
-                      onClick={() => setShowResetConfirm(true)}
-                      className="h-8 px-3 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors"
-                    >
-                      Reset Performance
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Assigned KPIs & settlements */}
-              <StaffKpiSection
-                staffId={viewMember.id}
-                staffName={viewMember.name}
-                isAdmin={isErpAdmin(user?.role)}
-                actorName={user?.name ?? "Admin"}
-              />
-
-              {/* Warnings History */}
-              {viewMember.warnings && viewMember.warnings.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">
-                    Warnings ({viewMember.warnings.length})
-                  </p>
-                  <div className="space-y-2">
-                    {viewMember.warnings.map((warning, i) => (
-                      <div key={i} className={`rounded-lg border px-4 py-3 ${
-                        warning.level === 3 ? 'bg-red-50 border-red-200' :
-                        warning.level === 2 ? 'bg-orange-50 border-orange-200' :
-                        'bg-yellow-50 border-yellow-200'
-                      }`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                            warning.level === 3 ? 'bg-red-500 text-white' :
-                            warning.level === 2 ? 'bg-orange-500 text-white' :
-                            'bg-yellow-500 text-white'
-                          }`}>
-                            Warning #{warning.level}
-                          </span>
-                          <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                            {new Date(warning.date).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-[hsl(var(--foreground))]">{warning.message}</p>
-                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                          Points at warning: {warning.pointsAtWarning}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Join Date */}
-              {viewMember.join_date && (
-                <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Join Date</p>
-                  <p className="text-sm text-[hsl(var(--foreground))]">{viewMember.join_date}</p>
-                </div>
-              )}
-
-              {/* Address */}
-              {viewMember.address && (
-                <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Address</p>
-                  <p className="text-sm text-[hsl(var(--foreground))]">{viewMember.address}</p>
-                </div>
-              )}
-
-              {/* Bank Details */}
-              {(viewMember.bank_name || viewMember.bank_account_number) && (
-                <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Bank Details</p>
-                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-4 grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Bank Name</p>
-                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{viewMember.bank_name || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Account Number</p>
-                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{viewMember.bank_account_number || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">Account Title</p>
-                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{viewMember.bank_account_title || "—"}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Notes */}
-              {viewMember.notes && (
-                <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Notes</p>
-                  <p className="text-sm text-[hsl(var(--foreground))] whitespace-pre-wrap bg-[hsl(var(--muted))]/10 rounded-lg border border-[hsl(var(--border))] p-4">{viewMember.notes}</p>
-                </div>
-              )}
-
-              {/* Documents */}
-              {viewMember.documents?.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-2">Documents ({viewMember.documents.length})</p>
-                  <div className="space-y-2">
-                    {viewMember.documents.map((doc, i) => (
-                      <a key={i} href={doc.data} download={doc.name}
-                        className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted))]/10 px-4 py-3 transition-colors group">
-                        <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                        <span className="text-sm flex-1 truncate">{doc.name}</span>
-                        <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">{(doc.size / 1024).toFixed(0)}KB</span>
-                        <Download className="h-4 w-4 text-[hsl(var(--muted-foreground))] group-hover:text-[#1a9f9a] shrink-0" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Metadata */}
-              <div className="text-xs text-[hsl(var(--muted-foreground))] space-y-1 pt-4 border-t border-[hsl(var(--border))]">
-                <p>Created: {(viewMember.created_at || (viewMember as any).createdAt) ? new Date(viewMember.created_at || (viewMember as any).createdAt).toLocaleString() : 'N/A'}</p>
-                <p>Created by: {viewMember.created_by || (viewMember as any).createdBy || 'Unknown'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <StaffEmployeeDetail
+          member={viewMember}
+          isAdmin={isErpAdmin(user?.role)}
+          actorName={user?.name ?? "Admin"}
+          outstandingAdvance={advanceByStaff[viewMember.id] || 0}
+          salarySlips={salarySlips}
+          togglingKey={togglingPayKey}
+          onClose={() => setViewMember(null)}
+          onEdit={() => openEditForm(viewMember)}
+          onDownloadIdCard={() => downloadIdCard(viewMember)}
+          onOpenAdvance={() => setShowAdvanceModal(true)}
+          onGenerateSlip={openSalarySlipModal}
+          onOpenHistory={() => {
+            fetchSalarySlips(viewMember.name)
+            setShowSalaryHistory(true)
+          }}
+          onOpenPhoto={() => viewMember.photo_url && setLightboxPhoto(viewMember.photo_url)}
+          onToggleMedical={(enabled) => handleToggleStaffMedical(viewMember, enabled)}
+          onToggleTax={(enabled) => handleToggleStaffTax(viewMember, enabled)}
+          onToggleEobi={(enabled) => handleToggleStaffEobi(viewMember, enabled)}
+          onToggleCustomAllowance={(id, enabled) => handleToggleCustomAllowance(viewMember, id, enabled)}
+          onToggleCustomDeduction={(id, enabled) => handleToggleCustomDeduction(viewMember, id, enabled)}
+          onUpdatePoints={(delta) => updatePoints(viewMember.id, delta)}
+          onResetPoints={() => setShowResetConfirm(true)}
+          PointsBar={PointsBar}
+          monthLabel={monthLabel}
+        />
       )}
 
       {/* Photo Lightbox */}
@@ -2550,6 +2285,21 @@ export function HrmManager() {
                       <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
                     </div>
                   )}
+                  {effectiveStaffMedicalAmount({
+                    medicalAllowance: viewMember.medical_allowance,
+                    medicalEnabled: viewMember.medical_enabled,
+                  }) > 0 ? (
+                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Medical (applied)</span>
+                      <span className="text-sm font-semibold text-emerald-700">
+                        + {viewMember.currency}{" "}
+                        {effectiveStaffMedicalAmount({
+                          medicalAllowance: viewMember.medical_allowance,
+                          medicalEnabled: viewMember.medical_enabled,
+                        }).toLocaleString()}
+                      </span>
+                    </div>
+                  ) : null}
                   {effectiveStaffTaxAmount({
                     taxAmount: viewMember.tax_amount,
                     taxEnabled: viewMember.tax_enabled,

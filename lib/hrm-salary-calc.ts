@@ -5,6 +5,13 @@ export type SalaryAdjustment = {
   label: string
 }
 
+export type StaffPayLine = {
+  id: string
+  label: string
+  amount: number
+  enabled: boolean
+}
+
 export function daysInCalendarMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
 }
@@ -82,6 +89,24 @@ export function computeNetSalary(baseSalary: number, adjustments: SalaryAdjustme
   return Math.max(0, baseSalary + adjustmentSignedTotal(adjustments))
 }
 
+export function normalizeStaffPayLines(raw: unknown): StaffPayLine[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item, index) => {
+      const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {}
+      const label = String(row.label ?? "").trim()
+      const amount = Math.max(0, Number(row.amount) || 0)
+      const id = String(row.id || `line-${index}-${label || "item"}`)
+      return {
+        id,
+        label: label || `Item ${index + 1}`,
+        amount,
+        enabled: row.enabled !== false,
+      }
+    })
+    .filter(line => line.amount > 0 || line.label.trim().length > 0)
+}
+
 /** Tax deducted only when the profile toggle is on and amount > 0. */
 export function effectiveStaffTaxAmount(options: {
   taxAmount?: number | null
@@ -100,6 +125,103 @@ export function effectiveStaffEobiAmount(options: {
   return Math.max(0, Number(options.eobiAmount) || 0)
 }
 
+export function effectiveStaffMedicalAmount(options: {
+  medicalAllowance?: number | null
+  medicalEnabled?: boolean | null
+}): number {
+  if (!options.medicalEnabled) return 0
+  return Math.max(0, Number(options.medicalAllowance) || 0)
+}
+
+/** Basic salary if set; otherwise fall back to contract salary. */
+export function resolveBasicSalary(contractSalary: number, basicSalary?: number | null): number {
+  const basic = Math.max(0, Number(basicSalary) || 0)
+  if (basic > 0.004) return basic
+  return Math.max(0, Number(contractSalary) || 0)
+}
+
+export type StaffCompensationProfile = {
+  salary?: number | null
+  basicSalary?: number | null
+  medicalAllowance?: number | null
+  medicalEnabled?: boolean | null
+  taxAmount?: number | null
+  taxEnabled?: boolean | null
+  eobiAmount?: number | null
+  eobiEnabled?: boolean | null
+  customAllowances?: StaffPayLine[] | unknown
+  customDeductions?: StaffPayLine[] | unknown
+}
+
+export type StaffCompensationBreakdown = {
+  contractSalary: number
+  basicSalary: number
+  medicalAllowance: number
+  medicalApplied: number
+  taxAmount: number
+  taxApplied: number
+  eobiAmount: number
+  eobiApplied: number
+  customAllowances: StaffPayLine[]
+  customDeductions: StaffPayLine[]
+  customAllowancesTotal: number
+  customDeductionsTotal: number
+  grossPay: number
+  totalDeductions: number
+  netPayable: number
+}
+
+export function computeStaffCompensation(
+  profile: StaffCompensationProfile,
+): StaffCompensationBreakdown {
+  const contractSalary = Math.max(0, Number(profile.salary) || 0)
+  const basicSalary = resolveBasicSalary(contractSalary, profile.basicSalary)
+  const medicalAllowance = Math.max(0, Number(profile.medicalAllowance) || 0)
+  const medicalApplied = effectiveStaffMedicalAmount({
+    medicalAllowance,
+    medicalEnabled: profile.medicalEnabled,
+  })
+  const taxAmount = Math.max(0, Number(profile.taxAmount) || 0)
+  const taxApplied = effectiveStaffTaxAmount({
+    taxAmount,
+    taxEnabled: profile.taxEnabled,
+  })
+  const eobiAmount = Math.max(0, Number(profile.eobiAmount) || 0)
+  const eobiApplied = effectiveStaffEobiAmount({
+    eobiAmount,
+    eobiEnabled: profile.eobiEnabled,
+  })
+  const customAllowances = normalizeStaffPayLines(profile.customAllowances)
+  const customDeductions = normalizeStaffPayLines(profile.customDeductions)
+  const customAllowancesTotal = customAllowances
+    .filter(line => line.enabled)
+    .reduce((sum, line) => sum + line.amount, 0)
+  const customDeductionsTotal = customDeductions
+    .filter(line => line.enabled)
+    .reduce((sum, line) => sum + line.amount, 0)
+  const grossPay = basicSalary + medicalApplied + customAllowancesTotal
+  const totalDeductions = taxApplied + eobiApplied + customDeductionsTotal
+  const netPayable = Math.max(0, grossPay - totalDeductions)
+
+  return {
+    contractSalary,
+    basicSalary,
+    medicalAllowance,
+    medicalApplied,
+    taxAmount,
+    taxApplied,
+    eobiAmount,
+    eobiApplied,
+    customAllowances,
+    customDeductions,
+    customAllowancesTotal,
+    customDeductionsTotal,
+    grossPay,
+    totalDeductions,
+    netPayable,
+  }
+}
+
 export function buildEffectiveSalaryAdjustments(
   manual: SalaryAdjustment[],
   options: {
@@ -109,9 +231,45 @@ export function buildEffectiveSalaryAdjustments(
     taxEnabled?: boolean
     eobiAmount?: number
     eobiEnabled?: boolean
+    medicalAllowance?: number
+    medicalEnabled?: boolean
+    customAllowances?: StaffPayLine[] | unknown
+    customDeductions?: StaffPayLine[] | unknown
   },
 ): SalaryAdjustment[] {
   const list = [...manual]
+
+  const medicalAmount = effectiveStaffMedicalAmount({
+    medicalAllowance: options.medicalAllowance,
+    medicalEnabled: options.medicalEnabled,
+  })
+  const hasMedical = list.some(
+    adj =>
+      adj.id === "medical-allowance" ||
+      adj.label.trim().toLowerCase() === "medical allowance" ||
+      adj.label.trim().toLowerCase() === "medical",
+  )
+  if (medicalAmount > 0.004 && !hasMedical) {
+    list.push({
+      id: "medical-allowance",
+      type: "add",
+      amount: String(medicalAmount),
+      label: "Medical Allowance",
+    })
+  }
+
+  for (const line of normalizeStaffPayLines(options.customAllowances)) {
+    if (!line.enabled || line.amount <= 0.004) continue
+    const id = `custom-allowance-${line.id}`
+    if (list.some(adj => adj.id === id)) continue
+    list.push({
+      id,
+      type: "add",
+      amount: String(line.amount),
+      label: line.label || "Allowance",
+    })
+  }
+
   const taxAmount = effectiveStaffTaxAmount({
     taxAmount: options.taxAmount,
     taxEnabled: options.taxEnabled,
@@ -127,6 +285,7 @@ export function buildEffectiveSalaryAdjustments(
       label: "Tax",
     })
   }
+
   const eobiAmount = effectiveStaffEobiAmount({
     eobiAmount: options.eobiAmount,
     eobiEnabled: options.eobiEnabled,
@@ -142,6 +301,19 @@ export function buildEffectiveSalaryAdjustments(
       label: "EOBI",
     })
   }
+
+  for (const line of normalizeStaffPayLines(options.customDeductions)) {
+    if (!line.enabled || line.amount <= 0.004) continue
+    const id = `custom-deduction-${line.id}`
+    if (list.some(adj => adj.id === id)) continue
+    list.push({
+      id,
+      type: "deduct",
+      amount: String(line.amount),
+      label: line.label || "Deduction",
+    })
+  }
+
   if (options.deductAdvance && options.outstandingAdvance > 0.004) {
     list.push({
       id: "advance-deduction",
@@ -169,12 +341,18 @@ export function computeBatchSalaryFigures(
   taxEnabled = true,
   eobiAmount = 0,
   eobiEnabled = false,
+  medicalAllowance = 0,
+  medicalEnabled = false,
+  customAllowances: StaffPayLine[] | unknown = [],
+  customDeductions: StaffPayLine[] | unknown = [],
+  basicSalary = 0,
 ) {
+  const payableBase = resolveBasicSalary(monthlySalary, basicSalary)
   const fullMonth = monthDateBounds(periodFrom.slice(0, 7))
   const isFullMonth = periodFrom === fullMonth.from && periodTo === fullMonth.to
   const proRate = isFullMonth
-    ? { amount: monthlySalary, daysWorked: 0, description: "Full month" }
-    : calculateProRatedSalary(monthlySalary, periodFrom, periodTo)
+    ? { amount: payableBase, daysWorked: 0, description: "Full month" }
+    : calculateProRatedSalary(payableBase, periodFrom, periodTo)
   const adjustments = buildEffectiveSalaryAdjustments([], {
     deductAdvance: outstandingAdvance > 0,
     outstandingAdvance,
@@ -182,6 +360,10 @@ export function computeBatchSalaryFigures(
     taxEnabled,
     eobiAmount,
     eobiEnabled,
+    medicalAllowance,
+    medicalEnabled,
+    customAllowances,
+    customDeductions,
   })
   const netSalary = computeNetSalary(proRate.amount, adjustments)
   return {

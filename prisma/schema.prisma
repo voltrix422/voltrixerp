@@ -414,10 +414,16 @@ model ErpStaff {
   phone         String
   address       String
   salary        Float
+  employmentType    String  @default("Permanent") @map("employment_type")
+  basicSalary       Float   @default(0) @map("basic_salary")
+  medicalAllowance  Float   @default(0) @map("medical_allowance")
+  medicalEnabled    Boolean @default(false) @map("medical_enabled")
   taxAmount     Float    @default(0) @map("tax_amount")
   taxEnabled    Boolean  @default(false) @map("tax_enabled")
   eobiAmount    Float    @default(0) @map("eobi_amount")
   eobiEnabled   Boolean  @default(false) @map("eobi_enabled")
+  customAllowances  Json    @default("[]") @map("custom_allowances")
+  customDeductions  Json    @default("[]") @map("custom_deductions")
   currency      String
   joinDate      String   @map("join_date")
   status        String
