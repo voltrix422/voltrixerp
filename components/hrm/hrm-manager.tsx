@@ -202,6 +202,7 @@ export function HrmManager() {
   const [search, setSearch] = useState("")
   const [filterDept, setFilterDept] = useState("All")
   const [filterStatus, setFilterStatus] = useState("All")
+  const [filterPay, setFilterPay] = useState<"All" | "paid" | "unpaid">("All")
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showResetSuccess, setShowResetSuccess] = useState(false)
   const [showSalarySlip, setShowSalarySlip] = useState(false)
@@ -717,14 +718,6 @@ export function HrmManager() {
     if (viewMember) fetchSalarySlips(viewMember.name)
   }, [viewMember?.id])
 
-  const filtered = staff.filter(s => {
-    const q = search.toLowerCase()
-    const matchSearch = !search || s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)
-    const matchDept = filterDept === "All" || s.department === filterDept
-    const matchStatus = filterStatus === "All" || s.status === filterStatus
-    return matchSearch && matchDept && matchStatus
-  })
-
   const activeStaff = staff.filter(s => s.status === "active")
   const uniqueAllSalarySlips = Object.values(
     allSalarySlips.reduce<Record<string, any>>((acc, slip: any) => {
@@ -751,15 +744,31 @@ export function HrmManager() {
     return Boolean(slipName && memberName && slipName === memberName)
   }
 
-  const monthPaidStaff = activeStaff.filter(member =>
-    monthFinalizedSlips.some(slip => slipMatchesStaff(slip, member)),
-  )
+  function isStaffPaidForMonth(member: StaffMember) {
+    return monthFinalizedSlips.some(slip => slipMatchesStaff(slip, member))
+  }
+
+  const monthPaidStaff = activeStaff.filter(isStaffPaidForMonth)
+  const monthPaidStaffIds = new Set(monthPaidStaff.map(s => s.id))
   const monthPaidSlips = monthPaidStaff
     .map(member => monthFinalizedSlips.find(slip => slipMatchesStaff(slip, member)))
     .filter(Boolean) as any[]
   const monthPaidTotal = monthPaidSlips.reduce((sum: number, slip: any) => sum + (Number(slip.netSalary) || 0), 0)
   const monthPaidCount = monthPaidStaff.length
   const monthUnpaidCount = Math.max(0, activeStaff.length - monthPaidCount)
+
+  const filtered = staff.filter(s => {
+    const q = search.toLowerCase()
+    const matchSearch = !search || s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)
+    const matchDept = filterDept === "All" || s.department === filterDept
+    const matchStatus = filterStatus === "All" || s.status === filterStatus
+    const paid = monthPaidStaffIds.has(s.id)
+    const matchPay =
+      filterPay === "All" ||
+      (filterPay === "paid" && paid) ||
+      (filterPay === "unpaid" && !paid)
+    return matchSearch && matchDept && matchStatus && matchPay
+  })
   const payrollHistoryByMonth = uniqueAllSalarySlips.reduce<Record<string, any[]>>((acc, slip: any) => {
     const key = String(slip.month || "")
     if (!acc[key]) acc[key] = []
@@ -1379,14 +1388,31 @@ export function HrmManager() {
                 {monthPaidSlips[0]?.currency || activeStaff[0]?.currency || "PKR"} {monthPaidTotal.toLocaleString()}
               </p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Paid {monthPaidCount} · Unpaid {monthUnpaidCount}
+                <button
+                  type="button"
+                  onClick={() => setFilterPay(filterPay === "paid" ? "All" : "paid")}
+                  className={`hover:underline ${filterPay === "paid" ? "text-emerald-700 font-semibold" : ""}`}
+                >
+                  Paid {monthPaidCount}
+                </button>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => setFilterPay(filterPay === "unpaid" ? "All" : "unpaid")}
+                  className={`hover:underline ${filterPay === "unpaid" ? "text-amber-700 font-semibold" : ""}`}
+                >
+                  Unpaid {monthUnpaidCount}
+                </button>
                 {activeStaff.length > 0 ? ` · of ${activeStaff.length} active` : ""}
               </p>
             </div>
             <input
               type="month"
               value={payrollMonth}
-              onChange={(e) => setPayrollMonth(e.target.value)}
+              onChange={(e) => {
+                setPayrollMonth(e.target.value)
+                setFilterPay("All")
+              }}
               className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-[11px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a] shrink-0"
             />
           </div>
@@ -1422,10 +1448,20 @@ export function HrmManager() {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-          {(search || filterDept !== "All" || filterStatus !== "All") && (
+          <select
+            value={filterPay}
+            onChange={e => setFilterPay(e.target.value as "All" | "paid" | "unpaid")}
+            className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[#1a9f9a]"
+            title={`Pay status for ${monthLabel(payrollMonth)}`}
+          >
+            <option value="All">All pay ({monthLabel(payrollMonth)})</option>
+            <option value="paid">Paid ({monthPaidCount})</option>
+            <option value="unpaid">Unpaid ({monthUnpaidCount})</option>
+          </select>
+          {(search || filterDept !== "All" || filterStatus !== "All" || filterPay !== "All") && (
             <button
               type="button"
-              onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All") }}
+              onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All"); setFilterPay("All") }}
               className="h-8 px-2.5 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-md hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
             >
               Clear
@@ -1461,6 +1497,7 @@ export function HrmManager() {
                   <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider sticky left-0 bg-[hsl(var(--muted))]/25">Staff</th>
                   <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Department</th>
                   <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Status</th>
+                  <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Pay</th>
                   <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider w-36">Points</th>
                   <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Contact</th>
                   <th className="text-right px-3 py-2.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Salary</th>
@@ -1497,6 +1534,17 @@ export function HrmManager() {
                       }`}>
                         {s.status}
                       </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {monthPaidStaffIds.has(s.id) ? (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          Paid
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-100">
+                          Unpaid
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       <PointsBar points={s.points || 100} />
