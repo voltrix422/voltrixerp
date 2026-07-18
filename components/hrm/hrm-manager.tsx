@@ -760,9 +760,6 @@ export function HrmManager() {
   const monthPaidTotal = monthPaidSlips.reduce((sum: number, slip: any) => sum + (Number(slip.netSalary) || 0), 0)
   const monthPaidCount = monthPaidStaff.length
   const monthUnpaidCount = Math.max(0, activeStaff.length - monthPaidCount)
-  const monthOrphanPaidCount = monthFinalizedSlips.filter(
-    slip => !activeStaff.some(member => slipMatchesStaff(slip, member)),
-  ).length
   const payrollHistoryByMonth = uniqueAllSalarySlips.reduce<Record<string, any[]>>((acc, slip: any) => {
     const key = String(slip.month || "")
     if (!acc[key]) acc[key] = []
@@ -1385,11 +1382,6 @@ export function HrmManager() {
                 Paid {monthPaidCount} · Unpaid {monthUnpaidCount}
                 {activeStaff.length > 0 ? ` · of ${activeStaff.length} active` : ""}
               </p>
-              {monthOrphanPaidCount > 0 && (
-                <p className="text-[10px] text-amber-700 mt-0.5">
-                  {monthOrphanPaidCount} old slip{monthOrphanPaidCount === 1 ? "" : "s"} not linked to current staff
-                </p>
-              )}
             </div>
             <input
               type="month"
