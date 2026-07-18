@@ -93,6 +93,8 @@ function buildRows(
         monthlySalary: s.salary,
         taxAmount: Number(s.tax_amount) || 0,
         taxEnabled: Boolean(s.tax_enabled),
+        eobiAmount: Number(s.eobi_amount) || 0,
+        eobiEnabled: Boolean(s.eobi_enabled),
         included: true,
         periodFrom: saved?.periodStart || periodStartForJoinDate(month, s.join_date),
         periodTo: saved?.periodEnd || bounds.to,
