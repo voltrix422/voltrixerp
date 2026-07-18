@@ -728,7 +728,9 @@ export function HrmManager() {
   const activeStaff = staff.filter(s => s.status === "active")
   const uniqueAllSalarySlips = Object.values(
     allSalarySlips.reduce<Record<string, any>>((acc, slip: any) => {
-      const key = `${String(slip.staffName || "").trim().toLowerCase()}__${String(slip.month || "")}`
+      const localId = String(slip.staffLocalId || "").trim()
+      const nameKey = String(slip.staffName || "").trim().toLowerCase()
+      const key = `${localId || nameKey}__${String(slip.month || "")}`
       const prev = acc[key]
       const prevDate = new Date(prev?.generatedDate || prev?.createdAt || 0).getTime()
       const currDate = new Date(slip?.generatedDate || slip?.createdAt || 0).getTime()
@@ -736,14 +738,31 @@ export function HrmManager() {
       return acc
     }, {})
   )
-  const finalizedSalarySlips = uniqueAllSalarySlips.filter(
-    (slip: any) => String(slip.status || "finalized") === "finalized",
+  /** Only explicit finalized slips count as paid (draft / empty status do not). */
+  const isSlipFinalized = (slip: any) => String(slip?.status || "").toLowerCase() === "finalized"
+  const finalizedSalarySlips = uniqueAllSalarySlips.filter(isSlipFinalized)
+  const monthFinalizedSlips = finalizedSalarySlips.filter((slip: any) => slip.month === payrollMonth)
+
+  function slipMatchesStaff(slip: any, member: StaffMember) {
+    const localId = String(slip.staffLocalId || "").trim()
+    if (localId && localId === member.id) return true
+    const slipName = String(slip.staffName || "").trim().toLowerCase()
+    const memberName = String(member.name || "").trim().toLowerCase()
+    return Boolean(slipName && memberName && slipName === memberName)
+  }
+
+  const monthPaidStaff = activeStaff.filter(member =>
+    monthFinalizedSlips.some(slip => slipMatchesStaff(slip, member)),
   )
-  const monthPaidSlips = finalizedSalarySlips.filter((slip: any) => slip.month === payrollMonth)
+  const monthPaidSlips = monthPaidStaff
+    .map(member => monthFinalizedSlips.find(slip => slipMatchesStaff(slip, member)))
+    .filter(Boolean) as any[]
   const monthPaidTotal = monthPaidSlips.reduce((sum: number, slip: any) => sum + (Number(slip.netSalary) || 0), 0)
-  const monthPaidStaffNames = new Set(monthPaidSlips.map((slip: any) => String(slip.staffName || "")))
-  const monthPaidCount = monthPaidStaffNames.size
-  const monthUnpaidCount = Math.max(0, activeStaff.filter(s => !monthPaidStaffNames.has(s.name)).length)
+  const monthPaidCount = monthPaidStaff.length
+  const monthUnpaidCount = Math.max(0, activeStaff.length - monthPaidCount)
+  const monthOrphanPaidCount = monthFinalizedSlips.filter(
+    slip => !activeStaff.some(member => slipMatchesStaff(slip, member)),
+  ).length
   const payrollHistoryByMonth = uniqueAllSalarySlips.reduce<Record<string, any[]>>((acc, slip: any) => {
     const key = String(slip.month || "")
     if (!acc[key]) acc[key] = []
@@ -1360,11 +1379,17 @@ export function HrmManager() {
             <div className="min-w-0">
               <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Payroll · {monthLabel(payrollMonth)}</p>
               <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate mt-0.5">
-                {monthPaidSlips[0]?.currency || "PKR"} {monthPaidTotal.toLocaleString()}
+                {monthPaidSlips[0]?.currency || activeStaff[0]?.currency || "PKR"} {monthPaidTotal.toLocaleString()}
               </p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
                 Paid {monthPaidCount} · Unpaid {monthUnpaidCount}
+                {activeStaff.length > 0 ? ` · of ${activeStaff.length} active` : ""}
               </p>
+              {monthOrphanPaidCount > 0 && (
+                <p className="text-[10px] text-amber-700 mt-0.5">
+                  {monthOrphanPaidCount} old slip{monthOrphanPaidCount === 1 ? "" : "s"} not linked to current staff
+                </p>
+              )}
             </div>
             <input
               type="month"
@@ -2280,8 +2305,11 @@ export function HrmManager() {
 
                     const existsForMonth = uniqueAllSalarySlips.some((slip: any) =>
                       String(slip.month || "") === selectedMonth &&
-                      String(slip.staffName || "").trim().toLowerCase() === viewMember.name.trim().toLowerCase() &&
-                      String(slip.status || "finalized") === "finalized"
+                      (
+                        String(slip.staffLocalId || "") === viewMember.id ||
+                        String(slip.staffName || "").trim().toLowerCase() === viewMember.name.trim().toLowerCase()
+                      ) &&
+                      String(slip.status || "").toLowerCase() === "finalized"
                     )
                     if (existsForMonth) {
                       alert(`Salary slip already created for ${viewMember.name} in ${monthLabel(selectedMonth)}.`)

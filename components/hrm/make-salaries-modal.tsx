@@ -157,7 +157,7 @@ export function MakeSalariesModal({
   const finalizedNames = useMemo(() => {
     return new Set(
       existingSlips
-        .filter((s) => s.month === month && String(s.status || "finalized") === "finalized")
+        .filter((s) => s.month === month && String(s.status || "").toLowerCase() === "finalized")
         .map((s) => String(s.staffName || "").trim().toLowerCase()),
     )
   }, [existingSlips, month])
