@@ -211,7 +211,7 @@ export function StaffEmployeeDetail({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-6xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[hsl(var(--border))] shrink-0 bg-gradient-to-r from-[#0f766e]/8 to-transparent">

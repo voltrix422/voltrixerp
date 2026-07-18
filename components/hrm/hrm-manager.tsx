@@ -9,6 +9,7 @@ import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { StaffSalaryAdvanceModal } from "@/components/hrm/staff-salary-advance-modal"
 import { MakeSalariesModal } from "@/components/hrm/make-salaries-modal"
 import { StaffEmployeeDetail } from "@/components/hrm/staff-employee-detail"
+import { StaffEditModal } from "@/components/hrm/staff-edit-modal"
 import { fetchSalaryAdvanceSummary, recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
 import {
   buildEffectiveSalaryAdjustments,
@@ -1533,301 +1534,83 @@ export function HrmManager() {
         </div>
       )}
 
-      {/* Add Staff Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={resetForm}>
-          <div className="w-full max-w-lg rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
-              <p className="text-base font-semibold text-[hsl(var(--foreground))]">{editingMember ? "Edit Staff Member" : "New Staff Member"}</p>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={resetForm}><X className="h-5 w-5" /></Button>
-            </div>
-            <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-5">
-
-              {/* Photo */}
-              <div className="flex items-center gap-4">
-                <div onClick={() => fileRef.current?.click()}
-                  className="h-20 w-20 rounded-full border-2 border-dashed border-[hsl(var(--border))] flex items-center justify-center cursor-pointer hover:border-[#1a9f9a] overflow-hidden shrink-0 transition-colors bg-[hsl(var(--muted))]/10">
-                  {photoPreview
-                    ? <img src={photoPreview} alt="photo" className="h-full w-full object-cover" />
-                    : <Upload className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[hsl(var(--foreground))]">Photo</p>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">Click circle to upload</p>
-                </div>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2 col-span-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Full Name *</label>
-                  <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Ahmed Khan"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Job Title *</label>
-                  <input value={role} onChange={e => setRole(e.target.value)} required placeholder="e.g. Engineer"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Department</label>
-                  <select value={department} onChange={e => setDepartment(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
-                    {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Email</label>
-                  <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="email@company.com"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Phone</label>
-                  <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+92 300 0000000"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Employment Type</label>
-                  <select value={employmentType} onChange={e => setEmploymentType(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
-                    {EMPLOYMENT_TYPES.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Contract Salary</label>
-                  <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Basic Salary</label>
-                  <input value={basicSalary} onChange={e => setBasicSalary(e.target.value)} type="number" min="0" placeholder="Defaults to contract salary"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Leave 0 to use contract salary as basic</p>
-                </div>
-                <div className="space-y-3 col-span-2">
-                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">Medical Allowance</label>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Toggle on to add medical to net pay</p>
-                      </div>
-                      <button type="button" role="switch" aria-checked={medicalEnabled} onClick={() => setMedicalEnabled(v => !v)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${medicalEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
-                        <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${medicalEnabled ? "translate-x-5" : "translate-x-0"}`} />
-                      </button>
-                    </div>
-                    <input value={medicalAllowance} onChange={e => setMedicalAllowance(e.target.value)} type="number" min="0" placeholder="0"
-                      className="mt-3 w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]" />
-                  </div>
-                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">Tax deduction</label>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Toggle on to deduct tax from each salary slip</p>
-                      </div>
-                      <button type="button" role="switch" aria-checked={taxEnabled} onClick={() => setTaxEnabled(v => !v)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${taxEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
-                        <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${taxEnabled ? "translate-x-5" : "translate-x-0"}`} />
-                      </button>
-                    </div>
-                    <input value={taxAmount} onChange={e => setTaxAmount(e.target.value)} type="number" min="0" placeholder="0"
-                      className="mt-3 w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]" />
-                  </div>
-                  <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <label className="text-sm font-medium text-[hsl(var(--foreground))]">EOBI deduction</label>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Toggle on to deduct EOBI from each salary slip</p>
-                      </div>
-                      <button type="button" role="switch" aria-checked={eobiEnabled} onClick={() => setEobiEnabled(v => !v)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${eobiEnabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
-                        <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${eobiEnabled ? "translate-x-5" : "translate-x-0"}`} />
-                      </button>
-                    </div>
-                    <input value={eobiAmount} onChange={e => setEobiAmount(e.target.value)} type="number" min="0" placeholder="0"
-                      className="mt-3 w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]" />
-                  </div>
-                  <div className="rounded-lg border border-[hsl(var(--border))] p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Custom allowances</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Added to salary when enabled</p>
-                      </div>
-                      <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setCustomAllowances(prev => [...prev, newPayLine("Allowance")])}>
-                        + Add
-                      </Button>
-                    </div>
-                    {customAllowances.map((line, idx) => (
-                      <div key={line.id} className="grid grid-cols-[1fr_120px_auto_auto] gap-2 items-center">
-                        <input value={line.label} onChange={e => setCustomAllowances(prev => prev.map((l, i) => i === idx ? { ...l, label: e.target.value } : l))} placeholder="Label"
-                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
-                        <input type="number" min="0" value={line.amount || ""} onChange={e => setCustomAllowances(prev => prev.map((l, i) => i === idx ? { ...l, amount: parseFloat(e.target.value) || 0 } : l))} placeholder="0"
-                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
-                        <button type="button" role="switch" aria-checked={line.enabled} onClick={() => setCustomAllowances(prev => prev.map((l, i) => i === idx ? { ...l, enabled: !l.enabled } : l))}
-                          className={`relative inline-flex h-6 w-11 rounded-full border-2 border-transparent ${line.enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
-                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${line.enabled ? "translate-x-5" : "translate-x-0"}`} />
-                        </button>
-                        <button type="button" className="text-xs text-rose-600" onClick={() => setCustomAllowances(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="rounded-lg border border-[hsl(var(--border))] p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Custom deductions</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Subtracted from salary when enabled</p>
-                      </div>
-                      <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setCustomDeductions(prev => [...prev, newPayLine("Deduction")])}>
-                        + Add
-                      </Button>
-                    </div>
-                    {customDeductions.map((line, idx) => (
-                      <div key={line.id} className="grid grid-cols-[1fr_120px_auto_auto] gap-2 items-center">
-                        <input value={line.label} onChange={e => setCustomDeductions(prev => prev.map((l, i) => i === idx ? { ...l, label: e.target.value } : l))} placeholder="Label"
-                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
-                        <input type="number" min="0" value={line.amount || ""} onChange={e => setCustomDeductions(prev => prev.map((l, i) => i === idx ? { ...l, amount: parseFloat(e.target.value) || 0 } : l))} placeholder="0"
-                          className="h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm" />
-                        <button type="button" role="switch" aria-checked={line.enabled} onClick={() => setCustomDeductions(prev => prev.map((l, i) => i === idx ? { ...l, enabled: !l.enabled } : l))}
-                          className={`relative inline-flex h-6 w-11 rounded-full border-2 border-transparent ${line.enabled ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"}`}>
-                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${line.enabled ? "translate-x-5" : "translate-x-0"}`} />
-                        </button>
-                        <button type="button" className="text-xs text-rose-600" onClick={() => setCustomDeductions(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Currency</label>
-                  <select value={currency} onChange={e => setCurrency(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
-                    {CURRENCIES.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Join Date</label>
-                  <input value={joinDate} onChange={e => setJoinDate(e.target.value)} type="date"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Status</label>
-                  <select value={status} onChange={e => setStatus(e.target.value as "active" | "inactive")}
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-                <div className="space-y-2 col-span-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Address</label>
-                  <input value={address} onChange={e => setAddress(e.target.value)} placeholder="City, Country"
-                    className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                </div>
-                
-                {/* Bank Details Section */}
-                <div className="col-span-2 pt-2 border-t">
-                  <p className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Bank Details</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Bank Name</label>
-                      <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. Meezan Bank"
-                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Account Number</label>
-                      <input value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} placeholder="e.g. 1234567890"
-                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                    </div>
-                    <div className="space-y-2 col-span-2">
-                      <label className="text-sm font-medium text-[hsl(var(--foreground))]">Account Title</label>
-                      <input value={bankAccountTitle} onChange={e => setBankAccountTitle(e.target.value)} placeholder="e.g. Muhammad Ahmed Khan"
-                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent" />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-2 col-span-2">
-                  <label className="text-sm font-medium text-[hsl(var(--foreground))]">Notes</label>
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional info..."
-                    className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent resize-none" />
-                </div>
-              </div>
-
-              {/* Documents */}
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-[hsl(var(--foreground))]">Documents</label>
-                <input ref={docFileRef} type="file" className="hidden" onChange={handleDocFileChange} />
-                
-                {/* Existing documents (in edit mode) */}
-                {editingMember && editingMember.documents.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">Existing Documents</p>
-                    {editingMember.documents.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3">
-                        <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                        <span className="flex-1 min-w-0 text-sm truncate">{doc.name}</span>
-                        <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">
-                          {(doc.size / 1024).toFixed(0)}KB
-                        </span>
-                        <button type="button" onClick={() => {
-                          const updated = editingMember.documents.filter((_, idx) => idx !== i)
-                          setEditingMember({ ...editingMember, documents: updated })
-                        }}
-                          className="text-red-400 hover:text-red-600 shrink-0">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* New documents to upload */}
-                {documents.map((doc, i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3">
-                    <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                    <input
-                      value={doc.name}
-                      onChange={e => updateDocName(i, e.target.value)}
-                      placeholder="Document name"
-                      className="flex-1 min-w-0 bg-transparent text-sm text-[hsl(var(--foreground))] focus:outline-none"
-                    />
-                    <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">
-                      {(doc.file.size / 1024).toFixed(0)}KB
-                    </span>
-                    <button type="button" onClick={() => removeDoc(i)}
-                      className="text-red-400 hover:text-red-600 shrink-0">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-
-                {/* Add new document - label first, then upload */}
-                <div className="flex items-center gap-2">
-                  <input
-                    value={newDocName}
-                    onChange={e => setNewDocName(e.target.value)}
-                    placeholder="Enter document name..."
-                    className="flex-1 h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={handlePendingUpload}
-                    disabled={!newDocName.trim()}
-                    className="h-10 px-4 rounded-lg bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a85] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shrink-0"
-                  >
-                    <Upload className="h-4 w-4" /> Upload
-                  </button>
-                </div>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">Enter a name, then click Upload to select file (PDF, DOCX, images…)</p>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" size="sm" className="flex-1 h-10" onClick={resetForm}>Cancel</Button>
-                <Button type="submit" size="sm" className="flex-1 h-10 bg-[#1a9f9a] hover:bg-[#158a85] text-white" disabled={saving}>
-                  {saving ? "Saving..." : editingMember ? "Update Staff" : "Save Staff"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <StaffEditModal
+          editing={Boolean(editingMember)}
+          saving={saving}
+          departments={DEPARTMENTS}
+          employmentTypes={EMPLOYMENT_TYPES}
+          currencies={CURRENCIES}
+          name={name}
+          setName={setName}
+          role={role}
+          setRole={setRole}
+          department={department}
+          setDepartment={setDepartment}
+          email={email}
+          setEmail={setEmail}
+          phone={phone}
+          setPhone={setPhone}
+          address={address}
+          setAddress={setAddress}
+          salary={salary}
+          setSalary={setSalary}
+          basicSalary={basicSalary}
+          setBasicSalary={setBasicSalary}
+          employmentType={employmentType}
+          setEmploymentType={setEmploymentType}
+          medicalAllowance={medicalAllowance}
+          setMedicalAllowance={setMedicalAllowance}
+          medicalEnabled={medicalEnabled}
+          setMedicalEnabled={setMedicalEnabled}
+          taxAmount={taxAmount}
+          setTaxAmount={setTaxAmount}
+          taxEnabled={taxEnabled}
+          setTaxEnabled={setTaxEnabled}
+          eobiAmount={eobiAmount}
+          setEobiAmount={setEobiAmount}
+          eobiEnabled={eobiEnabled}
+          setEobiEnabled={setEobiEnabled}
+          customAllowances={customAllowances}
+          setCustomAllowances={setCustomAllowances}
+          customDeductions={customDeductions}
+          setCustomDeductions={setCustomDeductions}
+          currency={currency}
+          setCurrency={setCurrency}
+          joinDate={joinDate}
+          setJoinDate={setJoinDate}
+          status={status}
+          setStatus={setStatus}
+          notes={notes}
+          setNotes={setNotes}
+          bankName={bankName}
+          setBankName={setBankName}
+          bankAccountNumber={bankAccountNumber}
+          setBankAccountNumber={setBankAccountNumber}
+          bankAccountTitle={bankAccountTitle}
+          setBankAccountTitle={setBankAccountTitle}
+          photoPreview={photoPreview}
+          fileRef={fileRef}
+          onFileChange={handleFileChange}
+          documents={documents}
+          newDocName={newDocName}
+          setNewDocName={setNewDocName}
+          docFileRef={docFileRef}
+          onDocFileChange={handleDocFileChange}
+          onPendingUpload={handlePendingUpload}
+          updateDocName={updateDocName}
+          removeDoc={removeDoc}
+          existingDocuments={editingMember?.documents || []}
+          onRemoveExistingDoc={(i) => {
+            if (!editingMember) return
+            const updated = editingMember.documents.filter((_, idx) => idx !== i)
+            setEditingMember({ ...editingMember, documents: updated })
+          }}
+          onAddAllowance={() => setCustomAllowances(prev => [...prev, newPayLine("Allowance")])}
+          onAddDeduction={() => setCustomDeductions(prev => [...prev, newPayLine("Deduction")])}
+          onSubmit={handleSubmit}
+          onClose={resetForm}
+        />
       )}
 
       {viewMember && (

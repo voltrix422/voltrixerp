@@ -171,6 +171,10 @@ export type StaffCompensationBreakdown = {
   netPayable: number
 }
 
+export function formatMoneyAmount(currency: string, amount: number): string {
+  return `${currency} ${Number(amount || 0).toLocaleString()}`
+}
+
 export function computeStaffCompensation(
   profile: StaffCompensationProfile,
 ): StaffCompensationBreakdown {
