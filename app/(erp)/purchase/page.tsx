@@ -6,14 +6,15 @@ import { PurchaseLedgerManager } from "@/components/purchase/purchase-ledger-man
 import { SuppliersTab } from "@/components/purchase/suppliers-tab"
 import { AdvanceAccountsTab } from "@/components/purchase/advance-accounts-tab"
 import { ClientProjectsTab } from "@/components/purchase/client-projects-tab"
-import { BookOpen, Users, Wallet, FolderKanban, FolderLock } from "lucide-react"
+import { ImportedPurchasesTab } from "@/components/purchase/imported-purchases-tab"
+import { BookOpen, Users, Wallet, FolderKanban, FolderLock, Ship } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { normalizePurchaseScopes, roleHasAllModules } from "@/lib/auth"
 import { getPurchaseScopes, purchaseScopeLabel, type PurchaseScope } from "@/lib/purchase-scopes"
 
 export default function PurchasePage() {
   const { user } = useAuth()
-  const [tab, setTab] = useState<"ledger" | "suppliers" | "advances" | "projects">("ledger")
+  const [tab, setTab] = useState<"ledger" | "imports" | "suppliers" | "advances" | "projects">("ledger")
   const [allScopes, setAllScopes] = useState<PurchaseScope[]>([])
   const isAdminLike = roleHasAllModules(user?.role)
   const allowedScopes = useMemo(() => {
@@ -38,6 +39,7 @@ export default function PurchasePage() {
 
   const tabs = [
     { key: "ledger" as const, label: "Purchase Ledger", icon: BookOpen },
+    { key: "imports" as const, label: "Imported Purchases", icon: Ship },
     { key: "suppliers" as const, label: "Suppliers", icon: Users },
     { key: "advances" as const, label: "Advances", icon: Wallet },
     { key: "projects" as const, label: "Client Projects", icon: FolderKanban },
@@ -106,6 +108,8 @@ export default function PurchasePage() {
             <div className="p-4 sm:p-6 pt-4">
               <PurchaseLedgerManager purchaseScopeId={scopeId || "P1"} />
             </div>
+          ) : tab === "imports" ? (
+            <ImportedPurchasesTab purchaseScopeId={scopeId || "P1"} />
           ) : tab === "advances" ? (
             <AdvanceAccountsTab purchaseScopeId={scopeId || "P1"} />
           ) : tab === "projects" ? (

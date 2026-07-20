@@ -1368,3 +1368,69 @@ model AcctSequence {
 
   @@map("acct_sequences")
 }
+
+/// Full import shipment / container landed-cost workflow (Pakistan PSW flow)
+model ErpImportShipment {
+  id                String   @id @default(cuid())
+  purchaseScopeId   String   @default("P1") @map("purchase_scope_id")
+  shipmentNumber    String   @map("shipment_number")
+  status            String   @default("draft")
+  /// Current wizard step: 1=basics … 7=receive
+  currentStep       Int      @default(1) @map("current_step")
+
+  supplierId        String?  @map("supplier_id")
+  supplierName      String   @default("") @map("supplier_name")
+  contractRef       String   @default("") @map("contract_ref")
+  contractDate      String   @default("") @map("contract_date")
+  incoterms         String   @default("FOB")
+  currency          String   @default("USD")
+  fxRate            Float    @default(0) @map("fx_rate")
+  originCountry     String   @default("") @map("origin_country")
+  originPort        String   @default("") @map("origin_port")
+  destinationPort   String   @default("Karachi") @map("destination_port")
+  clearingAgent     String   @default("") @map("clearing_agent")
+  notes             String   @default("")
+
+  /// Shipping
+  blNumber          String   @default("") @map("bl_number")
+  vesselName        String   @default("") @map("vessel_name")
+  voyageNo          String   @default("") @map("voyage_no")
+  etd               String   @default("")
+  eta               String   @default("")
+  ata               String   @default("")
+  igmNumber         String   @default("") @map("igm_number")
+  igmDate           String   @default("") @map("igm_date")
+
+  /// PSW / Customs
+  gdNumber          String   @default("") @map("gd_number")
+  gdDate            String   @default("") @map("gd_date")
+  psid              String   @default("")
+  pssid             String   @default("")
+  collectorate      String   @default("")
+  assessmentChannel String   @default("") @map("assessment_channel")
+
+  /// Allocation: by_value | by_weight | by_qty | by_cbm
+  allocationMethod  String   @default("by_value") @map("allocation_method")
+  landedCostLocked  Boolean  @default(false) @map("landed_cost_locked")
+  receivedAtWarehouse Boolean @default(false) @map("received_at_warehouse")
+  warehouseLocation String   @default("") @map("warehouse_location")
+  receivedDate      String   @default("") @map("received_date")
+
+  containers        Json     @default("[]")
+  items             Json     @default("[]")
+  charges           Json     @default("[]")
+  attachments       Json     @default("[]")
+  payments          Json     @default("[]")
+  landedCostSummary Json     @default("{}") @map("landed_cost_summary")
+  flowHistory       Json     @default("[]") @map("flow_history")
+
+  createdBy         String   @default("") @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([purchaseScopeId, shipmentNumber])
+  @@index([purchaseScopeId])
+  @@index([status])
+  @@index([supplierId])
+  @@map("erp_import_shipments")
+}

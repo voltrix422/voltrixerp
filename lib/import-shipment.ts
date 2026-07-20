@@ -1,0 +1,548 @@
+/** Import shipment / container landed-cost domain (Pakistan PSW flow) */
+
+export type ImportShipmentStatus =
+  | "draft"
+  | "ordered"
+  | "in_transit"
+  | "arrived"
+  | "clearance"
+  | "costing"
+  | "landed"
+  | "received"
+  | "closed"
+
+export type AllocationMethod = "by_value" | "by_weight" | "by_qty" | "by_cbm"
+
+export type AttachmentCategory =
+  | "contract"
+  | "proforma_invoice"
+  | "commercial_invoice"
+  | "packing_list"
+  | "bill_of_lading"
+  | "insurance"
+  | "bank_lc_eif"
+  | "payment_proof"
+  | "psw_gd"
+  | "psid_receipt"
+  | "customs_assessment"
+  | "duty_tax_challan"
+  | "clearing_agent_invoice"
+  | "freight_invoice"
+  | "transport_invoice"
+  | "container_photos"
+  | "grn"
+  | "other"
+
+export type ChargeCategory =
+  | "product"
+  | "ocean_freight"
+  | "air_freight"
+  | "insurance"
+  | "customs_duty"
+  | "additional_customs_duty"
+  | "sales_tax"
+  | "income_tax"
+  | "fed"
+  | "regulatory_fee"
+  | "psw_fee"
+  | "clearing_agent"
+  | "port_handling"
+  | "demurrage"
+  | "detention"
+  | "do_bl_charges"
+  | "local_transport"
+  | "labor_unloading"
+  | "bank_charges"
+  | "other"
+
+export interface ImportAttachment {
+  id: string
+  category: AttachmentCategory
+  name: string
+  url: string
+  uploadedBy: string
+  uploadedAt: string
+  notes?: string
+}
+
+export interface ImportContainer {
+  id: string
+  containerNo: string
+  size: string // 20ft | 40ft | 40HC | LCL | other
+  sealNo: string
+  grossWeightKg: number
+  netWeightKg: number
+  cbm: number
+  packageCount: number
+  notes: string
+}
+
+export interface ImportItem {
+  id: string
+  containerId: string
+  description: string
+  sku: string
+  hsCode: string
+  qty: number
+  receivedQty: number
+  unit: string
+  /** Unit price in foreign currency */
+  unitPriceForeign: number
+  /** Item weight (kg) — used for by_weight allocation */
+  weightKg: number
+  /** Volume (CBM) — used for by_cbm allocation */
+  cbm: number
+  origin: string
+  notes: string
+  /** Computed fields (filled by calculateLandedCost) */
+  productCostPkr?: number
+  allocatedChargesPkr?: number
+  directChargesPkr?: number
+  totalLandedPkr?: number
+  unitLandedCost?: number
+}
+
+export interface ImportCharge {
+  id: string
+  category: ChargeCategory
+  description: string
+  amount: number
+  currency: string
+  /** If charge currency differs from PKR, use this FX (else shipment fxRate for foreign product) */
+  fxRate: number
+  /** true = allocate across items; false = attach to one item */
+  isShared: boolean
+  itemId?: string
+  /** Override allocation for this charge only */
+  allocationMethod?: AllocationMethod | ""
+  paid: boolean
+  paymentRef: string
+  notes: string
+}
+
+export interface ImportPayment {
+  id: string
+  kind: "supplier" | "customs" | "freight" | "clearing" | "transport" | "other"
+  amount: number
+  currency: string
+  date: string
+  method: string
+  reference: string
+  proofUrl: string
+  proofName: string
+  notes: string
+}
+
+export interface LandedCostLine {
+  itemId: string
+  description: string
+  containerId: string
+  qty: number
+  receivedQty: number
+  productCostPkr: number
+  allocatedChargesPkr: number
+  directChargesPkr: number
+  totalLandedPkr: number
+  unitLandedCost: number
+  sharePercent: number
+}
+
+export interface LandedCostSummary {
+  calculatedAt: string
+  allocationMethod: AllocationMethod
+  fxRate: number
+  currency: string
+  productTotalPkr: number
+  sharedChargesPkr: number
+  directChargesPkr: number
+  grandTotalPkr: number
+  lines: LandedCostLine[]
+  chargeBreakdown: { category: string; amountPkr: number }[]
+}
+
+export interface FlowHistoryEntry {
+  at: string
+  by: string
+  action: string
+  note?: string
+}
+
+export interface ImportShipment {
+  id: string
+  purchaseScopeId: string
+  shipmentNumber: string
+  status: ImportShipmentStatus
+  currentStep: number
+  supplierId?: string | null
+  supplierName: string
+  contractRef: string
+  contractDate: string
+  incoterms: string
+  currency: string
+  fxRate: number
+  originCountry: string
+  originPort: string
+  destinationPort: string
+  clearingAgent: string
+  notes: string
+  blNumber: string
+  vesselName: string
+  voyageNo: string
+  etd: string
+  eta: string
+  ata: string
+  igmNumber: string
+  igmDate: string
+  gdNumber: string
+  gdDate: string
+  psid: string
+  pssid: string
+  collectorate: string
+  assessmentChannel: string
+  allocationMethod: AllocationMethod
+  landedCostLocked: boolean
+  receivedAtWarehouse: boolean
+  warehouseLocation: string
+  receivedDate: string
+  containers: ImportContainer[]
+  items: ImportItem[]
+  charges: ImportCharge[]
+  attachments: ImportAttachment[]
+  payments: ImportPayment[]
+  landedCostSummary: LandedCostSummary | Record<string, unknown>
+  flowHistory: FlowHistoryEntry[]
+  createdBy: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export const IMPORT_STEPS = [
+  { step: 1, key: "basics", title: "Basics & Contract", short: "Basics" },
+  { step: 2, key: "containers", title: "Containers & Items", short: "Items" },
+  { step: 3, key: "shipping", title: "Shipping & Arrival", short: "Shipping" },
+  { step: 4, key: "psw", title: "PSW / Customs", short: "PSW" },
+  { step: 5, key: "charges", title: "All Charges", short: "Charges" },
+  { step: 6, key: "landed", title: "Landed Cost", short: "Landed" },
+  { step: 7, key: "receive", title: "Warehouse Receive", short: "Receive" },
+] as const
+
+export const ATTACHMENT_CATEGORIES: { value: AttachmentCategory; label: string; stepHint: number }[] = [
+  { value: "contract", label: "Contract / PO", stepHint: 1 },
+  { value: "proforma_invoice", label: "Proforma Invoice", stepHint: 1 },
+  { value: "commercial_invoice", label: "Commercial Invoice", stepHint: 2 },
+  { value: "packing_list", label: "Packing List", stepHint: 2 },
+  { value: "bill_of_lading", label: "Bill of Lading (B/L)", stepHint: 3 },
+  { value: "insurance", label: "Insurance Policy", stepHint: 3 },
+  { value: "bank_lc_eif", label: "LC / EIF / Bank Instrument", stepHint: 1 },
+  { value: "payment_proof", label: "Payment Proof", stepHint: 5 },
+  { value: "psw_gd", label: "PSW Goods Declaration (GD)", stepHint: 4 },
+  { value: "psid_receipt", label: "PSID / Payment Slip", stepHint: 4 },
+  { value: "customs_assessment", label: "Customs Assessment", stepHint: 4 },
+  { value: "duty_tax_challan", label: "Duty / Tax Challan", stepHint: 4 },
+  { value: "clearing_agent_invoice", label: "Clearing Agent Invoice", stepHint: 5 },
+  { value: "freight_invoice", label: "Freight Invoice", stepHint: 5 },
+  { value: "transport_invoice", label: "Local Transport Invoice", stepHint: 5 },
+  { value: "container_photos", label: "Container Photos", stepHint: 3 },
+  { value: "grn", label: "GRN / Warehouse Proof", stepHint: 7 },
+  { value: "other", label: "Other", stepHint: 1 },
+]
+
+export const CHARGE_CATEGORIES: { value: ChargeCategory; label: string; typicallyShared: boolean }[] = [
+  { value: "ocean_freight", label: "Ocean Freight", typicallyShared: true },
+  { value: "air_freight", label: "Air Freight", typicallyShared: true },
+  { value: "insurance", label: "Insurance", typicallyShared: true },
+  { value: "customs_duty", label: "Customs Duty (CD)", typicallyShared: false },
+  { value: "additional_customs_duty", label: "Additional Customs Duty (ACD)", typicallyShared: false },
+  { value: "sales_tax", label: "Sales Tax", typicallyShared: false },
+  { value: "income_tax", label: "Income Tax / WHT", typicallyShared: false },
+  { value: "fed", label: "FED", typicallyShared: false },
+  { value: "regulatory_fee", label: "Regulatory / OGA Fee", typicallyShared: true },
+  { value: "psw_fee", label: "PSW Fee", typicallyShared: true },
+  { value: "clearing_agent", label: "Clearing Agent Fee", typicallyShared: true },
+  { value: "port_handling", label: "Port Handling / THC", typicallyShared: true },
+  { value: "demurrage", label: "Demurrage", typicallyShared: true },
+  { value: "detention", label: "Detention", typicallyShared: true },
+  { value: "do_bl_charges", label: "DO / B/L Charges", typicallyShared: true },
+  { value: "local_transport", label: "Local Transport / Trucking", typicallyShared: true },
+  { value: "labor_unloading", label: "Labor / Unloading", typicallyShared: true },
+  { value: "bank_charges", label: "Bank Charges", typicallyShared: true },
+  { value: "other", label: "Other Charge", typicallyShared: true },
+]
+
+export const STATUS_LABELS: Record<ImportShipmentStatus, string> = {
+  draft: "Draft",
+  ordered: "Ordered",
+  in_transit: "In Transit",
+  arrived: "Arrived",
+  clearance: "Clearance",
+  costing: "Costing",
+  landed: "Landed Cost Done",
+  received: "Received",
+  closed: "Closed",
+}
+
+export const INCOTERMS = ["EXW", "FOB", "CFR", "CIF", "CIP", "DAP", "DDP"] as const
+export const CURRENCIES = ["USD", "CNY", "EUR", "GBP", "AED", "PKR"] as const
+export const CONTAINER_SIZES = ["20ft", "40ft", "40HC", "45HC", "LCL", "Other"] as const
+
+function chargeAmountPkr(c: ImportCharge, shipmentFx: number): number {
+  const cur = (c.currency || "PKR").toUpperCase()
+  if (cur === "PKR") return Number(c.amount) || 0
+  const fx = Number(c.fxRate) > 0 ? Number(c.fxRate) : Number(shipmentFx) || 0
+  return (Number(c.amount) || 0) * fx
+}
+
+function itemBasis(item: ImportItem, method: AllocationMethod, fxRate: number): number {
+  const qty = Number(item.qty) || 0
+  switch (method) {
+    case "by_weight":
+      return Number(item.weightKg) || 0
+    case "by_cbm":
+      return Number(item.cbm) || 0
+    case "by_qty":
+      return qty
+    case "by_value":
+    default:
+      return qty * (Number(item.unitPriceForeign) || 0) * (Number(fxRate) || 0)
+  }
+}
+
+/** Calculate full landed cost for a shipment (does not mutate input). */
+export function calculateLandedCost(shipment: Pick<
+  ImportShipment,
+  "items" | "charges" | "fxRate" | "currency" | "allocationMethod"
+>): LandedCostSummary {
+  const fxRate = Number(shipment.fxRate) || 0
+  const currency = shipment.currency || "USD"
+  const method = shipment.allocationMethod || "by_value"
+  const items = shipment.items || []
+  const charges = (shipment.charges || []).filter(c => c.category !== "product")
+
+  const productLines = items.map(item => {
+    const qty = Number(item.qty) || 0
+    const productCostPkr = qty * (Number(item.unitPriceForeign) || 0) * fxRate
+    return { item, productCostPkr }
+  })
+  const productTotalPkr = productLines.reduce((s, l) => s + l.productCostPkr, 0)
+
+  const shared = charges.filter(c => c.isShared)
+  const direct = charges.filter(c => !c.isShared)
+
+  const sharedTotalPkr = shared.reduce((s, c) => s + chargeAmountPkr(c, fxRate), 0)
+  const directTotalPkr = direct.reduce((s, c) => s + chargeAmountPkr(c, fxRate), 0)
+
+  // Per-item allocation of each shared charge (supports per-charge method override)
+  const allocatedByItem = new Map<string, number>()
+  for (const item of items) allocatedByItem.set(item.id, 0)
+
+  for (const charge of shared) {
+    const amt = chargeAmountPkr(charge, fxRate)
+    const m = (charge.allocationMethod || method) as AllocationMethod
+    const bases = items.map(it => ({ id: it.id, base: itemBasis(it, m, fxRate) }))
+    const totalBase = bases.reduce((s, b) => s + b.base, 0)
+    if (totalBase <= 0 || items.length === 0) {
+      // equal split fallback
+      const each = items.length ? amt / items.length : 0
+      for (const it of items) {
+        allocatedByItem.set(it.id, (allocatedByItem.get(it.id) || 0) + each)
+      }
+    } else {
+      for (const b of bases) {
+        allocatedByItem.set(b.id, (allocatedByItem.get(b.id) || 0) + (amt * b.base) / totalBase)
+      }
+    }
+  }
+
+  const directByItem = new Map<string, number>()
+  for (const item of items) directByItem.set(item.id, 0)
+  for (const charge of direct) {
+    const amt = chargeAmountPkr(charge, fxRate)
+    if (charge.itemId && directByItem.has(charge.itemId)) {
+      directByItem.set(charge.itemId, (directByItem.get(charge.itemId) || 0) + amt)
+    } else if (items.length === 1) {
+      directByItem.set(items[0].id, (directByItem.get(items[0].id) || 0) + amt)
+    } else {
+      // unassigned direct → treat as shared by value
+      const bases = items.map(it => ({ id: it.id, base: itemBasis(it, "by_value", fxRate) }))
+      const totalBase = bases.reduce((s, b) => s + b.base, 0) || items.length
+      for (const b of bases) {
+        const share = totalBase > 0 ? (amt * b.base) / totalBase : amt / items.length
+        directByItem.set(b.id, (directByItem.get(b.id) || 0) + share)
+      }
+    }
+  }
+
+  const lines: LandedCostLine[] = productLines.map(({ item, productCostPkr }) => {
+    const allocatedChargesPkr = allocatedByItem.get(item.id) || 0
+    const directChargesPkr = directByItem.get(item.id) || 0
+    const totalLandedPkr = productCostPkr + allocatedChargesPkr + directChargesPkr
+    const recv = Number(item.receivedQty) > 0 ? Number(item.receivedQty) : Number(item.qty) || 1
+    const unitLandedCost = recv > 0 ? totalLandedPkr / recv : 0
+    const sharePercent = productTotalPkr > 0 ? (productCostPkr / productTotalPkr) * 100 : 0
+    return {
+      itemId: item.id,
+      description: item.description,
+      containerId: item.containerId,
+      qty: Number(item.qty) || 0,
+      receivedQty: Number(item.receivedQty) || Number(item.qty) || 0,
+      productCostPkr,
+      allocatedChargesPkr,
+      directChargesPkr,
+      totalLandedPkr,
+      unitLandedCost,
+      sharePercent,
+    }
+  })
+
+  const categoryMap = new Map<string, number>()
+  // Product as synthetic
+  categoryMap.set("product", productTotalPkr)
+  for (const c of charges) {
+    const label = c.category
+    categoryMap.set(label, (categoryMap.get(label) || 0) + chargeAmountPkr(c, fxRate))
+  }
+
+  return {
+    calculatedAt: new Date().toISOString(),
+    allocationMethod: method,
+    fxRate,
+    currency,
+    productTotalPkr,
+    sharedChargesPkr: sharedTotalPkr,
+    directChargesPkr: directTotalPkr,
+    grandTotalPkr: productTotalPkr + sharedTotalPkr + directTotalPkr,
+    lines,
+    chargeBreakdown: Array.from(categoryMap.entries()).map(([category, amountPkr]) => ({
+      category,
+      amountPkr,
+    })),
+  }
+}
+
+export function applyLandedCostToItems(
+  items: ImportItem[],
+  summary: LandedCostSummary,
+): ImportItem[] {
+  const byId = new Map(summary.lines.map(l => [l.itemId, l]))
+  return items.map(item => {
+    const line = byId.get(item.id)
+    if (!line) return item
+    return {
+      ...item,
+      productCostPkr: line.productCostPkr,
+      allocatedChargesPkr: line.allocatedChargesPkr,
+      directChargesPkr: line.directChargesPkr,
+      totalLandedPkr: line.totalLandedPkr,
+      unitLandedCost: line.unitLandedCost,
+    }
+  })
+}
+
+export function statusForStep(step: number): ImportShipmentStatus {
+  if (step <= 1) return "draft"
+  if (step === 2) return "ordered"
+  if (step === 3) return "in_transit"
+  if (step === 4) return "clearance"
+  if (step === 5) return "costing"
+  if (step === 6) return "landed"
+  if (step >= 7) return "received"
+  return "draft"
+}
+
+export function emptyShipment(scopeId: string, createdBy = ""): Omit<ImportShipment, "id" | "shipmentNumber" | "createdAt" | "updatedAt"> {
+  return {
+    purchaseScopeId: scopeId,
+    status: "draft",
+    currentStep: 1,
+    supplierId: null,
+    supplierName: "",
+    contractRef: "",
+    contractDate: "",
+    incoterms: "FOB",
+    currency: "USD",
+    fxRate: 0,
+    originCountry: "",
+    originPort: "",
+    destinationPort: "Karachi",
+    clearingAgent: "",
+    notes: "",
+    blNumber: "",
+    vesselName: "",
+    voyageNo: "",
+    etd: "",
+    eta: "",
+    ata: "",
+    igmNumber: "",
+    igmDate: "",
+    gdNumber: "",
+    gdDate: "",
+    psid: "",
+    pssid: "",
+    collectorate: "",
+    assessmentChannel: "",
+    allocationMethod: "by_value",
+    landedCostLocked: false,
+    receivedAtWarehouse: false,
+    warehouseLocation: "",
+    receivedDate: "",
+    containers: [],
+    items: [],
+    charges: [],
+    attachments: [],
+    payments: [],
+    landedCostSummary: {},
+    flowHistory: [],
+    createdBy,
+  }
+}
+
+export function newId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+export async function getImportShipments(scope?: string): Promise<ImportShipment[]> {
+  const q = scope ? `?scope=${encodeURIComponent(scope)}` : ""
+  const res = await fetch(`/api/db/import-shipments${q}`)
+  if (!res.ok) throw new Error("Failed to load import shipments")
+  return res.json()
+}
+
+export async function getImportShipment(id: string): Promise<ImportShipment> {
+  const res = await fetch(`/api/db/import-shipments?id=${encodeURIComponent(id)}`)
+  if (!res.ok) throw new Error("Failed to load shipment")
+  return res.json()
+}
+
+export async function saveImportShipment(shipment: Partial<ImportShipment> & { purchaseScopeId: string }): Promise<ImportShipment> {
+  const payload: Record<string, unknown> = { ...shipment }
+  if (!payload.id || payload.shipmentNumber === "(auto)" || !payload.shipmentNumber) {
+    delete payload.shipmentNumber
+  }
+  const res = await fetch("/api/db/import-shipments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || "Failed to save shipment")
+  }
+  return res.json()
+}
+
+export async function deleteImportShipment(id: string): Promise<void> {
+  const res = await fetch("/api/db/import-shipments", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) throw new Error("Failed to delete shipment")
+}
+
+export function formatPkr(n: number) {
+  return `PKR ${Math.round(n || 0).toLocaleString("en-PK")}`
+}
+
+export function attachmentLabel(cat: AttachmentCategory) {
+  return ATTACHMENT_CATEGORIES.find(c => c.value === cat)?.label || cat
+}
