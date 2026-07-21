@@ -4,14 +4,17 @@ import { prisma } from "@/lib/db"
 import {
   applyLandedCostToItems,
   calculateLandedCost,
+  normalizeImportStep,
   statusForStep,
   type AllocationMethod,
+  type CustomsDutyEntry,
   type ImportAttachment,
   type ImportCharge,
   type ImportContainer,
   type ImportItem,
   type ImportPayment,
   type ImportShipmentStatus,
+  type ImportSro,
   type FlowHistoryEntry,
 } from "@/lib/import-shipment"
 
@@ -24,9 +27,9 @@ function jsonVal(v: unknown): Prisma.InputJsonValue {
 }
 
 function payload(body: Record<string, unknown>) {
-  const currentStep = Math.min(7, Math.max(1, Number(body.currentStep) || 1))
+  const currentStep = normalizeImportStep(Number(body.currentStep) || 1)
   let status = String(body.status || statusForStep(currentStep)) as ImportShipmentStatus
-  if (body.landedCostLocked && currentStep >= 6 && status !== "received" && status !== "closed") {
+  if (body.landedCostLocked && currentStep >= 5 && status !== "received" && status !== "closed") {
     status = "landed"
   }
   if (body.receivedAtWarehouse) status = "received"
@@ -71,6 +74,8 @@ function payload(body: Record<string, unknown>) {
     charges: jsonVal(asArray<ImportCharge>(body.charges)),
     attachments: jsonVal(asArray<ImportAttachment>(body.attachments)),
     payments: jsonVal(asArray<ImportPayment>(body.payments)),
+    customsDuties: jsonVal(asArray<CustomsDutyEntry>(body.customsDuties)),
+    gdSros: jsonVal(asArray<ImportSro>(body.gdSros)),
     landedCostSummary: jsonVal(
       body.landedCostSummary && typeof body.landedCostSummary === "object"
         ? body.landedCostSummary
@@ -152,7 +157,7 @@ export async function POST(req: NextRequest) {
       if (body.lockLandedCost) {
         landedCostLocked = true
         data.status = data.receivedAtWarehouse ? "received" : "landed"
-        data.currentStep = Math.max(data.currentStep, 6)
+        data.currentStep = Math.max(data.currentStep, 5)
       }
     }
 

@@ -1375,7 +1375,7 @@ model ErpImportShipment {
   purchaseScopeId   String   @default("P1") @map("purchase_scope_id")
   shipmentNumber    String   @map("shipment_number")
   status            String   @default("draft")
-  /// Current wizard step: 1=basics … 7=receive
+  /// Current wizard step: 1=basics(+shipping) 2=invoice 3=psw 4=charges 5=landed 6=receive
   currentStep       Int      @default(1) @map("current_step")
 
   supplierId        String?  @map("supplier_id")
@@ -1421,6 +1421,8 @@ model ErpImportShipment {
   charges           Json     @default("[]")
   attachments       Json     @default("[]")
   payments          Json     @default("[]")
+  customsDuties     Json     @default("[]") @map("customs_duties")
+  gdSros            Json     @default("[]") @map("gd_sros")
   landedCostSummary Json     @default("{}") @map("landed_cost_summary")
   flowHistory       Json     @default("[]") @map("flow_history")
 

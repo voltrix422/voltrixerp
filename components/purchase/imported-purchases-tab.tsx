@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import {
   Plus, Search, Loader2, Ship, ArrowLeft, Trash2, Lock, Calculator,
-  ChevronRight, Package, Save, CheckCircle2,
+  ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,12 +12,13 @@ import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
-  ATTACHMENT_CATEGORIES,
   CHARGE_CATEGORIES,
   CONTAINER_SIZES,
   CURRENCIES,
   IMPORT_STEPS,
+  IMPORT_STEP_COUNT,
   INCOTERMS,
+  QUICK_ADD_SROS,
   STATUS_LABELS,
   applyLandedCostToItems,
   calculateLandedCost,
@@ -25,17 +26,22 @@ import {
   emptyShipment,
   formatPkr,
   getImportShipments,
+  loadSroLibrary,
   newId,
+  normalizeImportStep,
   saveImportShipment,
+  saveSroLibrary,
   statusForStep,
+  syncDutiesIntoCharges,
   type AllocationMethod,
-  type AttachmentCategory,
   type ChargeCategory,
+  type CustomsDutyEntry,
   type ImportCharge,
   type ImportContainer,
   type ImportItem,
   type ImportShipment,
   type ImportShipmentStatus,
+  type ImportSro,
   type LandedCostSummary,
 } from "@/lib/import-shipment"
 import { ImportAttachments } from "@/components/purchase/import-attachments"
@@ -50,14 +56,26 @@ function statusVariant(s: ImportShipmentStatus): "default" | "secondary" | "outl
 
 function Field({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={`space-y-1 min-w-0 ${className}`}>
-      <label className="text-xs font-medium">{label}</label>
+    <div className={`space-y-0.5 min-w-0 ${className}`}>
+      <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] leading-none">{label}</label>
       {children}
     </div>
   )
 }
 
-const inputCls = "w-full min-w-0 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+const inputCls =
+  "w-full min-w-0 h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+
+const DUTY_CATEGORIES: ChargeCategory[] = [
+  "customs_duty",
+  "additional_customs_duty",
+  "sales_tax",
+  "income_tax",
+  "fed",
+  "regulatory_fee",
+  "psw_fee",
+  "other",
+]
 
 export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: string }) {
   const { user } = useAuth()
@@ -70,6 +88,9 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<ImportShipment | null>(null)
   const [draft, setDraft] = useState<ImportShipment | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
+  const [sroLibrary, setSroLibrary] = useState<ImportSro[]>([])
+  const [sroDraft, setSroDraft] = useState({ code: "", title: "", description: "" })
 
   const importedSuppliers = useMemo(
     () => suppliers.filter(s => s.type === "imported" || s.type === "trade"),
@@ -85,6 +106,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
       ])
       setShipments(rows)
       setSuppliers(sups)
+      setSroLibrary(loadSroLibrary(purchaseScopeId))
     } catch (e) {
       toast({
         type: "error",
@@ -111,6 +133,36 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
     )
   }, [shipments, search])
 
+  function persistSroLibrary(next: ImportSro[]) {
+    setSroLibrary(next)
+    saveSroLibrary(purchaseScopeId, next)
+  }
+
+  function addSroToLibrary(partial?: Partial<ImportSro>) {
+    const code = (partial?.code || sroDraft.code).trim()
+    if (!code) {
+      toast({ type: "error", title: "SRO code required" })
+      return
+    }
+    if (sroLibrary.some(s => s.code.toLowerCase() === code.toLowerCase())) {
+      toast({ type: "error", title: "SRO already in library", message: code })
+      return
+    }
+    const row: ImportSro = {
+      id: newId(),
+      code,
+      title: (partial?.title || sroDraft.title).trim(),
+      description: (partial?.description || sroDraft.description).trim(),
+    }
+    persistSroLibrary([row, ...sroLibrary])
+    setSroDraft({ code: "", title: "", description: "" })
+    toast({ type: "success", title: "SRO saved", message: code })
+  }
+
+  function removeSroFromLibrary(id: string) {
+    persistSroLibrary(sroLibrary.filter(s => s.id !== id))
+  }
+
   function openNew() {
     const base = emptyShipment(purchaseScopeId, user?.name || user?.email || "")
     const local: ImportShipment = {
@@ -123,8 +175,19 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   }
 
   function openExisting(s: ImportShipment) {
+    const step = normalizeImportStep(s.currentStep)
     setSelected(s)
-    setDraft({ ...s, containers: [...(s.containers || [])], items: [...(s.items || [])], charges: [...(s.charges || [])], attachments: [...(s.attachments || [])], payments: [...(s.payments || [])] })
+    setDraft({
+      ...s,
+      currentStep: step,
+      containers: [...(s.containers || [])],
+      items: [...(s.items || [])],
+      charges: [...(s.charges || [])],
+      attachments: [...(s.attachments || [])],
+      payments: [...(s.payments || [])],
+      customsDuties: [...(s.customsDuties || [])],
+      gdSros: [...(s.gdSros || [])],
+    })
   }
 
   function patch(p: Partial<ImportShipment>) {
@@ -145,7 +208,12 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
         createdBy: draft.createdBy || user?.name || "",
         ...extra,
       })
-      setDraft(saved)
+      setDraft({
+        ...saved,
+        currentStep: normalizeImportStep(saved.currentStep),
+        customsDuties: saved.customsDuties || [],
+        gdSros: saved.gdSros || [],
+      })
       setSelected(saved)
       await load()
       toast({ type: "success", title: "Saved", message: saved.shipmentNumber })
@@ -163,11 +231,16 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   }
 
   async function goStep(step: number) {
-    if (!draft || draft.landedCostLocked && step < 6) {
-      // allow viewing locked; block going back edits via readOnly on fields
-    }
-    const next = Math.min(7, Math.max(1, step))
-    patch({ currentStep: next, status: draft?.landedCostLocked && next >= 6 ? (draft.receivedAtWarehouse ? "received" : "landed") : statusForStep(next) })
+    const next = normalizeImportStep(step)
+    patch({
+      currentStep: next,
+      status:
+        draft?.landedCostLocked && next >= 5
+          ? draft.receivedAtWarehouse
+            ? "received"
+            : "landed"
+          : statusForStep(next),
+    })
   }
 
   async function handleDelete(id: string) {
@@ -199,96 +272,204 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
         onDelete={draft.id ? () => void handleDelete(draft.id) : undefined}
         importedSuppliers={importedSuppliers}
         userName={user?.name || user?.email || ""}
+        sroLibrary={sroLibrary}
+        onAddSroToLibrary={addSroToLibrary}
       />
     )
   }
 
   return (
-    <div className="p-4 sm:p-6 pt-4 space-y-4">
-      <ImportShipmentManual />
-
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+    <div className="p-3 sm:p-4 pt-3 space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
         <div>
-          <h2 className="text-base font-semibold flex items-center gap-2">
+          <h2 className="text-sm font-semibold flex items-center gap-2">
             <Ship className="h-4 w-4" />
             Imported Purchases
           </h2>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            Shipments · containers · PSW · landed cost per item
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+            Shipments · PSW · duties · landed cost
           </p>
         </div>
-        <Button size="sm" className="h-9 text-xs" onClick={openNew}>
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          New import shipment
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={showHelp ? "secondary" : "outline"}
+            className="h-8 text-xs"
+            onClick={() => setShowHelp(v => !v)}
+          >
+            <HelpCircle className="h-3.5 w-3.5 mr-1" />
+            Help
+          </Button>
+          <Button size="sm" className="h-8 text-xs" onClick={openNew}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            New import
+          </Button>
+        </div>
+      </div>
+
+      {showHelp && <ImportShipmentManual defaultOpen />}
+
+      {/* SRO library */}
+      <div className="rounded-md border p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold flex items-center gap-1.5">
+            <BookMarked className="h-3.5 w-3.5" />
+            SRO library
+          </p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Saved here · quick-add on any GD
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          <Field label="SRO code">
+            <input
+              value={sroDraft.code}
+              onChange={e => setSroDraft(d => ({ ...d, code: e.target.value }))}
+              className={inputCls}
+              placeholder="SRO 1125(I)/2011"
+            />
+          </Field>
+          <Field label="Title">
+            <input
+              value={sroDraft.title}
+              onChange={e => setSroDraft(d => ({ ...d, title: e.target.value }))}
+              className={inputCls}
+              placeholder="Short title"
+            />
+          </Field>
+          <Field label="Notes" className="sm:col-span-1">
+            <input
+              value={sroDraft.description}
+              onChange={e => setSroDraft(d => ({ ...d, description: e.target.value }))}
+              className={inputCls}
+              placeholder="Optional"
+            />
+          </Field>
+          <div className="flex items-end">
+            <Button type="button" size="sm" className="h-7 text-[11px] w-full" onClick={() => addSroToLibrary()}>
+              <Plus className="h-3 w-3 mr-1" /> Add SRO
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {QUICK_ADD_SROS.map(q => (
+            <button
+              key={q.code}
+              type="button"
+              onClick={() => addSroToLibrary(q)}
+              className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+              title={q.title}
+            >
+              + {q.code}
+            </button>
+          ))}
+        </div>
+        {sroLibrary.length === 0 ? (
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] border border-dashed rounded px-2 py-2 text-center">
+            No SROs saved yet — type one or use quick-add above.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded border">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
+                  <th className="px-2 py-1">Code</th>
+                  <th className="px-2 py-1">Title</th>
+                  <th className="px-2 py-1">Notes</th>
+                  <th className="px-2 py-1 w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                {sroLibrary.map(s => (
+                  <tr key={s.id} className="border-t">
+                    <td className="px-2 py-1 font-mono font-medium">{s.code}</td>
+                    <td className="px-2 py-1">{s.title || "—"}</td>
+                    <td className="px-2 py-1 text-[hsl(var(--muted-foreground))]">{s.description || "—"}</td>
+                    <td className="px-2 py-1">
+                      <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeSroFromLibrary(s.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search shipment #, supplier, B/L, GD, PSID…"
-          className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-sm"
+          className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs"
         />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+        <div className="flex items-center justify-center py-12 text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed px-6 py-12 text-center">
-          <Ship className="h-8 w-8 mx-auto mb-3 text-[hsl(var(--muted-foreground))]" />
+        <div className="rounded-md border border-dashed px-4 py-10 text-center">
+          <Ship className="h-7 w-7 mx-auto mb-2 text-[hsl(var(--muted-foreground))]" />
           <p className="text-sm font-medium">No import shipments yet</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 mb-4">
+          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 mb-3">
             Create a shipment to track containers, PSW clearance, and landed cost.
           </p>
-          <Button size="sm" onClick={openNew}>
+          <Button size="sm" className="h-8 text-xs" onClick={openNew}>
             <Plus className="h-3.5 w-3.5 mr-1.5" /> Start first shipment
           </Button>
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-md border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[11px] text-[hsl(var(--muted-foreground))]">
-                  <th className="px-3 py-2 font-semibold">Shipment</th>
-                  <th className="px-3 py-2 font-semibold">Supplier</th>
-                  <th className="px-3 py-2 font-semibold">Containers</th>
-                  <th className="px-3 py-2 font-semibold">B/L · GD</th>
-                  <th className="px-3 py-2 font-semibold">Status</th>
-                  <th className="px-3 py-2 font-semibold text-right">Landed total</th>
-                  <th className="px-3 py-2 font-semibold w-10" />
+                <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
+                  <th className="px-2.5 py-1.5 font-semibold">Shipment</th>
+                  <th className="px-2.5 py-1.5 font-semibold">Supplier</th>
+                  <th className="px-2.5 py-1.5 font-semibold">Containers</th>
+                  <th className="px-2.5 py-1.5 font-semibold">B/L · GD</th>
+                  <th className="px-2.5 py-1.5 font-semibold">Status</th>
+                  <th className="px-2.5 py-1.5 font-semibold text-right">Landed total</th>
+                  <th className="px-2.5 py-1.5 font-semibold w-8" />
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(s => {
                   const summary = s.landedCostSummary as LandedCostSummary
                   const total = summary?.grandTotalPkr
+                  const step = normalizeImportStep(s.currentStep)
                   return (
                     <tr
                       key={s.id}
                       className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
                       onClick={() => openExisting(s)}
                     >
-                      <td className="px-3 py-2.5">
-                        <p className="font-mono text-xs font-semibold">{s.shipmentNumber}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Step {s.currentStep}/7</p>
+                      <td className="px-2.5 py-2">
+                        <p className="font-mono text-[11px] font-semibold">{s.shipmentNumber}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                          Step {step}/{IMPORT_STEP_COUNT}
+                        </p>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <p className="text-xs">{s.supplierName || "—"}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{s.currency} @ {s.fxRate || "—"}</p>
+                      <td className="px-2.5 py-2">
+                        <p className="text-[11px]">{s.supplierName || "—"}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                          {s.currency} @ {s.fxRate || "—"}
+                        </p>
                       </td>
-                      <td className="px-3 py-2.5 text-xs">
+                      <td className="px-2.5 py-2 text-[11px]">
                         {(s.containers || []).length || 0} · {(s.items || []).length || 0} items
                       </td>
-                      <td className="px-3 py-2.5 text-[11px]">
+                      <td className="px-2.5 py-2 text-[10px]">
                         <p>{s.blNumber || "—"}</p>
                         <p className="text-[hsl(var(--muted-foreground))]">{s.gdNumber || "—"}</p>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2.5 py-2">
                         <Badge variant={statusVariant(s.status)} className="text-[10px]">
                           {STATUS_LABELS[s.status] || s.status}
                         </Badge>
@@ -298,11 +479,11 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-right text-xs font-medium">
+                      <td className="px-2.5 py-2 text-right text-[11px] font-medium">
                         {typeof total === "number" ? formatPkr(total) : "—"}
                       </td>
-                      <td className="px-3 py-2.5">
-                        <ChevronRight className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                      <td className="px-2.5 py-2">
+                        <ChevronRight className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                       </td>
                     </tr>
                   )
@@ -328,6 +509,8 @@ function ShipmentDetail({
   onDelete,
   importedSuppliers,
   userName,
+  sroLibrary,
+  onAddSroToLibrary,
 }: {
   draft: ImportShipment
   patch: (p: Partial<ImportShipment>) => void
@@ -340,41 +523,54 @@ function ShipmentDetail({
   onDelete?: () => void
   importedSuppliers: Supplier[]
   userName: string
+  sroLibrary: ImportSro[]
+  onAddSroToLibrary: (partial?: Partial<ImportSro>) => void
 }) {
   const locked = draft.landedCostLocked
-  const step = draft.currentStep || 1
-  const readOnly = locked && step < 7
+  const step = normalizeImportStep(draft.currentStep || 1)
+  const readOnly = locked && step < 6
+  const [helpOpen, setHelpOpen] = useState(false)
 
   return (
-    <div className="p-4 sm:p-6 pt-4 space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-start gap-3 justify-between">
-        <div className="flex items-start gap-2 min-w-0">
-          <Button type="button" variant="ghost" size="sm" className="h-8 px-2 shrink-0" onClick={onBack}>
+    <div className="p-3 sm:p-4 pt-3 space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-2 justify-between">
+        <div className="flex items-start gap-1.5 min-w-0">
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 shrink-0" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">
-            <p className="font-mono text-sm font-semibold">{draft.shipmentNumber}</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
+            <p className="font-mono text-xs font-semibold">{draft.shipmentNumber}</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
               {draft.supplierName || "New import"} · {STATUS_LABELS[draft.status]}
               {locked ? " · cost locked" : ""}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          <Button
+            type="button"
+            variant={helpOpen ? "secondary" : "outline"}
+            size="sm"
+            className="h-7 text-[11px]"
+            onClick={() => setHelpOpen(v => !v)}
+          >
+            <HelpCircle className="h-3 w-3 mr-1" /> Help
+          </Button>
           {onDelete && (
-            <Button type="button" variant="outline" size="sm" className="h-8 text-xs text-red-600" onClick={onDelete}>
-              <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+            <Button type="button" variant="outline" size="sm" className="h-7 text-[11px] text-red-600" onClick={onDelete}>
+              <Trash2 className="h-3 w-3 mr-1" /> Delete
             </Button>
           )}
-          <Button type="button" size="sm" className="h-8 text-xs" disabled={saving} onClick={onSave}>
-            {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+          <Button type="button" size="sm" className="h-7 text-[11px]" disabled={saving} onClick={onSave}>
+            {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
             Save
           </Button>
         </div>
       </div>
 
-      {/* Stepper */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      {helpOpen && <ImportShipmentManual defaultOpen />}
+
+      <div className="flex gap-1 overflow-x-auto pb-0.5">
         {IMPORT_STEPS.map(s => {
           const active = step === s.step
           const done = step > s.step
@@ -383,7 +579,7 @@ function ShipmentDetail({
               key={s.step}
               type="button"
               onClick={() => onStep(s.step)}
-              className={`shrink-0 px-2.5 py-1.5 rounded-md text-[11px] font-medium border cursor-pointer transition-colors ${
+              className={`shrink-0 px-2 py-1 rounded text-[10px] font-medium border cursor-pointer transition-colors ${
                 active
                   ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
                   : done
@@ -397,8 +593,6 @@ function ShipmentDetail({
         })}
       </div>
 
-      <ImportShipmentManual />
-
       {step === 1 && (
         <StepBasics
           draft={draft}
@@ -409,7 +603,7 @@ function ShipmentDetail({
         />
       )}
       {step === 2 && (
-        <StepContainersItems
+        <StepInvoice
           draft={draft}
           setDraft={setDraft}
           readOnly={!!readOnly}
@@ -417,15 +611,20 @@ function ShipmentDetail({
         />
       )}
       {step === 3 && (
-        <StepShipping draft={draft} patch={patch} readOnly={!!readOnly} userName={userName} />
+        <StepPsw
+          draft={draft}
+          patch={patch}
+          setDraft={setDraft}
+          readOnly={!!readOnly}
+          userName={userName}
+          sroLibrary={sroLibrary}
+          onAddSroToLibrary={onAddSroToLibrary}
+        />
       )}
       {step === 4 && (
-        <StepPsw draft={draft} patch={patch} readOnly={!!readOnly} userName={userName} />
-      )}
-      {step === 5 && (
         <StepCharges draft={draft} setDraft={setDraft} readOnly={!!readOnly} userName={userName} />
       )}
-      {step === 6 && (
+      {step === 5 && (
         <StepLanded
           draft={draft}
           patch={patch}
@@ -435,7 +634,7 @@ function ShipmentDetail({
           userName={userName}
         />
       )}
-      {step === 7 && (
+      {step === 6 && (
         <StepReceive draft={draft} patch={patch} setDraft={setDraft} onPersist={onPersist} saving={saving} userName={userName} />
       )}
 
@@ -444,6 +643,7 @@ function ShipmentDetail({
           type="button"
           variant="outline"
           size="sm"
+          className="h-7 text-[11px]"
           disabled={step <= 1}
           onClick={() => onStep(step - 1)}
         >
@@ -452,7 +652,8 @@ function ShipmentDetail({
         <Button
           type="button"
           size="sm"
-          disabled={step >= 7 || saving}
+          className="h-7 text-[11px]"
+          disabled={step >= IMPORT_STEP_COUNT || saving}
           onClick={async () => {
             await onPersist({
               currentStep: step,
@@ -463,8 +664,8 @@ function ShipmentDetail({
             onStep(step + 1)
           }}
         >
-          {step >= 7 ? "Done" : "Save & next"}
-          <ChevronRight className="h-3.5 w-3.5 ml-1" />
+          {step >= IMPORT_STEP_COUNT ? "Done" : "Save & next"}
+          <ChevronRight className="h-3 w-3 ml-1" />
         </Button>
       </div>
     </div>
@@ -481,10 +682,10 @@ function StepBasics({
   userName: string
 }) {
   return (
-    <div className="space-y-4">
-      <Section title="Supplier & contract">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Imported supplier *">
+    <div className="space-y-3">
+      <Section title="Basics · Supplier & contract">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          <Field label="Imported supplier *" className="sm:col-span-2">
             <select
               disabled={readOnly}
               value={draft.supplierId || ""}
@@ -500,10 +701,10 @@ function StepBasics({
               ))}
             </select>
           </Field>
-          <Field label="Or type supplier name">
-            <input disabled={readOnly} value={draft.supplierName} onChange={e => patch({ supplierName: e.target.value })} className={inputCls} placeholder="Foreign supplier name" />
+          <Field label="Or type name" className="sm:col-span-2">
+            <input disabled={readOnly} value={draft.supplierName} onChange={e => patch({ supplierName: e.target.value })} className={inputCls} placeholder="Foreign supplier" />
           </Field>
-          <Field label="Contract / PO reference">
+          <Field label="Contract / PO ref">
             <input disabled={readOnly} value={draft.contractRef} onChange={e => patch({ contractRef: e.target.value })} className={inputCls} />
           </Field>
           <Field label="Contract date">
@@ -519,8 +720,8 @@ function StepBasics({
               {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
-          <Field label="FX rate (1 foreign = ? PKR) *">
-            <input disabled={readOnly} type="number" min="0" step="0.01" value={draft.fxRate || ""} onChange={e => patch({ fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="e.g. 280" />
+          <Field label="FX (1 = ? PKR) *">
+            <input disabled={readOnly} type="number" min="0" step="0.01" value={draft.fxRate || ""} onChange={e => patch({ fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="280" />
           </Field>
           <Field label="Clearing agent">
             <input disabled={readOnly} value={draft.clearingAgent} onChange={e => patch({ clearingAgent: e.target.value })} className={inputCls} />
@@ -534,11 +735,12 @@ function StepBasics({
           <Field label="Destination port">
             <input disabled={readOnly} value={draft.destinationPort} onChange={e => patch({ destinationPort: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="Notes" className="sm:col-span-2">
-            <textarea disabled={readOnly} value={draft.notes} onChange={e => patch({ notes: e.target.value })} className={`${inputCls} h-20 py-2`} />
+          <Field label="Notes" className="col-span-2 sm:col-span-4">
+            <input disabled={readOnly} value={draft.notes} onChange={e => patch({ notes: e.target.value })} className={inputCls} placeholder="Optional notes" />
           </Field>
         </div>
       </Section>
+
       <ImportAttachments
         attachments={draft.attachments}
         onChange={atts => patch({ attachments: atts })}
@@ -546,13 +748,52 @@ function StepBasics({
         readOnly={readOnly}
         allowedCategories={["contract", "proforma_invoice", "bank_lc_eif", "other"]}
         title="Contract & bank documents"
-        hint="Upload contract/PO, proforma invoice, LC or EIF — multiple files allowed."
+        hint="Contract/PO, proforma, LC or EIF."
+      />
+
+      <Section title="Shipping · Bill of Lading & vessel">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          <Field label="B/L number">
+            <input disabled={readOnly} value={draft.blNumber} onChange={e => patch({ blNumber: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Vessel name">
+            <input disabled={readOnly} value={draft.vesselName} onChange={e => patch({ vesselName: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Voyage no.">
+            <input disabled={readOnly} value={draft.voyageNo} onChange={e => patch({ voyageNo: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="ETD">
+            <input disabled={readOnly} type="date" value={draft.etd} onChange={e => patch({ etd: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="ETA">
+            <input disabled={readOnly} type="date" value={draft.eta} onChange={e => patch({ eta: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="ATA (actual)">
+            <input disabled={readOnly} type="date" value={draft.ata} onChange={e => patch({ ata: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="IGM number">
+            <input disabled={readOnly} value={draft.igmNumber} onChange={e => patch({ igmNumber: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="IGM date">
+            <input disabled={readOnly} type="date" value={draft.igmDate} onChange={e => patch({ igmDate: e.target.value })} className={inputCls} />
+          </Field>
+        </div>
+      </Section>
+
+      <ImportAttachments
+        attachments={draft.attachments}
+        onChange={atts => patch({ attachments: atts })}
+        uploadedBy={userName}
+        readOnly={readOnly}
+        allowedCategories={["bill_of_lading", "insurance", "container_photos", "other"]}
+        title="Shipping documents"
+        hint="B/L, insurance, container photos."
       />
     </div>
   )
 }
 
-function StepContainersItems({
+function StepInvoice({
   draft, setDraft, readOnly, userName,
 }: {
   draft: ImportShipment
@@ -601,6 +842,9 @@ function StepContainersItems({
       receivedQty: 0,
       unit: "pcs",
       unitPriceForeign: 0,
+      actualPrice: 0,
+      declaredPrice: 0,
+      assessedPrice: 0,
       weightKg: 0,
       cbm: 0,
       origin: draft.originCountry || "",
@@ -610,7 +854,18 @@ function StepContainersItems({
   }
 
   function updateItem(id: string, p: Partial<ImportItem>) {
-    setDraft(d => d ? { ...d, items: (d.items || []).map(i => i.id === id ? { ...i, ...p } : i) } : d)
+    setDraft(d => {
+      if (!d) return d
+      return {
+        ...d,
+        items: (d.items || []).map(i => {
+          if (i.id !== id) return i
+          const next = { ...i, ...p }
+          if (p.actualPrice != null) next.unitPriceForeign = Number(p.actualPrice) || 0
+          return next
+        }),
+      }
+    })
   }
 
   function removeItem(id: string) {
@@ -618,37 +873,37 @@ function StepContainersItems({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">Containers</p>
+        <p className="text-xs font-semibold">Invoice · Containers & items</p>
         {!readOnly && (
-          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addContainer}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add container
+          <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={addContainer}>
+            <Plus className="h-3 w-3 mr-1" /> Add container
           </Button>
         )}
       </div>
 
       {containers.length === 0 && (
-        <p className="text-xs text-[hsl(var(--muted-foreground))] rounded-md border border-dashed p-4 text-center">
-          Add at least one container (or LCL), then add items inside it.
+        <p className="text-[11px] text-[hsl(var(--muted-foreground))] rounded border border-dashed p-3 text-center">
+          Add a container (or LCL), then add invoice line items.
         </p>
       )}
 
       {containers.map((c, idx) => {
         const cItems = items.filter(i => i.containerId === c.id)
         return (
-          <div key={c.id} className="rounded-lg border p-3 space-y-3">
+          <div key={c.id} className="rounded-md border p-2.5 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                 Container {idx + 1}
               </p>
               {!readOnly && (
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-red-600" onClick={() => removeContainer(c.id)}>
+                <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] text-red-600" onClick={() => removeContainer(c.id)}>
                   Remove
                 </Button>
               )}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               <Field label="Container no.">
                 <input disabled={readOnly} value={c.containerNo} onChange={e => updateContainer(c.id, { containerNo: e.target.value })} className={inputCls} placeholder="MSKU…" />
               </Field>
@@ -674,59 +929,74 @@ function StepContainersItems({
               </Field>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-xs font-semibold flex items-center gap-1">
-                <Package className="h-3.5 w-3.5" /> Items in this container
+            <div className="flex items-center justify-between pt-0.5">
+              <p className="text-[11px] font-semibold flex items-center gap-1">
+                <Package className="h-3 w-3" /> Invoice items
               </p>
               {!readOnly && (
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => addItem(c.id)}>
+                <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => addItem(c.id)}>
                   <Plus className="h-3 w-3 mr-1" /> Add item
                 </Button>
               )}
             </div>
 
             {cItems.length === 0 ? (
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">No items yet.</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">No items yet.</p>
             ) : (
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-xs">
+              <div className="overflow-x-auto rounded border">
+                <table className="w-full text-[11px] min-w-[720px]">
                   <thead>
-                    <tr className="bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
-                      <th className="px-2 py-1.5">Description</th>
-                      <th className="px-2 py-1.5">HS</th>
-                      <th className="px-2 py-1.5">Qty</th>
-                      <th className="px-2 py-1.5">Unit {draft.currency}</th>
-                      <th className="px-2 py-1.5">Kg</th>
-                      <th className="px-2 py-1.5">CBM</th>
-                      <th className="px-2 py-1.5 w-8" />
+                    <tr className="bg-[hsl(var(--muted))]/30 text-left text-[9px] text-[hsl(var(--muted-foreground))]">
+                      <th className="px-1.5 py-1">Description</th>
+                      <th className="px-1.5 py-1">HS</th>
+                      <th className="px-1.5 py-1">Qty</th>
+                      <th className="px-1.5 py-1">Actual {draft.currency}</th>
+                      <th className="px-1.5 py-1">Declared</th>
+                      <th className="px-1.5 py-1">Assessed</th>
+                      <th className="px-1.5 py-1">Kg</th>
+                      <th className="px-1.5 py-1">CBM</th>
+                      <th className="px-1.5 py-1 w-6" />
                     </tr>
                   </thead>
                   <tbody>
                     {cItems.map(item => (
-                      <tr key={item.id} className="border-t">
-                        <td className="px-2 py-1">
-                          <input disabled={readOnly} value={item.description} onChange={e => updateItem(item.id, { description: e.target.value })} className={inputCls + " h-8"} placeholder="Product" />
-                          <input disabled={readOnly} value={item.sku} onChange={e => updateItem(item.id, { sku: e.target.value })} className={inputCls + " h-7 mt-1 text-[11px]"} placeholder="SKU (optional)" />
+                      <tr key={item.id} className="border-t align-top">
+                        <td className="px-1.5 py-1">
+                          <input disabled={readOnly} value={item.description} onChange={e => updateItem(item.id, { description: e.target.value })} className={inputCls} placeholder="Product" />
+                          <input disabled={readOnly} value={item.sku} onChange={e => updateItem(item.id, { sku: e.target.value })} className={inputCls + " mt-0.5 text-[10px]"} placeholder="SKU (optional)" />
                         </td>
-                        <td className="px-2 py-1">
-                          <input disabled={readOnly} value={item.hsCode} onChange={e => updateItem(item.id, { hsCode: e.target.value })} className={inputCls + " h-8 w-24"} placeholder="HS code" />
+                        <td className="px-1.5 py-1">
+                          <input disabled={readOnly} value={item.hsCode} onChange={e => updateItem(item.id, { hsCode: e.target.value })} className={inputCls + " w-20"} placeholder="HS" />
                         </td>
-                        <td className="px-2 py-1">
-                          <input disabled={readOnly} type="number" value={item.qty || ""} onChange={e => updateItem(item.id, { qty: Number(e.target.value) || 0 })} className={inputCls + " h-8 w-20"} />
+                        <td className="px-1.5 py-1">
+                          <input disabled={readOnly} type="number" value={item.qty || ""} onChange={e => updateItem(item.id, { qty: Number(e.target.value) || 0 })} className={inputCls + " w-14"} />
                         </td>
-                        <td className="px-2 py-1">
-                          <input disabled={readOnly} type="number" step="0.01" value={item.unitPriceForeign || ""} onChange={e => updateItem(item.id, { unitPriceForeign: Number(e.target.value) || 0 })} className={inputCls + " h-8 w-24"} />
+                        <td className="px-1.5 py-1">
+                          <input
+                            disabled={readOnly}
+                            type="number"
+                            step="0.01"
+                            value={item.actualPrice || item.unitPriceForeign || ""}
+                            onChange={e => updateItem(item.id, { actualPrice: Number(e.target.value) || 0 })}
+                            className={inputCls + " w-[4.5rem]"}
+                          />
                         </td>
-                        <td className="px-2 py-1">
-                          <input disabled={readOnly} type="number" step="0.01" value={item.weightKg || ""} onChange={e => updateItem(item.id, { weightKg: Number(e.target.value) || 0 })} className={inputCls + " h-8 w-20"} />
+                        <td className="px-1.5 py-1">
+                          <input disabled={readOnly} type="number" step="0.01" value={item.declaredPrice || ""} onChange={e => updateItem(item.id, { declaredPrice: Number(e.target.value) || 0 })} className={inputCls + " w-[4.5rem]"} />
                         </td>
-                        <td className="px-2 py-1">
-                          <input disabled={readOnly} type="number" step="0.001" value={item.cbm || ""} onChange={e => updateItem(item.id, { cbm: Number(e.target.value) || 0 })} className={inputCls + " h-8 w-20"} />
+                        <td className="px-1.5 py-1">
+                          <input disabled={readOnly} type="number" step="0.01" value={item.assessedPrice || ""} onChange={e => updateItem(item.id, { assessedPrice: Number(e.target.value) || 0 })} className={inputCls + " w-[4.5rem]"} />
                         </td>
-                        <td className="px-2 py-1">
+                        <td className="px-1.5 py-1">
+                          <input disabled={readOnly} type="number" step="0.01" value={item.weightKg || ""} onChange={e => updateItem(item.id, { weightKg: Number(e.target.value) || 0 })} className={inputCls + " w-14"} />
+                        </td>
+                        <td className="px-1.5 py-1">
+                          <input disabled={readOnly} type="number" step="0.001" value={item.cbm || ""} onChange={e => updateItem(item.id, { cbm: Number(e.target.value) || 0 })} className={inputCls + " w-14"} />
+                        </td>
+                        <td className="px-1.5 py-1">
                           {!readOnly && (
                             <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeItem(item.id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3 w-3" />
                             </button>
                           )}
                         </td>
@@ -747,75 +1017,92 @@ function StepContainersItems({
         readOnly={readOnly}
         allowedCategories={["commercial_invoice", "packing_list", "other"]}
         title="Invoice & packing list"
-        hint="Commercial invoice and packing list for the container(s)."
-      />
-    </div>
-  )
-}
-
-function StepShipping({
-  draft, patch, readOnly, userName,
-}: {
-  draft: ImportShipment
-  patch: (p: Partial<ImportShipment>) => void
-  readOnly: boolean
-  userName: string
-}) {
-  return (
-    <div className="space-y-4">
-      <Section title="Bill of Lading & vessel">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="B/L number">
-            <input disabled={readOnly} value={draft.blNumber} onChange={e => patch({ blNumber: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="Vessel name">
-            <input disabled={readOnly} value={draft.vesselName} onChange={e => patch({ vesselName: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="Voyage no.">
-            <input disabled={readOnly} value={draft.voyageNo} onChange={e => patch({ voyageNo: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="ETD">
-            <input disabled={readOnly} type="date" value={draft.etd} onChange={e => patch({ etd: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="ETA">
-            <input disabled={readOnly} type="date" value={draft.eta} onChange={e => patch({ eta: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="ATA (actual arrival)">
-            <input disabled={readOnly} type="date" value={draft.ata} onChange={e => patch({ ata: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="IGM number">
-            <input disabled={readOnly} value={draft.igmNumber} onChange={e => patch({ igmNumber: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="IGM date">
-            <input disabled={readOnly} type="date" value={draft.igmDate} onChange={e => patch({ igmDate: e.target.value })} className={inputCls} />
-          </Field>
-        </div>
-      </Section>
-      <ImportAttachments
-        attachments={draft.attachments}
-        onChange={atts => patch({ attachments: atts })}
-        uploadedBy={userName}
-        readOnly={readOnly}
-        allowedCategories={["bill_of_lading", "insurance", "container_photos", "other"]}
-        title="Shipping documents"
-        hint="B/L, insurance, container photos — multiple files OK."
+        hint="Commercial invoice and packing list."
       />
     </div>
   )
 }
 
 function StepPsw({
-  draft, patch, readOnly, userName,
+  draft, patch, setDraft, readOnly, userName, sroLibrary, onAddSroToLibrary,
 }: {
   draft: ImportShipment
   patch: (p: Partial<ImportShipment>) => void
+  setDraft: Dispatch<SetStateAction<ImportShipment | null>>
   readOnly: boolean
   userName: string
+  sroLibrary: ImportSro[]
+  onAddSroToLibrary: (partial?: Partial<ImportSro>) => void
 }) {
+  const duties = draft.customsDuties || []
+  const gdSros = draft.gdSros || []
+  const items = draft.items || []
+  const [sroCode, setSroCode] = useState("")
+  const [sroTitle, setSroTitle] = useState("")
+
+  function setDuties(next: CustomsDutyEntry[]) {
+    setDraft(d => {
+      if (!d) return d
+      const charges = syncDutiesIntoCharges(d.charges || [], next)
+      return { ...d, customsDuties: next, charges }
+    })
+  }
+
+  function addDuty() {
+    const n = duties.length + 1
+    const row: CustomsDutyEntry = {
+      id: newId(),
+      name: `Customs Duty ${n}`,
+      category: n === 1 ? "customs_duty" : "additional_customs_duty",
+      amount: 0,
+      currency: "PKR",
+      description: "",
+      itemId: "",
+      paid: false,
+      paymentRef: "",
+    }
+    setDuties([...duties, row])
+  }
+
+  function updateDuty(id: string, p: Partial<CustomsDutyEntry>) {
+    setDuties(duties.map(d => d.id === id ? { ...d, ...p } : d))
+  }
+
+  function removeDuty(id: string) {
+    setDuties(duties.filter(d => d.id !== id).map((d, i) => ({
+      ...d,
+      name: d.name.match(/^Customs Duty \d+$/) ? `Customs Duty ${i + 1}` : d.name,
+    })))
+  }
+
+  function addSroToGd(sro: ImportSro) {
+    if (gdSros.some(s => s.code.toLowerCase() === sro.code.toLowerCase())) return
+    patch({ gdSros: [...gdSros, { ...sro, id: newId() }] })
+  }
+
+  function addTypedSro() {
+    const code = sroCode.trim()
+    if (!code) return
+    const row: ImportSro = {
+      id: newId(),
+      code,
+      title: sroTitle.trim(),
+      description: "",
+    }
+    addSroToGd(row)
+    onAddSroToLibrary(row)
+    setSroCode("")
+    setSroTitle("")
+  }
+
+  function removeGdSro(id: string) {
+    patch({ gdSros: gdSros.filter(s => s.id !== id) })
+  }
+
   return (
-    <div className="space-y-4">
-      <Section title="PSW Goods Declaration & payment IDs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-3">
+      <Section title="PSW · Goods Declaration & payment IDs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           <Field label="GD number">
             <input disabled={readOnly} value={draft.gdNumber} onChange={e => patch({ gdNumber: e.target.value })} className={inputCls} />
           </Field>
@@ -829,7 +1116,7 @@ function StepPsw({
             <input disabled={readOnly} value={draft.pssid} onChange={e => patch({ pssid: e.target.value })} className={inputCls} />
           </Field>
           <Field label="Collectorate">
-            <input disabled={readOnly} value={draft.collectorate} onChange={e => patch({ collectorate: e.target.value })} className={inputCls} placeholder="e.g. MCC Appraisement West" />
+            <input disabled={readOnly} value={draft.collectorate} onChange={e => patch({ collectorate: e.target.value })} className={inputCls} placeholder="MCC Appraisement West" />
           </Field>
           <Field label="Assessment channel">
             <select disabled={readOnly} value={draft.assessmentChannel} onChange={e => patch({ assessmentChannel: e.target.value })} className={inputCls}>
@@ -841,6 +1128,159 @@ function StepPsw({
           </Field>
         </div>
       </Section>
+
+      <Section title="Customs duties on this GD">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Add Duty 1, Duty 2… — amounts sync into Charges for landed cost
+          </p>
+          {!readOnly && (
+            <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={addDuty}>
+              <Plus className="h-3 w-3 mr-1" /> Add duty
+            </Button>
+          )}
+        </div>
+        {duties.length === 0 ? (
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] border border-dashed rounded px-2 py-2 text-center">
+            No duties yet — add Customs Duty 1, then more as needed.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {duties.map((d, idx) => (
+              <div key={d.id} className="rounded border p-2 space-y-1.5 bg-[hsl(var(--muted))]/10">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold">{d.name || `Customs Duty ${idx + 1}`}</p>
+                  {!readOnly && (
+                    <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeDuty(d.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  <Field label="Label">
+                    <input disabled={readOnly} value={d.name} onChange={e => updateDuty(d.id, { name: e.target.value })} className={inputCls} />
+                  </Field>
+                  <Field label="Type">
+                    <select
+                      disabled={readOnly}
+                      value={d.category}
+                      onChange={e => updateDuty(d.id, { category: e.target.value as ChargeCategory })}
+                      className={inputCls}
+                    >
+                      {DUTY_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>
+                          {CHARGE_CATEGORIES.find(c => c.value === cat)?.label || cat}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Amount">
+                    <input disabled={readOnly} type="number" step="0.01" value={d.amount || ""} onChange={e => updateDuty(d.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
+                  </Field>
+                  <Field label="Currency">
+                    <select disabled={readOnly} value={d.currency} onChange={e => updateDuty(d.id, { currency: e.target.value })} className={inputCls}>
+                      {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Link to item (optional)" className="sm:col-span-2">
+                    <select disabled={readOnly} value={d.itemId || ""} onChange={e => updateDuty(d.id, { itemId: e.target.value })} className={inputCls}>
+                      <option value="">Shared across items</option>
+                      {items.map(i => (
+                        <option key={i.id} value={i.id}>{i.description || i.sku || i.hsCode || i.id}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Description" className="sm:col-span-2">
+                    <input disabled={readOnly} value={d.description} onChange={e => updateDuty(d.id, { description: e.target.value })} className={inputCls} placeholder="Optional note" />
+                  </Field>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="SROs on this GD">
+        {!readOnly && (
+          <div className="space-y-1.5 mb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <Field label="SRO code" className="sm:col-span-2">
+                <input value={sroCode} onChange={e => setSroCode(e.target.value)} className={inputCls} placeholder="Type SRO…" />
+              </Field>
+              <Field label="Title">
+                <input value={sroTitle} onChange={e => setSroTitle(e.target.value)} className={inputCls} placeholder="Optional" />
+              </Field>
+              <div className="flex items-end">
+                <Button type="button" size="sm" className="h-7 text-[11px] w-full" onClick={addTypedSro}>
+                  <Plus className="h-3 w-3 mr-1" /> Add SRO
+                </Button>
+              </div>
+            </div>
+            {(sroLibrary.length > 0 || QUICK_ADD_SROS.length > 0) && (
+              <div className="flex flex-wrap gap-1">
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))] self-center mr-0.5">Quick add:</span>
+                {sroLibrary.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => addSroToGd(s)}
+                    className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+                  >
+                    + {s.code}
+                  </button>
+                ))}
+                {QUICK_ADD_SROS.filter(q => !sroLibrary.some(s => s.code === q.code)).map(q => (
+                  <button
+                    key={q.code}
+                    type="button"
+                    onClick={() => {
+                      const row = { ...q, id: newId() }
+                      addSroToGd(row)
+                      onAddSroToLibrary(q)
+                    }}
+                    className="text-[10px] px-1.5 py-0.5 rounded border border-dashed hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+                  >
+                    + {q.code}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {gdSros.length === 0 ? (
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] border border-dashed rounded px-2 py-2 text-center">
+            No SROs on this GD yet.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded border">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
+                  <th className="px-2 py-1">Code</th>
+                  <th className="px-2 py-1">Title</th>
+                  <th className="px-2 py-1 w-6" />
+                </tr>
+              </thead>
+              <tbody>
+                {gdSros.map(s => (
+                  <tr key={s.id} className="border-t">
+                    <td className="px-2 py-1 font-mono font-medium">{s.code}</td>
+                    <td className="px-2 py-1">{s.title || "—"}</td>
+                    <td className="px-2 py-1">
+                      {!readOnly && (
+                        <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeGdSro(s.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+
       <ImportAttachments
         attachments={draft.attachments}
         onChange={atts => patch({ attachments: atts })}
@@ -862,8 +1302,9 @@ function StepCharges({
   readOnly: boolean
   userName: string
 }) {
-  const charges = draft.charges || []
+  const charges = (draft.charges || []).filter(c => !c.fromDutyId)
   const items = draft.items || []
+  const dutySynced = (draft.charges || []).filter(c => c.fromDutyId)
 
   function addCharge(partial?: Partial<ImportCharge>) {
     const cat = (partial?.category || "ocean_freight") as ChargeCategory
@@ -895,29 +1336,29 @@ function StepCharges({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold">All landing charges</p>
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            Shared costs split across items · direct costs go to one item (e.g. duty by HS).
+          <p className="text-xs font-semibold">All landing charges</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Shared split across items · direct to one item. PSW duties listed below are read-only here.
           </p>
         </div>
         {!readOnly && (
-          <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => addCharge()}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add charge
+          <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => addCharge()}>
+            <Plus className="h-3 w-3 mr-1" /> Add charge
           </Button>
         )}
       </div>
 
       {!readOnly && (
-        <div className="flex flex-wrap gap-1.5">
-          {(["ocean_freight", "customs_duty", "sales_tax", "clearing_agent", "local_transport", "bank_charges"] as ChargeCategory[]).map(cat => (
+        <div className="flex flex-wrap gap-1">
+          {(["ocean_freight", "clearing_agent", "local_transport", "bank_charges", "port_handling"] as ChargeCategory[]).map(cat => (
             <button
               key={cat}
               type="button"
               onClick={() => addCharge({ category: cat })}
-              className="text-[10px] px-2 py-1 rounded-md border hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+              className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
             >
               + {CHARGE_CATEGORIES.find(c => c.value === cat)?.label}
             </button>
@@ -925,14 +1366,20 @@ function StepCharges({
         </div>
       )}
 
+      {dutySynced.length > 0 && (
+        <div className="rounded border px-2 py-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+          {dutySynced.length} customs duty line(s) from PSW — edit them on the PSW step.
+        </div>
+      )}
+
       {charges.length === 0 ? (
-        <p className="text-xs text-[hsl(var(--muted-foreground))] border border-dashed rounded-md p-4 text-center">
-          Add freight, duties, clearing, transport, bank charges, etc.
+        <p className="text-[11px] text-[hsl(var(--muted-foreground))] border border-dashed rounded p-3 text-center">
+          Add freight, clearing, transport, bank charges, etc.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {charges.map(c => (
-            <div key={c.id} className="rounded-md border p-3 grid grid-cols-1 sm:grid-cols-6 gap-2">
+            <div key={c.id} className="rounded border p-2 grid grid-cols-2 sm:grid-cols-6 gap-1.5">
               <Field label="Type" className="sm:col-span-2">
                 <select
                   disabled={readOnly}
@@ -962,7 +1409,7 @@ function StepCharges({
                 </select>
               </Field>
               <Field label="FX (if foreign)">
-                <input disabled={readOnly || c.currency === "PKR"} type="number" step="0.01" value={c.fxRate || ""} onChange={e => updateCharge(c.id, { fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="or use shipment FX" />
+                <input disabled={readOnly || c.currency === "PKR"} type="number" step="0.01" value={c.fxRate || ""} onChange={e => updateCharge(c.id, { fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="shipment FX" />
               </Field>
               <Field label="Shared?">
                 <select
@@ -971,8 +1418,8 @@ function StepCharges({
                   onChange={e => updateCharge(c.id, { isShared: e.target.value === "shared" })}
                   className={inputCls}
                 >
-                  <option value="shared">Shared (allocate)</option>
-                  <option value="direct">Direct (one item)</option>
+                  <option value="shared">Shared</option>
+                  <option value="direct">Direct</option>
                 </select>
               </Field>
               {!c.isShared && (
@@ -992,13 +1439,13 @@ function StepCharges({
                 <input disabled={readOnly} value={c.paymentRef} onChange={e => updateCharge(c.id, { paymentRef: e.target.value })} className={inputCls} />
               </Field>
               <div className="flex items-end gap-2 sm:col-span-2">
-                <label className="flex items-center gap-1.5 text-xs h-9">
+                <label className="flex items-center gap-1 text-[11px] h-7">
                   <input disabled={readOnly} type="checkbox" checked={c.paid} onChange={e => updateCharge(c.id, { paid: e.target.checked })} />
                   Paid
                 </label>
                 {!readOnly && (
-                  <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-red-600 ml-auto" onClick={() => removeCharge(c.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px] text-red-600 ml-auto" onClick={() => removeCharge(c.id)}>
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 )}
               </div>
@@ -1014,7 +1461,7 @@ function StepCharges({
         readOnly={readOnly}
         allowedCategories={["freight_invoice", "clearing_agent_invoice", "transport_invoice", "payment_proof", "other"]}
         title="Charge invoices & payment proofs"
-        hint="Freight, clearing agent, transport invoices and bank payment proofs."
+        hint="Freight, clearing, transport invoices and payment proofs."
       />
     </div>
   )
@@ -1060,9 +1507,9 @@ function StepLanded({
     (draft.containers || []).find(c => c.id === id)?.containerNo || "—"
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <Section title="Allocation & calculate">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
           <Field label="Allocate shared costs by">
             <select
               disabled={draft.landedCostLocked}
@@ -1079,64 +1526,64 @@ function StepLanded({
           <Field label="FX rate in use">
             <input disabled value={draft.fxRate} className={inputCls} />
           </Field>
-          <div className="flex items-end gap-2">
-            <Button type="button" size="sm" variant="outline" className="h-9 text-xs" disabled={draft.landedCostLocked} onClick={applyLocal}>
-              <Calculator className="h-3.5 w-3.5 mr-1" /> Calculate
+          <div className="flex items-end gap-1.5">
+            <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" disabled={draft.landedCostLocked} onClick={applyLocal}>
+              <Calculator className="h-3 w-3 mr-1" /> Calculate
             </Button>
-            <Button type="button" size="sm" className="h-9 text-xs" disabled={saving || draft.landedCostLocked} onClick={() => void lock()}>
-              {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Lock className="h-3.5 w-3.5 mr-1" />}
-              Lock landed cost
+            <Button type="button" size="sm" className="h-7 text-[11px]" disabled={saving || draft.landedCostLocked} onClick={() => void lock()}>
+              {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Lock className="h-3 w-3 mr-1" />}
+              Lock
             </Button>
           </div>
         </div>
         {draft.landedCostLocked && (
-          <p className="text-[11px] text-emerald-700 mt-2 flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Landed cost locked — unit costs below are final for this shipment.
+          <p className="text-[10px] text-emerald-700 mt-1.5 flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" /> Landed cost locked.
           </p>
         )}
       </Section>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <Stat label="Product (PKR)" value={formatPkr(summary.productTotalPkr || 0)} />
         <Stat label="Shared charges" value={formatPkr(summary.sharedChargesPkr || 0)} />
         <Stat label="Direct charges" value={formatPkr(summary.directChargesPkr || 0)} />
         <Stat label="Grand total" value={formatPkr(summary.grandTotalPkr || 0)} highlight />
       </div>
 
-      <div className="rounded-lg border overflow-hidden">
+      <div className="rounded-md border overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-[11px]">
             <thead>
-              <tr className="bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
-                <th className="px-3 py-2">Item</th>
-                <th className="px-3 py-2">Container</th>
-                <th className="px-3 py-2 text-right">Qty</th>
-                <th className="px-3 py-2 text-right">Product</th>
-                <th className="px-3 py-2 text-right">Allocated</th>
-                <th className="px-3 py-2 text-right">Direct</th>
-                <th className="px-3 py-2 text-right">Total landed</th>
-                <th className="px-3 py-2 text-right">Unit landed</th>
+              <tr className="bg-[hsl(var(--muted))]/30 text-left text-[9px] text-[hsl(var(--muted-foreground))]">
+                <th className="px-2 py-1.5">Item</th>
+                <th className="px-2 py-1.5">Container</th>
+                <th className="px-2 py-1.5 text-right">Qty</th>
+                <th className="px-2 py-1.5 text-right">Product</th>
+                <th className="px-2 py-1.5 text-right">Allocated</th>
+                <th className="px-2 py-1.5 text-right">Direct</th>
+                <th className="px-2 py-1.5 text-right">Total landed</th>
+                <th className="px-2 py-1.5 text-right">Unit landed</th>
               </tr>
             </thead>
             <tbody>
               {(summary.lines || []).map(line => (
                 <tr key={line.itemId} className="border-t">
-                  <td className="px-3 py-2 font-medium">{line.description || "—"}</td>
-                  <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">{containerName(line.containerId)}</td>
-                  <td className="px-3 py-2 text-right">{line.receivedQty || line.qty}</td>
-                  <td className="px-3 py-2 text-right">{formatPkr(line.productCostPkr)}</td>
-                  <td className="px-3 py-2 text-right">{formatPkr(line.allocatedChargesPkr)}</td>
-                  <td className="px-3 py-2 text-right">{formatPkr(line.directChargesPkr)}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{formatPkr(line.totalLandedPkr)}</td>
-                  <td className="px-3 py-2 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                  <td className="px-2 py-1.5 font-medium">{line.description || "—"}</td>
+                  <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{containerName(line.containerId)}</td>
+                  <td className="px-2 py-1.5 text-right">{line.receivedQty || line.qty}</td>
+                  <td className="px-2 py-1.5 text-right">{formatPkr(line.productCostPkr)}</td>
+                  <td className="px-2 py-1.5 text-right">{formatPkr(line.allocatedChargesPkr)}</td>
+                  <td className="px-2 py-1.5 text-right">{formatPkr(line.directChargesPkr)}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold">{formatPkr(line.totalLandedPkr)}</td>
+                  <td className="px-2 py-1.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
                     {formatPkr(line.unitLandedCost)}
                   </td>
                 </tr>
               ))}
               {(!summary.lines || summary.lines.length === 0) && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
-                    Add containers/items and charges, then Calculate.
+                  <td colSpan={8} className="px-2 py-6 text-center text-[hsl(var(--muted-foreground))]">
+                    Add invoice items and charges, then Calculate.
                   </td>
                 </tr>
               )}
@@ -1147,9 +1594,9 @@ function StepLanded({
 
       {(summary.chargeBreakdown || []).length > 0 && (
         <Section title="Charge breakdown">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             {summary.chargeBreakdown.map(b => (
-              <div key={b.category} className="rounded-md border px-3 py-2 text-xs flex justify-between gap-2">
+              <div key={b.category} className="rounded border px-2 py-1.5 text-[11px] flex justify-between gap-2">
                 <span className="text-[hsl(var(--muted-foreground))] capitalize">{b.category.replace(/_/g, " ")}</span>
                 <span className="font-medium">{formatPkr(b.amountPkr)}</span>
               </div>
@@ -1181,7 +1628,7 @@ function StepReceive({
   async function markReceived() {
     await onPersist({
       receivedAtWarehouse: true,
-      currentStep: 7,
+      currentStep: 6,
       status: "received",
       recalculateLandedCost: true,
       historyAction: "warehouse_receive",
@@ -1191,9 +1638,9 @@ function StepReceive({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <Section title="Warehouse receive">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           <Field label="Warehouse / location">
             <input value={draft.warehouseLocation} onChange={e => patch({ warehouseLocation: e.target.value })} className={inputCls} placeholder="Main warehouse…" />
           </Field>
@@ -1203,30 +1650,30 @@ function StepReceive({
         </div>
       </Section>
 
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full text-xs">
+      <div className="rounded-md border overflow-hidden">
+        <table className="w-full text-[11px]">
           <thead>
-            <tr className="bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
-              <th className="px-3 py-2">Item</th>
-              <th className="px-3 py-2 text-right">Shipped qty</th>
-              <th className="px-3 py-2 text-right">Received qty</th>
-              <th className="px-3 py-2 text-right">Unit landed</th>
+            <tr className="bg-[hsl(var(--muted))]/30 text-left text-[9px] text-[hsl(var(--muted-foreground))]">
+              <th className="px-2 py-1.5">Item</th>
+              <th className="px-2 py-1.5 text-right">Shipped qty</th>
+              <th className="px-2 py-1.5 text-right">Received qty</th>
+              <th className="px-2 py-1.5 text-right">Unit landed</th>
             </tr>
           </thead>
           <tbody>
             {(draft.items || []).map(item => (
               <tr key={item.id} className="border-t">
-                <td className="px-3 py-2">{item.description || "—"}</td>
-                <td className="px-3 py-2 text-right">{item.qty}</td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-2 py-1.5">{item.description || "—"}</td>
+                <td className="px-2 py-1.5 text-right">{item.qty}</td>
+                <td className="px-2 py-1.5 text-right">
                   <input
                     type="number"
-                    className={inputCls + " h-8 w-24 ml-auto"}
+                    className={inputCls + " w-20 ml-auto"}
                     value={item.receivedQty || item.qty || ""}
                     onChange={e => updateItem(item.id, Number(e.target.value) || 0)}
                   />
                 </td>
-                <td className="px-3 py-2 text-right font-semibold">
+                <td className="px-2 py-1.5 text-right font-semibold">
                   {item.unitLandedCost != null ? formatPkr(item.unitLandedCost) : "—"}
                 </td>
               </tr>
@@ -1241,22 +1688,21 @@ function StepReceive({
         uploadedBy={userName}
         allowedCategories={["grn", "container_photos", "other"]}
         title="GRN & receive proofs"
-        hint="Upload goods receipt note and unload photos."
+        hint="Goods receipt note and unload photos."
       />
 
-      <Button type="button" size="sm" disabled={saving || draft.receivedAtWarehouse} onClick={() => void markReceived()}>
-        {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+      <Button type="button" size="sm" className="h-7 text-[11px]" disabled={saving || draft.receivedAtWarehouse} onClick={() => void markReceived()}>
+        {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
         {draft.receivedAtWarehouse ? "Already received" : "Mark received at warehouse"}
       </Button>
 
-      {/* All attachments overview */}
-      <Section title="Full document file (all categories)">
+      <Section title="Full document file">
         <ImportAttachments
           attachments={draft.attachments}
           onChange={atts => patch({ attachments: atts })}
           uploadedBy={userName}
           title="All attachments"
-          hint={`Total ${(draft.attachments || []).length} file(s). Categories: ${ATTACHMENT_CATEGORIES.map(c => c.label).join(", ")}.`}
+          hint={`Total ${(draft.attachments || []).length} file(s).`}
         />
       </Section>
     </div>
@@ -1265,8 +1711,8 @@ function StepReceive({
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border p-3 sm:p-4 space-y-3">
-      <p className="text-sm font-semibold">{title}</p>
+    <div className="rounded-md border p-2.5 space-y-2">
+      <p className="text-xs font-semibold">{title}</p>
       {children}
     </div>
   )
@@ -1274,9 +1720,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className={`rounded-lg border px-3 py-2 ${highlight ? "bg-[hsl(var(--muted))]/30" : ""}`}>
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</p>
-      <p className={`text-sm font-semibold ${highlight ? "text-emerald-700 dark:text-emerald-400" : ""}`}>{value}</p>
+    <div className={`rounded-md border px-2.5 py-1.5 ${highlight ? "bg-[hsl(var(--muted))]/30" : ""}`}>
+      <p className="text-[9px] text-[hsl(var(--muted-foreground))]">{label}</p>
+      <p className={`text-xs font-semibold ${highlight ? "text-emerald-700 dark:text-emerald-400" : ""}`}>{value}</p>
     </div>
   )
 }

@@ -86,8 +86,14 @@ export interface ImportItem {
   qty: number
   receivedQty: number
   unit: string
-  /** Unit price in foreign currency */
+  /** Unit price in foreign currency (synced from actualPrice for landed cost) */
   unitPriceForeign: number
+  /** Commercial / invoice unit price */
+  actualPrice: number
+  /** Price declared on GD */
+  declaredPrice: number
+  /** Customs assessed unit price */
+  assessedPrice: number
   /** Item weight (kg) — used for by_weight allocation */
   weightKg: number
   /** Volume (CBM) — used for by_cbm allocation */
@@ -100,6 +106,29 @@ export interface ImportItem {
   directChargesPkr?: number
   totalLandedPkr?: number
   unitLandedCost?: number
+}
+
+/** One customs duty / tax line on the GD (PSW step) */
+export interface CustomsDutyEntry {
+  id: string
+  /** Display order label e.g. "Customs Duty 1" */
+  name: string
+  category: ChargeCategory
+  amount: number
+  currency: string
+  description: string
+  itemId?: string
+  paid: boolean
+  paymentRef: string
+}
+
+/** SRO applied on a GD, or saved in the scope library */
+export interface ImportSro {
+  id: string
+  code: string
+  title: string
+  description: string
+  notes?: string
 }
 
 export interface ImportCharge {
@@ -118,6 +147,8 @@ export interface ImportCharge {
   paid: boolean
   paymentRef: string
   notes: string
+  /** When set, this charge was synced from a PSW customs duty row */
+  fromDutyId?: string
 }
 
 export interface ImportPayment {
@@ -209,6 +240,10 @@ export interface ImportShipment {
   charges: ImportCharge[]
   attachments: ImportAttachment[]
   payments: ImportPayment[]
+  /** Multi customs duties entered on PSW / GD step */
+  customsDuties: CustomsDutyEntry[]
+  /** SROs linked to this GD */
+  gdSros: ImportSro[]
   landedCostSummary: LandedCostSummary | Record<string, unknown>
   flowHistory: FlowHistoryEntry[]
   createdBy: string
@@ -216,34 +251,46 @@ export interface ImportShipment {
   updatedAt?: string
 }
 
+/** 6-step flow: Shipping lives inside Basics; Items renamed Invoice */
 export const IMPORT_STEPS = [
-  { step: 1, key: "basics", title: "Basics & Contract", short: "Basics" },
-  { step: 2, key: "containers", title: "Containers & Items", short: "Items" },
-  { step: 3, key: "shipping", title: "Shipping & Arrival", short: "Shipping" },
-  { step: 4, key: "psw", title: "PSW / Customs", short: "PSW" },
-  { step: 5, key: "charges", title: "All Charges", short: "Charges" },
-  { step: 6, key: "landed", title: "Landed Cost", short: "Landed" },
-  { step: 7, key: "receive", title: "Warehouse Receive", short: "Receive" },
+  { step: 1, key: "basics", title: "Basics & Shipping", short: "Basics" },
+  { step: 2, key: "invoice", title: "Invoice & Containers", short: "Invoice" },
+  { step: 3, key: "psw", title: "PSW / Customs", short: "PSW" },
+  { step: 4, key: "charges", title: "All Charges", short: "Charges" },
+  { step: 5, key: "landed", title: "Landed Cost", short: "Landed" },
+  { step: 6, key: "receive", title: "Warehouse Receive", short: "Receive" },
 ] as const
+
+export const IMPORT_STEP_COUNT = IMPORT_STEPS.length
+
+/** Common Pakistan SROs for quick-add */
+export const QUICK_ADD_SROS: Omit<ImportSro, "id">[] = [
+  { code: "SRO 1125(I)/2011", title: "Sales tax exemption / reduced rate", description: "Common ST exemption SRO" },
+  { code: "SRO 499(I)/2013", title: "Additional customs duty related", description: "ACD / duty related SRO" },
+  { code: "SRO 678(I)/2004", title: "Customs duty concession", description: "Duty concession / exemption" },
+  { code: "SRO 575(I)/2006", title: "Regulatory duty related", description: "RD related notification" },
+  { code: "SRO 1265(I)/2007", title: "Sales tax zero-rating", description: "Zero-rating / ST related" },
+  { code: "SRO 863(I)/2007", title: "Plant & machinery concession", description: "Machinery / industrial concession" },
+]
 
 export const ATTACHMENT_CATEGORIES: { value: AttachmentCategory; label: string; stepHint: number }[] = [
   { value: "contract", label: "Contract / PO", stepHint: 1 },
   { value: "proforma_invoice", label: "Proforma Invoice", stepHint: 1 },
   { value: "commercial_invoice", label: "Commercial Invoice", stepHint: 2 },
   { value: "packing_list", label: "Packing List", stepHint: 2 },
-  { value: "bill_of_lading", label: "Bill of Lading (B/L)", stepHint: 3 },
-  { value: "insurance", label: "Insurance Policy", stepHint: 3 },
+  { value: "bill_of_lading", label: "Bill of Lading (B/L)", stepHint: 1 },
+  { value: "insurance", label: "Insurance Policy", stepHint: 1 },
   { value: "bank_lc_eif", label: "LC / EIF / Bank Instrument", stepHint: 1 },
-  { value: "payment_proof", label: "Payment Proof", stepHint: 5 },
-  { value: "psw_gd", label: "PSW Goods Declaration (GD)", stepHint: 4 },
-  { value: "psid_receipt", label: "PSID / Payment Slip", stepHint: 4 },
-  { value: "customs_assessment", label: "Customs Assessment", stepHint: 4 },
-  { value: "duty_tax_challan", label: "Duty / Tax Challan", stepHint: 4 },
-  { value: "clearing_agent_invoice", label: "Clearing Agent Invoice", stepHint: 5 },
-  { value: "freight_invoice", label: "Freight Invoice", stepHint: 5 },
-  { value: "transport_invoice", label: "Local Transport Invoice", stepHint: 5 },
-  { value: "container_photos", label: "Container Photos", stepHint: 3 },
-  { value: "grn", label: "GRN / Warehouse Proof", stepHint: 7 },
+  { value: "payment_proof", label: "Payment Proof", stepHint: 4 },
+  { value: "psw_gd", label: "PSW Goods Declaration (GD)", stepHint: 3 },
+  { value: "psid_receipt", label: "PSID / Payment Slip", stepHint: 3 },
+  { value: "customs_assessment", label: "Customs Assessment", stepHint: 3 },
+  { value: "duty_tax_challan", label: "Duty / Tax Challan", stepHint: 3 },
+  { value: "clearing_agent_invoice", label: "Clearing Agent Invoice", stepHint: 4 },
+  { value: "freight_invoice", label: "Freight Invoice", stepHint: 4 },
+  { value: "transport_invoice", label: "Local Transport Invoice", stepHint: 4 },
+  { value: "container_photos", label: "Container Photos", stepHint: 1 },
+  { value: "grn", label: "GRN / Warehouse Proof", stepHint: 6 },
   { value: "other", label: "Other", stepHint: 1 },
 ]
 
@@ -292,6 +339,12 @@ function chargeAmountPkr(c: ImportCharge, shipmentFx: number): number {
   return (Number(c.amount) || 0) * fx
 }
 
+function itemUnitPrice(item: ImportItem): number {
+  const actual = Number(item.actualPrice)
+  if (actual > 0) return actual
+  return Number(item.unitPriceForeign) || 0
+}
+
 function itemBasis(item: ImportItem, method: AllocationMethod, fxRate: number): number {
   const qty = Number(item.qty) || 0
   switch (method) {
@@ -303,7 +356,7 @@ function itemBasis(item: ImportItem, method: AllocationMethod, fxRate: number): 
       return qty
     case "by_value":
     default:
-      return qty * (Number(item.unitPriceForeign) || 0) * (Number(fxRate) || 0)
+      return qty * itemUnitPrice(item) * (Number(fxRate) || 0)
   }
 }
 
@@ -320,7 +373,7 @@ export function calculateLandedCost(shipment: Pick<
 
   const productLines = items.map(item => {
     const qty = Number(item.qty) || 0
-    const productCostPkr = qty * (Number(item.unitPriceForeign) || 0) * fxRate
+    const productCostPkr = qty * itemUnitPrice(item) * fxRate
     return { item, productCostPkr }
   })
   const productTotalPkr = productLines.reduce((s, l) => s + l.productCostPkr, 0)
@@ -441,12 +494,69 @@ export function applyLandedCostToItems(
 export function statusForStep(step: number): ImportShipmentStatus {
   if (step <= 1) return "draft"
   if (step === 2) return "ordered"
-  if (step === 3) return "in_transit"
-  if (step === 4) return "clearance"
-  if (step === 5) return "costing"
-  if (step === 6) return "landed"
-  if (step >= 7) return "received"
+  if (step === 3) return "clearance"
+  if (step === 4) return "costing"
+  if (step === 5) return "landed"
+  if (step >= 6) return "received"
   return "draft"
+}
+
+/** Clamp / migrate old 7-step wizard indices to the new 6-step flow */
+export function normalizeImportStep(step: number): number {
+  const n = Number(step) || 1
+  // Legacy 7-step: 1 basics, 2 items, 3 shipping, 4 psw, 5 charges, 6 landed, 7 receive
+  if (n === 7) return 6
+  if (n > IMPORT_STEP_COUNT) return IMPORT_STEP_COUNT
+  return Math.max(1, n)
+}
+
+/** Sync PSW customs duty rows into charges so landed cost includes them */
+export function syncDutiesIntoCharges(
+  charges: ImportCharge[],
+  duties: CustomsDutyEntry[],
+): ImportCharge[] {
+  const nonDuty = (charges || []).filter(c => !c.fromDutyId)
+  const existingByDuty = new Map(
+    (charges || []).filter(c => c.fromDutyId).map(c => [c.fromDutyId!, c]),
+  )
+  const synced: ImportCharge[] = duties.map(d => {
+    const existing = existingByDuty.get(d.id)
+    return {
+      id: existing?.id || `duty-${d.id}`,
+      category: d.category,
+      description: d.description || d.name,
+      amount: d.amount,
+      currency: d.currency || "PKR",
+      fxRate: existing?.fxRate || 0,
+      isShared: !d.itemId,
+      itemId: d.itemId || "",
+      allocationMethod: existing?.allocationMethod || "",
+      paid: d.paid,
+      paymentRef: d.paymentRef || "",
+      notes: existing?.notes || "",
+      fromDutyId: d.id,
+    }
+  })
+  return [...nonDuty, ...synced]
+}
+
+const SRO_LIBRARY_KEY = (scope: string) => `erp-import-sro-library:${scope || "P1"}`
+
+export function loadSroLibrary(scope: string): ImportSro[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = localStorage.getItem(SRO_LIBRARY_KEY(scope))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveSroLibrary(scope: string, sros: ImportSro[]) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(SRO_LIBRARY_KEY(scope), JSON.stringify(sros))
 }
 
 export function emptyShipment(scopeId: string, createdBy = ""): Omit<ImportShipment, "id" | "shipmentNumber" | "createdAt" | "updatedAt"> {
@@ -490,6 +600,8 @@ export function emptyShipment(scopeId: string, createdBy = ""): Omit<ImportShipm
     charges: [],
     attachments: [],
     payments: [],
+    customsDuties: [],
+    gdSros: [],
     landedCostSummary: {},
     flowHistory: [],
     createdBy,
