@@ -273,6 +273,32 @@ export const QUICK_ADD_SROS: Omit<ImportSro, "id">[] = [
   { code: "SRO 863(I)/2007", title: "Plant & machinery concession", description: "Machinery / industrial concession" },
 ]
 
+/** Common Pakistan destination ports (+ custom free-text) */
+export const DESTINATION_PORTS = [
+  "Karachi",
+  "Karachi (KICT)",
+  "Karachi (SAPT)",
+  "Karachi (PICT)",
+  "Port Qasim",
+  "Port Qasim (PQEPT)",
+  "Gwadar",
+  "Islamabad Dry Port",
+  "Lahore Dry Port",
+  "Faisalabad Dry Port",
+  "Multan Dry Port",
+  "Peshawar Dry Port",
+  "Sialkot Dry Port",
+] as const
+
+export const DESTINATION_PORT_CUSTOM = "__custom__"
+
+export interface ClearingAgent {
+  id: string
+  name: string
+  contact?: string
+  notes?: string
+}
+
 export const ATTACHMENT_CATEGORIES: { value: AttachmentCategory; label: string; stepHint: number }[] = [
   { value: "contract", label: "Contract / PO", stepHint: 1 },
   { value: "proforma_invoice", label: "Proforma Invoice", stepHint: 1 },
@@ -557,6 +583,25 @@ export function loadSroLibrary(scope: string): ImportSro[] {
 export function saveSroLibrary(scope: string, sros: ImportSro[]) {
   if (typeof window === "undefined") return
   localStorage.setItem(SRO_LIBRARY_KEY(scope), JSON.stringify(sros))
+}
+
+const AGENT_LIBRARY_KEY = (scope: string) => `erp-import-agent-library:${scope || "P1"}`
+
+export function loadAgentLibrary(scope: string): ClearingAgent[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = localStorage.getItem(AGENT_LIBRARY_KEY(scope))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveAgentLibrary(scope: string, agents: ClearingAgent[]) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(AGENT_LIBRARY_KEY(scope), JSON.stringify(agents))
 }
 
 export function emptyShipment(scopeId: string, createdBy = ""): Omit<ImportShipment, "id" | "shipmentNumber" | "createdAt" | "updatedAt"> {

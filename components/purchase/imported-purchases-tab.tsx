@@ -3,18 +3,20 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import {
   Plus, Search, Loader2, Ship, ArrowLeft, Trash2, Lock, Calculator,
-  ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked,
+  ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked, Hash,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
-import { getSuppliers, type Supplier } from "@/lib/purchase"
+import { getSuppliers, saveSupplier, type Supplier } from "@/lib/purchase"
 import {
   CHARGE_CATEGORIES,
   CONTAINER_SIZES,
   CURRENCIES,
+  DESTINATION_PORTS,
+  DESTINATION_PORT_CUSTOM,
   IMPORT_STEPS,
   IMPORT_STEP_COUNT,
   INCOTERMS,
@@ -26,15 +28,18 @@ import {
   emptyShipment,
   formatPkr,
   getImportShipments,
+  loadAgentLibrary,
   loadSroLibrary,
   newId,
   normalizeImportStep,
+  saveAgentLibrary,
   saveImportShipment,
   saveSroLibrary,
   statusForStep,
   syncDutiesIntoCharges,
   type AllocationMethod,
   type ChargeCategory,
+  type ClearingAgent,
   type CustomsDutyEntry,
   type ImportCharge,
   type ImportContainer,
@@ -46,6 +51,7 @@ import {
 } from "@/lib/import-shipment"
 import { ImportAttachments } from "@/components/purchase/import-attachments"
 import { ImportShipmentManual } from "@/components/purchase/import-shipment-manual"
+import { ImportSroDrawer } from "@/components/purchase/import-sro-drawer"
 
 function statusVariant(s: ImportShipmentStatus): "default" | "secondary" | "outline" | "destructive" {
   if (s === "landed" || s === "received" || s === "closed") return "default"
@@ -64,7 +70,11 @@ function Field({ label, children, className = "" }: { label: string; children: R
 }
 
 const inputCls =
-  "w-full min-w-0 h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+  "w-full min-w-0 h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] transition-colors"
+
+const btnHover = "cursor-pointer transition-all duration-150 hover:shadow-sm hover:brightness-[0.97] active:scale-[0.98]"
+const chipHover =
+  "text-[10px] px-1.5 py-0.5 rounded border cursor-pointer transition-all duration-150 hover:bg-[hsl(var(--muted))]/50 hover:border-[hsl(var(--foreground))]/25 hover:shadow-sm active:scale-[0.98]"
 
 const DUTY_CATEGORIES: ChargeCategory[] = [
   "customs_duty",
@@ -89,8 +99,9 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   const [selected, setSelected] = useState<ImportShipment | null>(null)
   const [draft, setDraft] = useState<ImportShipment | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [sroDrawerOpen, setSroDrawerOpen] = useState(false)
   const [sroLibrary, setSroLibrary] = useState<ImportSro[]>([])
-  const [sroDraft, setSroDraft] = useState({ code: "", title: "", description: "" })
+  const [agentLibrary, setAgentLibrary] = useState<ClearingAgent[]>([])
 
   const importedSuppliers = useMemo(
     () => suppliers.filter(s => s.type === "imported" || s.type === "trade"),
@@ -107,6 +118,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
       setShipments(rows)
       setSuppliers(sups)
       setSroLibrary(loadSroLibrary(purchaseScopeId))
+      setAgentLibrary(loadAgentLibrary(purchaseScopeId))
     } catch (e) {
       toast({
         type: "error",
@@ -139,7 +151,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   }
 
   function addSroToLibrary(partial?: Partial<ImportSro>) {
-    const code = (partial?.code || sroDraft.code).trim()
+    const code = (partial?.code || "").trim()
     if (!code) {
       toast({ type: "error", title: "SRO code required" })
       return
@@ -151,16 +163,26 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
     const row: ImportSro = {
       id: newId(),
       code,
-      title: (partial?.title || sroDraft.title).trim(),
-      description: (partial?.description || sroDraft.description).trim(),
+      title: (partial?.title || "").trim(),
+      description: (partial?.description || "").trim(),
     }
     persistSroLibrary([row, ...sroLibrary])
-    setSroDraft({ code: "", title: "", description: "" })
     toast({ type: "success", title: "SRO saved", message: code })
   }
 
   function removeSroFromLibrary(id: string) {
     persistSroLibrary(sroLibrary.filter(s => s.id !== id))
+  }
+
+  function persistAgents(next: ClearingAgent[]) {
+    setAgentLibrary(next)
+    saveAgentLibrary(purchaseScopeId, next)
+  }
+
+  async function refreshSuppliers() {
+    const sups = await getSuppliers(purchaseScopeId)
+    setSuppliers(sups)
+    return sups
   }
 
   function openNew() {
@@ -260,21 +282,35 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
 
   if (selected && draft) {
     return (
-      <ShipmentDetail
-        draft={draft}
-        patch={patch}
-        setDraft={setDraft}
-        saving={saving}
-        onBack={() => { setSelected(null); setDraft(null); void load() }}
-        onSave={() => void persist()}
-        onPersist={persist}
-        onStep={goStep}
-        onDelete={draft.id ? () => void handleDelete(draft.id) : undefined}
-        importedSuppliers={importedSuppliers}
-        userName={user?.name || user?.email || ""}
-        sroLibrary={sroLibrary}
-        onAddSroToLibrary={addSroToLibrary}
-      />
+      <>
+        <ShipmentDetail
+          draft={draft}
+          patch={patch}
+          setDraft={setDraft}
+          saving={saving}
+          onBack={() => { setSelected(null); setDraft(null); void load() }}
+          onSave={() => void persist()}
+          onPersist={persist}
+          onStep={goStep}
+          onDelete={draft.id ? () => void handleDelete(draft.id) : undefined}
+          importedSuppliers={importedSuppliers}
+          purchaseScopeId={purchaseScopeId}
+          onSuppliersRefresh={refreshSuppliers}
+          agentLibrary={agentLibrary}
+          onAgentsChange={persistAgents}
+          userName={user?.name || user?.email || ""}
+          sroLibrary={sroLibrary}
+          onAddSroToLibrary={addSroToLibrary}
+          onOpenSroLibrary={() => setSroDrawerOpen(true)}
+        />
+        <ImportSroDrawer
+          open={sroDrawerOpen}
+          onClose={() => setSroDrawerOpen(false)}
+          sroLibrary={sroLibrary}
+          onAdd={addSroToLibrary}
+          onRemove={removeSroFromLibrary}
+        />
+      </>
     )
   }
 
@@ -294,14 +330,27 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
           <Button
             type="button"
             size="sm"
+            variant="outline"
+            className={`h-8 text-xs ${btnHover}`}
+            onClick={() => setSroDrawerOpen(true)}
+          >
+            <BookMarked className="h-3.5 w-3.5 mr-1" />
+            SRO library
+            {sroLibrary.length > 0 ? (
+              <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">{sroLibrary.length}</Badge>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             variant={showHelp ? "secondary" : "outline"}
-            className="h-8 text-xs"
+            className={`h-8 text-xs ${btnHover}`}
             onClick={() => setShowHelp(v => !v)}
           >
             <HelpCircle className="h-3.5 w-3.5 mr-1" />
             Help
           </Button>
-          <Button size="sm" className="h-8 text-xs" onClick={openNew}>
+          <Button size="sm" className={`h-8 text-xs ${btnHover}`} onClick={openNew}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             New import
           </Button>
@@ -310,94 +359,13 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
 
       {showHelp && <ImportShipmentManual defaultOpen />}
 
-      {/* SRO library */}
-      <div className="rounded-md border p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-semibold flex items-center gap-1.5">
-            <BookMarked className="h-3.5 w-3.5" />
-            SRO library
-          </p>
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            Saved here · quick-add on any GD
-          </p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          <Field label="SRO code">
-            <input
-              value={sroDraft.code}
-              onChange={e => setSroDraft(d => ({ ...d, code: e.target.value }))}
-              className={inputCls}
-              placeholder="SRO 1125(I)/2011"
-            />
-          </Field>
-          <Field label="Title">
-            <input
-              value={sroDraft.title}
-              onChange={e => setSroDraft(d => ({ ...d, title: e.target.value }))}
-              className={inputCls}
-              placeholder="Short title"
-            />
-          </Field>
-          <Field label="Notes" className="sm:col-span-1">
-            <input
-              value={sroDraft.description}
-              onChange={e => setSroDraft(d => ({ ...d, description: e.target.value }))}
-              className={inputCls}
-              placeholder="Optional"
-            />
-          </Field>
-          <div className="flex items-end">
-            <Button type="button" size="sm" className="h-7 text-[11px] w-full" onClick={() => addSroToLibrary()}>
-              <Plus className="h-3 w-3 mr-1" /> Add SRO
-            </Button>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {QUICK_ADD_SROS.map(q => (
-            <button
-              key={q.code}
-              type="button"
-              onClick={() => addSroToLibrary(q)}
-              className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
-              title={q.title}
-            >
-              + {q.code}
-            </button>
-          ))}
-        </div>
-        {sroLibrary.length === 0 ? (
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] border border-dashed rounded px-2 py-2 text-center">
-            No SROs saved yet — type one or use quick-add above.
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded border">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
-                  <th className="px-2 py-1">Code</th>
-                  <th className="px-2 py-1">Title</th>
-                  <th className="px-2 py-1">Notes</th>
-                  <th className="px-2 py-1 w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {sroLibrary.map(s => (
-                  <tr key={s.id} className="border-t">
-                    <td className="px-2 py-1 font-mono font-medium">{s.code}</td>
-                    <td className="px-2 py-1">{s.title || "—"}</td>
-                    <td className="px-2 py-1 text-[hsl(var(--muted-foreground))]">{s.description || "—"}</td>
-                    <td className="px-2 py-1">
-                      <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeSroFromLibrary(s.id)}>
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <ImportSroDrawer
+        open={sroDrawerOpen}
+        onClose={() => setSroDrawerOpen(false)}
+        sroLibrary={sroLibrary}
+        onAdd={addSroToLibrary}
+        onRemove={removeSroFromLibrary}
+      />
 
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
@@ -420,7 +388,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
           <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 mb-3">
             Create a shipment to track containers, PSW clearance, and landed cost.
           </p>
-          <Button size="sm" className="h-8 text-xs" onClick={openNew}>
+          <Button size="sm" className={`h-8 text-xs ${btnHover}`} onClick={openNew}>
             <Plus className="h-3.5 w-3.5 mr-1.5" /> Start first shipment
           </Button>
         </div>
@@ -430,7 +398,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
-                  <th className="px-2.5 py-1.5 font-semibold">Shipment</th>
+                  <th className="px-2.5 py-1.5 font-semibold">Import ID</th>
                   <th className="px-2.5 py-1.5 font-semibold">Supplier</th>
                   <th className="px-2.5 py-1.5 font-semibold">Containers</th>
                   <th className="px-2.5 py-1.5 font-semibold">B/L · GD</th>
@@ -447,11 +415,14 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
                   return (
                     <tr
                       key={s.id}
-                      className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
+                      className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/20 cursor-pointer transition-colors"
                       onClick={() => openExisting(s)}
                     >
                       <td className="px-2.5 py-2">
-                        <p className="font-mono text-[11px] font-semibold">{s.shipmentNumber}</p>
+                        <p className="font-mono text-[11px] font-semibold flex items-center gap-1">
+                          <Hash className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+                          {s.shipmentNumber}
+                        </p>
                         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
                           Step {step}/{IMPORT_STEP_COUNT}
                         </p>
@@ -508,9 +479,14 @@ function ShipmentDetail({
   onStep,
   onDelete,
   importedSuppliers,
+  purchaseScopeId,
+  onSuppliersRefresh,
+  agentLibrary,
+  onAgentsChange,
   userName,
   sroLibrary,
   onAddSroToLibrary,
+  onOpenSroLibrary,
 }: {
   draft: ImportShipment
   patch: (p: Partial<ImportShipment>) => void
@@ -522,26 +498,40 @@ function ShipmentDetail({
   onStep: (step: number) => void
   onDelete?: () => void
   importedSuppliers: Supplier[]
+  purchaseScopeId: string
+  onSuppliersRefresh: () => Promise<Supplier[]>
+  agentLibrary: ClearingAgent[]
+  onAgentsChange: (agents: ClearingAgent[]) => void
   userName: string
   sroLibrary: ImportSro[]
   onAddSroToLibrary: (partial?: Partial<ImportSro>) => void
+  onOpenSroLibrary: () => void
 }) {
   const locked = draft.landedCostLocked
   const step = normalizeImportStep(draft.currentStep || 1)
   const readOnly = locked && step < 6
   const [helpOpen, setHelpOpen] = useState(false)
+  const isNew = !draft.id || draft.shipmentNumber === "(auto)"
 
   return (
     <div className="p-3 sm:p-4 pt-3 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-start gap-2 justify-between">
         <div className="flex items-start gap-1.5 min-w-0">
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 shrink-0" onClick={onBack}>
+          <Button type="button" variant="ghost" size="sm" className={`h-7 px-1.5 shrink-0 ${btnHover}`} onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">
-            <p className="font-mono text-xs font-semibold">{draft.shipmentNumber}</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="font-mono text-xs font-semibold flex items-center gap-1">
+                <Hash className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                {isNew ? "New import" : draft.shipmentNumber}
+              </p>
+              <Badge variant="outline" className="text-[9px] h-5 font-mono">
+                {isNew ? "ID on first save" : `ID ${draft.shipmentNumber}`}
+              </Badge>
+            </div>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
-              {draft.supplierName || "New import"} · {STATUS_LABELS[draft.status]}
+              {draft.supplierName || "Untitled"} · {STATUS_LABELS[draft.status]}
               {locked ? " · cost locked" : ""}
             </p>
           </div>
@@ -549,19 +539,28 @@ function ShipmentDetail({
         <div className="flex flex-wrap gap-1.5">
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            className={`h-7 text-[11px] ${btnHover}`}
+            onClick={onOpenSroLibrary}
+          >
+            <BookMarked className="h-3 w-3 mr-1" /> SRO library
+          </Button>
+          <Button
+            type="button"
             variant={helpOpen ? "secondary" : "outline"}
             size="sm"
-            className="h-7 text-[11px]"
+            className={`h-7 text-[11px] ${btnHover}`}
             onClick={() => setHelpOpen(v => !v)}
           >
             <HelpCircle className="h-3 w-3 mr-1" /> Help
           </Button>
           {onDelete && (
-            <Button type="button" variant="outline" size="sm" className="h-7 text-[11px] text-red-600" onClick={onDelete}>
+            <Button type="button" variant="outline" size="sm" className={`h-7 text-[11px] text-red-600 ${btnHover}`} onClick={onDelete}>
               <Trash2 className="h-3 w-3 mr-1" /> Delete
             </Button>
           )}
-          <Button type="button" size="sm" className="h-7 text-[11px]" disabled={saving} onClick={onSave}>
+          <Button type="button" size="sm" className={`h-7 text-[11px] ${btnHover}`} disabled={saving} onClick={onSave}>
             {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
             Save
           </Button>
@@ -579,12 +578,12 @@ function ShipmentDetail({
               key={s.step}
               type="button"
               onClick={() => onStep(s.step)}
-              className={`shrink-0 px-2 py-1 rounded text-[10px] font-medium border cursor-pointer transition-colors ${
+              className={`shrink-0 px-2 py-1 rounded text-[10px] font-medium border cursor-pointer transition-all duration-150 hover:shadow-sm ${
                 active
                   ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
                   : done
-                    ? "bg-[hsl(var(--muted))]/40 border-transparent"
-                    : "bg-transparent text-[hsl(var(--muted-foreground))]"
+                    ? "bg-[hsl(var(--muted))]/40 border-transparent hover:bg-[hsl(var(--muted))]/60"
+                    : "bg-transparent text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/30"
               }`}
             >
               {s.step}. {s.short}
@@ -599,6 +598,10 @@ function ShipmentDetail({
           patch={patch}
           readOnly={!!readOnly}
           importedSuppliers={importedSuppliers}
+          purchaseScopeId={purchaseScopeId}
+          onSuppliersRefresh={onSuppliersRefresh}
+          agentLibrary={agentLibrary}
+          onAgentsChange={onAgentsChange}
           userName={userName}
         />
       )}
@@ -619,6 +622,7 @@ function ShipmentDetail({
           userName={userName}
           sroLibrary={sroLibrary}
           onAddSroToLibrary={onAddSroToLibrary}
+          onOpenSroLibrary={onOpenSroLibrary}
         />
       )}
       {step === 4 && (
@@ -643,7 +647,7 @@ function ShipmentDetail({
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 text-[11px]"
+          className={`h-7 text-[11px] ${btnHover}`}
           disabled={step <= 1}
           onClick={() => onStep(step - 1)}
         >
@@ -652,7 +656,7 @@ function ShipmentDetail({
         <Button
           type="button"
           size="sm"
-          className="h-7 text-[11px]"
+          className={`h-7 text-[11px] ${btnHover}`}
           disabled={step >= IMPORT_STEP_COUNT || saving}
           onClick={async () => {
             await onPersist({
@@ -673,37 +677,164 @@ function ShipmentDetail({
 }
 
 function StepBasics({
-  draft, patch, readOnly, importedSuppliers, userName,
+  draft, patch, readOnly, importedSuppliers, purchaseScopeId, onSuppliersRefresh, agentLibrary, onAgentsChange, userName,
 }: {
   draft: ImportShipment
   patch: (p: Partial<ImportShipment>) => void
   readOnly: boolean
   importedSuppliers: Supplier[]
+  purchaseScopeId: string
+  onSuppliersRefresh: () => Promise<Supplier[]>
+  agentLibrary: ClearingAgent[]
+  onAgentsChange: (agents: ClearingAgent[]) => void
   userName: string
 }) {
+  const { toast } = useToast()
+  const [showAddSupplier, setShowAddSupplier] = useState(false)
+  const [showAddAgent, setShowAddAgent] = useState(false)
+  const [savingSupplier, setSavingSupplier] = useState(false)
+  const [newSupplierName, setNewSupplierName] = useState("")
+  const [newSupplierContact, setNewSupplierContact] = useState("")
+  const [newAgentName, setNewAgentName] = useState("")
+  const [newAgentContact, setNewAgentContact] = useState("")
+
+  const knownPorts = DESTINATION_PORTS as readonly string[]
+  const portIsCustom = Boolean(draft.destinationPort) && !knownPorts.includes(draft.destinationPort)
+  const portDropdownValue = !draft.destinationPort
+    ? "Karachi"
+    : knownPorts.includes(draft.destinationPort)
+      ? draft.destinationPort
+      : DESTINATION_PORT_CUSTOM
+
+  async function handleAddSupplier() {
+    const name = newSupplierName.trim()
+    if (!name) {
+      toast({ type: "error", title: "Supplier name required" })
+      return
+    }
+    setSavingSupplier(true)
+    try {
+      const id = Date.now().toString()
+      await saveSupplier({
+        id,
+        name,
+        type: "imported",
+        contact: newSupplierContact.trim(),
+        email: "",
+        address: "",
+        company: "",
+        tradingAs: "",
+        bankAccounts: [],
+        accountTitle: "",
+        bankNames: [],
+        bankIban: "",
+      }, purchaseScopeId)
+      await onSuppliersRefresh()
+      patch({ supplierId: id, supplierName: name })
+      setNewSupplierName("")
+      setNewSupplierContact("")
+      setShowAddSupplier(false)
+      toast({ type: "success", title: "Supplier added", message: name })
+    } catch (e) {
+      toast({
+        type: "error",
+        title: "Could not add supplier",
+        message: e instanceof Error ? e.message : "Error",
+      })
+    } finally {
+      setSavingSupplier(false)
+    }
+  }
+
+  function handleAddAgent() {
+    const name = newAgentName.trim()
+    if (!name) {
+      toast({ type: "error", title: "Agent name required" })
+      return
+    }
+    if (agentLibrary.some(a => a.name.toLowerCase() === name.toLowerCase())) {
+      patch({ clearingAgent: name })
+      setShowAddAgent(false)
+      setNewAgentName("")
+      setNewAgentContact("")
+      toast({ type: "success", title: "Agent selected", message: name })
+      return
+    }
+    const row: ClearingAgent = {
+      id: newId(),
+      name,
+      contact: newAgentContact.trim() || undefined,
+    }
+    onAgentsChange([row, ...agentLibrary])
+    patch({ clearingAgent: name })
+    setNewAgentName("")
+    setNewAgentContact("")
+    setShowAddAgent(false)
+    toast({ type: "success", title: "Agent saved", message: name })
+  }
+
   return (
     <div className="space-y-3">
       <Section title="Basics · Supplier & contract">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           <Field label="Imported supplier *" className="sm:col-span-2">
-            <select
+            <div className="flex gap-1">
+              <select
+                disabled={readOnly}
+                value={draft.supplierId || ""}
+                onChange={e => {
+                  const s = importedSuppliers.find(x => x.id === e.target.value)
+                  patch({ supplierId: e.target.value || null, supplierName: s?.name || "" })
+                }}
+                className={inputCls + " flex-1"}
+              >
+                <option value="">Select supplier…</option>
+                {importedSuppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {!readOnly && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={`h-7 px-2 text-[10px] shrink-0 ${btnHover}`}
+                  onClick={() => { setShowAddSupplier(v => !v); setShowAddAgent(false) }}
+                >
+                  <Plus className="h-3 w-3 mr-0.5" /> Add
+                </Button>
+              )}
+            </div>
+          </Field>
+          <Field label="Or type name only" className="sm:col-span-2">
+            <input
               disabled={readOnly}
-              value={draft.supplierId || ""}
-              onChange={e => {
-                const s = importedSuppliers.find(x => x.id === e.target.value)
-                patch({ supplierId: e.target.value || null, supplierName: s?.name || "" })
-              }}
+              value={draft.supplierName}
+              onChange={e => patch({ supplierId: null, supplierName: e.target.value })}
               className={inputCls}
-            >
-              <option value="">Select supplier…</option>
-              {importedSuppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+              placeholder="Foreign supplier name (one-off OK)"
+            />
           </Field>
-          <Field label="Or type name" className="sm:col-span-2">
-            <input disabled={readOnly} value={draft.supplierName} onChange={e => patch({ supplierName: e.target.value })} className={inputCls} placeholder="Foreign supplier" />
-          </Field>
+
+          {showAddSupplier && !readOnly && (
+            <div className="col-span-2 sm:col-span-4 rounded border bg-[hsl(var(--muted))]/15 p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <Field label="New supplier name *" className="sm:col-span-2">
+                <input value={newSupplierName} onChange={e => setNewSupplierName(e.target.value)} className={inputCls} placeholder="Company name" />
+              </Field>
+              <Field label="Phone / WhatsApp">
+                <input value={newSupplierContact} onChange={e => setNewSupplierContact(e.target.value)} className={inputCls} placeholder="Optional" />
+              </Field>
+              <div className="flex items-end gap-1">
+                <Button type="button" size="sm" className={`h-7 text-[10px] flex-1 ${btnHover}`} disabled={savingSupplier} onClick={() => void handleAddSupplier()}>
+                  {savingSupplier ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save supplier"}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className={`h-7 text-[10px] ${btnHover}`} onClick={() => setShowAddSupplier(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Field label="Contract / PO ref">
             <input disabled={readOnly} value={draft.contractRef} onChange={e => patch({ contractRef: e.target.value })} className={inputCls} />
           </Field>
@@ -723,17 +854,100 @@ function StepBasics({
           <Field label="FX (1 = ? PKR) *">
             <input disabled={readOnly} type="number" min="0" step="0.01" value={draft.fxRate || ""} onChange={e => patch({ fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="280" />
           </Field>
-          <Field label="Clearing agent">
-            <input disabled={readOnly} value={draft.clearingAgent} onChange={e => patch({ clearingAgent: e.target.value })} className={inputCls} />
+
+          <Field label="Clearing agent" className="sm:col-span-2">
+            <div className="flex gap-1">
+              <select
+                disabled={readOnly}
+                value={agentLibrary.some(a => a.name === draft.clearingAgent) ? draft.clearingAgent : ""}
+                onChange={e => {
+                  if (e.target.value) patch({ clearingAgent: e.target.value })
+                }}
+                className={inputCls + " flex-1"}
+              >
+                <option value="">Select saved agent…</option>
+                {agentLibrary.map(a => (
+                  <option key={a.id} value={a.name}>{a.name}</option>
+                ))}
+              </select>
+              {!readOnly && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={`h-7 px-2 text-[10px] shrink-0 ${btnHover}`}
+                  onClick={() => { setShowAddAgent(v => !v); setShowAddSupplier(false) }}
+                >
+                  <Plus className="h-3 w-3 mr-0.5" /> Add
+                </Button>
+              )}
+            </div>
           </Field>
+          <Field label="Or type agent name" className="sm:col-span-1">
+            <input
+              disabled={readOnly}
+              value={draft.clearingAgent}
+              onChange={e => patch({ clearingAgent: e.target.value })}
+              className={inputCls}
+              placeholder="Agent name"
+            />
+          </Field>
+
+          {showAddAgent && !readOnly && (
+            <div className="col-span-2 sm:col-span-4 rounded border bg-[hsl(var(--muted))]/15 p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <Field label="New agent name *" className="sm:col-span-2">
+                <input value={newAgentName} onChange={e => setNewAgentName(e.target.value)} className={inputCls} placeholder="Clearing agent" />
+              </Field>
+              <Field label="Contact">
+                <input value={newAgentContact} onChange={e => setNewAgentContact(e.target.value)} className={inputCls} placeholder="Optional" />
+              </Field>
+              <div className="flex items-end gap-1">
+                <Button type="button" size="sm" className={`h-7 text-[10px] flex-1 ${btnHover}`} onClick={handleAddAgent}>
+                  Save agent
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className={`h-7 text-[10px] ${btnHover}`} onClick={() => setShowAddAgent(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Field label="Origin country">
             <input disabled={readOnly} value={draft.originCountry} onChange={e => patch({ originCountry: e.target.value })} className={inputCls} />
           </Field>
           <Field label="Origin port">
             <input disabled={readOnly} value={draft.originPort} onChange={e => patch({ originPort: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="Destination port">
-            <input disabled={readOnly} value={draft.destinationPort} onChange={e => patch({ destinationPort: e.target.value })} className={inputCls} />
+          <Field label="Destination port" className="sm:col-span-2">
+            <div className="flex flex-col gap-1">
+              <select
+                disabled={readOnly}
+                value={portDropdownValue}
+                onChange={e => {
+                  const v = e.target.value
+                  if (v === DESTINATION_PORT_CUSTOM) {
+                    if (!portIsCustom) patch({ destinationPort: "" })
+                  } else {
+                    patch({ destinationPort: v })
+                  }
+                }}
+                className={inputCls}
+              >
+                {DESTINATION_PORTS.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+                <option value={DESTINATION_PORT_CUSTOM}>Custom port…</option>
+              </select>
+              {portDropdownValue === DESTINATION_PORT_CUSTOM && (
+                <input
+                  disabled={readOnly}
+                  value={draft.destinationPort}
+                  onChange={e => patch({ destinationPort: e.target.value })}
+                  className={inputCls}
+                  placeholder="Type custom port / dry port name"
+                />
+              )}
+            </div>
           </Field>
           <Field label="Notes" className="col-span-2 sm:col-span-4">
             <input disabled={readOnly} value={draft.notes} onChange={e => patch({ notes: e.target.value })} className={inputCls} placeholder="Optional notes" />
@@ -1024,7 +1238,7 @@ function StepInvoice({
 }
 
 function StepPsw({
-  draft, patch, setDraft, readOnly, userName, sroLibrary, onAddSroToLibrary,
+  draft, patch, setDraft, readOnly, userName, sroLibrary, onAddSroToLibrary, onOpenSroLibrary,
 }: {
   draft: ImportShipment
   patch: (p: Partial<ImportShipment>) => void
@@ -1033,6 +1247,7 @@ function StepPsw({
   userName: string
   sroLibrary: ImportSro[]
   onAddSroToLibrary: (partial?: Partial<ImportSro>) => void
+  onOpenSroLibrary: () => void
 }) {
   const duties = draft.customsDuties || []
   const gdSros = draft.gdSros || []
@@ -1203,6 +1418,20 @@ function StepPsw({
       <Section title="SROs on this GD">
         {!readOnly && (
           <div className="space-y-1.5 mb-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                Type an SRO or quick-add from your library
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={`h-6 text-[10px] ${btnHover}`}
+                onClick={onOpenSroLibrary}
+              >
+                <BookMarked className="h-3 w-3 mr-1" /> Manage library
+              </Button>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               <Field label="SRO code" className="sm:col-span-2">
                 <input value={sroCode} onChange={e => setSroCode(e.target.value)} className={inputCls} placeholder="Type SRO…" />
@@ -1211,7 +1440,7 @@ function StepPsw({
                 <input value={sroTitle} onChange={e => setSroTitle(e.target.value)} className={inputCls} placeholder="Optional" />
               </Field>
               <div className="flex items-end">
-                <Button type="button" size="sm" className="h-7 text-[11px] w-full" onClick={addTypedSro}>
+                <Button type="button" size="sm" className={`h-7 text-[11px] w-full ${btnHover}`} onClick={addTypedSro}>
                   <Plus className="h-3 w-3 mr-1" /> Add SRO
                 </Button>
               </div>
@@ -1224,7 +1453,7 @@ function StepPsw({
                     key={s.id}
                     type="button"
                     onClick={() => addSroToGd(s)}
-                    className="text-[10px] px-1.5 py-0.5 rounded border hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+                    className={chipHover}
                   >
                     + {s.code}
                   </button>
@@ -1238,7 +1467,7 @@ function StepPsw({
                       addSroToGd(row)
                       onAddSroToLibrary(q)
                     }}
-                    className="text-[10px] px-1.5 py-0.5 rounded border border-dashed hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+                    className={`${chipHover} border-dashed`}
                   >
                     + {q.code}
                   </button>
