@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
     }))
     const showSerialCol = orderHasSerialAllocations(order)
 
+    // Column order with serials: # | MODEL | SERIAL | QTY | UNIT | PRICE | AMOUNT
     const tableData = itemsWithModel.map(({ item, model }: { item: any; model: string | null }, idx: number) => {
       const row = [
         `${idx + 1}`,
@@ -294,31 +295,39 @@ export async function POST(request: NextRequest) {
         `PKR ${Number(item.unitPrice).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
         `PKR ${(Number(item.unitPrice) * Number(item.qty)).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`,
       ]
-      if (showSerialCol) row.splice(3, 0, formatSerialListForLine(order, item.id))
+      if (showSerialCol) row.splice(2, 0, formatSerialListForLine(order, item.id))
       return row
     })
 
     const headRow = ['#', 'MODEL / PRODUCT', 'QTY', 'UNIT', 'UNIT PRICE', 'AMOUNT']
-    if (showSerialCol) headRow.splice(3, 0, 'SERIAL NO.')
+    if (showSerialCol) headRow.splice(2, 0, 'SERIAL NO.')
 
+    // contentW = 182mm — widths must match column indices after SERIAL insert
     const columnStyles: Record<string, object> = showSerialCol
       ? {
-          0: { cellWidth: 7, halign: 'center' as const },
-          1: { cellWidth: 38, overflow: 'linebreak' as const, valign: 'top' as const },
-          2: { cellWidth: 36, fontSize: 7, overflow: 'linebreak' as const, valign: 'top' as const },
-          3: { cellWidth: 10, halign: 'center' as const },
-          4: { cellWidth: 11, halign: 'center' as const },
-          5: { cellWidth: 40, halign: 'right' as const, fontSize: 7.5, overflow: 'linebreak' as const },
-          6: { cellWidth: 40, halign: 'right' as const, fontSize: 7.5, fontStyle: 'bold' as const, overflow: 'linebreak' as const },
+          0: { cellWidth: 8, halign: 'center' as const },
+          1: { cellWidth: 46, overflow: 'linebreak' as const, valign: 'top' as const },
+          2: {
+            cellWidth: 48,
+            fontSize: 7,
+            overflow: 'linebreak' as const,
+            valign: 'top' as const,
+          },
+          3: { cellWidth: 10,halign: 'center' as const, valign: 'top' as const },
+          4: { cellWidth: 12, halign: 'center' as const, valign: 'top' as const },
+          5: { cellWidth: 29,halign: 'right' as const, fontSize: 7.5, overflow: 'linebreak' as const, valign: 'top' as const },
+          6: { cellWidth: 29,halign: 'right' as const, fontSize: 7.5, fontStyle: 'bold' as const, overflow: 'linebreak' as const, valign: 'top' as const },
         }
       : {
-          0: { cellWidth: 7, halign: 'center' as const },
+          0: { cellWidth: 7,halign: 'center' as const },
           1: { cellWidth: 76, overflow: 'linebreak' as const, valign: 'top' as const },
-          2: { cellWidth: 11, halign: 'center' as const },
-          3: { cellWidth: 13, halign: 'center' as const },
-          4: { cellWidth: 36, halign: 'right' as const, fontSize: 7.5, overflow: 'linebreak' as const },
-          5: { cellWidth: 39, halign: 'right' as const, fontSize: 7.5, fontStyle: 'bold' as const, overflow: 'linebreak' as const },
+          2: { cellWidth: 11,halign: 'center' as const },
+          3: { cellWidth: 13,halign: 'center' as const },
+          4: { cellWidth: 36,halign: 'right' as const, fontSize: 7.5, overflow: 'linebreak' as const },
+          5: { cellWidth: 39,halign: 'right' as const, fontSize: 7.5, fontStyle: 'bold' as const, overflow: 'linebreak' as const },
         }
+
+    const serialColIndex = showSerialCol ? 2 : -1
 
     autoTable(doc, {
       startY: y,
@@ -335,6 +344,7 @@ export async function POST(request: NextRequest) {
         fontSize: 7.5,
         font: FONT,
         cellPadding: { top: 3, bottom: 3, left: 2.5, right: 2.5 },
+        overflow: 'linebreak' as const,
       },
       bodyStyles: {
         fontSize: 8,
@@ -350,10 +360,16 @@ export async function POST(request: NextRequest) {
       tableLineColor: lightGray,
       tableLineWidth: 0.25,
       didParseCell: (data) => {
-        if (data.section !== 'body' || data.column.index !== 1) return
+        if (data.section !== 'body') return
         const raw = String(data.cell.raw ?? '')
-        if (raw.includes('\n')) {
+        if (data.column.index === 1 && raw.includes('\n')) {
           data.cell.styles.fontSize = 7.5
+        }
+        if (data.column.index === serialColIndex) {
+          data.cell.styles.fontSize = 7
+          data.cell.styles.overflow = 'linebreak'
+          // Prefer breaking only on newlines between serials
+          data.cell.styles.cellPadding = { top: 2.5, bottom: 2.5, left: 2, right: 2 }
         }
       },
     })

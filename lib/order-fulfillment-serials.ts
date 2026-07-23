@@ -57,9 +57,12 @@ export function formatSerialListForLine(
   order: Pick<Order, "fulfillmentSerialAllocations">,
   orderItemId: string,
 ): string {
-  const serials = getAllocationsForOrderItem(order, orderItemId).map((a) => a.serialNumber)
+  const serials = getAllocationsForOrderItem(order, orderItemId)
+    .map((a) => a.serialNumber.trim())
+    .filter(Boolean)
   if (serials.length === 0) return "—"
-  return serials.join(", ")
+  // One serial per line so PDF tables wrap between numbers, not mid-token (e.g. "volt" / "rix86").
+  return serials.join("\n")
 }
 
 export function orderHasSerialAllocations(order: Pick<Order, "fulfillmentSerialAllocations">): boolean {
