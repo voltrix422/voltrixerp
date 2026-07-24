@@ -40,6 +40,7 @@ export type ChargeCategory =
   | "insurance"
   | "customs_duty"
   | "additional_customs_duty"
+  | "duty_tax_customs_partial"
   | "sales_tax"
   | "income_tax"
   | "fed"
@@ -47,12 +48,17 @@ export type ChargeCategory =
   | "psw_fee"
   | "clearing_agent"
   | "port_handling"
+  | "examination"
+  | "appraisement"
+  | "handling_service"
   | "demurrage"
   | "detention"
   | "do_bl_charges"
   | "local_transport"
   | "labor_unloading"
   | "bank_charges"
+  | "logworld_total_invoice"
+  | "aict_terminal_invoice"
   | "other"
 
 export interface ImportAttachment {
@@ -326,17 +332,23 @@ export const CHARGE_CATEGORIES: { value: ChargeCategory; label: string; typicall
   { value: "insurance", label: "Insurance", typicallyShared: true },
   { value: "customs_duty", label: "Customs Duty (CD)", typicallyShared: false },
   { value: "additional_customs_duty", label: "Additional Customs Duty (ACD)", typicallyShared: false },
+  { value: "duty_tax_customs_partial", label: "Duty & Tax (Customs, partial)", typicallyShared: false },
   { value: "sales_tax", label: "Sales Tax", typicallyShared: false },
   { value: "income_tax", label: "Income Tax / WHT", typicallyShared: false },
   { value: "fed", label: "FED", typicallyShared: false },
   { value: "regulatory_fee", label: "Regulatory / OGA Fee", typicallyShared: true },
   { value: "psw_fee", label: "PSW Fee", typicallyShared: true },
-  { value: "clearing_agent", label: "Clearing Agent Fee", typicallyShared: true },
+  { value: "do_bl_charges", label: "DO / B/L Charges (Shipping Line)", typicallyShared: true },
   { value: "port_handling", label: "Port Handling / THC", typicallyShared: true },
+  { value: "examination", label: "Examination", typicallyShared: true },
+  { value: "appraisement", label: "Appraisement", typicallyShared: true },
+  { value: "handling_service", label: "Handling and Service", typicallyShared: true },
+  { value: "local_transport", label: "Local Transport / Trucking", typicallyShared: true },
+  { value: "clearing_agent", label: "Clearing Agent Fee", typicallyShared: true },
+  { value: "logworld_total_invoice", label: "Logworld Total Invoice", typicallyShared: true },
+  { value: "aict_terminal_invoice", label: "AICT Terminal Invoice", typicallyShared: true },
   { value: "demurrage", label: "Demurrage", typicallyShared: true },
   { value: "detention", label: "Detention", typicallyShared: true },
-  { value: "do_bl_charges", label: "DO / B/L Charges", typicallyShared: true },
-  { value: "local_transport", label: "Local Transport / Trucking", typicallyShared: true },
   { value: "labor_unloading", label: "Labor / Unloading", typicallyShared: true },
   { value: "bank_charges", label: "Bank Charges", typicallyShared: true },
   { value: "other", label: "Other Charge", typicallyShared: true },

@@ -79,6 +79,7 @@ const chipHover =
 const DUTY_CATEGORIES: ChargeCategory[] = [
   "customs_duty",
   "additional_customs_duty",
+  "duty_tax_customs_partial",
   "sales_tax",
   "income_tax",
   "fed",
@@ -1582,7 +1583,18 @@ function StepCharges({
 
       {!readOnly && (
         <div className="flex flex-wrap gap-1">
-          {(["ocean_freight", "clearing_agent", "local_transport", "bank_charges", "port_handling"] as ChargeCategory[]).map(cat => (
+          {([
+            "duty_tax_customs_partial",
+            "do_bl_charges",
+            "port_handling",
+            "examination",
+            "appraisement",
+            "handling_service",
+            "local_transport",
+            "clearing_agent",
+            "logworld_total_invoice",
+            "aict_terminal_invoice",
+          ] as ChargeCategory[]).map(cat => (
             <button
               key={cat}
               type="button"
