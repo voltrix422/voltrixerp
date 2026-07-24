@@ -142,6 +142,8 @@ model ErpPurchaseLedger {
   category          String   @default("expense")
   quantity          Float    @default(0)
   unitPrice         Float    @default(0) @map("unit_price")
+  taxPercent        Float    @default(0) @map("tax_percent")
+  taxAmount         Float    @default(0) @map("tax_amount")
   totalAmount       Float    @default(0) @map("total_amount")
   amountPaid        Float    @default(0) @map("amount_paid")
   amountDue         Float    @default(0) @map("amount_due")

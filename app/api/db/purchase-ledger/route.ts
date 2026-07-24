@@ -404,9 +404,16 @@ async function handlePost(req: NextRequest) {
   const items = supplierGroups.length > 0
     ? supplierGroups.flatMap(group => group.items)
     : parseItems(body.items)
-  const totalAmount = supplierGroups.length > 0
+  const itemsSubtotal = supplierGroups.length > 0
     ? sumSupplierGroups(supplierGroups)
-    : items.length > 0 ? sumItems(items) : Number(body.totalAmount) || 0
+    : items.length > 0 ? sumItems(items) : 0
+  const taxPercent = Math.max(0, Number(body.taxPercent) || 0)
+  let taxAmount = Math.max(0, Number(body.taxAmount) || 0)
+  // If percent is set and amount was omitted/zero, derive tax from percent.
+  if (taxPercent > 0 && !(Number(body.taxAmount) > 0)) {
+    taxAmount = Math.round(((itemsSubtotal * taxPercent) / 100) * 100) / 100
+  }
+  const totalAmount = (itemsSubtotal + taxAmount) || Number(body.totalAmount) || 0
   const firstItem = items[0]
   let payments = clampPaymentsToTotal(parsePayments(body.payments), totalAmount)
   // Group-level paid is used in project mode; payments list is always a floor.
@@ -426,8 +433,9 @@ async function handlePost(req: NextRequest) {
   if (!isProject && supplierGroups.length === 1) {
     const group = supplierGroups[0]
     const subtotal = sumItems(group.items)
-    const groupPaid = Math.min(subtotal, amountPaid)
-    supplierGroups = [{ ...group, amountPaid: groupPaid, amountDue: Math.max(0, subtotal - groupPaid) }]
+    const groupTotal = subtotal + taxAmount
+    const groupPaid = Math.min(groupTotal, amountPaid)
+    supplierGroups = [{ ...group, amountPaid: groupPaid, amountDue: Math.max(0, groupTotal - groupPaid) }]
   }
   const purchaseScopeId = String(body.purchaseScopeId || "P1").trim().toUpperCase()
   const ledgerNumber = body.ledgerNumber || (await nextLedgerNumber(purchaseScopeId))
@@ -449,6 +457,8 @@ async function handlePost(req: NextRequest) {
     category: body.category || "expense",
     quantity: items.reduce((s, i) => s + i.quantity, 0) || Number(body.quantity) || 0,
     unitPrice: firstItem?.unitPrice || Number(body.unitPrice) || 0,
+    taxPercent,
+    taxAmount,
     totalAmount,
     amountPaid,
     amountDue,

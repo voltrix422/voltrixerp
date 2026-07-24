@@ -66,6 +66,10 @@ export interface PurchaseLedgerEntry {
   category: PurchaseCategory
   quantity: number
   unitPrice: number
+  /** GST / tax percent applied to items subtotal (0 if using a fixed tax amount). */
+  taxPercent: number
+  /** Tax amount in PKR — included in totalAmount. */
+  taxAmount: number
   totalAmount: number
   amountPaid: number
   amountDue: number
@@ -192,6 +196,18 @@ export function sumItemTotals(items: PurchaseLedgerItem[]) {
 
 export function sumSupplierGroups(groups: PurchaseLedgerSupplierGroup[]) {
   return groups.reduce((sum, group) => sum + sumItemTotals(group.items), 0)
+}
+
+/** Tax amount from percent of items subtotal (rounded to 2 decimals). */
+export function taxAmountFromPercent(itemsSubtotal: number, taxPercent: number) {
+  const sub = Math.max(0, Number(itemsSubtotal) || 0)
+  const pct = Math.max(0, Number(taxPercent) || 0)
+  return Math.round(((sub * pct) / 100) * 100) / 100
+}
+
+/** Grand total = items subtotal + tax. */
+export function ledgerGrandTotal(itemsSubtotal: number, taxAmount: number) {
+  return Math.max(0, Number(itemsSubtotal) || 0) + Math.max(0, Number(taxAmount) || 0)
 }
 
 export function getGroupSubtotal(group: PurchaseLedgerSupplierGroup) {
@@ -736,6 +752,8 @@ function mapRow(row: Record<string, unknown>): PurchaseLedgerEntry {
     category: (row.category as PurchaseCategory) ?? "expense",
     quantity: Number(row.quantity) || resolvedItems.reduce((s, i) => s + i.quantity, 0),
     unitPrice: Number(row.unitPrice) || 0,
+    taxPercent: Number(row.taxPercent) || 0,
+    taxAmount: Number(row.taxAmount) || 0,
     totalAmount,
     amountPaid,
     amountDue,

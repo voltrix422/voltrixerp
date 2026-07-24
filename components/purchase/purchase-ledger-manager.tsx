@@ -37,6 +37,8 @@ import {
   normalizeSupplierKey,
   normalizeAttachments,
   withSyncedLegacyAttachments,
+  taxAmountFromPercent,
+  ledgerGrandTotal,
   type LedgerAttachment,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
@@ -518,6 +520,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [projectName, setProjectName] = useState("")
   const [supplierGroups, setSupplierGroups] = useState<PurchaseLedgerSupplierGroup[]>([newSupplierGroup()])
   const [transactionType, setTransactionType] = useState<PurchaseTransactionType>("purchase")
+  const [taxPercent, setTaxPercent] = useState("")
+  const [taxAmount, setTaxAmount] = useState("")
   const [amountPayingNow, setAmountPayingNow] = useState("")
   const [groupPayingNow, setGroupPayingNow] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState("")
@@ -530,7 +534,20 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [groupBillFiles, setGroupBillFiles] = useState<Record<string, File[]>>({})
   const [groupProofFiles, setGroupProofFiles] = useState<Record<string, File[]>>({})
 
-  const grandTotal = useMemo(() => sumSupplierGroups(supplierGroups), [supplierGroups])
+  const itemsSubtotal = useMemo(() => sumSupplierGroups(supplierGroups), [supplierGroups])
+  const taxAmountValue = Math.max(0, parseFloat(taxAmount) || 0)
+  const taxPercentValue = Math.max(0, parseFloat(taxPercent) || 0)
+  const grandTotal = useMemo(
+    () => ledgerGrandTotal(itemsSubtotal, taxAmountValue),
+    [itemsSubtotal, taxAmountValue],
+  )
+
+  // Keep tax amount aligned with % when items change.
+  useEffect(() => {
+    const pct = parseFloat(taxPercent) || 0
+    if (pct <= 0) return
+    setTaxAmount(String(taxAmountFromPercent(itemsSubtotal, pct)))
+  }, [itemsSubtotal, taxPercent])
   const payingNow = parseFloat(amountPayingNow) || 0
   const isEditing = Boolean(editingEntryId)
   const existingPaid = useMemo(() => sumPayments(existingPayments), [existingPayments])
@@ -625,6 +642,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setProjectName("")
     setSupplierGroups([newSupplierGroup({ date: new Date().toISOString().slice(0, 10) })])
     setTransactionType("purchase")
+    setTaxPercent("")
+    setTaxAmount("")
     setAmountPayingNow("")
     setGroupPayingNow({})
     setNotes("")
@@ -670,6 +689,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         })],
     )
     setTransactionType(entry.transactionType)
+    setTaxPercent(entry.taxPercent > 0 ? String(entry.taxPercent) : "")
+    setTaxAmount(entry.taxAmount > 0 ? String(entry.taxAmount) : "")
     setNotes(entry.notes || "")
     setAmountPayingNow("")
     setGroupPayingNow({})
@@ -718,7 +739,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     setSaving(true)
     try {
       const flatItems = groups.flatMap(group => group.items)
-      const totalAmount = sumSupplierGroups(groups)
+      const itemsSubtotalSave = sumSupplierGroups(groups)
+      const taxPctSave = Math.max(0, parseFloat(taxPercent) || 0)
+      let taxAmtSave = Math.max(0, parseFloat(taxAmount) || 0)
+      if (taxPctSave > 0 && !(parseFloat(taxAmount) > 0)) {
+        taxAmtSave = taxAmountFromPercent(itemsSubtotalSave, taxPctSave)
+      }
+      const totalAmount = ledgerGrandTotal(itemsSubtotalSave, taxAmtSave)
       let groupsWithPayments: PurchaseLedgerSupplierGroup[] = groups
       let payments: PurchaseLedgerPayment[] = []
       let amountPaid = 0
@@ -986,6 +1013,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         category: "expense",
         quantity: flatItems.reduce((s, i) => s + i.quantity, 0),
         unitPrice: flatItems[0]?.unitPrice ?? 0,
+        taxPercent: taxPctSave,
+        taxAmount: taxAmtSave,
         totalAmount,
         amountPaid: finalPaid,
         amountDue: finalDue,
@@ -1623,11 +1652,70 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   ))}
                 </div>
 
-                <div className="flex items-center justify-end gap-2 px-1">
-                  <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    {linkMode === "project" ? "Project total" : "Grand total"}
-                  </span>
-                  <span className="text-base font-semibold text-[#1faca6]">{fmtMoney(grandTotal)}</span>
+                <div className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Items subtotal</span>
+                    <span className="text-sm font-semibold tabular-nums">{fmtMoney(itemsSubtotal)}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Field label="Tax %" hint="e.g. 18 for GST">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={taxPercent}
+                        onChange={e => {
+                          const next = e.target.value
+                          setTaxPercent(next)
+                          const pct = parseFloat(next) || 0
+                          if (pct > 0) {
+                            setTaxAmount(String(taxAmountFromPercent(itemsSubtotal, pct)))
+                          } else if (!next.trim()) {
+                            setTaxAmount("")
+                          }
+                        }}
+                        placeholder="0"
+                        className={inputCls}
+                        inputMode="decimal"
+                      />
+                    </Field>
+                    <Field label="Tax amount (PKR)" hint="Added to grand total">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={taxAmount}
+                        onChange={e => {
+                          setTaxAmount(e.target.value)
+                          // Manual amount overrides percent linkage for display; keep % if set for reference
+                        }}
+                        onBlur={() => {
+                          // If percent is set, keep amount in sync with current subtotal on blur when amount empty
+                          const pct = parseFloat(taxPercent) || 0
+                          if (pct > 0 && !(parseFloat(taxAmount) > 0)) {
+                            setTaxAmount(String(taxAmountFromPercent(itemsSubtotal, pct)))
+                          }
+                        }}
+                        placeholder="0"
+                        className={inputCls}
+                        inputMode="decimal"
+                      />
+                    </Field>
+                  </div>
+                  {taxPercentValue > 0 && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                      Tax {taxPercentValue}% of {fmtMoney(itemsSubtotal)} = {fmtMoney(taxAmountValue)}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between gap-2 border-t pt-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      {linkMode === "project" ? "Project total" : "Grand total"}
+                    </span>
+                    <span className="text-base font-semibold text-[#1faca6] tabular-nums">{fmtMoney(grandTotal)}</span>
+                  </div>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    Grand total = items subtotal + tax
+                  </p>
                 </div>
 
                 {!isProjectMode && (

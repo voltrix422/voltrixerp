@@ -253,9 +253,25 @@ export function LedgerEntryDetailModal({
             )
           })}
 
-          <div className="flex items-center justify-end gap-2 px-1">
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</span>
-            <span className="text-base font-semibold text-[#1faca6]">{fmtMoney(entry.totalAmount)}</span>
+          <div className="rounded-lg border bg-[hsl(var(--muted))]/10 px-3 py-2.5 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Items subtotal</span>
+              <span className="text-sm font-medium tabular-nums">
+                {fmtMoney(Math.max(0, entry.totalAmount - (entry.taxAmount || 0)))}
+              </span>
+            </div>
+            {(entry.taxAmount > 0 || entry.taxPercent > 0) && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Tax{entry.taxPercent > 0 ? ` (${entry.taxPercent}%)` : ""}
+                </span>
+                <span className="text-sm font-medium tabular-nums">{fmtMoney(entry.taxAmount || 0)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 border-t pt-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Grand total</span>
+              <span className="text-base font-semibold text-[#1faca6] tabular-nums">{fmtMoney(entry.totalAmount)}</span>
+            </div>
           </div>
 
           <section className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3">
