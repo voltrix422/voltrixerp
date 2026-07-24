@@ -10,7 +10,7 @@ import {
 } from "@/lib/petty-cash-display"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { History, Eye, CheckCircle, XCircle } from "lucide-react"
+import { History, Eye, CheckCircle, XCircle, Archive } from "lucide-react"
 
 type Props = {
   allocations: PettyCashAllocation[]
@@ -44,8 +44,8 @@ export function PettyCashHistoryPanel({ allocations, receipts, onViewHistory }: 
   if (historyAllocations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <History className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">No settled or closed petty cash records yet.</p>
+        <Archive className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">No archived petty cash records yet.</p>
       </div>
     )
   }
@@ -53,7 +53,7 @@ export function PettyCashHistoryPanel({ allocations, receipts, onViewHistory }: 
   return (
     <div className="space-y-3">
       <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Review completed petty cash requests, approvals, settlements, and closure notes.
+        Archived petty cash — settled, rejected, and cancelled allocations. Active cash stays on the Allocations tab.
       </p>
       <div className="rounded-lg border overflow-hidden">
         <table className="w-full">
@@ -93,7 +93,7 @@ export function PettyCashHistoryPanel({ allocations, receipts, onViewHistory }: 
                   </td>
                   <td className="px-4 py-2.5 text-xs">
                     <Badge variant="secondary" className="text-[10px] capitalize">
-                      {allocation.status}
+                      {allocation.status === "settled" ? "archived" : allocation.status}
                     </Badge>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-center">

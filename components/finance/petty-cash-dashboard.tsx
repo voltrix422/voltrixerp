@@ -14,7 +14,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
-import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react"
+import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive } from "lucide-react"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
   allocationBelongsToUser,
@@ -33,6 +33,22 @@ import {
   isPersonalLedgerAllocation,
 } from "@/lib/petty-cash-personal"
 
+type AllocationStatusFilter = "active" | "pending" | "settled" | "rejected" | "cancelled" | "all"
+
+const ALLOCATION_FILTERS: { id: AllocationStatusFilter; label: string }[] = [
+  { id: "active", label: "Active" },
+  { id: "pending", label: "Pending" },
+  { id: "settled", label: "Archived" },
+  { id: "rejected", label: "Rejected" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "all", label: "All" },
+]
+
+function allocationStatusLabel(status: string) {
+  if (status === "settled") return "archived"
+  return status
+}
+
 export function PettyCashDashboard() {
   const { user, userRole } = useAuthWithRole()
   const currentUser = user?.name || ""
@@ -47,6 +63,7 @@ export function PettyCashDashboard() {
   const [approvalAllocation, setApprovalAllocation] = useState<PettyCashAllocation | null>(null)
   const [selectedAllocation, setSelectedAllocation] = useState<PettyCashAllocation | null>(null)
   const [activeTab, setActiveTab] = useState<"allocations" | "receipts" | "history">("allocations")
+  const [allocationFilter, setAllocationFilter] = useState<AllocationStatusFilter>("active")
   const [settleConfirm, setSettleConfirm] = useState<PettyCashAllocation | null>(null)
   const [topUpAllocation, setTopUpAllocation] = useState<PettyCashAllocation | null>(null)
   const [payOwedAllocation, setPayOwedAllocation] = useState<{
@@ -89,7 +106,7 @@ export function PettyCashDashboard() {
   function getStatusColor(status: string) {
     switch (status) {
       case "active":    return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-      case "settled":   return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+      case "settled":   return "bg-slate-100 text-slate-700 dark:bg-slate-800/50 dark:text-slate-300"
       case "cancelled": return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
       case "pending":   return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
       case "rejected":  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
@@ -108,7 +125,8 @@ export function PettyCashDashboard() {
       setAllocations(prev =>
         prev.map(a => a.id === allocation.id ? { ...a, status: "settled", settledAt: new Date().toISOString() } : a)
       )
-      toast({ title: "Success", message: "Petty cash allocation settled", type: "success" })
+      toast({ title: "Success", message: "Petty cash moved to Archived", type: "success" })
+      setAllocationFilter("active")
     } catch (error) {
       console.error("Error settling allocation:", error)
       toast({ title: "Error", message: "Failed to settle allocation", type: "error" })
@@ -209,8 +227,21 @@ export function PettyCashDashboard() {
     .sort((a, b) => {
       const aPersonal = isPersonalLedgerAllocation(a) ? 0 : 1
       const bPersonal = isPersonalLedgerAllocation(b) ? 0 : 1
-      return aPersonal - bPersonal
+      if (aPersonal !== bPersonal) return aPersonal - bPersonal
+      return new Date(b.allocatedAt).getTime() - new Date(a.allocatedAt).getTime()
     })
+  const allocationFilterCounts: Record<AllocationStatusFilter, number> = {
+    active: displayAllocations.filter((a) => a.status === "active").length,
+    pending: displayAllocations.filter((a) => a.status === "pending").length,
+    settled: displayAllocations.filter((a) => a.status === "settled").length,
+    rejected: displayAllocations.filter((a) => a.status === "rejected").length,
+    cancelled: displayAllocations.filter((a) => a.status === "cancelled").length,
+    all: displayAllocations.length,
+  }
+  const filteredAllocations = displayAllocations.filter((allocation) => {
+    if (allocationFilter === "all") return true
+    return allocation.status === allocationFilter
+  })
   const displayReceipts = canManagePettyCash ? receipts : receipts.filter(receiptBelongsToCurrentUser)
   const personalLedger = findPersonalLedger(allocations, currentUserId, currentUser)
   const personalBalance = personalLedger
@@ -408,18 +439,26 @@ export function PettyCashDashboard() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b">
-        {(["allocations", "receipts", "history"] as const).map(tab => (
+        {([
+          { id: "allocations" as const, label: "Allocations" },
+          { id: "receipts" as const, label: "Receipts" },
+          { id: "history" as const, label: "Archived" },
+        ]).map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium transition-colors relative capitalize ${
-              activeTab === tab
+            key={tab.id}
+            onClick={() => {
+              setActiveTab(tab.id)
+              if (tab.id === "history") setAllocationFilter("settled")
+              if (tab.id === "allocations" && allocationFilter === "settled") setAllocationFilter("active")
+            }}
+            className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+              activeTab === tab.id
                 ? "text-[hsl(var(--foreground))]"
                 : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
             }`}
           >
-            {tab === "history" ? "History" : tab}
-            {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
+            {tab.label}
+            {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
           </button>
         ))}
       </div>
@@ -427,26 +466,87 @@ export function PettyCashDashboard() {
       {/* Allocations Tab */}
       {activeTab === "allocations" && (
         <div className="space-y-4">
-          {displayAllocations.length === 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {ALLOCATION_FILTERS.map((filter) => {
+              const count = allocationFilterCounts[filter.id]
+              const selected = allocationFilter === filter.id
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setAllocationFilter(filter.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    selected
+                      ? "border-[#1faca6] bg-[#1faca6]/10 text-[#17857f]"
+                      : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {filter.id === "settled" && <Archive className="h-3 w-3" />}
+                  {filter.label}
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                      selected
+                        ? "bg-[#1faca6]/20 text-[#17857f]"
+                        : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {filteredAllocations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <DollarSign className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">No petty cash allocations found</p>
-              <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowRequestForm(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" /> Request Cash
-              </Button>
-              {canManagePettyCash && (
-                <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" onClick={() => setShowAllocationForm(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate Cash
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {allocationFilter === "all"
+                  ? "No petty cash allocations found"
+                  : allocationFilter === "settled"
+                    ? "No archived (settled) petty cash yet"
+                    : `No ${allocationFilter} allocations`}
+              </p>
+              {allocationFilter === "active" && (
+                <>
+                  <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setShowRequestForm(true)}>
+                    <Plus className="h-3.5 w-3.5 mr-1.5" /> Request Cash
+                  </Button>
+                  {canManagePettyCash && (
+                    <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" onClick={() => setShowAllocationForm(true)}>
+                      <Plus className="h-3.5 w-3.5 mr-1.5" /> Allocate Cash
+                    </Button>
+                  )}
+                </>
+              )}
+              {allocationFilter !== "active" && allocationFilter !== "all" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 h-8 text-xs"
+                  onClick={() => setAllocationFilter("active")}
+                >
+                  View active allocations
                 </Button>
               )}
             </div>
           ) : (
             <div>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
-                💡 Click any row for receipt history and approval.{" "}
-                <span className="font-medium text-[hsl(var(--foreground))]">Balance</span> = cash given minus{" "}
-                <span className="font-medium">approved</span> receipts.{" "}
-                <span className="text-amber-700 dark:text-amber-300">Pending</span> is submitted but not yet approved.
+                {allocationFilter === "settled" ? (
+                  <>
+                    <Archive className="inline h-3 w-3 mr-1 align-text-bottom" />
+                    Archived settled petty cash — closed ledgers only. Use filters above to switch views.
+                  </>
+                ) : (
+                  <>
+                    💡 Click any row for receipt history and approval.{" "}
+                    <span className="font-medium text-[hsl(var(--foreground))]">Balance</span> = cash given minus{" "}
+                    <span className="font-medium">approved</span> receipts.{" "}
+                    <span className="text-amber-700 dark:text-amber-300">Pending</span> is submitted but not yet approved.
+                    Settled items are kept under <span className="font-medium">Archived</span>.
+                  </>
+                )}
               </p>
               <div className="rounded-lg border overflow-x-auto">
                 <table className="w-full min-w-[960px]">
@@ -467,7 +567,7 @@ export function PettyCashDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {displayAllocations.map(allocation => {
+                    {filteredAllocations.map(allocation => {
                       const summary = getAllocationSummary(allocation)
                       const balance = formatAllocationBalanceCell(summary.balanceAfterApproved)
                       const projected = formatAllocationBalanceCell(summary.balanceAfterPending)
@@ -566,7 +666,7 @@ export function PettyCashDashboard() {
                           )}
                           <td className="px-3 py-2.5 text-xs">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${getStatusColor(allocation.status)}`}>
-                              {allocation.status}
+                              {allocationStatusLabel(allocation.status)}
                             </span>
                             {summary.receiptCount > 0 && (
                               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
