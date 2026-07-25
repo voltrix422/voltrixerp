@@ -138,6 +138,10 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     .filter(c => !c.fromDutyId && c.category !== "gst_on_charges" && c.category !== "cess")
     .reduce((s, c) => s + chargeAmountPkr(c, fx), 0)
 
+  const otherItemDuties = Math.max(0, totalItemDuties - totalCustoms - totalItemGst)
+  /** CD/ACD + item GST/ST + other item duties + shared cess */
+  const totalPswDutiesAndCess = totalCustoms + totalItemGst + otherItemDuties + cessShared
+
   const title = importDisplayName(shipment)
   const psids = parsePsids(shipment).filter(Boolean)
 
@@ -183,12 +187,10 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
   // Summary strip
   autoTable(doc, {
     startY: y,
-    head: [["Product", "Item duties", "Item GST (ST)", "Cess (shared)", "Landing chg", "GST on chg", "Grand landed"]],
+    head: [["Product", "PSW duties+cess (CD/ACD+GST+other+cess)", "Landing chg", "GST on chg", "Grand landed"]],
     body: [[
       money(summary.productTotalPkr),
-      money(totalItemDuties),
-      money(totalItemGst),
-      money(cessShared),
+      money(totalPswDutiesAndCess),
       money(landingCharges),
       money(gstTotal),
       money(summary.grandTotalPkr),
@@ -275,8 +277,12 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
       ["Product (invoice × FX)", money(summary.productTotalPkr)],
       ["Customs CD/ACD / partial", money(totalCustoms)],
       ["Item GST / Sales tax (PSW)", money(totalItemGst)],
-      ["Other item duties", money(Math.max(0, totalItemDuties - totalCustoms - totalItemGst))],
+      ["Other item duties", money(otherItemDuties)],
       ["Cess (shared)", money(cessShared)],
+      [
+        "Total PSW duties & cess (CD/ACD + GST/ST + other + cess)",
+        money(totalPswDutiesAndCess),
+      ],
       ["Landing charges (freight, THC, transport…)", money(landingCharges)],
       ["GST on landing charges", money(gstTotal)],
       ["Shared charges (all)", money(summary.sharedChargesPkr)],
@@ -292,7 +298,7 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     },
     margin: { left: mL, right: mR },
     didParseCell(data) {
-      if (data.section === "body" && data.row.index === 9) {
+      if (data.section === "body" && (data.row.index === 5 || data.row.index === 10)) {
         data.cell.styles.fillColor = [241, 245, 249]
         data.cell.styles.fontStyle = "bold"
       }
