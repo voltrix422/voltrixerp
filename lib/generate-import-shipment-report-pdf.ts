@@ -275,10 +275,6 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     head: [["Component", "Amount PKR"]],
     body: [
       ["Product (invoice × FX)", money(summary.productTotalPkr)],
-      ["Customs CD/ACD / partial", money(totalCustoms)],
-      ["Item GST / Sales tax (PSW)", money(totalItemGst)],
-      ["Other item duties", money(otherItemDuties)],
-      ["Cess (shared)", money(cessShared)],
       [
         "Total PSW duties & cess (CD/ACD + GST/ST + other + cess)",
         money(totalPswDutiesAndCess),
@@ -298,7 +294,7 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     },
     margin: { left: mL, right: mR },
     didParseCell(data) {
-      if (data.section === "body" && (data.row.index === 5 || data.row.index === 10)) {
+      if (data.section === "body" && (data.row.index === 1 || data.row.index === 6)) {
         data.cell.styles.fillColor = [241, 245, 249]
         data.cell.styles.fontStyle = "bold"
       }
