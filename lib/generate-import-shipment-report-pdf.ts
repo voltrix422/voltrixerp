@@ -3,11 +3,14 @@ import autoTable from "jspdf-autotable"
 import {
   calculateLandedCost,
   chargeAmountPkr,
+  chargeBaseAmountPkr,
+  chargeTaxesPkr,
   formatPkr,
   importDisplayName,
   parsePsids,
   STATUS_LABELS,
   type CustomsDutyEntry,
+  type ImportCharge,
   type ImportShipment,
 } from "@/lib/import-shipment"
 
@@ -37,9 +40,30 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
   const containers = shipment.containers || []
   const items = shipment.items || []
 
-  const gstTotal = charges
+  /** GST on all landing charges (Charges summary toggle) — shared */
+  const sharedGstOnCharges = charges
     .filter(c => c.category === "gst_on_charges")
     .reduce((s, c) => s + chargeAmountPkr(c, fx), 0)
+
+  const isLandingCharge = (c: ImportCharge) =>
+    !c.fromDutyId && c.category !== "gst_on_charges" && c.category !== "cess"
+
+  /** Taxes attached to Port Handling / THC lines */
+  const gstOnThc = charges
+    .filter(c => isLandingCharge(c) && c.category === "port_handling")
+    .reduce((s, c) => s + chargeTaxesPkr(c), 0)
+
+  /** Other named taxes on non-THC landing charges (kept inside landing total) */
+  const otherLandingTaxes = charges
+    .filter(c => isLandingCharge(c) && c.category !== "port_handling")
+    .reduce((s, c) => s + chargeTaxesPkr(c), 0)
+
+  /** Landing bases + non-THC taxes — excludes GST on THC and shared GST-on-charges */
+  const landingCharges =
+    charges
+      .filter(isLandingCharge)
+      .reduce((s, c) => s + chargeBaseAmountPkr(c, fx), 0) + otherLandingTaxes
+
   const cessTotal = charges
     .filter(c => c.category === "cess" || (c.fromDutyId && duties.find(d => d.id === c.fromDutyId)?.category === "cess"))
     .reduce((s, c) => s + chargeAmountPkr(c, fx), 0)
@@ -71,7 +95,8 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     customsDuty: number
     itemGst: number
     otherDuty: number
-    allocGst: number
+    allocSharedGst: number
+    allocThcGst: number
     allocCess: number
     allocatedOther: number
     direct: number
@@ -99,9 +124,13 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     }
 
     const allocShare = sharedTotal > 0 ? (line.allocatedChargesPkr || 0) / sharedTotal : 0
-    const allocGst = gstTotal * allocShare
+    const allocSharedGst = sharedGstOnCharges * allocShare
+    const allocThcGst = gstOnThc * allocShare
     const allocCess = cessShared * allocShare
-    const allocatedOther = Math.max(0, (line.allocatedChargesPkr || 0) - allocGst - allocCess)
+    const allocatedOther = Math.max(
+      0,
+      (line.allocatedChargesPkr || 0) - allocSharedGst - allocThcGst - allocCess,
+    )
 
     return {
       item: shortItem(line.description || items.find(i => i.id === line.itemId)?.description || "Item"),
@@ -110,7 +139,8 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
       customsDuty,
       itemGst,
       otherDuty,
-      allocGst,
+      allocSharedGst,
+      allocThcGst,
       allocCess,
       allocatedOther,
       direct: line.directChargesPkr,
@@ -133,10 +163,6 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
       || d.category === "duty_tax_customs_partial",
     )
     .reduce((s, d) => s + dutyAmountPkr(d, fx), 0)
-
-  const landingCharges = charges
-    .filter(c => !c.fromDutyId && c.category !== "gst_on_charges" && c.category !== "cess")
-    .reduce((s, c) => s + chargeAmountPkr(c, fx), 0)
 
   const otherItemDuties = Math.max(0, totalItemDuties - totalCustoms - totalItemGst)
   /** CD/ACD + item GST/ST + other item duties + shared cess */
@@ -187,12 +213,13 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
   // Summary strip
   autoTable(doc, {
     startY: y,
-    head: [["Product", "PSW duties+cess (CD/ACD+GST+other+cess)", "Landing chg", "GST on chg", "Grand landed"]],
+    head: [["Product", "PSW duties+cess", "Landing", "Shared GST", "GST on THC", "Grand landed"]],
     body: [[
       money(summary.productTotalPkr),
       money(totalPswDutiesAndCess),
       money(landingCharges),
-      money(gstTotal),
+      money(sharedGstOnCharges),
+      money(gstOnThc),
       money(summary.grandTotalPkr),
     ]],
     theme: "grid",
@@ -217,13 +244,14 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
         money(r.customsDuty),
         money(r.itemGst),
         money(r.otherDuty),
-        money(r.allocGst),
+        money(r.allocSharedGst),
+        money(r.allocThcGst),
         money(r.allocCess),
         money(r.allocatedOther),
         money(r.total),
         money(r.unit),
       ])
-    : [["No invoice items", "", "", "", "", "", "", "", "", "", ""]]
+    : [["No invoice items", "", "", "", "", "", "", "", "", "", "", ""]]
 
   autoTable(doc, {
     startY: y,
@@ -234,7 +262,8 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
       "CD/ACD",
       "GST/ST",
       "Other duty",
-      "GST chg",
+      "Shared GST",
+      "GST THC",
       "Cess",
       "Other shared",
       "Total",
@@ -242,20 +271,21 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     ]],
     body,
     theme: "striped",
-    styles: { fontSize: 6, cellPadding: 1, textColor: ink, lineColor: [226, 232, 240], lineWidth: 0.1, overflow: "linebreak" },
-    headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: "bold", fontSize: 5.5, halign: "center" },
+    styles: { fontSize: 5.5, cellPadding: 0.9, textColor: ink, lineColor: [226, 232, 240], lineWidth: 0.1, overflow: "linebreak" },
+    headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: "bold", fontSize: 5, halign: "center" },
     columnStyles: {
-      0: { cellWidth: 38, halign: "left" },
-      1: { cellWidth: 8, halign: "right" },
-      2: { cellWidth: 16, halign: "right" },
-      3: { cellWidth: 14, halign: "right" },
-      4: { cellWidth: 14, halign: "right" },
-      5: { cellWidth: 14, halign: "right" },
+      0: { cellWidth: 34, halign: "left" },
+      1: { cellWidth: 7, halign: "right" },
+      2: { cellWidth: 14, halign: "right" },
+      3: { cellWidth: 12, halign: "right" },
+      4: { cellWidth: 12, halign: "right" },
+      5: { cellWidth: 12, halign: "right" },
       6: { cellWidth: 12, halign: "right" },
       7: { cellWidth: 12, halign: "right" },
-      8: { cellWidth: 16, halign: "right" },
-      9: { cellWidth: 16, halign: "right" },
+      8: { cellWidth: 11, halign: "right" },
+      9: { cellWidth: 14, halign: "right" },
       10: { cellWidth: 14, halign: "right" },
+      11: { cellWidth: 12, halign: "right" },
     },
     margin: { left: mL, right: mR },
     tableWidth: pageW - mL - mR,
@@ -279,8 +309,9 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
         "Total PSW duties & cess (CD/ACD + GST/ST + other + cess)",
         money(totalPswDutiesAndCess),
       ],
-      ["Landing charges (freight, THC, transport…)", money(landingCharges)],
-      ["GST on landing charges", money(gstTotal)],
+      ["Landing charges (freight, THC base, transport…)", money(landingCharges)],
+      ["GST on THC (Port Handling tax)", money(gstOnThc)],
+      ["Shared GST on charges", money(sharedGstOnCharges)],
       ["GRAND TOTAL LANDED", money(summary.grandTotalPkr)],
     ],
     theme: "grid",
@@ -292,7 +323,7 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     },
     margin: { left: mL, right: mR },
     didParseCell(data) {
-      if (data.section === "body" && (data.row.index === 1 || data.row.index === 4)) {
+      if (data.section === "body" && (data.row.index === 1 || data.row.index === 5)) {
         data.cell.styles.fillColor = [241, 245, 249]
         data.cell.styles.fontStyle = "bold"
       }
@@ -304,9 +335,9 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
   doc.setFontSize(5.5)
   doc.setTextColor(...mute)
   const note =
-    "Grand total = Product + PSW duties & cess + Landing charges + GST on landing charges (no double-count). " +
-    "PSW duties & cess = CD/ACD + item GST/ST + other item duties + shared cess. " +
-    "Landing = DO/B/L, THC, transport, clearing, etc. (does not include cess or GST-on-charges)."
+    "Grand total = Product + PSW duties & cess + Landing + GST on THC + Shared GST (no double-count). " +
+    "Shared GST = GST added on all landing charges. GST on THC = tax lines on Port Handling / THC only. " +
+    "Landing excludes those two GST amounts."
   const split = doc.splitTextToSize(note, pageW - mL - mR)
   doc.text(split, mL, y)
 
