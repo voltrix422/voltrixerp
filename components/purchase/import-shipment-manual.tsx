@@ -33,6 +33,8 @@ export function ImportShipmentManual({ defaultOpen = false }: { defaultOpen?: bo
             <p className="text-xs text-[hsl(var(--foreground))]/90">
               Track one <strong>import shipment</strong> from foreign supplier contract through PSW clearance,
               capture every cost, then calculate <strong>landed cost per item</strong>.
+              Use the <strong>PDF</strong> button on the list (or inside a shipment) for a one-page cost report
+              (qty, duties, GST, cess, shared charges, totals).
             </p>
           </section>
 

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import {
   Plus, Search, Loader2, Ship, ArrowLeft, Trash2, Lock, Calculator,
   ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked, Hash,
-  Maximize2, Minimize2, PanelsTopLeft,
+  Maximize2, Minimize2, PanelsTopLeft, FileDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -64,6 +64,7 @@ import { uploadFile } from "@/lib/upload"
 import { ImportAttachments } from "@/components/purchase/import-attachments"
 import { ImportShipmentManual } from "@/components/purchase/import-shipment-manual"
 import { ImportSroDrawer } from "@/components/purchase/import-sro-drawer"
+import { downloadImportShipmentReportPDF } from "@/lib/generate-import-shipment-report-pdf"
 
 function statusVariant(s: ImportShipmentStatus): "default" | "secondary" | "outline" | "destructive" {
   if (s === "landed" || s === "received" || s === "closed") return "default"
@@ -513,6 +514,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
                   <th className="px-2.5 py-1.5 font-semibold">B/L · GD</th>
                   <th className="px-2.5 py-1.5 font-semibold">Status</th>
                   <th className="px-2.5 py-1.5 font-semibold text-right">Landed total</th>
+                  <th className="px-2.5 py-1.5 font-semibold w-16 text-center">PDF</th>
                   <th className="px-2.5 py-1.5 font-semibold w-8" />
                 </tr>
               </thead>
@@ -563,6 +565,29 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
                       </td>
                       <td className="px-2.5 py-2 text-right text-[11px] font-medium">
                         {typeof total === "number" ? formatPkr(total) : "—"}
+                      </td>
+                      <td className="px-2.5 py-2 text-center" onClick={e => e.stopPropagation()}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className={`h-7 px-2 text-[10px] ${btnHover}`}
+                          title="Download cost report PDF"
+                          onClick={async () => {
+                            try {
+                              await downloadImportShipmentReportPDF(s)
+                              toast({ type: "success", title: "PDF downloaded", message: importDisplayName(s) })
+                            } catch (err) {
+                              toast({
+                                type: "error",
+                                title: "PDF failed",
+                                message: err instanceof Error ? err.message : "Could not create report",
+                              })
+                            }
+                          }}
+                        >
+                          <FileDown className="h-3.5 w-3.5" />
+                        </Button>
                       </td>
                       <td className="px-2.5 py-2">
                         <ChevronRight className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
@@ -702,6 +727,7 @@ function ShipmentDetail({
   viewMode?: "compact" | "full"
   onViewModeChange?: (mode: "compact" | "full") => void
 }) {
+  const { toast } = useToast()
   const locked = draft.landedCostLocked
   const step = normalizeImportStep(draft.currentStep || 1)
   const readOnly = locked && step < 6
@@ -768,6 +794,27 @@ function ShipmentDetail({
               )}
             </Button>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} ${btnHover}`}
+            title="Download cost report PDF"
+            onClick={async () => {
+              try {
+                await downloadImportShipmentReportPDF(draft)
+                toast({ type: "success", title: "PDF downloaded", message: displayName })
+              } catch (err) {
+                toast({
+                  type: "error",
+                  title: "PDF failed",
+                  message: err instanceof Error ? err.message : "Could not create report",
+                })
+              }
+            }}
+          >
+            <FileDown className="h-3 w-3 mr-1" /> PDF
+          </Button>
           <Button
             type="button"
             variant="outline"
