@@ -46,13 +46,13 @@ export function ImportShipmentManual({ defaultOpen = false }: { defaultOpen?: bo
                 <strong>Invoice</strong> — Containers + line items with actual / declared / assessed prices. Upload commercial invoice &amp; packing list.
               </li>
               <li>
-                <strong>PSW</strong> — GD and multiple PSIDs (payment slips). Enter duties and SROs per invoice item.
+                <strong>PSW</strong> — GD and multiple PSIDs (payment slips). Enter duties and SROs per invoice item, plus shared cess duties at the end.
               </li>
               <li>
                 <strong>Charges</strong> — Freight, clearing, transport, bank — shared vs item-specific.
               </li>
               <li>
-                <strong>Landed Cost</strong> — Allocate, calculate, lock unit landed cost.
+                <strong>Landed Cost</strong> — Choose how to allocate shared costs, calculate, then lock unit landed cost.
               </li>
               <li>
                 <strong>Receive</strong> — Warehouse qty, GRN, mark received.
@@ -68,6 +68,25 @@ export function ImportShipmentManual({ defaultOpen = false }: { defaultOpen?: bo
               <p>Direct costs (duty on one HS) → that item only</p>
               <p className="pt-1 font-semibold">Unit landed = (Product + Shared + Direct) ÷ Received qty</p>
             </div>
+          </section>
+
+          <section className="space-y-1.5">
+            <h3 className="text-[10px] font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">How shared charges are split</h3>
+            <p className="text-xs text-[hsl(var(--foreground))]/90">
+              Shared charges are split using whatever you pick on the <strong>Landed</strong> step under{" "}
+              <strong>Allocate shared costs by</strong>. Default is <strong>invoice value</strong>, not weight or volume.
+            </p>
+            <ul className="list-disc pl-4 space-y-1 text-xs">
+              <li><strong>Invoice value</strong> (default) — each item’s share of qty × price × FX.</li>
+              <li><strong>Weight</strong> — item net kg (else gross / legacy kg).</li>
+              <li><strong>Quantity</strong> — item qty.</li>
+              <li><strong>CBM</strong> — item volume.</li>
+            </ul>
+            <p className="text-xs text-[hsl(var(--foreground))]/90">
+              Formula: item gets <em>charge × (item basis ÷ sum of all bases)</em>.
+              If bases total zero, costs split equally. <strong>Direct</strong> charges and PSW duties
+              linked to one item go only to that item and are not split.
+            </p>
           </section>
 
           <section className="space-y-1.5">

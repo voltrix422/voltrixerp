@@ -45,6 +45,7 @@ export type ChargeCategory =
   | "income_tax"
   | "fed"
   | "regulatory_fee"
+  | "cess"
   | "psw_fee"
   | "clearing_agent"
   | "port_handling"
@@ -366,6 +367,7 @@ export const CHARGE_CATEGORIES: { value: ChargeCategory; label: string; typicall
   { value: "income_tax", label: "Income Tax / WHT", typicallyShared: false },
   { value: "fed", label: "FED", typicallyShared: false },
   { value: "regulatory_fee", label: "Regulatory / OGA Fee", typicallyShared: true },
+  { value: "cess", label: "Cess", typicallyShared: true },
   { value: "psw_fee", label: "PSW Fee", typicallyShared: true },
   { value: "do_bl_charges", label: "DO / B/L Charges (Shipping Line)", typicallyShared: true },
   { value: "port_handling", label: "Port Handling / THC", typicallyShared: true },
@@ -668,8 +670,9 @@ export function syncDutiesIntoCharges(
       amount: d.amount,
       currency: d.currency || "PKR",
       fxRate: existing?.fxRate || 0,
-      isShared: !d.itemId,
-      itemId: d.itemId || "",
+      // Cess is always shared across all items
+      isShared: d.category === "cess" || !d.itemId,
+      itemId: d.category === "cess" ? "" : (d.itemId || ""),
       allocationMethod: existing?.allocationMethod || "",
       paid: d.paid,
       paymentRef: d.paymentRef || "",

@@ -1546,7 +1546,7 @@ function StepPsw({
   }
 
   function addDutyForItem(itemId: string) {
-    const itemDuties = duties.filter(d => d.itemId === itemId)
+    const itemDuties = duties.filter(d => d.itemId === itemId && d.category !== "cess")
     const n = itemDuties.length + 1
     const row: CustomsDutyEntry = {
       id: newId(),
@@ -1562,20 +1562,56 @@ function StepPsw({
     setDuties([...duties, row])
   }
 
+  function addCessDuty() {
+    const cessDuties = duties.filter(d => d.category === "cess")
+    const n = cessDuties.length + 1
+    const row: CustomsDutyEntry = {
+      id: newId(),
+      name: `Cess ${n}`,
+      category: "cess",
+      amount: 0,
+      currency: "PKR",
+      description: "",
+      itemId: "",
+      paid: false,
+      paymentRef: "",
+    }
+    setDuties([...duties, row])
+  }
+
   function updateDuty(id: string, p: Partial<CustomsDutyEntry>) {
-    setDuties(duties.map(d => d.id === id ? { ...d, ...p } : d))
+    setDuties(duties.map(d => {
+      if (d.id !== id) return d
+      const next = { ...d, ...p }
+      // Cess rows stay shared (no item link)
+      if (next.category === "cess") next.itemId = ""
+      return next
+    }))
   }
 
   function removeDuty(id: string) {
     const removed = duties.find(d => d.id === id)
     const next = duties.filter(d => d.id !== id)
-    if (!removed?.itemId) {
+    if (!removed) {
+      setDuties(next)
+      return
+    }
+    if (removed.category === "cess") {
+      let i = 0
+      setDuties(next.map(d => {
+        if (d.category !== "cess") return d
+        i += 1
+        return d.name.match(/^Cess \d+$/) ? { ...d, name: `Cess ${i}` } : d
+      }))
+      return
+    }
+    if (!removed.itemId) {
       setDuties(next)
       return
     }
     let i = 0
     setDuties(next.map(d => {
-      if (d.itemId !== removed.itemId) return d
+      if (d.itemId !== removed.itemId || d.category === "cess") return d
       i += 1
       return d.name.match(/^Duty \d+$/) ? { ...d, name: `Duty ${i}` } : d
     }))
@@ -1609,7 +1645,10 @@ function StepPsw({
     setSros(gdSros.filter(s => s.id !== id))
   }
 
-  const orphanDuties = duties.filter(d => !d.itemId || !items.some(i => i.id === d.itemId))
+  const cessDuties = duties.filter(d => d.category === "cess")
+  const orphanDuties = duties.filter(d =>
+    d.category !== "cess" && (!d.itemId || !items.some(i => i.id === d.itemId)),
+  )
   const orphanSros = gdSros.filter(s => !s.itemId || !items.some(i => i.id === s.itemId))
 
   return (
@@ -1688,7 +1727,7 @@ function StepPsw({
         ) : (
           <div className="space-y-3">
             {items.map((item, itemIdx) => {
-              const itemDuties = duties.filter(d => d.itemId === item.id)
+              const itemDuties = duties.filter(d => d.itemId === item.id && d.category !== "cess")
               const itemSros = gdSros.filter(s => s.itemId === item.id)
               const sroDraft = sroDraftByItem[item.id] || { code: "", title: "" }
               const label = item.description || item.sku || item.hsCode || `Item ${itemIdx + 1}`
@@ -1890,6 +1929,71 @@ function StepPsw({
                     <Trash2 className="h-3 w-3" />
                   </button>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Cess duties (shared across all items)">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Add as many cess lines as needed. Each is shared and split across all invoice items in landed cost.
+          </p>
+          {!readOnly && (
+            <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={addCessDuty}>
+              <Plus className="h-3 w-3 mr-1" /> Add cess
+            </Button>
+          )}
+        </div>
+        {cessDuties.length === 0 ? (
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] border border-dashed rounded px-2 py-2 text-center">
+            No cess duties yet.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {cessDuties.map((d, idx) => (
+              <div key={d.id} className="rounded border p-2 space-y-1.5 bg-[hsl(var(--muted))]/10">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold">{d.name || `Cess ${idx + 1}`}</p>
+                  {!readOnly && (
+                    <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeDuty(d.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  <Field label="Label">
+                    <input disabled={readOnly} value={d.name} onChange={e => updateDuty(d.id, { name: e.target.value })} className={inputCls} />
+                  </Field>
+                  <Field label="Amount">
+                    <input
+                      disabled={readOnly}
+                      type="number"
+                      step="0.01"
+                      value={d.amount || ""}
+                      onChange={e => updateDuty(d.id, { amount: Number(e.target.value) || 0 })}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label="Currency">
+                    <select disabled={readOnly} value={d.currency} onChange={e => updateDuty(d.id, { currency: e.target.value })} className={inputCls}>
+                      {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Shared">
+                    <input disabled className={inputCls} value="All items" readOnly />
+                  </Field>
+                  <Field label="Description" className="sm:col-span-4">
+                    <input
+                      disabled={readOnly}
+                      value={d.description}
+                      onChange={e => updateDuty(d.id, { description: e.target.value })}
+                      className={inputCls}
+                      placeholder="Optional note"
+                    />
+                  </Field>
+                </div>
               </div>
             ))}
           </div>
