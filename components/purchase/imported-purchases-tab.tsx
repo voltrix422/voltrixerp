@@ -1,9 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
+import { createPortal } from "react-dom"
 import {
   Plus, Search, Loader2, Ship, ArrowLeft, Trash2, Lock, Calculator,
   ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked, Hash,
+  Maximize2, Minimize2, PanelsTopLeft,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,10 +28,13 @@ import {
   applyLandedCostToItems,
   calculateLandedCost,
   chargeAmountPkr,
+  chargeBaseAmountPkr,
+  chargeTaxesPkr,
   deleteImportShipment,
   emptyShipment,
   formatPkr,
   getImportShipments,
+  importDisplayName,
   loadAgentLibrary,
   loadSroLibrary,
   newId,
@@ -47,6 +52,7 @@ import {
   type ClearingAgent,
   type CustomsDutyEntry,
   type ImportCharge,
+  type ImportChargeTax,
   type ImportContainer,
   type ImportItem,
   type ImportShipment,
@@ -105,6 +111,8 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<ImportShipment | null>(null)
   const [draft, setDraft] = useState<ImportShipment | null>(null)
+  const [viewMode, setViewMode] = useState<"compact" | "full">("compact")
+  const [pendingOpen, setPendingOpen] = useState<ImportShipment | null>(null)
   const [showHelp, setShowHelp] = useState(false)
   const [sroDrawerOpen, setSroDrawerOpen] = useState(false)
   const [sroLibrary, setSroLibrary] = useState<ImportSro[]>([])
@@ -199,11 +207,10 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
       id: "",
       shipmentNumber: "(auto)",
     }
-    setSelected(local)
-    setDraft(local)
+    setPendingOpen(local)
   }
 
-  function openExisting(s: ImportShipment) {
+  function loadShipmentDraft(s: ImportShipment) {
     const step = normalizeImportStep(s.currentStep)
     setSelected(s)
     setDraft({
@@ -218,6 +225,33 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
       gdSros: [...(s.gdSros || [])],
     })
   }
+
+  function openExisting(s: ImportShipment) {
+    setPendingOpen(s)
+  }
+
+  function confirmOpenView(mode: "compact" | "full") {
+    if (!pendingOpen) return
+    setViewMode(mode)
+    loadShipmentDraft(pendingOpen)
+    setPendingOpen(null)
+  }
+
+  function closeShipment() {
+    setSelected(null)
+    setDraft(null)
+    setViewMode("compact")
+    void load()
+  }
+
+  useEffect(() => {
+    if (viewMode !== "full" || !selected) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [viewMode, selected])
 
   function patch(p: Partial<ImportShipment>) {
     setDraft(d => (d ? { ...d, ...p } : d))
@@ -245,7 +279,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
       })
       setSelected(saved)
       await load()
-      toast({ type: "success", title: "Saved", message: saved.shipmentNumber })
+      toast({ type: "success", title: "Saved", message: importDisplayName(saved) })
       return saved
     } catch (e) {
       toast({
@@ -281,35 +315,96 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
     })
     if (!ok) return
     await deleteImportShipment(id)
-    setSelected(null)
-    setDraft(null)
-    await load()
+    closeShipment()
     toast({ type: "success", title: "Deleted" })
   }
 
-  if (selected && draft) {
+  const detailProps = selected && draft ? {
+    draft,
+    patch,
+    setDraft,
+    saving,
+    onBack: closeShipment,
+    onSave: () => void persist(),
+    onPersist: persist,
+    onStep: goStep,
+    onDelete: draft.id ? () => void handleDelete(draft.id) : undefined,
+    importedSuppliers,
+    purchaseScopeId,
+    onSuppliersRefresh: refreshSuppliers,
+    agentLibrary,
+    onAgentsChange: persistAgents,
+    userName: user?.name || user?.email || "",
+    sroLibrary,
+    onAddSroToLibrary: addSroToLibrary,
+    onOpenSroLibrary: () => setSroDrawerOpen(true),
+    viewMode,
+    onViewModeChange: setViewMode,
+  } as const : null
+
+  if (selected && draft && detailProps && viewMode === "compact") {
     return (
       <>
-        <ShipmentDetail
-          draft={draft}
-          patch={patch}
-          setDraft={setDraft}
-          saving={saving}
-          onBack={() => { setSelected(null); setDraft(null); void load() }}
-          onSave={() => void persist()}
-          onPersist={persist}
-          onStep={goStep}
-          onDelete={draft.id ? () => void handleDelete(draft.id) : undefined}
-          importedSuppliers={importedSuppliers}
-          purchaseScopeId={purchaseScopeId}
-          onSuppliersRefresh={refreshSuppliers}
-          agentLibrary={agentLibrary}
-          onAgentsChange={persistAgents}
-          userName={user?.name || user?.email || ""}
+        <ShipmentDetail {...detailProps} />
+        <ImportSroDrawer
+          open={sroDrawerOpen}
+          onClose={() => setSroDrawerOpen(false)}
           sroLibrary={sroLibrary}
-          onAddSroToLibrary={addSroToLibrary}
-          onOpenSroLibrary={() => setSroDrawerOpen(true)}
+          onAdd={addSroToLibrary}
+          onRemove={removeSroFromLibrary}
         />
+        {pendingOpen && (
+          <ImportOpenViewChooser
+            shipment={pendingOpen}
+            onChoose={confirmOpenView}
+            onCancel={() => setPendingOpen(null)}
+          />
+        )}
+      </>
+    )
+  }
+
+  if (selected && draft && detailProps && viewMode === "full") {
+    return (
+      <>
+        {typeof document !== "undefined" && createPortal(
+          <div className="fixed inset-0 z-[90] bg-[hsl(var(--background))] flex flex-col">
+            <div className="shrink-0 border-b px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 bg-[hsl(var(--card))]">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold truncate">Import focus mode</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                  Sidebar hidden · wider workspace for editing
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={`h-8 text-xs ${btnHover}`}
+                  onClick={() => setViewMode("compact")}
+                >
+                  <Minimize2 className="h-3.5 w-3.5 mr-1" /> Compact
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={`h-8 text-xs ${btnHover}`}
+                  onClick={closeShipment}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Close
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <div className="max-w-[1680px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+                <ShipmentDetail {...detailProps} />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
         <ImportSroDrawer
           open={sroDrawerOpen}
           onClose={() => setSroDrawerOpen(false)}
@@ -323,6 +418,13 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
 
   return (
     <div className="p-3 sm:p-4 pt-3 space-y-3">
+      {pendingOpen && (
+        <ImportOpenViewChooser
+          shipment={pendingOpen}
+          onChoose={confirmOpenView}
+          onCancel={() => setPendingOpen(null)}
+        />
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
         <div>
           <h2 className="text-sm font-semibold flex items-center gap-2">
@@ -405,7 +507,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
-                  <th className="px-2.5 py-1.5 font-semibold">Import ID</th>
+                  <th className="px-2.5 py-1.5 font-semibold">Import</th>
                   <th className="px-2.5 py-1.5 font-semibold">Supplier</th>
                   <th className="px-2.5 py-1.5 font-semibold">Containers</th>
                   <th className="px-2.5 py-1.5 font-semibold">B/L · GD</th>
@@ -419,6 +521,8 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
                   const summary = s.landedCostSummary as LandedCostSummary
                   const total = summary?.grandTotalPkr
                   const step = normalizeImportStep(s.currentStep)
+                  const title = importDisplayName(s)
+                  const hasBl = !!String(s.blNumber || "").trim()
                   return (
                     <tr
                       key={s.id}
@@ -428,10 +532,10 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
                       <td className="px-2.5 py-2">
                         <p className="font-mono text-[11px] font-semibold flex items-center gap-1">
                           <Hash className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
-                          {s.shipmentNumber}
+                          {title}
                         </p>
                         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                          Step {step}/{IMPORT_STEP_COUNT}
+                          {hasBl ? `ID ${s.shipmentNumber} · ` : ""}Step {step}/{IMPORT_STEP_COUNT}
                         </p>
                       </td>
                       <td className="px-2.5 py-2">
@@ -475,6 +579,86 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   )
 }
 
+function ImportOpenViewChooser({
+  shipment,
+  onChoose,
+  onCancel,
+}: {
+  shipment: ImportShipment
+  onChoose: (mode: "compact" | "full") => void
+  onCancel: () => void
+}) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onCancel])
+
+  const isNew = !shipment.id || shipment.shipmentNumber === "(auto)"
+  const title = isNew ? "New import" : importDisplayName(shipment)
+  const idLabel = isNew ? "ID on first save" : shipment.shipmentNumber
+
+  if (!mounted) return null
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Open import view"
+    >
+      <div
+        className="w-full max-w-md rounded-lg border bg-[hsl(var(--background))] shadow-xl p-4 space-y-3"
+        onClick={e => e.stopPropagation()}
+      >
+        <div>
+          <p className="text-sm font-semibold">Open import</p>
+          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+            <span className="font-mono font-medium text-[hsl(var(--foreground))]">{title}</span>
+            {" · "}{idLabel}
+            {shipment.supplierName ? ` · ${shipment.supplierName}` : ""}
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onChoose("compact")}
+            className={`rounded-md border p-3 text-left cursor-pointer transition-all hover:border-[hsl(var(--foreground))]/40 hover:bg-[hsl(var(--muted))]/30 ${btnHover}`}
+          >
+            <PanelsTopLeft className="h-4 w-4 mb-1.5" />
+            <p className="text-xs font-semibold">Compact view</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-snug">
+              Stay in Purchase with sidebar and tabs — same as before.
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => onChoose("full")}
+            className={`rounded-md border p-3 text-left cursor-pointer transition-all hover:border-[hsl(var(--foreground))]/40 hover:bg-[hsl(var(--muted))]/30 ${btnHover}`}
+          >
+            <Maximize2 className="h-4 w-4 mb-1.5" />
+            <p className="text-xs font-semibold">Full view</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-snug">
+              Focus mode — hide sidebar, wider screen for editing steps.
+            </p>
+          </button>
+        </div>
+        <div className="flex justify-end">
+          <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 function ShipmentDetail({
   draft,
   patch,
@@ -494,6 +678,8 @@ function ShipmentDetail({
   sroLibrary,
   onAddSroToLibrary,
   onOpenSroLibrary,
+  viewMode = "compact",
+  onViewModeChange,
 }: {
   draft: ImportShipment
   patch: (p: Partial<ImportShipment>) => void
@@ -513,42 +699,80 @@ function ShipmentDetail({
   sroLibrary: ImportSro[]
   onAddSroToLibrary: (partial?: Partial<ImportSro>) => void
   onOpenSroLibrary: () => void
+  viewMode?: "compact" | "full"
+  onViewModeChange?: (mode: "compact" | "full") => void
 }) {
   const locked = draft.landedCostLocked
   const step = normalizeImportStep(draft.currentStep || 1)
   const readOnly = locked && step < 6
   const [helpOpen, setHelpOpen] = useState(false)
   const isNew = !draft.id || draft.shipmentNumber === "(auto)"
+  const displayName = isNew ? "New import" : importDisplayName(draft)
+  const hasBl = !!String(draft.blNumber || "").trim()
+  const isFull = viewMode === "full"
 
   return (
-    <div className="p-3 sm:p-4 pt-3 space-y-3">
+    <div
+      className={
+        isFull
+          ? "space-y-4 [&_label]:text-[11px] [&_input]:h-9 [&_input]:text-sm [&_select]:h-9 [&_select]:text-sm [&_textarea]:text-sm [&_table]:text-sm"
+          : "p-3 sm:p-4 pt-3 space-y-3"
+      }
+    >
       <div className="flex flex-col sm:flex-row sm:items-start gap-2 justify-between">
         <div className="flex items-start gap-1.5 min-w-0">
-          <Button type="button" variant="ghost" size="sm" className={`h-7 px-1.5 shrink-0 ${btnHover}`} onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          {!isFull && (
+            <Button type="button" variant="ghost" size="sm" className={`h-7 px-1.5 shrink-0 ${btnHover}`} onClick={onBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
-              <p className="font-mono text-xs font-semibold flex items-center gap-1">
+              <p className={`font-mono font-semibold flex items-center gap-1 ${isFull ? "text-sm sm:text-base" : "text-xs"}`}>
                 <Hash className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-                {isNew ? "New import" : draft.shipmentNumber}
+                {displayName}
               </p>
               <Badge variant="outline" className="text-[9px] h-5 font-mono">
                 {isNew ? "ID on first save" : `ID ${draft.shipmentNumber}`}
               </Badge>
+              {hasBl && (
+                <Badge variant="secondary" className="text-[9px] h-5">
+                  Named by B/L
+                </Badge>
+              )}
+              {isFull && (
+                <Badge variant="outline" className="text-[9px] h-5">
+                  Full view
+                </Badge>
+              )}
             </div>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+            <p className={`text-[hsl(var(--muted-foreground))] truncate ${isFull ? "text-xs" : "text-[10px]"}`}>
               {draft.supplierName || "Untitled"} · {STATUS_LABELS[draft.status]}
               {locked ? " · cost locked" : ""}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          {onViewModeChange && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} ${btnHover}`}
+              onClick={() => onViewModeChange(isFull ? "compact" : "full")}
+            >
+              {isFull ? (
+                <><Minimize2 className="h-3 w-3 mr-1" /> Compact</>
+              ) : (
+                <><Maximize2 className="h-3 w-3 mr-1" /> Full view</>
+              )}
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className={`h-7 text-[11px] ${btnHover}`}
+            className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} ${btnHover}`}
             onClick={onOpenSroLibrary}
           >
             <BookMarked className="h-3 w-3 mr-1" /> SRO library
@@ -557,17 +781,17 @@ function ShipmentDetail({
             type="button"
             variant={helpOpen ? "secondary" : "outline"}
             size="sm"
-            className={`h-7 text-[11px] ${btnHover}`}
+            className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} ${btnHover}`}
             onClick={() => setHelpOpen(v => !v)}
           >
             <HelpCircle className="h-3 w-3 mr-1" /> Help
           </Button>
           {onDelete && (
-            <Button type="button" variant="outline" size="sm" className={`h-7 text-[11px] text-red-600 ${btnHover}`} onClick={onDelete}>
+            <Button type="button" variant="outline" size="sm" className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} text-red-600 ${btnHover}`} onClick={onDelete}>
               <Trash2 className="h-3 w-3 mr-1" /> Delete
             </Button>
           )}
-          <Button type="button" size="sm" className={`h-7 text-[11px] ${btnHover}`} disabled={saving} onClick={onSave}>
+          <Button type="button" size="sm" className={`${isFull ? "h-8 text-xs" : "h-7 text-[11px]"} ${btnHover}`} disabled={saving} onClick={onSave}>
             {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
             Save
           </Button>
@@ -585,7 +809,9 @@ function ShipmentDetail({
               key={s.step}
               type="button"
               onClick={() => onStep(s.step)}
-              className={`shrink-0 px-2 py-1 rounded text-[10px] font-medium border cursor-pointer transition-all duration-150 hover:shadow-sm ${
+              className={`shrink-0 rounded font-medium border cursor-pointer transition-all duration-150 hover:shadow-sm ${
+                isFull ? "px-3 py-1.5 text-xs" : "px-2 py-1 text-[10px]"
+              } ${
                 active
                   ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-transparent"
                   : done
@@ -593,7 +819,7 @@ function ShipmentDetail({
                     : "bg-transparent text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/30"
               }`}
             >
-              {s.step}. {s.short}
+              {s.step}. {isFull ? s.title : s.short}
             </button>
           )
         })}
@@ -654,7 +880,7 @@ function ShipmentDetail({
           type="button"
           variant="outline"
           size="sm"
-          className={`h-7 text-[11px] ${btnHover}`}
+          className={`${isFull ? "h-9 text-xs px-4" : "h-7 text-[11px]"} ${btnHover}`}
           disabled={step <= 1}
           onClick={() => onStep(step - 1)}
         >
@@ -663,7 +889,7 @@ function ShipmentDetail({
         <Button
           type="button"
           size="sm"
-          className={`h-7 text-[11px] ${btnHover}`}
+          className={`${isFull ? "h-9 text-xs px-4" : "h-7 text-[11px]"} ${btnHover}`}
           disabled={step >= IMPORT_STEP_COUNT || saving}
           onClick={async () => {
             await onPersist({
@@ -975,7 +1201,13 @@ function StepBasics({
       <Section title="Shipping · Bill of Lading & vessel">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           <Field label="B/L number">
-            <input disabled={readOnly} value={draft.blNumber} onChange={e => patch({ blNumber: e.target.value })} className={inputCls} />
+            <input
+              disabled={readOnly}
+              value={draft.blNumber}
+              onChange={e => patch({ blNumber: e.target.value })}
+              className={inputCls}
+              placeholder="Becomes import name when set"
+            />
           </Field>
           <Field label="Vessel name">
             <input disabled={readOnly} value={draft.vesselName} onChange={e => patch({ vesselName: e.target.value })} className={inputCls} />
@@ -1695,26 +1927,47 @@ function StepCharges({
   const fx = Number(draft.fxRate) || 0
   const dutiesTotalPkr = sumChargesPkr(dutySynced, fx)
   const chargesSubtotalPkr = sumChargesPkr(charges, fx)
+  const gstMode: "percent" | "amount" =
+    gstCharge?.gstMode || (Number(gstCharge?.gstPercent) > 0 ? "percent" : "amount")
   const gstPercent = Number(gstCharge?.gstPercent) || 0
-  const gstEnabled = !!gstCharge && gstPercent > 0
-  const gstAmountPkr = gstEnabled ? Math.round((chargesSubtotalPkr * gstPercent) / 100) : 0
+  const gstAmountPkr = !gstCharge
+    ? 0
+    : gstMode === "percent" && gstPercent > 0
+      ? Math.round((chargesSubtotalPkr * gstPercent) / 100)
+      : Number(gstCharge.amount) || 0
   const grandTotalPkr = chargesSubtotalPkr + gstAmountPkr + dutiesTotalPkr
 
   function applyGst(next: ImportCharge[]): ImportCharge[] {
     const gst = next.find(c => c.category === "gst_on_charges" && !c.fromDutyId)
     const rest = next.filter(c => c.category !== "gst_on_charges" || c.fromDutyId)
-    if (!gst || !(Number(gst.gstPercent) > 0)) return rest
-    const base = sumChargesPkr(rest.filter(c => !c.fromDutyId), fx)
-    const percent = Number(gst.gstPercent) || 0
-    const amount = Math.round((base * percent) / 100)
+    if (!gst) return rest
+    const mode = gst.gstMode || (Number(gst.gstPercent) > 0 ? "percent" : "amount")
+    if (mode === "percent") {
+      const percent = Number(gst.gstPercent) || 0
+      if (percent <= 0) return rest
+      const base = sumChargesPkr(rest.filter(c => !c.fromDutyId), fx)
+      const amount = Math.round((base * percent) / 100)
+      return [
+        ...rest,
+        {
+          ...gst,
+          gstMode: "percent",
+          amount,
+          currency: "PKR",
+          isShared: true,
+          description: `GST on charges (${percent}%)`,
+        },
+      ]
+    }
     return [
       ...rest,
       {
         ...gst,
-        amount,
+        gstMode: "amount",
+        gstPercent: 0,
         currency: "PKR",
         isShared: true,
-        description: `GST on charges (${percent}%)`,
+        description: gst.description || "GST on charges",
       },
     ]
   }
@@ -1744,6 +1997,7 @@ function StepCharges({
       transportTo: "",
       proofUrl: "",
       proofName: "",
+      taxes: [],
       ...partial,
     }
     setCharges([...allCharges, c])
@@ -1757,18 +2011,46 @@ function StepCharges({
     setCharges(allCharges.filter(c => c.id !== id))
   }
 
-  function syncGst(percent: number, enabled: boolean) {
+  function addTax(chargeId: string) {
+    const tax: ImportChargeTax = { id: newId(), label: "", amount: 0 }
+    const row = allCharges.find(c => c.id === chargeId)
+    updateCharge(chargeId, { taxes: [...(row?.taxes || []), tax] })
+  }
+
+  function updateTax(chargeId: string, taxId: string, p: Partial<ImportChargeTax>) {
+    const row = allCharges.find(c => c.id === chargeId)
+    if (!row) return
+    updateCharge(chargeId, {
+      taxes: (row.taxes || []).map(t => t.id === taxId ? { ...t, ...p } : t),
+    })
+  }
+
+  function removeTax(chargeId: string, taxId: string) {
+    const row = allCharges.find(c => c.id === chargeId)
+    if (!row) return
+    updateCharge(chargeId, { taxes: (row.taxes || []).filter(t => t.id !== taxId) })
+  }
+
+  function setGst(opts: {
+    enabled: boolean
+    mode?: "percent" | "amount"
+    percent?: number
+    amount?: number
+  }) {
     const others = allCharges.filter(c => c.category !== "gst_on_charges" || c.fromDutyId)
-    if (!enabled || percent <= 0) {
+    if (!opts.enabled) {
       setDraft(d => d ? { ...d, charges: others.filter(c => c.category !== "gst_on_charges") } : d)
       return
     }
     const existing = allCharges.find(c => c.category === "gst_on_charges" && !c.fromDutyId)
+    const mode = opts.mode || existing?.gstMode || "percent"
+    const percent = opts.percent != null ? opts.percent : (Number(existing?.gstPercent) || 18)
+    const amount = opts.amount != null ? opts.amount : (Number(existing?.amount) || 0)
     const gstRow: ImportCharge = {
       id: existing?.id || newId(),
       category: "gst_on_charges",
-      description: `GST on charges (${percent}%)`,
-      amount: 0,
+      description: mode === "percent" ? `GST on charges (${percent}%)` : "GST on charges",
+      amount: mode === "amount" ? amount : 0,
       currency: "PKR",
       fxRate: 0,
       isShared: true,
@@ -1777,9 +2059,11 @@ function StepCharges({
       paid: existing?.paid || false,
       paymentRef: "",
       notes: "",
-      gstPercent: percent,
+      gstMode: mode,
+      gstPercent: mode === "percent" ? percent : 0,
       proofUrl: existing?.proofUrl || "",
       proofName: existing?.proofName || "",
+      taxes: [],
     }
     setCharges([...others, gstRow])
   }
@@ -1801,7 +2085,7 @@ function StepCharges({
         <div>
           <p className="text-xs font-semibold">All landing charges</p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            Shared split across items · direct to one item. PSW duties listed below are read-only here.
+            Shared split across items · direct to one item. Add named taxes per charge. PSW duties are read-only here.
           </p>
         </div>
         {!readOnly && (
@@ -1851,136 +2135,190 @@ function StepCharges({
         <div className="space-y-1.5">
           {charges.map(c => {
             const isTransport = TRANSPORT_CHARGE_CATEGORIES.includes(c.category)
+            const taxes = c.taxes || []
+            const taxTotal = chargeTaxesPkr(c)
             return (
-              <div key={c.id} className="rounded border p-2 grid grid-cols-2 sm:grid-cols-6 gap-1.5">
-                <Field label="Type" className="sm:col-span-2">
-                  <select
-                    disabled={readOnly}
-                    value={c.category}
-                    onChange={e => {
-                      const cat = e.target.value as ChargeCategory
-                      const meta = CHARGE_CATEGORIES.find(x => x.value === cat)
-                      updateCharge(c.id, {
-                        category: cat,
-                        description: c.description || meta?.label || "",
-                        isShared: meta?.typicallyShared ?? c.isShared,
-                      })
-                    }}
-                    className={inputCls}
-                  >
-                    {CHARGE_CATEGORIES.filter(x => x.value !== "gst_on_charges").map(x => (
-                      <option key={x.value} value={x.value}>{x.label}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Amount">
-                  <input disabled={readOnly} type="number" step="0.01" value={c.amount || ""} onChange={e => updateCharge(c.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
-                </Field>
-                <Field label="Currency">
-                  <select disabled={readOnly} value={c.currency} onChange={e => updateCharge(c.id, { currency: e.target.value })} className={inputCls}>
-                    {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
-                  </select>
-                </Field>
-                <Field label="FX (if foreign)">
-                  <input disabled={readOnly || c.currency === "PKR"} type="number" step="0.01" value={c.fxRate || ""} onChange={e => updateCharge(c.id, { fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="shipment FX" />
-                </Field>
-                <Field label="Shared?">
-                  <select
-                    disabled={readOnly}
-                    value={c.isShared ? "shared" : "direct"}
-                    onChange={e => updateCharge(c.id, { isShared: e.target.value === "shared" })}
-                    className={inputCls}
-                  >
-                    <option value="shared">Shared</option>
-                    <option value="direct">Direct</option>
-                  </select>
-                </Field>
-                {!c.isShared && (
-                  <Field label="Item" className="sm:col-span-2">
-                    <select disabled={readOnly} value={c.itemId || ""} onChange={e => updateCharge(c.id, { itemId: e.target.value })} className={inputCls}>
-                      <option value="">Select item…</option>
-                      {items.map(i => (
-                        <option key={i.id} value={i.id}>{i.description || i.sku || i.id}</option>
+              <div key={c.id} className="rounded border p-2 space-y-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5">
+                  <Field label="Type" className="sm:col-span-2">
+                    <select
+                      disabled={readOnly}
+                      value={c.category}
+                      onChange={e => {
+                        const cat = e.target.value as ChargeCategory
+                        const meta = CHARGE_CATEGORIES.find(x => x.value === cat)
+                        updateCharge(c.id, {
+                          category: cat,
+                          description: c.description || meta?.label || "",
+                          isShared: meta?.typicallyShared ?? c.isShared,
+                        })
+                      }}
+                      className={inputCls}
+                    >
+                      {CHARGE_CATEGORIES.filter(x => x.value !== "gst_on_charges").map(x => (
+                        <option key={x.value} value={x.value}>{x.label}</option>
                       ))}
                     </select>
                   </Field>
-                )}
-                {isTransport && (
-                  <>
-                    <Field label="From">
-                      <input
-                        disabled={readOnly}
-                        value={c.transportFrom || ""}
-                        onChange={e => updateCharge(c.id, { transportFrom: e.target.value })}
-                        className={inputCls}
-                        placeholder="Origin / pickup"
-                      />
+                  <Field label="Amount">
+                    <input disabled={readOnly} type="number" step="0.01" value={c.amount || ""} onChange={e => updateCharge(c.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
+                  </Field>
+                  <Field label="Currency">
+                    <select disabled={readOnly} value={c.currency} onChange={e => updateCharge(c.id, { currency: e.target.value })} className={inputCls}>
+                      {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="FX (if foreign)">
+                    <input disabled={readOnly || c.currency === "PKR"} type="number" step="0.01" value={c.fxRate || ""} onChange={e => updateCharge(c.id, { fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="shipment FX" />
+                  </Field>
+                  <Field label="Shared?">
+                    <select
+                      disabled={readOnly}
+                      value={c.isShared ? "shared" : "direct"}
+                      onChange={e => updateCharge(c.id, { isShared: e.target.value === "shared" })}
+                      className={inputCls}
+                    >
+                      <option value="shared">Shared</option>
+                      <option value="direct">Direct</option>
+                    </select>
+                  </Field>
+                  {!c.isShared && (
+                    <Field label="Item" className="sm:col-span-2">
+                      <select disabled={readOnly} value={c.itemId || ""} onChange={e => updateCharge(c.id, { itemId: e.target.value })} className={inputCls}>
+                        <option value="">Select item…</option>
+                        {items.map(i => (
+                          <option key={i.id} value={i.id}>{i.description || i.sku || i.id}</option>
+                        ))}
+                      </select>
                     </Field>
-                    <Field label="To">
-                      <input
-                        disabled={readOnly}
-                        value={c.transportTo || ""}
-                        onChange={e => updateCharge(c.id, { transportTo: e.target.value })}
-                        className={inputCls}
-                        placeholder="Destination"
-                      />
-                    </Field>
-                  </>
-                )}
-                <Field label="Description" className="sm:col-span-2">
-                  <input disabled={readOnly} value={c.description} onChange={e => updateCharge(c.id, { description: e.target.value })} className={inputCls} />
-                </Field>
-                <Field label="Attachment (screenshot / PDF)" className="sm:col-span-2">
-                  <div className="flex items-center gap-1.5 min-h-7">
-                    {c.proofUrl ? (
-                      <a href={c.proofUrl} target="_blank" rel="noreferrer" className="text-[10px] underline truncate max-w-[140px]">
-                        {c.proofName || "View file"}
-                      </a>
-                    ) : (
-                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">No file</span>
-                    )}
-                    {!readOnly && (
-                      <>
+                  )}
+                  {isTransport && (
+                    <>
+                      <Field label="From">
                         <input
-                          type="file"
-                          id={`charge-proof-${c.id}`}
-                          accept="image/*,.pdf"
-                          className="hidden"
-                          onChange={e => {
-                            void uploadProof(c.id, e.target.files?.[0] || null)
-                            e.target.value = ""
-                          }}
+                          disabled={readOnly}
+                          value={c.transportFrom || ""}
+                          onChange={e => updateCharge(c.id, { transportFrom: e.target.value })}
+                          className={inputCls}
+                          placeholder="Origin / pickup"
                         />
-                        <label htmlFor={`charge-proof-${c.id}`} className="cursor-pointer">
-                          <span className={`${chipHover} inline-block`}>
-                            {uploadingProofId === c.id ? "…" : c.proofUrl ? "Replace" : "Attach"}
-                          </span>
-                        </label>
-                        {c.proofUrl && (
-                          <button
-                            type="button"
-                            className="text-[10px] text-red-600 cursor-pointer"
-                            onClick={() => updateCharge(c.id, { proofUrl: "", proofName: "" })}
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </>
+                      </Field>
+                      <Field label="To">
+                        <input
+                          disabled={readOnly}
+                          value={c.transportTo || ""}
+                          onChange={e => updateCharge(c.id, { transportTo: e.target.value })}
+                          className={inputCls}
+                          placeholder="Destination"
+                        />
+                      </Field>
+                    </>
+                  )}
+                  <Field label="Description" className="sm:col-span-2">
+                    <input disabled={readOnly} value={c.description} onChange={e => updateCharge(c.id, { description: e.target.value })} className={inputCls} />
+                  </Field>
+                  <Field label="Attachment (screenshot / PDF)" className="sm:col-span-2">
+                    <div className="flex items-center gap-1.5 min-h-7">
+                      {c.proofUrl ? (
+                        <a href={c.proofUrl} target="_blank" rel="noreferrer" className="text-[10px] underline truncate max-w-[140px]">
+                          {c.proofName || "View file"}
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">No file</span>
+                      )}
+                      {!readOnly && (
+                        <>
+                          <input
+                            type="file"
+                            id={`charge-proof-${c.id}`}
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            onChange={e => {
+                              void uploadProof(c.id, e.target.files?.[0] || null)
+                              e.target.value = ""
+                            }}
+                          />
+                          <label htmlFor={`charge-proof-${c.id}`} className="cursor-pointer">
+                            <span className={`${chipHover} inline-block`}>
+                              {uploadingProofId === c.id ? "…" : c.proofUrl ? "Replace" : "Attach"}
+                            </span>
+                          </label>
+                          {c.proofUrl && (
+                            <button
+                              type="button"
+                              className="text-[10px] text-red-600 cursor-pointer"
+                              onClick={() => updateCharge(c.id, { proofUrl: "", proofName: "" })}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </Field>
+                  <div className="flex items-end gap-2 sm:col-span-2">
+                    <label className="flex items-center gap-1 text-[11px] h-7">
+                      <input disabled={readOnly} type="checkbox" checked={c.paid} onChange={e => updateCharge(c.id, { paid: e.target.checked })} />
+                      Paid
+                    </label>
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))] self-center">
+                      {formatPkr(chargeAmountPkr(c, fx))}
+                      {taxTotal > 0 ? (
+                        <span className="ml-1">(base {formatPkr(chargeBaseAmountPkr(c, fx))})</span>
+                      ) : null}
+                    </span>
+                    {!readOnly && (
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px] text-red-600 ml-auto" onClick={() => removeCharge(c.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     )}
                   </div>
-                </Field>
-                <div className="flex items-end gap-2 sm:col-span-2">
-                  <label className="flex items-center gap-1 text-[11px] h-7">
-                    <input disabled={readOnly} type="checkbox" checked={c.paid} onChange={e => updateCharge(c.id, { paid: e.target.checked })} />
-                    Paid
-                  </label>
-                  <span className="text-[10px] text-[hsl(var(--muted-foreground))] self-center">
-                    {formatPkr(chargeAmountPkr(c, fx))}
-                  </span>
-                  {!readOnly && (
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px] text-red-600 ml-auto" onClick={() => removeCharge(c.id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                </div>
+
+                <div className="rounded border border-dashed px-2 py-1.5 space-y-1.5 bg-[hsl(var(--muted))]/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      Taxes on this charge
+                    </p>
+                    {!readOnly && (
+                      <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => addTax(c.id)}>
+                        <Plus className="h-3 w-3 mr-1" /> Add tax
+                      </Button>
+                    )}
+                  </div>
+                  {taxes.length === 0 ? (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">No separate tax — optional (e.g. sales tax, FED).</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {taxes.map((t, idx) => (
+                        <div key={t.id} className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 items-end">
+                          <Field label={`Tax label ${idx + 1}`} className="sm:col-span-2">
+                            <input
+                              disabled={readOnly}
+                              value={t.label}
+                              onChange={e => updateTax(c.id, t.id, { label: e.target.value })}
+                              className={inputCls}
+                              placeholder="e.g. Sales Tax"
+                            />
+                          </Field>
+                          <Field label="Amount (PKR)" className="sm:col-span-2">
+                            <input
+                              disabled={readOnly}
+                              type="number"
+                              step="0.01"
+                              value={t.amount || ""}
+                              onChange={e => updateTax(c.id, t.id, { amount: Number(e.target.value) || 0 })}
+                              className={inputCls}
+                            />
+                          </Field>
+                          {!readOnly && (
+                            <button type="button" className="h-7 text-red-600 cursor-pointer justify-self-start" onClick={() => removeTax(c.id, t.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -2014,25 +2352,61 @@ function StepCharges({
             <input
               disabled={readOnly}
               type="checkbox"
-              checked={gstEnabled}
-              onChange={e => syncGst(gstPercent || 18, e.target.checked)}
+              checked={!!gstCharge}
+              onChange={e => setGst({
+                enabled: e.target.checked,
+                mode: gstMode || "percent",
+                percent: gstPercent || 18,
+                amount: Number(gstCharge?.amount) || 0,
+              })}
             />
             Add GST on charges
           </label>
-          <Field label="GST %">
-            <input
-              disabled={readOnly || !gstEnabled}
-              type="number"
-              step="0.01"
-              value={gstEnabled ? gstPercent || "" : ""}
-              onChange={e => syncGst(Number(e.target.value) || 0, true)}
-              className={inputCls + " w-20"}
-              placeholder="18"
-            />
+          <Field label="GST mode">
+            <select
+              disabled={readOnly || !gstCharge}
+              value={gstMode}
+              onChange={e => setGst({
+                enabled: true,
+                mode: e.target.value as "percent" | "amount",
+                percent: gstPercent || 18,
+                amount: Number(gstCharge?.amount) || gstAmountPkr || 0,
+              })}
+              className={inputCls + " w-[7.5rem]"}
+            >
+              <option value="percent">Percentage</option>
+              <option value="amount">Amount</option>
+            </select>
           </Field>
-          {gstEnabled && (
+          {gstMode === "percent" ? (
+            <Field label="GST %">
+              <input
+                disabled={readOnly || !gstCharge}
+                type="number"
+                step="0.01"
+                value={gstCharge ? gstPercent || "" : ""}
+                onChange={e => setGst({ enabled: true, mode: "percent", percent: Number(e.target.value) || 0 })}
+                className={inputCls + " w-20"}
+                placeholder="18"
+              />
+            </Field>
+          ) : (
+            <Field label="GST amount (PKR)">
+              <input
+                disabled={readOnly || !gstCharge}
+                type="number"
+                step="0.01"
+                value={gstCharge ? (Number(gstCharge.amount) || "") : ""}
+                onChange={e => setGst({ enabled: true, mode: "amount", amount: Number(e.target.value) || 0 })}
+                className={inputCls + " w-28"}
+                placeholder="0"
+              />
+            </Field>
+          )}
+          {!!gstCharge && (
             <p className="text-[10px] text-[hsl(var(--muted-foreground))] self-center">
-              GST amount {formatPkr(gstAmountPkr)} is included in landed cost.
+              GST {formatPkr(gstAmountPkr)} included in landed cost
+              {gstMode === "percent" ? ` (${gstPercent}% of charges)` : " (fixed amount)"}.
             </p>
           )}
         </div>

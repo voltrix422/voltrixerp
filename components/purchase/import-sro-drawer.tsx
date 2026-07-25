@@ -55,7 +55,7 @@ export function ImportSroDrawer({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex justify-end" role="dialog" aria-modal="true" aria-label="SRO library">
+    <div className="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" aria-label="SRO library">
       <button
         type="button"
         className="absolute inset-0 bg-black/40 backdrop-blur-[1px] cursor-pointer transition-opacity"

@@ -144,6 +144,13 @@ export interface ImportSro {
   itemId?: string
 }
 
+/** Extra tax line on a landing charge (custom label + amount) */
+export interface ImportChargeTax {
+  id: string
+  label: string
+  amount: number
+}
+
 export interface ImportCharge {
   id: string
   category: ChargeCategory
@@ -169,7 +176,11 @@ export interface ImportCharge {
   /** Payment / invoice proof (screenshot, PDF, etc.) */
   proofUrl?: string
   proofName?: string
-  /** GST % when category is gst_on_charges (amount is derived) */
+  /** Named taxes on this charge (included in landed cost) */
+  taxes?: ImportChargeTax[]
+  /** For gst_on_charges: percent of charges subtotal, or fixed amount */
+  gstMode?: "percent" | "amount"
+  /** GST % when gstMode is percent (amount is derived) */
   gstPercent?: number
 }
 
@@ -396,11 +407,28 @@ export const INCOTERMS = ["EXW", "FOB", "CFR", "CIF", "CIP", "DAP", "DDP"] as co
 export const CURRENCIES = ["USD", "CNY", "EUR", "GBP", "AED", "PKR"] as const
 export const CONTAINER_SIZES = ["20ft", "40ft", "40HC", "45HC", "LCL", "Other"] as const
 
-export function chargeAmountPkr(c: ImportCharge, shipmentFx: number): number {
+/** Base charge amount in PKR (excludes nested taxes). */
+export function chargeBaseAmountPkr(c: ImportCharge, shipmentFx: number): number {
   const cur = (c.currency || "PKR").toUpperCase()
   if (cur === "PKR") return Number(c.amount) || 0
   const fx = Number(c.fxRate) > 0 ? Number(c.fxRate) : Number(shipmentFx) || 0
   return (Number(c.amount) || 0) * fx
+}
+
+export function chargeTaxesPkr(c: ImportCharge): number {
+  return (c.taxes || []).reduce((s, t) => s + (Number(t.amount) || 0), 0)
+}
+
+/** Charge + its taxes in PKR (used for landed cost / summaries). */
+export function chargeAmountPkr(c: ImportCharge, shipmentFx: number): number {
+  return chargeBaseAmountPkr(c, shipmentFx) + chargeTaxesPkr(c)
+}
+
+/** Display title: B/L number once set, otherwise system import ID (IMP-…). */
+export function importDisplayName(s: { shipmentNumber?: string; blNumber?: string }): string {
+  const bl = String(s.blNumber || "").trim()
+  if (bl) return bl
+  return String(s.shipmentNumber || "").trim() || "Import"
 }
 
 /** Item weight for allocation: net → legacy kg → gross */
@@ -651,6 +679,7 @@ export function syncDutiesIntoCharges(
       proofName: existing?.proofName || "",
       transportFrom: existing?.transportFrom || "",
       transportTo: existing?.transportTo || "",
+      taxes: existing?.taxes || [],
     }
   })
   return [...nonDuty, ...synced]
