@@ -22,8 +22,10 @@ import {
   INCOTERMS,
   QUICK_ADD_SROS,
   STATUS_LABELS,
+  TRANSPORT_CHARGE_CATEGORIES,
   applyLandedCostToItems,
   calculateLandedCost,
+  chargeAmountPkr,
   deleteImportShipment,
   emptyShipment,
   formatPkr,
@@ -32,10 +34,13 @@ import {
   loadSroLibrary,
   newId,
   normalizeImportStep,
+  parsePsids,
   saveAgentLibrary,
   saveImportShipment,
   saveSroLibrary,
+  serializePsids,
   statusForStep,
+  sumChargesPkr,
   syncDutiesIntoCharges,
   type AllocationMethod,
   type ChargeCategory,
@@ -49,6 +54,7 @@ import {
   type ImportSro,
   type LandedCostSummary,
 } from "@/lib/import-shipment"
+import { uploadFile } from "@/lib/upload"
 import { ImportAttachments } from "@/components/purchase/import-attachments"
 import { ImportShipmentManual } from "@/components/purchase/import-shipment-manual"
 import { ImportSroDrawer } from "@/components/purchase/import-sro-drawer"
@@ -139,7 +145,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
     const q = search.trim().toLowerCase()
     if (!q) return shipments
     return shipments.filter(s =>
-      [s.shipmentNumber, s.supplierName, s.blNumber, s.gdNumber, s.psid, s.pssid, s.contractRef]
+      [s.shipmentNumber, s.supplierName, s.blNumber, s.gdNumber, s.psid, parsePsids(s).join(" "), s.contractRef]
         .join(" ")
         .toLowerCase()
         .includes(q),
@@ -1060,6 +1066,8 @@ function StepInvoice({
       actualPrice: 0,
       declaredPrice: 0,
       assessedPrice: 0,
+      grossWeightKg: 0,
+      netWeightKg: 0,
       weightKg: 0,
       cbm: 0,
       origin: draft.originCountry || "",
@@ -1077,6 +1085,7 @@ function StepInvoice({
           if (i.id !== id) return i
           const next = { ...i, ...p }
           if (p.actualPrice != null) next.unitPriceForeign = Number(p.actualPrice) || 0
+          if (p.netWeightKg != null) next.weightKg = Number(p.netWeightKg) || 0
           return next
         }),
       }
@@ -1159,7 +1168,7 @@ function StepInvoice({
               <p className="text-[10px] text-[hsl(var(--muted-foreground))]">No items yet.</p>
             ) : (
               <div className="overflow-x-auto rounded border">
-                <table className="w-full text-[11px] min-w-[720px]">
+                <table className="w-full text-[11px] min-w-[820px]">
                   <thead>
                     <tr className="bg-[hsl(var(--muted))]/30 text-left text-[9px] text-[hsl(var(--muted-foreground))]">
                       <th className="px-1.5 py-1">Description</th>
@@ -1168,7 +1177,8 @@ function StepInvoice({
                       <th className="px-1.5 py-1">Actual {draft.currency}</th>
                       <th className="px-1.5 py-1">Declared</th>
                       <th className="px-1.5 py-1">Assessed</th>
-                      <th className="px-1.5 py-1">Kg</th>
+                      <th className="px-1.5 py-1">Gross kg</th>
+                      <th className="px-1.5 py-1">Net kg</th>
                       <th className="px-1.5 py-1">CBM</th>
                       <th className="px-1.5 py-1 w-6" />
                     </tr>
@@ -1203,7 +1213,24 @@ function StepInvoice({
                           <input disabled={readOnly} type="number" step="0.01" value={item.assessedPrice || ""} onChange={e => updateItem(item.id, { assessedPrice: Number(e.target.value) || 0 })} className={inputCls + " w-[4.5rem]"} />
                         </td>
                         <td className="px-1.5 py-1">
-                          <input disabled={readOnly} type="number" step="0.01" value={item.weightKg || ""} onChange={e => updateItem(item.id, { weightKg: Number(e.target.value) || 0 })} className={inputCls + " w-14"} />
+                          <input
+                            disabled={readOnly}
+                            type="number"
+                            step="0.01"
+                            value={item.grossWeightKg || ""}
+                            onChange={e => updateItem(item.id, { grossWeightKg: Number(e.target.value) || 0 })}
+                            className={inputCls + " w-16"}
+                          />
+                        </td>
+                        <td className="px-1.5 py-1">
+                          <input
+                            disabled={readOnly}
+                            type="number"
+                            step="0.01"
+                            value={item.netWeightKg || item.weightKg || ""}
+                            onChange={e => updateItem(item.id, { netWeightKg: Number(e.target.value) || 0 })}
+                            className={inputCls + " w-16"}
+                          />
                         </td>
                         <td className="px-1.5 py-1">
                           <input disabled={readOnly} type="number" step="0.001" value={item.cbm || ""} onChange={e => updateItem(item.id, { cbm: Number(e.target.value) || 0 })} className={inputCls + " w-14"} />
@@ -1253,8 +1280,30 @@ function StepPsw({
   const duties = draft.customsDuties || []
   const gdSros = draft.gdSros || []
   const items = draft.items || []
-  const [sroCode, setSroCode] = useState("")
-  const [sroTitle, setSroTitle] = useState("")
+  const psids = useMemo(() => {
+    const list = parsePsids(draft)
+    return list.length > 0 ? list : [""]
+  }, [draft.psid, draft.pssid])
+  const [sroDraftByItem, setSroDraftByItem] = useState<Record<string, { code: string; title: string }>>({})
+
+  function setPsids(next: string[]) {
+    patch(serializePsids(next))
+  }
+
+  function updatePsid(idx: number, value: string) {
+    const next = [...psids]
+    next[idx] = value
+    setPsids(next)
+  }
+
+  function addPsid() {
+    setPsids([...psids, ""])
+  }
+
+  function removePsid(idx: number) {
+    const next = psids.filter((_, i) => i !== idx)
+    setPsids(next.length ? next : [""])
+  }
 
   function setDuties(next: CustomsDutyEntry[]) {
     setDraft(d => {
@@ -1264,16 +1313,17 @@ function StepPsw({
     })
   }
 
-  function addDuty() {
-    const n = duties.length + 1
+  function addDutyForItem(itemId: string) {
+    const itemDuties = duties.filter(d => d.itemId === itemId)
+    const n = itemDuties.length + 1
     const row: CustomsDutyEntry = {
       id: newId(),
-      name: `Customs Duty ${n}`,
+      name: `Duty ${n}`,
       category: n === 1 ? "customs_duty" : "additional_customs_duty",
       amount: 0,
       currency: "PKR",
       description: "",
-      itemId: "",
+      itemId,
       paid: false,
       paymentRef: "",
     }
@@ -1285,51 +1335,60 @@ function StepPsw({
   }
 
   function removeDuty(id: string) {
-    setDuties(duties.filter(d => d.id !== id).map((d, i) => ({
-      ...d,
-      name: d.name.match(/^Customs Duty \d+$/) ? `Customs Duty ${i + 1}` : d.name,
-    })))
-  }
-
-  function addSroToGd(sro: ImportSro) {
-    if (gdSros.some(s => s.code.toLowerCase() === sro.code.toLowerCase())) return
-    patch({ gdSros: [...gdSros, { ...sro, id: newId() }] })
-  }
-
-  function addTypedSro() {
-    const code = sroCode.trim()
-    if (!code) return
-    const row: ImportSro = {
-      id: newId(),
-      code,
-      title: sroTitle.trim(),
-      description: "",
+    const removed = duties.find(d => d.id === id)
+    const next = duties.filter(d => d.id !== id)
+    if (!removed?.itemId) {
+      setDuties(next)
+      return
     }
-    addSroToGd(row)
-    onAddSroToLibrary(row)
-    setSroCode("")
-    setSroTitle("")
+    let i = 0
+    setDuties(next.map(d => {
+      if (d.itemId !== removed.itemId) return d
+      i += 1
+      return d.name.match(/^Duty \d+$/) ? { ...d, name: `Duty ${i}` } : d
+    }))
   }
 
-  function removeGdSro(id: string) {
-    patch({ gdSros: gdSros.filter(s => s.id !== id) })
+  function setSros(next: ImportSro[]) {
+    patch({ gdSros: next })
   }
+
+  function addSroToItem(itemId: string, sro: Omit<ImportSro, "id"> | ImportSro) {
+    const code = sro.code.trim()
+    if (!code) return
+    const exists = gdSros.some(
+      s => s.itemId === itemId && s.code.toLowerCase() === code.toLowerCase(),
+    )
+    if (exists) return
+    setSros([...gdSros, { ...sro, id: newId(), itemId, code, title: sro.title || "", description: sro.description || "" }])
+  }
+
+  function addTypedSroToItem(itemId: string) {
+    const draftSro = sroDraftByItem[itemId] || { code: "", title: "" }
+    const code = draftSro.code.trim()
+    if (!code) return
+    const row = { code, title: draftSro.title.trim(), description: "" }
+    addSroToItem(itemId, row)
+    onAddSroToLibrary(row)
+    setSroDraftByItem(prev => ({ ...prev, [itemId]: { code: "", title: "" } }))
+  }
+
+  function removeSro(id: string) {
+    setSros(gdSros.filter(s => s.id !== id))
+  }
+
+  const orphanDuties = duties.filter(d => !d.itemId || !items.some(i => i.id === d.itemId))
+  const orphanSros = gdSros.filter(s => !s.itemId || !items.some(i => i.id === s.itemId))
 
   return (
     <div className="space-y-3">
-      <Section title="PSW · Goods Declaration & payment IDs">
+      <Section title="PSW · Goods Declaration & payment slips">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           <Field label="GD number">
             <input disabled={readOnly} value={draft.gdNumber} onChange={e => patch({ gdNumber: e.target.value })} className={inputCls} />
           </Field>
           <Field label="GD date">
             <input disabled={readOnly} type="date" value={draft.gdDate} onChange={e => patch({ gdDate: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="PSID (payment slip)">
-            <input disabled={readOnly} value={draft.psid} onChange={e => patch({ psid: e.target.value })} className={inputCls} placeholder="From PSW after submit" />
-          </Field>
-          <Field label="PSSID">
-            <input disabled={readOnly} value={draft.pssid} onChange={e => patch({ pssid: e.target.value })} className={inputCls} />
           </Field>
           <Field label="Collectorate">
             <input disabled={readOnly} value={draft.collectorate} onChange={e => patch({ collectorate: e.target.value })} className={inputCls} placeholder="MCC Appraisement West" />
@@ -1343,170 +1402,264 @@ function StepPsw({
             </select>
           </Field>
         </div>
-      </Section>
 
-      <Section title="Customs duties on this GD">
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            Add Duty 1, Duty 2… — amounts sync into Charges for landed cost
-          </p>
-          {!readOnly && (
-            <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={addDuty}>
-              <Plus className="h-3 w-3 mr-1" /> Add duty
-            </Button>
-          )}
-        </div>
-        {duties.length === 0 ? (
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] border border-dashed rounded px-2 py-2 text-center">
-            No duties yet — add Customs Duty 1, then more as needed.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {duties.map((d, idx) => (
-              <div key={d.id} className="rounded border p-2 space-y-1.5 bg-[hsl(var(--muted))]/10">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-semibold">{d.name || `Customs Duty ${idx + 1}`}</p>
-                  {!readOnly && (
-                    <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeDuty(d.id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  <Field label="Label">
-                    <input disabled={readOnly} value={d.name} onChange={e => updateDuty(d.id, { name: e.target.value })} className={inputCls} />
-                  </Field>
-                  <Field label="Type">
-                    <select
-                      disabled={readOnly}
-                      value={d.category}
-                      onChange={e => updateDuty(d.id, { category: e.target.value as ChargeCategory })}
-                      className={inputCls}
-                    >
-                      {DUTY_CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>
-                          {CHARGE_CATEGORIES.find(c => c.value === cat)?.label || cat}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Amount">
-                    <input disabled={readOnly} type="number" step="0.01" value={d.amount || ""} onChange={e => updateDuty(d.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
-                  </Field>
-                  <Field label="Currency">
-                    <select disabled={readOnly} value={d.currency} onChange={e => updateDuty(d.id, { currency: e.target.value })} className={inputCls}>
-                      {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Link to item (optional)" className="sm:col-span-2">
-                    <select disabled={readOnly} value={d.itemId || ""} onChange={e => updateDuty(d.id, { itemId: e.target.value })} className={inputCls}>
-                      <option value="">Shared across items</option>
-                      {items.map(i => (
-                        <option key={i.id} value={i.id}>{i.description || i.sku || i.hsCode || i.id}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Description" className="sm:col-span-2">
-                    <input disabled={readOnly} value={d.description} onChange={e => updateDuty(d.id, { description: e.target.value })} className={inputCls} placeholder="Optional note" />
-                  </Field>
-                </div>
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+              PSID (payment slip) — add as many as needed
+            </p>
+            {!readOnly && (
+              <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={addPsid}>
+                <Plus className="h-3 w-3 mr-1" /> Add PSID
+              </Button>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {psids.map((value, idx) => (
+              <div key={idx} className="flex items-end gap-1.5">
+                <Field label={`PSID ${idx + 1}`} className="flex-1">
+                  <input
+                    disabled={readOnly}
+                    value={value}
+                    onChange={e => updatePsid(idx, e.target.value)}
+                    className={inputCls}
+                    placeholder="e.g. 10007420260430025823"
+                  />
+                </Field>
+                {!readOnly && psids.length > 1 && (
+                  <button type="button" className="h-7 text-red-600 cursor-pointer px-1" onClick={() => removePsid(idx)}>
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
-        )}
+        </div>
       </Section>
 
-      <Section title="SROs on this GD">
-        {!readOnly && (
-          <div className="space-y-1.5 mb-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                Type an SRO or quick-add from your library
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className={`h-6 text-[10px] ${btnHover}`}
-                onClick={onOpenSroLibrary}
-              >
-                <BookMarked className="h-3 w-3 mr-1" /> Manage library
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-              <Field label="SRO code" className="sm:col-span-2">
-                <input value={sroCode} onChange={e => setSroCode(e.target.value)} className={inputCls} placeholder="Type SRO…" />
-              </Field>
-              <Field label="Title">
-                <input value={sroTitle} onChange={e => setSroTitle(e.target.value)} className={inputCls} placeholder="Optional" />
-              </Field>
-              <div className="flex items-end">
-                <Button type="button" size="sm" className={`h-7 text-[11px] w-full ${btnHover}`} onClick={addTypedSro}>
-                  <Plus className="h-3 w-3 mr-1" /> Add SRO
-                </Button>
-              </div>
-            </div>
-            {(sroLibrary.length > 0 || QUICK_ADD_SROS.length > 0) && (
-              <div className="flex flex-wrap gap-1">
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))] self-center mr-0.5">Quick add:</span>
-                {sroLibrary.map(s => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => addSroToGd(s)}
-                    className={chipHover}
-                  >
-                    + {s.code}
-                  </button>
-                ))}
-                {QUICK_ADD_SROS.filter(q => !sroLibrary.some(s => s.code === q.code)).map(q => (
-                  <button
-                    key={q.code}
-                    type="button"
-                    onClick={() => {
-                      const row = { ...q, id: newId() }
-                      addSroToGd(row)
-                      onAddSroToLibrary(q)
-                    }}
-                    className={`${chipHover} border-dashed`}
-                  >
-                    + {q.code}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {gdSros.length === 0 ? (
+      <Section title="Duties & SROs by invoice item">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Each invoice item can have multiple duties and multiple SROs. Duties sync into Charges.
+          </p>
+          {!readOnly && (
+            <Button type="button" size="sm" variant="outline" className={`h-6 text-[10px] ${btnHover}`} onClick={onOpenSroLibrary}>
+              <BookMarked className="h-3 w-3 mr-1" /> SRO library
+            </Button>
+          )}
+        </div>
+
+        {items.length === 0 ? (
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] border border-dashed rounded px-2 py-2 text-center">
-            No SROs on this GD yet.
+            Add invoice items on the Invoice step first, then enter duties and SROs here.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded border">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="bg-[hsl(var(--muted))]/30 text-left text-[10px] text-[hsl(var(--muted-foreground))]">
-                  <th className="px-2 py-1">Code</th>
-                  <th className="px-2 py-1">Title</th>
-                  <th className="px-2 py-1 w-6" />
-                </tr>
-              </thead>
-              <tbody>
-                {gdSros.map(s => (
-                  <tr key={s.id} className="border-t">
-                    <td className="px-2 py-1 font-mono font-medium">{s.code}</td>
-                    <td className="px-2 py-1">{s.title || "—"}</td>
-                    <td className="px-2 py-1">
+          <div className="space-y-3">
+            {items.map((item, itemIdx) => {
+              const itemDuties = duties.filter(d => d.itemId === item.id)
+              const itemSros = gdSros.filter(s => s.itemId === item.id)
+              const sroDraft = sroDraftByItem[item.id] || { code: "", title: "" }
+              const label = item.description || item.sku || item.hsCode || `Item ${itemIdx + 1}`
+              return (
+                <div key={item.id} className="rounded border p-2.5 space-y-2 bg-[hsl(var(--muted))]/10">
+                  <div>
+                    <p className="text-[11px] font-semibold">{label}</p>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                      HS {item.hsCode || "—"} · Qty {item.qty || 0}
+                      {item.netWeightKg || item.weightKg ? ` · Net ${item.netWeightKg || item.weightKg} kg` : ""}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Duties</p>
                       {!readOnly && (
-                        <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeGdSro(s.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        <Button type="button" size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => addDutyForItem(item.id)}>
+                          <Plus className="h-3 w-3 mr-1" /> Add duty
+                        </Button>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    {itemDuties.length === 0 ? (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">No duties for this item yet.</p>
+                    ) : (
+                      itemDuties.map((d, idx) => (
+                        <div key={d.id} className="rounded border bg-[hsl(var(--background))] p-2 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[11px] font-medium">{d.name || `Duty ${idx + 1}`}</p>
+                            {!readOnly && (
+                              <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeDuty(d.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                            <Field label="Label">
+                              <input disabled={readOnly} value={d.name} onChange={e => updateDuty(d.id, { name: e.target.value })} className={inputCls} />
+                            </Field>
+                            <Field label="Type">
+                              <select
+                                disabled={readOnly}
+                                value={d.category}
+                                onChange={e => updateDuty(d.id, { category: e.target.value as ChargeCategory })}
+                                className={inputCls}
+                              >
+                                {DUTY_CATEGORIES.map(cat => (
+                                  <option key={cat} value={cat}>
+                                    {CHARGE_CATEGORIES.find(c => c.value === cat)?.label || cat}
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                            <Field label="Amount">
+                              <input disabled={readOnly} type="number" step="0.01" value={d.amount || ""} onChange={e => updateDuty(d.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
+                            </Field>
+                            <Field label="Currency">
+                              <select disabled={readOnly} value={d.currency} onChange={e => updateDuty(d.id, { currency: e.target.value })} className={inputCls}>
+                                {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="Description" className="sm:col-span-4">
+                              <input disabled={readOnly} value={d.description} onChange={e => updateDuty(d.id, { description: e.target.value })} className={inputCls} placeholder="Optional note" />
+                            </Field>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 pt-1 border-t">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">SROs for this item</p>
+                    {!readOnly && (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                          <Field label="SRO code" className="sm:col-span-2">
+                            <input
+                              value={sroDraft.code}
+                              onChange={e => setSroDraftByItem(prev => ({ ...prev, [item.id]: { ...sroDraft, code: e.target.value } }))}
+                              className={inputCls}
+                              placeholder="Type SRO…"
+                            />
+                          </Field>
+                          <Field label="Title">
+                            <input
+                              value={sroDraft.title}
+                              onChange={e => setSroDraftByItem(prev => ({ ...prev, [item.id]: { ...sroDraft, title: e.target.value } }))}
+                              className={inputCls}
+                              placeholder="Optional"
+                            />
+                          </Field>
+                          <div className="flex items-end">
+                            <Button type="button" size="sm" className={`h-7 text-[11px] w-full ${btnHover}`} onClick={() => addTypedSroToItem(item.id)}>
+                              <Plus className="h-3 w-3 mr-1" /> Add SRO
+                            </Button>
+                          </div>
+                        </div>
+                        {(sroLibrary.length > 0 || QUICK_ADD_SROS.length > 0) && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-[10px] text-[hsl(var(--muted-foreground))] self-center mr-0.5">Quick add:</span>
+                            {sroLibrary.map(s => (
+                              <button key={s.id} type="button" onClick={() => addSroToItem(item.id, s)} className={chipHover}>
+                                + {s.code}
+                              </button>
+                            ))}
+                            {QUICK_ADD_SROS.filter(q => !sroLibrary.some(s => s.code === q.code)).map(q => (
+                              <button
+                                key={q.code}
+                                type="button"
+                                onClick={() => {
+                                  addSroToItem(item.id, q)
+                                  onAddSroToLibrary(q)
+                                }}
+                                className={`${chipHover} border-dashed`}
+                              >
+                                + {q.code}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {itemSros.length === 0 ? (
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">No SROs on this item yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {itemSros.map(s => (
+                          <span key={s.id} className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] bg-[hsl(var(--background))]">
+                            <span className="font-mono font-medium">{s.code}</span>
+                            {s.title ? <span className="text-[hsl(var(--muted-foreground))]">· {s.title}</span> : null}
+                            {!readOnly && (
+                              <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeSro(s.id)}>
+                                <Trash2 className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {(orphanDuties.length > 0 || orphanSros.length > 0) && (
+          <div className="mt-2 rounded border border-dashed p-2 space-y-1.5">
+            <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
+              Unassigned / shared (from older entries)
+            </p>
+            {orphanDuties.map(d => (
+              <div key={d.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="font-medium">{d.name}</span>
+                <span>{formatPkr(Number(d.amount) || 0)}</span>
+                {!readOnly && items.length > 0 && (
+                  <select
+                    value=""
+                    onChange={e => {
+                      if (e.target.value) updateDuty(d.id, { itemId: e.target.value })
+                    }}
+                    className={inputCls + " w-auto max-w-[200px]"}
+                  >
+                    <option value="">Assign to item…</option>
+                    {items.map(i => (
+                      <option key={i.id} value={i.id}>{i.description || i.sku || i.id}</option>
+                    ))}
+                  </select>
+                )}
+                {!readOnly && (
+                  <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeDuty(d.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {orphanSros.map(s => (
+              <div key={s.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="font-mono font-medium">{s.code}</span>
+                <span>{s.title || "—"}</span>
+                {!readOnly && items.length > 0 && (
+                  <select
+                    value=""
+                    onChange={e => {
+                      if (e.target.value) {
+                        setSros(gdSros.map(x => x.id === s.id ? { ...x, itemId: e.target.value } : x))
+                      }
+                    }}
+                    className={inputCls + " w-auto max-w-[200px]"}
+                  >
+                    <option value="">Assign to item…</option>
+                    {items.map(i => (
+                      <option key={i.id} value={i.id}>{i.description || i.sku || i.id}</option>
+                    ))}
+                  </select>
+                )}
+                {!readOnly && (
+                  <button type="button" className="text-red-600 cursor-pointer" onClick={() => removeSro(s.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </Section>
@@ -1517,8 +1670,8 @@ function StepPsw({
         uploadedBy={userName}
         readOnly={readOnly}
         allowedCategories={["psw_gd", "psid_receipt", "customs_assessment", "duty_tax_challan", "other"]}
-        title="PSW & customs proofs"
-        hint="GD printout, PSID receipt, assessment, duty/tax challans."
+        title="PSW & customs attachments"
+        hint="Upload GD, PSID receipts, assessment, challans — name each file before uploading."
       />
     </div>
   )
@@ -1532,12 +1685,47 @@ function StepCharges({
   readOnly: boolean
   userName: string
 }) {
-  const charges = (draft.charges || []).filter(c => !c.fromDutyId)
+  const allCharges = draft.charges || []
+  const charges = allCharges.filter(c => !c.fromDutyId && c.category !== "gst_on_charges")
+  const gstCharge = allCharges.find(c => !c.fromDutyId && c.category === "gst_on_charges")
   const items = draft.items || []
-  const dutySynced = (draft.charges || []).filter(c => c.fromDutyId)
+  const dutySynced = allCharges.filter(c => c.fromDutyId)
+  const [uploadingProofId, setUploadingProofId] = useState<string | null>(null)
+
+  const fx = Number(draft.fxRate) || 0
+  const dutiesTotalPkr = sumChargesPkr(dutySynced, fx)
+  const chargesSubtotalPkr = sumChargesPkr(charges, fx)
+  const gstPercent = Number(gstCharge?.gstPercent) || 0
+  const gstEnabled = !!gstCharge && gstPercent > 0
+  const gstAmountPkr = gstEnabled ? Math.round((chargesSubtotalPkr * gstPercent) / 100) : 0
+  const grandTotalPkr = chargesSubtotalPkr + gstAmountPkr + dutiesTotalPkr
+
+  function applyGst(next: ImportCharge[]): ImportCharge[] {
+    const gst = next.find(c => c.category === "gst_on_charges" && !c.fromDutyId)
+    const rest = next.filter(c => c.category !== "gst_on_charges" || c.fromDutyId)
+    if (!gst || !(Number(gst.gstPercent) > 0)) return rest
+    const base = sumChargesPkr(rest.filter(c => !c.fromDutyId), fx)
+    const percent = Number(gst.gstPercent) || 0
+    const amount = Math.round((base * percent) / 100)
+    return [
+      ...rest,
+      {
+        ...gst,
+        amount,
+        currency: "PKR",
+        isShared: true,
+        description: `GST on charges (${percent}%)`,
+      },
+    ]
+  }
+
+  function setCharges(next: ImportCharge[]) {
+    setDraft(d => d ? { ...d, charges: applyGst(next) } : d)
+  }
 
   function addCharge(partial?: Partial<ImportCharge>) {
     const cat = (partial?.category || "ocean_freight") as ChargeCategory
+    if (cat === "gst_on_charges") return
     const meta = CHARGE_CATEGORIES.find(c => c.value === cat)
     const c: ImportCharge = {
       id: newId(),
@@ -1552,17 +1740,59 @@ function StepCharges({
       paid: false,
       paymentRef: "",
       notes: "",
+      transportFrom: "",
+      transportTo: "",
+      proofUrl: "",
+      proofName: "",
       ...partial,
     }
-    setDraft(d => d ? { ...d, charges: [...(d.charges || []), c] } : d)
+    setCharges([...allCharges, c])
   }
 
   function updateCharge(id: string, p: Partial<ImportCharge>) {
-    setDraft(d => d ? { ...d, charges: (d.charges || []).map(c => c.id === id ? { ...c, ...p } : c) } : d)
+    setCharges(allCharges.map(c => c.id === id ? { ...c, ...p } : c))
   }
 
   function removeCharge(id: string) {
-    setDraft(d => d ? { ...d, charges: (d.charges || []).filter(c => c.id !== id) } : d)
+    setCharges(allCharges.filter(c => c.id !== id))
+  }
+
+  function syncGst(percent: number, enabled: boolean) {
+    const others = allCharges.filter(c => c.category !== "gst_on_charges" || c.fromDutyId)
+    if (!enabled || percent <= 0) {
+      setDraft(d => d ? { ...d, charges: others.filter(c => c.category !== "gst_on_charges") } : d)
+      return
+    }
+    const existing = allCharges.find(c => c.category === "gst_on_charges" && !c.fromDutyId)
+    const gstRow: ImportCharge = {
+      id: existing?.id || newId(),
+      category: "gst_on_charges",
+      description: `GST on charges (${percent}%)`,
+      amount: 0,
+      currency: "PKR",
+      fxRate: 0,
+      isShared: true,
+      itemId: "",
+      allocationMethod: "",
+      paid: existing?.paid || false,
+      paymentRef: "",
+      notes: "",
+      gstPercent: percent,
+      proofUrl: existing?.proofUrl || "",
+      proofName: existing?.proofName || "",
+    }
+    setCharges([...others, gstRow])
+  }
+
+  async function uploadProof(chargeId: string, file: File | null) {
+    if (!file) return
+    setUploadingProofId(chargeId)
+    try {
+      const url = await uploadFile(file, "import-shipment-docs")
+      updateCharge(chargeId, { proofUrl: url, proofName: file.name, paid: true })
+    } finally {
+      setUploadingProofId(null)
+    }
   }
 
   return (
@@ -1609,7 +1839,7 @@ function StepCharges({
 
       {dutySynced.length > 0 && (
         <div className="rounded border px-2 py-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-          {dutySynced.length} customs duty line(s) from PSW — edit them on the PSW step.
+          {dutySynced.length} customs duty line(s) from PSW — edit them on the PSW step. Total {formatPkr(dutiesTotalPkr)}.
         </div>
       )}
 
@@ -1619,81 +1849,194 @@ function StepCharges({
         </p>
       ) : (
         <div className="space-y-1.5">
-          {charges.map(c => (
-            <div key={c.id} className="rounded border p-2 grid grid-cols-2 sm:grid-cols-6 gap-1.5">
-              <Field label="Type" className="sm:col-span-2">
-                <select
-                  disabled={readOnly}
-                  value={c.category}
-                  onChange={e => {
-                    const cat = e.target.value as ChargeCategory
-                    const meta = CHARGE_CATEGORIES.find(x => x.value === cat)
-                    updateCharge(c.id, {
-                      category: cat,
-                      description: c.description || meta?.label || "",
-                      isShared: meta?.typicallyShared ?? c.isShared,
-                    })
-                  }}
-                  className={inputCls}
-                >
-                  {CHARGE_CATEGORIES.map(x => (
-                    <option key={x.value} value={x.value}>{x.label}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Amount">
-                <input disabled={readOnly} type="number" step="0.01" value={c.amount || ""} onChange={e => updateCharge(c.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
-              </Field>
-              <Field label="Currency">
-                <select disabled={readOnly} value={c.currency} onChange={e => updateCharge(c.id, { currency: e.target.value })} className={inputCls}>
-                  {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
-                </select>
-              </Field>
-              <Field label="FX (if foreign)">
-                <input disabled={readOnly || c.currency === "PKR"} type="number" step="0.01" value={c.fxRate || ""} onChange={e => updateCharge(c.id, { fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="shipment FX" />
-              </Field>
-              <Field label="Shared?">
-                <select
-                  disabled={readOnly}
-                  value={c.isShared ? "shared" : "direct"}
-                  onChange={e => updateCharge(c.id, { isShared: e.target.value === "shared" })}
-                  className={inputCls}
-                >
-                  <option value="shared">Shared</option>
-                  <option value="direct">Direct</option>
-                </select>
-              </Field>
-              {!c.isShared && (
-                <Field label="Item" className="sm:col-span-2">
-                  <select disabled={readOnly} value={c.itemId || ""} onChange={e => updateCharge(c.id, { itemId: e.target.value })} className={inputCls}>
-                    <option value="">Select item…</option>
-                    {items.map(i => (
-                      <option key={i.id} value={i.id}>{i.description || i.sku || i.id}</option>
+          {charges.map(c => {
+            const isTransport = TRANSPORT_CHARGE_CATEGORIES.includes(c.category)
+            return (
+              <div key={c.id} className="rounded border p-2 grid grid-cols-2 sm:grid-cols-6 gap-1.5">
+                <Field label="Type" className="sm:col-span-2">
+                  <select
+                    disabled={readOnly}
+                    value={c.category}
+                    onChange={e => {
+                      const cat = e.target.value as ChargeCategory
+                      const meta = CHARGE_CATEGORIES.find(x => x.value === cat)
+                      updateCharge(c.id, {
+                        category: cat,
+                        description: c.description || meta?.label || "",
+                        isShared: meta?.typicallyShared ?? c.isShared,
+                      })
+                    }}
+                    className={inputCls}
+                  >
+                    {CHARGE_CATEGORIES.filter(x => x.value !== "gst_on_charges").map(x => (
+                      <option key={x.value} value={x.value}>{x.label}</option>
                     ))}
                   </select>
                 </Field>
-              )}
-              <Field label="Description" className="sm:col-span-2">
-                <input disabled={readOnly} value={c.description} onChange={e => updateCharge(c.id, { description: e.target.value })} className={inputCls} />
-              </Field>
-              <Field label="Payment ref">
-                <input disabled={readOnly} value={c.paymentRef} onChange={e => updateCharge(c.id, { paymentRef: e.target.value })} className={inputCls} />
-              </Field>
-              <div className="flex items-end gap-2 sm:col-span-2">
-                <label className="flex items-center gap-1 text-[11px] h-7">
-                  <input disabled={readOnly} type="checkbox" checked={c.paid} onChange={e => updateCharge(c.id, { paid: e.target.checked })} />
-                  Paid
-                </label>
-                {!readOnly && (
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px] text-red-600 ml-auto" onClick={() => removeCharge(c.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                <Field label="Amount">
+                  <input disabled={readOnly} type="number" step="0.01" value={c.amount || ""} onChange={e => updateCharge(c.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
+                </Field>
+                <Field label="Currency">
+                  <select disabled={readOnly} value={c.currency} onChange={e => updateCharge(c.id, { currency: e.target.value })} className={inputCls}>
+                    {CURRENCIES.map(cur => <option key={cur} value={cur}>{cur}</option>)}
+                  </select>
+                </Field>
+                <Field label="FX (if foreign)">
+                  <input disabled={readOnly || c.currency === "PKR"} type="number" step="0.01" value={c.fxRate || ""} onChange={e => updateCharge(c.id, { fxRate: Number(e.target.value) || 0 })} className={inputCls} placeholder="shipment FX" />
+                </Field>
+                <Field label="Shared?">
+                  <select
+                    disabled={readOnly}
+                    value={c.isShared ? "shared" : "direct"}
+                    onChange={e => updateCharge(c.id, { isShared: e.target.value === "shared" })}
+                    className={inputCls}
+                  >
+                    <option value="shared">Shared</option>
+                    <option value="direct">Direct</option>
+                  </select>
+                </Field>
+                {!c.isShared && (
+                  <Field label="Item" className="sm:col-span-2">
+                    <select disabled={readOnly} value={c.itemId || ""} onChange={e => updateCharge(c.id, { itemId: e.target.value })} className={inputCls}>
+                      <option value="">Select item…</option>
+                      {items.map(i => (
+                        <option key={i.id} value={i.id}>{i.description || i.sku || i.id}</option>
+                      ))}
+                    </select>
+                  </Field>
                 )}
+                {isTransport && (
+                  <>
+                    <Field label="From">
+                      <input
+                        disabled={readOnly}
+                        value={c.transportFrom || ""}
+                        onChange={e => updateCharge(c.id, { transportFrom: e.target.value })}
+                        className={inputCls}
+                        placeholder="Origin / pickup"
+                      />
+                    </Field>
+                    <Field label="To">
+                      <input
+                        disabled={readOnly}
+                        value={c.transportTo || ""}
+                        onChange={e => updateCharge(c.id, { transportTo: e.target.value })}
+                        className={inputCls}
+                        placeholder="Destination"
+                      />
+                    </Field>
+                  </>
+                )}
+                <Field label="Description" className="sm:col-span-2">
+                  <input disabled={readOnly} value={c.description} onChange={e => updateCharge(c.id, { description: e.target.value })} className={inputCls} />
+                </Field>
+                <Field label="Attachment (screenshot / PDF)" className="sm:col-span-2">
+                  <div className="flex items-center gap-1.5 min-h-7">
+                    {c.proofUrl ? (
+                      <a href={c.proofUrl} target="_blank" rel="noreferrer" className="text-[10px] underline truncate max-w-[140px]">
+                        {c.proofName || "View file"}
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">No file</span>
+                    )}
+                    {!readOnly && (
+                      <>
+                        <input
+                          type="file"
+                          id={`charge-proof-${c.id}`}
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={e => {
+                            void uploadProof(c.id, e.target.files?.[0] || null)
+                            e.target.value = ""
+                          }}
+                        />
+                        <label htmlFor={`charge-proof-${c.id}`} className="cursor-pointer">
+                          <span className={`${chipHover} inline-block`}>
+                            {uploadingProofId === c.id ? "…" : c.proofUrl ? "Replace" : "Attach"}
+                          </span>
+                        </label>
+                        {c.proofUrl && (
+                          <button
+                            type="button"
+                            className="text-[10px] text-red-600 cursor-pointer"
+                            onClick={() => updateCharge(c.id, { proofUrl: "", proofName: "" })}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </Field>
+                <div className="flex items-end gap-2 sm:col-span-2">
+                  <label className="flex items-center gap-1 text-[11px] h-7">
+                    <input disabled={readOnly} type="checkbox" checked={c.paid} onChange={e => updateCharge(c.id, { paid: e.target.checked })} />
+                    Paid
+                  </label>
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))] self-center">
+                    {formatPkr(chargeAmountPkr(c, fx))}
+                  </span>
+                  {!readOnly && (
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px] text-red-600 ml-auto" onClick={() => removeCharge(c.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
+
+      <div className="rounded-md border p-2.5 space-y-2 bg-[hsl(var(--muted))]/10">
+        <p className="text-[11px] font-semibold">Charges summary</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
+          <div>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Charges subtotal</p>
+            <p className="font-semibold">{formatPkr(chargesSubtotalPkr)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">PSW duties</p>
+            <p className="font-semibold">{formatPkr(dutiesTotalPkr)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">GST</p>
+            <p className="font-semibold">{formatPkr(gstAmountPkr)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Grand total</p>
+            <p className="font-semibold">{formatPkr(grandTotalPkr)}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 pt-1 border-t">
+          <label className="flex items-center gap-1.5 text-[11px] h-7">
+            <input
+              disabled={readOnly}
+              type="checkbox"
+              checked={gstEnabled}
+              onChange={e => syncGst(gstPercent || 18, e.target.checked)}
+            />
+            Add GST on charges
+          </label>
+          <Field label="GST %">
+            <input
+              disabled={readOnly || !gstEnabled}
+              type="number"
+              step="0.01"
+              value={gstEnabled ? gstPercent || "" : ""}
+              onChange={e => syncGst(Number(e.target.value) || 0, true)}
+              className={inputCls + " w-20"}
+              placeholder="18"
+            />
+          </Field>
+          {gstEnabled && (
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] self-center">
+              GST amount {formatPkr(gstAmountPkr)} is included in landed cost.
+            </p>
+          )}
+        </div>
+      </div>
 
       <ImportAttachments
         attachments={draft.attachments}
@@ -1702,7 +2045,7 @@ function StepCharges({
         readOnly={readOnly}
         allowedCategories={["freight_invoice", "clearing_agent_invoice", "transport_invoice", "payment_proof", "other"]}
         title="Charge invoices & payment proofs"
-        hint="Freight, clearing, transport invoices and payment proofs."
+        hint="Name and upload freight, clearing, transport invoices and payment screenshots/PDFs."
       />
     </div>
   )

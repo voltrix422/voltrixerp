@@ -145,7 +145,7 @@ export function ImportAttachments({
           <input
             value={label}
             onChange={e => setLabel(e.target.value)}
-            placeholder="Label (optional)"
+            placeholder="Name this attachment"
             className="flex-1 min-w-[140px] h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm"
           />
           <input

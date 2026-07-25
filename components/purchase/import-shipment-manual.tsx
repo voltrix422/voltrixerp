@@ -46,7 +46,7 @@ export function ImportShipmentManual({ defaultOpen = false }: { defaultOpen?: bo
                 <strong>Invoice</strong> — Containers + line items with actual / declared / assessed prices. Upload commercial invoice &amp; packing list.
               </li>
               <li>
-                <strong>PSW</strong> — GD, PSID, PSSID. Add multiple customs duties and SROs (quick-add from your SRO library).
+                <strong>PSW</strong> — GD and multiple PSIDs (payment slips). Enter duties and SROs per invoice item.
               </li>
               <li>
                 <strong>Charges</strong> — Freight, clearing, transport, bank — shared vs item-specific.
@@ -74,7 +74,7 @@ export function ImportShipmentManual({ defaultOpen = false }: { defaultOpen?: bo
             <h3 className="text-[10px] font-bold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Pakistan / PSW tips</h3>
             <ul className="list-disc pl-4 space-y-1 text-xs">
               <li><strong>PSW</strong> — portal where the Goods Declaration (GD) is filed.</li>
-              <li><strong>PSID</strong> — payment slip for duties/taxes; attach the receipt.</li>
+              <li><strong>PSID</strong> — payment slip ID(s) for duties/taxes; add PSID 1, PSID 2… and attach named receipts.</li>
               <li><strong>SRO</strong> — save SROs in the library on the list page, then quick-add on each GD.</li>
               <li><strong>IGM</strong> — from the shipping line when the vessel manifests.</li>
               <li>Use correct <strong>HS code</strong> per item; enter actual / declared / assessed prices separately.</li>

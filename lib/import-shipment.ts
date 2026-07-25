@@ -59,6 +59,7 @@ export type ChargeCategory =
   | "bank_charges"
   | "logworld_total_invoice"
   | "aict_terminal_invoice"
+  | "gst_on_charges"
   | "other"
 
 export interface ImportAttachment {
@@ -100,7 +101,11 @@ export interface ImportItem {
   declaredPrice: number
   /** Customs assessed unit price */
   assessedPrice: number
-  /** Item weight (kg) — used for by_weight allocation */
+  /** Gross weight (kg) */
+  grossWeightKg: number
+  /** Net weight (kg) — preferred for by_weight allocation */
+  netWeightKg: number
+  /** @deprecated Prefer netWeightKg; kept for older shipments */
   weightKg: number
   /** Volume (CBM) — used for by_cbm allocation */
   cbm: number
@@ -128,13 +133,15 @@ export interface CustomsDutyEntry {
   paymentRef: string
 }
 
-/** SRO applied on a GD, or saved in the scope library */
+/** SRO applied on a GD / item, or saved in the scope library */
 export interface ImportSro {
   id: string
   code: string
   title: string
   description: string
   notes?: string
+  /** When set, SRO applies to this invoice item */
+  itemId?: string
 }
 
 export interface ImportCharge {
@@ -151,10 +158,19 @@ export interface ImportCharge {
   /** Override allocation for this charge only */
   allocationMethod?: AllocationMethod | ""
   paid: boolean
+  /** @deprecated Prefer proofUrl / proofName */
   paymentRef: string
   notes: string
   /** When set, this charge was synced from a PSW customs duty row */
   fromDutyId?: string
+  /** Local transport route */
+  transportFrom?: string
+  transportTo?: string
+  /** Payment / invoice proof (screenshot, PDF, etc.) */
+  proofUrl?: string
+  proofName?: string
+  /** GST % when category is gst_on_charges (amount is derived) */
+  gstPercent?: number
 }
 
 export interface ImportPayment {
@@ -232,7 +248,9 @@ export interface ImportShipment {
   igmDate: string
   gdNumber: string
   gdDate: string
+  /** Serialized PSIDs (newline-separated). Prefer `psids` helpers. */
   psid: string
+  /** @deprecated Removed from UI — migrated into psid list */
   pssid: string
   collectorate: string
   assessmentChannel: string
@@ -351,7 +369,15 @@ export const CHARGE_CATEGORIES: { value: ChargeCategory; label: string; typicall
   { value: "detention", label: "Detention", typicallyShared: true },
   { value: "labor_unloading", label: "Labor / Unloading", typicallyShared: true },
   { value: "bank_charges", label: "Bank Charges", typicallyShared: true },
+  { value: "gst_on_charges", label: "GST on charges", typicallyShared: true },
   { value: "other", label: "Other Charge", typicallyShared: true },
+]
+
+/** Categories that show From / To route fields */
+export const TRANSPORT_CHARGE_CATEGORIES: ChargeCategory[] = [
+  "local_transport",
+  "ocean_freight",
+  "air_freight",
 ]
 
 export const STATUS_LABELS: Record<ImportShipmentStatus, string> = {
@@ -370,11 +396,20 @@ export const INCOTERMS = ["EXW", "FOB", "CFR", "CIF", "CIP", "DAP", "DDP"] as co
 export const CURRENCIES = ["USD", "CNY", "EUR", "GBP", "AED", "PKR"] as const
 export const CONTAINER_SIZES = ["20ft", "40ft", "40HC", "45HC", "LCL", "Other"] as const
 
-function chargeAmountPkr(c: ImportCharge, shipmentFx: number): number {
+export function chargeAmountPkr(c: ImportCharge, shipmentFx: number): number {
   const cur = (c.currency || "PKR").toUpperCase()
   if (cur === "PKR") return Number(c.amount) || 0
   const fx = Number(c.fxRate) > 0 ? Number(c.fxRate) : Number(shipmentFx) || 0
   return (Number(c.amount) || 0) * fx
+}
+
+/** Item weight for allocation: net → legacy kg → gross */
+export function itemWeightKg(item: ImportItem): number {
+  const net = Number(item.netWeightKg) || 0
+  if (net > 0) return net
+  const legacy = Number(item.weightKg) || 0
+  if (legacy > 0) return legacy
+  return Number(item.grossWeightKg) || 0
 }
 
 function itemUnitPrice(item: ImportItem): number {
@@ -387,7 +422,7 @@ function itemBasis(item: ImportItem, method: AllocationMethod, fxRate: number): 
   const qty = Number(item.qty) || 0
   switch (method) {
     case "by_weight":
-      return Number(item.weightKg) || 0
+      return itemWeightKg(item)
     case "by_cbm":
       return Number(item.cbm) || 0
     case "by_qty":
@@ -396,6 +431,45 @@ function itemBasis(item: ImportItem, method: AllocationMethod, fxRate: number): 
     default:
       return qty * itemUnitPrice(item) * (Number(fxRate) || 0)
   }
+}
+
+/** Parse multi-PSID list from shipment fields (and legacy PSSID). */
+export function parsePsids(shipment: { psid?: string; pssid?: string; psids?: string[] }): string[] {
+  if (Array.isArray(shipment.psids) && shipment.psids.length > 0) {
+    return shipment.psids.map(s => String(s || ""))
+  }
+  const raw = String(shipment.psid ?? "")
+  const fromPssid = String(shipment.pssid || "").trim()
+  if (!raw && !fromPssid) return []
+  let parts: string[]
+  if (raw.includes("\n")) {
+    parts = raw.split("\n").map(s => s.trim())
+  } else if (/[|,]/.test(raw)) {
+    parts = raw.split(/[|,]/).map(s => s.trim()).filter(Boolean)
+  } else {
+    parts = raw.trim() ? [raw.trim()] : []
+  }
+  if (fromPssid && !parts.includes(fromPssid)) parts.push(fromPssid)
+  return parts
+}
+
+export function serializePsids(psids: string[]): { psid: string; pssid: string } {
+  return { psid: psids.map(s => String(s || "").trim()).join("\n"), pssid: "" }
+}
+
+/** Sum of charges in PKR (optionally exclude gst_on_charges / duty-synced). */
+export function sumChargesPkr(
+  charges: ImportCharge[],
+  shipmentFx: number,
+  opts?: { excludeGst?: boolean; excludeDuties?: boolean },
+): number {
+  return (charges || [])
+    .filter(c => {
+      if (opts?.excludeDuties && c.fromDutyId) return false
+      if (opts?.excludeGst && c.category === "gst_on_charges") return false
+      return true
+    })
+    .reduce((s, c) => s + chargeAmountPkr(c, shipmentFx), 0)
 }
 
 /** Calculate full landed cost for a shipment (does not mutate input). */
@@ -573,6 +647,10 @@ export function syncDutiesIntoCharges(
       paymentRef: d.paymentRef || "",
       notes: existing?.notes || "",
       fromDutyId: d.id,
+      proofUrl: existing?.proofUrl || "",
+      proofName: existing?.proofName || "",
+      transportFrom: existing?.transportFrom || "",
+      transportTo: existing?.transportTo || "",
     }
   })
   return [...nonDuty, ...synced]
