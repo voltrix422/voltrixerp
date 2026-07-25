@@ -281,8 +281,6 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
       ],
       ["Landing charges (freight, THC, transport…)", money(landingCharges)],
       ["GST on landing charges", money(gstTotal)],
-      ["Shared charges (all)", money(summary.sharedChargesPkr)],
-      ["Direct charges (all)", money(summary.directChargesPkr)],
       ["GRAND TOTAL LANDED", money(summary.grandTotalPkr)],
     ],
     theme: "grid",
@@ -294,7 +292,7 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
     },
     margin: { left: mL, right: mR },
     didParseCell(data) {
-      if (data.section === "body" && (data.row.index === 1 || data.row.index === 6)) {
+      if (data.section === "body" && (data.row.index === 1 || data.row.index === 4)) {
         data.cell.styles.fillColor = [241, 245, 249]
         data.cell.styles.fontStyle = "bold"
       }
@@ -306,8 +304,9 @@ export async function downloadImportShipmentReportPDF(shipment: ImportShipment) 
   doc.setFontSize(5.5)
   doc.setTextColor(...mute)
   const note =
-    "CD/ACD = customs duties on item (PSW). GST/ST = sales tax duty on item. GST chg / Cess = item’s share of shared charges. " +
-    "Other shared = DO/B/L, THC, transport, etc. Totals use current shipment data (recalculated)."
+    "Grand total = Product + PSW duties & cess + Landing charges + GST on landing charges (no double-count). " +
+    "PSW duties & cess = CD/ACD + item GST/ST + other item duties + shared cess. " +
+    "Landing = DO/B/L, THC, transport, clearing, etc. (does not include cess or GST-on-charges)."
   const split = doc.splitTextToSize(note, pageW - mL - mR)
   doc.text(split, mL, y)
 
