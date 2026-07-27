@@ -183,6 +183,8 @@ export interface ImportCharge {
   gstMode?: "percent" | "amount"
   /** GST % when gstMode is percent (amount is derived) */
   gstPercent?: number
+  /** Custom type name when category is "other" */
+  customCategoryLabel?: string
 }
 
 export interface ImportPayment {
@@ -383,8 +385,17 @@ export const CHARGE_CATEGORIES: { value: ChargeCategory; label: string; typicall
   { value: "labor_unloading", label: "Labor / Unloading", typicallyShared: true },
   { value: "bank_charges", label: "Bank Charges", typicallyShared: true },
   { value: "gst_on_charges", label: "GST on charges", typicallyShared: true },
-  { value: "other", label: "Other Charge", typicallyShared: true },
+  { value: "other", label: "Other", typicallyShared: true },
 ]
+
+/** Display label for a charge type (uses custom name when category is Other). */
+export function chargeTypeLabel(c: Pick<ImportCharge, "category" | "customCategoryLabel" | "description">): string {
+  if (c.category === "other") {
+    const custom = (c.customCategoryLabel || "").trim()
+    if (custom) return custom
+  }
+  return CHARGE_CATEGORIES.find(x => x.value === c.category)?.label || c.category
+}
 
 /** Categories that show From / To route fields */
 export const TRANSPORT_CHARGE_CATEGORIES: ChargeCategory[] = [
@@ -593,7 +604,10 @@ export function calculateLandedCost(shipment: Pick<
   // Product as synthetic
   categoryMap.set("product", productTotalPkr)
   for (const c of charges) {
-    const label = c.category
+    const label =
+      c.category === "other" && (c.customCategoryLabel || "").trim()
+        ? `other:${(c.customCategoryLabel || "").trim()}`
+        : c.category
     categoryMap.set(label, (categoryMap.get(label) || 0) + chargeAmountPkr(c, fxRate))
   }
 

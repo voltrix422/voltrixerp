@@ -2134,7 +2134,7 @@ function StepCharges({
     const c: ImportCharge = {
       id: newId(),
       category: cat,
-      description: meta?.label || "",
+      description: cat === "other" ? "" : (meta?.label || ""),
       amount: 0,
       currency: "PKR",
       fxRate: 0,
@@ -2149,6 +2149,7 @@ function StepCharges({
       proofUrl: "",
       proofName: "",
       taxes: [],
+      customCategoryLabel: cat === "other" ? "" : undefined,
       ...partial,
     }
     setCharges([...allCharges, c])
@@ -2259,6 +2260,7 @@ function StepCharges({
             "clearing_agent",
             "logworld_total_invoice",
             "aict_terminal_invoice",
+            "other",
           ] as ChargeCategory[]).map(cat => (
             <button
               key={cat}
@@ -2298,9 +2300,14 @@ function StepCharges({
                       onChange={e => {
                         const cat = e.target.value as ChargeCategory
                         const meta = CHARGE_CATEGORIES.find(x => x.value === cat)
+                        const prevMeta = CHARGE_CATEGORIES.find(x => x.value === c.category)
+                        const descWasAuto = !c.description || c.description === prevMeta?.label
                         updateCharge(c.id, {
                           category: cat,
-                          description: c.description || meta?.label || "",
+                          description: cat === "other"
+                            ? (descWasAuto ? "" : c.description)
+                            : (descWasAuto ? (meta?.label || "") : c.description),
+                          customCategoryLabel: cat === "other" ? (c.customCategoryLabel || "") : "",
                           isShared: meta?.typicallyShared ?? c.isShared,
                         })
                       }}
@@ -2311,6 +2318,17 @@ function StepCharges({
                       ))}
                     </select>
                   </Field>
+                  {c.category === "other" && (
+                    <Field label="Custom type name" className="sm:col-span-2">
+                      <input
+                        disabled={readOnly}
+                        value={c.customCategoryLabel || ""}
+                        onChange={e => updateCharge(c.id, { customCategoryLabel: e.target.value })}
+                        className={inputCls}
+                        placeholder="Type the charge name…"
+                      />
+                    </Field>
+                  )}
                   <Field label="Amount">
                     <input disabled={readOnly} type="number" step="0.01" value={c.amount || ""} onChange={e => updateCharge(c.id, { amount: Number(e.target.value) || 0 })} className={inputCls} />
                   </Field>
@@ -2704,12 +2722,17 @@ function StepLanded({
       {(summary.chargeBreakdown || []).length > 0 && (
         <Section title="Charge breakdown">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-            {summary.chargeBreakdown.map(b => (
-              <div key={b.category} className="rounded border px-2 py-1.5 text-[11px] flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))] capitalize">{b.category.replace(/_/g, " ")}</span>
-                <span className="font-medium">{formatPkr(b.amountPkr)}</span>
-              </div>
-            ))}
+            {summary.chargeBreakdown.map(b => {
+              const breakdownLabel = b.category.startsWith("other:")
+                ? b.category.slice("other:".length)
+                : (CHARGE_CATEGORIES.find(c => c.value === b.category)?.label || b.category.replace(/_/g, " "))
+              return (
+                <div key={b.category} className="rounded border px-2 py-1.5 text-[11px] flex justify-between gap-2">
+                  <span className="text-[hsl(var(--muted-foreground))]">{breakdownLabel}</span>
+                  <span className="font-medium">{formatPkr(b.amountPkr)}</span>
+                </div>
+              )
+            })}
           </div>
         </Section>
       )}
