@@ -61,22 +61,27 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))
 }
 
+export { isPublicPath }
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [checked, setChecked] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const publicPage = !pathname || isPublicPath(pathname)
 
   useEffect(() => {
     // Restore session from localStorage, then verify against Supabase
     const session = getSession()
     if (session) {
-      getUsers().then(users => {
-        const fresh = users.find(u => u.id === session.id) ?? session
-        setUser(fresh)
-        setSession(fresh)
-        setChecked(true)
-      })
+      getUsers()
+        .then(users => {
+          const fresh = users.find(u => u.id === session.id) ?? session
+          setUser(fresh)
+          setSession(fresh)
+          setChecked(true)
+        })
+        .catch(() => setChecked(true))
     } else {
       setChecked(true)
     }
@@ -126,7 +131,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(fresh)
   }, [])
 
-  if (!checked) return null
+  // Don't block public website while session check runs (keeps tracking + SEO content visible)
+  if (!checked && !publicPage) return null
 
   return (
     <AuthContext.Provider value={{ user, login, logout, refreshUser, syncSessionUser }}>

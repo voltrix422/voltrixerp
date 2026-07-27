@@ -6,7 +6,6 @@ import { Menu, X } from "lucide-react"
 import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import { usePathname } from "next/navigation"
-import { WebsiteAnalyticsBeacon } from "@/components/landing/website-analytics-beacon"
 
 const primaryLinks = [
   { label: "Products",            hash: "products"  },
@@ -84,7 +83,6 @@ export default function Navbar() {
         pointerEvents: visible ? "auto" : "none",
       }}
     >
-      <WebsiteAnalyticsBeacon />
       <nav
         className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-x-3 xl:gap-x-5 px-4 sm:px-5 xl:px-7 py-2.5 rounded-xl w-full max-w-7xl transition-all duration-500 ${navClass}`}
       >

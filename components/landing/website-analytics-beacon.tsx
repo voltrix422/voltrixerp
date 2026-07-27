@@ -37,17 +37,12 @@ function getSessionId() {
   }
 }
 
+const COLLECT_URL = "/api/site/collect"
+
 function send(payload: Record<string, unknown>) {
   const body = JSON.stringify(payload)
-  try {
-    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-      const blob = new Blob([body], { type: "application/json" })
-      if (navigator.sendBeacon("/api/analytics/track", blob)) return
-    }
-  } catch {
-    /* fall through */
-  }
-  void fetch("/api/analytics/track", {
+  // Prefer fetch — avoid /analytics URLs (blocked by many ad blockers) and unreliable sendBeacon JSON parsing
+  void fetch(COLLECT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
@@ -98,7 +93,7 @@ export function WebsiteAnalyticsBeacon() {
     featureAccumRef.current = new Map()
     featureVisibleSinceRef.current = new Map()
 
-    void fetch("/api/analytics/track", {
+    void fetch(COLLECT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -109,6 +104,7 @@ export function WebsiteAnalyticsBeacon() {
         visitorId,
         sessionId,
       }),
+      keepalive: true,
     })
       .then((r) => r.json())
       .then((d) => {

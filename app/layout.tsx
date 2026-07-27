@@ -7,6 +7,7 @@ import { AuthProvider } from "@/components/auth-provider"
 import { DialogProvider } from "@/components/ui/dialog-provider"
 import { ToastProvider } from "@/components/ui/toast"
 import { DBConnectionCheck } from "@/components/db-connection-check"
+import { WebsiteAnalyticsBeacon } from "@/components/landing/website-analytics-beacon"
 import "./globals.css"
 
 const spaceGrotesk = Space_Grotesk({
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className={spaceGrotesk.className}>
+        <WebsiteAnalyticsBeacon />
         <ThemeProvider>
           <DialogProvider>
             <ToastProvider>
