@@ -1,14 +1,16 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
-import { Loader2, RefreshCw, ExternalLink, Package, Trash2, Shield, FileText, Briefcase, MapPin, Store } from "lucide-react"
+import { Loader2, RefreshCw, ExternalLink, Package, Trash2, Shield, FileText, Briefcase, MapPin, Store, BarChart3 } from "lucide-react"
 import ProductsManager from "@/components/website/products-manager"
 import OutletsManager from "@/components/website/outlets-manager"
 import DealershipsManager from "@/components/website/dealerships-manager"
+import WebsiteAnalyticsDashboard from "@/components/website/website-analytics-dashboard"
 import { WarrantyManager } from "@/components/warranty/warranty-manager"
 import BlogManager from "@/components/blog/blog-manager"
 import JobManager from "@/components/careers/job-manager"
@@ -40,12 +42,31 @@ const statusColors: Record<string, string> = {
 
 const statusOptions = ["new", "in_review", "quoted", "closed"]
 
+type WebsiteTab = "quotations" | "products" | "outlets" | "dealerships" | "warranty" | "blog" | "careers" | "analytics"
+
+function parseWebsiteTab(value: string | null): WebsiteTab {
+  const allowed: WebsiteTab[] = ["quotations", "products", "outlets", "dealerships", "warranty", "blog", "careers", "analytics"]
+  if (value && (allowed as string[]).includes(value)) return value as WebsiteTab
+  return "quotations"
+}
+
 export default function WebsitePage() {
-  const [tab, setTab]           = useState<"quotations" | "products" | "outlets" | "dealerships" | "warranty" | "blog" | "careers">("quotations")
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<WebsiteTab>(() => parseWebsiteTab(searchParams.get("tab")))
   const [quotes, setQuotes]     = useState<Quotation[]>([])
   const [loading, setLoading]   = useState(true)
   const [selected, setSelected] = useState<Quotation | null>(null)
   const [updating, setUpdating] = useState(false)
+
+  useEffect(() => {
+    setTab(parseWebsiteTab(searchParams.get("tab")))
+  }, [searchParams])
+
+  function selectTab(next: WebsiteTab) {
+    setTab(next)
+    const url = next === "quotations" ? "/website" : `/website?tab=${next}`
+    window.history.replaceState(null, "", url)
+  }
 
   const fetchQuotes = async () => {
     setLoading(true)
@@ -111,38 +132,44 @@ export default function WebsitePage() {
       <Topbar title="Website" />
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b">
-        <button onClick={() => setTab("quotations")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "quotations" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+      <div className="flex items-center gap-1 px-4 py-2 border-b overflow-x-auto">
+        <button onClick={() => selectTab("quotations")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "quotations" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <RefreshCw className="w-3.5 h-3.5" /> Quotations
         </button>
-        <button onClick={() => setTab("products")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "products" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+        <button onClick={() => selectTab("products")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "products" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <Package className="w-3.5 h-3.5" /> Products
         </button>
-        <button onClick={() => setTab("outlets")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "outlets" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+        <button onClick={() => selectTab("outlets")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "outlets" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <MapPin className="w-3.5 h-3.5" /> Outlets
         </button>
-        <button onClick={() => setTab("dealerships")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "dealerships" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+        <button onClick={() => selectTab("dealerships")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "dealerships" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <Store className="w-3.5 h-3.5" /> Dealerships
         </button>
-        <button onClick={() => setTab("warranty")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "warranty" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+        <button onClick={() => selectTab("warranty")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "warranty" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <Shield className="w-3.5 h-3.5" /> Warranty
         </button>
-        <button onClick={() => setTab("blog")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "blog" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+        <button onClick={() => selectTab("blog")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "blog" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <FileText className="w-3.5 h-3.5" /> Blog
         </button>
-        <button onClick={() => setTab("careers")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === "careers" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+        <button onClick={() => selectTab("careers")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "careers" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <Briefcase className="w-3.5 h-3.5" /> Careers
+        </button>
+        <button onClick={() => selectTab("analytics")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "analytics" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <BarChart3 className="w-3.5 h-3.5" /> Analytics
         </button>
       </div>
 
-      {tab === "products" ? (
+      {tab === "analytics" ? (
+        <WebsiteAnalyticsDashboard />
+      ) : tab === "products" ? (
         <ProductsManager />
       ) : tab === "outlets" ? (
         <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">

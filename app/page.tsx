@@ -32,37 +32,37 @@ export default function Home() {
       <div id="home">
         <Hero />
       </div>
-      <SectionBlur>
+      <SectionBlur id="featured-product">
         <FeaturedProduct />
       </SectionBlur>
       <SectionBlur id="products">
         <Products />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="testimonials">
         <Testimonials />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="stats">
         <Stats />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="mission">
         <MissionBanner />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="services">
         <ServicesSection />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="vision">
         <VisionSection />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="rd">
         <RDSection />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="about">
         <AboutSection />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="faq">
         <FAQ />
       </SectionBlur>
-      <SectionBlur>
+      <SectionBlur id="contact">
         <ContactSection />
       </SectionBlur>
       <Footer />

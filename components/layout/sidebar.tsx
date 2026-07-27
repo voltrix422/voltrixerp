@@ -82,6 +82,14 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
     )
 
+  const subLinkClass = (active: boolean) =>
+    cn(
+      "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+      active
+        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+        : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+    )
+
   return (
     <>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
@@ -104,12 +112,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
                       <Link
                         href="/crm"
                         onClick={onNavigate}
-                        className={cn(
-                          "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                          pathname === "/crm"
-                            ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                            : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
-                        )}
+                        className={subLinkClass(pathname === "/crm")}
                       >
                         Main
                       </Link>
@@ -118,12 +121,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
                       <Link
                         href="/crm/sales-agents"
                         onClick={onNavigate}
-                        className={cn(
-                          "flex items-center rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                          pathname?.startsWith("/crm/sales-agents")
-                            ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-                            : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
-                        )}
+                        className={subLinkClass(!!pathname?.startsWith("/crm/sales-agents"))}
                       >
                         Sales agents
                       </Link>
