@@ -56,9 +56,9 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 
 export default function WebsiteAnalyticsDetail() {
   const sp = useSearchParams()
-  const path = sp.get("path") || "/"
-  const fromQ = sp.get("from")
-  const toQ = sp.get("to")
+  const path = sp?.get("path") || "/"
+  const fromQ = sp?.get("from")
+  const toQ = sp?.get("to")
 
   const [from, setFrom] = useState(fromQ || new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10))
   const [to, setTo] = useState(toQ || new Date().toISOString().slice(0, 10))
