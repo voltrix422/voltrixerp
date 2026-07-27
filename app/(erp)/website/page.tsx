@@ -52,14 +52,14 @@ function parseWebsiteTab(value: string | null): WebsiteTab {
 
 export default function WebsitePage() {
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<WebsiteTab>(() => parseWebsiteTab(searchParams.get("tab")))
+  const [tab, setTab] = useState<WebsiteTab>(() => parseWebsiteTab(searchParams?.get("tab") ?? null))
   const [quotes, setQuotes]     = useState<Quotation[]>([])
   const [loading, setLoading]   = useState(true)
   const [selected, setSelected] = useState<Quotation | null>(null)
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
-    setTab(parseWebsiteTab(searchParams.get("tab")))
+    setTab(parseWebsiteTab(searchParams?.get("tab") ?? null))
   }, [searchParams])
 
   function selectTab(next: WebsiteTab) {
