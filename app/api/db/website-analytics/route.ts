@@ -6,6 +6,7 @@ import {
   eachAnalyticsDay,
   featureDisplayLabel,
   pathDisplayLabel,
+  resolveTrafficSource,
 } from "@/lib/website-analytics"
 
 export const dynamic = "force-dynamic"
@@ -57,21 +58,24 @@ function parseRange(req: NextRequest) {
   }
 }
 
-function normalizeReferrer(ref: string): string {
-  if (!ref) return ""
-  try {
-    const u = new URL(ref)
-    if (u.hostname.includes("voltrix") || u.hostname === "localhost") return ""
-    return u.hostname.replace(/^www\./, "")
-  } catch {
-    return ref.slice(0, 80)
-  }
-}
-
 function deviceFromUa(ua: string): "mobile" | "tablet" | "desktop" {
   if (/iPad|Tablet/i.test(ua)) return "tablet"
   if (/Mobile|Android|iPhone/i.test(ua)) return "mobile"
   return "desktop"
+}
+
+function pageSource(p: {
+  referrer?: string | null
+  source?: string | null
+  utmSource?: string | null
+  utmMedium?: string | null
+}): string {
+  return resolveTrafficSource({
+    referrer: p.referrer,
+    source: p.source,
+    utmSource: p.utmSource,
+    utmMedium: p.utmMedium,
+  })
 }
 
 export async function GET(req: NextRequest) {
@@ -111,6 +115,9 @@ export async function GET(req: NextRequest) {
             durationMs: true,
             createdAt: true,
             referrer: true,
+            source: true,
+            utmSource: true,
+            utmMedium: true,
             userAgent: true,
             title: true,
           },
@@ -168,8 +175,8 @@ export async function GET(req: NextRequest) {
         const device = deviceFromUa(p.userAgent)
         deviceMap.set(device, (deviceMap.get(device) || 0) + 1)
 
-        const ref = normalizeReferrer(p.referrer)
-        if (ref) refMap.set(ref, (refMap.get(ref) || 0) + 1)
+        const ref = pageSource(p)
+        refMap.set(ref, (refMap.get(ref) || 0) + 1)
       }
 
       const byFeature = new Map<
@@ -194,7 +201,7 @@ export async function GET(req: NextRequest) {
         durationMs: p.durationMs,
         createdAt: p.createdAt,
         device: deviceFromUa(p.userAgent),
-        referrer: normalizeReferrer(p.referrer) || "Direct",
+        referrer: pageSource(p),
       }))
 
       return NextResponse.json({
@@ -264,6 +271,9 @@ export async function GET(req: NextRequest) {
           durationMs: true,
           createdAt: true,
           referrer: true,
+          source: true,
+          utmSource: true,
+          utmMedium: true,
           userAgent: true,
         },
       }),
@@ -361,14 +371,13 @@ export async function GET(req: NextRequest) {
 
     const refMap = new Map<string, number>()
     for (const p of pageviews) {
-      const ref = normalizeReferrer(p.referrer)
-      if (!ref) continue
+      const ref = pageSource(p)
       refMap.set(ref, (refMap.get(ref) || 0) + 1)
     }
     const referrers = Array.from(refMap.entries())
       .map(([source, views]) => ({ source, views }))
       .sort((a, b) => b.views - a.views)
-      .slice(0, 15)
+      .slice(0, 20)
 
     void prisma.erpWebsitePresence
       .deleteMany({ where: { lastSeenAt: { lt: new Date(now - 24 * 60 * 60 * 1000) } } })

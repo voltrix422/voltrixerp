@@ -2,10 +2,16 @@
 
 import { useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
-import { isPublicAnalyticsPath, featureDisplayLabel } from "@/lib/website-analytics"
+import {
+  isPublicAnalyticsPath,
+  featureDisplayLabel,
+  readClientAttribution,
+  type TrafficAttribution,
+} from "@/lib/website-analytics"
 
 const VISITOR_KEY = "vx_web_vid"
 const SESSION_KEY = "vx_web_sid"
+const ATTR_KEY = "vx_web_attr"
 
 function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
@@ -34,6 +40,28 @@ function getSessionId() {
     return id
   } catch {
     return uid("s")
+  }
+}
+
+/** First-touch attribution for the browser session (UTM / IG / FB / Direct). */
+function getSessionAttribution(): TrafficAttribution {
+  const current = readClientAttribution()
+  try {
+    const raw = sessionStorage.getItem(ATTR_KEY)
+    if (raw) {
+      const prev = JSON.parse(raw) as TrafficAttribution
+      // Keep first known channel; upgrade Direct if a later URL has UTM/click-id
+      if (prev?.source && prev.source !== "Direct") return prev
+      if (current.source !== "Direct") {
+        sessionStorage.setItem(ATTR_KEY, JSON.stringify(current))
+        return current
+      }
+      if (prev?.source) return prev
+    }
+    sessionStorage.setItem(ATTR_KEY, JSON.stringify(current))
+    return current
+  } catch {
+    return current
   }
 }
 
@@ -82,6 +110,7 @@ export function WebsiteAnalyticsBeacon() {
 
     const visitorId = getVisitorId()
     const sessionId = getSessionId()
+    const attr = getSessionAttribution()
 
     // Flush previous page dwell
     flushPage(pathRef.current, visitorId, sessionId)
@@ -101,6 +130,10 @@ export function WebsiteAnalyticsBeacon() {
         path: pathname,
         title: typeof document !== "undefined" ? document.title : "",
         referrer: typeof document !== "undefined" ? document.referrer : "",
+        source: attr.source,
+        utmSource: attr.utmSource,
+        utmMedium: attr.utmMedium,
+        utmCampaign: attr.utmCampaign,
         visitorId,
         sessionId,
       }),

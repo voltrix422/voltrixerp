@@ -159,3 +159,133 @@ export function hashIp(ip: string): string {
   }
   return (h >>> 0).toString(16)
 }
+
+export type TrafficAttribution = {
+  source: string
+  utmSource: string
+  utmMedium: string
+  utmCampaign: string
+}
+
+function titleCaseHost(host: string): string {
+  const h = host.replace(/^www\./, "").toLowerCase()
+  if (!h) return "Other"
+  return h
+}
+
+function channelFromKeyword(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (/(instagram|\big\b)/.test(s)) return "Instagram"
+  if (/(facebook|\bfb\b|meta)/.test(s)) return "Facebook"
+  if (/(whatsapp|\bwa\b)/.test(s)) return "WhatsApp"
+  if (/(^|[^a-z])email([^a-z]|$)|newsletter|mailchimp|klaviyo/.test(s)) return "Email"
+  if (/google|gclid|adwords|youtube|\byt\b/.test(s)) {
+    if (/youtube|\byt\b/.test(s)) return "YouTube"
+    return "Google"
+  }
+  if (/linkedin/.test(s)) return "LinkedIn"
+  if (/tiktok/.test(s)) return "TikTok"
+  if (/twitter|\bx\b|t\.co/.test(s)) return "X / Twitter"
+  if (/bing|microsoft/.test(s)) return "Bing"
+  if (/yahoo/.test(s)) return "Yahoo"
+  if (/telegram/.test(s)) return "Telegram"
+  if (/sms|text.?message/.test(s)) return "SMS"
+  if (/qr.?code|\bqr\b/.test(s)) return "QR code"
+  if (/direct/.test(s)) return "Direct"
+  return null
+}
+
+/** Map hostname / UTM / click-id into a friendly traffic channel. */
+export function resolveTrafficSource(opts: {
+  referrer?: string | null
+  source?: string | null
+  utmSource?: string | null
+  utmMedium?: string | null
+  landingSearch?: string | null
+}): string {
+  const stored = String(opts.source || "").trim()
+  if (stored) return stored
+
+  const utmSource = String(opts.utmSource || "").trim()
+  const utmMedium = String(opts.utmMedium || "").trim()
+  const fromUtm =
+    channelFromKeyword(utmSource) ||
+    channelFromKeyword(utmMedium) ||
+    (utmSource ? titleCaseHost(utmSource) : null)
+  if (fromUtm) return fromUtm
+
+  const search = String(opts.landingSearch || "")
+  if (search) {
+    try {
+      const sp = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+      if (sp.get("fbclid")) return "Facebook"
+      if (sp.get("igshid") || sp.get("igsh") || sp.get("ig_rid")) return "Instagram"
+      if (sp.get("gclid") || sp.get("gbraid") || sp.get("wbraid")) return "Google"
+      if (sp.get("ttclid")) return "TikTok"
+      if (sp.get("msclkid")) return "Bing"
+      const u = sp.get("utm_source") || ""
+      const m = sp.get("utm_medium") || ""
+      const hit = channelFromKeyword(u) || channelFromKeyword(m)
+      if (hit) return hit
+      if (u) return titleCaseHost(u)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const ref = String(opts.referrer || "").trim()
+  if (!ref) return "Direct"
+
+  try {
+    const host = new URL(ref).hostname.replace(/^www\./, "").toLowerCase()
+    if (!host || host.includes("voltrix") || host === "localhost") return "Direct"
+    if (host.includes("instagram") || host === "l.instagram.com") return "Instagram"
+    if (
+      host.includes("facebook") ||
+      host.includes("fb.com") ||
+      host.includes("fb.me") ||
+      host === "lm.facebook.com" ||
+      host === "l.facebook.com" ||
+      host === "m.facebook.com"
+    ) {
+      return "Facebook"
+    }
+    if (host.includes("whatsapp") || host === "wa.me") return "WhatsApp"
+    if (host.includes("google") || host === "google.com") return "Google"
+    if (host.includes("youtube") || host === "youtu.be") return "YouTube"
+    if (host.includes("linkedin") || host === "lnkd.in") return "LinkedIn"
+    if (host.includes("tiktok")) return "TikTok"
+    if (host === "t.co" || host.includes("twitter") || host === "x.com") return "X / Twitter"
+    if (host.includes("bing.com")) return "Bing"
+    if (host.includes("yahoo")) return "Yahoo"
+    if (host.includes("telegram") || host === "t.me") return "Telegram"
+    if (
+      host.includes("mail.") ||
+      host.includes("outlook.") ||
+      host.includes("gmail") ||
+      host.includes("yahoo.mail")
+    ) {
+      return "Email"
+    }
+    return host
+  } catch {
+    return channelFromKeyword(ref) || "Other"
+  }
+}
+
+/** Client-side: read UTMs / click ids from the current URL (and session first-touch). */
+export function readClientAttribution(search?: string): TrafficAttribution {
+  const q = search ?? (typeof window !== "undefined" ? window.location.search : "")
+  const sp = new URLSearchParams(q.startsWith("?") ? q.slice(1) : q)
+  const utmSource = (sp.get("utm_source") || "").slice(0, 80)
+  const utmMedium = (sp.get("utm_medium") || "").slice(0, 80)
+  const utmCampaign = (sp.get("utm_campaign") || "").slice(0, 120)
+  const source = resolveTrafficSource({
+    referrer: typeof document !== "undefined" ? document.referrer : "",
+    utmSource,
+    utmMedium,
+    landingSearch: q,
+  })
+  return { source, utmSource, utmMedium, utmCampaign }
+}

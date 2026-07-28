@@ -1441,22 +1441,28 @@ model ErpImportShipment {
 
 /// Public website page view (excludes ERP). Duration filled on leave/heartbeat.
 model ErpWebsitePageview {
-  id          String   @id @default(cuid())
-  path        String
-  title       String   @default("")
-  referrer    String   @default("")
-  visitorId   String   @map("visitor_id")
-  sessionId   String   @map("session_id")
-  userAgent   String   @default("") @map("user_agent")
-  ipHash      String   @default("") @map("ip_hash")
-  durationMs  Int      @default(0) @map("duration_ms")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  path         String
+  title        String   @default("")
+  referrer     String   @default("")
+  /// Normalized channel: Instagram, Facebook, Google, Email, Direct, …
+  source       String   @default("")
+  utmSource    String   @default("") @map("utm_source")
+  utmMedium    String   @default("") @map("utm_medium")
+  utmCampaign  String   @default("") @map("utm_campaign")
+  visitorId    String   @map("visitor_id")
+  sessionId    String   @map("session_id")
+  userAgent    String   @default("") @map("user_agent")
+  ipHash       String   @default("") @map("ip_hash")
+  durationMs   Int      @default(0) @map("duration_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@index([createdAt])
   @@index([path, createdAt])
   @@index([visitorId, createdAt])
   @@index([sessionId])
+  @@index([source, createdAt])
   @@map("erp_website_pageviews")
 }
 

@@ -5,6 +5,7 @@ import {
   hashIp,
   isPublicAnalyticsPath,
   normalizeAnalyticsPath,
+  resolveTrafficSource,
 } from "@/lib/website-analytics"
 
 export const dynamic = "force-dynamic"
@@ -14,6 +15,10 @@ type TrackBody = {
   path?: string
   title?: string
   referrer?: string
+  source?: string
+  utmSource?: string
+  utmMedium?: string
+  utmCampaign?: string
   visitorId?: string
   sessionId?: string
   pageviewId?: string
@@ -50,11 +55,25 @@ export async function POST(req: NextRequest) {
     const durationMs = Math.max(0, Math.min(Number(body.durationMs) || 0, 60 * 60 * 1000))
 
     if (type === "pageview") {
+      const referrer = String(body.referrer || "").slice(0, 500)
+      const utmSource = String(body.utmSource || "").slice(0, 80)
+      const utmMedium = String(body.utmMedium || "").slice(0, 80)
+      const utmCampaign = String(body.utmCampaign || "").slice(0, 120)
+      const source = resolveTrafficSource({
+        referrer,
+        source: body.source,
+        utmSource,
+        utmMedium,
+      }).slice(0, 80)
       const row = await prisma.erpWebsitePageview.create({
         data: {
           path,
           title: String(body.title || "").slice(0, 200),
-          referrer: String(body.referrer || "").slice(0, 500),
+          referrer,
+          source,
+          utmSource,
+          utmMedium,
+          utmCampaign,
           visitorId,
           sessionId,
           userAgent: ua,

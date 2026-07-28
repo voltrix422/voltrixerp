@@ -707,20 +707,33 @@ export default function WebsiteAnalyticsDashboard() {
               )}
 
               {section === "sources" && (
-                <div className="grid lg:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Shows Instagram, Facebook, Google, Email, WhatsApp, Direct, and more.
+                    For ads / posts, use links like{" "}
+                    <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
+                      ?utm_source=instagram&utm_medium=social
+                    </code>
+                    .
+                  </p>
+                  <div className="grid lg:grid-cols-2 gap-4">
                   <div className="rounded-xl border p-4 shadow-sm">
                     <p className="text-sm font-semibold mb-3">Traffic sources</p>
                     {data.referrers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-10">No external referrers yet</p>
+                      <p className="text-sm text-muted-foreground text-center py-10">No traffic yet</p>
                     ) : (
                       <div className="space-y-2.5">
                         {data.referrers.map((r) => {
                           const max = Math.max(...data.referrers.map((x) => x.views), 1)
+                          const total = data.summary.totalViews || 1
+                          const pct = Math.round((r.views / total) * 100)
                           return (
                             <div key={r.source} className="space-y-1">
-                              <div className="flex justify-between text-xs">
+                              <div className="flex justify-between text-xs gap-2">
                                 <span className="font-medium">{r.source}</span>
-                                <span className="tabular-nums text-muted-foreground">{r.views} views</span>
+                                <span className="tabular-nums text-muted-foreground shrink-0">
+                                  {r.views} views · {pct}%
+                                </span>
                               </div>
                               <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                                 <div
@@ -760,6 +773,7 @@ export default function WebsiteAnalyticsDashboard() {
                         })}
                       </div>
                     )}
+                  </div>
                   </div>
                 </div>
               )}
