@@ -92,6 +92,63 @@ export function formatDuration(ms: number): string {
   return `${h}h ${m % 60}m`
 }
 
+/** Business timezone for website analytics (Pakistan, no DST). */
+export const ANALYTICS_TZ = "Asia/Karachi"
+export const ANALYTICS_TZ_OFFSET = "+05:00"
+
+/** Local calendar date YYYY-MM-DD (browser local). */
+export function localDateISO(d = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+export function localDaysAgoISO(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return localDateISO(d)
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
+/** Start/end of a calendar day in Asia/Karachi as UTC Date objects. */
+export function analyticsDayBounds(fromDate: string, toDate: string): { from: Date; to: Date } {
+  const fromStr = DATE_ONLY.test(fromDate) ? fromDate : fromDate.slice(0, 10)
+  const toStr = DATE_ONLY.test(toDate) ? toDate : toDate.slice(0, 10)
+  return {
+    from: new Date(`${fromStr}T00:00:00${ANALYTICS_TZ_OFFSET}`),
+    to: new Date(`${toStr}T23:59:59.999${ANALYTICS_TZ_OFFSET}`),
+  }
+}
+
+/** Bucket a timestamp into YYYY-MM-DD in Asia/Karachi. */
+export function analyticsDayKey(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ANALYTICS_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d)
+}
+
+/** Inclusive list of YYYY-MM-DD days from → to. */
+export function eachAnalyticsDay(fromDate: string, toDate: string): string[] {
+  const days: string[] = []
+  const [fy, fm, fd] = fromDate.split("-").map(Number)
+  const [ty, tm, td] = toDate.split("-").map(Number)
+  const cur = new Date(Date.UTC(fy, fm - 1, fd))
+  const end = new Date(Date.UTC(ty, tm - 1, td))
+  while (cur <= end) {
+    const y = cur.getUTCFullYear()
+    const m = String(cur.getUTCMonth() + 1).padStart(2, "0")
+    const day = String(cur.getUTCDate()).padStart(2, "0")
+    days.push(`${y}-${m}-${day}`)
+    cur.setUTCDate(cur.getUTCDate() + 1)
+  }
+  return days
+}
+
 export function hashIp(ip: string): string {
   // Lightweight non-crypto fingerprint (privacy-friendly enough for analytics)
   let h = 2166136261

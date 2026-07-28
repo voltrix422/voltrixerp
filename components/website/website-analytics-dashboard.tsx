@@ -1,14 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Loader2, RefreshCw, Users, Eye, Clock, Activity, TrendingUp, TrendingDown,
   LayoutDashboard, FileText, Sparkles, Radio, Share2, ExternalLink, ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { formatDuration } from "@/lib/website-analytics"
+import { formatDuration, localDateISO, localDaysAgoISO } from "@/lib/website-analytics"
 
 type PageRow = {
   path: string
@@ -64,16 +64,6 @@ const SECTIONS: Array<{ id: Section; label: string; icon: typeof LayoutDashboard
   { id: "live", label: "Live now", icon: Radio, hint: "Active visitors" },
   { id: "sources", label: "Sources", icon: Share2, hint: "Referrers & devices" },
 ]
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function daysAgoISO(n: number) {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
-}
 
 function formatUa(ua: string) {
   if (!ua) return "Unknown"
@@ -172,40 +162,48 @@ function PageTable({
 
 export default function WebsiteAnalyticsDashboard() {
   const [section, setSection] = useState<Section>("overview")
-  const [from, setFrom] = useState(daysAgoISO(6))
-  const [to, setTo] = useState(todayISO())
+  const [from, setFrom] = useState(() => localDaysAgoISO(6))
+  const [to, setTo] = useState(() => localDateISO())
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<AnalyticsPayload | null>(null)
   const [error, setError] = useState("")
   const [pageSearch, setPageSearch] = useState("")
+  const reqIdRef = useRef(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (rangeFrom = from, rangeTo = to) => {
+    const reqId = ++reqIdRef.current
     setLoading(true)
     setError("")
     try {
-      const fromIso = new Date(`${from}T00:00:00`).toISOString()
-      const toIso = new Date(`${to}T23:59:59.999`).toISOString()
       const res = await fetch(
-        `/api/db/website-analytics?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`,
+        `/api/db/website-analytics?from=${encodeURIComponent(rangeFrom)}&to=${encodeURIComponent(rangeTo)}`,
       )
       if (!res.ok) throw new Error("Failed to load")
-      setData(await res.json())
+      const json = await res.json()
+      if (reqId !== reqIdRef.current) return
+      setData(json)
     } catch (e) {
+      if (reqId !== reqIdRef.current) return
       setError(e instanceof Error ? e.message : "Failed to load analytics")
       setData(null)
     } finally {
-      setLoading(false)
+      if (reqId === reqIdRef.current) setLoading(false)
     }
   }, [from, to])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load(from, to)
+  }, [from, to, load])
 
   useEffect(() => {
-    const t = window.setInterval(() => void load(), 30000)
+    const t = window.setInterval(() => void load(from, to), 30000)
     return () => window.clearInterval(t)
-  }, [load])
+  }, [from, to, load])
+
+  function applyRange(nextFrom: string, nextTo: string) {
+    setFrom(nextFrom)
+    setTo(nextTo)
+  }
 
   const maxDaily = useMemo(
     () => Math.max(...(data?.daily.map((d) => d.uniqueVisitors) || [0]), 1),
@@ -221,12 +219,16 @@ export default function WebsiteAnalyticsDashboard() {
     )
   }, [allPages, pageSearch])
 
+  const today = localDateISO()
   const presets = [
-    { label: "Today", from: todayISO(), to: todayISO() },
-    { label: "Last 2 days", from: daysAgoISO(1), to: todayISO() },
-    { label: "7 days", from: daysAgoISO(6), to: todayISO() },
-    { label: "30 days", from: daysAgoISO(29), to: todayISO() },
+    { label: "Today", from: today, to: today },
+    { label: "Last 2 days", from: localDaysAgoISO(1), to: today },
+    { label: "7 days", from: localDaysAgoISO(6), to: today },
+    { label: "30 days", from: localDaysAgoISO(29), to: today },
   ]
+
+  const daysInRange = data?.daily?.length || 0
+  const daysWithTraffic = data?.daily?.filter((d) => d.views > 0).length || 0
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -311,12 +313,9 @@ export default function WebsiteAnalyticsDashboard() {
                 <button
                   key={p.label}
                   type="button"
-                  onClick={() => {
-                    setFrom(p.from)
-                    setTo(p.to)
-                  }}
+                  onClick={() => applyRange(p.from, p.to)}
                   className={cn(
-                    "text-[11px] px-2 py-1 rounded-md border hover:bg-accent",
+                    "text-[11px] px-2 py-1 rounded-md border hover:bg-accent cursor-pointer",
                     from === p.from && to === p.to && "bg-[#1faca6]/10 border-[#1faca6]/40",
                   )}
                 >
@@ -328,7 +327,11 @@ export default function WebsiteAnalyticsDashboard() {
                 <input
                   type="date"
                   value={from}
-                  onChange={(e) => setFrom(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (!v) return
+                    applyRange(v, to < v ? v : to)
+                  }}
                   className="ml-1 h-8 rounded-md border bg-background px-2 text-xs"
                 />
               </label>
@@ -337,11 +340,15 @@ export default function WebsiteAnalyticsDashboard() {
                 <input
                   type="date"
                   value={to}
-                  onChange={(e) => setTo(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (!v) return
+                    applyRange(from > v ? v : from, v)
+                  }}
                   className="ml-1 h-8 rounded-md border bg-background px-2 text-xs"
                 />
               </label>
-              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => void load()}>
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => void load(from, to)}>
                 <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
@@ -349,7 +356,7 @@ export default function WebsiteAnalyticsDashboard() {
           </div>
         </div>
 
-        <div className="p-4 md:p-6 space-y-5 max-w-6xl">
+        <div className={cn("p-4 md:p-6 space-y-5 max-w-6xl", loading && data && "opacity-70 transition-opacity")}>
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm px-3 py-2">
               {error}
@@ -372,12 +379,12 @@ export default function WebsiteAnalyticsDashboard() {
                     <StatCard
                       label="Pages tracked"
                       value={data.summary.pagesTracked ?? allPages.length}
-                      hint={`${data.daily.length || 0} days`}
+                      hint={`${daysWithTraffic} of ${daysInRange} days with traffic`}
                       icon={TrendingUp}
                     />
                   </div>
 
-                  <div className="rounded-xl border p-4 shadow-sm">
+                  <div className={cn("rounded-xl border p-4 shadow-sm", loading && "opacity-60")}>
                     <p className="text-sm font-semibold mb-3">Visitors by day</p>
                     {data.daily.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-10">

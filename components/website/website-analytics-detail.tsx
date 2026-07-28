@@ -1,13 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import {
   ArrowLeft, Loader2, RefreshCw, ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { formatDuration } from "@/lib/website-analytics"
+import { formatDuration, localDateISO, localDaysAgoISO } from "@/lib/website-analytics"
 
 type DetailPayload = {
   path: string
@@ -60,28 +60,31 @@ export default function WebsiteAnalyticsDetail() {
   const fromQ = sp?.get("from")
   const toQ = sp?.get("to")
 
-  const [from, setFrom] = useState(fromQ || new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10))
-  const [to, setTo] = useState(toQ || new Date().toISOString().slice(0, 10))
+  const [from, setFrom] = useState(fromQ || localDaysAgoISO(6))
+  const [to, setTo] = useState(toQ || localDateISO())
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<DetailPayload | null>(null)
   const [error, setError] = useState("")
+  const reqIdRef = useRef(0)
 
   const load = useCallback(async () => {
+    const reqId = ++reqIdRef.current
     setLoading(true)
     setError("")
     try {
-      const fromIso = new Date(`${from}T00:00:00`).toISOString()
-      const toIso = new Date(`${to}T23:59:59.999`).toISOString()
       const res = await fetch(
-        `/api/db/website-analytics?path=${encodeURIComponent(path)}&from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`,
+        `/api/db/website-analytics?path=${encodeURIComponent(path)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       )
       if (!res.ok) throw new Error("Failed to load page details")
-      setData(await res.json())
+      const json = await res.json()
+      if (reqId !== reqIdRef.current) return
+      setData(json)
     } catch (e) {
+      if (reqId !== reqIdRef.current) return
       setError(e instanceof Error ? e.message : "Failed to load")
       setData(null)
     } finally {
-      setLoading(false)
+      if (reqId === reqIdRef.current) setLoading(false)
     }
   }, [path, from, to])
 
@@ -191,7 +194,7 @@ export default function WebsiteAnalyticsDetail() {
             </div>
 
             <div className="rounded-xl border p-4 shadow-sm">
-              <p className="text-sm font-semibold mb-3">Views by hour (UTC)</p>
+              <p className="text-sm font-semibold mb-3">Views by hour (Pakistan time)</p>
               <div className="flex items-end gap-0.5 h-28">
                 {data.byHour.map((h) => (
                   <div key={h.hour} className="flex-1 min-w-0 flex flex-col items-center gap-1 h-full justify-end">

@@ -1,15 +1,32 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { featureDisplayLabel, pathDisplayLabel } from "@/lib/website-analytics"
+import {
+  analyticsDayBounds,
+  analyticsDayKey,
+  eachAnalyticsDay,
+  featureDisplayLabel,
+  pathDisplayLabel,
+} from "@/lib/website-analytics"
 
 export const dynamic = "force-dynamic"
 
 const ACTIVE_MS = 5 * 60 * 1000
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
 
 function parseRange(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const toParam = sp.get("to")
   const fromParam = sp.get("from")
+
+  // Preferred: YYYY-MM-DD (interpreted in Asia/Karachi)
+  if (fromParam && toParam && DATE_ONLY.test(fromParam) && DATE_ONLY.test(toParam)) {
+    const { from, to } = analyticsDayBounds(fromParam, toParam)
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      throw new Error("Invalid date range")
+    }
+    return { from, to, fromDate: fromParam, toDate: toParam }
+  }
+
   const to = toParam ? new Date(toParam) : new Date()
   const from = fromParam
     ? new Date(fromParam)
@@ -17,7 +34,12 @@ function parseRange(req: NextRequest) {
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
     throw new Error("Invalid date range")
   }
-  return { from, to }
+  return {
+    from,
+    to,
+    fromDate: analyticsDayKey(from),
+    toDate: analyticsDayKey(to),
+  }
 }
 
 function normalizeReferrer(ref: string): string {
@@ -39,7 +61,7 @@ function deviceFromUa(ua: string): "mobile" | "tablet" | "desktop" {
 
 export async function GET(req: NextRequest) {
   try {
-    const { from, to } = parseRange(req)
+    const { from, to, fromDate, toDate } = parseRange(req)
     const pathFilter = req.nextUrl.searchParams.get("path")
     const now = Date.now()
 
@@ -86,19 +108,27 @@ export async function GET(req: NextRequest) {
       const avgDwellMs = totalViews ? Math.round(totalDwell / totalViews) : 0
 
       const dailyMap = new Map<string, { views: number; visitors: Set<string>; dwell: number }>()
+      for (const day of eachAnalyticsDay(fromDate, toDate)) {
+        dailyMap.set(day, { views: 0, visitors: new Set(), dwell: 0 })
+      }
       const hourMap = new Map<number, number>()
       const deviceMap = new Map<string, number>()
       const refMap = new Map<string, number>()
 
       for (const p of pageviews) {
-        const day = p.createdAt.toISOString().slice(0, 10)
+        const day = analyticsDayKey(p.createdAt)
         const dRow = dailyMap.get(day) || { views: 0, visitors: new Set(), dwell: 0 }
         dRow.views += 1
         dRow.visitors.add(p.visitorId)
         dRow.dwell += p.durationMs || 0
         dailyMap.set(day, dRow)
 
-        const hour = p.createdAt.getUTCHours()
+        const hourPart = new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Asia/Karachi",
+          hour: "numeric",
+          hourCycle: "h23",
+        }).formatToParts(p.createdAt).find((x) => x.type === "hour")?.value
+        const hour = Math.min(23, Math.max(0, Number(hourPart) || 0))
         hourMap.set(hour, (hourMap.get(hour) || 0) + 1)
 
         const device = deviceFromUa(p.userAgent)
@@ -139,6 +169,8 @@ export async function GET(req: NextRequest) {
         label: pathDisplayLabel(path),
         from: from.toISOString(),
         to: to.toISOString(),
+        fromDate,
+        toDate,
         summary: {
           uniqueVisitors,
           sessions,
@@ -273,8 +305,11 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.totalDwellMs - a.totalDwellMs)
 
     const dailyMap = new Map<string, { views: number; visitors: Set<string> }>()
+    for (const day of eachAnalyticsDay(fromDate, toDate)) {
+      dailyMap.set(day, { views: 0, visitors: new Set() })
+    }
     for (const p of pageviews) {
-      const day = p.createdAt.toISOString().slice(0, 10)
+      const day = analyticsDayKey(p.createdAt)
       const row = dailyMap.get(day) || { views: 0, visitors: new Set() }
       row.views += 1
       row.visitors.add(p.visitorId)
@@ -307,6 +342,8 @@ export async function GET(req: NextRequest) {
       mode: "summary",
       from: from.toISOString(),
       to: to.toISOString(),
+      fromDate,
+      toDate,
       summary: {
         uniqueVisitors,
         sessions,
