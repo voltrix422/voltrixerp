@@ -17,6 +17,20 @@ function parseRange(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const toParam = sp.get("to")
   const fromParam = sp.get("from")
+  const lifetime = sp.get("lifetime") === "1" || fromParam === "lifetime"
+
+  if (lifetime) {
+    // Bounds filled after we know earliest row; use wide window first
+    const to = new Date()
+    const from = new Date("2020-01-01T00:00:00+05:00")
+    return {
+      from,
+      to,
+      fromDate: "lifetime",
+      toDate: analyticsDayKey(to),
+      lifetime: true as const,
+    }
+  }
 
   // Preferred: YYYY-MM-DD (interpreted in Asia/Karachi)
   if (fromParam && toParam && DATE_ONLY.test(fromParam) && DATE_ONLY.test(toParam)) {
@@ -24,7 +38,7 @@ function parseRange(req: NextRequest) {
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
       throw new Error("Invalid date range")
     }
-    return { from, to, fromDate: fromParam, toDate: toParam }
+    return { from, to, fromDate: fromParam, toDate: toParam, lifetime: false as const }
   }
 
   const to = toParam ? new Date(toParam) : new Date()
@@ -39,6 +53,7 @@ function parseRange(req: NextRequest) {
     to,
     fromDate: analyticsDayKey(from),
     toDate: analyticsDayKey(to),
+    lifetime: false as const,
   }
 }
 
@@ -61,9 +76,28 @@ function deviceFromUa(ua: string): "mobile" | "tablet" | "desktop" {
 
 export async function GET(req: NextRequest) {
   try {
-    const { from, to, fromDate, toDate } = parseRange(req)
+    let { from, to, fromDate, toDate, lifetime } = parseRange(req)
     const pathFilter = req.nextUrl.searchParams.get("path")
     const now = Date.now()
+
+    const earliest = await prisma.erpWebsitePageview.findFirst({
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    })
+    const trackingSince = earliest ? analyticsDayKey(earliest.createdAt) : null
+
+    if (lifetime && earliest) {
+      from = earliest.createdAt
+      fromDate = trackingSince || fromDate
+    }
+
+    // For lifetime daily series, use trackingSince → today (not empty 2020…)
+    const seriesFrom = lifetime && trackingSince ? trackingSince : fromDate
+    const seriesTo = toDate
+    const dailyDays =
+      seriesFrom === "lifetime" || !DATE_ONLY.test(seriesFrom)
+        ? []
+        : eachAnalyticsDay(seriesFrom, seriesTo)
 
     // Detail mode for one page
     if (pathFilter) {
@@ -108,7 +142,7 @@ export async function GET(req: NextRequest) {
       const avgDwellMs = totalViews ? Math.round(totalDwell / totalViews) : 0
 
       const dailyMap = new Map<string, { views: number; visitors: Set<string>; dwell: number }>()
-      for (const day of eachAnalyticsDay(fromDate, toDate)) {
+      for (const day of dailyDays) {
         dailyMap.set(day, { views: 0, visitors: new Set(), dwell: 0 })
       }
       const hourMap = new Map<number, number>()
@@ -171,6 +205,8 @@ export async function GET(req: NextRequest) {
         to: to.toISOString(),
         fromDate,
         toDate,
+        trackingSince,
+        lifetime,
         summary: {
           uniqueVisitors,
           sessions,
@@ -305,7 +341,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.totalDwellMs - a.totalDwellMs)
 
     const dailyMap = new Map<string, { views: number; visitors: Set<string> }>()
-    for (const day of eachAnalyticsDay(fromDate, toDate)) {
+    for (const day of dailyDays) {
       dailyMap.set(day, { views: 0, visitors: new Set() })
     }
     for (const p of pageviews) {
@@ -344,6 +380,8 @@ export async function GET(req: NextRequest) {
       to: to.toISOString(),
       fromDate,
       toDate,
+      trackingSince,
+      lifetime,
       summary: {
         uniqueVisitors,
         sessions,

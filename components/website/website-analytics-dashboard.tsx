@@ -31,6 +31,10 @@ type FeatureRow = {
 type AnalyticsPayload = {
   from: string
   to: string
+  fromDate?: string
+  toDate?: string
+  trackingSince?: string | null
+  lifetime?: boolean
   summary: {
     uniqueVisitors: number
     sessions: number
@@ -56,6 +60,7 @@ type AnalyticsPayload = {
 }
 
 type Section = "overview" | "pages" | "features" | "live" | "sources"
+type RangeMode = "today" | "yesterday" | "last2" | "week" | "month" | "days7" | "days30" | "lifetime" | "custom"
 
 const SECTIONS: Array<{ id: Section; label: string; icon: typeof LayoutDashboard; hint: string }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, hint: "Visitors & trends" },
@@ -64,6 +69,18 @@ const SECTIONS: Array<{ id: Section; label: string; icon: typeof LayoutDashboard
   { id: "live", label: "Live now", icon: Radio, hint: "Active visitors" },
   { id: "sources", label: "Sources", icon: Share2, hint: "Referrers & devices" },
 ]
+
+function startOfWeekISO(d = new Date()): string {
+  const x = new Date(d)
+  const day = x.getDay() // 0 Sun
+  const diff = day === 0 ? 6 : day - 1 // Monday start
+  x.setDate(x.getDate() - diff)
+  return localDateISO(x)
+}
+
+function startOfMonthISO(d = new Date()): string {
+  return localDateISO(new Date(d.getFullYear(), d.getMonth(), 1))
+}
 
 function formatUa(ua: string) {
   if (!ua) return "Unknown"
@@ -162,24 +179,30 @@ function PageTable({
 
 export default function WebsiteAnalyticsDashboard() {
   const [section, setSection] = useState<Section>("overview")
-  const [from, setFrom] = useState(() => localDaysAgoISO(6))
+  const [rangeMode, setRangeMode] = useState<RangeMode>("today")
+  const [from, setFrom] = useState(() => localDateISO())
   const [to, setTo] = useState(() => localDateISO())
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<AnalyticsPayload | null>(null)
   const [error, setError] = useState("")
   const [pageSearch, setPageSearch] = useState("")
+  const [chartOnlyTraffic, setChartOnlyTraffic] = useState(true)
   const reqIdRef = useRef(0)
 
-  const load = useCallback(async (rangeFrom = from, rangeTo = to) => {
+  const load = useCallback(async (rangeFrom: string, rangeTo: string, mode: RangeMode) => {
     const reqId = ++reqIdRef.current
     setLoading(true)
     setError("")
+    // Clear KPIs immediately so the UI visibly updates on every filter click
+    setData(null)
     try {
-      const res = await fetch(
-        `/api/db/website-analytics?from=${encodeURIComponent(rangeFrom)}&to=${encodeURIComponent(rangeTo)}`,
-      )
+      const qs =
+        mode === "lifetime"
+          ? "lifetime=1"
+          : `from=${encodeURIComponent(rangeFrom)}&to=${encodeURIComponent(rangeTo)}`
+      const res = await fetch(`/api/db/website-analytics?${qs}`)
       if (!res.ok) throw new Error("Failed to load")
-      const json = await res.json()
+      const json = (await res.json()) as AnalyticsPayload
       if (reqId !== reqIdRef.current) return
       setData(json)
     } catch (e) {
@@ -189,26 +212,74 @@ export default function WebsiteAnalyticsDashboard() {
     } finally {
       if (reqId === reqIdRef.current) setLoading(false)
     }
-  }, [from, to])
+  }, [])
 
   useEffect(() => {
-    void load(from, to)
-  }, [from, to, load])
+    void load(from, to, rangeMode)
+    // initial load only — later loads go through applyPreset / applyCustom
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
-    const t = window.setInterval(() => void load(from, to), 30000)
+    const t = window.setInterval(() => void load(from, to, rangeMode), 30000)
     return () => window.clearInterval(t)
-  }, [from, to, load])
+  }, [from, to, rangeMode, load])
 
-  function applyRange(nextFrom: string, nextTo: string) {
-    setFrom(nextFrom)
+  function applyPreset(mode: RangeMode) {
+    const today = localDateISO()
+    let nextFrom = today
+    let nextTo = today
+    if (mode === "today") {
+      nextFrom = today
+      nextTo = today
+    } else if (mode === "yesterday") {
+      nextFrom = localDaysAgoISO(1)
+      nextTo = localDaysAgoISO(1)
+    } else if (mode === "last2") {
+      nextFrom = localDaysAgoISO(1)
+      nextTo = today
+    } else if (mode === "week") {
+      nextFrom = startOfWeekISO()
+      nextTo = today
+    } else if (mode === "month") {
+      nextFrom = startOfMonthISO()
+      nextTo = today
+    } else if (mode === "days7") {
+      nextFrom = localDaysAgoISO(6)
+      nextTo = today
+    } else if (mode === "days30") {
+      nextFrom = localDaysAgoISO(29)
+      nextTo = today
+    } else if (mode === "lifetime") {
+      nextFrom = "lifetime"
+      nextTo = today
+    }
+    setRangeMode(mode)
+    setFrom(nextFrom === "lifetime" ? (data?.trackingSince || today) : nextFrom)
     setTo(nextTo)
+    void load(nextFrom === "lifetime" ? "lifetime" : nextFrom, nextTo, mode)
   }
 
-  const maxDaily = useMemo(
-    () => Math.max(...(data?.daily.map((d) => d.uniqueVisitors) || [0]), 1),
-    [data],
-  )
+  function applyCustom(nextFrom: string, nextTo: string) {
+    setRangeMode("custom")
+    setFrom(nextFrom)
+    setTo(nextTo)
+    void load(nextFrom, nextTo, "custom")
+  }
+
+  const maxDaily = useMemo(() => {
+    const rows = chartOnlyTraffic
+      ? (data?.daily || []).filter((d) => d.views > 0)
+      : data?.daily || []
+    return Math.max(...rows.map((d) => d.uniqueVisitors), 1)
+  }, [data, chartOnlyTraffic])
+
+  const chartDays = useMemo(() => {
+    const rows = data?.daily || []
+    if (!chartOnlyTraffic) return rows
+    const withTraffic = rows.filter((d) => d.views > 0)
+    return withTraffic.length > 0 ? withTraffic : rows
+  }, [data, chartOnlyTraffic])
 
   const allPages = data?.pages || data?.mostVisited || []
   const filteredPages = useMemo(() => {
@@ -219,16 +290,26 @@ export default function WebsiteAnalyticsDashboard() {
     )
   }, [allPages, pageSearch])
 
-  const today = localDateISO()
-  const presets = [
-    { label: "Today", from: today, to: today },
-    { label: "Last 2 days", from: localDaysAgoISO(1), to: today },
-    { label: "7 days", from: localDaysAgoISO(6), to: today },
-    { label: "30 days", from: localDaysAgoISO(29), to: today },
+  const presets: Array<{ mode: RangeMode; label: string }> = [
+    { mode: "today", label: "Today" },
+    { mode: "yesterday", label: "Yesterday" },
+    { mode: "last2", label: "Last 2 days" },
+    { mode: "week", label: "This week" },
+    { mode: "month", label: "This month" },
+    { mode: "days7", label: "7 days" },
+    { mode: "days30", label: "30 days" },
+    { mode: "lifetime", label: "Lifetime" },
   ]
+
+  const rangeLabel =
+    rangeMode === "lifetime"
+      ? `Lifetime${data?.trackingSince ? ` (since ${data.trackingSince})` : ""}`
+      : `${from} → ${to}`
 
   const daysInRange = data?.daily?.length || 0
   const daysWithTraffic = data?.daily?.filter((d) => d.views > 0).length || 0
+  const detailFrom = rangeMode === "lifetime" ? (data?.trackingSince || from) : from
+  const detailTo = to
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -288,8 +369,9 @@ export default function WebsiteAnalyticsDashboard() {
                 {SECTIONS.find((s) => s.id === section)?.label}
               </h2>
               <p className="text-xs text-muted-foreground">
-                {from} → {to}
+                Showing <span className="font-medium text-foreground">{rangeLabel}</span>
                 {data ? ` · ${data.summary.activeNow} active now` : ""}
+                {loading ? " · updating…" : ""}
               </p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
@@ -311,12 +393,12 @@ export default function WebsiteAnalyticsDashboard() {
               </div>
               {presets.map((p) => (
                 <button
-                  key={p.label}
+                  key={p.mode}
                   type="button"
-                  onClick={() => applyRange(p.from, p.to)}
+                  onClick={() => applyPreset(p.mode)}
                   className={cn(
                     "text-[11px] px-2 py-1 rounded-md border hover:bg-accent cursor-pointer",
-                    from === p.from && to === p.to && "bg-[#1faca6]/10 border-[#1faca6]/40",
+                    rangeMode === p.mode && "bg-[#1faca6]/15 border-[#1faca6]/50 font-semibold",
                   )}
                 >
                   {p.label}
@@ -326,11 +408,11 @@ export default function WebsiteAnalyticsDashboard() {
                 From
                 <input
                   type="date"
-                  value={from}
+                  value={from === "lifetime" ? (data?.trackingSince || localDateISO()) : from}
                   onChange={(e) => {
                     const v = e.target.value
                     if (!v) return
-                    applyRange(v, to < v ? v : to)
+                    applyCustom(v, to < v ? v : to)
                   }}
                   className="ml-1 h-8 rounded-md border bg-background px-2 text-xs"
                 />
@@ -343,12 +425,12 @@ export default function WebsiteAnalyticsDashboard() {
                   onChange={(e) => {
                     const v = e.target.value
                     if (!v) return
-                    applyRange(from > v ? v : from, v)
+                    applyCustom(from > v ? v : from, v)
                   }}
                   className="ml-1 h-8 rounded-md border bg-background px-2 text-xs"
                 />
               </label>
-              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => void load(from, to)}>
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => void load(from, to, rangeMode)}>
                 <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
@@ -356,7 +438,7 @@ export default function WebsiteAnalyticsDashboard() {
           </div>
         </div>
 
-        <div className={cn("p-4 md:p-6 space-y-5 max-w-6xl", loading && data && "opacity-70 transition-opacity")}>
+        <div className="p-4 md:p-6 space-y-5 max-w-6xl">
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm px-3 py-2">
               {error}
@@ -365,47 +447,75 @@ export default function WebsiteAnalyticsDashboard() {
 
           {loading && !data ? (
             <div className="flex items-center justify-center py-24 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading analytics…
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading {rangeLabel}…
             </div>
           ) : data ? (
             <>
               {section === "overview" && (
                 <>
+                  <div className="rounded-lg border border-[#1faca6]/30 bg-[#1faca6]/5 px-3 py-2 text-xs flex flex-wrap gap-x-4 gap-y-1">
+                    <span><span className="text-muted-foreground">Range:</span> <strong>{rangeLabel}</strong></span>
+                    <span><span className="text-muted-foreground">Visitors:</span> <strong>{data.summary.uniqueVisitors}</strong></span>
+                    <span><span className="text-muted-foreground">Views:</span> <strong>{data.summary.totalViews}</strong></span>
+                    <span><span className="text-muted-foreground">Sessions:</span> <strong>{data.summary.sessions}</strong></span>
+                    {data.trackingSince && (
+                      <span className="text-muted-foreground">Tracking since {data.trackingSince}</span>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                    <StatCard label="Active now" value={data.summary.activeNow} hint="Last 5 minutes" icon={Activity} />
-                    <StatCard label="Unique visitors" value={data.summary.uniqueVisitors} hint="Selected range" icon={Users} />
+                    <StatCard label="Active now" value={data.summary.activeNow} hint="Last 5 minutes (live)" icon={Activity} />
+                    <StatCard label="Unique visitors" value={data.summary.uniqueVisitors} hint={rangeLabel} icon={Users} />
                     <StatCard label="Page views" value={data.summary.totalViews} hint={`${data.summary.sessions} sessions`} icon={Eye} />
-                    <StatCard label="Avg. time / page" value={formatDuration(data.summary.avgDwellMs)} icon={Clock} />
+                    <StatCard label="Avg. time / page" value={formatDuration(data.summary.avgDwellMs)} hint={rangeLabel} icon={Clock} />
                     <StatCard
                       label="Pages tracked"
                       value={data.summary.pagesTracked ?? allPages.length}
-                      hint={`${daysWithTraffic} of ${daysInRange} days with traffic`}
+                      hint={`${daysWithTraffic} of ${daysInRange || "—"} days with traffic`}
                       icon={TrendingUp}
                     />
                   </div>
 
-                  <div className={cn("rounded-xl border p-4 shadow-sm", loading && "opacity-60")}>
-                    <p className="text-sm font-semibold mb-3">Visitors by day</p>
-                    {data.daily.length === 0 ? (
+                  <div className="rounded-xl border p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <p className="text-sm font-semibold">Visitors by day</p>
+                      <button
+                        type="button"
+                        onClick={() => setChartOnlyTraffic((v) => !v)}
+                        className="text-[11px] px-2 py-1 rounded border hover:bg-accent"
+                      >
+                        {chartOnlyTraffic ? "Show all days in range" : "Show only days with traffic"}
+                      </button>
+                    </div>
+                    {daysWithTraffic === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-10">
-                        No visits yet in this range. Open the public website to start collecting.
+                        No visits in this range yet.
                       </p>
                     ) : (
-                      <div className="flex items-end gap-1.5 h-40">
-                        {data.daily.map((d) => (
-                          <div key={d.date} className="flex-1 min-w-0 flex flex-col items-center gap-1 h-full justify-end">
-                            <span className="text-[10px] tabular-nums text-muted-foreground">{d.uniqueVisitors}</span>
-                            <div
-                              className="w-full rounded-t bg-gradient-to-t from-[#1faca6] to-[#1faca6]/70 min-h-[4px]"
-                              style={{ height: `${(d.uniqueVisitors / maxDaily) * 100}%` }}
-                              title={`${d.date}: ${d.uniqueVisitors} visitors, ${d.views} views`}
-                            />
-                            <span className="text-[9px] text-muted-foreground truncate w-full text-center">
-                              {d.date.slice(5)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                      <>
+                        {daysWithTraffic < daysInRange && chartOnlyTraffic && (
+                          <p className="text-[11px] text-muted-foreground mb-2">
+                            Showing {daysWithTraffic} day(s) with traffic
+                            {data.trackingSince ? ` (tracking started ${data.trackingSince})` : ""}.
+                            Empty earlier days are hidden — toggle above to show full range.
+                          </p>
+                        )}
+                        <div className="flex items-end gap-1.5 h-40">
+                          {chartDays.map((d) => (
+                            <div key={d.date} className="flex-1 min-w-0 flex flex-col items-center gap-1 h-full justify-end">
+                              <span className="text-[10px] tabular-nums text-muted-foreground">{d.uniqueVisitors}</span>
+                              <div
+                                className="w-full rounded-t bg-gradient-to-t from-[#1faca6] to-[#1faca6]/70 min-h-[4px]"
+                                style={{ height: `${(d.uniqueVisitors / maxDaily) * 100}%` }}
+                                title={`${d.date}: ${d.uniqueVisitors} visitors, ${d.views} views`}
+                              />
+                              <span className="text-[9px] text-muted-foreground truncate w-full text-center">
+                                {d.date.slice(5)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
 
@@ -420,7 +530,7 @@ export default function WebsiteAnalyticsDashboard() {
                           View all
                         </button>
                       </div>
-                      <PageTable rows={data.mostVisited.slice(0, 6)} from={from} to={to} empty="No page data yet" />
+                      <PageTable rows={data.mostVisited.slice(0, 6)} from={detailFrom} to={detailTo} empty="No page data yet" />
                     </div>
                     <div className="rounded-xl border p-4 shadow-sm">
                       <div className="flex items-center justify-between mb-3">
@@ -483,8 +593,8 @@ export default function WebsiteAnalyticsDashboard() {
                       </div>
                       <PageTable
                         rows={[...filteredPages].sort((a, b) => b.views - a.views)}
-                        from={from}
-                        to={to}
+                        from={detailFrom}
+                        to={detailTo}
                         empty="No matching pages"
                       />
                     </div>
@@ -495,8 +605,8 @@ export default function WebsiteAnalyticsDashboard() {
                       </div>
                       <PageTable
                         rows={[...filteredPages].sort((a, b) => a.views - b.views)}
-                        from={from}
-                        to={to}
+                        from={detailFrom}
+                        to={detailTo}
                         empty="No matching pages"
                       />
                     </div>
@@ -576,7 +686,7 @@ export default function WebsiteAnalyticsDashboard() {
                       {data.activeNow.map((v) => (
                         <Link
                           key={v.visitorId}
-                          href={`/website/analytics/detail?path=${encodeURIComponent(v.path)}&from=${from}&to=${to}`}
+                          href={`/website/analytics/detail?path=${encodeURIComponent(v.path)}&from=${detailFrom}&to=${detailTo}`}
                           className="rounded-lg border px-3 py-3 hover:border-[#1faca6]/50 hover:bg-[#1faca6]/5 transition-colors"
                         >
                           <div className="flex items-start justify-between gap-2">
