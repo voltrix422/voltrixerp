@@ -12,6 +12,7 @@ import { ClientOrdersApproval } from "@/components/dashboard/client-orders-appro
 import { DashboardBranchTransferApprovals } from "@/components/dashboard/branch-transfer-approvals-panel"
 import { DashboardPettyCashApprovals } from "@/components/dashboard/petty-cash-approvals"
 import { DashboardOverviewPanel } from "@/components/dashboard/dashboard-overview-panel"
+import { FinanceReportPanel } from "@/components/dashboard/finance-report-panel"
 import { useDashboardApprovalCounts } from "@/components/dashboard/use-dashboard-data"
 import { isErpAdmin } from "@/lib/auth"
 import {
@@ -292,6 +293,8 @@ export default function DashboardPage() {
 
         {mainTab === "overview" ? (
           <DashboardOverviewPanel />
+        ) : mainTab === "finance" ? (
+          <FinanceReportPanel />
         ) : (
           <section className="space-y-4">
             <div>
