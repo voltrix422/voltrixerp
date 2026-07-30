@@ -16,7 +16,7 @@ import {
 export function HrmDailyReportsAdmin({ reviewedBy }: { reviewedBy: string }) {
   const { toast } = useToast()
   const [reportDate, setReportDate] = useState(todayDateString())
-  const [statusFilter, setStatusFilter] = useState<string>("")
+  const [statusFilter, setStatusFilter] = useState<string>("submitted")
   const [reports, setReports] = useState<DailyReport[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -81,7 +81,8 @@ export function HrmDailyReportsAdmin({ reviewedBy }: { reviewedBy: string }) {
       <div>
         <h2 className="text-sm font-semibold">Daily reports</h2>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-          See what each team member logged for a day — times, details, and photos.
+          Review daily KPI logs from every login user (KPI Dashboard / My KPIs). Staff submit from{" "}
+          <span className="font-medium text-[hsl(var(--foreground))]">Daily reporting</span>; you approve here.
         </p>
       </div>
 

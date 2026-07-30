@@ -8,6 +8,7 @@ import {
   fetchSettlements,
   fetchStaffKpis,
   fetchStaffProfile,
+  linkOrFindStaffForUser,
 } from "@/lib/hrm-kpis"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { DailyReportSection } from "@/components/hrm/daily-report-section"
@@ -23,14 +24,30 @@ export function MyKpiPortal() {
   const [currentScore, setCurrentScore] = useState(0)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [errorMsg, setErrorMsg] = useState("")
 
   useEffect(() => {
     if (!user?.email && !user?.id) {
       setLoading(false)
       return
     }
-    fetchStaffProfile({ email: user?.email, userId: user?.id })
-      .then(async (resolved) => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        setErrorMsg("")
+        let resolved = await fetchStaffProfile({ email: user?.email, userId: user?.id })
+        if (!resolved && user?.id) {
+          const ensured = await linkOrFindStaffForUser(user.id)
+          resolved = {
+            id: ensured.id,
+            name: ensured.name,
+            email: ensured.email,
+            role: ensured.role,
+            department: ensured.department,
+            erpUserId: ensured.erpUserId,
+          }
+        }
+        if (cancelled) return
         setStaff(resolved)
         setNotFound(!resolved)
         if (!resolved) return
@@ -38,7 +55,8 @@ export function MyKpiPortal() {
           fetchStaffKpis(resolved.id),
           fetchSettlements({ staffId: resolved.id }),
         ])
-        const active = kpis.filter(k => k.active)
+        if (cancelled) return
+        const active = kpis.filter((k) => k.active)
         setKpiCount(active.length)
         const latest = settlements[0]
         if (latest) {
@@ -48,9 +66,17 @@ export function MyKpiPortal() {
           setCurrentStatus("draft")
           setCurrentScore(0)
         }
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false))
+      } catch (e) {
+        if (cancelled) return
+        setNotFound(true)
+        setErrorMsg(e instanceof Error ? e.message : "Could not open KPI profile")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [user?.email, user?.id])
 
   const statusMeta = useMemo(() => {
@@ -90,11 +116,10 @@ export function MyKpiPortal() {
   if (notFound || !staff) {
     return (
       <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center max-w-lg mx-auto">
-        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">No staff profile linked</p>
+        <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Could not open KPI profile</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
-          Your login account is not the same as HRM staff. Ask an admin to add you under{" "}
-          <span className="font-medium">HRM → Staff</span> using this email (
-          <span className="font-medium">{user?.email}</span>), then you can use My KPIs.
+          {errorMsg ||
+            `Unable to link ${user?.email || "this account"} for daily KPI reporting. Try again or ask an admin.`}
         </p>
       </div>
     )

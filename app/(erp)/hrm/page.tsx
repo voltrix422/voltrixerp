@@ -14,16 +14,16 @@ import { Users, LayoutTemplate, CheckSquare, FileText, Target } from "lucide-rea
 type HrmTab = "staff" | "performance" | "approvals" | "daily-reports" | "my-kpis"
 
 const ADMIN_TABS: { id: HrmTab; label: string; icon: typeof Users }[] = [
+  { id: "daily-reports", label: "Daily Reports", icon: FileText },
   { id: "staff", label: "Staff", icon: Users },
   { id: "performance", label: "Templates", icon: LayoutTemplate },
   { id: "approvals", label: "KPI Approvals", icon: CheckSquare },
-  { id: "daily-reports", label: "Daily Reports", icon: FileText },
 ]
 
 export default function HrmPage() {
   const { user } = useAuth()
   const isAdmin = isErpAdmin(user?.role)
-  const [tab, setTab] = useState<HrmTab>(isAdmin ? "staff" : "my-kpis")
+  const [tab, setTab] = useState<HrmTab>(isAdmin ? "daily-reports" : "my-kpis")
 
   const tabs = isAdmin
     ? [...ADMIN_TABS, { id: "my-kpis" as const, label: "My KPIs", icon: Target }]

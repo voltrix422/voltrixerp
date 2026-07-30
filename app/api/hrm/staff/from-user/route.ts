@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 
+const STAFF_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  department: true,
+  erpUserId: true,
+} as const
+
 /**
- * Link an ERP login user to an existing HRM staff profile.
- * Does NOT auto-create staff — Manage Users ≠ Staff.
- * Admin must add the person under HRM → Staff first.
+ * Ensure an ERP login user has an HRM staff profile for daily KPIs / My KPIs.
+ * Links existing staff by erpUserId or email, or auto-creates a minimal profile.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -20,29 +28,55 @@ export async function POST(req: NextRequest) {
 
   const existingByUserId = await prisma.erpStaff.findFirst({
     where: { erpUserId: userId },
-    select: { id: true },
+    select: STAFF_SELECT,
   })
   if (existingByUserId) {
-    return NextResponse.json({ id: existingByUserId.id, linked: true, existing: true })
+    return NextResponse.json({ ...existingByUserId, linked: true, existing: true, created: false })
   }
 
   const existingByEmail = await prisma.erpStaff.findFirst({
     where: { email: { equals: user.email, mode: "insensitive" } },
-    select: { id: true },
+    select: STAFF_SELECT,
   })
   if (existingByEmail) {
-    await prisma.erpStaff.update({
+    const linked = await prisma.erpStaff.update({
       where: { id: existingByEmail.id },
       data: { erpUserId: userId },
+      select: STAFF_SELECT,
     })
-    return NextResponse.json({ id: existingByEmail.id, linked: true })
+    return NextResponse.json({ ...linked, linked: true, existing: true, created: false })
   }
 
-  return NextResponse.json(
-    {
-      error:
-        "No HRM staff profile for this user. Add them under HRM → Staff first (system users are not staff).",
+  const today = new Date().toISOString().slice(0, 10)
+  const roleLabel =
+    user.role === "superadmin" || user.role === "admin"
+      ? "Admin"
+      : user.role === "sales_agent"
+        ? "Sales Agent"
+        : user.role === "sales_manager"
+          ? "Sales Manager"
+          : "Staff"
+
+  const created = await prisma.erpStaff.create({
+    data: {
+      name: user.name || user.email,
+      email: user.email,
+      role: roleLabel,
+      department: user.jobTitle || user.location || "General",
+      phone: "",
+      address: "",
+      salary: Number(user.baseSalary) || 0,
+      basicSalary: Number(user.baseSalary) || 0,
+      currency: "PKR",
+      joinDate: today,
+      status: "Active",
+      notes: "Auto-created for daily KPI reporting from login account",
+      createdBy: "system",
+      erpUserId: userId,
+      employmentType: "Permanent",
     },
-    { status: 404 }
-  )
+    select: STAFF_SELECT,
+  })
+
+  return NextResponse.json({ ...created, linked: true, existing: false, created: true })
 }
