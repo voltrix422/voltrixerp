@@ -264,11 +264,13 @@ export async function POST(req: NextRequest) {
         ...(o as unknown as Order),
         id: fullExisting.id,
         items: (Array.isArray(fullExisting.items)
-          ? fullExisting.items
+          ? (fullExisting.items as unknown as OrderItem[])
           : []) as OrderItem[],
         returnLines: (Array.isArray(o.returnLines)
-          ? o.returnLines
-          : fullExisting.returnLines) as OrderReturnLine[],
+          ? (o.returnLines as unknown as OrderReturnLine[])
+          : Array.isArray(fullExisting.returnLines)
+            ? (fullExisting.returnLines as unknown as OrderReturnLine[])
+            : []) as OrderReturnLine[],
         returnMerchandiseApplied: Boolean(fullExisting.returnMerchandiseApplied),
         subtotal: Number(fullExisting.subtotal) || 0,
         tax: Number(fullExisting.tax) || 0,
