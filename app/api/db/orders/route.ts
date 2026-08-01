@@ -7,6 +7,7 @@ import {
   restoreInventoryForOrderServer,
   orderMayNeedInventoryRestore,
   type OrderDeductInput,
+  type OrderRestoreLineQty,
 } from "@/lib/inventory-order-deduct-server"
 import {
   deductBranchStockForPosOrder,
@@ -114,6 +115,8 @@ export async function POST(req: NextRequest) {
           inventoryReturnedAt: true,
           source: true,
           branchId: true,
+          returnLines: true,
+          items: true,
         },
       })
     : null
@@ -140,19 +143,70 @@ export async function POST(req: NextRequest) {
     String(o.status || "").toLowerCase() === "delivered" &&
     !existing?.inventoryDeductedAt
 
-  const becomingReturned =
+  type ReturnLineRow = { id?: string; orderItemId?: string; qty?: number }
+  function aggregateReturnQty(lines: unknown): Map<string, number> {
+    const map = new Map<string, number>()
+    if (!Array.isArray(lines)) return map
+    for (const raw of lines as ReturnLineRow[]) {
+      const itemId = String(raw?.orderItemId || "").trim()
+      const qty = Math.max(0, Math.floor(Number(raw?.qty) || 0))
+      if (!itemId || qty <= 0) continue
+      map.set(itemId, (map.get(itemId) || 0) + qty)
+    }
+    return map
+  }
+
+  const prevReturnAgg = aggregateReturnQty(existing?.returnLines)
+  const nextReturnAgg = aggregateReturnQty(o.returnLines)
+  const restoreDelta: OrderRestoreLineQty[] = []
+  for (const [itemId, qty] of nextReturnAgg) {
+    const delta = qty - (prevReturnAgg.get(itemId) || 0)
+    if (delta > 0) restoreDelta.push({ orderItemId: itemId, qty: delta })
+  }
+  // Reject attempts to decrease returned qty
+  for (const [itemId, prevQty] of prevReturnAgg) {
+    if ((nextReturnAgg.get(itemId) || 0) < prevQty) {
+      return NextResponse.json(
+        { error: "Cannot reduce previously returned quantities." },
+        { status: 400 },
+      )
+    }
+  }
+  // Cap against ordered qty
+  const orderItems = Array.isArray(o.items)
+    ? (o.items as Array<{ id?: string; qty?: number }>)
+    : Array.isArray(existing?.items)
+      ? (existing!.items as Array<{ id?: string; qty?: number }>)
+      : []
+  for (const [itemId, qty] of nextReturnAgg) {
+    const item = orderItems.find((i) => i.id === itemId)
+    const ordered = Math.max(0, Math.floor(Number(item?.qty) || 0))
+    if (qty > ordered) {
+      return NextResponse.json(
+        { error: `Return qty for an item exceeds ordered quantity (${ordered}).` },
+        { status: 400 },
+      )
+    }
+  }
+
+  const becomingFullReturnedLegacy =
     String(o.status || "").toLowerCase() === "returned" &&
     !!existing &&
     existing.status !== "returned" &&
-    !existing.inventoryReturnedAt
+    !existing.inventoryReturnedAt &&
+    restoreDelta.length === 0 &&
+    nextReturnAgg.size === 0
 
-  // Restore stock before marking returned so a failed restore never leaves a half-saved return.
-  if (becomingReturned) {
+  const hasNewReturnRestore = restoreDelta.length > 0 || becomingFullReturnedLegacy
+
+  // Restore stock before saving return so a failed restore never leaves a half-saved return.
+  if (hasNewReturnRestore && existing) {
     const fullExisting = await prisma.erpOrder.findUnique({ where: { id: orderId } })
     if (fullExisting) {
       const deductInput = toOrderDeductInput(fullExisting)
       try {
         if (isBranchPosOrderSource(fullExisting.source) && fullExisting.branchId) {
+          // Branch POS: only full restore path (CRM partial returns are blocked for POS)
           await restoreBranchStockForPosOrder({
             id: fullExisting.id,
             orderNumber: fullExisting.orderNumber,
@@ -163,18 +217,46 @@ export async function POST(req: NextRequest) {
               ? (fullExisting.items as OrderDeductInput["items"])
               : [],
           })
+          o.inventoryReturnedAt = o.inventoryReturnedAt || new Date().toISOString()
+          o.inventoryDeductedAt = null
+          fulfillment.inventoryDeductedAt = null
         } else if (orderMayNeedInventoryRestore(deductInput)) {
+          const notes = becomingFullReturnedLegacy
+            ? `Returned from order · ${fullExisting.clientName} · stock restored`
+            : `Partial return · ${fullExisting.clientName} · stock restored`
           await restoreInventoryForOrderServer(deductInput, {
-            historyNotes: `Returned from order · ${fullExisting.clientName} · stock restored`,
+            historyNotes: notes,
+            restoreLines: becomingFullReturnedLegacy ? undefined : restoreDelta,
           })
         }
-        o.inventoryReturnedAt = o.inventoryReturnedAt || new Date().toISOString()
-        o.inventoryDeductedAt = null
-        fulfillment.inventoryDeductedAt = null
+
+        // Mark full inventory return only when every line is fully returned
+        const itemsForCheck = Array.isArray(fullExisting.items)
+          ? (fullExisting.items as Array<{ id?: string; qty?: number }>)
+          : []
+        const fullyReturned =
+          becomingFullReturnedLegacy ||
+          (itemsForCheck.length > 0 &&
+            itemsForCheck.every((item) => {
+              if (!item.id) return true
+              const ordered = Math.max(0, Math.floor(Number(item.qty) || 0))
+              return (nextReturnAgg.get(item.id) || 0) >= ordered
+            }))
+
+        if (fullyReturned) {
+          o.status = "returned"
+          o.inventoryReturnedAt = o.inventoryReturnedAt || new Date().toISOString()
+          o.inventoryDeductedAt = null
+          fulfillment.inventoryDeductedAt = null
+        } else {
+          // Partial: stay delivered; keep deducted marker for remaining stock
+          o.status = "delivered"
+          o.inventoryReturnedAt = null
+        }
       } catch (err) {
         console.error("[orders POST] inventory restore on return failed:", err)
         return NextResponse.json(
-          { error: "Could not restore inventory for this return. Order was not marked returned." },
+          { error: "Could not restore inventory for this return. Order was not updated." },
           { status: 500 },
         )
       }
@@ -205,6 +287,7 @@ export async function POST(req: NextRequest) {
           returnReason: o.returnReason ?? "",
           inventoryReturnedAt: o.inventoryReturnedAt ?? null,
           returnPayments: o.returnPayments ?? [],
+          returnLines: o.returnLines ?? [],
           branchId,
           source,
           ...fulfillment,
@@ -230,6 +313,7 @@ export async function POST(req: NextRequest) {
           returnReason: o.returnReason ?? "",
           inventoryReturnedAt: o.inventoryReturnedAt ?? null,
           returnPayments: o.returnPayments ?? [],
+          returnLines: o.returnLines ?? [],
           branchId,
           source,
           ...fulfillment,

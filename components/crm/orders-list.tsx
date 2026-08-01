@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, canReturnOrder, canAddReturnPayment, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, getItemReturnedQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
@@ -1481,8 +1481,9 @@ function OrderDetail({
   const canFinalize = detailOrder.status === "approved" && !hasInvoiceDetails
   const canManagePayments = canCapturePaymentsForOrder(detailOrder)
   const canDeletePayments = detailOrder.status === "delivered" && canManagePayments
-  const canReturn = canReturnOrder(detailOrder) && detailOrder.status === "delivered" && !workspace?.readOnly
+  const canReturn = canReturnOrder(detailOrder) && !workspace?.readOnly
   const canManageReturnPayments = canAddReturnPayment(detailOrder) && !workspace?.readOnly
+  const hasReturns = orderHasAnyReturns(detailOrder)
   const creditBalance = getOrderCreditBalance(detailOrder)
   const amountPaid = getOrderAmountPaid(detailOrder)
   const returnAmount = getOrderReturnAmount(detailOrder)
@@ -1675,11 +1676,11 @@ function OrderDetail({
 
           <CrmOrderSummaryDisplay order={detailOrder} />
 
-          {isOrderReturned(detailOrder) && (
+          {hasReturns && (
             <div className="rounded-lg border bg-orange-50 dark:bg-orange-950/40 p-4 space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-orange-900 dark:text-orange-100">
-                  Order return
+                  {isOrderReturned(detailOrder) ? "Order return" : "Partial return"}
                 </p>
                 {canManageReturnPayments && (
                   <Button
@@ -1700,6 +1701,36 @@ function OrderDetail({
                   </p>
                 </div>
               )}
+              <div className="rounded-md border border-orange-200 dark:border-orange-800 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-orange-100/60 dark:bg-orange-900/30 text-left text-[10px] uppercase text-orange-800 dark:text-orange-200">
+                      <th className="px-2 py-1.5 font-semibold">Item</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">Returned</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailOrder.items.map((item) => {
+                      const returnedQty = getItemReturnedQty(detailOrder, item.id)
+                      if (returnedQty <= 0) return null
+                      return (
+                        <tr key={item.id} className="border-t border-orange-200/70 dark:border-orange-800/70">
+                          <td className="px-2 py-1.5 text-orange-900 dark:text-orange-100">
+                            {item.description || item.model || "Item"}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums font-medium text-orange-900 dark:text-orange-100">
+                            {returnedQty} / {item.qty}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-orange-800 dark:text-orange-200">
+                            {getItemRemainingReturnableQty(detailOrder, item)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-orange-800 dark:text-orange-200">
                 {detailOrder.returnedAt && (
                   <div>
@@ -1716,12 +1747,14 @@ function OrderDetail({
                     PKR {returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-                {detailOrder.inventoryReturnedAt && (
-                  <div className="col-span-2">
-                    <p className="font-bold uppercase text-[10px]">Stock</p>
-                    <p className="mt-0.5">Restored to inventory</p>
-                  </div>
-                )}
+                <div className="col-span-2">
+                  <p className="font-bold uppercase text-[10px]">Stock</p>
+                  <p className="mt-0.5">
+                    {detailOrder.inventoryReturnedAt
+                      ? "Fully restored to inventory"
+                      : "Returned quantities restored to inventory"}
+                  </p>
+                </div>
               </div>
               {(detailOrder.returnPayments?.length ?? 0) > 0 && (
                 <div className="space-y-2 pt-1 border-t border-orange-200 dark:border-orange-800">
@@ -1950,7 +1983,8 @@ function OrderDetail({
               className="h-10 text-sm bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
               onClick={() => setShowReturn(true)}
             >
-              <RotateCcw className="h-4 w-4 mr-2" /> Return order
+              <RotateCcw className="h-4 w-4 mr-2" />
+              {hasReturns ? "Return more items" : "Return items"}
             </Button>
           )}
           {canManageReturnPayments && (

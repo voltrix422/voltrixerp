@@ -4,16 +4,24 @@ import { useEffect, useMemo, useState } from "react"
 import {
   getOrders,
   getOrderReturnAmount,
+  getItemReturnedQty,
+  orderHasAnyReturns,
   resolveOrderItemModel,
   type Order,
 } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
-import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 import { Search, RotateCcw, Package } from "lucide-react"
 
 function formatPkr(amount: number) {
   return `PKR ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+}
+
+function getReturnedStockQty(order: Order): number {
+  return order.items.reduce((sum, item) => {
+    if (item.isCustom) return sum
+    return sum + getItemReturnedQty(order, item.id)
+  }, 0)
 }
 
 export function OrderReturnsInventory() {
@@ -26,7 +34,7 @@ export function OrderReturnsInventory() {
       .then((all) => {
         setOrders(
           all.filter(
-            (o) => o.status === "returned" && !isBranchPosOrderHiddenFromErp(o),
+            (o) => orderHasAnyReturns(o) && !isBranchPosOrderHiddenFromErp(o),
           ),
         )
       })
@@ -41,6 +49,8 @@ export function OrderReturnsInventory() {
       if (o.clientName?.toLowerCase().includes(q)) return true
       if (o.returnReason?.toLowerCase().includes(q)) return true
       return o.items.some((item) => {
+        const returnedQty = getItemReturnedQty(o, item.id)
+        if (returnedQty <= 0) return false
         const model = resolveOrderItemModel(item)?.toLowerCase() || ""
         return (
           model.includes(q) ||
@@ -50,7 +60,7 @@ export function OrderReturnsInventory() {
     })
   }, [orders, search])
 
-  const totalQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
+  const totalQty = filtered.reduce((sum, o) => sum + getReturnedStockQty(o), 0)
   const totalRefunded = filtered.reduce((sum, o) => sum + getOrderReturnAmount(o), 0)
 
   if (loading) {
@@ -70,7 +80,7 @@ export function OrderReturnsInventory() {
             Stock returned from orders
           </p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-            Items put back into inventory when a CRM order was returned
+            Items put back into inventory from full or partial CRM order returns
           </p>
         </div>
         <div className="relative w-full sm:w-72">
@@ -87,7 +97,7 @@ export function OrderReturnsInventory() {
       <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border bg-[hsl(var(--muted))]/20 px-4 py-3 text-xs">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-            Returned orders
+            Orders with returns
           </p>
           <p className="text-lg font-bold tabular-nums">{filtered.length}</p>
         </div>
@@ -130,6 +140,11 @@ export function OrderReturnsInventory() {
                       {order.orderNumber}
                     </p>
                     <OrderStatusBadge status={order.status} />
+                    {order.status === "delivered" && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium bg-orange-50 text-orange-800 border-orange-200">
+                        Partial return
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm mt-0.5 capitalize">{order.clientName}</p>
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
@@ -137,7 +152,9 @@ export function OrderReturnsInventory() {
                       ? `Returned ${new Date(order.returnedAt).toLocaleDateString()}`
                       : "Returned"}
                     {order.returnedBy ? ` · ${order.returnedBy}` : ""}
-                    {order.inventoryReturnedAt ? " · Stock restored" : ""}
+                    {order.inventoryReturnedAt
+                      ? " · Full stock restored"
+                      : " · Partial stock restored"}
                   </p>
                 </div>
                 <div className="text-right text-xs shrink-0">
@@ -165,7 +182,8 @@ export function OrderReturnsInventory() {
                     <tr className="border-b text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                       <th className="px-4 py-2 font-semibold">Model</th>
                       <th className="px-4 py-2 font-semibold">Description</th>
-                      <th className="px-4 py-2 font-semibold text-right">Qty</th>
+                      <th className="px-4 py-2 font-semibold text-right">Returned</th>
+                      <th className="px-4 py-2 font-semibold text-right">Ordered</th>
                       <th className="px-4 py-2 font-semibold">Unit</th>
                       <th className="px-4 py-2 font-semibold">Client</th>
                       <th className="px-4 py-2 font-semibold">Order</th>
@@ -173,7 +191,7 @@ export function OrderReturnsInventory() {
                   </thead>
                   <tbody>
                     {order.items
-                      .filter((item) => !item.isCustom)
+                      .filter((item) => !item.isCustom && getItemReturnedQty(order, item.id) > 0)
                       .map((item) => (
                         <tr key={item.id} className="border-b last:border-0">
                           <td className="px-4 py-2 font-medium whitespace-nowrap">
@@ -181,6 +199,9 @@ export function OrderReturnsInventory() {
                           </td>
                           <td className="px-4 py-2">{item.description || "—"}</td>
                           <td className="px-4 py-2 text-right tabular-nums font-semibold text-emerald-700">
+                            {getItemReturnedQty(order, item.id)}
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums text-[hsl(var(--muted-foreground))]">
                             {item.qty}
                           </td>
                           <td className="px-4 py-2">{item.unit || "pcs"}</td>
@@ -188,10 +209,12 @@ export function OrderReturnsInventory() {
                           <td className="px-4 py-2 whitespace-nowrap">{order.orderNumber}</td>
                         </tr>
                       ))}
-                    {order.items.every((item) => item.isCustom) && (
+                    {order.items.every(
+                      (item) => item.isCustom || getItemReturnedQty(order, item.id) <= 0,
+                    ) && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-4 py-3 text-[hsl(var(--muted-foreground))]"
                         >
                           No inventory lines on this return (custom items only)

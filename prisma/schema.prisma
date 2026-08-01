@@ -260,6 +260,8 @@ model ErpOrder {
   returnReason                   String  @default("") @map("return_reason")
   inventoryReturnedAt            String? @map("inventory_returned_at")
   returnPayments                 Json    @default("[]") @map("return_payments")
+  /** Partial/full return line quantities: [{ id, orderItemId, qty, returnedAt, returnedBy }] */
+  returnLines                    Json    @default("[]") @map("return_lines")
 
   @@index([branchId])
   @@index([source])

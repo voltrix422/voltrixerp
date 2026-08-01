@@ -860,9 +860,14 @@ async function findDeliveredSerialsForKeys(keys: string[], limit: number) {
     .slice(0, limit)
 }
 
+export type OrderRestoreLineQty = {
+  orderItemId: string
+  qty: number
+}
+
 export async function restoreInventoryForOrderServer(
   order: OrderDeductInput,
-  options?: { historyNotes?: string },
+  options?: { historyNotes?: string; restoreLines?: OrderRestoreLineQty[] },
 ): Promise<void> {
   // Branch POS stock is restored separately via restoreBranchStockForPosOrder.
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") return
@@ -870,47 +875,89 @@ export async function restoreInventoryForOrderServer(
     options?.historyNotes?.trim() ||
     `Stock restored · ${order.clientName}`
 
-  const tag = orderUnitTag(order.id)
-  const restoredIds = new Set<string>()
-  const models = new Set<string>()
+  /** When set, only restore these quantities (partial return). Undefined = full restore. */
+  const restoreCap = new Map<string, number>()
+  if (options?.restoreLines && options.restoreLines.length > 0) {
+    for (const line of options.restoreLines) {
+      const itemId = String(line.orderItemId || "").trim()
+      const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+      if (!itemId || qty <= 0) continue
+      restoreCap.set(itemId, (restoreCap.get(itemId) || 0) + qty)
+    }
+    if (restoreCap.size === 0) return
+  }
+  const isPartial = restoreCap.size > 0
 
-  const allocationIds = (order.fulfillmentSerialAllocations ?? [])
-    .map((a) => a.unitId?.trim())
-    .filter((id): id is string => !!id)
-  if (allocationIds.length > 0) {
-    const allocatedUnits = await prisma.erpInventorySerialUnit.findMany({
-      where: { id: { in: allocationIds } },
-    })
-    for (const unit of allocatedUnits) {
-      if (restoredIds.has(unit.id)) continue
-      const unitNotes = unit.notes || ""
-      const linkedToOrder =
-        unitNotes.includes(tag) ||
-        (unit.status === "delivered" && unitNotes.includes(order.orderNumber))
-      if (unit.status === "in_stock" && !linkedToOrder) continue
-      restoredIds.add(unit.id)
-      models.add(unit.model)
-      let notes = unitNotes
-        .replace(tag, "")
-        .replace(order.orderNumber, "")
-        .replace(/→/g, "")
-        .trim()
-      await prisma.erpInventorySerialUnit.update({
-        where: { id: unit.id },
-        data: { status: "in_stock", notes },
-      })
+  function remainingCap(itemId: string): number {
+    if (!isPartial) return Number.POSITIVE_INFINITY
+    return Math.max(0, restoreCap.get(itemId) || 0)
+  }
+
+  function consumeCap(itemId: string, n = 1): boolean {
+    if (!isPartial) return true
+    const left = remainingCap(itemId)
+    if (left < n) return false
+    restoreCap.set(itemId, left - n)
+    return true
+  }
+
+  // Snapshot of requested qty per line (before consume) for stock-only / manual fallback
+  const requestedByItem = new Map<string, number>()
+  if (isPartial) {
+    for (const [itemId, qty] of restoreCap) requestedByItem.set(itemId, qty)
+  } else {
+    for (const item of order.items) {
+      if (!item.id || item.isCustom) continue
+      requestedByItem.set(item.id, Math.max(0, Math.floor(Number(item.qty) || 0)))
     }
   }
 
-  async function restoreUnit(unit: { id: string; model: string; notes: string | null; status?: string }) {
-    if (restoredIds.has(unit.id)) return
+  const tag = orderUnitTag(order.id)
+  const restoredIds = new Set<string>()
+  const models = new Set<string>()
+  const restoredCountByLine = new Map<string, number>()
+
+  async function restoreUnit(
+    unit: { id: string; model: string; notes: string | null; status?: string },
+    orderItemId?: string,
+  ): Promise<boolean> {
+    if (restoredIds.has(unit.id)) return false
+    if (orderItemId && !consumeCap(orderItemId, 1)) return false
+    if (!orderItemId && isPartial) {
+      // Assign to first matching line that still has cap
+      const unitModelKey = normalizeKey(unit.model || "")
+      let matchedId: string | undefined
+      for (const item of order.items) {
+        if (item.isCustom || !item.id) continue
+        if (remainingCap(item.id) <= 0) continue
+        const keys = getOrderLineMatchKeys(item).map(normalizeKey)
+        if (!keys.includes(unitModelKey)) continue
+        matchedId = item.id
+        break
+      }
+      if (!matchedId || !consumeCap(matchedId, 1)) return false
+      orderItemId = matchedId
+    }
+
     const unitNotes = unit.notes || ""
     const linkedToOrder =
       unitNotes.includes(tag) ||
       (unit.status === "delivered" && unitNotes.includes(order.orderNumber))
-    if (unit.status === "in_stock" && !linkedToOrder) return
+    if (unit.status === "in_stock" && !linkedToOrder) {
+      // Undo cap consume if we skip
+      if (isPartial && orderItemId) {
+        restoreCap.set(orderItemId, remainingCap(orderItemId) + 1)
+      }
+      return false
+    }
     restoredIds.add(unit.id)
     models.add(unit.model)
+    if (orderItemId) {
+      restoredCountByLine.set(
+        orderItemId,
+        (restoredCountByLine.get(orderItemId) ?? 0) + 1,
+      )
+    }
     let notes = unitNotes
       .replace(tag, "")
       .replace(order.orderNumber, "")
@@ -923,8 +970,32 @@ export async function restoreInventoryForOrderServer(
         notes,
       },
     })
+    return true
   }
 
+  // 1) Prefer fulfillment allocations (exact unit ↔ order line)
+  const allocations = order.fulfillmentSerialAllocations ?? []
+  const allocationIds = allocations
+    .map((a) => a.unitId?.trim())
+    .filter((id): id is string => !!id)
+  if (allocationIds.length > 0) {
+    const allocatedUnits = await prisma.erpInventorySerialUnit.findMany({
+      where: { id: { in: allocationIds } },
+    })
+    const unitById = new Map(allocatedUnits.map((u) => [u.id, u]))
+    for (const alloc of allocations) {
+      const unitId = alloc.unitId?.trim()
+      if (!unitId) continue
+      const itemId = String(alloc.orderItemId || "").trim()
+      if (isPartial && itemId && remainingCap(itemId) <= 0) continue
+      if (isPartial && itemId && !requestedByItem.has(itemId)) continue
+      const unit = unitById.get(unitId)
+      if (!unit) continue
+      await restoreUnit(unit, itemId || undefined)
+    }
+  }
+
+  // 2) Units tagged with this order in notes
   const byNotes = await prisma.erpInventorySerialUnit.findMany({
     where: {
       OR: [
@@ -934,25 +1005,34 @@ export async function restoreInventoryForOrderServer(
     },
   })
   for (const unit of byNotes) {
+    if (restoredIds.has(unit.id)) continue
+    if (isPartial) {
+      // Only restore if some requested line still needs units of this model
+      const unitModelKey = normalizeKey(unit.model || "")
+      const needs = order.items.some((item) => {
+        if (!item.id || item.isCustom) return false
+        if (remainingCap(item.id) <= 0) return false
+        return getOrderLineMatchKeys(item)
+          .map(normalizeKey)
+          .includes(unitModelKey)
+      })
+      if (!needs) continue
+    }
     await restoreUnit(unit)
   }
 
-  // Fallback when units were marked delivered without order notes (legacy rows).
+  // 3) Fallback when units were marked delivered without order notes (legacy rows).
   if (order.inventoryDeductedAt) {
     for (const item of order.items) {
-      if (item.isCustom) continue
+      if (item.isCustom || !item.id) continue
+      const needQty = isPartial
+        ? remainingCap(item.id)
+        : Math.max(0, Math.floor(Number(item.qty) || 0))
+      if (needQty <= 0) continue
       const keys = getOrderLineMatchKeys(item)
-      const needQty = Math.max(0, Math.floor(Number(item.qty) || 0))
-      const lowerKeys = keys.map(normalizeKey)
-      const alreadyForLine = byNotes.filter((u) =>
-        lowerKeys.includes(normalizeKey(u.model || "")),
-      ).length
-      const stillNeed = needQty - alreadyForLine
-      if (stillNeed <= 0) continue
-
-      const extra = await findDeliveredSerialsForKeys(keys, stillNeed)
+      const extra = await findDeliveredSerialsForKeys(keys, needQty)
       for (const unit of extra) {
-        await restoreUnit(unit)
+        await restoreUnit(unit, item.id)
       }
     }
   }
@@ -963,38 +1043,27 @@ export async function restoreInventoryForOrderServer(
     }
   }
 
-  const restoredCountByLine = new Map<string, number>()
-  for (const alloc of order.fulfillmentSerialAllocations ?? []) {
-    const unitId = alloc.unitId?.trim()
-    if (unitId && restoredIds.has(unitId)) {
-      restoredCountByLine.set(
-        alloc.orderItemId,
-        (restoredCountByLine.get(alloc.orderItemId) ?? 0) + 1,
-      )
-    } else if (alloc.serialNumber?.trim()) {
-      restoredCountByLine.set(
-        alloc.orderItemId,
-        (restoredCountByLine.get(alloc.orderItemId) ?? 0) + 1,
-      )
-    }
-  }
-
-  // Match restored serials without explicit allocation to order lines by model
-  if (restoredIds.size > 0) {
+  // Match any restored serials still unassigned to a line (full restore path)
+  if (!isPartial && restoredIds.size > 0) {
     const restoredUnits = await prisma.erpInventorySerialUnit.findMany({
       where: { id: { in: [...restoredIds] } },
     })
     for (const unit of restoredUnits) {
-      const fromAlloc = (order.fulfillmentSerialAllocations ?? []).some(
-        (a) => a.unitId === unit.id,
-      )
+      const fromAlloc = allocations.some((a) => a.unitId === unit.id)
       if (fromAlloc) continue
+      // Already counted during restoreUnit when orderItemId was resolved
+      const alreadyCounted = [...restoredCountByLine.values()].reduce((a, b) => a + b, 0)
+      if (alreadyCounted >= restoredIds.size) break
       const unitModelKey = normalizeKey(unit.model || "")
       for (const item of order.items) {
         if (item.isCustom || !item.id) continue
         const keys = getOrderLineMatchKeys(item).map(normalizeKey)
         if (!keys.includes(unitModelKey)) continue
-        restoredCountByLine.set(item.id, (restoredCountByLine.get(item.id) ?? 0) + 1)
+        // Avoid double-count if restoreUnit already assigned
+        const current = restoredCountByLine.get(item.id) ?? 0
+        const lineQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+        if (current >= lineQty) continue
+        restoredCountByLine.set(item.id, current + 1)
         break
       }
     }
@@ -1003,8 +1072,11 @@ export async function restoreInventoryForOrderServer(
   for (const item of order.items) {
     if (item.isCustom || !item.id) continue
 
+    const requestedQty = requestedByItem.get(item.id) ?? 0
+    if (isPartial && requestedQty <= 0) continue
+
     const restoredQty = restoredCountByLine.get(item.id) ?? 0
-    const lineQty = Math.max(0, Math.floor(Number(item.qty) || 0))
+    const lineQty = isPartial ? requestedQty : Math.max(0, Math.floor(Number(item.qty) || 0))
     let loggedQty = 0
 
     const manualItem = await resolveManualInventoryForOrderLine(item)
@@ -1022,7 +1094,7 @@ export async function restoreInventoryForOrderServer(
     } else if (restoredQty > 0) {
       // Warehouse lines with serials restored — stock synced via ensureInventoryStockForModel
       loggedQty = restoredQty
-    } else if (orderWasDispatched(order)) {
+    } else if (orderWasDispatched(order) && lineQty > 0) {
       // Stock-only deduction (no serial units) — put qty back on stock row
       for (const key of getOrderLineMatchKeys(item)) {
         const stock = await findStockByModel(key)

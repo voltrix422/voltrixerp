@@ -90,6 +90,15 @@ export interface OrderReturnPayment {
   createdBy: string
 }
 
+/** One batch of returned qty for a single order line (supports partial returns). */
+export interface OrderReturnLine {
+  id: string
+  orderItemId: string
+  qty: number
+  returnedAt: string
+  returnedBy: string
+}
+
 export interface Order {
   id: string
   orderNumber: string
@@ -148,10 +157,12 @@ export interface Order {
   returnedAt?: string
   returnedBy?: string
   returnReason?: string
-  /** Set after inventory was restored for a return */
+  /** Set after inventory was restored for a full return */
   inventoryReturnedAt?: string
   /** Refunds / money sent back to the client for a returned order */
   returnPayments?: OrderReturnPayment[]
+  /** Line quantities returned (partial or full). Accumulates across return batches. */
+  returnLines?: OrderReturnLine[]
 }
 
 export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"
@@ -227,11 +238,116 @@ export function getOrderReturnAmount(order: Pick<Order, "returnPayments">) {
   return (order.returnPayments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
 }
 
-/** Order contribution to CRM totals — return refunds subtract from the order total. */
-export function getOrderNetSalesValue(order: Pick<Order, "total" | "status" | "returnPayments">) {
+/** Total returned qty per order item id (from returnLines). */
+export function getReturnedQtyByItemId(
+  order: Pick<Order, "items" | "returnLines" | "status">,
+): Map<string, number> {
+  const map = new Map<string, number>()
+  const lines = order.returnLines || []
+  if (lines.length > 0) {
+    for (const line of lines) {
+      const itemId = String(line.orderItemId || "").trim()
+      if (!itemId) continue
+      const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+      if (qty <= 0) continue
+      map.set(itemId, (map.get(itemId) || 0) + qty)
+    }
+    return map
+  }
+  // Legacy full returns (status returned, no returnLines): treat every line as fully returned.
+  if (isOrderReturned(order)) {
+    for (const item of order.items || []) {
+      if (!item.id) continue
+      map.set(item.id, Math.max(0, Math.floor(Number(item.qty) || 0)))
+    }
+  }
+  return map
+}
+
+export function getItemReturnedQty(
+  order: Pick<Order, "items" | "returnLines" | "status">,
+  orderItemId: string,
+): number {
+  return getReturnedQtyByItemId(order).get(orderItemId) || 0
+}
+
+export function getItemRemainingReturnableQty(
+  order: Pick<Order, "items" | "returnLines" | "status">,
+  item: Pick<OrderItem, "id" | "qty">,
+): number {
+  const ordered = Math.max(0, Math.floor(Number(item.qty) || 0))
+  const returned = getItemReturnedQty(order, item.id)
+  return Math.max(0, ordered - returned)
+}
+
+export function orderHasReturnableQty(
+  order: Pick<Order, "items" | "returnLines" | "status">,
+): boolean {
+  return (order.items || []).some((item) => getItemRemainingReturnableQty(order, item) > 0)
+}
+
+export function orderHasAnyReturns(
+  order: Pick<Order, "items" | "returnLines" | "status" | "returnedAt">,
+): boolean {
+  if (isOrderReturned(order)) return true
+  if (order.returnedAt) return true
+  return (order.returnLines || []).some((l) => Math.max(0, Math.floor(Number(l.qty) || 0)) > 0)
+}
+
+/** Whether every ordered line qty has been returned. */
+export function isOrderFullyReturnedByLines(
+  order: Pick<Order, "items" | "returnLines" | "status">,
+): boolean {
+  const items = order.items || []
+  if (items.length === 0) return isOrderReturned(order)
+  return items.every((item) => getItemRemainingReturnableQty(order, item) <= 0)
+}
+
+/** Merchandise value of returned qty (line totals + order tax %, excl. shipping/other). */
+export function getOrderReturnedMerchandiseValue(
+  order: Pick<Order, "items" | "returnLines" | "status" | "taxPercent">,
+): number {
+  const returnedByItem = getReturnedQtyByItemId(order)
+  let subtotal = 0
+  for (const item of order.items || []) {
+    const qty = returnedByItem.get(item.id) || 0
+    if (qty <= 0) continue
+    subtotal += qty * (Number(item.unitPrice) || 0)
+  }
+  const taxPercent = Number(order.taxPercent) || 0
+  return subtotal * (1 + taxPercent / 100)
+}
+
+/** Suggested refund for a set of return quantities (this batch). */
+export function getSuggestedReturnRefund(
+  order: Pick<Order, "items" | "taxPercent" | "payments" | "status" | "returnPayments">,
+  returnQtys: Record<string, number>,
+): number {
+  let subtotal = 0
+  for (const item of order.items || []) {
+    const qty = Math.max(0, Math.floor(Number(returnQtys[item.id]) || 0))
+    if (qty <= 0) continue
+    subtotal += qty * (Number(item.unitPrice) || 0)
+  }
+  const taxPercent = Number(order.taxPercent) || 0
+  const merchandise = subtotal * (1 + taxPercent / 100)
+  const amountPaid = getOrderAmountPaid(order)
+  const alreadyRefunded = getOrderReturnAmount(order)
+  const refundable = Math.max(0, amountPaid - alreadyRefunded)
+  if (amountPaid <= 0.004) return 0
+  return Math.min(merchandise, refundable)
+}
+
+/** Order contribution to CRM totals — refunds / returned merchandise reduce net sales. */
+export function getOrderNetSalesValue(
+  order: Pick<Order, "total" | "status" | "returnPayments" | "items" | "returnLines" | "taxPercent">,
+) {
   const total = Number(order.total) || 0
-  if (!isOrderReturned(order)) return total
-  return Math.max(0, total - getOrderReturnAmount(order))
+  const refunded = getOrderReturnAmount(order)
+  const returnedMerch = getOrderReturnedMerchandiseValue(order)
+  const reduction = Math.max(refunded, returnedMerch)
+  if (reduction <= 0.004) return total
+  return Math.max(0, total - reduction)
 }
 
 export function getOrderReturnPaymentProofUrls(payment: OrderReturnPayment): string[] {
@@ -240,14 +356,19 @@ export function getOrderReturnPaymentProofUrls(payment: OrderReturnPayment): str
   return []
 }
 
-/** Delivered (or already returned) CRM orders can be returned / have return refunds. */
-export function canReturnOrder(order: Pick<Order, "status" | "source">) {
+/** Delivered CRM orders with remaining returnable qty can be (partially) returned. */
+export function canReturnOrder(
+  order: Pick<Order, "status" | "source" | "items" | "returnLines">,
+) {
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
-  return order.status === "delivered" || order.status === "returned"
+  if (order.status !== "delivered") return false
+  return orderHasReturnableQty(order)
 }
 
-export function canAddReturnPayment(order: Pick<Order, "status">) {
-  return order.status === "returned"
+export function canAddReturnPayment(
+  order: Pick<Order, "status" | "items" | "returnLines" | "returnedAt">,
+) {
+  return isOrderReturned(order) || orderHasAnyReturns(order)
 }
 
 export function isOrderOnCredit(order: Pick<Order, "paymentTerms" | "creditApprovedAt">) {
@@ -451,6 +572,9 @@ function rowToOrder(r: Record<string, unknown>): Order {
     inventoryReturnedAt: (r.inventoryReturnedAt as string) ?? undefined,
     returnPayments: Array.isArray(r.returnPayments)
       ? (r.returnPayments as OrderReturnPayment[])
+      : [],
+    returnLines: Array.isArray(r.returnLines)
+      ? (r.returnLines as OrderReturnLine[])
       : [],
   }
 }

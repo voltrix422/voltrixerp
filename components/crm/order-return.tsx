@@ -1,11 +1,16 @@
 "use client"
 
-import { useState, type ChangeEvent } from "react"
+import { useEffect, useMemo, useState, type ChangeEvent } from "react"
 import {
   saveOrder,
   getOrderAmountPaid,
   getOrderReturnAmount,
+  getItemRemainingReturnableQty,
+  getItemReturnedQty,
+  getSuggestedReturnRefund,
+  resolveOrderItemModel,
   type Order,
+  type OrderReturnLine,
   type OrderReturnPayment,
 } from "@/lib/orders"
 import { uploadFile } from "@/lib/upload"
@@ -23,10 +28,18 @@ export function OrderReturn({
   onClose: () => void
   onUpdate: (o: Order) => void
 }) {
-  const [reason, setReason] = useState(order.returnReason || "")
-  const [refundAmount, setRefundAmount] = useState(
-    order.status === "delivered" ? String(getOrderAmountPaid(order) || order.total || "") : "",
+  const returnableItems = useMemo(
+    () => order.items.filter((item) => getItemRemainingReturnableQty(order, item) > 0),
+    [order],
   )
+
+  const [selectedQty, setSelectedQty] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {}
+    for (const item of order.items) init[item.id] = 0
+    return init
+  })
+  const [reason, setReason] = useState(order.returnReason || "")
+  const [refundAmount, setRefundAmount] = useState("")
   const [refundMethod, setRefundMethod] = useState("Bank Transfer")
   const [refundDate, setRefundDate] = useState(new Date().toISOString().split("T")[0])
   const [refundNotes, setRefundNotes] = useState("")
@@ -38,11 +51,64 @@ export function OrderReturn({
 
   const amountPaid = getOrderAmountPaid(order)
   const alreadyReturned = getOrderReturnAmount(order)
+  const remainingRefundable = Math.max(0, amountPaid - alreadyReturned)
+
+  const selectedCount = Object.values(selectedQty).reduce((s, q) => s + (q > 0 ? 1 : 0), 0)
+  const selectedUnits = Object.values(selectedQty).reduce((s, q) => s + Math.max(0, q), 0)
+  const suggestedRefund = getSuggestedReturnRefund(order, selectedQty)
+
+  useEffect(() => {
+    if (!includeRefund) return
+    setRefundAmount(suggestedRefund > 0 ? String(Math.round(suggestedRefund * 100) / 100) : "")
+  }, [suggestedRefund, includeRefund])
+
+  function setQty(itemId: string, raw: number, max: number) {
+    const qty = Math.max(0, Math.min(max, Math.floor(Number(raw) || 0)))
+    setSelectedQty((prev) => ({ ...prev, [itemId]: qty }))
+  }
+
+  function selectAllRemaining() {
+    const next: Record<string, number> = {}
+    for (const item of returnableItems) {
+      next[item.id] = getItemRemainingReturnableQty(order, item)
+    }
+    setSelectedQty((prev) => ({ ...prev, ...next }))
+  }
+
+  function clearSelection() {
+    const next: Record<string, number> = {}
+    for (const item of order.items) next[item.id] = 0
+    setSelectedQty(next)
+  }
 
   async function handleSubmit() {
     const trimmedReason = reason.trim()
     if (!trimmedReason) {
       setError("Please enter a return reason.")
+      return
+    }
+
+    const batchLines: OrderReturnLine[] = []
+    const now = new Date().toISOString()
+    for (const item of returnableItems) {
+      const qty = Math.max(0, Math.floor(Number(selectedQty[item.id]) || 0))
+      const max = getItemRemainingReturnableQty(order, item)
+      if (qty <= 0) continue
+      if (qty > max) {
+        setError(`Return qty for "${item.description || item.model}" cannot exceed ${max}.`)
+        return
+      }
+      batchLines.push({
+        id: `rl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        orderItemId: item.id,
+        qty,
+        returnedAt: now,
+        returnedBy: currentUser,
+      })
+    }
+
+    if (batchLines.length === 0) {
+      setError("Select at least one item (and quantity) to return.")
       return
     }
 
@@ -54,8 +120,10 @@ export function OrderReturn({
         setError("Enter a valid return payment amount, or turn off return payment.")
         return
       }
-      if (amount > amountPaid + 0.004 && amountPaid > 0.004) {
-        setError(`Return payment cannot exceed amount paid (PKR ${amountPaid.toLocaleString()}).`)
+      if (amount > remainingRefundable + 0.004 && amountPaid > 0.004) {
+        setError(
+          `Return payment cannot exceed remaining refundable amount (PKR ${remainingRefundable.toLocaleString()}).`,
+        )
         return
       }
 
@@ -83,7 +151,7 @@ export function OrderReturn({
           notes: refundNotes.trim(),
           proofUrl: proofUrls[0],
           proofUrls: proofUrls.length > 0 ? proofUrls : undefined,
-          createdAt: new Date().toISOString(),
+          createdAt: now,
           createdBy: currentUser,
         },
       ]
@@ -92,21 +160,23 @@ export function OrderReturn({
     setSaving(true)
     setError(null)
     try {
-      const now = new Date().toISOString()
+      const returnLines = [...(order.returnLines || []), ...batchLines]
       const updated: Order = {
         ...order,
-        status: "returned",
+        // API will set returned vs delivered based on whether all lines are returned
+        status: "delivered",
         returnReason: trimmedReason,
         returnedAt: order.returnedAt || now,
         returnedBy: order.returnedBy || currentUser,
         returnPayments,
+        returnLines,
         inventoryReturnedAt: order.inventoryReturnedAt,
       }
       const saved = await saveOrder(updated)
       onUpdate(saved)
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not return this order.")
+      setError(err instanceof Error ? err.message : "Could not return items from this order.")
     } finally {
       setSaving(false)
     }
@@ -124,14 +194,14 @@ export function OrderReturn({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-2xl rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b shrink-0">
           <div>
             <p className="text-sm font-bold flex items-center gap-2">
               <RotateCcw className="h-4 w-4 text-orange-600" />
-              Return order
+              Return items
             </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
               {order.orderNumber} · {order.clientName}
@@ -144,7 +214,7 @@ export function OrderReturn({
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="rounded-lg border bg-orange-50 dark:bg-orange-950/40 p-3 text-xs text-orange-900 dark:text-orange-100 space-y-1">
-            <p>Stock from this order will be returned to inventory.</p>
+            <p>Select which items (and quantities) to return. Only those will go back into inventory.</p>
             <p>
               Order total: PKR {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               {amountPaid > 0 && (
@@ -157,6 +227,96 @@ export function OrderReturn({
           </div>
 
           <div>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+                Items to return <span className="text-red-500">*</span>
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="text-[11px] underline text-[hsl(var(--muted-foreground))] hover:text-foreground cursor-pointer"
+                  onClick={selectAllRemaining}
+                >
+                  Return all remaining
+                </button>
+                <button
+                  type="button"
+                  className="text-[11px] underline text-[hsl(var(--muted-foreground))] hover:text-foreground cursor-pointer"
+                  onClick={clearSelection}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {returnableItems.length === 0 ? (
+              <p className="text-xs text-[hsl(var(--muted-foreground))] rounded-md border px-3 py-3">
+                No returnable quantities left on this order.
+              </p>
+            ) : (
+              <div className="rounded-lg border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-[hsl(var(--muted))]/30 text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        <th className="px-3 py-2 font-semibold">Item</th>
+                        <th className="px-3 py-2 font-semibold text-right">Ordered</th>
+                        <th className="px-3 py-2 font-semibold text-right">Returned</th>
+                        <th className="px-3 py-2 font-semibold text-right">Return now</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {returnableItems.map((item) => {
+                        const remaining = getItemRemainingReturnableQty(order, item)
+                        const already = getItemReturnedQty(order, item.id)
+                        const model = resolveOrderItemModel(item)
+                        return (
+                          <tr key={item.id} className="border-b last:border-0">
+                            <td className="px-3 py-2">
+                              <p className="font-medium">{item.description || model || "Item"}</p>
+                              {model && (
+                                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                                  {model}
+                                </p>
+                              )}
+                              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                                PKR {(item.unitPrice || 0).toLocaleString()} / {item.unit || "pcs"}
+                              </p>
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums">{item.qty}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-[hsl(var(--muted-foreground))]">
+                              {already}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <input
+                                type="number"
+                                min={0}
+                                max={remaining}
+                                step={1}
+                                value={selectedQty[item.id] ?? 0}
+                                onChange={(e) => setQty(item.id, Number(e.target.value), remaining)}
+                                className="w-20 h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-sm text-right tabular-nums"
+                              />
+                              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                                max {remaining}
+                              </p>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-3 py-2 border-t bg-[hsl(var(--muted))]/20 text-[11px] text-[hsl(var(--muted-foreground))]">
+                  {selectedCount > 0
+                    ? `${selectedCount} line(s) · ${selectedUnits} unit(s) selected`
+                    : "No items selected yet"}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
             <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
               Return reason <span className="text-red-500">*</span>
             </label>
@@ -164,7 +324,7 @@ export function OrderReturn({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              placeholder="Why is this order being returned?"
+              placeholder="Why are these items being returned?"
               className="mt-1 w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
             />
           </div>
@@ -181,6 +341,13 @@ export function OrderReturn({
 
           {includeRefund && (
             <div className="space-y-3 rounded-lg border p-3">
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Suggested from selected items (incl. GST): PKR{" "}
+                {suggestedRefund.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {remainingRefundable > 0 && (
+                  <> · Max refundable: PKR {remainingRefundable.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
+                )}
+              </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
@@ -270,10 +437,14 @@ export function OrderReturn({
           <Button
             className="h-10 bg-orange-500 hover:bg-orange-600 text-white cursor-pointer sm:ml-auto"
             onClick={() => void handleSubmit()}
-            disabled={saving || uploading}
+            disabled={saving || uploading || selectedUnits <= 0}
           >
             <RotateCcw className="h-4 w-4 mr-2" />
-            {saving || uploading ? "Processing..." : "Confirm return"}
+            {saving || uploading
+              ? "Processing..."
+              : selectedUnits > 0
+                ? `Confirm return (${selectedUnits})`
+                : "Confirm return"}
           </Button>
         </div>
       </div>
