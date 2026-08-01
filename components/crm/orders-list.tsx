@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, getItemReturnedQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
@@ -1707,23 +1707,28 @@ function OrderDetail({
                     <tr className="bg-orange-100/60 dark:bg-orange-900/30 text-left text-[10px] uppercase text-orange-800 dark:text-orange-200">
                       <th className="px-2 py-1.5 font-semibold">Item</th>
                       <th className="px-2 py-1.5 font-semibold text-right">Returned</th>
-                      <th className="px-2 py-1.5 font-semibold text-right">Remaining</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">Still on order</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {detailOrder.items.map((item) => {
-                      const returnedQty = getItemReturnedQty(detailOrder, item.id)
-                      if (returnedQty <= 0) return null
+                    {getReturnedLinesSummary(detailOrder).map((line) => {
+                      const remainingItem = detailOrder.items.find((i) => i.id === line.orderItemId)
+                      const remaining = remainingItem
+                        ? getItemRemainingReturnableQty(detailOrder, remainingItem)
+                        : 0
+                      const original = remainingItem
+                        ? getItemOriginalQty(detailOrder, remainingItem)
+                        : line.qty
                       return (
-                        <tr key={item.id} className="border-t border-orange-200/70 dark:border-orange-800/70">
+                        <tr key={line.orderItemId} className="border-t border-orange-200/70 dark:border-orange-800/70">
                           <td className="px-2 py-1.5 text-orange-900 dark:text-orange-100">
-                            {item.description || item.model || "Item"}
+                            {line.description}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums font-medium text-orange-900 dark:text-orange-100">
-                            {returnedQty} / {item.qty}
+                            {line.qty} / {original}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-orange-800 dark:text-orange-200">
-                            {getItemRemainingReturnableQty(detailOrder, item)}
+                            {remaining}
                           </td>
                         </tr>
                       )

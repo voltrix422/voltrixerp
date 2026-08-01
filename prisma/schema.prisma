@@ -262,6 +262,8 @@ model ErpOrder {
   returnPayments                 Json    @default("[]") @map("return_payments")
   /** Partial/full return line quantities: [{ id, orderItemId, qty, returnedAt, returnedBy }] */
   returnLines                    Json    @default("[]") @map("return_lines")
+  /** True once order line qty / totals were reduced to match returnLines */
+  returnMerchandiseApplied       Boolean @default(false) @map("return_merchandise_applied")
 
   @@index([branchId])
   @@index([source])

@@ -1,6 +1,10 @@
 // DB access via /api/db routes (Prisma)
 
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
+import {
+  calculateGstInclusiveTotals,
+  DEFAULT_GST_PERCENT,
+} from "@/lib/gst-inclusive-pricing"
 
 export type { OrderFulfillmentSerialAllocation }
 
@@ -97,6 +101,11 @@ export interface OrderReturnLine {
   qty: number
   returnedAt: string
   returnedBy: string
+  /** Snapshot at return time (kept after line is removed from order items). */
+  description?: string
+  model?: string
+  unit?: string
+  unitPrice?: number
 }
 
 export interface Order {
@@ -163,6 +172,11 @@ export interface Order {
   returnPayments?: OrderReturnPayment[]
   /** Line quantities returned (partial or full). Accumulates across return batches. */
   returnLines?: OrderReturnLine[]
+  /**
+   * When true, `items` / totals already exclude returned qty.
+   * Remaining returnable qty is simply each item's current `qty`.
+   */
+  returnMerchandiseApplied?: boolean
 }
 
 export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"
@@ -226,8 +240,13 @@ export function getOrderAmountPaid(order: Pick<Order, "payments" | "status">) {
   )
 }
 
-export function getOrderCreditBalance(order: Pick<Order, "total" | "payments" | "status">) {
-  return Math.max(0, Number(order.total) - getOrderAmountPaid(order))
+export function getOrderCreditBalance(
+  order: Pick<Order, "total" | "payments" | "status" | "returnPayments">,
+) {
+  const paid = getOrderAmountPaid(order)
+  const refunded = getOrderReturnAmount(order)
+  const netPaid = Math.max(0, paid - refunded)
+  return Math.max(0, Number(order.total) - netPaid)
 }
 
 export function isOrderReturned(order: Pick<Order, "status">) {
@@ -272,16 +291,28 @@ export function getItemReturnedQty(
 }
 
 export function getItemRemainingReturnableQty(
-  order: Pick<Order, "items" | "returnLines" | "status">,
+  order: Pick<Order, "items" | "returnLines" | "status" | "returnMerchandiseApplied">,
   item: Pick<OrderItem, "id" | "qty">,
 ): number {
-  const ordered = Math.max(0, Math.floor(Number(item.qty) || 0))
+  const current = Math.max(0, Math.floor(Number(item.qty) || 0))
+  // After merchandise apply, items already hold remaining qty only.
+  if (order.returnMerchandiseApplied) return current
   const returned = getItemReturnedQty(order, item.id)
-  return Math.max(0, ordered - returned)
+  return Math.max(0, current - returned)
+}
+
+/** Original ordered qty for display (remaining + returned). */
+export function getItemOriginalQty(
+  order: Pick<Order, "items" | "returnLines" | "status" | "returnMerchandiseApplied">,
+  item: Pick<OrderItem, "id" | "qty">,
+): number {
+  const current = Math.max(0, Math.floor(Number(item.qty) || 0))
+  if (!order.returnMerchandiseApplied) return current
+  return current + getItemReturnedQty(order, item.id)
 }
 
 export function orderHasReturnableQty(
-  order: Pick<Order, "items" | "returnLines" | "status">,
+  order: Pick<Order, "items" | "returnLines" | "status" | "returnMerchandiseApplied">,
 ): boolean {
   return (order.items || []).some((item) => getItemRemainingReturnableQty(order, item) > 0)
 }
@@ -296,26 +327,176 @@ export function orderHasAnyReturns(
 
 /** Whether every ordered line qty has been returned. */
 export function isOrderFullyReturnedByLines(
-  order: Pick<Order, "items" | "returnLines" | "status">,
+  order: Pick<Order, "items" | "returnLines" | "status" | "returnMerchandiseApplied">,
 ): boolean {
   const items = order.items || []
-  if (items.length === 0) return isOrderReturned(order)
+  if (items.length === 0) return true
   return items.every((item) => getItemRemainingReturnableQty(order, item) <= 0)
 }
 
-/** Merchandise value of returned qty (line totals + order tax %, excl. shipping/other). */
+/** Aggregated returned lines for history UI (survives item removal). */
+export function getReturnedLinesSummary(
+  order: Pick<Order, "items" | "returnLines" | "status">,
+): Array<{
+  orderItemId: string
+  qty: number
+  description: string
+  model?: string
+  unit: string
+  unitPrice: number
+}> {
+  const byId = new Map<
+    string,
+    { orderItemId: string; qty: number; description: string; model?: string; unit: string; unitPrice: number }
+  >()
+  for (const line of order.returnLines || []) {
+    const itemId = String(line.orderItemId || "").trim()
+    if (!itemId) continue
+    const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+    if (qty <= 0) continue
+    const item = (order.items || []).find((i) => i.id === itemId)
+    const prev = byId.get(itemId)
+    if (prev) {
+      prev.qty += qty
+      continue
+    }
+    byId.set(itemId, {
+      orderItemId: itemId,
+      qty,
+      description:
+        line.description?.trim() ||
+        item?.description?.trim() ||
+        line.model?.trim() ||
+        item?.model?.trim() ||
+        "Item",
+      model: line.model?.trim() || item?.model?.trim() || undefined,
+      unit: line.unit?.trim() || item?.unit || "pcs",
+      unitPrice:
+        line.unitPrice != null && Number.isFinite(Number(line.unitPrice))
+          ? Number(line.unitPrice)
+          : Number(item?.unitPrice) || 0,
+    })
+  }
+  // Legacy full return without returnLines
+  if (byId.size === 0 && isOrderReturned(order)) {
+    for (const item of order.items || []) {
+      byId.set(item.id, {
+        orderItemId: item.id,
+        qty: Math.max(0, Math.floor(Number(item.qty) || 0)),
+        description: item.description || item.model || "Item",
+        model: item.model,
+        unit: item.unit || "pcs",
+        unitPrice: Number(item.unitPrice) || 0,
+      })
+    }
+  }
+  return [...byId.values()]
+}
+
+/** Merchandise value of returned qty (GST-inclusive line totals). */
 export function getOrderReturnedMerchandiseValue(
   order: Pick<Order, "items" | "returnLines" | "status" | "taxPercent">,
 ): number {
-  const returnedByItem = getReturnedQtyByItemId(order)
-  let subtotal = 0
-  for (const item of order.items || []) {
-    const qty = returnedByItem.get(item.id) || 0
-    if (qty <= 0) continue
-    subtotal += qty * (Number(item.unitPrice) || 0)
+  return getReturnedLinesSummary(order).reduce(
+    (sum, line) => sum + line.qty * (Number(line.unitPrice) || 0),
+    0,
+  )
+}
+
+/** Recalculate subtotal / tax / total from current remaining items. */
+export function recalculateOrderFinancials<T extends Order>(order: T): T {
+  const items = (order.items || []).filter(
+    (item) => Math.max(0, Math.floor(Number(item.qty) || 0)) > 0,
+  )
+  const subtotal = items.reduce(
+    (sum, item) => sum + (Number(item.unitPrice) || 0) * Math.max(0, Number(item.qty) || 0),
+    0,
+  )
+  const pricing = calculateGstInclusiveTotals({
+    subtotalInclGst: subtotal,
+    gstPercent: Number(order.taxPercent) || DEFAULT_GST_PERCENT,
+    discount: Number(order.discount) || 0,
+    discountIsPercentage: order.discountIsPercentage ?? true,
+    transportCost: Number(order.transportCost) || 0,
+    transportIsPercentage: order.transportIsPercentage ?? false,
+    otherCost: Number(order.otherCost) || 0,
+    otherCostIsPercentage: order.otherCostIsPercentage ?? false,
+  })
+  const shipping = Number(order.shipping) || 0
+  return {
+    ...order,
+    items,
+    subtotal: pricing.subtotalInclGst,
+    tax: pricing.taxAmount,
+    taxPercent: pricing.taxPercent,
+    discountValue: pricing.discountOnBase,
+    transportCostValue: pricing.transportAmount,
+    otherCostValue: pricing.otherAmount,
+    total: pricing.total + shipping,
   }
-  const taxPercent = Number(order.taxPercent) || 0
-  return subtotal * (1 + taxPercent / 100)
+}
+
+/** Subtract returned qty from order items (items become remaining merchandise). */
+export function applyReturnQtyDeltaToItems(
+  items: OrderItem[],
+  delta: Array<{ orderItemId: string; qty: number }>,
+): OrderItem[] {
+  const reduceBy = new Map<string, number>()
+  for (const line of delta) {
+    const itemId = String(line.orderItemId || "").trim()
+    const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+    if (!itemId || qty <= 0) continue
+    reduceBy.set(itemId, (reduceBy.get(itemId) || 0) + qty)
+  }
+  if (reduceBy.size === 0) return items
+  return items
+    .map((item) => {
+      const cut = reduceBy.get(item.id) || 0
+      if (cut <= 0) return item
+      return {
+        ...item,
+        qty: Math.max(0, Math.floor(Number(item.qty) || 0) - cut),
+      }
+    })
+    .filter((item) => Math.floor(Number(item.qty) || 0) > 0)
+}
+
+/**
+ * Ensure order items/totals reflect returnLines.
+ * Safe to call repeatedly when `returnMerchandiseApplied` is already true (no-op unless delta provided).
+ */
+export function applyReturnMerchandiseToOrder(
+  order: Order,
+  options?: { deltaOnly?: Array<{ orderItemId: string; qty: number }> },
+): Order {
+  if (options?.deltaOnly && options.deltaOnly.length > 0) {
+    const items = applyReturnQtyDeltaToItems(order.items || [], options.deltaOnly)
+    return recalculateOrderFinancials({
+      ...order,
+      items,
+      returnMerchandiseApplied: true,
+    })
+  }
+
+  if (order.returnMerchandiseApplied) {
+    return recalculateOrderFinancials(order)
+  }
+
+  const returnedByItem = getReturnedQtyByItemId(order)
+  if (returnedByItem.size === 0) {
+    return { ...order, returnMerchandiseApplied: true }
+  }
+
+  const delta = [...returnedByItem.entries()].map(([orderItemId, qty]) => ({
+    orderItemId,
+    qty,
+  }))
+  const items = applyReturnQtyDeltaToItems(order.items || [], delta)
+  return recalculateOrderFinancials({
+    ...order,
+    items,
+    returnMerchandiseApplied: true,
+  })
 }
 
 /** Suggested refund for a set of return quantities (this batch). */
@@ -338,16 +519,28 @@ export function getSuggestedReturnRefund(
   return Math.min(merchandise, refundable)
 }
 
-/** Order contribution to CRM totals — refunds / returned merchandise reduce net sales. */
+/** Order contribution to CRM totals — remaining order total after merchandise returns. */
 export function getOrderNetSalesValue(
-  order: Pick<Order, "total" | "status" | "returnPayments" | "items" | "returnLines" | "taxPercent">,
+  order: Pick<
+    Order,
+    | "total"
+    | "status"
+    | "returnPayments"
+    | "items"
+    | "returnLines"
+    | "taxPercent"
+    | "returnMerchandiseApplied"
+  >,
 ) {
   const total = Number(order.total) || 0
-  const refunded = getOrderReturnAmount(order)
+  // Totals already exclude returned lines once merchandise was applied.
+  if (order.returnMerchandiseApplied) return total
+  if (isOrderReturned(order) && !(order.returnLines || []).length) {
+    return Math.max(0, total - getOrderReturnAmount(order))
+  }
   const returnedMerch = getOrderReturnedMerchandiseValue(order)
-  const reduction = Math.max(refunded, returnedMerch)
-  if (reduction <= 0.004) return total
-  return Math.max(0, total - reduction)
+  if (returnedMerch <= 0.004) return total
+  return Math.max(0, total - returnedMerch)
 }
 
 export function getOrderReturnPaymentProofUrls(payment: OrderReturnPayment): string[] {
@@ -358,7 +551,7 @@ export function getOrderReturnPaymentProofUrls(payment: OrderReturnPayment): str
 
 /** Delivered CRM orders with remaining returnable qty can be (partially) returned. */
 export function canReturnOrder(
-  order: Pick<Order, "status" | "source" | "items" | "returnLines">,
+  order: Pick<Order, "status" | "source" | "items" | "returnLines" | "returnMerchandiseApplied">,
 ) {
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
   if (order.status !== "delivered") return false
@@ -576,6 +769,7 @@ function rowToOrder(r: Record<string, unknown>): Order {
     returnLines: Array.isArray(r.returnLines)
       ? (r.returnLines as OrderReturnLine[])
       : [],
+    returnMerchandiseApplied: Boolean(r.returnMerchandiseApplied),
   }
 }
 

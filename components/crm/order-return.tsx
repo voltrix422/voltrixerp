@@ -9,6 +9,7 @@ import {
   getItemReturnedQty,
   getSuggestedReturnRefund,
   resolveOrderItemModel,
+  applyReturnMerchandiseToOrder,
   type Order,
   type OrderReturnLine,
   type OrderReturnPayment,
@@ -104,6 +105,10 @@ export function OrderReturn({
         qty,
         returnedAt: now,
         returnedBy: currentUser,
+        description: item.description,
+        model: resolveOrderItemModel(item) || item.model,
+        unit: item.unit || "pcs",
+        unitPrice: Number(item.unitPrice) || 0,
       })
     }
 
@@ -161,9 +166,8 @@ export function OrderReturn({
     setError(null)
     try {
       const returnLines = [...(order.returnLines || []), ...batchLines]
-      const updated: Order = {
+      const withReturns: Order = {
         ...order,
-        // API will set returned vs delivered based on whether all lines are returned
         status: "delivered",
         returnReason: trimmedReason,
         returnedAt: order.returnedAt || now,
@@ -172,6 +176,12 @@ export function OrderReturn({
         returnLines,
         inventoryReturnedAt: order.inventoryReturnedAt,
       }
+      // Reduce line qty + recalculate totals for remaining items (API also enforces this).
+      const updated = order.returnMerchandiseApplied
+        ? applyReturnMerchandiseToOrder(withReturns, {
+            deltaOnly: batchLines.map((l) => ({ orderItemId: l.orderItemId, qty: l.qty })),
+          })
+        : applyReturnMerchandiseToOrder(withReturns)
       const saved = await saveOrder(updated)
       onUpdate(saved)
       onClose()

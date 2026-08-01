@@ -21,6 +21,12 @@ import {
   APPROVED_ORDER_STATUSES,
   PENDING_APPROVAL_STATUS,
 } from "@/lib/order-approval-statuses"
+import {
+  applyReturnMerchandiseToOrder,
+  type Order,
+  type OrderItem,
+  type OrderReturnLine,
+} from "@/lib/orders"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -117,6 +123,7 @@ export async function POST(req: NextRequest) {
           branchId: true,
           returnLines: true,
           items: true,
+          returnMerchandiseApplied: true,
         },
       })
     : null
@@ -172,23 +179,6 @@ export async function POST(req: NextRequest) {
       )
     }
   }
-  // Cap against ordered qty
-  const orderItems = Array.isArray(o.items)
-    ? (o.items as Array<{ id?: string; qty?: number }>)
-    : Array.isArray(existing?.items)
-      ? (existing!.items as Array<{ id?: string; qty?: number }>)
-      : []
-  for (const [itemId, qty] of nextReturnAgg) {
-    const item = orderItems.find((i) => i.id === itemId)
-    const ordered = Math.max(0, Math.floor(Number(item?.qty) || 0))
-    if (qty > ordered) {
-      return NextResponse.json(
-        { error: `Return qty for an item exceeds ordered quantity (${ordered}).` },
-        { status: 400 },
-      )
-    }
-  }
-
   const becomingFullReturnedLegacy =
     String(o.status || "").toLowerCase() === "returned" &&
     !!existing &&
@@ -198,6 +188,33 @@ export async function POST(req: NextRequest) {
     nextReturnAgg.size === 0
 
   const hasNewReturnRestore = restoreDelta.length > 0 || becomingFullReturnedLegacy
+  const needsMerchandiseRepair =
+    !!existing &&
+    !existing.returnMerchandiseApplied &&
+    nextReturnAgg.size > 0
+
+  // Cap new return qty against currently remaining (not already-returned) quantity
+  if (restoreDelta.length > 0 && existing) {
+    const baseItems = Array.isArray(existing.items)
+      ? (existing.items as Array<{ id?: string; qty?: number }>)
+      : []
+    const merchandiseApplied = Boolean(existing.returnMerchandiseApplied)
+    for (const delta of restoreDelta) {
+      const item = baseItems.find((i) => i.id === delta.orderItemId)
+      const currentQty = Math.max(0, Math.floor(Number(item?.qty) || 0))
+      const remaining = merchandiseApplied
+        ? currentQty
+        : Math.max(0, currentQty - (prevReturnAgg.get(delta.orderItemId) || 0))
+      if (delta.qty > remaining) {
+        return NextResponse.json(
+          {
+            error: `Return qty exceeds remaining quantity on order (${remaining} left).`,
+          },
+          { status: 400 },
+        )
+      }
+    }
+  }
 
   // Restore stock before saving return so a failed restore never leaves a half-saved return.
   if (hasNewReturnRestore && existing) {
@@ -229,36 +246,84 @@ export async function POST(req: NextRequest) {
             restoreLines: becomingFullReturnedLegacy ? undefined : restoreDelta,
           })
         }
-
-        // Mark full inventory return only when every line is fully returned
-        const itemsForCheck = Array.isArray(fullExisting.items)
-          ? (fullExisting.items as Array<{ id?: string; qty?: number }>)
-          : []
-        const fullyReturned =
-          becomingFullReturnedLegacy ||
-          (itemsForCheck.length > 0 &&
-            itemsForCheck.every((item) => {
-              if (!item.id) return true
-              const ordered = Math.max(0, Math.floor(Number(item.qty) || 0))
-              return (nextReturnAgg.get(item.id) || 0) >= ordered
-            }))
-
-        if (fullyReturned) {
-          o.status = "returned"
-          o.inventoryReturnedAt = o.inventoryReturnedAt || new Date().toISOString()
-          o.inventoryDeductedAt = null
-          fulfillment.inventoryDeductedAt = null
-        } else {
-          // Partial: stay delivered; keep deducted marker for remaining stock
-          o.status = "delivered"
-          o.inventoryReturnedAt = null
-        }
       } catch (err) {
         console.error("[orders POST] inventory restore on return failed:", err)
         return NextResponse.json(
           { error: "Could not restore inventory for this return. Order was not updated." },
           { status: 500 },
         )
+      }
+    }
+  }
+
+  // Reduce order line qty + totals for returns (and repair older partial returns).
+  if (existing && (hasNewReturnRestore || needsMerchandiseRepair)) {
+    const fullExisting = await prisma.erpOrder.findUnique({ where: { id: orderId } })
+    if (fullExisting) {
+      const baseOrder = {
+        ...(o as unknown as Order),
+        id: fullExisting.id,
+        items: (Array.isArray(fullExisting.items)
+          ? fullExisting.items
+          : []) as OrderItem[],
+        returnLines: (Array.isArray(o.returnLines)
+          ? o.returnLines
+          : fullExisting.returnLines) as OrderReturnLine[],
+        returnMerchandiseApplied: Boolean(fullExisting.returnMerchandiseApplied),
+        subtotal: Number(fullExisting.subtotal) || 0,
+        tax: Number(fullExisting.tax) || 0,
+        taxPercent: Number(fullExisting.taxPercent) || 18,
+        discount: Number(fullExisting.discount) || 0,
+        transportCost: Number(fullExisting.transportCost) || 0,
+        otherCost: Number(fullExisting.otherCost) || 0,
+        shipping: Number(fullExisting.shipping) || 0,
+        total: Number(fullExisting.total) || 0,
+        discountIsPercentage: o.discountIsPercentage,
+        transportIsPercentage: o.transportIsPercentage,
+        otherCostIsPercentage: o.otherCostIsPercentage,
+      } as Order
+
+      let adjusted: Order
+      if (fullExisting.returnMerchandiseApplied && restoreDelta.length > 0) {
+        adjusted = applyReturnMerchandiseToOrder(baseOrder, { deltaOnly: restoreDelta })
+      } else if (!fullExisting.returnMerchandiseApplied && nextReturnAgg.size > 0) {
+        // First-time apply (includes repairing ORD returns saved before qty/totals update)
+        adjusted = applyReturnMerchandiseToOrder({
+          ...baseOrder,
+          returnMerchandiseApplied: false,
+        })
+      } else if (becomingFullReturnedLegacy) {
+        adjusted = applyReturnMerchandiseToOrder({
+          ...baseOrder,
+          items: [],
+          returnMerchandiseApplied: true,
+        })
+      } else {
+        adjusted = baseOrder
+      }
+
+      o.items = adjusted.items
+      o.subtotal = adjusted.subtotal
+      o.tax = adjusted.tax
+      o.taxPercent = adjusted.taxPercent
+      o.total = adjusted.total
+      o.discountValue = adjusted.discountValue
+      o.transportCostValue = adjusted.transportCostValue
+      o.otherCostValue = adjusted.otherCostValue
+      o.returnMerchandiseApplied = true
+
+      const remainingQty = (adjusted.items || []).reduce(
+        (sum, item) => sum + Math.max(0, Math.floor(Number(item.qty) || 0)),
+        0,
+      )
+      if (remainingQty <= 0 || becomingFullReturnedLegacy) {
+        o.status = "returned"
+        o.inventoryReturnedAt = o.inventoryReturnedAt || new Date().toISOString()
+        o.inventoryDeductedAt = null
+        fulfillment.inventoryDeductedAt = null
+      } else if (hasNewReturnRestore || needsMerchandiseRepair) {
+        o.status = "delivered"
+        o.inventoryReturnedAt = null
       }
     }
   }
@@ -288,6 +353,7 @@ export async function POST(req: NextRequest) {
           inventoryReturnedAt: o.inventoryReturnedAt ?? null,
           returnPayments: o.returnPayments ?? [],
           returnLines: o.returnLines ?? [],
+          returnMerchandiseApplied: Boolean(o.returnMerchandiseApplied),
           branchId,
           source,
           ...fulfillment,
@@ -314,6 +380,7 @@ export async function POST(req: NextRequest) {
           inventoryReturnedAt: o.inventoryReturnedAt ?? null,
           returnPayments: o.returnPayments ?? [],
           returnLines: o.returnLines ?? [],
+          returnMerchandiseApplied: Boolean(o.returnMerchandiseApplied),
           branchId,
           source,
           ...fulfillment,
