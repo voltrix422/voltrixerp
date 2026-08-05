@@ -151,6 +151,9 @@ export function DashboardPettyCashApprovals() {
                     Employee
                   </th>
                   <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
+                    Category
+                  </th>
+                  <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                     Description
                   </th>
                   <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
@@ -165,6 +168,7 @@ export function DashboardPettyCashApprovals() {
                 {pendingReceipts.map((receipt) => (
                   <tr key={receipt.id} className="hover:bg-[hsl(var(--muted))]/20 transition-colors">
                     <td className="px-3 py-2.5 text-xs font-medium">{receipt.employeeName}</td>
+                    <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{receipt.category || "—"}</td>
                     <td className="px-3 py-2 text-xs">{receipt.description}</td>
                     <td className="px-3 py-2 text-xs font-semibold text-red-600">
                       PKR {receipt.amount.toLocaleString()}

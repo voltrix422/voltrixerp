@@ -751,6 +751,7 @@ export function PettyCashDashboard() {
                 <thead>
                   <tr className="border-b bg-[hsl(var(--muted))]/40">
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Employee</th>
+                    <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Category</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Description</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Amount</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
@@ -762,6 +763,7 @@ export function PettyCashDashboard() {
                   {displayReceipts.map(receipt => (
                     <tr key={receipt.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
                       <td className="px-4 py-2.5 text-xs font-medium">{receipt.employeeName}</td>
+                      <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">{receipt.category || "—"}</td>
                       <td className="px-4 py-2.5 text-xs">{receipt.description}</td>
                       <td className="px-4 py-2.5 text-xs font-semibold text-red-600">
                         {formatPettyCashExpense(receipt.amount)}

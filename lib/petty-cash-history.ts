@@ -111,7 +111,9 @@ export function buildPettyCashHistory(
       id: `${receipt.id}-submitted`,
       type: "settlement",
       title: submitTitle,
-      description: receipt.description,
+      description: receipt.category
+        ? `${receipt.category} — ${receipt.description}`
+        : receipt.description,
       amount: receipt.status === "pending" ? expenseAmount : receipt.status === "approved" ? expenseAmount : undefined,
       occurredAt: receipt.submittedAt,
       actor: receipt.employeeName,

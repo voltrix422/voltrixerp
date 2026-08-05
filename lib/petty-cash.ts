@@ -30,11 +30,29 @@ export interface PettyCashSettlement {
   submittedAt: string
 }
 
+/** Office expense categories for petty cash receipts. */
+export const PETTY_CASH_EXPENSE_CATEGORIES = [
+  "Food & Meals",
+  "Transport",
+  "Office Supplies",
+  "Stationery",
+  "Utilities",
+  "Communication",
+  "Maintenance & Repairs",
+  "Entertainment",
+  "Cleaning",
+  "Miscellaneous",
+  "Other",
+] as const
+
+export type PettyCashExpenseCategory = (typeof PETTY_CASH_EXPENSE_CATEGORIES)[number]
+
 export interface PettyCashReceipt {
   id: string
   allocationId: string
   employeeName: string
   description: string
+  category: string
   amount: number
   receiptProof?: string
   receiptProofName?: string
@@ -196,6 +214,7 @@ export async function createPettyCashReceipt(data: {
   employeeName: string
   employeeRole?: string
   description: string
+  category: string
   amount: number
   receiptProof?: string
   receiptProofName?: string

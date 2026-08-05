@@ -75,6 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         employeeName,
         employeeRole,
         description,
+        category,
         amount,
         receiptProof,
         receiptProofName,
@@ -84,6 +85,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!employeeName || !description || amount === undefined || amount === null) {
         return res.status(400).json({ error: 'Missing required fields' })
       }
+      const expenseCategory =
+        typeof category === 'string' && category.trim() ? category.trim() : 'Other'
       const parsedAmount = parseFloat(amount)
       if (!Number.isFinite(parsedAmount) || Math.abs(parsedAmount) < 0.004) {
         return res.status(400).json({ error: 'Amount must be non-zero' })
@@ -123,6 +126,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           allocationId,
           employeeName,
           description,
+          category: expenseCategory,
           amount: parsedAmount,
           receiptProof,
           receiptProofName,

@@ -8,6 +8,7 @@ import {
   updatePettyCashAllocationStatus,
   updatePettyCashReceiptStatus,
   deletePettyCashReceipt,
+  PETTY_CASH_EXPENSE_CATEGORIES,
 } from "@/lib/petty-cash"
 import {
   allocationBelongsToUser,
@@ -51,6 +52,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   
   // Receipt form state
   const [description, setDescription] = useState("")
+  const [category, setCategory] = useState<string>(PETTY_CASH_EXPENSE_CATEGORIES[0])
   const [amount, setAmount] = useState("")
   const [notes, setNotes] = useState("")
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
@@ -114,10 +116,10 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
   }
 
   async function submitReceipt() {
-    if (!description || !amount || !receiptFile) {
+    if (!description || !category || !amount || !receiptFile) {
       toast({
         title: "Missing Information",
-        message: "Please fill all required fields and attach settlement proof",
+        message: "Please fill category, description, amount, and attach receipt proof",
         type: "error"
       })
       return
@@ -149,6 +151,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
         allocationId: allocation.id,
         employeeName: allocation.employeeName,
         description,
+        category,
         amount: parsedAmount,
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
@@ -170,6 +173,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
       // Reset form
       setDescription("")
+      setCategory(PETTY_CASH_EXPENSE_CATEGORIES[0])
       setAmount("")
       setNotes("")
       setReceiptFile(null)
@@ -427,6 +431,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                   >
                     <div className="min-w-0 space-y-1">
                       <p className="text-sm font-semibold">{receipt.description}</p>
+                      {receipt.category && (
+                        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{receipt.category}</p>
+                      )}
                       <p className="text-sm font-bold text-red-600">
                         {formatPettyCashExpense(receipt.amount)}
                       </p>
@@ -675,13 +682,27 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <label className="text-sm font-medium">Category *</label>
+                    <select
+                      value={category}
+                      onChange={e => setCategory(e.target.value)}
+                      className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/40"
+                    >
+                      {PETTY_CASH_EXPENSE_CATEGORIES.map(c => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-medium">Description *</label>
                     <input
                       type="text"
                       value={description}
                       onChange={e => setDescription(e.target.value)}
                       className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/40"
-                      placeholder="e.g. Office supplies, transport, lunch"
+                      placeholder="e.g. Team lunch, taxi to client"
                     />
                   </div>
                   <div className="space-y-2">
@@ -717,7 +738,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                       />
                     )}
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <label className="text-sm font-medium">Notes</label>
                     <textarea
                       value={notes}
@@ -793,12 +814,15 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                     <div key={receipt.id} className="border rounded-lg p-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <p className="font-medium text-sm">{receipt.description}</p>
                             <Badge className={getStatusColor(receipt.status)} variant="secondary">
                               {receipt.status}
                             </Badge>
                           </div>
+                          {receipt.category && (
+                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mb-1">{receipt.category}</p>
+                          )}
                           <p className="text-sm font-semibold text-red-600 mb-1">
                             {formatPettyCashExpense(receipt.amount)}
                           </p>

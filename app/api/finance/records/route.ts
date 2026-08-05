@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
         allocationId: pettyCashAllocationId,
         employeeName: allocation.employeeName,
         description,
+        category: String(recordData.category || 'Other'),
         amount: parsedAmount,
         receiptProof: String(recordData.proof_url || '') || null,
         receiptProofName: String(recordData.proof_name || '') || null,

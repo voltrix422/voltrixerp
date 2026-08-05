@@ -1046,6 +1046,7 @@ model ErpPettyCashReceipt {
   allocationId      String   @map("allocation_id")
   employeeName      String   @map("employee_name")
   description       String
+  category          String   @default("Other")
   amount            Float
   receiptProof      String?  @map("receipt_proof")
   receiptProofName  String?  @map("receipt_proof_name")
@@ -1056,6 +1057,7 @@ model ErpPettyCashReceipt {
   reviewedAt        DateTime? @map("reviewed_at")
   reviewNotes       String?  @map("review_notes")
 
+  @@index([category])
   @@map("erp_petty_cash_receipts")
 }
 

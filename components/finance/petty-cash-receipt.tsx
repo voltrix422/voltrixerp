@@ -4,6 +4,7 @@ import {
   getPettyCashAllocations,
   getPettyCashReceipts,
   createPettyCashReceipt,
+  PETTY_CASH_EXPENSE_CATEGORIES,
   type PettyCashReceipt as PettyCashReceiptType,
 } from "@/lib/petty-cash"
 import { formatPettyCashBalance, formatPettyCashExpense, sumPendingReceipts } from "@/lib/petty-cash-display"
@@ -35,6 +36,7 @@ export function PettyCashReceipt({
   const [dataLoading, setDataLoading] = useState(true)
   const [loading, setLoading] = useState(false)
   const [description, setDescription] = useState("")
+  const [category, setCategory] = useState<string>(PETTY_CASH_EXPENSE_CATEGORIES[0])
   const [amount, setAmount] = useState("")
   const [notes, setNotes] = useState("")
   const [receiptProof, setReceiptProof] = useState<File | null>(null)
@@ -90,10 +92,10 @@ export function PettyCashReceipt({
       toast({ title: "Error", message: "Could not identify your account. Please log in again.", type: "error" })
       return
     }
-    if (!description || !amount || !receiptProof) {
+    if (!description || !category || !amount || !receiptProof) {
       toast({
         title: "Missing information",
-        message: "Description, amount, and receipt proof are required",
+        message: "Category, description, amount, and receipt proof are required",
         type: "error",
       })
       return
@@ -124,6 +126,7 @@ export function PettyCashReceipt({
         employeeName: resolvedName,
         employeeRole,
         description,
+        category,
         amount: parsedAmount,
         receiptProof: receiptProofUrl || undefined,
         receiptProofName: receiptProofFileName || undefined,
@@ -194,6 +197,23 @@ export function PettyCashReceipt({
                 </span>
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
+              Category *
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+            >
+              {PETTY_CASH_EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">

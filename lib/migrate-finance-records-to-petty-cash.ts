@@ -221,6 +221,7 @@ export async function runFinanceToPettyCashMigration(allocatedBy: string) {
         allocationId: ledger.id,
         employeeName: ledger.employeeName,
         description: record.title,
+        category: record.category || "Other",
         amount: record.amount,
         receiptProof: record.proof_url || null,
         receiptProofName: record.proof_name || null,
