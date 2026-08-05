@@ -15,8 +15,20 @@ type Props = {
 
 export default function ProductTermsModal({ open, onClose, productName, termsDisplay }: Props) {
   const [downloading, setDownloading] = useState(false)
+  const [contentReady, setContentReady] = useState(false)
   const parsed = parseProductTermsContent(termsDisplay.content)
   const structured = decomposeProductTermsContent(termsDisplay.content)
+  const hasBody = Boolean(structured.intro.trim() || parsed.bullets.length > 0)
+
+  useEffect(() => {
+    if (!open) {
+      setContentReady(false)
+      return
+    }
+    setContentReady(false)
+    const id = window.setTimeout(() => setContentReady(true), 180)
+    return () => window.clearTimeout(id)
+  }, [open, termsDisplay.content])
 
   useEffect(() => {
     if (!open) return
@@ -63,9 +75,9 @@ export default function ProductTermsModal({ open, onClose, productName, termsDis
               Terms & Conditions
             </p>
             <h2 id="product-terms-title" className="text-xl font-bold text-neutral-900 sm:text-2xl">
-              {parsed.title}
+              {contentReady ? parsed.title : "Loading…"}
             </h2>
-            {structured.subtitle && (
+            {contentReady && structured.subtitle && (
               <p className="text-sm font-medium text-neutral-700">{structured.subtitle}</p>
             )}
             <p className="text-sm text-neutral-500">{productName}</p>
@@ -80,38 +92,53 @@ export default function ProductTermsModal({ open, onClose, productName, termsDis
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-          {structured.intro.trim() && (
-            <div className="space-y-4">
-              {structured.intro
-                .split(/\n\n+/)
-                .map((p) => p.trim())
-                .filter(Boolean)
-                .map((paragraph) => (
-                  <p key={paragraph.slice(0, 40)} className="text-sm leading-7 text-neutral-600 sm:text-base">
-                    {paragraph}
-                  </p>
-                ))}
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 min-h-[240px]">
+          {!contentReady ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16" role="status" aria-live="polite">
+              <Loader2 className="h-8 w-8 animate-spin text-[#1a9f9a]" aria-hidden />
+              <p className="text-sm text-neutral-500">Loading terms &amp; conditions…</p>
             </div>
-          )}
+          ) : (
+            <>
+              {structured.intro.trim() && (
+                <div className="space-y-4">
+                  {structured.intro
+                    .split(/\n\n+/)
+                    .map((p) => p.trim())
+                    .filter(Boolean)
+                    .map((paragraph) => (
+                      <p key={paragraph.slice(0, 40)} className="text-sm leading-7 text-neutral-600 sm:text-base">
+                        {paragraph}
+                      </p>
+                    ))}
+                </div>
+              )}
 
-          {parsed.bullets.length > 0 && (
-            <div>
-              <h3 className="mb-4 text-lg font-bold text-neutral-900">{parsed.sectionTitle}</h3>
-              <ul className="space-y-3">
-                {parsed.bullets.map((bullet, index) => (
-                  <li
-                    key={`${index}-${bullet.slice(0, 24)}`}
-                    className="flex gap-3 rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-3"
-                  >
-                    <span className="mt-0.5 shrink-0 text-[#1a9f9a] font-bold" aria-hidden>
-                      ➤
-                    </span>
-                    <span className="text-sm leading-7 text-neutral-700">{bullet}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+              {parsed.bullets.length > 0 && (
+                <div>
+                  <h3 className="mb-4 text-lg font-bold text-neutral-900">{parsed.sectionTitle}</h3>
+                  <ul className="space-y-3">
+                    {parsed.bullets.map((bullet, index) => (
+                      <li
+                        key={`${index}-${bullet.slice(0, 24)}`}
+                        className="flex gap-3 rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-3"
+                      >
+                        <span className="mt-0.5 shrink-0 text-[#1a9f9a] font-bold" aria-hidden>
+                          ➤
+                        </span>
+                        <span className="text-sm leading-7 text-neutral-700">{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {!hasBody && (
+                <p className="text-sm text-neutral-500 text-center py-8">
+                  No terms &amp; conditions available for this product.
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -126,7 +153,7 @@ export default function ProductTermsModal({ open, onClose, productName, termsDis
           <button
             type="button"
             onClick={() => void handleDownload()}
-            disabled={downloading}
+            disabled={downloading || !contentReady || !hasBody}
             className="inline-flex items-center gap-2 rounded-full bg-[#1a9f9a] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#158a85] disabled:opacity-70"
           >
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
