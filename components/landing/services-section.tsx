@@ -69,7 +69,7 @@ const cards = [
     icon: Cpu,
     heading: "Intelligent BMS",
     sub: "at the core of every pack.",
-    body: "Our indigenously developed Battery Management Systems ensure optimal cell health, safety, and real-time diagnostics via Bluetooth — built for LiFePO₄ chemistry.",
+    body: "Every Voltrix pack includes a Smart BMS for optimal cell health, safety, and real-time diagnostics via Bluetooth — built for LiFePO₄ chemistry.",
     items: null,
   },
 ]

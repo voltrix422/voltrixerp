@@ -93,7 +93,7 @@ export const products: Product[] = [
     name: "A-100716",
     category: "BMS",
     desc: "7S–16S 100A Smart BMS with 1A balancing current — universal compatibility",
-    fullDesc: "Pakistan's first indigenously developed Battery Management System. The A-100716 supports 7S to 16S LiFePO₄ configurations with 100A continuous current and 1A active balancing. Features over-charge, over-discharge, short circuit, and thermal protection.",
+    fullDesc: "Smart Battery Management System for LiFePO₄ packs. The A-100716 supports 7S to 16S configurations with 100A continuous current and 1A active balancing. Features over-charge, over-discharge, short circuit, and thermal protection.",
     price: "Rs. 14,000",
     warranty: "1 year",
     stock: "out",

@@ -5,8 +5,8 @@ import BlurText from "./blur-text"
 const highlights = [
   { 
     icon: Cpu, 
-    title: "First Indigenous BMS",
-    desc: "Pakistan's first locally developed Battery Management System technology"
+    title: "Smart BMS",
+    desc: "Real-time monitoring with Bluetooth diagnostics on every pack"
   },
   { 
     icon: Battery, 
@@ -15,13 +15,13 @@ const highlights = [
   },
   { 
     icon: Factory, 
-    title: "Local Manufacturing",
-    desc: "In-house R&D and production facilities"
+    title: "Chinese Partners",
+    desc: "Manufactured with leading Chinese partners for top-tier quality"
   },
   { 
     icon: Globe, 
     title: "Global Standards",
-    desc: "International quality with local expertise"
+    desc: "International quality with local sales and support"
   },
 ]
 

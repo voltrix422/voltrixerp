@@ -33,10 +33,10 @@ export default function VisionPage() {
               <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 text-white text-lg font-bold">M</div>
               <h2 className="text-2xl font-bold">Our Mission</h2>
               <p className="text-white/80 leading-relaxed">
-                To design, manufacture, and deliver cutting-edge LiFePO₄ battery solutions that exceed international safety and performance standards — while remaining accessible to the Pakistani market.
+                To source, deliver, and support cutting-edge LiFePO₄ battery solutions that exceed international safety and performance standards — while remaining accessible to the Pakistani market.
               </p>
               <p className="text-white/80 leading-relaxed">
-                We are committed to continuous innovation, local manufacturing, and building long-term relationships with our customers through exceptional service and support.
+                We are committed to partnering with leading Chinese manufacturers, continuous product improvement, and building long-term relationships with our customers through exceptional local service and support.
               </p>
             </div>
           </div>
@@ -46,7 +46,7 @@ export default function VisionPage() {
             <h2 className="text-2xl font-bold text-neutral-900 text-center">Our Core Values</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
-                { title: "Innovation", desc: "We push the boundaries of what's possible in energy storage, investing heavily in R&D to stay ahead." },
+                { title: "Innovation", desc: "We bring the latest energy storage technology to Pakistan through trusted manufacturing partners and continuous product improvement." },
                 { title: "Integrity", desc: "We build trust through transparency, honest pricing, and standing behind every product we sell." },
                 { title: "Sustainability", desc: "Every decision we make considers its impact on the environment and future generations." },
               ].map((v) => (

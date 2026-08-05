@@ -19,9 +19,9 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div className="space-y-5">
               <h2 className="text-2xl font-bold text-neutral-900">Our Story</h2>
-              <p className="text-neutral-500 leading-relaxed">Voltrix was founded with a simple but powerful belief — that Pakistan deserves world-class battery technology, manufactured locally, at prices that make sense for our market.</p>
-              <p className="text-neutral-500 leading-relaxed">Starting from a small R&D lab, we have grown into a full-scale battery manufacturer serving residential customers, EV owners, and industrial clients across the country.</p>
-              <p className="text-neutral-500 leading-relaxed">Today, Voltrix products power thousands of homes, dozens of commercial installations, and a growing fleet of electric vehicles — all backed by our industry-leading warranty and support.</p>
+              <p className="text-neutral-500 leading-relaxed">Voltrix was founded with a simple but powerful belief — that Pakistan deserves world-class battery technology at prices that make sense for our market.</p>
+              <p className="text-neutral-500 leading-relaxed">We partner with leading Chinese manufacturers to produce certified LiFePO₄ solutions, while our Pakistan team handles sales, integration, warranty, and support for residential, EV, and industrial customers.</p>
+              <p className="text-neutral-500 leading-relaxed">Today, Voltrix products power homes, commercial installations, and a growing fleet of electric vehicles — all backed by our warranty and local support.</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {[["2019","Founded"],["10,000+","Units deployed"],["50+","Team members"],["6","Product lines"]].map(([v, l]) => (

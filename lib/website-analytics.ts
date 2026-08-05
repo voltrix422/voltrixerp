@@ -30,7 +30,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   mission: "Mission",
   services: "Services",
   vision: "Vision & Mission",
-  rd: "R&D & Manufacturing",
+  rd: "Technology & Partners",
   about: "About Us",
   faq: "FAQ",
   contact: "Contact",

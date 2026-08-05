@@ -2,7 +2,7 @@
 import { Lightbulb, Award, Leaf, ArrowRight, Target, Eye, Heart } from "lucide-react"
 
 const values = [
-  { icon: Lightbulb, title: "Innovation", desc: "Pioneering indigenous energy technology through continuous R&D." },
+  { icon: Lightbulb, title: "Innovation", desc: "Delivering advanced energy technology through global partnerships and continuous improvement." },
   { icon: Award, title: "Quality", desc: "Uncompromising standards that exceed international benchmarks." },
   { icon: Heart, title: "Sustainability", desc: "Environmental stewardship in every solution we create." },
 ]
@@ -42,10 +42,10 @@ export default function VisionSection() {
                 <span className="text-sm font-semibold uppercase tracking-wider opacity-80">Our Mission</span>
               </div>
               <p className="text-lg leading-relaxed opacity-95">
-                To empower individuals and organizations to embrace clean energy while reducing their carbon footprint. Every solution is proudly rooted in local production and backed by continuous R&D.
+                To empower individuals and organizations to embrace clean energy while reducing their carbon footprint. Every solution is built with Chinese manufacturing partners and backed by local sales and support in Pakistan.
               </p>
               <p className="text-sm opacity-70">
-                Committed to developing durable, high-quality products exceeding international standards for export to Europe, USA, and global markets.
+                Committed to delivering durable, high-quality products that meet international standards for customers across Pakistan.
               </p>
             </div>
           </div>
@@ -64,7 +64,7 @@ export default function VisionSection() {
                 A cleaner, smarter energy future for Pakistan and beyond.
               </h3>
               <p className="text-neutral-400 leading-relaxed">
-                We envision a Pakistan where every home, business, and vehicle runs on clean, locally-produced energy — independent of fossil fuels and competing globally.
+                We envision a Pakistan where every home, business, and vehicle runs on clean energy — independent of fossil fuels and powered by reliable storage solutions.
               </p>
             </div>
           </div>

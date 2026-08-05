@@ -12,7 +12,7 @@ const primaryLinks = [
   { label: "Solar Calculator",    href: "/solar-calculator" },
   { label: "Services",            hash: "services"  },
   { label: "Vision & Mission",    hash: "vision"    },
-  { label: "R&D & Manufacturing", hash: "rd"        },
+  { label: "Technology & Partners", hash: "rd"        },
   { label: "About Us",            hash: "about"     },
   { label: "Contact",             hash: "contact"   },
 ]

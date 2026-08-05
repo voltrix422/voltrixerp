@@ -24,13 +24,13 @@ export default function RDSection() {
         <div className="text-center space-y-4">
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1a9f9a]/10 text-[#1a9f9a] text-sm font-semibold">
             <FlaskConical className="w-4 h-4" />
-            Research & Manufacturing
+            Technology & Partners
           </span>
           <h2 className="text-4xl md:text-6xl font-bold text-neutral-900">
             Where Innovation Meets <span className="text-[#1a9f9a]">Precision</span>
           </h2>
           <p className="text-lg text-neutral-600 max-w-2xl mx-auto">
-            From concept to creation, our teams deliver cutting-edge solutions with exceptional quality.
+            Partnered with leading Chinese manufacturers — delivering certified battery solutions with local expertise and support.
           </p>
         </div>
 
@@ -44,11 +44,11 @@ export default function RDSection() {
                 <FlaskConical className="w-7 h-7 text-[#1a9f9a]" />
               </div>
               <div>
-                <span className="text-[#1a9f9a] text-sm font-semibold uppercase tracking-wider">R&D</span>
-                <h3 className="text-2xl font-bold mt-1">Pioneering BMS Technology</h3>
+                <span className="text-[#1a9f9a] text-sm font-semibold uppercase tracking-wider">Technology</span>
+                <h3 className="text-2xl font-bold mt-1">Smart BMS Technology</h3>
               </div>
               <p className="text-neutral-400 leading-relaxed">
-                Pakistan's first indigenous Battery Management System development. Advanced inverters, residential and industrial BESS solutions.
+                Advanced Battery Management Systems with real-time monitoring, smart balancing, and Bluetooth diagnostics — across EV packs, residential, and industrial BESS.
               </p>
               <div className="flex flex-wrap gap-2">
                 {["Advanced BMS", "Smart Inverters", "Residential BESS", "Industrial BESS"].map((t) => (
@@ -67,14 +67,14 @@ export default function RDSection() {
                 <Factory className="w-7 h-7 text-[#1a9f9a]" />
               </div>
               <div>
-                <span className="text-[#1a9f9a] text-sm font-semibold uppercase tracking-wider">Manufacturing</span>
-                <h3 className="text-2xl font-bold mt-1 text-neutral-900">Automated Excellence</h3>
+                <span className="text-[#1a9f9a] text-sm font-semibold uppercase tracking-wider">Manufacturing Partners</span>
+                <h3 className="text-2xl font-bold mt-1 text-neutral-900">Chinese Excellence</h3>
               </div>
               <p className="text-neutral-600 leading-relaxed">
-                Automated lines and quality systems ensure every battery exceeds global standards. Eco-friendly precision engineering.
+                Our Chinese manufacturing partners produce Voltrix batteries to strict quality systems so every pack meets global standards. Eco-friendly precision engineering.
               </p>
               <div className="space-y-2">
-                {["Component testing", "Eco production", "Global certification"].map((t, i) => (
+                {["Partner quality control", "Certified production", "Global certification"].map((t, i) => (
                   <div key={t} className="flex items-center gap-3">
                     <span className="w-6 h-6 rounded-full bg-[#1a9f9a]/10 text-[#1a9f9a] text-xs font-bold flex items-center justify-center">{i + 1}</span>
                     <span className="text-sm text-neutral-700">{t}</span>
@@ -106,15 +106,15 @@ export default function RDSection() {
             <div className="space-y-6">
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1a9f9a]/20 text-[#1a9f9a] text-sm font-semibold">
                 <Cpu className="w-4 h-4" />
-                Pakistan's First
+                Smart Protection
               </span>
               <h3 className="text-4xl md:text-5xl font-bold leading-tight">
-                Indigenous Battery <span className="text-[#1a9f9a]">Management System</span>
+                Intelligent Battery <span className="text-[#1a9f9a]">Management System</span>
               </h3>
               <p className="text-neutral-400 text-lg leading-relaxed">
-                Voltrix is the only company in Pakistan to develop its own BMS in-house — enabling real-time monitoring, smart balancing, and wireless diagnostics.
+                Every Voltrix pack ships with a Smart BMS — enabling real-time monitoring, smart balancing, and wireless diagnostics.
               </p>
-              <p className="text-sm text-[#1a9f9a] font-semibold">Built entirely in Pakistan</p>
+              <p className="text-sm text-[#1a9f9a] font-semibold">Partner-built quality · Local support in Pakistan</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

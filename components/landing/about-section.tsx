@@ -2,14 +2,14 @@
 import { Shield, Cpu, Globe, Leaf, Factory, Zap, ArrowRight, Award, Users, TrendingUp } from "lucide-react"
 
 const stats = [
-  { value: "1st", label: "BMS", sub: "Pakistan's first indigenous" },
+  { value: "Smart", label: "BMS", sub: "Bluetooth diagnostics built-in" },
   { value: "6+", label: "Products", sub: "Diverse energy solutions" },
   { value: "4+", label: "Focus Areas", sub: "Residential to Industrial" },
   { value: "100%", label: "Standards", sub: "Global benchmarks met" },
 ]
 
 const reasons = [
-  { icon: Factory, title: "Local Manufacturing", desc: "100% in-house R&D with indigenous BMS technology." },
+  { icon: Factory, title: "Chinese Partners", desc: "Manufactured with leading Chinese partners for world-class quality." },
   { icon: Zap, title: "Complete Ecosystem", desc: "EV packs to industrial BESS — all under one roof." },
   { icon: Globe, title: "Global Partners", desc: "Collaborating with world leaders for top-tier quality." },
   { icon: Leaf, title: "Green Impact", desc: "Earning green credits, reducing emissions." },
@@ -33,10 +33,10 @@ export default function AboutSection() {
               Powering the Future with <span className="text-[#1a9f9a]">Innovative Energy</span>
             </h2>
             <p className="text-lg text-neutral-600 leading-relaxed">
-              We specialize in research, design, manufacturing, and integration of advanced lithium battery systems and BESS for commercial, industrial, and EV applications.
+              We specialize in design, integration, and delivery of advanced lithium battery systems and BESS for commercial, industrial, and EV applications across Pakistan.
             </p>
             <p className="text-neutral-500">
-              Pakistan's first company to develop a Battery Management System entirely in-house.
+              Our products are manufactured with leading Chinese partners — bringing global quality with local sales and support.
             </p>
             <a
               href="#contact"
@@ -94,7 +94,7 @@ export default function AboutSection() {
               </h4>
             </div>
             <p className="text-neutral-600 leading-relaxed">
-              From EV battery packs to grid-scale storage, Voltrix bridges clean energy generation with dependable storage — combining cutting-edge engineering with local expertise.
+              From EV battery packs to grid-scale storage, Voltrix bridges clean energy generation with dependable storage — combining Chinese manufacturing partners with local expertise and support.
             </p>
           </div>
         </div>
