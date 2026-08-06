@@ -26,6 +26,7 @@ import {
   patchLeadStatus,
   patchLeadAssignment,
   patchLeadFollowUp,
+  patchLeadFavorite,
   deleteLead,
   deleteLeadsByImportBatch,
   renameLeadImportBatch,
@@ -55,6 +56,8 @@ import {
   GitMerge,
   CalendarClock,
   Link2,
+  Star,
+  Sparkles,
 } from "lucide-react"
 
 const STATUS_OPTIONS = LEAD_STATUS_OPTIONS
@@ -809,6 +812,59 @@ function AssignedToCell({ lead }: { lead: CrmLeadRow }) {
   )
 }
 
+function FavoriteStarButton({
+  isFavorite,
+  onToggle,
+  size = "sm",
+}: {
+  isFavorite: boolean
+  onToggle: () => void
+  size?: "sm" | "md"
+}) {
+  const iconSize = size === "sm" ? "h-4 w-4" : "h-5 w-5"
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+      className={
+        isFavorite
+          ? "shrink-0 rounded-full p-1.5 transition-all cursor-pointer text-amber-400 hover:text-amber-300 bg-gradient-to-br from-amber-400/25 to-orange-400/20 hover:from-amber-400/35 hover:to-orange-400/30 shadow-sm shadow-amber-400/20"
+          : "shrink-0 rounded-full p-1.5 transition-all cursor-pointer text-[hsl(var(--muted-foreground))] hover:text-amber-400 hover:bg-amber-400/10"
+      }
+      title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+    >
+      <Star className={`${iconSize}${isFavorite ? " fill-current" : ""}`} />
+    </button>
+  )
+}
+
+function FavoritesHero({ count }: { count: number }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-amber-300/50 bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 p-4 sm:p-5 text-white shadow-lg shadow-amber-500/25">
+      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
+      <div className="absolute -bottom-8 -left-4 h-24 w-24 rounded-full bg-yellow-200/20 blur-xl" />
+      <div className="relative flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm border border-white/30">
+          <Sparkles className="h-5 w-5 text-yellow-100" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base sm:text-lg font-bold tracking-tight">Favorite leads</h3>
+          <p className="text-xs sm:text-sm text-white/90 mt-0.5">
+            Your top-priority leads — star any lead to add it here, or create a new favorite directly.
+          </p>
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-semibold">
+            <Star className="h-3 w-3 fill-current" />
+            {count} favorite{count === 1 ? "" : "s"}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LeadCard({
   lead,
   onOpenDetail,
@@ -817,8 +873,10 @@ function LeadCard({
   onFollowUp,
   onLinkUser,
   onDelete,
+  onToggleFavorite,
   canAssign,
   readOnly = false,
+  highlightFavorite = false,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
@@ -827,18 +885,35 @@ function LeadCard({
   onFollowUp: (lead: CrmLeadRow) => void
   onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
+  onToggleFavorite: (lead: CrmLeadRow) => void
   canAssign: boolean
   readOnly?: boolean
+  highlightFavorite?: boolean
 }) {
   const fu = followUpDisplay(lead)
   return (
     <div
-      className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 space-y-2.5 active:bg-[hsl(var(--muted))]/20"
+      className={`rounded-lg border p-3 space-y-2.5 active:bg-[hsl(var(--muted))]/20 ${
+        highlightFavorite || lead.isFavorite
+          ? "border-amber-300/60 bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20"
+          : "border-[hsl(var(--border))] bg-[hsl(var(--card))]"
+      }`}
       onClick={() => onOpenDetail(lead.id)}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm leading-snug">{lead.name}</p>
+          <div className="flex items-center gap-1.5">
+            {!readOnly && (
+              <FavoriteStarButton
+                isFavorite={lead.isFavorite}
+                onToggle={() => onToggleFavorite(lead)}
+              />
+            )}
+            {lead.isFavorite && readOnly && (
+              <Star className="h-4 w-4 shrink-0 text-amber-400 fill-amber-400" />
+            )}
+            <p className="font-semibold text-sm leading-snug">{lead.name}</p>
+          </div>
           {lead.company?.trim() && (
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-2">{lead.company}</p>
           )}
@@ -925,8 +1000,10 @@ function LeadsListView({
   onFollowUp,
   onLinkUser,
   onDelete,
+  onToggleFavorite,
   canAssign,
   readOnly = false,
+  highlightFavorite = false,
 }: {
   leads: CrmLeadRow[]
   onOpenDetail: (id: string) => void
@@ -935,8 +1012,10 @@ function LeadsListView({
   onFollowUp: (lead: CrmLeadRow) => void
   onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
+  onToggleFavorite: (lead: CrmLeadRow) => void
   canAssign: boolean
   readOnly?: boolean
+  highlightFavorite?: boolean
 }) {
   return (
     <>
@@ -951,8 +1030,10 @@ function LeadsListView({
             onFollowUp={onFollowUp}
             onLinkUser={onLinkUser}
             onDelete={onDelete}
+            onToggleFavorite={onToggleFavorite}
             canAssign={canAssign}
             readOnly={readOnly}
+            highlightFavorite={highlightFavorite}
           />
         ))}
       </div>
@@ -960,6 +1041,9 @@ function LeadsListView({
         <table className="w-full min-w-[1240px]">
           <thead>
             <tr className="border-b bg-[hsl(var(--muted))]/40">
+              <th className="h-9 px-2 text-center text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))] w-10">
+                ★
+              </th>
               <th className="h-9 px-3 text-left text-[10px] font-semibold uppercase text-[hsl(var(--muted-foreground))]">
                 Lead
               </th>
@@ -1005,8 +1089,10 @@ function LeadsListView({
                 onFollowUp={onFollowUp}
                 onLinkUser={onLinkUser}
                 onDelete={onDelete}
+                onToggleFavorite={onToggleFavorite}
                 canAssign={canAssign}
                 readOnly={readOnly}
+                highlightFavorite={highlightFavorite}
               />
             ))}
           </tbody>
@@ -1024,8 +1110,10 @@ function LeadTableRow({
   onFollowUp,
   onLinkUser,
   onDelete,
+  onToggleFavorite,
   canAssign,
   readOnly = false,
+  highlightFavorite = false,
 }: {
   lead: CrmLeadRow
   onOpenDetail: (id: string) => void
@@ -1034,14 +1122,32 @@ function LeadTableRow({
   onFollowUp: (lead: CrmLeadRow) => void
   onLinkUser: (lead: CrmLeadRow) => void
   onDelete: (id: string) => void
+  onToggleFavorite: (lead: CrmLeadRow) => void
   canAssign: boolean
   readOnly?: boolean
+  highlightFavorite?: boolean
 }) {
   return (
     <tr
-      className="hover:bg-[hsl(var(--muted))]/30 cursor-pointer"
+      className={`hover:bg-[hsl(var(--muted))]/30 cursor-pointer ${
+        highlightFavorite || lead.isFavorite
+          ? "bg-gradient-to-r from-amber-50/60 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10"
+          : ""
+      }`}
       onClick={() => onOpenDetail(lead.id)}
     >
+      <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+        {!readOnly ? (
+          <FavoriteStarButton
+            isFavorite={lead.isFavorite}
+            onToggle={() => onToggleFavorite(lead)}
+          />
+        ) : lead.isFavorite ? (
+          <Star className="h-4 w-4 mx-auto text-amber-400 fill-amber-400" />
+        ) : (
+          <span className="text-[hsl(var(--muted-foreground))]/30">—</span>
+        )}
+      </td>
       <td className="px-3 py-2 text-xs font-medium">{lead.name}</td>
       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.company || "—"}</td>
       <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">{lead.city || "—"}</td>
@@ -1174,6 +1280,8 @@ export function LeadsManager({
   const [repairingPhonesBatchId, setRepairingPhonesBatchId] = useState<string | null>(null)
   const [loadingInstallersCsv, setLoadingInstallersCsv] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
+  const [addLeadAsFavorite, setAddLeadAsFavorite] = useState(false)
+  const [activeSection, setActiveSection] = useState<"all" | "favorites">("all")
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const [showFacebookImportModal, setShowFacebookImportModal] = useState(false)
   const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
@@ -1296,6 +1404,15 @@ export function LeadsManager({
     [leads, search, statusFilter, contactFilter, contactFrom, contactTo, assignedFilter],
   )
 
+  const favoriteCount = useMemo(() => leads.filter((l) => l.isFavorite).length, [leads])
+
+  const filteredFavorites = useMemo(
+    () => filteredAll.filter((l) => l.isFavorite),
+    [filteredAll],
+  )
+
+  const sectionLeads = activeSection === "favorites" ? filteredFavorites : filteredAll
+
   const assigneeSummary = useMemo(() => summarizeAssignees(leads), [leads])
   const showAssignedFilter = canAssignLeads || assigneeSummary.assignees.length > 0
 
@@ -1328,7 +1445,7 @@ export function LeadsManager({
 
   const importBatchGroups = useMemo(() => {
     const map = new Map<string, CrmLeadRow[]>()
-    for (const l of filteredAll) {
+    for (const l of sectionLeads) {
       if (!l.importBatchId) continue
       const arr = map.get(l.importBatchId) ?? []
       arr.push(l)
@@ -1346,9 +1463,9 @@ export function LeadsManager({
       }
     })
     return groups.sort((a, b) => new Date(b.importedAt).getTime() - new Date(a.importedAt).getTime())
-  }, [filteredAll])
+  }, [sectionLeads])
 
-  const tableLeads = useMemo(() => filteredAll.filter((l) => !l.importBatchId), [filteredAll])
+  const tableLeads = useMemo(() => sectionLeads.filter((l) => !l.importBatchId), [sectionLeads])
 
   function toggleBatch(id: string) {
     setOpenBatchIds((prev) => {
@@ -1371,6 +1488,38 @@ export function LeadsManager({
     setDeleteImportBatch(null)
     setDeleteId(id)
   }, [])
+
+  const toggleFavorite = useCallback(
+    async (lead: CrmLeadRow) => {
+      const next = !lead.isFavorite
+      try {
+        await patchLeadFavorite(lead.id, next)
+        setLeads((prev) =>
+          prev.map((l) => (l.id === lead.id ? { ...l, isFavorite: next } : l)),
+        )
+        if (detail?.id === lead.id) {
+          setDetail((d) => (d ? { ...d, isFavorite: next } : d))
+        }
+        toast({
+          type: "success",
+          title: next ? "Added to favorites" : "Removed from favorites",
+          message: lead.name,
+        })
+      } catch (err) {
+        toast({
+          type: "error",
+          title: "Could not update favorite",
+          message: err instanceof Error ? err.message : undefined,
+        })
+      }
+    },
+    [detail?.id, toast],
+  )
+
+  function openAddLead(asFavorite = false) {
+    setAddLeadAsFavorite(asFavorite)
+    setShowAddLead(true)
+  }
 
   async function onCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -1611,6 +1760,43 @@ export function LeadsManager({
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveSection("all")}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
+            activeSection === "all"
+              ? "bg-[hsl(var(--foreground))] text-[hsl(var(--background))] border-[hsl(var(--foreground))]"
+              : "bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))] hover:text-[hsl(var(--foreground))]"
+          }`}
+        >
+          All leads
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection("favorites")}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
+            activeSection === "favorites"
+              ? "bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 text-white border-amber-300 shadow-lg shadow-amber-500/30"
+              : "bg-[hsl(var(--background))] text-amber-600 border-amber-300/50 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+          }`}
+        >
+          <Star className={`h-3.5 w-3.5${activeSection === "favorites" ? " fill-current" : ""}`} />
+          Favorites
+          {favoriteCount > 0 && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                activeSection === "favorites" ? "bg-white/25" : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {favoriteCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeSection === "favorites" && <FavoritesHero count={favoriteCount} />}
+
       <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-3 sm:p-4 space-y-3">
         <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-end gap-3 sm:gap-4">
           <div className="min-w-0 sm:flex-1">
@@ -1722,7 +1908,7 @@ export function LeadsManager({
           showAssignedFilter={showAssignedFilter}
           open={filtersOpen}
           totalCount={leads.length}
-          filteredCount={filteredAll.length}
+          filteredCount={sectionLeads.length}
           onToggleOpen={() => setFiltersOpen((v) => !v)}
           onStatusFilter={setStatusFilter}
           onContactFilter={(v) => {
@@ -1801,22 +1987,34 @@ export function LeadsManager({
           >
             Sample CSV
           </a>
-          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer col-span-2 sm:col-span-1" onClick={() => setShowAddLead(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add lead
+          <Button size="sm" className="h-10 sm:h-8 text-xs cursor-pointer col-span-2 sm:col-span-1" onClick={() => openAddLead(activeSection === "favorites")}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            {activeSection === "favorites" ? "Add favorite lead" : "Add lead"}
           </Button>
+          {activeSection === "all" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-10 sm:h-8 text-xs col-span-2 sm:col-span-1 border-amber-300/60 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+              onClick={() => openAddLead(true)}
+            >
+              <Star className="h-3.5 w-3.5 mr-1 fill-amber-400 text-amber-400" />
+              Add to favorites
+            </Button>
+          )}
           </>
           )}
           <Button
             size="sm"
             variant="outline"
             className="h-10 sm:h-8 text-xs"
-            disabled={filteredAll.length === 0}
+            disabled={sectionLeads.length === 0}
             onClick={() => {
-              downloadLeadsExcel(filteredAll, { exportedBy: currentUser })
+              downloadLeadsExcel(sectionLeads, { exportedBy: currentUser })
               toast({
                 type: "success",
                 title: "Download started",
-                message: `${filteredAll.length} lead(s) exported for Excel.`,
+                message: `${sectionLeads.length} lead(s) exported for Excel.`,
               })
             }}
           >
@@ -1830,18 +2028,40 @@ export function LeadsManager({
         <div className="flex justify-center py-20">
           <div className="h-8 w-8 rounded-full border-4 border-[hsl(var(--primary))] border-t-transparent animate-spin" />
         </div>
-      ) : filteredAll.length === 0 ? (
+      ) : sectionLeads.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
-          {leads.length === 0
-            ? "No leads yet. Import a CSV or add a lead manually."
-            : isLeadFiltersActive(statusFilter, contactFilter, contactFrom, contactTo, assignedFilter) || search.trim()
-              ? "No leads match your filters."
-              : "No leads match your search."}
+          {activeSection === "favorites" ? (
+            <>
+              <Star className="h-12 w-12 text-amber-300 mb-3" />
+              <p className="font-medium text-amber-700 dark:text-amber-400">No favorite leads yet</p>
+              <p className="text-xs mt-1 max-w-xs">
+                Star any lead from All leads, or add a new favorite lead directly.
+              </p>
+              {!readOnly && (
+                <Button
+                  size="sm"
+                  className="mt-4 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white border-0"
+                  onClick={() => openAddLead(true)}
+                >
+                  <Star className="h-3.5 w-3.5 mr-1 fill-current" />
+                  Add favorite lead
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
+              {leads.length === 0
+                ? "No leads yet. Import a CSV or add a lead manually."
+                : isLeadFiltersActive(statusFilter, contactFilter, contactFrom, contactTo, assignedFilter) || search.trim()
+                  ? "No leads match your filters."
+                  : "No leads match your search."}
+            </>
+          )}
         </div>
       ) : (
-        <div className="space-y-6">
-          {importBatchGroups.length > 0 && (
+        <div className={`space-y-6 ${activeSection === "favorites" ? "rounded-xl border border-amber-200/60 bg-gradient-to-b from-amber-50/40 to-orange-50/20 dark:from-amber-950/20 dark:to-orange-950/10 p-3 sm:p-4" : ""}`}>
+          {importBatchGroups.length > 0 && activeSection === "all" && (
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                 CSV imports
@@ -1968,8 +2188,10 @@ export function LeadsManager({
                             onFollowUp={setFollowUpForLead}
                             onLinkUser={setLinkForLead}
                             onDelete={requestDeleteLead}
+                            onToggleFavorite={toggleFavorite}
                             canAssign={canAssignLeads}
                             readOnly={readOnly}
+                            highlightFavorite={false}
                           />
                           )}
                         </div>
@@ -1981,24 +2203,31 @@ export function LeadsManager({
             </div>
           )}
 
-          {(importBatchGroups.length === 0 ? filteredAll : tableLeads).length > 0 && (
+          {(activeSection === "favorites" ? sectionLeads.length > 0 : (importBatchGroups.length === 0 ? sectionLeads : tableLeads).length > 0) && (
             <div>
-              {importBatchGroups.length > 0 && (
+              {importBatchGroups.length > 0 && activeSection === "all" && (
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
                   Other leads (manual or older imports)
                 </p>
               )}
-              <div className="rounded-lg border overflow-hidden">
+              {activeSection === "favorites" && (
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 mb-2">
+                  Your favorite leads
+                </p>
+              )}
+              <div className={`rounded-lg border overflow-hidden ${activeSection === "favorites" ? "border-amber-200/60" : ""}`}>
                 <LeadsListView
-                  leads={importBatchGroups.length === 0 ? filteredAll : tableLeads}
+                  leads={activeSection === "favorites" ? sectionLeads : importBatchGroups.length === 0 ? sectionLeads : tableLeads}
                   onOpenDetail={openLeadDetail}
                   onStatusChange={onStatusChange}
                   onLog={setLogForLead}
                   onFollowUp={setFollowUpForLead}
                   onLinkUser={setLinkForLead}
                   onDelete={requestDeleteLead}
+                  onToggleFavorite={toggleFavorite}
                   canAssign={canAssignLeads}
                   readOnly={readOnly}
+                  highlightFavorite={activeSection === "favorites"}
                 />
               </div>
             </div>
@@ -2038,10 +2267,16 @@ export function LeadsManager({
         <AddLeadModal
           currentUser={currentUser}
           currentUserId={currentUserId}
-          onClose={() => setShowAddLead(false)}
+          asFavorite={addLeadAsFavorite}
+          onClose={() => {
+            setShowAddLead(false)
+            setAddLeadAsFavorite(false)
+          }}
           onCreated={async () => {
             await refresh()
             setShowAddLead(false)
+            setAddLeadAsFavorite(false)
+            if (addLeadAsFavorite) setActiveSection("favorites")
           }}
         />
       )}
@@ -2147,6 +2382,7 @@ export function LeadsManager({
           lead={detail}
           onClose={closeLeadDetail}
           onRefreshHistory={() => detailId && reloadLeadDetail(detailId)}
+          onToggleFavorite={() => detail && toggleFavorite(detail)}
           onLink={() => {
             if (detail) setLinkForLead(detail)
           }}
@@ -2551,11 +2787,13 @@ function CsvImportModal({
 function AddLeadModal({
   currentUser,
   currentUserId,
+  asFavorite = false,
   onClose,
   onCreated,
 }: {
   currentUser: string
   currentUserId?: string | null
+  asFavorite?: boolean
   onClose: () => void
   onCreated: () => Promise<void>
 }) {
@@ -2565,6 +2803,7 @@ function AddLeadModal({
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [notes, setNotes] = useState("")
+  const [saveAsFavorite, setSaveAsFavorite] = useState(asFavorite)
   const [saving, setSaving] = useState(false)
 
   async function submit() {
@@ -2582,6 +2821,7 @@ function AddLeadModal({
           notes,
           createdBy: currentUser,
           createdById: currentUserId ?? null,
+          isFavorite: saveAsFavorite,
         }),
       })
       if (!res.ok) throw new Error("Failed")
@@ -2596,11 +2836,18 @@ function AddLeadModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
       <div
-        className="bg-[hsl(var(--background))] rounded-lg border shadow-lg max-w-md w-full p-4 space-y-3"
+        className={`rounded-lg border shadow-lg max-w-md w-full p-4 space-y-3 ${
+          asFavorite || saveAsFavorite
+            ? "bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-rose-950/20 border-amber-300/60"
+            : "bg-[hsl(var(--background))]"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-semibold">Add lead</h3>
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            {saveAsFavorite && <Star className="h-4 w-4 text-amber-500 fill-amber-400" />}
+            {saveAsFavorite ? "Add favorite lead" : "Add lead"}
+          </h3>
           <button type="button" onClick={onClose} className="p-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer">
             <X className="h-4 w-4" />
           </button>
@@ -2631,12 +2878,27 @@ function AddLeadModal({
         />
         <label className="block text-xs font-medium">Notes</label>
         <textarea className="w-full rounded border px-2 py-1.5 text-sm min-h-[72px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={saveAsFavorite}
+            onChange={(e) => setSaveAsFavorite(e.target.checked)}
+            className="rounded border-amber-300 text-amber-500 focus:ring-amber-400"
+          />
+          <Star className={`h-3.5 w-3.5 ${saveAsFavorite ? "text-amber-500 fill-amber-400" : "text-[hsl(var(--muted-foreground))]"}`} />
+          Save as favorite
+        </label>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" size="sm" className="cursor-pointer" onClick={onClose}>
             Cancel
           </Button>
-          <Button size="sm" className="cursor-pointer" disabled={saving || !name.trim()} onClick={submit}>
-            {saving ? "Saving…" : "Save"}
+          <Button
+            size="sm"
+            className={`cursor-pointer ${saveAsFavorite ? "bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white border-0" : ""}`}
+            disabled={saving || !name.trim()}
+            onClick={submit}
+          >
+            {saving ? "Saving…" : saveAsFavorite ? "Save favorite" : "Save"}
           </Button>
         </div>
       </div>
@@ -3024,6 +3286,7 @@ function LeadDetailDrawer({
   onLog,
   onFollowUp,
   onLink,
+  onToggleFavorite,
   canAssign,
   readOnly = false,
   onRefreshHistory,
@@ -3034,6 +3297,7 @@ function LeadDetailDrawer({
   onLog: () => void
   onFollowUp: () => void
   onLink: () => void
+  onToggleFavorite: () => void
   canAssign: boolean
   readOnly?: boolean
   onRefreshHistory: () => void
@@ -3042,14 +3306,26 @@ function LeadDetailDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <div
-        className="h-full w-full sm:max-w-md bg-[hsl(var(--background))] sm:border-l shadow-xl flex flex-col"
+        className={`h-full w-full sm:max-w-md sm:border-l shadow-xl flex flex-col ${
+          lead?.isFavorite
+            ? "bg-gradient-to-b from-amber-50/90 to-[hsl(var(--background))] dark:from-amber-950/30 dark:to-[hsl(var(--background))]"
+            : "bg-[hsl(var(--background))]"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-3 sm:p-4 border-b flex justify-between items-center gap-2">
-          <h3 className="text-sm font-semibold">Lead detail</h3>
-          <button type="button" onClick={onClose} className="p-2 -mr-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
-            <X className="h-4 w-4" />
-          </button>
+        <div className={`p-3 sm:p-4 border-b flex justify-between items-center gap-2 ${lead?.isFavorite ? "border-amber-200/60 bg-gradient-to-r from-amber-100/50 to-orange-100/30 dark:from-amber-950/40 dark:to-orange-950/20" : ""}`}>
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            {lead?.isFavorite && <Star className="h-4 w-4 text-amber-500 fill-amber-400" />}
+            Lead detail
+          </h3>
+          <div className="flex items-center gap-1">
+            {!readOnly && lead && (
+              <FavoriteStarButton isFavorite={lead.isFavorite} onToggle={onToggleFavorite} size="md" />
+            )}
+            <button type="button" onClick={onClose} className="p-2 -mr-1 rounded hover:bg-[hsl(var(--muted))] cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
           {loading || !lead ? (

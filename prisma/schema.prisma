@@ -998,10 +998,12 @@ model CrmLead {
   createdById   String?  @map("created_by_id")
   importBatchId      String?  @map("import_batch_id")
   importUploaderName String?  @map("import_uploader_name")
+  isFavorite         Boolean  @default(false) @map("is_favorite")
   contacts      CrmLeadContact[]
 
   @@index([importBatchId])
   @@index([assignedToUserId])
+  @@index([isFavorite])
   @@map("crm_leads")
 }
 

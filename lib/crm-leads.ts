@@ -18,6 +18,7 @@ export type CrmLeadRow = {
   createdById: string | null
   importBatchId: string | null
   importUploaderName: string | null
+  isFavorite: boolean
   contactCount: number
   lastContactedAt: string | null
   lastResponseSnippet: string | null
@@ -237,6 +238,20 @@ export async function patchLeadFollowUp(
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || "Follow-up update failed")
   return data as { followUpAt: string | null; followUpNotes: string }
+}
+
+export async function patchLeadFavorite(
+  id: string,
+  isFavorite: boolean,
+): Promise<{ isFavorite: boolean }> {
+  const res = await fetch("/api/crm/leads", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, isFavorite }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Favorite update failed")
+  return data as { isFavorite: boolean }
 }
 
 export async function deleteLead(id: string): Promise<void> {

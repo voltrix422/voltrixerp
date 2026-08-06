@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
         createdById: b.createdById ? String(b.createdById) : null,
         assignedToUserId: b.assignedToUserId ? String(b.assignedToUserId) : null,
         assignedToName: String(b.assignedToName ?? ""),
+        isFavorite: Boolean(b.isFavorite),
       },
     })
     return NextResponse.json(lead)
@@ -66,6 +67,7 @@ export async function PATCH(req: NextRequest) {
       followUpNotes?: string
       assignedToUserId?: string | null
       assignedToName?: string
+      isFavorite?: boolean
     } = {}
 
     if (body.status != null) {
@@ -87,6 +89,9 @@ export async function PATCH(req: NextRequest) {
         : String(body.assignedToUserId)
       data.assignedToUserId = userId
       data.assignedToName = userId ? String(body.assignedToName ?? "") : ""
+    }
+    if (body.isFavorite !== undefined) {
+      data.isFavorite = Boolean(body.isFavorite)
     }
 
     if (Object.keys(data).length === 0) {
@@ -138,6 +143,7 @@ export async function PATCH(req: NextRequest) {
       followUpNotes: lead.followUpNotes,
       assignedToUserId: lead.assignedToUserId,
       assignedToName: lead.assignedToName,
+      isFavorite: lead.isFavorite,
       ...(contactCount !== undefined && { contactCount, lastContactedAt }),
     })
   } catch (e) {

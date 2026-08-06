@@ -42,6 +42,7 @@ export function mapLeadRow(l: {
   createdById: string | null
   importBatchId: string | null
   importUploaderName: string | null
+  isFavorite: boolean
   _count: { contacts: number }
   contacts: { contactedAt: Date; leadResponse: string }[]
 }) {
@@ -65,6 +66,7 @@ export function mapLeadRow(l: {
     createdById: l.createdById,
     importBatchId: l.importBatchId,
     importUploaderName: l.importUploaderName,
+    isFavorite: l.isFavorite,
     contactCount: l._count.contacts,
     lastContactedAt: l.contacts[0]?.contactedAt.toISOString() ?? null,
     lastResponseSnippet: l.contacts[0]?.leadResponse
