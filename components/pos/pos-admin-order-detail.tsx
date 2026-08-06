@@ -121,8 +121,18 @@ export function PosAdminOrderDetailModal({
 
   const order = data?.order
   const client = data?.client
-  const paid = order ? getOrderAmountPaid(order) : 0
-  const due = order ? getOrderCreditBalance(order) : 0
+  const paid = order
+    ? getOrderAmountPaid({
+        status: order.status as OrderStatus,
+        payments: order.payments,
+      })
+    : 0
+  const due = order
+    ? getOrderCreditBalance({
+        ...order,
+        status: order.status as OrderStatus,
+      } as Order)
+    : 0
 
   const fulfillmentImages = [
     order?.fulfillmentReceiverImageUrl,
