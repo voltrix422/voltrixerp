@@ -385,20 +385,6 @@ export function PosAdminDashboard() {
               </div>
             )}
           </Panel>
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-            <RecentOrdersTable
-              title="Recent orders"
-              rows={data?.recentOrders || []}
-              showBranch
-              onOrderClick={setSelectedOrderId}
-            />
-            <RecentReceiptsTable
-              title="Recent receipts"
-              rows={data?.recentReceipts || []}
-              showBranch
-            />
-          </div>
         </>
       ) : (
         <BranchDetailPanel
