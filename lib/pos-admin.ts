@@ -114,3 +114,114 @@ export async function getPosAdminSummary(params: {
 export function formatPosPkr(amount: number): string {
   return `PKR ${(amount ?? 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
 }
+
+export type PosAdminOrderDetail = {
+  order: {
+    id: string
+    orderNumber: string
+    clientId: string
+    clientName: string
+    items: Array<{
+      id: string
+      description: string
+      qty: number
+      unit: string
+      unitPrice: number
+      companyPrice?: number
+      model?: string
+      inventoryItemId?: string
+      isCustom?: boolean
+    }>
+    subtotal: number
+    taxPercent: number
+    tax: number
+    transportCost: number
+    transportLabel: string
+    otherCost: number
+    otherCostLabel: string
+    shipping: number
+    discount: number
+    total: number
+    status: string
+    notes: string
+    createdAt: string
+    createdBy: string
+    deliveryAddress: string
+    deliveryDate: string
+    dispatcher?: string | null
+    pdfUrl?: string | null
+    payments: Array<{
+      id: string
+      amount: number
+      method: string
+      date: string
+      notes: string
+      proofUrl?: string
+      proofUrls?: string[]
+      createdAt: string
+      createdBy: string
+      submissionStatus?: string
+      proofOnly?: boolean
+    }>
+    paymentTerms: string
+    creditApprovedAt?: string | null
+    creditApprovedBy?: string | null
+    creditNote?: string | null
+    fulfillmentDispatcher?: string | null
+    fulfillmentReceiverName?: string | null
+    fulfillmentReceiverCnic?: string | null
+    fulfillmentVehicleNumber?: string | null
+    fulfillmentDate?: string | null
+    fulfillmentReceiverImageUrl?: string | null
+    fulfillmentReceiverCnicImageUrl?: string | null
+    fulfillmentVehicleImageUrl?: string | null
+    fulfillmentProductImageUrls: string[]
+    fulfillmentSerialAllocations: unknown[]
+    branchId?: string | null
+    source?: string | null
+    returnPayments: Array<{
+      id: string
+      amount: number
+      method: string
+      date: string
+      notes: string
+      proofUrl?: string
+      proofUrls?: string[]
+      createdAt: string
+      createdBy: string
+    }>
+    returnLines: unknown[]
+    returnedAt?: string | null
+    returnReason?: string | null
+    sellAmount: number
+    companyAmount: number
+    profit: number
+  }
+  client: {
+    id: string
+    name: string
+    company: string
+    email: string
+    phone: string
+    address: string
+    city: string
+    country: string
+    website: string
+    taxId: string
+    ntn: string
+    industry: string
+    contactPerson: string
+    imageUrl: string | null
+    notes: string
+    createdAt: string
+    createdBy: string
+    status: string
+  } | null
+  branch: { id: string; name: string; code: string } | null
+}
+
+export async function getPosAdminOrderDetail(orderId: string): Promise<PosAdminOrderDetail | null> {
+  const res = await fetch(`/api/db/pos/admin-order?id=${encodeURIComponent(orderId)}`)
+  if (!res.ok) return null
+  return res.json()
+}

@@ -19,6 +19,7 @@ import {
   type PosAdminBranchSummary,
   type PosAdminSummary,
 } from "@/lib/pos-admin"
+import { PosAdminOrderDetailModal } from "@/components/pos/pos-admin-order-detail"
 
 type RangeMode =
   | "yesterday"
@@ -119,6 +120,7 @@ export function PosAdminDashboard() {
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null)
   const [branchDetail, setBranchDetail] = useState<PosAdminBranchSummary | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -382,6 +384,7 @@ export function PosAdminDashboard() {
               title="Recent POS orders (all branches)"
               rows={data?.recentOrders || []}
               showBranch
+              onOrderClick={setSelectedOrderId}
             />
             <RecentReceiptsTable
               title="Recent POS receipts (all branches)"
@@ -394,6 +397,14 @@ export function PosAdminDashboard() {
         <BranchDetailPanel
           loading={detailLoading}
           branch={branchDetail || selectedMeta || null}
+          onOrderClick={setSelectedOrderId}
+        />
+      )}
+
+      {selectedOrderId && (
+        <PosAdminOrderDetailModal
+          orderId={selectedOrderId}
+          onClose={() => setSelectedOrderId(null)}
         />
       )}
     </div>
@@ -403,9 +414,11 @@ export function PosAdminDashboard() {
 function BranchDetailPanel({
   loading,
   branch,
+  onOrderClick,
 }: {
   loading: boolean
   branch: PosAdminBranchSummary | null
+  onOrderClick: (orderId: string) => void
 }) {
   if (loading && !branch) {
     return (
@@ -502,6 +515,7 @@ function BranchDetailPanel({
         <RecentOrdersTable
           title={`Orders · ${branch.branchName}`}
           rows={branch.orders || []}
+          onOrderClick={onOrderClick}
         />
         <RecentReceiptsTable
           title={`Receipts · ${branch.branchName}`}
@@ -516,6 +530,7 @@ function RecentOrdersTable({
   title,
   rows,
   showBranch,
+  onOrderClick,
 }: {
   title: string
   rows: Array<{
@@ -529,11 +544,15 @@ function RecentOrdersTable({
     branchName?: string
   }>
   showBranch?: boolean
+  onOrderClick?: (orderId: string) => void
 }) {
   return (
     <div className="rounded-xl border shadow-sm overflow-hidden">
-      <div className="px-3 py-2.5 border-b bg-muted/30">
+      <div className="px-3 py-2.5 border-b bg-muted/30 flex items-center justify-between gap-2">
         <p className="text-sm font-semibold">{title}</p>
+        {rows.length > 0 && (
+          <p className="text-[10px] text-muted-foreground">Click a row for full details</p>
+        )}
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">No orders in this period</p>
@@ -552,9 +571,16 @@ function RecentOrdersTable({
             </thead>
             <tbody className="divide-y">
               {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-muted/20">
+                <tr
+                  key={r.id}
+                  className={cn(
+                    "hover:bg-[#1faca6]/5 transition-colors",
+                    onOrderClick && "cursor-pointer",
+                  )}
+                  onClick={() => onOrderClick?.(r.id)}
+                >
                   <td className="px-3 py-2">
-                    <p className="font-medium">{r.orderNumber}</p>
+                    <p className="font-medium text-[#1a9f9a]">{r.orderNumber}</p>
                     <p className="text-[10px] text-muted-foreground">{formatWhen(r.createdAt)}</p>
                   </td>
                   {showBranch && (
