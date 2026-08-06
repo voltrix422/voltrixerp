@@ -6,7 +6,8 @@ import { ArrowRight, CheckCircle2, XCircle, AlertCircle, FileText } from "lucide
 import Link from "next/link"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { getProductImageList } from "@/lib/product-image"
-import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
+import { shouldRequestQuote } from "@/lib/product-display"
+import { ProductPriceDisplay } from "@/components/products/product-price-display"
 import { isProductPublished } from "@/lib/product-published"
 import { getProductDisplayName } from "@/lib/product-display-name"
 import {
@@ -171,7 +172,7 @@ export default function Products() {
                             <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
                           </div>
                         ) : (
-                          <p className="text-lg font-bold text-neutral-900">{formatProductPrice(p.price) ?? "—"}</p>
+                          <ProductPriceDisplay product={p} size="md" />
                         )}
                         <p className="text-xs text-neutral-400 mt-0.5">Warranty: {p.warranty || "—"}</p>
                       </div>

@@ -30,6 +30,8 @@ type Product = {
   full_desc: string
   specification: string
   price: number | string
+  /** Higher “was” price for cut-price / sale UI on the storefront */
+  compareAtPrice?: number | string | null
   warranty: string
   stock: number | string
   specs: Spec[]
@@ -56,7 +58,7 @@ type PendingImage = { file: File; preview: string }
 const EMPTY = {
   name: "", model: "", category: "Energy Storage Battery", mainCategory: "Energy Storage Battery", subCategory: "",
   description: "", full_desc: "",
-  specification: "", price: "", warranty: "", stock: "in",
+  specification: "", price: "", compareAtPrice: "", warranty: "", stock: "in",
   specs: [] as Spec[], images: [] as string[], published: false, unit: "pcs", quoteMode: false,
   brochureUrl: "", brochureName: "", userManualUrl: "", userManualName: "", specSheetUrl: "",
 }
@@ -114,6 +116,7 @@ export default function ProductsManager() {
       mainCategory: main, subCategory: sub,
       description: p.description || "", full_desc: p.full_desc || "",
       specification: p.specification || "", price: String(p.price ?? ""),
+      compareAtPrice: String(p.compareAtPrice ?? ""),
       warranty: p.warranty || "", stock: stockStr,
       specs: Array.isArray(p.specs) ? p.specs : [],
       images: Array.isArray(p.images) ? p.images : [],
@@ -214,7 +217,9 @@ export default function ProductsManager() {
         model: form.model.trim(),
         category, description: form.description,
         full_desc: form.full_desc, specification: form.specification,
-        price: form.price || 0, warranty: form.warranty,
+        price: form.price || 0,
+        compareAtPrice: form.compareAtPrice ? Number(form.compareAtPrice) || form.compareAtPrice : "",
+        warranty: form.warranty,
         stock: form.stock === "in" ? 1 : form.stock === "low" ? 0 : -1,
         specs: form.specs, images: allImages, published, unit: form.unit, quoteMode: form.quoteMode,
         brochureUrl: form.brochureUrl, brochureName: form.brochureName,
@@ -624,9 +629,24 @@ export default function ProductsManager() {
                     <p className="text-xs text-muted-foreground mt-1">Quote button will be shown instead of price on product page</p>
                   )}
                   {!form.quoteMode && (
-                    <div className="mt-2">
-                      <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                        className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" placeholder="e.g. 210000" />
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Sale price (Rs.)</p>
+                        <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]" placeholder="e.g. 63000" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Cut / was price (Rs.) — optional</p>
+                        <input
+                          value={form.compareAtPrice}
+                          onChange={e => setForm(f => ({ ...f, compareAtPrice: e.target.value }))}
+                          className="w-full h-9 px-3 rounded-lg border text-sm outline-none focus:border-[#1a9f9a]"
+                          placeholder="e.g. 680000 (shown crossed out)"
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          If higher than sale price, storefront shows ~~was~~ → sale.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

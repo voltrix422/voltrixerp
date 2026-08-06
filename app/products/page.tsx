@@ -8,7 +8,8 @@ import { CheckCircle2, XCircle, AlertCircle, ArrowRight, FileText } from "lucide
 import Link from "next/link"
 import { promises as fs } from 'fs'
 import path from 'path'
-import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
+import { shouldRequestQuote } from "@/lib/product-display"
+import { ProductPriceDisplay } from "@/components/products/product-price-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 import { getProductDisplayName } from "@/lib/product-display-name"
 
@@ -96,7 +97,7 @@ export default async function ProductsPage() {
                             <span className="text-sm font-semibold text-[#1a9f9a]">Request a Quote</span>
                           </div>
                         ) : (
-                          <p className="text-lg font-bold text-neutral-900">{formatProductPrice(p.price) ?? "—"}</p>
+                          <ProductPriceDisplay product={p} size="md" />
                         )}
                         <p className="text-xs text-neutral-400">Warranty: {p.warranty || "—"}</p>
                       </div>

@@ -24,7 +24,8 @@ import ProductTermsModal from "@/components/products/product-terms-modal"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
 import ProductDocumentPanel from "@/components/products/product-document-panel"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
-import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
+import { shouldRequestQuote } from "@/lib/product-display"
+import { ProductPriceDisplay } from "@/components/products/product-price-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 import { hasProductSpecs } from "@/lib/product-specs"
 
@@ -265,11 +266,9 @@ export default function ProductDetailClient({
                   </span>
                 ) : null}
                 {!requestQuote && (
-                  <span className={META_CHIP_CLASS}>
+                  <span className={`${META_CHIP_CLASS} items-baseline`}>
                     <span className="text-neutral-500">Price</span>
-                    <span className="font-semibold text-neutral-800">
-                      {formatProductPrice(product.price as string | number | null | undefined) ?? "—"}
-                    </span>
+                    <ProductPriceDisplay product={product} size="sm" />
                   </span>
                 )}
               </div>
@@ -435,9 +434,7 @@ export default function ProductDetailClient({
                     {shouldRequestQuote(r) ? (
                       <span className="text-xs font-medium text-[#1a9f9a]">Request A Quote</span>
                     ) : (
-                      <p className="text-sm font-semibold text-neutral-900">
-                        {formatProductPrice(r.price as string | number | null | undefined) ?? "—"}
-                      </p>
+                      <ProductPriceDisplay product={r} size="sm" />
                     )}
                   </div>
                 </Link>
