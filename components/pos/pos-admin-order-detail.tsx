@@ -144,7 +144,7 @@ export function PosAdminOrderDetailModal({
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-3xl max-h-[92dvh] overflow-hidden rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl flex flex-col"
+        className="w-full sm:max-w-6xl max-h-[94dvh] overflow-hidden rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
