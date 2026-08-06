@@ -9,7 +9,7 @@ export default function PosAdminPage() {
     <>
       <Topbar
         title="POS Admin"
-        description="Per-branch POS details and combined sales across all counters"
+        description="Branch POS sales and counters"
       />
       <ModuleGuard module="pos_admin">
         <PosAdminDashboard />

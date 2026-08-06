@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { FileDown, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { useToast } from "@/components/ui/toast"
 import {
@@ -25,19 +24,36 @@ import {
 
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div>
-      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm font-medium break-words">{value?.trim() || "—"}</p>
+    <div className="min-w-0">
+      <p className="text-[10px] text-muted-foreground leading-none">{label}</p>
+      <p className="mt-0.5 text-xs font-medium break-words leading-snug">{value?.trim() || "—"}</p>
     </div>
+  )
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="border border-[hsl(var(--border))] rounded-sm">
+      <div className="px-2.5 py-1.5 border-b border-[hsl(var(--border))]">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+      </div>
+      <div className="p-2.5 space-y-2.5">{children}</div>
+    </section>
   )
 }
 
 function AttachmentLinks({ urls, label }: { urls: string[]; label?: string }) {
   if (urls.length === 0) return null
   return (
-    <div className="space-y-1.5">
-      {label && <p className="text-[10px] uppercase text-muted-foreground">{label}</p>}
-      <div className="flex flex-wrap gap-2">
+    <div className="space-y-1">
+      {label && <p className="text-[10px] text-muted-foreground">{label}</p>}
+      <div className="flex flex-wrap gap-1.5">
         {urls.map((url, i) => {
           const isImage = /\.(png|jpe?g|gif|webp|bmp)(\?|$)/i.test(url) || url.includes("/uploads/")
           return (
@@ -46,14 +62,14 @@ function AttachmentLinks({ urls, label }: { urls: string[]; label?: string }) {
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="block rounded-md border overflow-hidden hover:border-[#1faca6] transition-colors"
+              className="block border border-[hsl(var(--border))] rounded-sm overflow-hidden"
             >
               {isImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={url} alt={`Attachment ${i + 1}`} className="h-20 w-20 object-cover" />
+                <img src={url} alt={`Attachment ${i + 1}`} className="h-16 w-16 object-cover" />
               ) : (
-                <span className="inline-flex items-center px-2.5 py-2 text-xs text-[#1faca6] underline">
-                  View file {urls.length > 1 ? i + 1 : ""}
+                <span className="inline-flex items-center px-2 py-1.5 text-[11px] underline">
+                  File {urls.length > 1 ? i + 1 : ""}
                 </span>
               )}
             </a>
@@ -140,171 +156,150 @@ export function PosAdminOrderDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-3"
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-6xl max-h-[94dvh] overflow-hidden rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl flex flex-col"
+        className="w-full sm:max-w-5xl max-h-[94dvh] overflow-hidden rounded-t-sm sm:rounded-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[hsl(var(--border))] shrink-0">
           <div>
-            <p className="text-sm font-semibold">POS order details</p>
-            <p className="text-xs font-mono text-[#1faca6] mt-0.5">
+            <p className="text-xs font-semibold">Order details</p>
+            <p className="text-[11px] font-mono text-muted-foreground mt-0.5">
               {order?.orderNumber || "…"}
               {data?.branch ? ` · ${data.branch.name}` : ""}
             </p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-sm" onClick={onClose}>
+            <X className="h-3.5 w-3.5" />
           </Button>
         </div>
 
-        <div className="overflow-y-auto p-4 space-y-5 flex-1 min-h-0">
+        <div className="overflow-y-auto p-3 space-y-2.5 flex-1 min-h-0">
           {loading && (
-            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading order…
+            <div className="flex items-center justify-center gap-2 py-12 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading…
             </div>
           )}
 
           {!loading && error && (
-            <p className="text-sm text-red-600 text-center py-10">{error}</p>
+            <p className="text-xs text-center py-8 border border-[hsl(var(--border))] rounded-sm">{error}</p>
           )}
 
           {!loading && order && (
             <>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="Client (on order)" value={order.clientName} />
-                <div>
-                  <p className="text-[10px] uppercase text-muted-foreground">Status</p>
-                  <div className="mt-1">
-                    <OrderStatusBadge status={order.status as OrderStatus} />
+              <Section title="Order">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2.5">
+                  <Field label="Client" value={order.clientName} />
+                  <Field label="Status" value={order.status.replace(/_/g, " ")} />
+                  <Field label="Created" value={new Date(order.createdAt).toLocaleString("en-PK")} />
+                  <Field label="Created by" value={order.createdBy} />
+                  <Field label="Total" value={formatPosPkr(order.total)} />
+                  <Field label="Sale" value={formatPosPkr(order.sellAmount)} />
+                  <Field label="Company" value={formatPosPkr(order.companyAmount)} />
+                  <Field label="Profit" value={formatPosPkr(order.profit)} />
+                  <Field label="Paid" value={formatPosPkr(paid)} />
+                  <Field label="Balance due" value={formatPosPkr(due)} />
+                  <Field label="Terms" value={order.paymentTerms} />
+                  <Field label="Delivery date" value={order.deliveryDate} />
+                  <div className="col-span-2 sm:col-span-3">
+                    <Field label="Delivery address" value={order.deliveryAddress} />
+                  </div>
+                  <div className="col-span-2 sm:col-span-3">
+                    <Field label="Notes" value={order.notes} />
                   </div>
                 </div>
-                <Field
-                  label="Created"
-                  value={new Date(order.createdAt).toLocaleString("en-PK")}
-                />
-                <Field label="Created by" value={order.createdBy} />
-                <Field label="Total" value={formatPosPkr(order.total)} />
-                <Field label="Sale (line prices)" value={formatPosPkr(order.sellAmount)} />
-                <Field label="Company amount" value={formatPosPkr(order.companyAmount)} />
-                <Field label="Profit" value={formatPosPkr(order.profit)} />
-                <Field label="Paid" value={formatPosPkr(paid)} />
-                <Field label="Balance due" value={formatPosPkr(due)} />
-                <Field label="Payment terms" value={order.paymentTerms} />
-                <Field label="Delivery date" value={order.deliveryDate} />
-                <div className="sm:col-span-2">
-                  <Field label="Delivery address" value={order.deliveryAddress} />
-                </div>
-                <div className="sm:col-span-2">
-                  <Field label="Notes" value={order.notes} />
-                </div>
-              </div>
+              </Section>
 
-              <section className="rounded-xl border p-3 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Client details
-                </p>
+              <Section title="Client">
                 {client ? (
-                  <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2.5">
                     {client.imageUrl && (
-                      <div className="sm:col-span-2">
-                        <AttachmentLinks urls={[client.imageUrl]} label="Client photo" />
+                      <div className="col-span-2 sm:col-span-3">
+                        <AttachmentLinks urls={[client.imageUrl]} label="Photo" />
                       </div>
                     )}
                     <Field label="Name" value={client.name} />
                     <Field label="Company" value={client.company} />
                     <Field label="Phone" value={client.phone} />
                     <Field label="Email" value={client.email} />
-                    <Field label="Contact person" value={client.contactPerson} />
+                    <Field label="Contact" value={client.contactPerson} />
                     <Field label="Industry" value={client.industry} />
                     <Field label="NTN" value={client.ntn} />
                     <Field label="Tax ID" value={client.taxId} />
-                    <div className="sm:col-span-2">
+                    <Field label="Status" value={client.status} />
+                    <div className="col-span-2 sm:col-span-3">
                       <Field
                         label="Address"
                         value={[client.address, client.city, client.country].filter(Boolean).join(", ")}
                       />
                     </div>
                     <Field label="Website" value={client.website} />
-                    <Field label="Status" value={client.status} />
-                    <div className="sm:col-span-2">
-                      <Field label="Client notes" value={client.notes} />
+                    <div className="col-span-2 sm:col-span-3">
+                      <Field label="Notes" value={client.notes} />
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No linked client record found
-                    {order.clientName ? ` (order shows “${order.clientName}”)` : ""}.
+                  <p className="text-xs text-muted-foreground">
+                    No linked client
+                    {order.clientName ? ` (order: ${order.clientName})` : ""}.
                   </p>
                 )}
-              </section>
+              </Section>
 
-              <section>
-                <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-2">
-                  Line items
-                </p>
+              <Section title="Line items">
                 <CrmLineItemsDisplay items={order.items || []} showCompanyPrice />
-              </section>
+              </Section>
 
-              <section>
-                <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-2">
-                  Payments & attachments
-                </p>
+              <Section title="Payments">
                 {(order.payments?.length || 0) === 0 ? (
-                  <p className="text-sm text-muted-foreground">No payments recorded</p>
+                  <p className="text-xs text-muted-foreground">No payments</p>
                 ) : (
-                  <ul className="space-y-2">
+                  <ul className="space-y-1.5">
                     {order.payments!.map((p) => {
                       const proofs = getOrderPaymentProofUrls(p as OrderPayment)
                       return (
-                        <li key={p.id} className="rounded-md border px-3 py-2.5 text-xs space-y-2">
+                        <li key={p.id} className="border border-[hsl(var(--border))] rounded-sm px-2.5 py-2 text-xs space-y-1">
                           <div className="flex justify-between gap-2">
                             <span className="font-medium capitalize">{p.method || "Payment"}</span>
                             <span className="tabular-nums font-semibold">{formatPosPkr(p.amount)}</span>
                           </div>
-                          <p className="text-muted-foreground">
+                          <p className="text-[10px] text-muted-foreground">
                             {p.date}
                             {p.createdBy ? ` · ${p.createdBy}` : ""}
                             {p.submissionStatus ? ` · ${p.submissionStatus}` : ""}
                           </p>
                           {p.notes && <p>{p.notes}</p>}
-                          <AttachmentLinks urls={proofs} label="Proof attachments" />
+                          <AttachmentLinks urls={proofs} />
                         </li>
                       )
                     })}
                   </ul>
                 )}
-              </section>
+              </Section>
 
               {(order.fulfillmentDate ||
                 order.fulfillmentReceiverName ||
                 fulfillmentImages.length > 0) && (
-                <section className="rounded-xl border p-3 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Fulfillment / delivery
-                  </p>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <Field label="Fulfillment date" value={order.fulfillmentDate} />
+                <Section title="Fulfillment">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2.5">
+                    <Field label="Date" value={order.fulfillmentDate} />
                     <Field label="Dispatcher" value={order.fulfillmentDispatcher || order.dispatcher} />
                     <Field label="Receiver" value={order.fulfillmentReceiverName} />
-                    <Field label="Receiver CNIC" value={order.fulfillmentReceiverCnic} />
+                    <Field label="CNIC" value={order.fulfillmentReceiverCnic} />
                     <Field label="Vehicle" value={order.fulfillmentVehicleNumber} />
                   </div>
-                  <AttachmentLinks urls={fulfillmentImages} label="Delivery attachments" />
-                </section>
+                  <AttachmentLinks urls={fulfillmentImages} label="Attachments" />
+                </Section>
               )}
 
               {(order.returnPayments?.length || 0) > 0 && (
-                <section>
-                  <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-2">
-                    Return payments
-                  </p>
-                  <ul className="space-y-2">
+                <Section title="Return payments">
+                  <ul className="space-y-1.5">
                     {order.returnPayments!.map((p) => (
-                      <li key={p.id} className="rounded-md border px-3 py-2.5 text-xs space-y-2">
+                      <li key={p.id} className="border border-[hsl(var(--border))] rounded-sm px-2.5 py-2 text-xs space-y-1">
                         <div className="flex justify-between gap-2">
                           <span className="font-medium">{p.method || "Refund"}</span>
                           <span className="tabular-nums font-semibold">{formatPosPkr(p.amount)}</span>
@@ -313,27 +308,33 @@ export function PosAdminOrderDetailModal({
                       </li>
                     ))}
                   </ul>
-                </section>
+                </Section>
               )}
             </>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 px-4 py-3 border-t shrink-0 bg-muted/10">
+        <div className="flex flex-wrap gap-1.5 px-3 py-2 border-t border-[hsl(var(--border))] shrink-0">
           {order && (
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="h-9 text-xs"
+              className="h-7 text-xs rounded-sm shadow-none"
               disabled={exporting}
               onClick={() => void handlePdf()}
             >
-              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-              Download invoice
+              {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+              Invoice
             </Button>
           )}
-          <Button type="button" size="sm" variant="outline" className="h-9 text-xs ml-auto" onClick={onClose}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs rounded-sm shadow-none ml-auto"
+            onClick={onClose}
+          >
             Close
           </Button>
         </div>
