@@ -12,6 +12,8 @@ import {
   getOrderPaymentProofUrls,
   getOrderReturnPaymentProofUrls,
   type Order,
+  type OrderPayment,
+  type OrderReturnPayment,
   type OrderStatus,
 } from "@/lib/orders"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
@@ -98,15 +100,12 @@ export function PosAdminOrderDetailModal({
     if (!data?.order) return
     setExporting(true)
     try {
-      const o = data.order
-      const orderForPdf = {
-        ...o,
-        status: o.status as OrderStatus,
-        transportIsPercentage: false,
-        otherCostIsPercentage: false,
-        discountIsPercentage: false,
-      } as Order
-      await downloadInvoicePDF(orderForPdf)
+      await downloadInvoicePDF({
+        ...data.order,
+        status: data.order.status as OrderStatus,
+        payments: data.order.payments as Order["payments"],
+        returnPayments: data.order.returnPayments as Order["returnPayments"],
+      } as Order)
       toast({ type: "success", title: "Invoice PDF downloaded" })
     } catch (err) {
       toast({
@@ -121,18 +120,16 @@ export function PosAdminOrderDetailModal({
 
   const order = data?.order
   const client = data?.client
-  const paid = order
-    ? getOrderAmountPaid({
-        status: order.status as OrderStatus,
-        payments: order.payments,
-      })
-    : 0
-  const due = order
-    ? getOrderCreditBalance({
+  const orderAsOrder = order
+    ? ({
         ...order,
         status: order.status as OrderStatus,
+        payments: order.payments as Order["payments"],
+        returnPayments: order.returnPayments as Order["returnPayments"],
       } as Order)
-    : 0
+    : null
+  const paid = orderAsOrder ? getOrderAmountPaid(orderAsOrder) : 0
+  const due = orderAsOrder ? getOrderCreditBalance(orderAsOrder) : 0
 
   const fulfillmentImages = [
     order?.fulfillmentReceiverImageUrl,
@@ -261,7 +258,7 @@ export function PosAdminOrderDetailModal({
                 ) : (
                   <ul className="space-y-2">
                     {order.payments!.map((p) => {
-                      const proofs = getOrderPaymentProofUrls(p)
+                      const proofs = getOrderPaymentProofUrls(p as OrderPayment)
                       return (
                         <li key={p.id} className="rounded-md border px-3 py-2.5 text-xs space-y-2">
                           <div className="flex justify-between gap-2">
@@ -312,7 +309,7 @@ export function PosAdminOrderDetailModal({
                           <span className="font-medium">{p.method || "Refund"}</span>
                           <span className="tabular-nums font-semibold">{formatPosPkr(p.amount)}</span>
                         </div>
-                        <AttachmentLinks urls={getOrderReturnPaymentProofUrls(p)} />
+                        <AttachmentLinks urls={getOrderReturnPaymentProofUrls(p as OrderReturnPayment)} />
                       </li>
                     ))}
                   </ul>
