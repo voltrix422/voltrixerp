@@ -41,15 +41,13 @@ import { getProductDisplayName } from "@/lib/product-display-name"
 import { getProductImageList, PRODUCT_IMAGE_FALLBACK } from "@/lib/product-image"
 import { getCategoryDisplayLabel } from "@/lib/product-categories"
 import {
-  getProductKw,
-  getProductKwh,
   productAvailabilityLabel,
   type CatalogProduct,
   type ProductAvailability,
 } from "@/lib/solar-product-specs"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
-import type { SolarSizingResult } from "@/lib/solar-sizing"
+import type { SolarSizingResult, RecommendedProductLine } from "@/lib/solar-sizing"
 
 const CITIES = [
   "Islamabad",
@@ -91,6 +89,30 @@ function AvailabilityBadge({ status }: { status: ProductAvailability }) {
   )
 }
 
+function ProductLineCard({
+  line,
+  badge,
+  unitLabel,
+}: {
+  line: RecommendedProductLine
+  badge: string
+  unitLabel: string
+}) {
+  const qtyLabel = line.quantity > 1 ? `${line.quantity} × ` : ""
+  const capLabel =
+    line.unitCapacity > 0
+      ? `${qtyLabel}${line.unitCapacity} ${unitLabel} = ${line.totalCapacity} ${unitLabel} total`
+      : null
+  return (
+    <div className="space-y-1">
+      {capLabel && (
+        <p className="text-[11px] font-medium text-[#1a9f9a]">{capLabel}</p>
+      )}
+      <ProductCard product={line.product} badge={badge} availability={line.availability} />
+    </div>
+  )
+}
+
 function ProductCard({
   product,
   badge,
@@ -107,8 +129,8 @@ function ProductCard({
   const unavailable = availability === "out_of_stock" || availability === "not_in_catalog"
 
   return (
-    <div className={`rounded-2xl border bg-white p-4 flex gap-4 shadow-sm ${unavailable ? "border-neutral-200 opacity-90" : "border-neutral-200"}`}>
-      <div className="shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-neutral-50 border border-neutral-100">
+    <div className={`rounded-xl border bg-white p-3 flex gap-3 shadow-sm ${unavailable ? "border-neutral-200 opacity-90" : "border-neutral-200"}`}>
+      <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-neutral-50 border border-neutral-100">
         <ProductThumbnail
           src={images[0] || PRODUCT_IMAGE_FALLBACK}
           alt={title}
@@ -160,30 +182,30 @@ function ApplianceRow({
 }) {
   const Icon = APPLIANCE_ICONS[category] || Home
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-neutral-100 bg-neutral-50/50 px-3 py-2.5">
-      <div className="w-9 h-9 rounded-lg bg-white border border-neutral-100 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-[#1a9f9a]" />
+    <div className="flex items-center gap-2 rounded-lg border border-neutral-100 bg-neutral-50/50 px-2 py-1.5">
+      <div className="w-7 h-7 rounded-md bg-white border border-neutral-100 flex items-center justify-center shrink-0">
+        <Icon className="w-3.5 h-3.5 text-[#1a9f9a]" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-neutral-900 leading-tight">{label}</p>
-        <p className="text-[10px] text-neutral-500">~{watts}W each</p>
+        <p className="text-xs font-medium text-neutral-900 leading-tight truncate">{label}</p>
+        <p className="text-[9px] text-neutral-500">{watts}W</p>
       </div>
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         <button
           type="button"
           onClick={() => onChange(Math.max(0, quantity - 1))}
           disabled={quantity <= 0}
-          className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center disabled:opacity-40 hover:bg-neutral-50"
+          className="w-6 h-6 rounded border border-neutral-200 bg-white flex items-center justify-center disabled:opacity-40"
         >
-          <Minus className="w-3.5 h-3.5" />
+          <Minus className="w-3 h-3" />
         </button>
-        <span className="w-7 text-center text-sm font-semibold tabular-nums">{quantity}</span>
+        <span className="w-5 text-center text-xs font-semibold tabular-nums">{quantity}</span>
         <button
           type="button"
           onClick={() => onChange(quantity + 1)}
-          className="w-8 h-8 rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/10 text-[#1a9f9a] flex items-center justify-center hover:bg-[#1a9f9a]/20"
+          className="w-6 h-6 rounded border border-[#1a9f9a]/30 bg-[#1a9f9a]/10 text-[#1a9f9a] flex items-center justify-center"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-3 h-3" />
         </button>
       </div>
     </div>
@@ -373,22 +395,22 @@ export default function SolarCalculator() {
   )
 
   return (
-    <section className="pt-28 pb-20 px-4 min-h-screen bg-gradient-to-b from-neutral-50 to-white">
-      <div className="max-w-5xl mx-auto space-y-10">
-        <div className="text-center space-y-3 max-w-2xl mx-auto">
+    <section className="pt-24 pb-12 px-4 min-h-screen bg-gradient-to-b from-neutral-50 to-white">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="text-center space-y-2 max-w-3xl mx-auto">
           <p className="text-xs font-semibold uppercase tracking-widest text-[#1a9f9a]">
             Smart sizing
           </p>
-          <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight">
             Solar System Calculator
           </h1>
-          <p className="text-neutral-600 text-sm sm:text-base leading-relaxed">
+          <p className="text-neutral-600 text-sm leading-relaxed">
             Calculate from your electricity bill or estimate from home appliances — we recommend
             Voltrix inverters and batteries from our store catalog.
           </p>
         </div>
 
-        <div className="flex rounded-2xl border border-neutral-200 bg-white p-1 shadow-sm max-w-md mx-auto">
+        <div className="flex rounded-xl border border-neutral-200 bg-white p-1 shadow-sm max-w-md mx-auto">
           <button
             type="button"
             onClick={() => {
@@ -423,8 +445,8 @@ export default function SolarCalculator() {
           </button>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm space-y-5">
+        <div className={`grid gap-5 ${mode === "estimate" ? "xl:grid-cols-12" : "lg:grid-cols-2"}`}>
+          <div className={`rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm space-y-4 ${mode === "estimate" ? "xl:col-span-7" : ""}`}>
             {mode === "bill" ? (
               <>
                 <div className="flex items-center gap-2">
@@ -558,12 +580,11 @@ export default function SolarCalculator() {
                   <Home className="w-5 h-5 text-[#1a9f9a]" />
                   <h2 className="font-semibold text-neutral-900">What runs in your home?</h2>
                 </div>
-                <p className="text-sm text-neutral-600">
-                  Select how many of each appliance you have. We estimate daily use and backup need,
-                  then match Voltrix products from our store.
+                <p className="text-xs text-neutral-600">
+                  Select appliances and quantities. We estimate load and match Voltrix products.
                 </p>
 
-                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
                   {HOME_APPLIANCES.map((a) => (
                     <ApplianceRow
                       key={a.id}
@@ -578,28 +599,28 @@ export default function SolarCalculator() {
                 </div>
 
                 {appliancePreview && (
-                  <div className="rounded-xl bg-teal-50/80 border border-[#1a9f9a]/20 p-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-teal-50/80 border border-[#1a9f9a]/20 px-3 py-2 grid grid-cols-4 gap-2 text-[11px]">
                     <div>
-                      <p className="text-neutral-500">Daily use</p>
+                      <p className="text-neutral-500">Daily</p>
                       <p className="font-bold text-neutral-900">{appliancePreview.dailyKwh} kWh</p>
                     </div>
                     <div>
-                      <p className="text-neutral-500">Monthly units</p>
+                      <p className="text-neutral-500">Monthly</p>
                       <p className="font-bold text-neutral-900">{appliancePreview.monthlyUnits}</p>
                     </div>
                     <div>
-                      <p className="text-neutral-500">Peak load</p>
+                      <p className="text-neutral-500">Peak</p>
                       <p className="font-bold text-neutral-900">{appliancePreview.peakLoadKw} kW</p>
                     </div>
                     <div>
-                      <p className="text-neutral-500">Backup need</p>
+                      <p className="text-neutral-500">Backup</p>
                       <p className="font-bold text-[#1a9f9a]">{appliancePreview.backupKwh} kWh</p>
                     </div>
                   </div>
                 )}
 
-                <div className="pt-2 border-t border-neutral-100 space-y-3">
-                  <p className="text-sm font-medium text-neutral-800">System settings</p>
+                <div className="pt-2 border-t border-neutral-100">
+                  <p className="text-xs font-medium text-neutral-800 mb-2">System settings</p>
                   {sharedSettings}
                 </div>
               </>
@@ -621,9 +642,9 @@ export default function SolarCalculator() {
             </button>
           </div>
 
-          <div className="space-y-4">
+          <div className={`space-y-3 ${mode === "estimate" ? "xl:col-span-5 xl:sticky xl:top-24 xl:self-start" : ""}`}>
             {!result ? (
-              <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm text-center space-y-4 min-h-[320px] flex flex-col items-center justify-center">
+              <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm text-center space-y-3 min-h-[200px] flex flex-col items-center justify-center">
                 <div className="w-14 h-14 rounded-2xl bg-[#1a9f9a]/10 flex items-center justify-center">
                   <Sun className="w-7 h-7 text-[#1a9f9a]" />
                 </div>
@@ -635,85 +656,73 @@ export default function SolarCalculator() {
               </div>
             ) : (
               <>
-                <div className="rounded-3xl border border-[#1a9f9a]/20 bg-gradient-to-br from-teal-50/80 to-white p-6 shadow-sm space-y-4">
+                <div className="rounded-2xl border border-[#1a9f9a]/20 bg-gradient-to-br from-teal-50/80 to-white p-4 shadow-sm space-y-3">
                   <div className="flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-[#1a9f9a]" />
-                    <h2 className="font-semibold text-neutral-900">Your analysis</h2>
+                    <Zap className="w-4 h-4 text-[#1a9f9a]" />
+                    <h2 className="text-sm font-semibold text-neutral-900">Your analysis</h2>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">Daily use</p>
-                      <p className="text-lg font-bold text-neutral-900">
-                        {result.dailyKwh.toFixed(1)} <span className="text-sm font-normal text-neutral-500">kWh</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
+                      <p className="text-[9px] uppercase tracking-wider text-neutral-500">Daily</p>
+                      <p className="text-sm font-bold text-neutral-900">
+                        {result.dailyKwh.toFixed(1)} <span className="text-[10px] font-normal text-neutral-500">kWh</span>
                       </p>
                     </div>
-                    <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">System size</p>
-                      <p className="text-lg font-bold text-[#1a9f9a]">
-                        {result.requiredSystemKw} <span className="text-sm font-normal text-neutral-500">kW</span>
+                    <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
+                      <p className="text-[9px] uppercase tracking-wider text-neutral-500">System</p>
+                      <p className="text-sm font-bold text-[#1a9f9a]">
+                        {result.requiredSystemKw} <span className="text-[10px] font-normal text-neutral-500">kW</span>
                       </p>
                     </div>
                     {result.estimatedBillPkr != null && (
-                      <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                        <p className="text-[10px] uppercase tracking-wider text-neutral-500">Est. bill</p>
-                        <p className="text-lg font-bold text-neutral-900">
-                          PKR {result.estimatedBillPkr.toLocaleString()}
-                        </p>
-                      </div>
-                    )}
-                    {result.estimatedMonthlySavingPkr != null && (
-                      <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                        <p className="text-[10px] uppercase tracking-wider text-neutral-500">Est. saving</p>
-                        <p className="text-lg font-bold text-emerald-600">
-                          PKR {result.estimatedMonthlySavingPkr.toLocaleString()}
-                          <span className="text-xs font-normal text-neutral-500">/mo</span>
+                      <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
+                        <p className="text-[9px] uppercase tracking-wider text-neutral-500">Bill</p>
+                        <p className="text-sm font-bold text-neutral-900">
+                          {result.estimatedBillPkr.toLocaleString()}
                         </p>
                       </div>
                     )}
                     {result.backupKwh > 0 && (
-                      <div className="rounded-xl bg-white/80 border border-neutral-100 p-3 col-span-2">
-                        <p className="text-[10px] uppercase tracking-wider text-neutral-500">Backup storage</p>
-                        <p className="text-lg font-bold text-neutral-900">~{result.backupKwh} kWh</p>
+                      <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
+                        <p className="text-[9px] uppercase tracking-wider text-neutral-500">Backup</p>
+                        <p className="text-sm font-bold text-neutral-900">~{result.backupKwh} kWh</p>
                       </div>
                     )}
                   </div>
 
                   {appliancePreview && result.estimateSource === "appliances" && (
-                    <div className="rounded-xl border border-neutral-100 bg-white/60 p-3 space-y-2">
-                      <p className="text-xs font-semibold text-neutral-800">Appliance breakdown</p>
-                      <ul className="text-[11px] text-neutral-600 space-y-1 max-h-32 overflow-y-auto">
+                    <div className="rounded-lg border border-neutral-100 bg-white/60 p-2">
+                      <p className="text-[10px] font-semibold text-neutral-800 mb-1">Load breakdown</p>
+                      <ul className="text-[10px] text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5">
                         {appliancePreview.breakdown.map((item) => (
                           <li key={item.id} className="flex justify-between gap-2">
-                            <span>
+                            <span className="truncate">
                               {item.quantity}× {item.label}
-                              {item.backupEssential && (
-                                <span className="text-[#1a9f9a] ml-1">(backup)</span>
-                              )}
                             </span>
-                            <span className="tabular-nums shrink-0">{item.dailyKwh} kWh/day</span>
+                            <span className="tabular-nums shrink-0">{item.dailyKwh} kWh</span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
 
-                  <ul className="text-xs text-neutral-600 space-y-1.5">
+                  <ul className="text-[10px] text-neutral-600 space-y-1">
                     {result.analysisNotes.map((note, i) => (
-                      <li key={i} className="flex gap-2">
+                      <li key={i} className="flex gap-1.5">
                         <span className="text-[#1a9f9a]">•</span>
-                        {note}
+                        <span>{note}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-neutral-900 flex items-center gap-2">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-neutral-900 flex items-center gap-2">
                     <Sun className="w-4 h-4 text-[#1a9f9a]" />
                     Recommended Voltrix kit
                   </h3>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm space-y-2">
+                  <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1a9f9a]">
                         Solar panels
@@ -748,53 +757,58 @@ export default function SolarCalculator() {
                     )}
                   </div>
 
-                  {result.recommendedInverter ? (
-                    <ProductCard
-                      product={result.recommendedInverter}
-                      badge={result.kitIsFusionCombo ? "Inverter + Battery (all-in-one)" : "Inverter"}
-                      availability={result.inverterAvailability}
-                    />
+                  {result.recommendedInverterLines.length > 0 ? (
+                    <div className="space-y-2">
+                      {result.recommendedInverterLines.length > 1 && (
+                        <p className="text-[11px] text-neutral-600 px-1">
+                          Combined ~{result.recommendedInverterLines.reduce((s, l) => s + l.totalCapacity, 0).toFixed(1)} kW
+                          inverter capacity for ~{result.requiredSystemKw} kW need
+                        </p>
+                      )}
+                      {result.recommendedInverterLines.map((line) => (
+                        <ProductLineCard
+                          key={String(line.product.id)}
+                          line={line}
+                          badge={result.kitIsFusionCombo ? "Inverter + Battery (all-in-one)" : "Inverter"}
+                          unitLabel="kW"
+                        />
+                      ))}
+                    </div>
                   ) : (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                      No matching Voltrix inverter for ~{result.requiredSystemKw} kW — not available in store
-                      right now. Contact sales for a custom quote.
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                      No Voltrix inverter combination found for ~{result.requiredSystemKw} kW — not available in
+                      store right now. Contact sales for a custom quote.
                     </div>
                   )}
 
                   {result.backupKwh > 0 && !result.kitIsFusionCombo && (
-                    result.recommendedBattery ? (
-                      <ProductCard
-                        product={result.recommendedBattery}
-                        badge="Battery backup"
-                        availability={result.batteryAvailability}
-                      />
+                    result.recommendedBatteryLines.length > 0 ? (
+                      <div className="space-y-2">
+                        {result.recommendedBatteryLines.length > 1 && (
+                          <p className="text-[11px] text-neutral-600 px-1">
+                            Combined ~{result.recommendedBatteryLines.reduce((s, l) => s + l.totalCapacity, 0).toFixed(1)} kWh
+                            storage for ~{result.backupKwh} kWh backup need
+                          </p>
+                        )}
+                        {result.recommendedBatteryLines.map((line) => (
+                          <ProductLineCard
+                            key={String(line.product.id)}
+                            line={line}
+                            badge="Battery backup"
+                            unitLabel="kWh"
+                          />
+                        ))}
+                      </div>
                     ) : (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                        No Voltrix battery ≥ {result.backupKwh} kWh in store right now — request a quote for
-                        storage.
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        No Voltrix battery combination for ~{result.backupKwh} kWh — not available in store right
+                        now. Request a quote for storage.
                       </div>
                     )
                   )}
-
-                  {result.recommendedInverter && (
-                    <p className="text-xs text-neutral-500 px-1">
-                      {result.kitIsFusionCombo ? (
-                        <>
-                          All-in-one: ~{getProductKw(result.recommendedInverter) || "—"} kW inverter · ~
-                          {getProductKwh(result.recommendedInverter) || "—"} kWh battery
-                        </>
-                      ) : (
-                        <>
-                          Inverter: ~{getProductKw(result.recommendedInverter) || "—"} kW
-                          {result.recommendedBattery &&
-                            ` · Battery: ~${getProductKwh(result.recommendedBattery) || "—"} kWh`}
-                        </>
-                      )}
-                    </p>
-                  )}
                 </div>
 
-                <div className="rounded-2xl bg-neutral-900 text-white p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="rounded-xl bg-neutral-900 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div>
                     <p className="font-semibold">Ready for a formal quote?</p>
                     <p className="text-sm text-neutral-400">

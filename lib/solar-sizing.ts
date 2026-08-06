@@ -38,6 +38,14 @@ export type RecommendedPanel = {
   product?: CatalogProduct
 }
 
+export type RecommendedProductLine = {
+  product: CatalogProduct
+  quantity: number
+  unitCapacity: number
+  totalCapacity: number
+  availability: ProductAvailability
+}
+
 export type SolarSizingResult = {
   monthlyUnits: number
   dailyKwh: number
@@ -45,8 +53,13 @@ export type SolarSizingResult = {
   tariffPerUnit: number
   requiredSystemKw: number
   recommendedPanel: RecommendedPanel
+  /** Primary pick kept for backward compatibility */
   recommendedInverter: CatalogProduct | null
   recommendedBattery: CatalogProduct | null
+  /** One or more inverters combined to meet kW need */
+  recommendedInverterLines: RecommendedProductLine[]
+  /** One or more batteries combined to meet kWh need */
+  recommendedBatteryLines: RecommendedProductLine[]
   inverterAvailability: ProductAvailability
   batteryAvailability: ProductAvailability
   panelAvailability: ProductAvailability
@@ -185,6 +198,204 @@ function pickBattery(
   return candidates[0]?.p ?? null
 }
 
+function productLine(
+  product: CatalogProduct,
+  quantity: number,
+  unitCapacity: number,
+): RecommendedProductLine {
+  return {
+    product,
+    quantity,
+    unitCapacity,
+    totalCapacity: Math.round(unitCapacity * quantity * 10) / 10,
+    availability: getProductAvailability(product),
+  }
+}
+
+function mergeProductLines(lines: RecommendedProductLine[]): RecommendedProductLine[] {
+  const map = new Map<string, RecommendedProductLine>()
+  for (const line of lines) {
+    const id = String(line.product.id || "")
+    const existing = map.get(id)
+    if (existing) {
+      existing.quantity += line.quantity
+      existing.totalCapacity = Math.round(existing.unitCapacity * existing.quantity * 10) / 10
+    } else {
+      map.set(id, { ...line })
+    }
+  }
+  return [...map.values()]
+}
+
+function listInverterCandidates(
+  catalog: CatalogProduct[],
+  phase: "single" | "three",
+  preferStandalone: boolean,
+): { p: CatalogProduct; kw: number }[] {
+  const filterFn = preferStandalone ? isStandaloneInverterProduct : isInverterProduct
+  const phaseHint =
+    phase === "three" ? /three|3.?phase|12\s*kw|8\s*kw/i : /single|1.?phase|6\s*kw|5\s*kw|3\.6|4\.2/i
+
+  const all = catalog
+    .filter(filterFn)
+    .map((p) => ({ p, kw: getProductKw(p) || 0 }))
+    .filter((x) => x.kw > 0)
+    .sort((a, b) => {
+      const stockA = isInStock(a.p) ? 0 : 1
+      const stockB = isInStock(b.p) ? 0 : 1
+      if (stockA !== stockB) return stockA - stockB
+      return b.kw - a.kw
+    })
+
+  const phaseMatch = all.filter(({ p }) =>
+    phaseHint.test([p.name, p.model, p.description, p.full_desc].filter(Boolean).join(" ")),
+  )
+
+  return phaseMatch.length ? phaseMatch : all
+}
+
+function listBatteryCandidates(
+  catalog: CatalogProduct[],
+  excludeIds: string[] = [],
+): { p: CatalogProduct; kwh: number }[] {
+  const exclude = new Set(excludeIds)
+  return catalog
+    .filter((p) => isStandaloneBatteryProduct(p) && !exclude.has(String(p.id || "")))
+    .map((p) => ({ p, kwh: getProductKwh(p) || 0 }))
+    .filter((x) => x.kwh > 0)
+    .sort((a, b) => {
+      const stockA = isInStock(a.p) ? 0 : 1
+      const stockB = isInStock(b.p) ? 0 : 1
+      if (stockA !== stockB) return stockA - stockB
+      return b.kwh - a.kwh
+    })
+}
+
+/** Combine catalog units (e.g. 15 + 5 kWh, or 12 + 6 kW) to meet a capacity target. */
+function pickCapacityCombo(
+  candidates: { p: CatalogProduct; cap: number }[],
+  required: number,
+  maxUnits = 4,
+): RecommendedProductLine[] {
+  if (!candidates.length || required <= 0) return []
+
+  const minTotal = required * 0.95
+
+  const singles = candidates
+    .filter((c) => c.cap >= minTotal)
+    .sort((a, b) => a.cap - b.cap || (isInStock(a.p) ? 0 : 1) - (isInStock(b.p) ? 0 : 1))
+  if (singles.length) {
+    return [productLine(singles[0].p, 1, singles[0].cap)]
+  }
+
+  let bestPair: { lines: RecommendedProductLine[]; total: number } | null = null
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i; j < candidates.length; j++) {
+      const qtyI = 1
+      const qtyJ = i === j ? 1 : 1
+      const total =
+        candidates[i].cap * qtyI + (i === j ? candidates[i].cap * qtyJ : candidates[j].cap * qtyJ)
+      if (i === j) {
+        const t2 = candidates[i].cap * 2
+        if (t2 >= minTotal && (!bestPair || t2 < bestPair.total)) {
+          bestPair = {
+            lines: [productLine(candidates[i].p, 2, candidates[i].cap)],
+            total: t2,
+          }
+        }
+        continue
+      }
+      if (total >= minTotal && (!bestPair || total < bestPair.total)) {
+        bestPair = {
+          lines: [
+            productLine(candidates[i].p, 1, candidates[i].cap),
+            productLine(candidates[j].p, 1, candidates[j].cap),
+          ],
+          total,
+        }
+      }
+    }
+  }
+  if (bestPair) return mergeProductLines(bestPair.lines)
+
+  const sorted = [...candidates].sort((a, b) => b.cap - a.cap)
+  const lines: RecommendedProductLine[] = []
+  let total = 0
+  let guard = 0
+  while (total < minTotal && guard++ < maxUnits) {
+    const remaining = required - total
+    const pick =
+      sorted.find((c) => c.cap >= remaining) ??
+      sorted.find((c) => c.cap >= remaining * 0.5) ??
+      sorted[0]
+    if (!pick) break
+    const existing = lines.find((l) => l.product.id === pick.p.id)
+    if (existing) {
+      existing.quantity += 1
+      existing.totalCapacity = Math.round(existing.unitCapacity * existing.quantity * 10) / 10
+    } else {
+      lines.push(productLine(pick.p, 1, pick.cap))
+    }
+    total += pick.cap
+  }
+
+  return total >= minTotal ? mergeProductLines(lines) : []
+}
+
+function pickInverterLines(
+  catalog: CatalogProduct[],
+  requiredKw: number,
+  phase: "single" | "three",
+): RecommendedProductLine[] {
+  const candidates = listInverterCandidates(catalog, phase, true)
+  if (!candidates.length) {
+    const any = listInverterCandidates(catalog, phase, false)
+    return pickCapacityCombo(
+      any.map((c) => ({ p: c.p, cap: c.kw })),
+      requiredKw,
+    )
+  }
+  const single = pickInverter(catalog, requiredKw, phase, { preferStandalone: true })
+  if (single) {
+    const kw = getProductKw(single) || 0
+    return [productLine(single, 1, kw)]
+  }
+  return pickCapacityCombo(
+    candidates.map((c) => ({ p: c.p, cap: c.kw })),
+    requiredKw,
+  )
+}
+
+function pickBatteryLines(
+  catalog: CatalogProduct[],
+  backupKwh: number,
+  excludeIds: string[] = [],
+): RecommendedProductLine[] {
+  const candidates = listBatteryCandidates(catalog, excludeIds)
+  if (!candidates.length) return []
+  const single = pickBattery(catalog, backupKwh, excludeIds)
+  if (single) {
+    const kwh = getProductKwh(single) || 0
+    return [productLine(single, 1, kwh)]
+  }
+  return pickCapacityCombo(
+    candidates.map((c) => ({ p: c.p, cap: c.kwh })),
+    backupKwh,
+  )
+}
+
+function linesAvailability(lines: RecommendedProductLine[]): ProductAvailability {
+  if (!lines.length) return "not_in_catalog"
+  if (lines.some((l) => l.availability === "out_of_stock")) return "out_of_stock"
+  if (lines.some((l) => l.availability === "low_stock")) return "low_stock"
+  if (lines.every((l) => l.availability === "in_stock")) return "in_stock"
+  return "not_in_catalog"
+}
+
+function totalLineCapacity(lines: RecommendedProductLine[]): number {
+  return Math.round(lines.reduce((sum, l) => sum + l.totalCapacity, 0) * 10) / 10
+}
+
 export function calculateSolarSizing(
   input: SolarCalculatorInput,
   catalog: CatalogProduct[],
@@ -227,38 +438,52 @@ export function calculateSolarSizing(
 
   let recommendedInverter: CatalogProduct | null = null
   let recommendedBattery: CatalogProduct | null = null
+  let recommendedInverterLines: RecommendedProductLine[] = []
+  let recommendedBatteryLines: RecommendedProductLine[] = []
   let kitIsFusionCombo = false
 
   if (backupKwh > 0) {
-    // Prefer separate inverter + battery when both exist in catalog
-    const standaloneInv = pickInverter(catalog, inverterKw, phase, { preferStandalone: true })
-    const standaloneBat = standaloneInv
-      ? pickBattery(catalog, backupKwh, [String(standaloneInv.id || "")])
-      : pickBattery(catalog, backupKwh)
+    const standaloneInvLines = pickInverterLines(catalog, inverterKw, phase)
+    const standaloneInv = standaloneInvLines[0]?.product ?? null
+    const standaloneBatLines = standaloneInv
+      ? pickBatteryLines(catalog, backupKwh, standaloneInvLines.map((l) => String(l.product.id)))
+      : pickBatteryLines(catalog, backupKwh)
 
-    if (standaloneInv && standaloneBat) {
+    if (standaloneInvLines.length && standaloneBatLines.length) {
+      recommendedInverterLines = standaloneInvLines
+      recommendedBatteryLines = standaloneBatLines
       recommendedInverter = standaloneInv
-      recommendedBattery = standaloneBat
+      recommendedBattery = standaloneBatLines[0]?.product ?? null
     } else {
       const fusion = pickFusionCombo(catalog, inverterKw, backupKwh)
       if (fusion) {
+        const fkw = getProductKw(fusion) || 0
+        const fkwh = getProductKwh(fusion) || 0
         recommendedInverter = fusion
+        recommendedInverterLines = [productLine(fusion, 1, fkw)]
         recommendedBattery = null
+        recommendedBatteryLines = []
         kitIsFusionCombo = true
       } else {
-        recommendedInverter =
-          standaloneInv ?? pickInverter(catalog, inverterKw, phase)
-        recommendedBattery =
-          standaloneBat ??
-          (recommendedInverter
-            ? pickBattery(catalog, backupKwh, [String(recommendedInverter.id || "")])
-            : null)
+        recommendedInverterLines = standaloneInvLines.length
+          ? standaloneInvLines
+          : pickInverterLines(catalog, inverterKw, phase)
+        recommendedInverter = recommendedInverterLines[0]?.product ?? null
+
+        recommendedBatteryLines = standaloneBatLines.length
+          ? standaloneBatLines
+          : recommendedInverter
+            ? pickBatteryLines(catalog, backupKwh, recommendedInverterLines.map((l) => String(l.product.id)))
+            : pickBatteryLines(catalog, backupKwh)
+        recommendedBattery = recommendedBatteryLines[0]?.product ?? null
+
         if (
           recommendedInverter &&
           recommendedBattery &&
           String(recommendedInverter.id) === String(recommendedBattery.id)
         ) {
           recommendedBattery = null
+          recommendedBatteryLines = []
           kitIsFusionCombo = isFusionComboProduct(recommendedInverter)
         } else if (
           recommendedInverter &&
@@ -266,13 +491,14 @@ export function calculateSolarSizing(
           fusionMeetsBackup(recommendedInverter, backupKwh)
         ) {
           recommendedBattery = null
+          recommendedBatteryLines = []
           kitIsFusionCombo = true
         }
       }
     }
   } else {
-    recommendedInverter = pickInverter(catalog, inverterKw, phase, { preferStandalone: true })
-      ?? pickInverter(catalog, inverterKw, phase)
+    recommendedInverterLines = pickInverterLines(catalog, inverterKw, phase)
+    recommendedInverter = recommendedInverterLines[0]?.product ?? null
   }
 
   const estimatedBillPkr = input.billAmountPkr ?? Math.round(monthlyUnits * tariff)
@@ -298,14 +524,24 @@ export function calculateSolarSizing(
   if (kitIsFusionCombo) {
     analysisNotes.push("Inverter + battery recommendation is a single Voltrix Fusion all-in-one unit.")
   }
+  if (recommendedInverterLines.length > 1) {
+    analysisNotes.push(
+      `Inverter capacity split across ${recommendedInverterLines.length} unit type(s) — ~${totalLineCapacity(recommendedInverterLines)} kW total.`,
+    )
+  }
+  if (recommendedBatteryLines.length > 1) {
+    analysisNotes.push(
+      `Battery storage split across ${recommendedBatteryLines.length} unit type(s) — ~${totalLineCapacity(recommendedBatteryLines)} kWh total.`,
+    )
+  }
   if (!recommendedPanel.fromCatalog) {
     analysisNotes.push("Solar panels are not listed in our store catalog right now — contact sales for panel options.")
   }
 
-  const inverterAvailability = getProductAvailability(recommendedInverter)
+  const inverterAvailability = linesAvailability(recommendedInverterLines)
   const batteryAvailability = kitIsFusionCombo
     ? inverterAvailability
-    : getProductAvailability(recommendedBattery)
+    : linesAvailability(recommendedBatteryLines)
 
   return {
     monthlyUnits,
@@ -316,6 +552,8 @@ export function calculateSolarSizing(
     recommendedPanel,
     recommendedInverter,
     recommendedBattery,
+    recommendedInverterLines,
+    recommendedBatteryLines,
     inverterAvailability,
     batteryAvailability,
     panelAvailability,
