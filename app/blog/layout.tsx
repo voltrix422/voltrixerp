@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Blog - Voltrix",
-  description: "Latest news and updates from Voltrix",
+  title: "Blog",
+  description: "News, solar storage tips, and product updates from Voltrix Batteries Pakistan.",
 }
 
 export default function BlogLayout({ children }: { children: React.ReactNode }) {

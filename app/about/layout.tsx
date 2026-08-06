@@ -14,8 +14,18 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "About Us - Voltrix",
-  description: "Learn about Voltrix and our mission to revolutionize battery technology",
+  title: "About Us",
+  description:
+    "Learn about Voltrix Batteries — LiFePO₄ energy storage, hybrid inverters, and our mission to power Pakistan with safer battery technology.",
+  alternates: { canonical: "https://voltrixbatteries.com/about" },
+  openGraph: {
+    title: "About Us | Voltrix Batteries",
+    description:
+      "Learn about Voltrix Batteries — LiFePO₄ energy storage, hybrid inverters, and our mission in Pakistan.",
+    url: "https://voltrixbatteries.com/about",
+    siteName: "Voltrix Batteries",
+    type: "website",
+  },
 }
 
 export default function AboutLayout({ children }: { children: React.ReactNode }) {

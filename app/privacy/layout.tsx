@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Privacy Policy - Voltrix",
-  description: "Voltrix privacy policy",
+  title: "Privacy Policy",
+  description: "How Voltrix Batteries collects, uses, and protects your personal information.",
 }
 
 export default function PrivacyLayout({ children }: { children: React.ReactNode }) {

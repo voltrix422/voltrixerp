@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Cookie Policy - Voltrix",
-  description: "Voltrix cookie policy",
+  title: "Cookie Policy",
+  description: "How Voltrix Batteries uses cookies on voltrixbatteries.com.",
 }
 
 export default function CookiesLayout({ children }: { children: React.ReactNode }) {

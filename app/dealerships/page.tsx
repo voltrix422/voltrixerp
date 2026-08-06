@@ -1,8 +1,17 @@
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import DealershipsLocationBg from "@/components/landing/dealerships-location-bg"
 import { MapPin, Phone, Mail, Clock, ExternalLink, Store } from "lucide-react"
 import { mapsHref, normalizeDealership, type DealershipRecord } from "@/lib/dealership-display"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Dealerships",
+  description:
+    "Find authorized Voltrix Batteries dealerships across Pakistan. Become a dealer or visit a partner near you.",
+  path: "/dealerships",
+})
 
 async function getDealerships(): Promise<DealershipRecord[]> {
   const base = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"

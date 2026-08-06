@@ -1,6 +1,15 @@
 import { Space_Grotesk } from "next/font/google"
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Vision & Mission",
+  description:
+    "Learn why Voltrix Batteries exists — our vision for reliable, safe LiFePO₄ energy storage across Pakistan.",
+  path: "/vision",
+})
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 

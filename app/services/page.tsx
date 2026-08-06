@@ -1,7 +1,16 @@
 import { DM_Sans } from "next/font/google"
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { Wrench, Truck, HeadphonesIcon, RefreshCw, ClipboardList, Zap } from "lucide-react"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Services",
+  description:
+    "Voltrix installation, maintenance, 24/7 support, battery replacement, energy audits, and nationwide delivery across Pakistan.",
+  path: "/services",
+})
 
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-dm-sans" })
 

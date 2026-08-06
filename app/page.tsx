@@ -1,4 +1,5 @@
 import { Space_Grotesk } from "next/font/google"
+import type { Metadata } from "next"
 import SectionBlur from "@/components/landing/section-blur"
 import Navbar from "@/components/landing/navbar"
 import Hero from "@/components/landing/hero"
@@ -15,11 +16,25 @@ import AboutSection from "@/components/landing/about-section"
 import ContactSection from "@/components/landing/contact-section"
 import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
+import { buildPageMetadata, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo"
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-space-grotesk",
+})
+
+export const metadata: Metadata = buildPageMetadata({
+  title: `${SITE_NAME} | LiFePO₄ Batteries & Solar Inverters Pakistan`,
+  description: SITE_DESCRIPTION,
+  path: "/",
+  keywords: [
+    "Voltrix Batteries",
+    "LiFePO4 battery Pakistan",
+    "solar battery Islamabad",
+    "hybrid inverter Pakistan",
+    "home energy storage",
+  ],
 })
 
 export default function Home() {

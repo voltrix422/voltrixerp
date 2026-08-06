@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Warranty Lookup - Voltrix",
-  description: "Check your product warranty status",
+  title: "Warranty Lookup",
+  description: "Check your Voltrix battery or inverter warranty status online.",
 }
 
 export default function WarrantyLayout({ children }: { children: React.ReactNode }) {

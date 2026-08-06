@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Documentation - Voltrix",
-  description: "Voltrix product documentation and guides",
+  title: "Documentation",
+  description: "Voltrix product manuals, specs, and installation guides for batteries and inverters.",
 }
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {

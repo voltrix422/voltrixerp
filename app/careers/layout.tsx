@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Careers - Voltrix",
-  description: "Join our team and help build the future of battery technology",
+  title: "Careers",
+  description: "Join Voltrix Batteries and help build safer LiFePO₄ energy storage for Pakistan.",
 }
 
 export default function CareersLayout({ children }: { children: React.ReactNode }) {

@@ -1,7 +1,16 @@
 import { DM_Sans } from "next/font/google"
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { FlaskConical, Factory, Microscope, Cog, BarChart3, Globe } from "lucide-react"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "R&D and Manufacturing Partners",
+  description:
+    "How Voltrix partners with global manufacturers for LiFePO₄ chemistry, Smart BMS, quality assurance, and certified safety standards.",
+  path: "/rd",
+})
 
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-dm-sans" })
 

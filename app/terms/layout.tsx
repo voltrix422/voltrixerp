@@ -14,8 +14,8 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Terms of Service - Voltrix",
-  description: "Voltrix terms of service",
+  title: "Terms of Service",
+  description: "Terms of service for using the Voltrix Batteries website and related services.",
 }
 
 export default function TermsLayout({ children }: { children: React.ReactNode }) {

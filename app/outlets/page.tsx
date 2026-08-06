@@ -1,6 +1,15 @@
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { MapPin, Phone, Mail, Clock, ExternalLink } from "lucide-react"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Outlets",
+  description:
+    "Locate Voltrix Batteries outlets near you in Pakistan for LiFePO₄ batteries, inverters, and after-sales support.",
+  path: "/outlets",
+})
 
 type WebsiteOutlet = {
   id: string

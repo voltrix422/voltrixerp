@@ -1,4 +1,5 @@
 import { Space_Grotesk } from "next/font/google"
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { getProductImageList } from "@/lib/product-image"
@@ -12,6 +13,20 @@ import { shouldRequestQuote } from "@/lib/product-display"
 import { ProductPriceDisplay } from "@/components/products/product-price-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 import { getProductDisplayName } from "@/lib/product-display-name"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Solar Batteries & Inverters",
+  description:
+    "Browse Voltrix LiFePO₄ energy storage batteries, hybrid solar inverters, and Fusion all-in-one systems. Check stock, specs, and request a quote in Pakistan.",
+  path: "/products",
+  keywords: [
+    "Voltrix battery catalog",
+    "LiFePO4 battery buy Pakistan",
+    "hybrid solar inverter",
+    "energy storage battery price",
+  ],
+})
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 

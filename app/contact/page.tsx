@@ -1,7 +1,16 @@
 import { Space_Grotesk } from "next/font/google"
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { MapPin, Phone, Mail, Clock } from "lucide-react"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Contact Us",
+  description:
+    "Contact Voltrix Batteries in Islamabad for quotes, support, and solar energy storage inquiries. Email ops@voltrixbatteries.com.",
+  path: "/contact",
+})
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
 
