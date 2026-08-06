@@ -67,6 +67,20 @@ export async function POST(req: NextRequest) {
       bankName: body.bankName ?? "",
       bankAccountNumber: body.bankAccountNumber ?? "",
       bankAccountTitle: body.bankAccountTitle ?? "",
+      ...(body.paidAt != null
+        ? { paidAt: body.paidAt ? new Date(body.paidAt) : null }
+        : status === "finalized"
+          ? { paidAt: new Date() }
+          : {}),
+      ...(body.paidBy != null
+        ? { paidBy: String(body.paidBy) }
+        : status === "finalized" && body.recoveredBy
+          ? { paidBy: String(body.recoveredBy) }
+          : {}),
+      ...(body.paymentNotes != null ? { paymentNotes: String(body.paymentNotes) } : {}),
+      ...(body.paymentAttachments != null
+        ? { paymentAttachments: Array.isArray(body.paymentAttachments) ? body.paymentAttachments : [] }
+        : {}),
     }
 
     if (status === "draft") {
@@ -151,6 +165,18 @@ export async function PATCH(req: NextRequest) {
         ...(body.periodStart != null ? { periodStart: String(body.periodStart) } : {}),
         ...(body.periodEnd != null ? { periodEnd: String(body.periodEnd) } : {}),
         ...(body.generatedDate ? { generatedDate: new Date(body.generatedDate) } : {}),
+        ...(body.paidAt !== undefined
+          ? { paidAt: body.paidAt ? new Date(body.paidAt) : null }
+          : {}),
+        ...(body.paidBy !== undefined ? { paidBy: body.paidBy ? String(body.paidBy) : null } : {}),
+        ...(body.paymentNotes !== undefined ? { paymentNotes: String(body.paymentNotes || "") } : {}),
+        ...(body.paymentAttachments !== undefined
+          ? {
+              paymentAttachments: Array.isArray(body.paymentAttachments)
+                ? body.paymentAttachments
+                : [],
+            }
+          : {}),
       },
     })
 

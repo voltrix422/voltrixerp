@@ -932,6 +932,10 @@ model ErpSalarySlip {
   bankName         String   @default("") @map("bank_name")
   bankAccountNumber String  @default("") @map("bank_account_number")
   bankAccountTitle String   @default("") @map("bank_account_title")
+  paidAt           DateTime? @map("paid_at")
+  paidBy           String?   @map("paid_by")
+  paymentNotes     String    @default("") @map("payment_notes") @db.Text
+  paymentAttachments Json    @default("[]") @map("payment_attachments")
   createdAt        DateTime @default(now()) @map("created_at")
 
   @@index([staffCategory, month])

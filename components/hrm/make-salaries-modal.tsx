@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Save, CheckCircle2, Copy, Download } from "lucide-react"
+import { X, Save, CheckCircle2, Copy, Download, Paperclip, Loader2, Eye } from "lucide-react"
 import {
+  amountFromSalaryAdjustments,
   computeBatchSalaryFigures,
   monthDateBounds,
   normalizeStaffPayLines,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/generate-salary-slip-pdf"
 import { recoverSalaryAdvances } from "@/lib/hrm-salary-advances"
 import { downloadMakeSalariesExcel } from "@/lib/hrm-excel-export"
+import { uploadFiles } from "@/lib/upload"
 
 export type MakeSalariesStaff = {
   id: string
@@ -44,6 +46,13 @@ export type MakeSalariesStaff = {
   bank_account_title?: string
 }
 
+export type SalaryPaymentAttachment = {
+  url: string
+  name: string
+  note: string
+  uploadedAt: string
+}
+
 type SalaryRow = {
   staffId: string
   staffName: string
@@ -60,6 +69,8 @@ type SalaryRow = {
   eobiEnabled: boolean
   customAllowances: StaffPayLine[]
   customDeductions: StaffPayLine[]
+  incentive: number
+  commission: number
   included: boolean
   periodFrom: string
   periodTo: string
@@ -79,6 +90,45 @@ type ExistingSlip = {
   baseSalary?: number
   netSalary?: number
   adjustments?: unknown
+  paidAt?: string | null
+  paidBy?: string | null
+  paymentNotes?: string | null
+  paymentAttachments?: SalaryPaymentAttachment[] | unknown
+}
+
+type PendingAttachment = {
+  id: string
+  file: File
+  note: string
+}
+
+function normalizePaymentAttachments(raw: unknown): SalaryPaymentAttachment[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null
+      const row = item as Record<string, unknown>
+      const url = String(row.url || "").trim()
+      if (!url) return null
+      return {
+        url,
+        name: String(row.name || "attachment"),
+        note: String(row.note || ""),
+        uploadedAt: String(row.uploadedAt || ""),
+      }
+    })
+    .filter((x): x is SalaryPaymentAttachment => !!x)
+}
+
+function findSlipForStaff(existing: ExistingSlip[], staffId: string, staffName: string, month: string) {
+  const monthSlips = existing.filter((s) => s.month === month)
+  return (
+    monthSlips.find((slip) => slip.staffLocalId === staffId) ||
+    monthSlips.find(
+      (slip) => String(slip.staffName || "").trim().toLowerCase() === staffName.trim().toLowerCase(),
+    ) ||
+    null
+  )
 }
 
 function buildRows(
@@ -90,12 +140,7 @@ function buildRows(
   return staff
     .filter((s) => s.status === "active" && s.salary > 0)
     .map((s) => {
-      const saved =
-        existing.find((slip) => slip.staffLocalId === s.id) ||
-        existing.find(
-          (slip) =>
-            String(slip.staffName || "").trim().toLowerCase() === s.name.trim().toLowerCase(),
-        )
+      const saved = findSlipForStaff(existing, s.id, s.name, month)
       return {
         staffId: s.id,
         staffName: s.name,
@@ -112,6 +157,8 @@ function buildRows(
         eobiEnabled: Boolean(s.eobi_enabled),
         customAllowances: normalizeStaffPayLines(s.custom_allowances),
         customDeductions: normalizeStaffPayLines(s.custom_deductions),
+        incentive: amountFromSalaryAdjustments(saved?.adjustments, ["incentive"]),
+        commission: amountFromSalaryAdjustments(saved?.adjustments, ["commission"]),
         included: true,
         periodFrom: saved?.periodStart || periodStartForJoinDate(month, s.join_date),
         periodTo: saved?.periodEnd || bounds.to,
@@ -120,6 +167,231 @@ function buildRows(
         bankAccountTitle: s.bank_account_title || "",
       }
     })
+}
+
+function MarkPaidDialog({
+  staffName,
+  netLabel,
+  month,
+  saving,
+  onClose,
+  onConfirm,
+}: {
+  staffName: string
+  netLabel: string
+  month: string
+  saving: boolean
+  onClose: () => void
+  onConfirm: (payload: {
+    paymentNotes: string
+    attachments: PendingAttachment[]
+  }) => void | Promise<void>
+}) {
+  const [paymentNotes, setPaymentNotes] = useState("")
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+
+  function addFiles(fileList: FileList | null) {
+    if (!fileList?.length) return
+    const next = Array.from(fileList).map((file) => ({
+      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      file,
+      note: "",
+    }))
+    setAttachments((prev) => [...prev, ...next])
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div>
+            <p className="text-sm font-semibold">Mark salary as paid</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {staffName} · {monthLabel(month)} · {netLabel}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} disabled={saving}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Payment notes</label>
+            <textarea
+              value={paymentNotes}
+              onChange={(e) => setPaymentNotes(e.target.value)}
+              rows={3}
+              placeholder="e.g. Paid via bank transfer / JazzCash reference…"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              disabled={saving}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-medium text-muted-foreground">Attachments</label>
+              <label className="inline-flex items-center gap-1.5 text-xs text-[#1a9f9a] cursor-pointer hover:underline">
+                <Paperclip className="h-3.5 w-3.5" />
+                Add files
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  className="hidden"
+                  disabled={saving}
+                  onChange={(e) => {
+                    addFiles(e.target.files)
+                    e.target.value = ""
+                  }}
+                />
+              </label>
+            </div>
+
+            {attachments.length === 0 ? (
+              <p className="text-xs text-muted-foreground rounded-lg border border-dashed px-3 py-4 text-center">
+                Optional — add payment screenshots, bank slips, or PDFs. Each file can have its own note.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {attachments.map((att) => (
+                  <li key={att.id} className="rounded-lg border p-2.5 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-medium break-all">{att.file.name}</p>
+                      <button
+                        type="button"
+                        className="text-[10px] text-red-600 shrink-0"
+                        disabled={saving}
+                        onClick={() =>
+                          setAttachments((prev) => prev.filter((a) => a.id !== att.id))
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <input
+                      value={att.note}
+                      onChange={(e) =>
+                        setAttachments((prev) =>
+                          prev.map((a) =>
+                            a.id === att.id ? { ...a, note: e.target.value } : a,
+                          ),
+                        )
+                      }
+                      placeholder="Note for this attachment"
+                      className="w-full h-8 rounded-md border bg-background px-2 text-xs"
+                      disabled={saving}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 px-4 py-3 border-t bg-muted/10">
+          <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+            disabled={saving}
+            onClick={() => void onConfirm({ paymentNotes, attachments })}
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {saving ? "Saving…" : "Confirm paid"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PaidProofsDialog({
+  staffName,
+  month,
+  notes,
+  attachments,
+  paidBy,
+  paidAt,
+  onClose,
+}: {
+  staffName: string
+  month: string
+  notes: string
+  attachments: SalaryPaymentAttachment[]
+  paidBy?: string | null
+  paidAt?: string | null
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div>
+            <p className="text-sm font-semibold">Payment proof</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {staffName} · {monthLabel(month)}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto text-sm">
+          {(paidBy || paidAt) && (
+            <p className="text-xs text-muted-foreground">
+              Paid{paidBy ? ` by ${paidBy}` : ""}
+              {paidAt ? ` · ${new Date(paidAt).toLocaleString("en-PK")}` : ""}
+            </p>
+          )}
+          <div>
+            <p className="text-[10px] uppercase text-muted-foreground mb-1">Notes</p>
+            <p>{notes?.trim() || "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase text-muted-foreground mb-2">Attachments</p>
+            {attachments.length === 0 ? (
+              <p className="text-muted-foreground text-xs">No attachments</p>
+            ) : (
+              <ul className="space-y-2">
+                {attachments.map((att, i) => (
+                  <li key={`${att.url}-${i}`} className="rounded-lg border p-2.5 space-y-1">
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-medium text-[#1a9f9a] underline break-all"
+                    >
+                      {att.name || `Attachment ${i + 1}`}
+                    </a>
+                    {att.note && <p className="text-xs text-muted-foreground">{att.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        <div className="px-4 py-3 border-t">
+          <Button variant="outline" className="w-full" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function MakeSalariesModal({
@@ -144,6 +416,9 @@ export function MakeSalariesModal({
   const [saving, setSaving] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
+  const [payingStaffId, setPayingStaffId] = useState<string | null>(null)
+  const [viewProofsStaffId, setViewProofsStaffId] = useState<string | null>(null)
 
   useEffect(() => {
     if (initialMonth) setMonth(initialMonth)
@@ -154,12 +429,15 @@ export function MakeSalariesModal({
     setRows(buildRows(staff, month, monthSlips))
   }, [month, staff, existingSlips])
 
-  const finalizedNames = useMemo(() => {
-    return new Set(
-      existingSlips
-        .filter((s) => s.month === month && String(s.status || "").toLowerCase() === "finalized")
-        .map((s) => String(s.staffName || "").trim().toLowerCase()),
-    )
+  const finalizedByStaff = useMemo(() => {
+    const map = new Map<string, ExistingSlip>()
+    for (const slip of existingSlips) {
+      if (slip.month !== month) continue
+      if (String(slip.status || "").toLowerCase() !== "finalized") continue
+      const key = slip.staffLocalId || String(slip.staffName || "").trim().toLowerCase()
+      if (key) map.set(key, slip)
+    }
+    return map
   }, [existingSlips, month])
 
   const computed = useMemo(() => {
@@ -181,11 +459,15 @@ export function MakeSalariesModal({
               row.customAllowances,
               row.customDeductions,
               row.basicSalary,
+              row.incentive,
+              row.commission,
             )
           : {
               baseSalary: 0,
               adjustments: [],
               netSalary: 0,
+              incentive: 0,
+              commission: 0,
               proRateDescription: "",
               payPeriodText: "",
             }
@@ -195,13 +477,43 @@ export function MakeSalariesModal({
 
   const includedRows = computed.filter((c) => c.row.included)
   const selectableRows = computed.filter(
-    (c) => !finalizedNames.has(c.row.staffName.trim().toLowerCase()),
+    (c) => !finalizedByStaff.has(c.row.staffId) && !finalizedByStaff.has(c.row.staffName.trim().toLowerCase()),
   )
   const allSelectableIncluded =
     selectableRows.length > 0 && selectableRows.every((c) => c.row.included)
   const totalNet = includedRows.reduce((sum, c) => sum + c.figures.netSalary, 0)
   const currency = includedRows[0]?.row.currency || "PKR"
   const draftCount = existingSlips.filter((s) => s.month === month && s.status === "draft").length
+  const paidCount = existingSlips.filter(
+    (s) => s.month === month && String(s.status || "").toLowerCase() === "finalized",
+  ).length
+
+  const payingRow = payingStaffId
+    ? computed.find((c) => c.row.staffId === payingStaffId) || null
+    : null
+  const proofSlip = viewProofsStaffId
+    ? finalizedByStaff.get(viewProofsStaffId) ||
+      finalizedByStaff.get(
+        computed.find((c) => c.row.staffId === viewProofsStaffId)?.row.staffName.trim().toLowerCase() ||
+          "",
+      ) ||
+      null
+    : null
+
+  function isFinalized(row: SalaryRow) {
+    return (
+      finalizedByStaff.has(row.staffId) ||
+      finalizedByStaff.has(row.staffName.trim().toLowerCase())
+    )
+  }
+
+  function getFinalizedSlip(row: SalaryRow) {
+    return (
+      finalizedByStaff.get(row.staffId) ||
+      finalizedByStaff.get(row.staffName.trim().toLowerCase()) ||
+      null
+    )
+  }
 
   function updateRow(staffId: string, patch: Partial<SalaryRow>) {
     setRows((prev) => prev.map((r) => (r.staffId === staffId ? { ...r, ...patch } : r)))
@@ -224,7 +536,7 @@ export function MakeSalariesModal({
   function setAllIncluded(included: boolean) {
     setRows((prev) =>
       prev.map((row) => {
-        if (finalizedNames.has(row.staffName.trim().toLowerCase())) return row
+        if (isFinalized(row)) return row
         return { ...row, included }
       }),
     )
@@ -251,6 +563,8 @@ export function MakeSalariesModal({
           payPeriodText: figures.payPeriodText,
           contractSalary: row.monthlySalary,
           payableSalary: figures.baseSalary,
+          incentive: figures.incentive,
+          commission: figures.commission,
           advanceDeduction: advance,
           netSalary: figures.netSalary,
           currency: row.currency,
@@ -263,19 +577,27 @@ export function MakeSalariesModal({
     }
   }
 
-  async function saveSlips(status: "draft" | "finalized") {
-    const selected = computed.filter((c) => c.row.included)
+  async function saveSlips(
+    status: "draft" | "finalized",
+    selected = computed.filter((c) => c.row.included),
+    payment?: {
+      paymentNotes: string
+      paymentAttachments: SalaryPaymentAttachment[]
+      paidBy: string
+      paidAt: string
+    },
+  ) {
     if (selected.length === 0) {
       alert("Select at least one employee.")
       return
     }
 
-    for (const { row, figures } of selected) {
+    for (const { row } of selected) {
       if (!row.periodFrom || !row.periodTo || row.periodTo < row.periodFrom) {
         alert(`Invalid pay period for ${row.staffName}.`)
         return
       }
-      if (status === "finalized" && finalizedNames.has(row.staffName.trim().toLowerCase())) {
+      if (status === "finalized" && isFinalized(row)) {
         alert(`${row.staffName} already has a finalized salary for ${monthLabel(month)}.`)
         return
       }
@@ -302,6 +624,15 @@ export function MakeSalariesModal({
         bankName: row.bankName,
         bankAccountNumber: row.bankAccountNumber,
         bankAccountTitle: row.bankAccountTitle,
+        recoveredBy,
+        ...(payment
+          ? {
+              paidAt: payment.paidAt,
+              paidBy: payment.paidBy,
+              paymentNotes: payment.paymentNotes,
+              paymentAttachments: payment.paymentAttachments,
+            }
+          : {}),
       }
 
       const response = await fetch("/api/hrm/salary-slips", {
@@ -400,10 +731,47 @@ export function MakeSalariesModal({
     }
   }
 
+  async function handleMarkPaidConfirm(payload: {
+    paymentNotes: string
+    attachments: PendingAttachment[]
+  }) {
+    if (!payingRow) return
+    setMarkingPaidId(payingRow.row.staffId)
+    try {
+      const files = payload.attachments.map((a) => a.file)
+      const urls = files.length > 0 ? await uploadFiles(files, "salary-proofs") : []
+      const paymentAttachments: SalaryPaymentAttachment[] = payload.attachments
+        .map((att, i) => ({
+          url: urls[i] || "",
+          name: att.file.name,
+          note: att.note.trim(),
+          uploadedAt: new Date().toISOString(),
+        }))
+        .filter((a) => a.url)
+
+      const saved = await saveSlips("finalized", [payingRow], {
+        paymentNotes: payload.paymentNotes.trim(),
+        paymentAttachments,
+        paidBy: recoveredBy,
+        paidAt: new Date().toISOString(),
+      })
+      if (!saved) return
+      await onSaved()
+      setPayingStaffId(null)
+      alert(`${payingRow.row.staffName} marked as paid for ${monthLabel(month)}.`)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to mark salary as paid.")
+    } finally {
+      setMarkingPaidId(null)
+    }
+  }
+
   function copyAccountNumber(accountNumber: string) {
     if (!accountNumber.trim()) return
     void navigator.clipboard.writeText(accountNumber.trim())
   }
+
+  const busy = saving || finalizing || !!markingPaidId
 
   return (
     <div
@@ -418,7 +786,7 @@ export function MakeSalariesModal({
           <div>
             <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Make Salaries</h3>
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Uncheck employees to exclude them from export and payroll. Set pay period per employee, auto-deduct advances.
+              Uncheck employees to exclude them from export and payroll. Mark each employee as paid one by one with payment notes and attachments.
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
@@ -452,6 +820,11 @@ export function MakeSalariesModal({
               {draftCount} draft{draftCount === 1 ? "" : "s"} saved for this month
             </Badge>
           )}
+          {paidCount > 0 && (
+            <Badge variant="outline" className="mt-5 text-emerald-700 border-emerald-300 bg-emerald-50">
+              {paidCount} marked paid
+            </Badge>
+          )}
           <div className="ml-auto text-right mt-1">
             <p className="text-xs text-[hsl(var(--muted-foreground))]">Selected total net</p>
             <p className="text-lg font-bold text-[hsl(var(--foreground))]">
@@ -461,7 +834,7 @@ export function MakeSalariesModal({
         </div>
 
         <div className="overflow-auto p-4">
-          <table className="w-full min-w-[1280px]">
+          <table className="w-full min-w-[1600px]">
             <thead>
               <tr className="border-b border-[hsl(var(--border))] text-left">
                 <th className="px-2 py-2 text-xs font-medium w-10" title="Include in export & payroll">
@@ -481,13 +854,19 @@ export function MakeSalariesModal({
                 <th className="px-2 py-2 text-xs font-medium">To</th>
                 <th className="px-2 py-2 text-xs font-medium text-right">Contract</th>
                 <th className="px-2 py-2 text-xs font-medium text-right">Payable</th>
+                <th className="px-2 py-2 text-xs font-medium text-right min-w-[100px]">Incentive</th>
+                <th className="px-2 py-2 text-xs font-medium text-right min-w-[100px]">Commission</th>
                 <th className="px-2 py-2 text-xs font-medium text-right">Advance</th>
                 <th className="px-2 py-2 text-xs font-medium text-right">Net</th>
+                <th className="px-2 py-2 text-xs font-medium min-w-[130px]">Payment</th>
               </tr>
             </thead>
             <tbody>
               {computed.map(({ row, advance, figures }) => {
-                const isFinalized = finalizedNames.has(row.staffName.trim().toLowerCase())
+                const finalized = isFinalized(row)
+                const slip = getFinalizedSlip(row)
+                const proofs = normalizePaymentAttachments(slip?.paymentAttachments)
+                const marking = markingPaidId === row.staffId
                 return (
                   <tr
                     key={row.staffId}
@@ -497,7 +876,7 @@ export function MakeSalariesModal({
                       <input
                         type="checkbox"
                         checked={row.included}
-                        disabled={isFinalized}
+                        disabled={finalized}
                         onChange={(e) => updateRow(row.staffId, { included: e.target.checked })}
                         className="h-4 w-4 rounded"
                       />
@@ -505,7 +884,7 @@ export function MakeSalariesModal({
                     <td className="px-2 py-2">
                       <p className="text-sm font-medium">{row.staffName}</p>
                       <p className="text-xs text-[hsl(var(--muted-foreground))]">{row.role}</p>
-                      {isFinalized && (
+                      {finalized && (
                         <Badge variant="success" className="text-[10px] mt-1">
                           Paid
                         </Badge>
@@ -538,7 +917,7 @@ export function MakeSalariesModal({
                       <input
                         type="date"
                         value={row.periodFrom}
-                        disabled={!row.included || isFinalized}
+                        disabled={!row.included || finalized}
                         onChange={(e) => updateRow(row.staffId, { periodFrom: e.target.value })}
                         className="h-8 w-[132px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs"
                       />
@@ -547,7 +926,7 @@ export function MakeSalariesModal({
                       <input
                         type="date"
                         value={row.periodTo}
-                        disabled={!row.included || isFinalized}
+                        disabled={!row.included || finalized}
                         onChange={(e) => updateRow(row.staffId, { periodTo: e.target.value })}
                         className="h-8 w-[132px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs"
                       />
@@ -563,11 +942,80 @@ export function MakeSalariesModal({
                         </p>
                       )}
                     </td>
+                    <td className="px-2 py-2 text-right">
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={row.incentive || ""}
+                        placeholder="0"
+                        disabled={!row.included || finalized}
+                        onChange={(e) =>
+                          updateRow(row.staffId, {
+                            incentive: Math.max(0, Math.round(Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="h-8 w-[96px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-right tabular-nums disabled:opacity-60"
+                        title="Incentive (added to net)"
+                      />
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={row.commission || ""}
+                        placeholder="0"
+                        disabled={!row.included || finalized}
+                        onChange={(e) =>
+                          updateRow(row.staffId, {
+                            commission: Math.max(0, Math.round(Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="h-8 w-[96px] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs text-right tabular-nums disabled:opacity-60"
+                        title="Commission (added to net)"
+                      />
+                    </td>
                     <td className="px-2 py-2 text-right text-sm tabular-nums text-red-600">
                       {advance > 0 ? `− ${row.currency} ${advance.toLocaleString()}` : "—"}
                     </td>
                     <td className="px-2 py-2 text-right text-sm font-semibold tabular-nums">
                       {row.currency} {figures.netSalary.toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2">
+                      {finalized ? (
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="success" className="text-[10px] w-fit">
+                            Paid
+                          </Badge>
+                          {(proofs.length > 0 || slip?.paymentNotes) && (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 text-[10px] text-[#1a9f9a] hover:underline"
+                              onClick={() => setViewProofsStaffId(row.staffId)}
+                            >
+                              <Eye className="h-3 w-3" />
+                              View proof
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs gap-1"
+                          disabled={busy || !row.included}
+                          onClick={() => setPayingStaffId(row.staffId)}
+                        >
+                          {marking ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                          Mark paid
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 )
@@ -578,7 +1026,7 @@ export function MakeSalariesModal({
 
         <div className="border-t border-[hsl(var(--border))] px-6 py-4 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-            Uncheck any employee to exclude from Excel, PDF, and payroll. {includedRows.length} of {computed.length} selected.
+            Use Mark paid per employee to record payment with attachments and notes. Bulk finalize still available without per-row proofs. {includedRows.length} of {computed.length} selected.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={onClose}>
@@ -587,7 +1035,7 @@ export function MakeSalariesModal({
             <Button
               variant="outline"
               className="gap-2"
-              disabled={saving || finalizing || exportingExcel || includedRows.length === 0}
+              disabled={busy || exportingExcel || includedRows.length === 0}
               onClick={handleExportExcel}
             >
               <Download className="h-4 w-4" />
@@ -596,7 +1044,7 @@ export function MakeSalariesModal({
             <Button
               variant="outline"
               className="gap-2"
-              disabled={saving || finalizing}
+              disabled={busy}
               onClick={handleSaveDraftAndExport}
             >
               <Save className="h-4 w-4" />
@@ -604,7 +1052,7 @@ export function MakeSalariesModal({
             </Button>
             <Button
               className="gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
-              disabled={saving || finalizing}
+              disabled={busy}
               onClick={handleFinalize}
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -613,6 +1061,31 @@ export function MakeSalariesModal({
           </div>
         </div>
       </div>
+
+      {payingRow && (
+        <MarkPaidDialog
+          staffName={payingRow.row.staffName}
+          netLabel={`${payingRow.row.currency} ${payingRow.figures.netSalary.toLocaleString()}`}
+          month={month}
+          saving={markingPaidId === payingRow.row.staffId}
+          onClose={() => {
+            if (!markingPaidId) setPayingStaffId(null)
+          }}
+          onConfirm={handleMarkPaidConfirm}
+        />
+      )}
+
+      {proofSlip && viewProofsStaffId && (
+        <PaidProofsDialog
+          staffName={proofSlip.staffName || ""}
+          month={month}
+          notes={String(proofSlip.paymentNotes || "")}
+          attachments={normalizePaymentAttachments(proofSlip.paymentAttachments)}
+          paidBy={proofSlip.paidBy}
+          paidAt={proofSlip.paidAt}
+          onClose={() => setViewProofsStaffId(null)}
+        />
+      )}
     </div>
   )
 }

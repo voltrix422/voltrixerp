@@ -65,9 +65,10 @@ if [ -d "public/uploads" ] && [ "$(ls -A public/uploads 2>/dev/null)" ]; then
 fi
 
 echo "==> Ensure upload directories exist"
-mkdir -p public/uploads/payment-proofs public/uploads/petty-cash public/uploads/misc \
+  mkdir -p public/uploads/payment-proofs public/uploads/petty-cash public/uploads/misc \
   public/uploads/products public/uploads/crm-leads public/uploads/client-images \
-  public/uploads/fulfillment public/uploads/imported-po-docs public/uploads/daily-reports
+  public/uploads/fulfillment public/uploads/imported-po-docs public/uploads/daily-reports \
+  public/uploads/salary-proofs
 
 echo "==> Product catalog health check"
 node scripts/check-products-catalog.mjs
