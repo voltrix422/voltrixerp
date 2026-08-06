@@ -190,6 +190,8 @@ export type MakeSalariesExportRow = {
   payPeriodText: string
   contractSalary: number
   payableSalary: number
+  incentive: number
+  commission: number
   advanceDeduction: number
   netSalary: number
   currency: string
@@ -226,6 +228,8 @@ export function downloadMakeSalariesExcel(
     "Pay Period",
     "Contract Salary",
     "Payable Salary",
+    "Incentive",
+    "Commission",
     "Advance Deduction",
     "Net Salary",
     "Currency",
@@ -243,6 +247,8 @@ export function downloadMakeSalariesExcel(
     r.payPeriodText,
     r.contractSalary,
     r.payableSalary,
+    r.incentive || 0,
+    r.commission || 0,
     r.advanceDeduction,
     r.netSalary,
     r.currency,

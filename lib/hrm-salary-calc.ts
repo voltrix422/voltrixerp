@@ -226,6 +226,24 @@ export function computeStaffCompensation(
   }
 }
 
+export function amountFromSalaryAdjustments(
+  adjustments: unknown,
+  matchers: string[],
+): number {
+  if (!Array.isArray(adjustments)) return 0
+  const keys = matchers.map((m) => m.trim().toLowerCase()).filter(Boolean)
+  for (const raw of adjustments) {
+    if (!raw || typeof raw !== "object") continue
+    const adj = raw as Record<string, unknown>
+    const id = String(adj.id || "").trim().toLowerCase()
+    const label = String(adj.label || "").trim().toLowerCase()
+    if (!keys.some((k) => id === k || label === k)) continue
+    if (String(adj.type || "add").toLowerCase() === "deduct") continue
+    return Math.max(0, Number(adj.amount) || 0)
+  }
+  return 0
+}
+
 export function buildEffectiveSalaryAdjustments(
   manual: SalaryAdjustment[],
   options: {
@@ -239,6 +257,8 @@ export function buildEffectiveSalaryAdjustments(
     medicalEnabled?: boolean
     customAllowances?: StaffPayLine[] | unknown
     customDeductions?: StaffPayLine[] | unknown
+    incentive?: number
+    commission?: number
   },
 ): SalaryAdjustment[] {
   const list = [...manual]
@@ -271,6 +291,36 @@ export function buildEffectiveSalaryAdjustments(
       type: "add",
       amount: String(line.amount),
       label: line.label || "Allowance",
+    })
+  }
+
+  const incentive = Math.max(0, Number(options.incentive) || 0)
+  const hasIncentive = list.some(
+    adj =>
+      adj.id === "incentive" ||
+      adj.label.trim().toLowerCase() === "incentive",
+  )
+  if (incentive > 0.004 && !hasIncentive) {
+    list.push({
+      id: "incentive",
+      type: "add",
+      amount: String(Math.round(incentive)),
+      label: "Incentive",
+    })
+  }
+
+  const commission = Math.max(0, Number(options.commission) || 0)
+  const hasCommission = list.some(
+    adj =>
+      adj.id === "commission" ||
+      adj.label.trim().toLowerCase() === "commission",
+  )
+  if (commission > 0.004 && !hasCommission) {
+    list.push({
+      id: "commission",
+      type: "add",
+      amount: String(Math.round(commission)),
+      label: "Commission",
     })
   }
 
@@ -350,6 +400,8 @@ export function computeBatchSalaryFigures(
   customAllowances: StaffPayLine[] | unknown = [],
   customDeductions: StaffPayLine[] | unknown = [],
   basicSalary = 0,
+  incentive = 0,
+  commission = 0,
 ) {
   const payableBase = resolveBasicSalary(monthlySalary, basicSalary)
   const fullMonth = monthDateBounds(periodFrom.slice(0, 7))
@@ -368,12 +420,16 @@ export function computeBatchSalaryFigures(
     medicalEnabled,
     customAllowances,
     customDeductions,
+    incentive,
+    commission,
   })
   const netSalary = computeNetSalary(proRate.amount, adjustments)
   return {
     baseSalary: proRate.amount,
     adjustments,
     netSalary,
+    incentive: Math.max(0, Math.round(Number(incentive) || 0)),
+    commission: Math.max(0, Math.round(Number(commission) || 0)),
     proRateDescription: proRate.description,
     payPeriodText: isFullMonth
       ? new Date(periodFrom.slice(0, 7) + "-01").toLocaleDateString("en-US", {
