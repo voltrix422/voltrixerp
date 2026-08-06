@@ -194,20 +194,8 @@ export function PosAdminDashboard() {
 
   return (
     <div className="flex-1 overflow-auto p-3 md:p-4 space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-sm font-semibold">
-            {view === "combined"
-              ? "Combined POS sales"
-              : selectedMeta?.branchName || branchDetail?.branchName || "POS details"}
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {view === "combined"
-              ? "All counters · selected period"
-              : "Branch orders, terminals & stock"}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="flex items-center gap-1.5 shrink-0">
           {view === "branch" && (
             <Button type="button" variant="outline" size="sm" className="h-7 text-xs rounded-sm shadow-none" onClick={backToCombined}>
               <ArrowLeft className="h-3 w-3 mr-1" />
@@ -225,6 +213,18 @@ export function PosAdminDashboard() {
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             <span className="ml-1">Refresh</span>
           </Button>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold">
+            {view === "combined"
+              ? "Combined POS sales"
+              : selectedMeta?.branchName || branchDetail?.branchName || "POS details"}
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            {view === "combined"
+              ? "All counters · selected period"
+              : "Branch orders & stock"}
+          </p>
         </div>
       </div>
 
@@ -459,49 +459,16 @@ function BranchDetailPanel({
         />
       </div>
 
-      <Panel className="overflow-hidden">
-        <PanelHead title="Terminals" />
-        {branch.terminals.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-6">No terminals</p>
-        ) : (
-          <div>
-            {branch.terminals.map((t) => (
-              <div
-                key={t.id}
-                className="px-2.5 py-1.5 flex items-center justify-between gap-3 text-xs border-b border-[hsl(var(--border))] last:border-0"
-              >
-                <div>
-                  <p className="font-medium">{t.name}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {t.code}
-                    {t.location ? ` · ${t.location}` : ""}
-                  </p>
-                </div>
-                <span className="border border-[hsl(var(--border))] rounded-sm px-1.5 py-0.5 text-[10px]">
-                  {t.isActive ? "Active" : "Inactive"}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
-
       <Panel className="px-2.5 py-1.5 text-xs">
         Stock: <span className="font-medium tabular-nums">{branch.stockQty.toLocaleString()}</span> units ·{" "}
         <span className="font-medium tabular-nums">{branch.stockSkuCount}</span> SKUs
       </Panel>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-        <RecentOrdersTable
-          title={`Orders · ${branch.branchName}`}
-          rows={branch.orders || []}
-          onOrderClick={onOrderClick}
-        />
-        <RecentReceiptsTable
-          title={`Receipts · ${branch.branchName}`}
-          rows={branch.receipts || []}
-        />
-      </div>
+      <RecentOrdersTable
+        title={`Orders · ${branch.branchName}`}
+        rows={branch.orders || []}
+        onOrderClick={onOrderClick}
+      />
     </div>
   )
 }
@@ -565,68 +532,6 @@ function RecentOrdersTable({
                   <td className={td}>{statusText(r.status)}</td>
                   <td className={cn(tdR, "font-medium")}>{formatPosPkr(r.sellAmount)}</td>
                   <td className={tdR}>{formatPosPkr(r.profit)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Panel>
-  )
-}
-
-function RecentReceiptsTable({
-  title,
-  rows,
-  showBranch,
-}: {
-  title: string
-  rows: Array<{
-    id: string
-    receiptNumber: string
-    terminalName: string
-    total: number
-    paymentMethod: string
-    cashierName: string
-    customerName: string
-    createdAt: string
-    branchName?: string
-  }>
-  showBranch?: boolean
-}) {
-  return (
-    <Panel className="overflow-hidden">
-      <PanelHead title={title} />
-      {rows.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-6">No receipts</p>
-      ) : (
-        <div className="overflow-auto max-h-80">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-[hsl(var(--background))]">
-              <tr className="border-b border-[hsl(var(--border))]">
-                <th className={th}>Receipt</th>
-                {showBranch && <th className={th}>Branch</th>}
-                <th className={th}>Terminal</th>
-                <th className={th}>Payment</th>
-                <th className={thR}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-[hsl(var(--border))] last:border-0">
-                  <td className={td}>
-                    <p className="font-medium">{r.receiptNumber}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {formatWhen(r.createdAt)}
-                      {r.cashierName ? ` · ${r.cashierName}` : ""}
-                    </p>
-                  </td>
-                  {showBranch && (
-                    <td className={cn(td, "text-muted-foreground")}>{r.branchName || "—"}</td>
-                  )}
-                  <td className={td}>{r.terminalName || "—"}</td>
-                  <td className={cn(td, "capitalize")}>{r.paymentMethod || "—"}</td>
-                  <td className={cn(tdR, "font-medium")}>{formatPosPkr(r.total)}</td>
                 </tr>
               ))}
             </tbody>
