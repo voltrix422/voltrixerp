@@ -1,10 +1,10 @@
-import type { CatalogProduct } from "@/lib/solar-product-specs"
+import type { CatalogProduct, ProductAvailability } from "@/lib/solar-product-specs"
 import {
-  DEFAULT_SOLAR_PANELS,
-  fusionMeetsBackup,
+  getProductAvailability,
   getProductKwh,
   getProductKw,
   getProductWattage,
+  fusionMeetsBackup,
   isFusionComboProduct,
   isInStock,
   isSolarPanelProduct,
@@ -21,7 +21,11 @@ export type SolarCalculatorInput = {
   city?: string
   phase?: "single" | "three"
   backupHours?: number
+  /** When set, overrides backup kWh derived from hours */
+  backupKwhOverride?: number | null
   sunHoursPerDay?: number
+  /** e.g. appliance estimate mode */
+  estimateSource?: "bill" | "appliances"
 }
 
 export type RecommendedPanel = {
@@ -43,12 +47,16 @@ export type SolarSizingResult = {
   recommendedPanel: RecommendedPanel
   recommendedInverter: CatalogProduct | null
   recommendedBattery: CatalogProduct | null
+  inverterAvailability: ProductAvailability
+  batteryAvailability: ProductAvailability
+  panelAvailability: ProductAvailability
   /** True when inverter pick is an all-in-one Fusion unit (covers battery too). */
   kitIsFusionCombo: boolean
   backupKwh: number
   estimatedMonthlySavingPkr: number | null
   offsetPercent: number
   analysisNotes: string[]
+  estimateSource?: "bill" | "appliances"
 }
 
 const DEFAULT_TARIFF_PKR = 32
@@ -94,8 +102,8 @@ function pickPanel(catalog: CatalogProduct[]): { wattage: number; product?: Cata
     return { wattage: pool[0].w, product: pool[0].p }
   }
 
-  const fallback = DEFAULT_SOLAR_PANELS[0]
-  return { wattage: fallback.wattage }
+  // Reference wattage for sizing math only — no third-party panel SKU
+  return { wattage: 620 }
 }
 
 function pickInverter(
@@ -192,23 +200,27 @@ export function calculateSolarSizing(
 
   const backupHours = input.backupHours ?? 0
   const backupKwh =
-    backupHours > 0 ? Math.round((dailyKwh * (backupHours / 24)) * 10) / 10 : 0
+    input.backupKwhOverride != null && input.backupKwhOverride > 0
+      ? Math.round(input.backupKwhOverride * 10) / 10
+      : backupHours > 0
+        ? Math.round((dailyKwh * (backupHours / 24)) * 10) / 10
+        : 0
 
   const panelPick = pickPanel(catalog)
   const panelQty = Math.max(1, Math.ceil((requiredSystemKw * 1000) / panelPick.wattage))
   const totalPanelKw = Math.round(((panelQty * panelPick.wattage) / 1000) * 10) / 10
 
   const recommendedPanel: RecommendedPanel = {
-    id: panelPick.product?.id || DEFAULT_SOLAR_PANELS[0].id,
-    name:
-      panelPick.product?.name ||
-      `${DEFAULT_SOLAR_PANELS[0].name}`,
+    id: panelPick.product?.id || "panel-unavailable",
+    name: panelPick.product?.name || "Voltrix solar panel",
     wattage: panelPick.wattage,
     quantity: panelQty,
     totalKw: totalPanelKw,
     fromCatalog: Boolean(panelPick.product),
     product: panelPick.product,
   }
+
+  const panelAvailability = getProductAvailability(panelPick.product)
 
   const inverterKw = Math.max(requiredSystemKw, totalPanelKw * 0.9)
   const phase = input.phase || "single"
@@ -267,19 +279,33 @@ export function calculateSolarSizing(
   const offsetPercent = 85
   const estimatedMonthlySavingPkr = Math.round(estimatedBillPkr * (offsetPercent / 100))
 
-  const analysisNotes: string[] = [
-    `Based on ${monthlyUnits.toLocaleString()} units/month (~${dailyKwh.toFixed(1)} kWh/day, ${annualUnits.toLocaleString()} units/year).`,
+  const analysisNotes: string[] = []
+  if (input.estimateSource === "appliances") {
+    analysisNotes.push(
+      `Estimated from your home appliances: ~${dailyKwh.toFixed(1)} kWh/day (${monthlyUnits.toLocaleString()} units/month).`,
+    )
+  } else {
+    analysisNotes.push(
+      `Based on ${monthlyUnits.toLocaleString()} units/month (~${dailyKwh.toFixed(1)} kWh/day, ${annualUnits.toLocaleString()} units/year).`,
+    )
+  }
+  analysisNotes.push(
     `Recommended system size: ~${requiredSystemKw} kW = (annual units ÷ ${ANNUAL_UNITS_PER_KW}) × ${SYSTEM_OVERSIZE}.`,
-  ]
-  if (backupHours > 0) {
-    analysisNotes.push(`Backup target: ${backupHours} hours (~${backupKwh} kWh storage).`)
+  )
+  if (backupKwh > 0) {
+    analysisNotes.push(`Backup target: ~${backupKwh} kWh storage${backupHours > 0 ? ` (${backupHours} hours)` : ""}.`)
   }
   if (kitIsFusionCombo) {
     analysisNotes.push("Inverter + battery recommendation is a single Voltrix Fusion all-in-one unit.")
   }
   if (!recommendedPanel.fromCatalog) {
-    analysisNotes.push("Panel suggestion uses standard Longi 620W Bifacial — add panels to website catalog for live SKU matching.")
+    analysisNotes.push("Solar panels are not listed in our store catalog right now — contact sales for panel options.")
   }
+
+  const inverterAvailability = getProductAvailability(recommendedInverter)
+  const batteryAvailability = kitIsFusionCombo
+    ? inverterAvailability
+    : getProductAvailability(recommendedBattery)
 
   return {
     monthlyUnits,
@@ -290,10 +316,14 @@ export function calculateSolarSizing(
     recommendedPanel,
     recommendedInverter,
     recommendedBattery,
+    inverterAvailability,
+    batteryAvailability,
+    panelAvailability,
     kitIsFusionCombo,
     backupKwh,
     estimatedMonthlySavingPkr,
     offsetPercent,
     analysisNotes,
+    estimateSource: input.estimateSource,
   }
 }

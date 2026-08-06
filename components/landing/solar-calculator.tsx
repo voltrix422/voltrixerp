@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -8,8 +7,6 @@ import {
   Camera,
   Zap,
   Sun,
-  Battery,
-  Cpu,
   Loader2,
   Sparkles,
   CheckCircle2,
@@ -17,18 +14,42 @@ import {
   ArrowRight,
   FileImage,
   RefreshCw,
+  Minus,
+  Plus,
+  Home,
+  Receipt,
+  AirVent,
+  Refrigerator,
+  Lightbulb,
+  Tv,
+  Droplets,
+  WashingMachine,
+  Wifi,
 } from "lucide-react"
 import { runLabelOcrOnImageFile } from "@/lib/label-ocr-browser"
 import { parseElectricityBillOcr } from "@/lib/parse-electricity-bill-ocr"
 import { calculateSolarSizing, resolveMonthlyUnits } from "@/lib/solar-sizing"
+import {
+  calculateApplianceEstimate,
+  HOME_APPLIANCES,
+  type ApplianceEstimateResult,
+  type ApplianceSelection,
+} from "@/lib/solar-appliance-estimate"
 import { isProductPublished } from "@/lib/product-published"
 import { formatProductPrice, shouldRequestQuote } from "@/lib/product-display"
 import { getProductDisplayName } from "@/lib/product-display-name"
 import { getProductImageList, PRODUCT_IMAGE_FALLBACK } from "@/lib/product-image"
 import { getCategoryDisplayLabel } from "@/lib/product-categories"
-import { getProductKw, getProductKwh } from "@/lib/solar-product-specs"
+import {
+  getProductKw,
+  getProductKwh,
+  productAvailabilityLabel,
+  type CatalogProduct,
+  type ProductAvailability,
+} from "@/lib/solar-product-specs"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
+import type { SolarSizingResult } from "@/lib/solar-sizing"
 
 const CITIES = [
   "Islamabad",
@@ -42,15 +63,51 @@ const CITIES = [
   "Other",
 ]
 
-function ProductCard({ product, badge }: { product: any; badge: string }) {
-  if (!product) return null
+type CalcMode = "bill" | "estimate"
+
+const APPLIANCE_ICONS: Record<string, typeof Home> = {
+  cooling: AirVent,
+  kitchen: Refrigerator,
+  lighting: Lightbulb,
+  entertainment: Tv,
+  laundry: WashingMachine,
+  water: Droplets,
+  other: Wifi,
+}
+
+function AvailabilityBadge({ status }: { status: ProductAvailability }) {
+  const label = productAvailabilityLabel(status)
+  const styles =
+    status === "in_stock"
+      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+      : status === "low_stock"
+        ? "bg-amber-50 text-amber-800 border-amber-200"
+        : "bg-neutral-100 text-neutral-600 border-neutral-200"
+
+  return (
+    <span className={`inline-flex text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${styles}`}>
+      {label}
+    </span>
+  )
+}
+
+function ProductCard({
+  product,
+  badge,
+  availability,
+}: {
+  product: CatalogProduct
+  badge: string
+  availability: ProductAvailability
+}) {
   const { title, model } = getProductDisplayName(product)
   const images = getProductImageList(product)
   const price = formatProductPrice(product.price)
   const quote = shouldRequestQuote(product)
+  const unavailable = availability === "out_of_stock" || availability === "not_in_catalog"
 
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-4 flex gap-4 shadow-sm">
+    <div className={`rounded-2xl border bg-white p-4 flex gap-4 shadow-sm ${unavailable ? "border-neutral-200 opacity-90" : "border-neutral-200"}`}>
       <div className="shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-neutral-50 border border-neutral-100">
         <ProductThumbnail
           src={images[0] || PRODUCT_IMAGE_FALLBACK}
@@ -59,18 +116,21 @@ function ProductCard({ product, badge }: { product: any; badge: string }) {
         />
       </div>
       <div className="min-w-0 flex-1 space-y-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1a9f9a]">
-          {badge}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1a9f9a]">
+            {badge}
+          </span>
+          <AvailabilityBadge status={availability} />
+        </div>
         <p className="font-semibold text-neutral-900 leading-snug">{title}</p>
         {model && <p className="text-xs text-neutral-500">{model}</p>}
         <p className="text-xs text-neutral-500">
           {getCategoryDisplayLabel(product.category || "")}
         </p>
-        {price && !quote && (
+        {price && !quote && !unavailable && (
           <p className="text-sm font-medium text-neutral-800">{price}</p>
         )}
-        {product.id && (
+        {product.id && !unavailable && (
           <Link
             href={`/products/${product.id}`}
             className="inline-flex items-center gap-1 text-xs font-medium text-[#1a9f9a] hover:underline mt-1"
@@ -83,9 +143,58 @@ function ProductCard({ product, badge }: { product: any; badge: string }) {
   )
 }
 
+function ApplianceRow({
+  id,
+  label,
+  category,
+  quantity,
+  watts,
+  onChange,
+}: {
+  id: string
+  label: string
+  category: string
+  quantity: number
+  watts: number
+  onChange: (qty: number) => void
+}) {
+  const Icon = APPLIANCE_ICONS[category] || Home
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-neutral-100 bg-neutral-50/50 px-3 py-2.5">
+      <div className="w-9 h-9 rounded-lg bg-white border border-neutral-100 flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4 text-[#1a9f9a]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-neutral-900 leading-tight">{label}</p>
+        <p className="text-[10px] text-neutral-500">~{watts}W each</p>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(0, quantity - 1))}
+          disabled={quantity <= 0}
+          className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center disabled:opacity-40 hover:bg-neutral-50"
+        >
+          <Minus className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-7 text-center text-sm font-semibold tabular-nums">{quantity}</span>
+        <button
+          type="button"
+          onClick={() => onChange(quantity + 1)}
+          className="w-8 h-8 rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/10 text-[#1a9f9a] flex items-center justify-center hover:bg-[#1a9f9a]/20"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function SolarCalculator() {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [catalog, setCatalog] = useState<any[]>([])
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([])
+  const [mode, setMode] = useState<CalcMode>("bill")
+
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrPreview, setOcrPreview] = useState<string | null>(null)
   const [ocrRaw, setOcrRaw] = useState("")
@@ -96,8 +205,11 @@ export default function SolarCalculator() {
   const [tariff, setTariff] = useState("")
   const [city, setCity] = useState("Islamabad")
   const [phase, setPhase] = useState<"single" | "three">("single")
-  const [backupHours, setBackupHours] = useState("4")
-  const [result, setResult] = useState<ReturnType<typeof calculateSolarSizing> | null>(null)
+  const [backupHours, setBackupHours] = useState("6")
+  const [applianceQty, setApplianceQty] = useState<ApplianceSelection>({})
+  const [appliancePreview, setAppliancePreview] = useState<ApplianceEstimateResult | null>(null)
+
+  const [result, setResult] = useState<SolarSizingResult | null>(null)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -136,7 +248,24 @@ export default function SolarCalculator() {
     }
   }
 
-  const handleCalculate = () => {
+  const updateAppliance = (id: string, qty: number) => {
+    setApplianceQty((prev) => ({ ...prev, [id]: qty }))
+    setResult(null)
+  }
+
+  const runEstimatePreview = useCallback(() => {
+    const est = calculateApplianceEstimate(applianceQty, Number(backupHours) || 0)
+    setAppliancePreview(est)
+    return est
+  }, [applianceQty, backupHours])
+
+  useEffect(() => {
+    if (mode !== "estimate") return
+    const est = calculateApplianceEstimate(applianceQty, Number(backupHours) || 0)
+    setAppliancePreview(est)
+  }, [mode, applianceQty, backupHours])
+
+  const handleCalculateBill = () => {
     setError("")
     const units = resolveMonthlyUnits(
       monthlyUnits ? Number(monthlyUnits) : null,
@@ -157,11 +286,36 @@ export default function SolarCalculator() {
         city,
         phase,
         backupHours: Number(backupHours) || 0,
+        estimateSource: "bill",
       },
       catalog,
     )
     setResult(sizing)
     if (!sizing) setError("Could not calculate sizing. Check your inputs.")
+  }
+
+  const handleCalculateEstimate = () => {
+    setError("")
+    const est = runEstimatePreview()
+    if (!est) {
+      setError("Add at least one appliance (AC, fridge, lights, etc.) to estimate your load.")
+      setResult(null)
+      return
+    }
+
+    const sizing = calculateSolarSizing(
+      {
+        monthlyUnits: est.monthlyUnits,
+        city,
+        phase,
+        backupHours: est.backupHours,
+        backupKwhOverride: est.backupKwh,
+        estimateSource: "appliances",
+      },
+      catalog,
+    )
+    setResult(sizing)
+    if (!sizing) setError("Could not calculate sizing. Check your appliances.")
   }
 
   const resetBill = () => {
@@ -171,10 +325,56 @@ export default function SolarCalculator() {
     if (fileRef.current) fileRef.current.value = ""
   }
 
+  const sharedSettings = (
+    <div className="grid sm:grid-cols-2 gap-3">
+      <label className="block space-y-1">
+        <span className="text-xs text-neutral-500">City</span>
+        <select
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a] bg-white"
+        >
+          {CITIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block space-y-1">
+        <span className="text-xs text-neutral-500">Phase</span>
+        <select
+          value={phase}
+          onChange={(e) => setPhase(e.target.value as "single" | "three")}
+          className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a] bg-white"
+        >
+          <option value="single">Single phase</option>
+          <option value="three">Three phase</option>
+        </select>
+      </label>
+      <label className="block space-y-1 sm:col-span-2">
+        <span className="text-xs text-neutral-500">Backup hours needed (load shedding / night)</span>
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min={0}
+            max={12}
+            step={1}
+            value={backupHours}
+            onChange={(e) => setBackupHours(e.target.value)}
+            className="flex-1 accent-[#1a9f9a]"
+          />
+          <span className="text-sm font-semibold tabular-nums w-16 text-right">
+            {backupHours}h
+          </span>
+        </div>
+      </label>
+    </div>
+  )
+
   return (
     <section className="pt-28 pb-20 px-4 min-h-screen bg-gradient-to-b from-neutral-50 to-white">
       <div className="max-w-5xl mx-auto space-y-10">
-        {/* Header */}
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <p className="text-xs font-semibold uppercase tracking-widest text-[#1a9f9a]">
             Smart sizing
@@ -183,191 +383,244 @@ export default function SolarCalculator() {
             Solar System Calculator
           </h1>
           <p className="text-neutral-600 text-sm sm:text-base leading-relaxed">
-            Upload your electricity bill — we read units and amount with OCR — then recommend
-            Voltrix panels, inverters, and batteries from our catalog.
+            Calculate from your electricity bill or estimate from home appliances — we recommend
+            Voltrix inverters and batteries from our store catalog.
           </p>
         </div>
 
+        <div className="flex rounded-2xl border border-neutral-200 bg-white p-1 shadow-sm max-w-md mx-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setMode("bill")
+              setResult(null)
+              setError("")
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              mode === "bill"
+                ? "bg-neutral-900 text-white"
+                : "text-neutral-600 hover:bg-neutral-50"
+            }`}
+          >
+            <Receipt className="w-4 h-4" />
+            From bill
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("estimate")
+              setResult(null)
+              setError("")
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              mode === "estimate"
+                ? "bg-[#1a9f9a] text-white"
+                : "text-neutral-600 hover:bg-neutral-50"
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            From home estimate
+          </button>
+        </div>
+
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Bill upload */}
           <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm space-y-5">
-            <div className="flex items-center gap-2">
-              <FileImage className="w-5 h-5 text-[#1a9f9a]" />
-              <h2 className="font-semibold text-neutral-900">1. Upload electricity bill</h2>
-            </div>
-
-            <div
-              className={`relative rounded-2xl border-2 border-dashed transition-colors ${
-                ocrPreview ? "border-[#1a9f9a]/40 bg-teal-50/30" : "border-neutral-200 hover:border-[#1a9f9a]/50"
-              } p-6 text-center`}
-            >
-              {ocrPreview ? (
-                <div className="space-y-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={ocrPreview}
-                    alt="Bill preview"
-                    className="max-h-48 mx-auto rounded-lg object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={resetBill}
-                    className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-800"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Upload different bill
-                  </button>
+            {mode === "bill" ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <FileImage className="w-5 h-5 text-[#1a9f9a]" />
+                  <h2 className="font-semibold text-neutral-900">1. Upload electricity bill</h2>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-[#1a9f9a]/10 flex items-center justify-center mx-auto">
-                    <Camera className="w-6 h-6 text-[#1a9f9a]" />
+
+                <div
+                  className={`relative rounded-2xl border-2 border-dashed transition-colors ${
+                    ocrPreview ? "border-[#1a9f9a]/40 bg-teal-50/30" : "border-neutral-200 hover:border-[#1a9f9a]/50"
+                  } p-6 text-center`}
+                >
+                  {ocrPreview ? (
+                    <div className="space-y-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={ocrPreview}
+                        alt="Bill preview"
+                        className="max-h-48 mx-auto rounded-lg object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={resetBill}
+                        className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-800"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Upload different bill
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-[#1a9f9a]/10 flex items-center justify-center mx-auto">
+                        <Camera className="w-6 h-6 text-[#1a9f9a]" />
+                      </div>
+                      <p className="text-sm text-neutral-600">
+                        Photo or screenshot of your IESCO, LESCO, MEPCO, or other DISCO bill
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a86] transition-colors"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Choose image
+                      </button>
+                    </div>
+                  )}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) handleBillUpload(f)
+                    }}
+                  />
+                </div>
+
+                {ocrLoading && (
+                  <div className="flex items-center gap-2 text-sm text-neutral-600">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#1a9f9a]" />
+                    Reading bill with OCR…
                   </div>
-                  <p className="text-sm text-neutral-600">
-                    Photo or screenshot of your IESCO, LESCO, MEPCO, or other DISCO bill
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a86] transition-colors"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Choose image
-                  </button>
-                </div>
-              )}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) handleBillUpload(f)
-                }}
-              />
-            </div>
-
-            {ocrLoading && (
-              <div className="flex items-center gap-2 text-sm text-neutral-600">
-                <Loader2 className="w-4 h-4 animate-spin text-[#1a9f9a]" />
-                Reading bill with OCR…
-              </div>
-            )}
-
-            {ocrConfidence && !ocrLoading && (
-              <div
-                className={`flex items-start gap-2 text-sm rounded-xl p-3 ${
-                  ocrConfidence === "high"
-                    ? "bg-emerald-50 text-emerald-800"
-                    : ocrConfidence === "medium"
-                      ? "bg-amber-50 text-amber-800"
-                      : "bg-neutral-100 text-neutral-700"
-                }`}
-              >
-                {ocrConfidence === "high" ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 )}
-                <span>
-                  {ocrConfidence === "high"
-                    ? "Bill read successfully — verify the values below."
-                    : ocrConfidence === "medium"
-                      ? "Partial bill data detected — please confirm units and amount."
-                      : "Low confidence — enter bill details manually below."}
-                </span>
-              </div>
+
+                {ocrConfidence && !ocrLoading && (
+                  <div
+                    className={`flex items-start gap-2 text-sm rounded-xl p-3 ${
+                      ocrConfidence === "high"
+                        ? "bg-emerald-50 text-emerald-800"
+                        : ocrConfidence === "medium"
+                          ? "bg-amber-50 text-amber-800"
+                          : "bg-neutral-100 text-neutral-700"
+                    }`}
+                  >
+                    {ocrConfidence === "high" ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    )}
+                    <span>
+                      {ocrConfidence === "high"
+                        ? "Bill read successfully — verify the values below."
+                        : ocrConfidence === "medium"
+                          ? "Partial bill data detected — please confirm units and amount."
+                          : "Low confidence — enter bill details manually below."}
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-4 pt-2 border-t border-neutral-100">
+                  <p className="text-sm font-medium text-neutral-800">2. Confirm or enter manually</p>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <label className="block space-y-1">
+                      <span className="text-xs text-neutral-500">Monthly units (kWh)</span>
+                      <input
+                        type="number"
+                        value={monthlyUnits}
+                        onChange={(e) => setMonthlyUnits(e.target.value)}
+                        placeholder="e.g. 800"
+                        className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a]"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs text-neutral-500">Bill amount (PKR)</span>
+                      <input
+                        type="number"
+                        value={billAmount}
+                        onChange={(e) => setBillAmount(e.target.value)}
+                        placeholder="e.g. 25000"
+                        className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a]"
+                      />
+                    </label>
+                    <label className="block space-y-1 sm:col-span-2">
+                      <span className="text-xs text-neutral-500">Tariff (PKR/unit, optional)</span>
+                      <input
+                        type="number"
+                        value={tariff}
+                        onChange={(e) => setTariff(e.target.value)}
+                        placeholder="Auto from bill"
+                        className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a]"
+                      />
+                    </label>
+                  </div>
+                  {sharedSettings}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Home className="w-5 h-5 text-[#1a9f9a]" />
+                  <h2 className="font-semibold text-neutral-900">What runs in your home?</h2>
+                </div>
+                <p className="text-sm text-neutral-600">
+                  Select how many of each appliance you have. We estimate daily use and backup need,
+                  then match Voltrix products from our store.
+                </p>
+
+                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                  {HOME_APPLIANCES.map((a) => (
+                    <ApplianceRow
+                      key={a.id}
+                      id={a.id}
+                      label={a.label}
+                      category={a.category}
+                      watts={a.watts}
+                      quantity={applianceQty[a.id] || 0}
+                      onChange={(qty) => updateAppliance(a.id, qty)}
+                    />
+                  ))}
+                </div>
+
+                {appliancePreview && (
+                  <div className="rounded-xl bg-teal-50/80 border border-[#1a9f9a]/20 p-3 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-neutral-500">Daily use</p>
+                      <p className="font-bold text-neutral-900">{appliancePreview.dailyKwh} kWh</p>
+                    </div>
+                    <div>
+                      <p className="text-neutral-500">Monthly units</p>
+                      <p className="font-bold text-neutral-900">{appliancePreview.monthlyUnits}</p>
+                    </div>
+                    <div>
+                      <p className="text-neutral-500">Peak load</p>
+                      <p className="font-bold text-neutral-900">{appliancePreview.peakLoadKw} kW</p>
+                    </div>
+                    <div>
+                      <p className="text-neutral-500">Backup need</p>
+                      <p className="font-bold text-[#1a9f9a]">{appliancePreview.backupKwh} kWh</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-neutral-100 space-y-3">
+                  <p className="text-sm font-medium text-neutral-800">System settings</p>
+                  {sharedSettings}
+                </div>
+              </>
             )}
 
-            <div className="space-y-4 pt-2 border-t border-neutral-100">
-              <p className="text-sm font-medium text-neutral-800">2. Confirm or enter manually</p>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <label className="block space-y-1">
-                  <span className="text-xs text-neutral-500">Monthly units (kWh)</span>
-                  <input
-                    type="number"
-                    value={monthlyUnits}
-                    onChange={(e) => setMonthlyUnits(e.target.value)}
-                    placeholder="e.g. 800"
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a]"
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-neutral-500">Bill amount (PKR)</span>
-                  <input
-                    type="number"
-                    value={billAmount}
-                    onChange={(e) => setBillAmount(e.target.value)}
-                    placeholder="e.g. 25000"
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a]"
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-neutral-500">Tariff (PKR/unit, optional)</span>
-                  <input
-                    type="number"
-                    value={tariff}
-                    onChange={(e) => setTariff(e.target.value)}
-                    placeholder="Auto from bill"
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a]"
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-neutral-500">City</span>
-                  <select
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a] bg-white"
-                  >
-                    {CITIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-neutral-500">Phase</span>
-                  <select
-                    value={phase}
-                    onChange={(e) => setPhase(e.target.value as "single" | "three")}
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a] bg-white"
-                  >
-                    <option value="single">Single phase</option>
-                    <option value="three">Three phase</option>
-                  </select>
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-neutral-500">Backup hours (battery)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={24}
-                    value={backupHours}
-                    onChange={(e) => setBackupHours(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]/30 focus:border-[#1a9f9a]"
-                  />
-                </label>
-              </div>
+            {error && (
+              <p className="text-sm text-red-600 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" /> {error}
+              </p>
+            )}
 
-              {error && (
-                <p className="text-sm text-red-600 flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4" /> {error}
-                </p>
-              )}
-
-              <button
-                type="button"
-                onClick={handleCalculate}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-neutral-900 text-white font-medium text-sm hover:bg-neutral-800 transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                Analyze & recommend system
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={mode === "bill" ? handleCalculateBill : handleCalculateEstimate}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-neutral-900 text-white font-medium text-sm hover:bg-neutral-800 transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              {mode === "bill" ? "Analyze bill & recommend" : "Calculate & recommend Voltrix kit"}
+            </button>
           </div>
 
-          {/* Results */}
           <div className="space-y-4">
             {!result ? (
               <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm text-center space-y-4 min-h-[320px] flex flex-col items-center justify-center">
@@ -375,8 +628,9 @@ export default function SolarCalculator() {
                   <Sun className="w-7 h-7 text-[#1a9f9a]" />
                 </div>
                 <p className="text-neutral-600 text-sm max-w-xs">
-                  Upload a bill or enter your monthly units, then we&apos;ll size your system and
-                  match Voltrix products.
+                  {mode === "bill"
+                    ? "Upload a bill or enter monthly units to size your system."
+                    : "Add your appliances and backup hours — we will match Voltrix products only."}
                 </p>
               </div>
             ) : (
@@ -388,41 +642,61 @@ export default function SolarCalculator() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">
-                        Daily use
-                      </p>
+                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">Daily use</p>
                       <p className="text-lg font-bold text-neutral-900">
-                        {result.dailyKwh.toFixed(1)}{" "}
-                        <span className="text-sm font-normal text-neutral-500">kWh</span>
+                        {result.dailyKwh.toFixed(1)} <span className="text-sm font-normal text-neutral-500">kWh</span>
                       </p>
                     </div>
                     <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">
-                        System size
-                      </p>
+                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">System size</p>
                       <p className="text-lg font-bold text-[#1a9f9a]">
-                        {result.requiredSystemKw}{" "}
-                        <span className="text-sm font-normal text-neutral-500">kW</span>
+                        {result.requiredSystemKw} <span className="text-sm font-normal text-neutral-500">kW</span>
                       </p>
                     </div>
-                    <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">
-                        Est. bill
-                      </p>
-                      <p className="text-lg font-bold text-neutral-900">
-                        PKR {result.estimatedBillPkr?.toLocaleString() ?? "—"}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-neutral-500">
-                        Est. saving
-                      </p>
-                      <p className="text-lg font-bold text-emerald-600">
-                        PKR {result.estimatedMonthlySavingPkr?.toLocaleString() ?? "—"}
-                        <span className="text-xs font-normal text-neutral-500">/mo</span>
-                      </p>
-                    </div>
+                    {result.estimatedBillPkr != null && (
+                      <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-neutral-500">Est. bill</p>
+                        <p className="text-lg font-bold text-neutral-900">
+                          PKR {result.estimatedBillPkr.toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {result.estimatedMonthlySavingPkr != null && (
+                      <div className="rounded-xl bg-white/80 border border-neutral-100 p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-neutral-500">Est. saving</p>
+                        <p className="text-lg font-bold text-emerald-600">
+                          PKR {result.estimatedMonthlySavingPkr.toLocaleString()}
+                          <span className="text-xs font-normal text-neutral-500">/mo</span>
+                        </p>
+                      </div>
+                    )}
+                    {result.backupKwh > 0 && (
+                      <div className="rounded-xl bg-white/80 border border-neutral-100 p-3 col-span-2">
+                        <p className="text-[10px] uppercase tracking-wider text-neutral-500">Backup storage</p>
+                        <p className="text-lg font-bold text-neutral-900">~{result.backupKwh} kWh</p>
+                      </div>
+                    )}
                   </div>
+
+                  {appliancePreview && result.estimateSource === "appliances" && (
+                    <div className="rounded-xl border border-neutral-100 bg-white/60 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-neutral-800">Appliance breakdown</p>
+                      <ul className="text-[11px] text-neutral-600 space-y-1 max-h-32 overflow-y-auto">
+                        {appliancePreview.breakdown.map((item) => (
+                          <li key={item.id} className="flex justify-between gap-2">
+                            <span>
+                              {item.quantity}× {item.label}
+                              {item.backupEssential && (
+                                <span className="text-[#1a9f9a] ml-1">(backup)</span>
+                              )}
+                            </span>
+                            <span className="tabular-nums shrink-0">{item.dailyKwh} kWh/day</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <ul className="text-xs text-neutral-600 space-y-1.5">
                     {result.analysisNotes.map((note, i) => (
                       <li key={i} className="flex gap-2">
@@ -436,67 +710,82 @@ export default function SolarCalculator() {
                 <div className="space-y-3">
                   <h3 className="font-semibold text-neutral-900 flex items-center gap-2">
                     <Sun className="w-4 h-4 text-[#1a9f9a]" />
-                    Recommended kit
+                    Recommended Voltrix kit
                   </h3>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1a9f9a]">
-                      Solar panels
-                    </span>
-                    <p className="font-semibold text-neutral-900 mt-1">
-                      {result.recommendedPanel.quantity} × {result.recommendedPanel.name}
-                    </p>
-                    <p className="text-sm text-neutral-600">
-                      {result.recommendedPanel.wattage}W each — {result.recommendedPanel.totalKw}{" "}
-                      kW total array
-                    </p>
-                    {result.recommendedPanel.product?.id && (
-                      <Link
-                        href={`/products/${result.recommendedPanel.product.id}`}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-[#1a9f9a] hover:underline mt-2"
-                      >
-                        View in catalog <ArrowRight className="w-3 h-3" />
-                      </Link>
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#1a9f9a]">
+                        Solar panels
+                      </span>
+                      <AvailabilityBadge status={result.panelAvailability} />
+                    </div>
+                    {result.recommendedPanel.fromCatalog && result.recommendedPanel.product ? (
+                      <>
+                        <p className="font-semibold text-neutral-900">
+                          {result.recommendedPanel.quantity} × {result.recommendedPanel.name}
+                        </p>
+                        <p className="text-sm text-neutral-600">
+                          {result.recommendedPanel.wattage}W each — {result.recommendedPanel.totalKw} kW total
+                        </p>
+                        <Link
+                          href={`/products/${result.recommendedPanel.product.id}`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-[#1a9f9a] hover:underline"
+                        >
+                          View in catalog <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-neutral-900">
+                          ~{result.recommendedPanel.quantity} panels × {result.recommendedPanel.wattage}W
+                          <span className="font-normal text-neutral-500"> ({result.recommendedPanel.totalKw} kW)</span>
+                        </p>
+                        <p className="text-sm text-neutral-600">
+                          Sizing reference only — panels not listed in our store right now.
+                        </p>
+                      </>
                     )}
                   </div>
 
                   {result.recommendedInverter ? (
                     <ProductCard
                       product={result.recommendedInverter}
-                      badge={
-                        result.kitIsFusionCombo
-                          ? "Inverter + Battery (all-in-one)"
-                          : "Inverter"
-                      }
+                      badge={result.kitIsFusionCombo ? "Inverter + Battery (all-in-one)" : "Inverter"}
+                      availability={result.inverterAvailability}
                     />
                   ) : (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                      No matching inverter in catalog for {result.requiredSystemKw} kW — contact
-                      sales for a custom quote.
+                      No matching Voltrix inverter for ~{result.requiredSystemKw} kW — not available in store
+                      right now. Contact sales for a custom quote.
                     </div>
                   )}
 
-                  {result.backupKwh > 0 &&
-                    !result.kitIsFusionCombo &&
-                    (result.recommendedBattery ? (
-                      <ProductCard product={result.recommendedBattery} badge="Battery backup" />
+                  {result.backupKwh > 0 && !result.kitIsFusionCombo && (
+                    result.recommendedBattery ? (
+                      <ProductCard
+                        product={result.recommendedBattery}
+                        badge="Battery backup"
+                        availability={result.batteryAvailability}
+                      />
                     ) : (
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                        No battery ≥ {result.backupKwh} kWh in catalog — request a quote for storage.
+                        No Voltrix battery ≥ {result.backupKwh} kWh in store right now — request a quote for
+                        storage.
                       </div>
-                    ))}
+                    )
+                  )}
 
                   {result.recommendedInverter && (
                     <p className="text-xs text-neutral-500 px-1">
                       {result.kitIsFusionCombo ? (
                         <>
-                          All-in-one: ~{getProductKw(result.recommendedInverter) || "—"} kW inverter
-                          {" · "}
-                          ~{getProductKwh(result.recommendedInverter) || "—"} kWh battery
+                          All-in-one: ~{getProductKw(result.recommendedInverter) || "—"} kW inverter · ~
+                          {getProductKwh(result.recommendedInverter) || "—"} kWh battery
                         </>
                       ) : (
                         <>
-                          Inverter rating: ~{getProductKw(result.recommendedInverter) || "—"} kW
+                          Inverter: ~{getProductKw(result.recommendedInverter) || "—"} kW
                           {result.recommendedBattery &&
                             ` · Battery: ~${getProductKwh(result.recommendedBattery) || "—"} kWh`}
                         </>

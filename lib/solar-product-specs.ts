@@ -151,6 +151,31 @@ export function isInStock(p: CatalogProduct): boolean {
   return false
 }
 
+export type ProductAvailability = "in_stock" | "low_stock" | "out_of_stock" | "not_in_catalog"
+
+export function getProductAvailability(p: CatalogProduct | null | undefined): ProductAvailability {
+  if (!p?.id) return "not_in_catalog"
+  const s = p.stock
+  if (s === "low") return "low_stock"
+  if (s === "out" || s === 0 || s === "0") return "out_of_stock"
+  if (s === "in") return "in_stock"
+  if (typeof s === "number") return s > 0 ? "in_stock" : "out_of_stock"
+  return "in_stock"
+}
+
+export function productAvailabilityLabel(status: ProductAvailability): string {
+  switch (status) {
+    case "in_stock":
+      return "In stock"
+    case "low_stock":
+      return "Low stock"
+    case "out_of_stock":
+      return "Not available in store right now"
+    case "not_in_catalog":
+      return "Not available in store right now"
+  }
+}
+
 /** Fallback panels when catalog has no published panel SKUs. */
 export const DEFAULT_SOLAR_PANELS = [
   { id: "default-longi-620-bifacial", name: "Longi 620W Bifacial Panel", wattage: 620 },
