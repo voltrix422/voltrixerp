@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import {
   Loader2, Plus, Trash2, Upload, X, ImageIcon,
-  Globe, EyeOff, RefreshCw, Star, Check, GripVertical
+  Globe, EyeOff, RefreshCw, Star, Check, GripVertical, Megaphone
 } from "lucide-react"
 import ProductBrochureField from "@/components/website/product-brochure-field"
 import ProductUserManualField from "@/components/website/product-user-manual-field"
@@ -77,16 +77,29 @@ export default function ProductsManager() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [bannerEnabled, setBannerEnabled] = useState(false)
+  const [bannerProductId, setBannerProductId] = useState<string>("")
+  const [bannerSaving, setBannerSaving] = useState(false)
+  const [bannerOk, setBannerOk] = useState(false)
   const fileRef                       = useRef<HTMLInputElement>(null)
   const dragIdx                       = useRef<number | null>(null)
 
   const fetchAll = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/products')
-      const data = await res.json()
+      const [productsRes, bannerRes] = await Promise.all([
+        fetch('/api/products'),
+        fetch('/api/site/banner'),
+      ])
+      const data = await productsRes.json()
       const sorted = (data || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
       setProducts(sorted)
+
+      if (bannerRes.ok) {
+        const banner = await bannerRes.json()
+        setBannerEnabled(Boolean(banner.enabled))
+        setBannerProductId(banner.productId ? String(banner.productId) : "")
+      }
     } catch (error) {
       console.error('Error fetching products:', error)
       setProducts([])
@@ -364,9 +377,112 @@ export default function ProductsManager() {
     }).catch(err => console.error('Error saving order:', err))
   }
 
+  const saveBanner = async () => {
+    if (bannerEnabled && !bannerProductId) {
+      setSaveError("Select a product for the homepage popup banner.")
+      return
+    }
+    setBannerSaving(true)
+    setBannerOk(false)
+    try {
+      const res = await fetch('/api/site/banner', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: bannerEnabled,
+          productId: bannerProductId || null,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(String(data?.error || 'Failed to save banner settings'))
+      }
+      setBannerOk(true)
+      setTimeout(() => setBannerOk(false), 3000)
+    } catch (error: unknown) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save banner settings')
+    } finally {
+      setBannerSaving(false)
+    }
+  }
+
+  const setProductAsBanner = (productId: string) => {
+    setBannerProductId(productId)
+    setBannerEnabled(true)
+  }
+
   const allImages = [...form.images, ...pendingImgs.map(p => p.preview)]
 
   return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Homepage popup banner settings */}
+      <div className="shrink-0 border-b bg-gradient-to-r from-teal-50/80 via-white to-emerald-50/50 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 max-w-5xl">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1a9f9a]/10 text-[#1a9f9a] shrink-0">
+              <Megaphone className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Homepage popup banner</p>
+              <p className="text-[11px] text-muted-foreground truncate">
+                Big product popup on the main website — image, specs, pricing & spec sheet
+              </p>
+            </div>
+          </div>
+
+          <label className="inline-flex items-center gap-2 text-xs font-medium cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={bannerEnabled}
+              onChange={e => setBannerEnabled(e.target.checked)}
+              className="rounded border-neutral-300 text-[#1a9f9a] focus:ring-[#1a9f9a]"
+            />
+            Enable popup
+          </label>
+
+          <select
+            value={bannerProductId}
+            onChange={e => setBannerProductId(e.target.value)}
+            className="h-8 min-w-[180px] flex-1 max-w-xs rounded-lg border bg-white px-3 text-xs outline-none focus:border-[#1a9f9a]"
+          >
+            <option value="">Select product…</option>
+            {products.filter(p => p.published).map(p => {
+              const display = getProductDisplayName({ name: p.name, model: p.model })
+              return (
+                <option key={p.id} value={p.id}>
+                  {display.title}{display.model ? ` · ${display.model}` : ""}
+                </option>
+              )
+            })}
+          </select>
+
+          {selected && selected.published && bannerProductId !== selected.id && (
+            <button
+              type="button"
+              onClick={() => setProductAsBanner(selected.id)}
+              className="text-[11px] font-medium text-[#1a9f9a] hover:underline shrink-0"
+            >
+              Use selected product
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={saveBanner}
+            disabled={bannerSaving}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60 shrink-0"
+            style={{ backgroundColor: "#1a9f9a" }}
+          >
+            {bannerSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Save banner
+          </button>
+
+          {bannerOk && (
+            <span className="text-[11px] font-medium text-emerald-600 shrink-0">Banner saved</span>
+          )}
+        </div>
+      </div>
+
     <div className="flex flex-1 overflow-hidden">
 
       {/* ── Sidebar ── */}
@@ -421,6 +537,11 @@ export default function ProductsManager() {
                 {p.published
                   ? <Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   : <EyeOff className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0" />}
+                {bannerEnabled && bannerProductId === p.id && (
+                  <span title="Homepage popup banner">
+                    <Megaphone className="w-3.5 h-3.5 text-[#1a9f9a] shrink-0" />
+                  </span>
+                )}
               </button>
               )
             })}
@@ -833,6 +954,7 @@ export default function ProductsManager() {
           </div>
         </div>
       )}
+    </div>
     </div>
   )
 }
