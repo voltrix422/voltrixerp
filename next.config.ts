@@ -5,18 +5,10 @@ const nextConfig: NextConfig = {
     remotePatterns: [],
     unoptimized: true,
   },
+  // Excel export uses a dynamic client import; empty turbopack avoids
+  // Next 16 error when any webpack-related tooling is present.
+  turbopack: {},
   serverExternalPackages: ["exceljs"],
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-      stream: false,
-      path: false,
-      crypto: false,
-      zlib: false,
-    }
-    return config
-  },
   async headers() {
     return [
       {
