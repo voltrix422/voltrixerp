@@ -278,7 +278,7 @@ export async function downloadFinanceReportPDF(
     autoTable(doc, {
       ...tableOpts(y),
       head: [["Method", "Amount"]],
-      body: data.paymentMethods.map((r) => [safeText(r.method, 30), fmt(r.amount)]),
+      body: (data.paymentMethods || []).map((r) => [safeText(r.method, 30), fmt(r.amount)]),
       columnStyles: { 1: { halign: "right" } },
     })
     y = afterTable(doc)
@@ -295,7 +295,7 @@ export async function downloadFinanceReportPDF(
     autoTable(doc, {
       ...tableOpts(y),
       head: [["Date", "Order", "Client", "Method", "By", "Order total", "Received"]],
-      body: data.orderPayments.map((p) => [
+      body: (data.orderPayments || []).map((p) => [
         p.date,
         p.orderNumber,
         safeText(p.clientName, 22),
@@ -443,7 +443,7 @@ export async function downloadFinanceReportPDF(
     autoTable(doc, {
       ...tableOpts(y),
       head: [["Ledger #", "Date", "Supplier", "Product / note", "Total", "Paid", "Due"]],
-      body: data.purchaseLedger.map((r) => [
+      body: (data.purchaseLedger || []).map((r) => [
         r.ledgerNumber,
         r.date,
         safeText(r.supplierName, 18),
@@ -622,7 +622,7 @@ export async function downloadFinanceReportExcel(
     summary.addRow(["Cash by payment method"]).font = { bold: true, size: 12 }
     const pmH = summary.addRow(["Method", "Amount (PKR)"])
     styleHeaderRow(pmH)
-    data.paymentMethods.forEach((r) => {
+    (data.paymentMethods || []).forEach((r) => {
       const row = summary.addRow([r.method, num(r.amount)])
       row.getCell(2).numFmt = '#,##0'
     })
