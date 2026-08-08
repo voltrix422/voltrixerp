@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth-provider"
 import { localDateISO, localDaysAgoISO } from "@/lib/website-analytics"
 import {
-  downloadFinanceReportCSV,
+  downloadFinanceReportExcel,
   downloadFinanceReportPDF,
   type FinanceReportPayload,
 } from "@/lib/generate-finance-report-pdf"
@@ -139,7 +139,7 @@ export function FinanceReportPanel() {
   const [from, setFrom] = useState(() => rangeForMode("month").from)
   const [to, setTo] = useState(() => rangeForMode("month").to)
   const [loading, setLoading] = useState(true)
-  const [exporting, setExporting] = useState<"pdf" | "csv" | null>(null)
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null)
   const [error, setError] = useState("")
   const [data, setData] = useState<FinanceReportPayload | null>(null)
   const reqId = useRef(0)
@@ -194,11 +194,11 @@ export function FinanceReportPanel() {
     }
   }
 
-  function onCsv() {
+  async function onExcel() {
     if (!data) return
-    setExporting("csv")
+    setExporting("xlsx")
     try {
-      downloadFinanceReportCSV(data)
+      await downloadFinanceReportExcel(data, user?.name || "Admin")
     } finally {
       setExporting(null)
     }
@@ -215,7 +215,7 @@ export function FinanceReportPanel() {
             Finance report
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Admin only · Orders, expenses, petty cash, local &amp; imported purchases for the selected period.
+            Admin only · Orders cash, petty allocations, local &amp; imported purchases, ledger — export as PDF or Excel.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -240,14 +240,14 @@ export function FinanceReportPanel() {
             variant="outline"
             className="h-8"
             disabled={!data || !!exporting}
-            onClick={onCsv}
+            onClick={() => void onExcel()}
           >
-            {exporting === "csv" ? (
+            {exporting === "xlsx" ? (
               <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
             ) : (
               <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
             )}
-            CSV / Sheet
+            Excel
           </Button>
           <Button
             type="button"
@@ -326,14 +326,24 @@ export function FinanceReportPanel() {
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             <Stat label="Delivered revenue" value={fmt(s.deliveredRevenue)} hint={`${s.deliveredCount} orders`} accent />
             <Stat label="Orders created value" value={fmt(s.allOrdersValue)} hint={`${s.allOrdersCount} orders`} />
-            <Stat label="Cash received" value={fmt(s.cashReceived)} hint="Approved client payments" />
+            <Stat
+              label="Cash received on orders"
+              value={fmt(s.cashReceived)}
+              hint={`${s.orderPaymentsCount || 0} approved payments`}
+              accent
+            />
             <Stat label="POS sales" value={fmt(s.posSalesTotal)} hint={`${s.posCount} sales`} />
             <Stat label="Expenses" value={fmt(s.expensesTotal)} hint="Finance records" />
-            <Stat label="Petty allocated" value={fmt(s.pettyAllocated)} />
-            <Stat label="Petty spent (approved)" value={fmt(s.pettyApprovedSpent)} hint={s.pettyPending ? `${fmt(s.pettyPending)} pending` : undefined} />
-            <Stat label="Local PO value" value={fmt(s.localPoValue)} hint={`${s.localPoCount} POs · paid ${fmt(s.localPaid)}`} />
-            <Stat label="Imported PO value" value={fmt(s.importedPoValue)} hint={`${s.importedPoCount} POs · paid ${fmt(s.importedPaid)}`} />
+            <Stat
+              label="Petty cash allocated"
+              value={fmt(s.pettyAllocated)}
+              hint={`${s.pettyAllocationsCount || 0} allocations`}
+            />
+            <Stat label="Local purchases" value={fmt(s.localPoValue)} hint={`${s.localPoCount} POs · paid ${fmt(s.localPaid)}`} />
+            <Stat label="Imported purchases" value={fmt(s.importedPoValue)} hint={`${s.importedPoCount} POs · paid ${fmt(s.importedPaid)}`} />
             <Stat label="Import shipments landed" value={fmt(s.importShipmentsLanded)} hint={`Paid ${fmt(s.importShipmentsPaid)}`} />
+            <Stat label="Purchase total" value={fmt(s.purchaseTotalValue)} hint="Local + imported + shipments" />
+            <Stat label="Purchase ledger paid" value={fmt(s.ledgerSpend)} hint={`${s.ledgerCount || 0} entries · total ${fmt(s.ledgerTotal)}`} />
             <Stat label="Money in" value={fmt(s.moneyIn)} accent />
             <Stat label="Money out" value={fmt(s.moneyOut)} />
             <Stat
@@ -346,80 +356,89 @@ export function FinanceReportPanel() {
 
           <div className="grid lg:grid-cols-2 gap-4">
             <MiniTable
-              title="Expenses by category"
-              headers={["Category", "Amount"]}
-              rows={(data?.expensesByCategory || []).map((r) => [r.category, fmt(r.amount)])}
-              empty="No expenses in this period"
-            />
-            <MiniTable
               title="Payment methods (cash in)"
               headers={["Method", "Amount"]}
               rows={(data?.paymentMethods || []).map((r) => [r.method, fmt(r.amount)])}
               empty="No approved payments in this period"
             />
+            <MiniTable
+              title="Expenses by category"
+              headers={["Category", "Amount"]}
+              rows={(data?.expensesByCategory || []).map((r) => [r.category, fmt(r.amount)])}
+              empty="No expenses in this period"
+            />
           </div>
 
           <MiniTable
+            title="Order cash received (approved payments)"
+            headers={["Date", "Order", "Client", "Method", "By", "Received"]}
+            rows={(data?.orderPayments || []).map((p) => [
+              p.date,
+              p.orderNumber,
+              p.clientName,
+              p.method,
+              p.recordedBy || "—",
+              fmt(p.amount),
+            ])}
+            empty="No approved order payments in this period"
+          />
+
+          <MiniTable
             title="Delivered orders"
-            headers={["Order", "Client", "Date", "Total"]}
+            headers={["Order", "Client", "Date", "Total", "Cash on order"]}
             rows={(data?.deliveredOrders || []).map((o) => [
               o.orderNumber,
               o.clientName,
               o.date,
               fmt(o.total),
+              fmt(o.cashReceived),
             ])}
             empty="No delivered orders in this period"
           />
 
           <MiniTable
-            title="Each expense / finance record"
-            headers={["Date", "Title", "Category", "Amount"]}
-            rows={(data?.expenseLines || []).map((e) => [
-              e.date,
-              e.title,
-              e.category,
-              fmt(e.amount),
+            title="Petty cash allocated"
+            headers={["Date", "Given to", "Allocated by", "Purpose", "Amount"]}
+            rows={(data?.pettyAllocations || []).map((a) => [
+              a.date,
+              a.employeeName,
+              a.allocatedBy || "—",
+              a.purpose || "—",
+              fmt(a.amount),
             ])}
-            empty="No finance records in this period"
+            empty="No allocations in this period"
           />
 
           <div className="grid lg:grid-cols-2 gap-4">
             <MiniTable
-              title="Petty cash allocations"
-              headers={["Date", "Employee", "Purpose", "Amount"]}
-              rows={(data?.pettyAllocations || []).map((a) => [
-                a.date,
-                a.employeeName,
-                a.purpose || "—",
-                fmt(a.amount),
-              ])}
-              empty="No allocations in this period"
+              title="Local / trade purchases"
+              headers={["PO", "Supplier", "Date", "Value", "Paid"]}
+              rows={(data?.purchases || [])
+                .filter((p) => p.type !== "imported")
+                .map((p) => [
+                  p.poNumber,
+                  p.supplier || "—",
+                  p.date,
+                  fmt(p.value),
+                  fmt(p.paidInPeriod),
+                ])}
+              empty="No local purchase activity in this period"
             />
             <MiniTable
-              title="Petty cash receipts"
-              headers={["Date", "Description", "Status", "Amount"]}
-              rows={(data?.pettySpend || []).map((r) => [
-                r.date,
-                r.description,
-                r.status,
-                fmt(r.amount),
-              ])}
-              empty="No receipts in this period"
+              title="Imported purchases"
+              headers={["PO", "Supplier", "Date", "Value", "Paid"]}
+              rows={(data?.purchases || [])
+                .filter((p) => p.type === "imported")
+                .map((p) => [
+                  p.poNumber,
+                  p.supplier || "—",
+                  p.date,
+                  fmt(p.value),
+                  fmt(p.paidInPeriod),
+                ])}
+              empty="No imported PO activity in this period"
             />
           </div>
-
-          <MiniTable
-            title="Purchases (local & imported)"
-            headers={["PO", "Type", "Date", "Value", "Paid"]}
-            rows={(data?.purchases || []).map((p) => [
-              p.poNumber,
-              p.type,
-              p.date,
-              fmt(p.value),
-              fmt(p.paidInPeriod),
-            ])}
-            empty="No purchase orders created in this period"
-          />
 
           <MiniTable
             title="Import shipments"
@@ -432,6 +451,31 @@ export function FinanceReportPanel() {
               fmt(sh.paidInPeriod),
             ])}
             empty="No import shipments in this period"
+          />
+
+          <MiniTable
+            title="Purchase ledger"
+            headers={["Ledger #", "Date", "Supplier", "Total", "Paid"]}
+            rows={(data?.purchaseLedger || []).map((r) => [
+              r.ledgerNumber,
+              r.date,
+              r.supplierName || "—",
+              fmt(r.totalAmount),
+              fmt(r.amountPaid),
+            ])}
+            empty="No purchase ledger entries in this period"
+          />
+
+          <MiniTable
+            title="Expense / finance records"
+            headers={["Date", "Title", "Category", "Amount"]}
+            rows={(data?.expenseLines || []).map((e) => [
+              e.date,
+              e.title,
+              e.category,
+              fmt(e.amount),
+            ])}
+            empty="No finance records in this period"
           />
         </>
       ) : null}

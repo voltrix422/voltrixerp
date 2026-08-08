@@ -5,6 +5,18 @@ const nextConfig: NextConfig = {
     remotePatterns: [],
     unoptimized: true,
   },
+  serverExternalPackages: ["exceljs"],
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      stream: false,
+      path: false,
+      crypto: false,
+      zlib: false,
+    }
+    return config
+  },
   async headers() {
     return [
       {

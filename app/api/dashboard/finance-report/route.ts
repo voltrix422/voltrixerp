@@ -47,7 +47,6 @@ function parseDay(s: string | null | undefined, fallback: Date): Date {
   if (!s) return fallback
   const t = Date.parse(s)
   if (!Number.isNaN(t)) return new Date(t)
-  // YYYY-MM-DD
   if (DATE_ONLY.test(s)) return new Date(`${s}T12:00:00${PK_OFFSET}`)
   return fallback
 }
@@ -64,24 +63,37 @@ function asArray<T>(v: unknown): T[] {
   return Array.isArray(v) ? (v as T[]) : []
 }
 
+function supplierLabel(po: {
+  supplierNames?: unknown
+  importedSupplierName?: string | null
+}): string {
+  const names = asArray<string>(po.supplierNames).filter(Boolean)
+  if (names.length) return names.join(", ")
+  return (po.importedSupplierName || "").trim()
+}
+
 function calcImportedPoValue(po: {
   importedItems?: unknown
   items?: unknown
   paymentAmount?: number | null
+  payments?: unknown
 }): number {
   const imported = asArray<{ unitPrice?: number; qty?: number; quantity?: number }>(po.importedItems)
   if (imported.length > 0) {
-    return imported.reduce(
+    const sum = imported.reduce(
       (s, i) => s + (Number(i.unitPrice) || 0) * (Number(i.qty ?? i.quantity) || 0),
       0,
     )
+    if (sum > 0) return sum
   }
   const items = asArray<{ totalPrice?: number; unitPrice?: number; qty?: number }>(po.items)
   const fromItems = items.reduce(
     (s, i) => s + (Number(i.totalPrice) || (Number(i.unitPrice) || 0) * (Number(i.qty) || 0)),
     0,
   )
-  return fromItems || Number(po.paymentAmount) || 0
+  if (fromItems > 0) return fromItems
+  if (Number(po.paymentAmount) > 0) return Number(po.paymentAmount)
+  return asArray<{ amount?: number }>(po.payments).reduce((s, p) => s + (Number(p.amount) || 0), 0)
 }
 
 function calcLocalPoValue(po: Record<string, unknown>): number {
@@ -94,10 +106,19 @@ function calcLocalPoValue(po: Record<string, unknown>): number {
       supplierNames: asArray(po.supplierNames),
       importedItems: asArray(po.importedItems),
     } as unknown as PurchaseOrder
-    return getLocalPoTotal(mapped)
+    const fromQuote = getLocalPoTotal(mapped)
+    if (fromQuote > 0) return fromQuote
   } catch {
-    return 0
+    /* fall through */
   }
+  const items = asArray<{ totalPrice?: number; unitPrice?: number; qty?: number }>(po.items)
+  const fromItems = items.reduce(
+    (s, i) => s + (Number(i.totalPrice) || (Number(i.unitPrice) || 0) * (Number(i.qty) || 0)),
+    0,
+  )
+  if (fromItems > 0) return fromItems
+  if (Number(po.paymentAmount) > 0) return Number(po.paymentAmount)
+  return asArray<{ amount?: number }>(po.payments).reduce((s, p) => s + (Number(p.amount) || 0), 0)
 }
 
 function poPaymentsInRange(
@@ -112,6 +133,46 @@ function poPaymentsInRange(
     if (inRange(d, from, to)) sum += Number(p.amount) || 0
   }
   return sum
+}
+
+function shipmentLandedPkr(sh: {
+  landedCostSummary: unknown
+  items: unknown
+  fxRate?: number | null
+  charges?: unknown
+}): number {
+  const summary = (sh.landedCostSummary || {}) as Partial<LandedCostSummary>
+  const grand = Number(summary.grandTotalPkr) || 0
+  if (grand > 0) return grand
+  const product = Number(summary.productTotalPkr) || 0
+  if (product > 0) {
+    return (
+      product +
+      (Number(summary.sharedChargesPkr) || 0) +
+      (Number(summary.directChargesPkr) || 0)
+    )
+  }
+  const fx = Number(sh.fxRate) || Number(summary.fxRate) || 0
+  const items = asArray<{
+    qty?: number
+    unitPriceForeign?: number
+    actualPrice?: number
+    productCostPkr?: number
+  }>(sh.items)
+  const fromItems = items.reduce((s, i) => {
+    if (Number(i.productCostPkr) > 0) return s + Number(i.productCostPkr)
+    const unitFc = Number(i.actualPrice) || Number(i.unitPriceForeign) || 0
+    const qty = Number(i.qty) || 0
+    return s + unitFc * qty * (fx || 0)
+  }, 0)
+  if (fromItems > 0) {
+    const charges = asArray<{ amountPkr?: number; amount?: number }>(sh.charges).reduce(
+      (s, c) => s + (Number(c.amountPkr) || Number(c.amount) || 0),
+      0,
+    )
+    return fromItems + charges
+  }
+  return 0
 }
 
 export async function GET(req: NextRequest) {
@@ -149,6 +210,7 @@ export async function GET(req: NextRequest) {
             paymentAmount: true,
             finalizedSupplierId: true,
             supplierNames: true,
+            importedSupplierName: true,
           },
         }),
         prisma.erpFinanceRecord.findMany({
@@ -160,6 +222,7 @@ export async function GET(req: NextRequest) {
             allocatedAt: { gte: from, lte: to },
             status: { notIn: ["rejected"] },
           },
+          orderBy: { allocatedAt: "desc" },
         }),
         prisma.erpPettyCashReceipt.findMany({
           where: {
@@ -181,6 +244,9 @@ export async function GET(req: NextRequest) {
             landedCostSummary: true,
             payments: true,
             supplierName: true,
+            items: true,
+            charges: true,
+            fxRate: true,
           },
         }),
         prisma.erpPurchaseLedger.findMany({
@@ -190,9 +256,12 @@ export async function GET(req: NextRequest) {
             category: true,
             totalAmount: true,
             amountPaid: true,
+            amountDue: true,
             transactionDate: true,
             supplierName: true,
             productName: true,
+            transactionType: true,
+            createdBy: true,
           },
         }),
       ])
@@ -217,6 +286,16 @@ export async function GET(req: NextRequest) {
       status: string
       total: number
       cashReceived: number
+    }> = []
+    const orderPayments: Array<{
+      orderNumber: string
+      clientName: string
+      date: string
+      method: string
+      amount: number
+      recordedBy: string
+      orderStatus: string
+      orderTotal: number
     }> = []
     const paymentMethods: Record<string, number> = {}
 
@@ -263,11 +342,22 @@ export async function GET(req: NextRequest) {
           cashReceived += amount
           const method = p.method || "Other"
           paymentMethods[method] = (paymentMethods[method] || 0) + amount
+          orderPayments.push({
+            orderNumber: row.orderNumber,
+            clientName: row.clientName,
+            date: d.toISOString().slice(0, 10),
+            method,
+            amount,
+            recordedBy: p.createdBy || "—",
+            orderStatus: row.status,
+            orderTotal: row.total || 0,
+          })
         }
       }
     }
 
     deliveredOrders.sort((a, b) => b.date.localeCompare(a.date))
+    orderPayments.sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount)
 
     // ── Finance records / expenses ──────────────────────────
     let expensesTotal = 0
@@ -312,9 +402,11 @@ export async function GET(req: NextRequest) {
       id: a.id,
       date: a.allocatedAt.toISOString().slice(0, 10),
       employeeName: a.employeeName,
+      allocatedBy: a.allocatedBy || "—",
       amount: a.amount,
       status: a.status,
       purpose: a.purpose || "",
+      payoutMethod: a.payoutMethod || "",
     }))
     const pettySpendLines = pettyReceipts
       .filter((r) => r.status === "approved" || r.status === "pending")
@@ -325,6 +417,7 @@ export async function GET(req: NextRequest) {
       .map((r) => ({
         id: r.id,
         date: (r.reviewedAt || r.submittedAt)!.toISOString().slice(0, 10),
+        employeeName: r.employeeName,
         description: r.description,
         amount: r.amount,
         status: r.status,
@@ -342,8 +435,10 @@ export async function GET(req: NextRequest) {
       type: string
       date: string
       status: string
+      supplier: string
       value: number
       paidInPeriod: number
+      createdInPeriod: boolean
     }> = []
 
     for (const po of pos) {
@@ -354,8 +449,9 @@ export async function GET(req: NextRequest) {
         type === "imported"
           ? calcImportedPoValue(po)
           : calcLocalPoValue(po as unknown as Record<string, unknown>)
+      const createdInPeriod = inRange(created, from, to)
 
-      if (inRange(created, from, to)) {
+      if (createdInPeriod) {
         if (type === "imported") {
           importedPoValue += value
           importedPoCount++
@@ -363,21 +459,29 @@ export async function GET(req: NextRequest) {
           localPoValue += value
           localPoCount++
         }
+      }
+
+      if (type === "imported") importedPaid += paid
+      else localPaid += paid
+
+      // Include if created in period OR had payment activity in period
+      if (createdInPeriod || paid > 0) {
         purchaseLines.push({
           poNumber: po.poNumber || po.id.slice(0, 8),
           type,
           date: created.toISOString().slice(0, 10),
           status: po.status,
+          supplier: supplierLabel(po),
           value,
           paidInPeriod: paid,
+          createdInPeriod,
         })
       }
-
-      if (type === "imported") importedPaid += paid
-      else localPaid += paid
     }
 
-    // Import shipments (new flow)
+    purchaseLines.sort((a, b) => b.date.localeCompare(a.date))
+
+    // Import shipments
     let importShipmentsLanded = 0
     let importShipmentsPaid = 0
     const shipmentLines: Array<{
@@ -391,12 +495,11 @@ export async function GET(req: NextRequest) {
 
     for (const sh of shipments) {
       const created = new Date(sh.createdAt)
-      const summary = (sh.landedCostSummary || {}) as unknown as LandedCostSummary
-      const landed = Number(summary.grandTotalPkr) || 0
+      const landed = shipmentLandedPkr(sh)
       const paid = poPaymentsInRange(sh.payments, created, from, to)
       importShipmentsPaid += paid
-      if (inRange(created, from, to)) {
-        importShipmentsLanded += landed
+      if (inRange(created, from, to) || paid > 0) {
+        if (inRange(created, from, to)) importShipmentsLanded += landed
         shipmentLines.push({
           shipmentNumber: sh.shipmentNumber,
           supplierName: sh.supplierName || "",
@@ -408,10 +511,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const ledgerSpend = ledgerInRange.reduce(
-      (s, r) => s + (Number(r.amountPaid) || Number(r.totalAmount) || 0),
+    shipmentLines.sort((a, b) => b.date.localeCompare(a.date))
+
+    const ledgerLines = ledgerInRange
+      .map((r) => ({
+        ledgerNumber: r.ledgerNumber,
+        date: r.transactionDate,
+        supplierName: r.supplierName || "",
+        productName: r.productName || "",
+        category: r.category,
+        transactionType: r.transactionType,
+        totalAmount: Number(r.totalAmount) || 0,
+        amountPaid: Number(r.amountPaid) || 0,
+        amountDue: Number(r.amountDue) || 0,
+        createdBy: r.createdBy || "",
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date))
+
+    const ledgerSpend = ledgerLines.reduce(
+      (s, r) => s + (r.amountPaid || r.totalAmount || 0),
       0,
     )
+    const ledgerTotal = ledgerLines.reduce((s, r) => s + r.totalAmount, 0)
+    const purchaseTotalValue = localPoValue + importedPoValue + importShipmentsLanded
 
     // ── POS ─────────────────────────────────────────────────
     const posSalesTotal = posSales.reduce((s, r) => s + r.total, 0)
@@ -432,10 +554,12 @@ export async function GET(req: NextRequest) {
         deliveredCount,
         deliveredRevenue,
         cashReceived,
+        orderPaymentsCount: orderPayments.length,
         commissionOnDelivered,
         expensesTotal,
         incomeRecordsTotal,
         pettyAllocated,
+        pettyAllocationsCount: pettyAllocLines.length,
         pettyApprovedSpent,
         pettyPending,
         localPoCount,
@@ -446,7 +570,10 @@ export async function GET(req: NextRequest) {
         importedPaid,
         importShipmentsLanded,
         importShipmentsPaid,
+        purchaseTotalValue,
         ledgerSpend,
+        ledgerTotal,
+        ledgerCount: ledgerLines.length,
         posSalesTotal,
         posCount,
         moneyIn,
@@ -459,12 +586,14 @@ export async function GET(req: NextRequest) {
       paymentMethods: Object.entries(paymentMethods)
         .map(([method, amount]) => ({ method, amount }))
         .sort((a, b) => b.amount - a.amount),
-      deliveredOrders: deliveredOrders.slice(0, 200),
-      expenseLines: expenseLines.slice(0, 300),
-      pettyAllocations: pettyAllocLines.slice(0, 100),
-      pettySpend: pettySpendLines.slice(0, 100),
-      purchases: purchaseLines.slice(0, 200),
-      importShipments: shipmentLines.slice(0, 100),
+      orderPayments,
+      deliveredOrders,
+      expenseLines,
+      pettyAllocations: pettyAllocLines,
+      pettySpend: pettySpendLines,
+      purchases: purchaseLines,
+      importShipments: shipmentLines,
+      purchaseLedger: ledgerLines,
       generatedAt: new Date().toISOString(),
     })
   } catch (e) {
