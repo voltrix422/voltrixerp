@@ -206,7 +206,7 @@ export const CHART_TOOLTIP_STYLE = {
   fontSize: "11px",
 }
 
-export type DashboardMainTab = "overview" | "approvals" | "finance"
+export type DashboardMainTab = "overview" | "approvals" | "finance" | "backup"
 
 export function DashboardMainTabs({
   active,
@@ -221,6 +221,7 @@ export function DashboardMainTabs({
     { id: "overview", label: "Overview" },
     { id: "approvals", label: "Approvals" },
     { id: "finance", label: "Finance report" },
+    { id: "backup", label: "Backup" },
   ]
 
   return (

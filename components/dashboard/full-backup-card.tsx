@@ -339,94 +339,134 @@ export function FullBackupCard() {
         />
       )}
 
-      <div className="rounded-xl border border-[#1faca6]/25 bg-gradient-to-br from-[#1faca6]/8 via-[hsl(var(--card))] to-[hsl(var(--card))] p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-1.5">
-            <p className="text-sm font-semibold flex items-center gap-2">
-              <Archive className="h-4 w-4 text-[#1faca6]" />
-              Full system backup
-            </p>
-            <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
-              Creates a ZIP of <strong className="text-foreground font-medium">everything</strong>:
-              PostgreSQL database, all uploads, website data, Prisma schema, and optionally{" "}
-              <code className="text-[10px]">.env</code>. Live progress shows how much is done and how much is left.
-            </p>
-            <label className="flex items-center gap-2 text-[11px] text-muted-foreground pt-1 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="rounded border"
-                checked={includeEnv}
-                disabled={busy || phase === "ready"}
-                onChange={(e) => setIncludeEnv(e.target.checked)}
-              />
-              Include <code className="text-[10px]">env.backup</code> (secrets — keep the ZIP private)
-            </label>
-            {includeEnv && (
-              <p className="text-[10px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                <ShieldAlert className="h-3 w-3 shrink-0" />
-                env.backup contains database passwords and API keys
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <Archive className="h-4 w-4 text-[#1faca6]" />
+            System backup
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Download a complete ZIP of the ERP — admin only.
+          </p>
+        </div>
+
+        <div className="max-w-md rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1faca6]/12 text-[#1faca6]">
+              <Archive className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Full system backup</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Database, uploads, website data, and schema in one ZIP.
               </p>
-            )}
-            {prepared && (phase === "ready" || phase === "done") && (
-              <p className="text-[11px] text-foreground pt-1">
-                Ready: <span className="font-medium">{prepared.filename}</span>
-                {prepared.sizeLabel ? ` · ${prepared.sizeLabel}` : ""}
-              </p>
-            )}
+            </div>
           </div>
 
-          <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+          <ul className="mt-4 space-y-1.5 text-[11px] text-muted-foreground">
+            <li className="flex gap-2">
+              <span className="text-[#1faca6] font-bold">·</span>
+              PostgreSQL database dump
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[#1faca6] font-bold">·</span>
+              All uploads (proofs, images, docs)
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[#1faca6] font-bold">·</span>
+              Website data + Prisma schema
+            </li>
+          </ul>
+
+          <label className="mt-4 flex items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 text-[11px] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="mt-0.5 rounded border"
+              checked={includeEnv}
+              disabled={busy || phase === "ready"}
+              onChange={(e) => setIncludeEnv(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium text-foreground">Include env.backup</span>
+              <span className="block text-muted-foreground mt-0.5">
+                Optional. Contains passwords — keep the ZIP private.
+              </span>
+            </span>
+          </label>
+
+          {includeEnv && (
+            <p className="mt-2 text-[10px] text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+              <ShieldAlert className="h-3 w-3 shrink-0 mt-0.5" />
+              Secrets will be inside the ZIP. Store it safely.
+            </p>
+          )}
+
+          {prepared && (phase === "ready" || phase === "done") && (
+            <p className="mt-3 text-[11px] rounded-md border bg-muted/20 px-3 py-2 truncate">
+              <span className="text-muted-foreground">Ready · </span>
+              <span className="font-medium">{prepared.filename}</span>
+              {prepared.sizeLabel ? (
+                <span className="text-muted-foreground"> · {prepared.sizeLabel}</span>
+              ) : null}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-col gap-2">
             {phase !== "ready" && phase !== "done" ? (
               <Button
                 type="button"
                 size="sm"
                 disabled={busy || !user}
                 onClick={() => void createBackup()}
-                className="h-9 px-4 bg-[#1faca6] hover:bg-[#1a9691] text-white"
+                className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white"
               >
                 {busy ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 ) : (
                   <Archive className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                {phase === "building" ? "Zipping…" : phase === "downloading" ? "Downloading…" : "Create full backup ZIP"}
+                {phase === "building"
+                  ? "Zipping…"
+                  : phase === "downloading"
+                    ? "Downloading…"
+                    : "Create full backup ZIP"}
               </Button>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!prepared || busy}
+                  onClick={() => void downloadZip()}
+                  className="h-9 w-full bg-[#1faca6] hover:bg-[#1a9691] text-white"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Download ZIP
+                </Button>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   disabled={busy}
                   onClick={() => void createBackup()}
-                  className="h-9"
+                  className="h-9 w-full"
                 >
                   Create again
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!prepared || busy}
-                  onClick={() => void downloadZip()}
-                  className="h-9 px-4 bg-[#1faca6] hover:bg-[#1a9691] text-white"
-                >
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  Download ZIP
-                </Button>
-              </div>
-            )}
-
-            {phase === "done" && (
-              <p className="text-[10px] text-emerald-700 dark:text-emerald-400 text-right">
-                Download complete — check your Downloads folder
-              </p>
-            )}
-            {phase === "error" && error && (
-              <p className="text-[10px] text-red-600 text-right max-w-[240px]">{error}</p>
+              </>
             )}
           </div>
+
+          {phase === "done" && (
+            <p className="mt-2 text-[10px] text-emerald-700 dark:text-emerald-400 text-center">
+              Download complete — check your Downloads folder
+            </p>
+          )}
+          {phase === "error" && error && (
+            <p className="mt-2 text-[10px] text-red-600 text-center">{error}</p>
+          )}
         </div>
-      </div>
+      </section>
     </>
   )
 }

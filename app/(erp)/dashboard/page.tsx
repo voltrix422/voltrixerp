@@ -13,6 +13,7 @@ import { DashboardBranchTransferApprovals } from "@/components/dashboard/branch-
 import { DashboardPettyCashApprovals } from "@/components/dashboard/petty-cash-approvals"
 import { DashboardOverviewPanel } from "@/components/dashboard/dashboard-overview-panel"
 import { FinanceReportPanel } from "@/components/dashboard/finance-report-panel"
+import { FullBackupCard } from "@/components/dashboard/full-backup-card"
 import { useDashboardApprovalCounts } from "@/components/dashboard/use-dashboard-data"
 import { isErpAdmin } from "@/lib/auth"
 import {
@@ -295,6 +296,8 @@ export default function DashboardPage() {
           <DashboardOverviewPanel />
         ) : mainTab === "finance" ? (
           <FinanceReportPanel />
+        ) : mainTab === "backup" ? (
+          <FullBackupCard />
         ) : (
           <section className="space-y-4">
             <div>
