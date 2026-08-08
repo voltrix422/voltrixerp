@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // Excel export uses a dynamic client import; empty turbopack avoids
   // Next 16 error when any webpack-related tooling is present.
   turbopack: {},
-  serverExternalPackages: ["exceljs"],
+  serverExternalPackages: ["exceljs", "archiver"],
   async headers() {
     return [
       {

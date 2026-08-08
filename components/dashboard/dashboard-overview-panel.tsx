@@ -27,6 +27,7 @@ import {
   RangeToggle,
 } from "@/components/dashboard/dashboard-ui"
 import { useDashboardOverview } from "@/components/dashboard/use-dashboard-data"
+import { FullBackupCard } from "@/components/dashboard/full-backup-card"
 
 export function DashboardOverviewPanel() {
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
@@ -80,6 +81,8 @@ export function DashboardOverviewPanel() {
 
   return (
     <>
+      <FullBackupCard />
+
       <DashboardMetricsStrip
         items={stripItems}
         loading={loading}
