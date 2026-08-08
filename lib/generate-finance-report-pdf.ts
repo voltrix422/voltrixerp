@@ -1,6 +1,5 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import type ExcelJS from "exceljs"
 
 export type FinanceReportPayload = {
   range: { from: string; to: string }
@@ -504,75 +503,82 @@ export async function downloadFinanceReportPDF(
   doc.save(`voltrix-finance-report-${data.range.from}-to-${data.range.to}.pdf`)
 }
 
-function styleHeaderRow(row: ExcelJS.Row) {
-  row.eachCell((cell) => {
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FF1FACA6" },
-    }
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 }
-    cell.alignment = { vertical: "middle", wrapText: true }
-    cell.border = {
-      bottom: { style: "thin", color: { argb: "FF0F766E" } },
-    }
-  })
-  row.height = 20
-}
-
-function addSheetTable(
-  ws: ExcelJS.Worksheet,
-  title: string,
-  headers: string[],
-  rows: (string | number)[][],
-  moneyCols: number[] = [],
-) {
-  ws.addRow([title]).font = { bold: true, size: 13, color: { argb: "FF134E4A" } }
-  ws.addRow([])
-  const headerRow = ws.addRow(headers)
-  styleHeaderRow(headerRow)
-  rows.forEach((r) => {
-    const row = ws.addRow(r)
-    row.eachCell((cell, col) => {
-      cell.alignment = { vertical: "middle", wrapText: true }
-      cell.border = {
-        top: { style: "hair", color: { argb: "FFE2E8F0" } },
-        bottom: { style: "hair", color: { argb: "FFE2E8F0" } },
-      }
-      if (moneyCols.includes(col)) {
-        cell.numFmt = '#,##0'
-        cell.alignment = { horizontal: "right", vertical: "middle" }
-      }
-    })
-  })
-  ws.columns.forEach((col, i) => {
-    const header = headers[i] || ""
-    col.width = Math.min(36, Math.max(12, header.length + 4))
-  })
-  ws.views = [{ state: "frozen", ySplit: 3 }]
-}
-
 export async function downloadFinanceReportExcel(
   data: FinanceReportPayload,
   generatedBy = "Admin",
 ) {
-  const ExcelJS = (await import("exceljs")).default
+  const ExcelJSMod = await import("exceljs")
+  const ExcelJS = ExcelJSMod.default
   const wb = new ExcelJS.Workbook()
   wb.creator = "Voltrix ERP"
   wb.created = new Date()
   const s = data.summary
   const localPurchases = (data.purchases || []).filter((p) => p.type !== "imported")
   const importedPurchases = (data.purchases || []).filter((p) => p.type === "imported")
+  const paymentMethods = data.paymentMethods || []
+  const orderPayments = data.orderPayments || []
+  const purchaseLedger = data.purchaseLedger || []
 
-  // Summary
+  const paintHeader = (row: { eachCell: (cb: (cell: Record<string, unknown>) => void) => void; height: number }) => {
+    row.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1FACA6" },
+      }
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 }
+      cell.alignment = { vertical: "middle", wrapText: true }
+      cell.border = {
+        bottom: { style: "thin", color: { argb: "FF0F766E" } },
+      }
+    })
+    row.height = 20
+  }
+
+  const addSheetTable = (
+    ws: {
+      addRow: (v: (string | number)[]) => {
+        eachCell: (cb: (cell: Record<string, unknown>, col: number) => void) => void
+        font?: unknown
+      }
+      columns: { width?: number }[]
+      views: unknown[]
+    },
+    title: string,
+    headers: string[],
+    rows: (string | number)[][],
+    moneyCols: number[] = [],
+  ) => {
+    const titleRow = ws.addRow([title])
+    titleRow.font = { bold: true, size: 13, color: { argb: "FF134E4A" } }
+    ws.addRow([])
+    paintHeader(ws.addRow(headers) as never)
+    rows.forEach((r) => {
+      const row = ws.addRow(r)
+      row.eachCell((cell, col) => {
+        cell.alignment = { vertical: "middle", wrapText: true }
+        cell.border = {
+          top: { style: "hair", color: { argb: "FFE2E8F0" } },
+          bottom: { style: "hair", color: { argb: "FFE2E8F0" } },
+        }
+        if (moneyCols.includes(col)) {
+          cell.numFmt = "#,##0"
+          cell.alignment = { horizontal: "right", vertical: "middle" }
+        }
+      })
+    })
+    ws.columns.forEach((col, i) => {
+      const header = headers[i] || ""
+      col.width = Math.min(36, Math.max(12, header.length + 4))
+    })
+    ws.views = [{ state: "frozen", ySplit: 3 }]
+  }
+
   const summary = wb.addWorksheet("Summary", {
     properties: { tabColor: { argb: "FF1FACA6" } },
   })
-  summary.addRow(["VOLTRIX — Finance Report"]).font = {
-    bold: true,
-    size: 16,
-    color: { argb: "FF134E4A" },
-  }
+  const brandRow = summary.addRow(["VOLTRIX — Finance Report"])
+  brandRow.font = { bold: true, size: 16, color: { argb: "FF134E4A" } }
   summary.addRow([`Period: ${data.range.from} → ${data.range.to}`])
   summary.addRow([
     `Generated: ${new Date(data.generatedAt || Date.now()).toLocaleString("en-PK")} · ${generatedBy}`,
@@ -580,8 +586,7 @@ export async function downloadFinanceReportExcel(
   summary.addRow(["Confidential — Admin only"])
   summary.addRow([])
 
-  const summaryHeader = summary.addRow(["Metric", "Value"])
-  styleHeaderRow(summaryHeader)
+  paintHeader(summary.addRow(["Metric", "Value"]))
   const summaryRows: [string, string | number][] = [
     ["Orders created (count)", s.allOrdersCount || 0],
     ["Orders created (value PKR)", num(s.allOrdersValue)],
@@ -610,31 +615,29 @@ export async function downloadFinanceReportExcel(
   summaryRows.forEach(([k, v]) => {
     const row = summary.addRow([k, v])
     if (typeof v === "number") {
-      row.getCell(2).numFmt = '#,##0'
+      row.getCell(2).numFmt = "#,##0"
       row.getCell(2).alignment = { horizontal: "right" }
     }
   })
   summary.getColumn(1).width = 42
   summary.getColumn(2).width = 18
 
-  if ((data.paymentMethods || []).length) {
+  if (paymentMethods.length) {
     summary.addRow([])
-    summary.addRow(["Cash by payment method"]).font = { bold: true, size: 12 }
-    const pmH = summary.addRow(["Method", "Amount (PKR)"])
-    styleHeaderRow(pmH)
-    (data.paymentMethods || []).forEach((r) => {
+    const pmTitle = summary.addRow(["Cash by payment method"])
+    pmTitle.font = { bold: true, size: 12 }
+    paintHeader(summary.addRow(["Method", "Amount (PKR)"]))
+    paymentMethods.forEach((r) => {
       const row = summary.addRow([r.method, num(r.amount)])
-      row.getCell(2).numFmt = '#,##0'
+      row.getCell(2).numFmt = "#,##0"
     })
   }
 
-  // Order cash received
-  const payWs = wb.addWorksheet("Order cash received")
   addSheetTable(
-    payWs,
+    wb.addWorksheet("Order cash received"),
     `Order cash received — total ${fmt(s.cashReceived)}`,
     ["Date", "Order", "Client", "Method", "Recorded by", "Order total", "Amount received", "Order status"],
-    (data.orderPayments || []).map((p) => [
+    orderPayments.map((p) => [
       p.date,
       p.orderNumber,
       p.clientName,
@@ -647,9 +650,8 @@ export async function downloadFinanceReportExcel(
     [6, 7],
   )
 
-  const delWs = wb.addWorksheet("Delivered orders")
   addSheetTable(
-    delWs,
+    wb.addWorksheet("Delivered orders"),
     "Delivered orders",
     ["Order", "Client", "Date", "Order total", "Cash on order", "Status"],
     (data.deliveredOrders || []).map((o) => [
@@ -663,9 +665,8 @@ export async function downloadFinanceReportExcel(
     [4, 5],
   )
 
-  const pettyWs = wb.addWorksheet("Petty cash allocated")
   addSheetTable(
-    pettyWs,
+    wb.addWorksheet("Petty cash allocated"),
     `Petty cash allocated — total ${fmt(s.pettyAllocated)}`,
     ["Date", "Given to (employee)", "Allocated by", "Purpose", "Payout method", "Status", "Amount"],
     (data.pettyAllocations || []).map((a) => [
@@ -680,9 +681,8 @@ export async function downloadFinanceReportExcel(
     [7],
   )
 
-  const localWs = wb.addWorksheet("Local purchases")
   addSheetTable(
-    localWs,
+    wb.addWorksheet("Local purchases"),
     `Local / trade purchases — value ${fmt(s.localPoValue)} · paid ${fmt(s.localPaid)}`,
     ["PO", "Supplier", "Date", "Status", "Value", "Paid in period", "Created in period"],
     localPurchases.map((p) => [
@@ -697,9 +697,8 @@ export async function downloadFinanceReportExcel(
     [5, 6],
   )
 
-  const impWs = wb.addWorksheet("Imported purchases")
   addSheetTable(
-    impWs,
+    wb.addWorksheet("Imported purchases"),
     `Imported POs — value ${fmt(s.importedPoValue)} · paid ${fmt(s.importedPaid)}`,
     ["PO", "Supplier", "Date", "Status", "Value", "Paid in period", "Created in period"],
     importedPurchases.map((p) => [
@@ -714,9 +713,8 @@ export async function downloadFinanceReportExcel(
     [5, 6],
   )
 
-  const shipWs = wb.addWorksheet("Import shipments")
   addSheetTable(
-    shipWs,
+    wb.addWorksheet("Import shipments"),
     `Import shipments — landed ${fmt(s.importShipmentsLanded)} · paid ${fmt(s.importShipmentsPaid)}`,
     ["Shipment", "Supplier", "Date", "Status", "Landed PKR", "Paid in period"],
     (data.importShipments || []).map((sh) => [
@@ -730,12 +728,11 @@ export async function downloadFinanceReportExcel(
     [5, 6],
   )
 
-  const ledWs = wb.addWorksheet("Purchase ledger")
   addSheetTable(
-    ledWs,
+    wb.addWorksheet("Purchase ledger"),
     `Purchase ledger — total ${fmt(s.ledgerTotal)} · paid ${fmt(s.ledgerSpend)}`,
     ["Ledger #", "Date", "Supplier", "Product", "Category", "Type", "Total", "Paid", "Due", "Created by"],
-    (data.purchaseLedger || []).map((r) => [
+    purchaseLedger.map((r) => [
       r.ledgerNumber,
       r.date,
       r.supplierName,
@@ -750,9 +747,8 @@ export async function downloadFinanceReportExcel(
     [7, 8, 9],
   )
 
-  const expWs = wb.addWorksheet("Expenses")
   addSheetTable(
-    expWs,
+    wb.addWorksheet("Expenses"),
     "Expense / finance records",
     ["Date", "Title", "Category", "Created by", "Amount"],
     (data.expenseLines || []).map((e) => [
