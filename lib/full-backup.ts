@@ -6,17 +6,7 @@ import path from "path"
 import { promisify } from "util"
 import { finished } from "stream/promises"
 import { Readable } from "stream"
-// Production install uses --omit=dev (no @types); local ambient types cover this.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const archiver = require("archiver") as (
-  format: string,
-  options?: { zlib?: { level?: number } },
-) => {
-  directory: (dirpath: string, destpath: string | false) => unknown
-  finalize: () => Promise<void>
-  pipe: (dest: NodeJS.WritableStream) => unknown
-  on: (event: string, listener: (...args: any[]) => void) => unknown
-}
+import { ZipArchive } from "archiver"
 
 const execFileAsync = promisify(execFile)
 
@@ -326,7 +316,7 @@ export async function buildFullBackupZip(opts: {
   const stagingStats = await dirSizeApprox(staging)
   await new Promise<void>((resolve, reject) => {
     const output = createWriteStream(zipPath)
-    const archive = archiver("zip", { zlib: { level: 6 } })
+    const archive = new ZipArchive({ zlib: { level: 6 } })
     output.on("error", reject)
     archive.on("error", reject)
     archive.on("warning", (err) => {
