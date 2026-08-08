@@ -519,8 +519,8 @@ export async function downloadFinanceReportExcel(
   const orderPayments = data.orderPayments || []
   const purchaseLedger = data.purchaseLedger || []
 
-  const paintHeader = (row: { eachCell: (cb: (cell: Record<string, unknown>) => void) => void; height: number }) => {
-    row.eachCell((cell) => {
+  const paintHeader = (row: any) => {
+    row.eachCell((cell: any) => {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
@@ -536,14 +536,7 @@ export async function downloadFinanceReportExcel(
   }
 
   const addSheetTable = (
-    ws: {
-      addRow: (v: (string | number)[]) => {
-        eachCell: (cb: (cell: Record<string, unknown>, col: number) => void) => void
-        font?: unknown
-      }
-      columns: { width?: number }[]
-      views: unknown[]
-    },
+    ws: any,
     title: string,
     headers: string[],
     rows: (string | number)[][],
@@ -552,10 +545,10 @@ export async function downloadFinanceReportExcel(
     const titleRow = ws.addRow([title])
     titleRow.font = { bold: true, size: 13, color: { argb: "FF134E4A" } }
     ws.addRow([])
-    paintHeader(ws.addRow(headers) as never)
+    paintHeader(ws.addRow(headers))
     rows.forEach((r) => {
       const row = ws.addRow(r)
-      row.eachCell((cell, col) => {
+      row.eachCell((cell: any, col: number) => {
         cell.alignment = { vertical: "middle", wrapText: true }
         cell.border = {
           top: { style: "hair", color: { argb: "FFE2E8F0" } },
@@ -567,7 +560,7 @@ export async function downloadFinanceReportExcel(
         }
       })
     })
-    ws.columns.forEach((col, i) => {
+    ws.columns.forEach((col: any, i: number) => {
       const header = headers[i] || ""
       col.width = Math.min(36, Math.max(12, header.length + 4))
     })
