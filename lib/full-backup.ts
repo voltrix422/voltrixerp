@@ -6,12 +6,17 @@ import path from "path"
 import { promisify } from "util"
 import { finished } from "stream/promises"
 import { Readable } from "stream"
-import archiverModule from "archiver"
-
-const archiver =
-  typeof archiverModule === "function"
-    ? archiverModule
-    : ((archiverModule as unknown as { default: typeof archiverModule }).default ?? archiverModule)
+// Production install uses --omit=dev (no @types); local ambient types cover this.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const archiver = require("archiver") as (
+  format: string,
+  options?: { zlib?: { level?: number } },
+) => {
+  directory: (dirpath: string, destpath: string | false) => unknown
+  finalize: () => Promise<void>
+  pipe: (dest: NodeJS.WritableStream) => unknown
+  on: (event: string, listener: (...args: any[]) => void) => unknown
+}
 
 const execFileAsync = promisify(execFile)
 
