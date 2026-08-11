@@ -6,6 +6,7 @@ import { Menu, X } from "lucide-react"
 import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
 import IndependenceDayFx from "@/components/landing/independence-day-fx"
+import ConfettiFx from "@/components/landing/confetti-fx"
 import { usePathname } from "next/navigation"
 
 const primaryLinks = [
@@ -77,6 +78,7 @@ export default function Navbar() {
   return (
     <>
     <IndependenceDayFx />
+    <ConfettiFx />
     <div
       className="fixed top-4 left-0 right-0 z-50 flex flex-col items-center gap-2 px-4"
       style={{
