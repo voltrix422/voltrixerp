@@ -47,56 +47,58 @@ function makePartyBits(side: "left" | "right", count: number): PartyBit[] {
 }
 
 function PartyBurst({ side, active }: { side: "left" | "right"; active: boolean }) {
-  const bits = useMemo(() => makePartyBits(side, 20), [side])
-  const origin = side === "left" ? "-left-8 -bottom-6" : "-right-8 -bottom-6"
+  const bits = useMemo(() => makePartyBits(side, 24), [side])
   const dir = side === "left" ? 1 : -1
+  const anchor = side === "left" ? "left-0 bottom-0" : "right-0 bottom-0"
 
   return (
     <div
-      className={`pointer-events-none absolute ${origin} z-[5] h-56 w-56 overflow-visible`}
+      className={`pointer-events-none absolute ${anchor} z-30 h-44 w-44 overflow-visible sm:h-52 sm:w-52`}
       aria-hidden
     >
       {/* Party popper body */}
       <div
-        className={`absolute bottom-8 transition-all duration-500 ${
-          side === "left" ? "left-6" : "right-6"
+        className={`absolute bottom-2 transition-all duration-500 ${
+          side === "left" ? "left-1" : "right-1"
         } ${
           active
-            ? `opacity-100 translate-y-0 ${side === "left" ? "rotate-[-22deg]" : "rotate-[22deg]"}`
-            : "opacity-0 translate-y-5 rotate-0"
+            ? `opacity-100 translate-y-0 ${side === "left" ? "rotate-[-24deg]" : "rotate-[24deg]"}`
+            : "opacity-0 translate-y-6 rotate-0"
         }`}
       >
-        <div className="relative h-11 w-8">
-          <div className="absolute inset-x-0 bottom-0 h-8 rounded-b-md bg-gradient-to-b from-[#016b2f] to-[#013a18] shadow-lg ring-1 ring-white/20" />
-          <div className="absolute left-1/2 top-0 h-4 w-9 -translate-x-1/2 rounded-t-[10px] bg-white shadow-sm" />
-          <div className="absolute left-1/2 top-3.5 h-1.5 w-5 -translate-x-1/2 rounded-sm bg-emerald-300" />
-          <div className="absolute left-1/2 top-[18px] h-px w-3 -translate-x-1/2 bg-white/50" />
+        <div className="relative h-12 w-9">
+          <div className="absolute inset-x-0 bottom-0 h-9 rounded-b-lg bg-gradient-to-b from-[#22c55e] to-[#013a18] shadow-[0_4px_14px_rgba(0,0,0,0.45)] ring-2 ring-white/30" />
+          <div className="absolute left-1/2 top-0 h-5 w-10 -translate-x-1/2 rounded-t-[12px] bg-white shadow-md" />
+          <div className="absolute left-1/2 top-4 h-2 w-6 -translate-x-1/2 rounded-sm bg-emerald-300" />
         </div>
       </div>
 
       {/* Confetti + ribbons */}
       {bits.map((b) => {
-        const angle = ((b.id % 10) - 4.5) * 11 * dir
-        const dist = 70 + (b.id % 6) * 16
+        const angle = ((b.id % 12) - 5.5) * 10 * dir
+        const dist = 85 + (b.id % 7) * 18
         const dx = Math.sin((angle * Math.PI) / 180) * dist
-        const dy = -Math.cos((angle * Math.PI) / 180) * dist - 20
+        const dy = -Math.cos((angle * Math.PI) / 180) * dist - 30
         return (
           <span
             key={b.id}
-            className="absolute bottom-14 block"
+            className="absolute bottom-10 block"
             style={{
-              left: side === "left" ? "28%" : "auto",
-              right: side === "right" ? "28%" : "auto",
-              width: b.kind === "ribbon" ? 3 : b.size,
-              height: b.kind === "ribbon" ? b.size * 2.6 : b.kind === "circle" ? b.size : b.size * 0.65,
+              left: side === "left" ? "22%" : "auto",
+              right: side === "right" ? "22%" : "auto",
+              width: b.kind === "ribbon" ? 4 : b.size + 2,
+              height: b.kind === "ribbon" ? b.size * 3 : b.kind === "circle" ? b.size + 2 : b.size,
               borderRadius: b.kind === "circle" ? "999px" : "2px",
               backgroundColor: b.color,
               opacity: active ? 1 : 0,
               transform: active
                 ? `translate(${dx}px, ${dy}px) rotate(${b.rotate}deg)`
-                : "translate(0px, 0px) rotate(0deg) scale(0.35)",
-              transition: `transform ${b.duration} cubic-bezier(0.16, 1, 0.3, 1) ${b.delay}, opacity 240ms ease ${b.delay}`,
-              boxShadow: b.color === "#ffffff" ? "0 0 10px rgba(255,255,255,0.5)" : undefined,
+                : "translate(0px, 12px) rotate(0deg) scale(0.2)",
+              transition: `transform ${b.duration} cubic-bezier(0.16, 1, 0.3, 1) ${b.delay}, opacity 200ms ease ${b.delay}`,
+              boxShadow:
+                b.color === "#ffffff"
+                  ? "0 0 12px rgba(255,255,255,0.8)"
+                  : "0 0 8px rgba(134,239,172,0.45)",
             }}
           />
         )
@@ -106,48 +108,94 @@ function PartyBurst({ side, active }: { side: "left" | "right"; active: boolean 
 }
 
 function PopupFlares({ active }: { active: boolean }) {
+  const rays = useMemo(() => Array.from({ length: 12 }, (_, i) => i), [])
+
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-visible" aria-hidden>
-      {/* Soft radial glow behind card */}
+    <>
+      {/* Glow halo behind card */}
       <div
-        className={`absolute left-1/2 top-1/2 h-[120%] w-[120%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(134,239,172,0.28)_0%,rgba(1,65,28,0.12)_42%,transparent_70%)] transition-opacity duration-700 ${
+        className={`pointer-events-none absolute left-1/2 top-1/2 z-0 h-[130%] w-[130%] -translate-x-1/2 -translate-y-1/2 rounded-full transition-opacity duration-700 ${
           active ? "opacity-100" : "opacity-0"
         }`}
+        style={{
+          background:
+            "radial-gradient(circle, rgba(134,239,172,0.45) 0%, rgba(1,65,28,0.25) 35%, transparent 68%)",
+        }}
+        aria-hidden
       />
 
-      {/* Diagonal light flares */}
+      {/* Starburst rays on top of card */}
       <div
-        className={`absolute left-1/2 top-1/2 h-[2px] w-[140%] -translate-x-1/2 -translate-y-1/2 rotate-[28deg] bg-gradient-to-r from-transparent via-white/55 to-transparent blur-[1px] transition-all duration-700 ${
-          active ? "opacity-70 scale-x-100" : "opacity-0 scale-x-50"
+        className={`pointer-events-none absolute -inset-6 z-20 overflow-visible transition-opacity duration-500 ${
+          active ? "opacity-100" : "opacity-0"
         }`}
-      />
-      <div
-        className={`absolute left-1/2 top-1/2 h-[2px] w-[120%] -translate-x-1/2 -translate-y-1/2 -rotate-[32deg] bg-gradient-to-r from-transparent via-emerald-200/50 to-transparent blur-[1px] transition-all duration-700 delay-100 ${
-          active ? "opacity-60 scale-x-100" : "opacity-0 scale-x-50"
-        }`}
-      />
-      <div
-        className={`absolute left-1/2 top-1/2 h-[1px] w-[90%] -translate-x-1/2 -translate-y-1/2 rotate-[8deg] bg-gradient-to-r from-transparent via-white/35 to-transparent transition-all duration-700 delay-150 ${
-          active ? "opacity-50 scale-x-100" : "opacity-0 scale-x-40"
-        }`}
-      />
+        aria-hidden
+      >
+        <div className="absolute left-1/2 top-[8%] h-40 w-40 -translate-x-1/2 -translate-y-1/2">
+          {rays.map((i) => (
+            <span
+              key={i}
+              className="absolute left-1/2 top-1/2 block origin-left -translate-y-1/2"
+              style={{ transform: `rotate(${(360 / rays.length) * i}deg)` }}
+            >
+              <span
+                className="block h-[3px] w-28 sm:w-40"
+                style={{
+                  background:
+                    i % 2 === 0
+                      ? "linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.2) 60%, transparent 100%)"
+                      : "linear-gradient(90deg, rgba(134,239,172,0.95) 0%, rgba(134,239,172,0.15) 60%, transparent 100%)",
+                  animation: active ? `pk-flare-pulse 2.2s ease-in-out ${i * 0.12}s infinite` : undefined,
+                  opacity: active ? 0.9 : 0,
+                }}
+              />
+            </span>
+          ))}
+        </div>
 
-      {/* Corner spark bursts */}
-      {[
-        "left-[8%] top-[18%]",
-        "right-[10%] top-[16%]",
-        "left-[12%] bottom-[22%]",
-        "right-[11%] bottom-[20%]",
-      ].map((pos, i) => (
-        <span
-          key={pos}
-          className={`absolute ${pos} h-2 w-2 rounded-full bg-white shadow-[0_0_18px_6px_rgba(255,255,255,0.55)] transition-all duration-500 ${
-            active ? "opacity-80 scale-100" : "opacity-0 scale-0"
+        {/* Cross flares */}
+        <div
+          className={`absolute left-1/2 top-[42%] h-[3px] w-[115%] -translate-x-1/2 -translate-y-1/2 rotate-[24deg] bg-gradient-to-r from-transparent via-white/80 to-transparent blur-[0.5px] transition-all duration-700 ${
+            active ? "opacity-90 scale-x-100" : "opacity-0 scale-x-0"
           }`}
-          style={{ transitionDelay: `${180 + i * 90}ms` }}
         />
-      ))}
-    </div>
+        <div
+          className={`absolute left-1/2 top-[42%] h-[3px] w-[105%] -translate-x-1/2 -translate-y-1/2 -rotate-[28deg] bg-gradient-to-r from-transparent via-emerald-200/75 to-transparent blur-[0.5px] transition-all duration-700 delay-100 ${
+            active ? "opacity-80 scale-x-100" : "opacity-0 scale-x-0"
+          }`}
+        />
+
+        {/* Corner spark bursts */}
+        {[
+          "left-[4%] top-[12%]",
+          "right-[4%] top-[10%]",
+          "left-[6%] bottom-[8%]",
+          "right-[5%] bottom-[6%]",
+        ].map((pos, i) => (
+          <span
+            key={pos}
+            className={`absolute ${pos} h-3 w-3 rounded-full bg-white shadow-[0_0_24px_10px_rgba(255,255,255,0.75)] transition-all duration-500 ${
+              active ? "opacity-100 scale-100" : "opacity-0 scale-0"
+            }`}
+            style={{
+              transitionDelay: `${120 + i * 80}ms`,
+              animation: active ? `pk-spark-pulse 1.8s ease-in-out ${i * 0.2}s infinite` : undefined,
+            }}
+          />
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes pk-flare-pulse {
+          0%, 100% { opacity: 0.4; transform: scaleX(0.85); }
+          50% { opacity: 1; transform: scaleX(1.1); }
+        }
+        @keyframes pk-spark-pulse {
+          0%, 100% { transform: scale(0.85); opacity: 0.65; }
+          50% { transform: scale(1.25); opacity: 1; }
+        }
+      `}</style>
+    </>
   )
 }
 
@@ -190,16 +238,17 @@ export default function HomeProductBanner() {
 
   useEffect(() => {
     if (!mounted) return
-    const enter = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setAnimPhase("open")
-        const reduce =
-          typeof window !== "undefined" &&
-          window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        if (!reduce) setFxOn(true)
-      })
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setAnimPhase("open"))
     })
-    return () => cancelAnimationFrame(enter)
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const fxTimer = reduce ? null : window.setTimeout(() => setFxOn(true), 150)
+    return () => {
+      cancelAnimationFrame(r1)
+      if (fxTimer) window.clearTimeout(fxTimer)
+    }
   }, [mounted])
 
   useEffect(() => {
@@ -248,13 +297,11 @@ export default function HomeProductBanner() {
       />
 
       <div
-        className={`relative w-full max-w-[420px] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`relative w-full max-w-[420px] overflow-visible transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.94] translate-y-5"
         }`}
       >
         <PopupFlares active={fxOn} />
-        <PartyBurst side="left" active={fxOn} />
-        <PartyBurst side="right" active={fxOn} />
 
         <div className="relative z-10 overflow-hidden rounded-2xl shadow-2xl shadow-black/50 ring-1 ring-white/15">
         {/* Flag stripe header */}
@@ -360,7 +407,9 @@ export default function HomeProductBanner() {
             </Link>
           </div>
         </div>
-        </div>
+
+        <PartyBurst side="left" active={fxOn} />
+        <PartyBurst side="right" active={fxOn} />
       </div>
     </div>
   )
