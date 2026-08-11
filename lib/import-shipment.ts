@@ -118,6 +118,7 @@ export interface ImportItem {
   directChargesPkr?: number
   totalLandedPkr?: number
   unitLandedCost?: number
+  unitExpense?: number
 }
 
 /** One customs duty / tax line on the GD (PSW step) */
@@ -211,6 +212,8 @@ export interface LandedCostLine {
   directChargesPkr: number
   totalLandedPkr: number
   unitLandedCost: number
+  /** (Allocated + Direct) ÷ Qty — expense per unit excluding product cost */
+  unitExpense: number
   sharePercent: number
 }
 
@@ -584,6 +587,7 @@ export function calculateLandedCost(shipment: Pick<
     const totalLandedPkr = productCostPkr + allocatedChargesPkr + directChargesPkr
     const recv = Number(item.receivedQty) > 0 ? Number(item.receivedQty) : Number(item.qty) || 1
     const unitLandedCost = recv > 0 ? totalLandedPkr / recv : 0
+    const unitExpense = recv > 0 ? (allocatedChargesPkr + directChargesPkr) / recv : 0
     const sharePercent = productTotalPkr > 0 ? (productCostPkr / productTotalPkr) * 100 : 0
     return {
       itemId: item.id,
@@ -596,6 +600,7 @@ export function calculateLandedCost(shipment: Pick<
       directChargesPkr,
       totalLandedPkr,
       unitLandedCost,
+      unitExpense,
       sharePercent,
     }
   })
@@ -643,6 +648,7 @@ export function applyLandedCostToItems(
       directChargesPkr: line.directChargesPkr,
       totalLandedPkr: line.totalLandedPkr,
       unitLandedCost: line.unitLandedCost,
+      unitExpense: line.unitExpense,
     }
   })
 }

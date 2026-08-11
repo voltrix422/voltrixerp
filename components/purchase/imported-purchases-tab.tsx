@@ -2689,6 +2689,10 @@ function StepLanded({
                 <th className="px-2 py-1.5 text-right">Allocated</th>
                 <th className="px-2 py-1.5 text-right">Direct</th>
                 <th className="px-2 py-1.5 text-right">Total landed</th>
+                <th className="px-2 py-1.5 text-right">
+                  <span className="block">Unit expense</span>
+                  <span className="block font-normal normal-case text-[8px] leading-tight">(Allocated + Direct) ÷ Qty</span>
+                </th>
                 <th className="px-2 py-1.5 text-right">Unit landed</th>
               </tr>
             </thead>
@@ -2702,6 +2706,9 @@ function StepLanded({
                   <td className="px-2 py-1.5 text-right">{formatPkr(line.allocatedChargesPkr)}</td>
                   <td className="px-2 py-1.5 text-right">{formatPkr(line.directChargesPkr)}</td>
                   <td className="px-2 py-1.5 text-right font-semibold">{formatPkr(line.totalLandedPkr)}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold text-sky-700 dark:text-sky-400">
+                    {formatPkr(line.unitExpense ?? (line.receivedQty || line.qty ? (line.allocatedChargesPkr + line.directChargesPkr) / (line.receivedQty || line.qty) : 0))}
+                  </td>
                   <td className="px-2 py-1.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
                     {formatPkr(line.unitLandedCost)}
                   </td>
