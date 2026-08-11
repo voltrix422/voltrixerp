@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight, X } from "lucide-react"
@@ -18,10 +18,144 @@ const PK_FLAG =
 
 type AnimPhase = "enter" | "open" | "exit"
 
+type PartyBit = {
+  id: number
+  left: string
+  delay: string
+  duration: string
+  size: number
+  rotate: number
+  color: string
+  kind: "rect" | "circle" | "ribbon"
+}
+
+function makePartyBits(side: "left" | "right", count: number): PartyBit[] {
+  const colors = ["#ffffff", "#86efac", "#01411C", "#bbf7d0", "#fef08a", "#fde68a"]
+  return Array.from({ length: count }, (_, i) => {
+    const spread = side === "left" ? 8 + (i % 7) * 7 : 100 - (8 + (i % 7) * 7)
+    return {
+      id: i,
+      left: `${spread}%`,
+      delay: `${80 + i * 28}ms`,
+      duration: `${1100 + (i % 5) * 180}ms`,
+      size: 5 + (i % 4) * 2,
+      rotate: (side === "left" ? -1 : 1) * (20 + (i % 8) * 18),
+      color: colors[i % colors.length],
+      kind: (["rect", "circle", "ribbon"] as const)[i % 3],
+    }
+  })
+}
+
+function PartyBurst({ side, active }: { side: "left" | "right"; active: boolean }) {
+  const bits = useMemo(() => makePartyBits(side, 20), [side])
+  const origin = side === "left" ? "-left-8 -bottom-6" : "-right-8 -bottom-6"
+  const dir = side === "left" ? 1 : -1
+
+  return (
+    <div
+      className={`pointer-events-none absolute ${origin} z-[5] h-56 w-56 overflow-visible`}
+      aria-hidden
+    >
+      {/* Party popper body */}
+      <div
+        className={`absolute bottom-8 transition-all duration-500 ${
+          side === "left" ? "left-6" : "right-6"
+        } ${
+          active
+            ? `opacity-100 translate-y-0 ${side === "left" ? "rotate-[-22deg]" : "rotate-[22deg]"}`
+            : "opacity-0 translate-y-5 rotate-0"
+        }`}
+      >
+        <div className="relative h-11 w-8">
+          <div className="absolute inset-x-0 bottom-0 h-8 rounded-b-md bg-gradient-to-b from-[#016b2f] to-[#013a18] shadow-lg ring-1 ring-white/20" />
+          <div className="absolute left-1/2 top-0 h-4 w-9 -translate-x-1/2 rounded-t-[10px] bg-white shadow-sm" />
+          <div className="absolute left-1/2 top-3.5 h-1.5 w-5 -translate-x-1/2 rounded-sm bg-emerald-300" />
+          <div className="absolute left-1/2 top-[18px] h-px w-3 -translate-x-1/2 bg-white/50" />
+        </div>
+      </div>
+
+      {/* Confetti + ribbons */}
+      {bits.map((b) => {
+        const angle = ((b.id % 10) - 4.5) * 11 * dir
+        const dist = 70 + (b.id % 6) * 16
+        const dx = Math.sin((angle * Math.PI) / 180) * dist
+        const dy = -Math.cos((angle * Math.PI) / 180) * dist - 20
+        return (
+          <span
+            key={b.id}
+            className="absolute bottom-14 block"
+            style={{
+              left: side === "left" ? "28%" : "auto",
+              right: side === "right" ? "28%" : "auto",
+              width: b.kind === "ribbon" ? 3 : b.size,
+              height: b.kind === "ribbon" ? b.size * 2.6 : b.kind === "circle" ? b.size : b.size * 0.65,
+              borderRadius: b.kind === "circle" ? "999px" : "2px",
+              backgroundColor: b.color,
+              opacity: active ? 1 : 0,
+              transform: active
+                ? `translate(${dx}px, ${dy}px) rotate(${b.rotate}deg)`
+                : "translate(0px, 0px) rotate(0deg) scale(0.35)",
+              transition: `transform ${b.duration} cubic-bezier(0.16, 1, 0.3, 1) ${b.delay}, opacity 240ms ease ${b.delay}`,
+              boxShadow: b.color === "#ffffff" ? "0 0 10px rgba(255,255,255,0.5)" : undefined,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function PopupFlares({ active }: { active: boolean }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0 overflow-visible" aria-hidden>
+      {/* Soft radial glow behind card */}
+      <div
+        className={`absolute left-1/2 top-1/2 h-[120%] w-[120%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(134,239,172,0.28)_0%,rgba(1,65,28,0.12)_42%,transparent_70%)] transition-opacity duration-700 ${
+          active ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      {/* Diagonal light flares */}
+      <div
+        className={`absolute left-1/2 top-1/2 h-[2px] w-[140%] -translate-x-1/2 -translate-y-1/2 rotate-[28deg] bg-gradient-to-r from-transparent via-white/55 to-transparent blur-[1px] transition-all duration-700 ${
+          active ? "opacity-70 scale-x-100" : "opacity-0 scale-x-50"
+        }`}
+      />
+      <div
+        className={`absolute left-1/2 top-1/2 h-[2px] w-[120%] -translate-x-1/2 -translate-y-1/2 -rotate-[32deg] bg-gradient-to-r from-transparent via-emerald-200/50 to-transparent blur-[1px] transition-all duration-700 delay-100 ${
+          active ? "opacity-60 scale-x-100" : "opacity-0 scale-x-50"
+        }`}
+      />
+      <div
+        className={`absolute left-1/2 top-1/2 h-[1px] w-[90%] -translate-x-1/2 -translate-y-1/2 rotate-[8deg] bg-gradient-to-r from-transparent via-white/35 to-transparent transition-all duration-700 delay-150 ${
+          active ? "opacity-50 scale-x-100" : "opacity-0 scale-x-40"
+        }`}
+      />
+
+      {/* Corner spark bursts */}
+      {[
+        "left-[8%] top-[18%]",
+        "right-[10%] top-[16%]",
+        "left-[12%] bottom-[22%]",
+        "right-[11%] bottom-[20%]",
+      ].map((pos, i) => (
+        <span
+          key={pos}
+          className={`absolute ${pos} h-2 w-2 rounded-full bg-white shadow-[0_0_18px_6px_rgba(255,255,255,0.55)] transition-all duration-500 ${
+            active ? "opacity-80 scale-100" : "opacity-0 scale-0"
+          }`}
+          style={{ transitionDelay: `${180 + i * 90}ms` }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function HomeProductBanner() {
   const [product, setProduct] = useState<BannerProduct | null>(null)
   const [mounted, setMounted] = useState(false)
   const [animPhase, setAnimPhase] = useState<AnimPhase>("enter")
+  const [fxOn, setFxOn] = useState(false)
   const closingRef = useRef(false)
 
   useEffect(() => {
@@ -43,6 +177,7 @@ export default function HomeProductBanner() {
   const close = useCallback(() => {
     if (closingRef.current) return
     closingRef.current = true
+    setFxOn(false)
     setAnimPhase("exit")
     if (product?.id) {
       sessionStorage.setItem(`${SESSION_KEY_PREFIX}-${String(product.id)}`, "1")
@@ -56,7 +191,13 @@ export default function HomeProductBanner() {
   useEffect(() => {
     if (!mounted) return
     const enter = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setAnimPhase("open"))
+      requestAnimationFrame(() => {
+        setAnimPhase("open")
+        const reduce =
+          typeof window !== "undefined" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        if (!reduce) setFxOn(true)
+      })
     })
     return () => cancelAnimationFrame(enter)
   }, [mounted])
@@ -107,10 +248,15 @@ export default function HomeProductBanner() {
       />
 
       <div
-        className={`relative w-full max-w-[420px] overflow-hidden rounded-2xl shadow-2xl shadow-black/50 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`relative w-full max-w-[420px] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.94] translate-y-5"
         }`}
       >
+        <PopupFlares active={fxOn} />
+        <PartyBurst side="left" active={fxOn} />
+        <PartyBurst side="right" active={fxOn} />
+
+        <div className="relative z-10 overflow-hidden rounded-2xl shadow-2xl shadow-black/50 ring-1 ring-white/15">
         {/* Flag stripe header */}
         <div className="relative flex h-14 items-stretch overflow-hidden">
           <div className="w-[22%] bg-white" />
@@ -148,6 +294,13 @@ export default function HomeProductBanner() {
           {/* Soft star/crescent glow */}
           <div className="pointer-events-none absolute -right-10 top-8 h-36 w-36 rounded-full bg-white/5 blur-2xl" />
           <div className="pointer-events-none absolute -left-8 bottom-10 h-28 w-28 rounded-full bg-emerald-300/10 blur-2xl" />
+
+          {/* Inner shimmer flare */}
+          <div
+            className={`pointer-events-none absolute -left-1/3 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-1000 ${
+              fxOn ? "translate-x-[220%]" : "translate-x-0"
+            }`}
+          />
 
           <button
             type="button"
@@ -206,6 +359,7 @@ export default function HomeProductBanner() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
+        </div>
         </div>
       </div>
     </div>
