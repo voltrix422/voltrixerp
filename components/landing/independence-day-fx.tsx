@@ -159,10 +159,7 @@ export default function IndependenceDayFx() {
           ready ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-8"
         }`}
       >
-        <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-[#01411C]/35 via-[#01411C]/10 to-transparent" />
-        <div className="absolute left-1 top-[12%] h-40 w-1 rounded-full bg-gradient-to-b from-transparent via-white/70 to-transparent blur-[1px] animate-pulse" />
-        <div className="absolute left-3 top-[35%] h-56 w-1.5 rounded-full bg-gradient-to-b from-transparent via-emerald-300/80 to-transparent blur-[2px]" />
-        <div className="absolute left-0 top-[55%] h-48 w-1 rounded-full bg-gradient-to-b from-transparent via-white/50 to-transparent blur-[1px] animate-pulse [animation-delay:400ms]" />
+        <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-[#01411C]/25 via-[#01411C]/8 to-transparent" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={PK_FLAG}
@@ -183,10 +180,7 @@ export default function IndependenceDayFx() {
           ready ? "opacity-100 translate-x-0" : "opacity-0 translate-x-8"
         }`}
       >
-        <div className="absolute inset-y-0 right-0 w-full bg-gradient-to-l from-[#01411C]/35 via-[#01411C]/10 to-transparent" />
-        <div className="absolute right-1 top-[20%] h-44 w-1 rounded-full bg-gradient-to-b from-transparent via-white/70 to-transparent blur-[1px] animate-pulse" />
-        <div className="absolute right-3 top-[42%] h-52 w-1.5 rounded-full bg-gradient-to-b from-transparent via-emerald-300/80 to-transparent blur-[2px]" />
-        <div className="absolute right-0 top-[65%] h-40 w-1 rounded-full bg-gradient-to-b from-transparent via-white/50 to-transparent blur-[1px] animate-pulse [animation-delay:700ms]" />
+        <div className="absolute inset-y-0 right-0 w-full bg-gradient-to-l from-[#01411C]/25 via-[#01411C]/8 to-transparent" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={PK_FLAG}
@@ -200,17 +194,6 @@ export default function IndependenceDayFx() {
           className="absolute right-1 bottom-[18%] h-9 w-auto rounded-sm shadow-lg ring-1 ring-white/40 opacity-80 sm:h-11"
         />
       </div>
-
-      <div
-        className={`absolute left-8 top-24 h-2 w-2 rounded-full bg-white shadow-[0_0_20px_8px_rgba(255,255,255,0.7)] transition-all duration-700 ${
-          ready ? "opacity-60 scale-100" : "opacity-0 scale-0"
-        }`}
-      />
-      <div
-        className={`absolute right-10 top-32 h-2 w-2 rounded-full bg-emerald-200 shadow-[0_0_22px_10px_rgba(167,243,208,0.75)] transition-all duration-700 delay-200 ${
-          ready ? "opacity-60 scale-100" : "opacity-0 scale-0"
-        }`}
-      />
 
       {seed.map((b, i) => (
         <div
@@ -234,51 +217,6 @@ export default function IndependenceDayFx() {
           <BalloonSvg color={b.color} size={b.r * 2} />
         </div>
       ))}
-    </div>
-  )
-}
-
-/** Birthday-style fairy lights for the navbar edge — layout unchanged. */
-export function NavbarIndependenceLights({ transparent }: { transparent: boolean }) {
-  const [show, setShow] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    if (!isIndependenceSeason()) return
-    setShow(true)
-  }, [])
-
-  if (!show) return null
-
-  const bulbs = Array.from({ length: 18 }, (_, i) => i)
-  const colors = ["#ffffff", "#86efac", "#ffffff", "#4ade80", "#ffffff", "#bbf7d0"]
-
-  return (
-    <div className="pointer-events-none absolute -top-1 left-3 right-3 h-3 overflow-visible" aria-hidden>
-      <div className="absolute inset-x-0 top-[5px] h-px bg-gradient-to-r from-transparent via-neutral-400/40 to-transparent" />
-      <div className="flex justify-between px-1">
-        {bulbs.map((i) => (
-          <span
-            key={i}
-            className="relative block h-2 w-2 rounded-full"
-            style={{
-              backgroundColor: colors[i % colors.length],
-              boxShadow: transparent
-                ? `0 0 8px 2px ${colors[i % colors.length]}`
-                : `0 0 6px 1px ${colors[i % colors.length]}`,
-              animation: `pk-bulb-twinkle 1.6s ease-in-out ${i * 0.12}s infinite`,
-              opacity: transparent ? 0.95 : 0.85,
-            }}
-          />
-        ))}
-      </div>
-      <style>{`
-        @keyframes pk-bulb-twinkle {
-          0%, 100% { transform: scale(0.85); filter: brightness(0.85); }
-          50% { transform: scale(1.15); filter: brightness(1.35); }
-        }
-      `}</style>
     </div>
   )
 }
