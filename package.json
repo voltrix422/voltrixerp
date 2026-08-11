@@ -17,7 +17,8 @@
     "check-product-images": "node scripts/check-product-images.mjs",
     "restore-products": "node scripts/restore-products-backup.mjs --best",
     "list-product-backups": "node scripts/restore-products-backup.mjs --list",
-    "setup-branch-pos": "node scripts/setup-branch-pos.mjs"
+    "setup-branch-pos": "node scripts/setup-branch-pos.mjs",
+    "import:rwp-isb-leads": "node scripts/import-rwp-isb-industrial-leads.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
