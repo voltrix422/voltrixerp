@@ -407,6 +407,7 @@ export default function HomeProductBanner() {
             </Link>
           </div>
         </div>
+        </div>
 
         <PartyBurst side="left" active={fxOn} />
         <PartyBurst side="right" active={fxOn} />
