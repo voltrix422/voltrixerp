@@ -39,6 +39,7 @@ function typeBadge(t: InventoryTransaction) {
 function refLabel(refType: string, notes?: string) {
   if (/stock restored|order deleted/i.test(notes || "")) return "Order deleted"
   if (refType === "branch_pos_order") return "POS Order"
+  if (refType === "branch_pos_return") return "POS Return"
   if (refType === "branch_pos_restore") return "Order deleted"
   if (refType === "pos_sale") return "POS Sale"
   return refType || "—"

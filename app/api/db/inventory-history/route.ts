@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (posOutbound) {
-    where.referenceType = { in: ["branch_pos_order", "branch_pos_restore", "pos_sale"] }
+    where.referenceType = { in: ["branch_pos_order", "branch_pos_return", "branch_pos_restore", "pos_sale"] }
     where.transactionType = { in: ["out", "in"] }
   } else if (referenceTypes) {
     const types = referenceTypes.split(",").map((t) => t.trim()).filter(Boolean)
@@ -123,7 +123,7 @@ export async function DELETE(req: NextRequest) {
     }
     const result = await prisma.erpInventoryHistory.deleteMany({
       where: {
-        referenceType: { in: ["branch_pos_order", "branch_pos_restore", "pos_sale"] },
+        referenceType: { in: ["branch_pos_order", "branch_pos_return", "branch_pos_restore", "pos_sale"] },
         transactionType: { in: ["out", "in"] },
         OR: [
           { locationLabel },

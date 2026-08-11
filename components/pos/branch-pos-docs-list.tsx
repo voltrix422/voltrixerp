@@ -5,13 +5,23 @@ import {
   deleteOrder,
   getOrderAmountPaid,
   getOrderCreditBalance,
+  getOrderReturnAmount,
+  getReturnedLinesSummary,
+  getItemRemainingReturnableQty,
+  getItemOriginalQty,
   hasOutstandingCredit,
   normalizeOrderPaymentTerms,
   saveOrder,
+  canReturnOrder,
+  canAddReturnPayment,
+  orderHasAnyReturns,
+  isOrderReturned,
+  getOrderReturnPaymentProofUrls,
   type Order,
   type OrderPayment,
 } from "@/lib/orders"
 import { deleteQuotation, saveQuotation, type Quotation } from "@/lib/quotations"
+import { OrderReturn, ReturnPaymentCapture } from "@/components/crm/order-return"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { CrmLineItemsDisplay } from "@/components/crm/crm-line-items-display"
 import { Button } from "@/components/ui/button"
@@ -25,6 +35,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Trash2,
   Truck,
   X,
@@ -38,7 +49,7 @@ import {
 } from "@/lib/branch-pos-profit"
 
 type DocKind = "order" | "quotation"
-type CreditFilter = "all" | "credit" | "paid"
+type CreditFilter = "all" | "credit" | "paid" | "returned"
 
 const PAYMENT_METHODS = ["Cash", "Bank transfer", "Card", "JazzCash", "EasyPaisa", "Other"] as const
 
@@ -92,6 +103,8 @@ function DocDetailModal({
 
   const [editing, setEditing] = useState(false)
   const [addingPayment, setAddingPayment] = useState(false)
+  const [showReturn, setShowReturn] = useState(false)
+  const [showReturnPayment, setShowReturnPayment] = useState(false)
   const [saving, setSaving] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
 
@@ -108,6 +121,10 @@ function DocDetailModal({
   const paid = order ? getOrderAmountPaid(order) : 0
   const debt = order ? getOrderCreditBalance(order) : 0
   const onCredit = order ? hasOutstandingCredit(order) : false
+  const returnAmount = order ? getOrderReturnAmount(order) : 0
+  const hasReturns = order ? orderHasAnyReturns(order) : false
+  const canReturn = order ? canReturnOrder(order) : false
+  const canReturnPay = order ? canAddReturnPayment(order) : false
 
   async function handleDownloadPdf() {
     setExportingPdf(true)
@@ -213,6 +230,7 @@ function DocDetailModal({
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={onClose}>
       <div
         className="w-full sm:max-w-2xl max-h-[92dvh] overflow-hidden rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl flex flex-col"
@@ -410,10 +428,96 @@ function DocDetailModal({
               </div>
             </div>
           )}
+
+          {order && hasReturns && (
+            <div className="rounded-lg border border-orange-200 bg-orange-50/80 dark:bg-orange-950/30 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-orange-800 dark:text-orange-200">
+                  {isOrderReturned(order) ? "Order returned" : "Partial return"}
+                </p>
+                {canReturnPay && !showReturnPayment && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 text-[10px] bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={() => setShowReturnPayment(true)}
+                  >
+                    Add return payment
+                  </Button>
+                )}
+              </div>
+              {order.returnReason && (
+                <p className="text-xs text-orange-900 dark:text-orange-100">
+                  <span className="font-semibold">Reason:</span> {order.returnReason}
+                </p>
+              )}
+              <div className="rounded-md border border-orange-200 dark:border-orange-800 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-orange-100/60 dark:bg-orange-900/30 text-left text-[10px] uppercase text-orange-800 dark:text-orange-200">
+                      <th className="px-2 py-1.5">Item</th>
+                      <th className="px-2 py-1.5 text-right">Returned</th>
+                      <th className="px-2 py-1.5 text-right">Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getReturnedLinesSummary(order).map((line) => {
+                      const remainingItem = order.items.find((i) => i.id === line.orderItemId)
+                      const remaining = remainingItem
+                        ? getItemRemainingReturnableQty(order, remainingItem)
+                        : 0
+                      const original = remainingItem
+                        ? getItemOriginalQty(order, remainingItem)
+                        : line.qty
+                      return (
+                        <tr key={line.orderItemId} className="border-t border-orange-200/70">
+                          <td className="px-2 py-1.5">{line.description}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums font-medium">
+                            {line.qty} / {original}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{remaining}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-orange-800 dark:text-orange-200">
+                <div>
+                  <p className="font-bold uppercase text-[10px]">Refunded to customer</p>
+                  <p className="mt-0.5 font-medium tabular-nums">{formatPkr(returnAmount)}</p>
+                </div>
+                <div>
+                  <p className="font-bold uppercase text-[10px]">Stock</p>
+                  <p className="mt-0.5">
+                    {order.inventoryReturnedAt ? "Fully restored" : "Returned qty restored to branch stock"}
+                  </p>
+                </div>
+              </div>
+              {(order.returnPayments?.length ?? 0) > 0 && (
+                <ul className="space-y-1.5">
+                  {order.returnPayments!.map((p) => (
+                    <li key={p.id} className="rounded border border-orange-200/80 bg-white/60 dark:bg-orange-950/20 px-2 py-1.5 text-[11px]">
+                      <div className="flex justify-between gap-2">
+                        <span>{p.method || "Refund"}</span>
+                        <span className="font-semibold tabular-nums">{formatPkr(p.amount)}</span>
+                      </div>
+                      <p className="text-orange-700/80">{p.date} · {p.createdBy}</p>
+                      {getOrderReturnPaymentProofUrls(p).map((url) => (
+                        <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[#1faca6] underline text-[10px]">
+                          View proof
+                        </a>
+                      ))}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 px-4 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
-          {!editing && !addingPayment && (
+          {!editing && !addingPayment && !showReturn && !showReturnPayment && (
             <Button
               type="button"
               size="sm"
@@ -434,6 +538,18 @@ function DocDetailModal({
               <Button type="button" size="sm" variant="outline" className="h-9 text-xs" disabled={busy || saving} onClick={() => setAddingPayment(true)}>
                 <DollarSign className="h-3.5 w-3.5" /> Add payment
               </Button>
+              {canReturn && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                  disabled={busy || saving}
+                  onClick={() => setShowReturn(true)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Return items
+                </Button>
+              )}
               {order.status !== "delivered" && order.status !== "cancelled" && onDeliver && (
                 <Button type="button" size="sm" className="h-9 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white" disabled={busy || saving} onClick={onDeliver}>
                   {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
@@ -464,6 +580,37 @@ function DocDetailModal({
         </div>
       </div>
     </div>
+
+      {showReturn && order && (
+        <OrderReturn
+          order={order}
+          currentUser={userName}
+          onClose={() => setShowReturn(false)}
+          onUpdate={(updated) => {
+            setShowReturn(false)
+            onSaved?.(updated)
+            toast({
+              type: "success",
+              title: isOrderReturned(updated) ? "Order fully returned" : "Return recorded",
+              message: "Branch stock restored for returned items.",
+            })
+          }}
+        />
+      )}
+
+      {showReturnPayment && order && (
+        <ReturnPaymentCapture
+          order={order}
+          currentUser={userName}
+          onClose={() => setShowReturnPayment(false)}
+          onUpdate={(updated) => {
+            setShowReturnPayment(false)
+            onSaved?.(updated)
+            toast({ type: "success", title: "Return payment recorded" })
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -493,7 +640,8 @@ export function BranchPosDocsList({
   const filteredOrders = useMemo(() => {
     let list = [...orders]
     if (creditFilter === "credit") list = list.filter(hasOutstandingCredit)
-    if (creditFilter === "paid") list = list.filter((o) => getOrderCreditBalance(o) <= 0.004)
+    if (creditFilter === "paid") list = list.filter((o) => getOrderCreditBalance(o) <= 0.004 && !orderHasAnyReturns(o))
+    if (creditFilter === "returned") list = list.filter((o) => orderHasAnyReturns(o) || isOrderReturned(o))
     if (dateFrom) {
       const fromMs = new Date(`${dateFrom}T00:00:00`).getTime()
       list = list.filter((o) => new Date(o.createdAt).getTime() >= fromMs)
@@ -699,6 +847,7 @@ export function BranchPosDocsList({
                   { id: "all" as const, label: "All" },
                   { id: "credit" as const, label: "On credit" },
                   { id: "paid" as const, label: "Paid" },
+                  { id: "returned" as const, label: "Returned" },
                 ]).map((f) => (
                   <button
                     key={f.id}
@@ -758,6 +907,11 @@ export function BranchPosDocsList({
                       {credit && (
                         <span className="ml-1 inline-flex px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800">
                           CREDIT
+                        </span>
+                      )}
+                      {order && orderHasAnyReturns(order) && (
+                        <span className="ml-1 inline-flex px-1 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-800">
+                          {isOrderReturned(order) ? "RETURNED" : "PARTIAL RETURN"}
                         </span>
                       )}
                     </td>
@@ -839,6 +993,19 @@ export function BranchPosDocsList({
                             title="Open / edit / payment"
                           >
                             <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {kind === "order" && order && order.status === "delivered" && canReturnOrder(order) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[10px] px-2 border-orange-300 text-orange-700"
+                            disabled={rowBusy}
+                            onClick={() => setSelected(doc)}
+                            title="Return items or refund"
+                          >
+                            <RotateCcw className="h-3 w-3" />
                           </Button>
                         )}
                         {kind === "order" && order && order.status !== "delivered" && order.status !== "cancelled" && (

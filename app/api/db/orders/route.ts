@@ -13,6 +13,7 @@ import {
   deductBranchStockForPosOrder,
   isBranchPosOrderSource,
   restoreBranchStockForPosOrder,
+  restoreBranchStockForPosReturnDelta,
 } from "@/lib/branch-pos-order-stock-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 import { generateNextOrderNumber } from "@/lib/order-number-server"
@@ -223,8 +224,7 @@ export async function POST(req: NextRequest) {
       const deductInput = toOrderDeductInput(fullExisting)
       try {
         if (isBranchPosOrderSource(fullExisting.source) && fullExisting.branchId) {
-          // Branch POS: only full restore path (CRM partial returns are blocked for POS)
-          await restoreBranchStockForPosOrder({
+          const posInput = {
             id: fullExisting.id,
             orderNumber: fullExisting.orderNumber,
             clientName: fullExisting.clientName,
@@ -233,10 +233,12 @@ export async function POST(req: NextRequest) {
             items: Array.isArray(fullExisting.items)
               ? (fullExisting.items as OrderDeductInput["items"])
               : [],
-          })
-          o.inventoryReturnedAt = o.inventoryReturnedAt || new Date().toISOString()
-          o.inventoryDeductedAt = null
-          fulfillment.inventoryDeductedAt = null
+          }
+          if (restoreDelta.length > 0) {
+            await restoreBranchStockForPosReturnDelta(posInput, restoreDelta)
+          } else if (becomingFullReturnedLegacy) {
+            await restoreBranchStockForPosOrder(posInput)
+          }
         } else if (orderMayNeedInventoryRestore(deductInput)) {
           const notes = becomingFullReturnedLegacy
             ? `Returned from order · ${fullExisting.clientName} · stock restored`

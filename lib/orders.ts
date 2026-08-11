@@ -549,12 +549,14 @@ export function getOrderReturnPaymentProofUrls(payment: OrderReturnPayment): str
   return []
 }
 
-/** Delivered CRM orders with remaining returnable qty can be (partially) returned. */
+/** Delivered orders with remaining returnable qty can be (partially) returned. */
 export function canReturnOrder(
-  order: Pick<Order, "status" | "source" | "items" | "returnLines" | "returnMerchandiseApplied">,
+  order: Pick<Order, "status" | "source" | "items" | "returnLines" | "returnMerchandiseApplied" | "inventoryDeductedAt">,
 ) {
-  if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
   if (order.status !== "delivered") return false
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") {
+    if (!order.inventoryDeductedAt) return false
+  }
   return orderHasReturnableQty(order)
 }
 

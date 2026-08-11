@@ -146,11 +146,17 @@ export async function deductBranchStockForPosOrder(
   return prisma.$transaction(run)
 }
 
-/** Restore branch inventory when a delivered Branch POS order is deleted (stock was deducted). */
+/** Restore branch inventory when a delivered Branch POS order is deleted or items are returned. */
 export async function restoreBranchStockForPosOrder(
   order: BranchPosOrderStockInput,
   txClient?: Prisma.TransactionClient,
+  options?: {
+    referenceType?: "branch_pos_restore" | "branch_pos_return"
+    notesPrefix?: string
+  },
 ): Promise<void> {
+  const referenceType = options?.referenceType ?? "branch_pos_restore"
+  const notesPrefix = options?.notesPrefix ?? "Branch POS order deleted · stock restored"
   const run = async (tx: Prisma.TransactionClient) => {
     const branch = await tx.erpBranch.findUnique({ where: { id: order.branchId } })
     if (!branch) throw new Error("Branch not found")
@@ -183,10 +189,10 @@ export async function restoreBranchStockForPosOrder(
             transactionType: "in",
             quantity: qty,
             unit: created.unit || "pcs",
-            referenceType: "branch_pos_restore",
+            referenceType,
             referenceId: order.id,
             referenceNumber: order.orderNumber,
-            notes: `Branch POS order deleted · stock restored · ${branch.name}`,
+            notes: `${notesPrefix} · ${branch.name}`,
             stockBefore: 0,
             stockAfter: qty,
             locationLabel,
@@ -212,10 +218,10 @@ export async function restoreBranchStockForPosOrder(
           transactionType: "in",
           quantity: qty,
           unit: item.unit || target.unit || "pcs",
-          referenceType: "branch_pos_restore",
+          referenceType,
           referenceId: order.id,
           referenceNumber: order.orderNumber,
-          notes: `Branch POS order deleted · stock restored · ${branch.name}`,
+          notes: `${notesPrefix} · ${branch.name}${order.clientName ? ` · ${order.clientName}` : ""}`,
           stockBefore,
           stockAfter,
           locationLabel,
@@ -230,6 +236,40 @@ export async function restoreBranchStockForPosOrder(
     return
   }
   await prisma.$transaction(run)
+}
+
+export type BranchPosRestoreDelta = {
+  orderItemId: string
+  qty: number
+}
+
+/** Restore specific returned qty back to branch stock (partial or full return). */
+export async function restoreBranchStockForPosReturnDelta(
+  order: BranchPosOrderStockInput,
+  restoreDelta: BranchPosRestoreDelta[],
+  txClient?: Prisma.TransactionClient,
+): Promise<void> {
+  const byId = new Map(
+    (order.items || [])
+      .filter((item) => item && (item as { id?: string }).id)
+      .map((item) => [(item as { id: string }).id, item as BranchPosOrderLine & { id: string }]),
+  )
+  const restoreItems: BranchPosOrderLine[] = []
+  for (const delta of restoreDelta) {
+    const item = byId.get(delta.orderItemId)
+    const qty = Math.max(0, Math.floor(Number(delta.qty) || 0))
+    if (!item || qty <= 0) continue
+    restoreItems.push({ ...item, qty })
+  }
+  if (restoreItems.length === 0) return
+  await restoreBranchStockForPosOrder(
+    { ...order, items: restoreItems },
+    txClient,
+    {
+      referenceType: "branch_pos_return",
+      notesPrefix: `Branch POS return · ${order.orderNumber}`,
+    },
+  )
 }
 
 export function isBranchPosOrderSource(source?: string | null): boolean {

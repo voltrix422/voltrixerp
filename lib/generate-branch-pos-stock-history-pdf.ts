@@ -20,6 +20,7 @@ function typeLabel(t: InventoryTransaction): string {
 
 function refLabel(refType: string): string {
   if (refType === "branch_pos_order") return "POS Order"
+  if (refType === "branch_pos_return") return "POS Return"
   if (refType === "branch_pos_restore") return "Order deleted"
   if (refType === "pos_sale") return "POS Sale"
   if (refType === "branch") return "Branch"
