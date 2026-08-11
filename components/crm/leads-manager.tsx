@@ -15,6 +15,7 @@ import {
 import { downloadLeadsExcel } from "@/lib/crm-excel-export"
 import { isErpAdmin, getUsers, ROLE_LABELS, type User as ErpUser } from "@/lib/auth"
 import { LEAD_STATUS_OPTIONS, leadStatusLabel } from "@/lib/crm-lead-status"
+import { isLocalIndustrialLead } from "@/lib/crm-local-leads"
 import {
   fetchLeads,
   fetchLeadDetail,
@@ -58,7 +59,10 @@ import {
   Link2,
   Star,
   Sparkles,
+  MapPin,
 } from "lucide-react"
+
+type LeadSection = "all" | "favorites" | "local"
 
 const STATUS_OPTIONS = LEAD_STATUS_OPTIONS
 
@@ -841,6 +845,38 @@ function FavoriteStarButton({
   )
 }
 
+function LocalDataHero({ count, rwpCount, isbCount }: { count: number; rwpCount: number; isbCount: number }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-[#1faca6]/40 bg-gradient-to-br from-[#1faca6]/90 via-teal-500 to-cyan-600 p-4 sm:p-5 text-white shadow-lg shadow-teal-500/25">
+      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
+      <div className="absolute -bottom-8 -left-4 h-24 w-24 rounded-full bg-cyan-200/20 blur-xl" />
+      <div className="relative flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm border border-white/30">
+          <MapPin className="h-5 w-5 text-cyan-50" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base sm:text-lg font-bold tracking-tight">Local industrial data</h3>
+          <p className="text-xs sm:text-sm text-white/90 mt-0.5">
+            Rawalpindi & Islamabad company lists — industry, address, phone, and solar priority in notes.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-semibold">
+              <MapPin className="h-3 w-3" />
+              {count} local lead{count === 1 ? "" : "s"}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-white/15 border border-white/25 px-2.5 py-0.5 text-[11px] font-medium">
+              RWP {rwpCount}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-white/15 border border-white/25 px-2.5 py-0.5 text-[11px] font-medium">
+              ISB {isbCount}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function FavoritesHero({ count }: { count: number }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-amber-300/50 bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 p-4 sm:p-5 text-white shadow-lg shadow-amber-500/25">
@@ -1281,7 +1317,7 @@ export function LeadsManager({
   const [loadingInstallersCsv, setLoadingInstallersCsv] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
   const [addLeadAsFavorite, setAddLeadAsFavorite] = useState(false)
-  const [activeSection, setActiveSection] = useState<"all" | "favorites">("all")
+  const [activeSection, setActiveSection] = useState<LeadSection>("all")
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const [showFacebookImportModal, setShowFacebookImportModal] = useState(false)
   const [openBatchIds, setOpenBatchIds] = useState<Set<string>>(() => new Set())
@@ -1391,9 +1427,27 @@ export function LeadsManager({
     reloadLeadDetail(detailId)
   }, [detailId, reloadLeadDetail])
 
+  const localLeads = useMemo(() => leads.filter((l) => isLocalIndustrialLead(l)), [leads])
+
   const filteredAll = useMemo(
     () =>
-      applyLeadFilters(leads, {
+      applyLeadFilters(
+        leads.filter((l) => !isLocalIndustrialLead(l)),
+        {
+          search,
+          statusFilter,
+          contactFilter,
+          contactFrom,
+          contactTo,
+          assignedFilter,
+        },
+      ),
+    [leads, search, statusFilter, contactFilter, contactFrom, contactTo, assignedFilter],
+  )
+
+  const filteredLocal = useMemo(
+    () =>
+      applyLeadFilters(localLeads, {
         search,
         statusFilter,
         contactFilter,
@@ -1401,17 +1455,42 @@ export function LeadsManager({
         contactTo,
         assignedFilter,
       }),
-    [leads, search, statusFilter, contactFilter, contactFrom, contactTo, assignedFilter],
+    [localLeads, search, statusFilter, contactFilter, contactFrom, contactTo, assignedFilter],
   )
 
-  const favoriteCount = useMemo(() => leads.filter((l) => l.isFavorite).length, [leads])
+  const localCount = localLeads.length
+  const localRwpCount = useMemo(
+    () => localLeads.filter((l) => l.city.toLowerCase().includes("rawalpindi")).length,
+    [localLeads],
+  )
+  const localIsbCount = useMemo(
+    () => localLeads.filter((l) => l.city.toLowerCase().includes("islamabad")).length,
+    [localLeads],
+  )
+
+  const favoriteCount = useMemo(
+    () => leads.filter((l) => l.isFavorite && !isLocalIndustrialLead(l)).length,
+    [leads],
+  )
 
   const filteredFavorites = useMemo(
     () => filteredAll.filter((l) => l.isFavorite),
     [filteredAll],
   )
 
-  const sectionLeads = activeSection === "favorites" ? filteredFavorites : filteredAll
+  const sectionLeads =
+    activeSection === "favorites"
+      ? filteredFavorites
+      : activeSection === "local"
+        ? filteredLocal
+        : filteredAll
+
+  const sectionTotalCount =
+    activeSection === "favorites"
+      ? favoriteCount
+      : activeSection === "local"
+        ? localCount
+        : leads.length - localCount
 
   const assigneeSummary = useMemo(() => summarizeAssignees(leads), [leads])
   const showAssignedFilter = canAssignLeads || assigneeSummary.assignees.length > 0
@@ -1760,7 +1839,7 @@ export function LeadsManager({
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setActiveSection("all")}
@@ -1793,9 +1872,33 @@ export function LeadsManager({
             </span>
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection("local")}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
+            activeSection === "local"
+              ? "bg-gradient-to-r from-[#1faca6] via-teal-500 to-cyan-600 text-white border-teal-300 shadow-lg shadow-teal-500/30"
+              : "bg-[hsl(var(--background))] text-teal-700 border-teal-300/50 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/20"
+          }`}
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          Local data
+          {localCount > 0 && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                activeSection === "local" ? "bg-white/25" : "bg-teal-100 text-teal-700"
+              }`}
+            >
+              {localCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {activeSection === "favorites" && <FavoritesHero count={favoriteCount} />}
+      {activeSection === "local" && (
+        <LocalDataHero count={localCount} rwpCount={localRwpCount} isbCount={localIsbCount} />
+      )}
 
       <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-3 sm:p-4 space-y-3">
         <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-end gap-3 sm:gap-4">
@@ -1907,7 +2010,7 @@ export function LeadsManager({
           assigneeSummary={assigneeSummary}
           showAssignedFilter={showAssignedFilter}
           open={filtersOpen}
-          totalCount={leads.length}
+          totalCount={sectionTotalCount}
           filteredCount={sectionLeads.length}
           onToggleOpen={() => setFiltersOpen((v) => !v)}
           onStatusFilter={setStatusFilter}
@@ -2035,7 +2138,7 @@ export function LeadsManager({
               <Star className="h-12 w-12 text-amber-300 mb-3" />
               <p className="font-medium text-amber-700 dark:text-amber-400">No favorite leads yet</p>
               <p className="text-xs mt-1 max-w-xs">
-                Star any lead from All leads, or add a new favorite lead directly.
+                Star any lead from All leads or Local data, or add a new favorite lead directly.
               </p>
               {!readOnly && (
                 <Button
@@ -2047,6 +2150,14 @@ export function LeadsManager({
                   Add favorite lead
                 </Button>
               )}
+            </>
+          ) : activeSection === "local" ? (
+            <>
+              <MapPin className="h-12 w-12 text-teal-300 mb-3" />
+              <p className="font-medium text-teal-700 dark:text-teal-400">No local industrial data yet</p>
+              <p className="text-xs mt-1 max-w-xs">
+                Import Rawalpindi / Islamabad company lists to populate this tab.
+              </p>
             </>
           ) : (
             <>
@@ -2060,7 +2171,7 @@ export function LeadsManager({
           )}
         </div>
       ) : (
-        <div className={`space-y-6 ${activeSection === "favorites" ? "rounded-xl border border-amber-200/60 bg-gradient-to-b from-amber-50/40 to-orange-50/20 dark:from-amber-950/20 dark:to-orange-950/10 p-3 sm:p-4" : ""}`}>
+        <div className={`space-y-6 ${activeSection === "favorites" ? "rounded-xl border border-amber-200/60 bg-gradient-to-b from-amber-50/40 to-orange-50/20 dark:from-amber-950/20 dark:to-orange-950/10 p-3 sm:p-4" : activeSection === "local" ? "rounded-xl border border-teal-200/60 bg-gradient-to-b from-teal-50/40 to-cyan-50/20 dark:from-teal-950/20 dark:to-cyan-950/10 p-3 sm:p-4" : ""}`}>
           {importBatchGroups.length > 0 && activeSection === "all" && (
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
@@ -2203,7 +2314,9 @@ export function LeadsManager({
             </div>
           )}
 
-          {(activeSection === "favorites" ? sectionLeads.length > 0 : (importBatchGroups.length === 0 ? sectionLeads : tableLeads).length > 0) && (
+          {(activeSection === "favorites" || activeSection === "local"
+            ? sectionLeads.length > 0
+            : (importBatchGroups.length === 0 ? sectionLeads : tableLeads).length > 0) && (
             <div>
               {importBatchGroups.length > 0 && activeSection === "all" && (
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
@@ -2215,9 +2328,28 @@ export function LeadsManager({
                   Your favorite leads
                 </p>
               )}
-              <div className={`rounded-lg border overflow-hidden ${activeSection === "favorites" ? "border-amber-200/60" : ""}`}>
+              {activeSection === "local" && (
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-600 mb-2">
+                  RWP / ISB industrial leads
+                </p>
+              )}
+              <div
+                className={`rounded-lg border overflow-hidden ${
+                  activeSection === "favorites"
+                    ? "border-amber-200/60"
+                    : activeSection === "local"
+                      ? "border-teal-200/60"
+                      : ""
+                }`}
+              >
                 <LeadsListView
-                  leads={activeSection === "favorites" ? sectionLeads : importBatchGroups.length === 0 ? sectionLeads : tableLeads}
+                  leads={
+                    activeSection === "favorites" || activeSection === "local"
+                      ? sectionLeads
+                      : importBatchGroups.length === 0
+                        ? sectionLeads
+                        : tableLeads
+                  }
                   onOpenDetail={openLeadDetail}
                   onStatusChange={onStatusChange}
                   onLog={setLogForLead}

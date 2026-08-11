@@ -217,14 +217,14 @@ async function main() {
       createdBy,
       importBatchId,
       importUploaderName,
-      isFavorite: l.isFavorite,
+      isFavorite: false,
     })),
   })
 
   console.log(`Imported ${result.count} industrial leads (${rwpLeads.length} RWP + ${isbLeads.length} ISB).`)
-  console.log(`Favorites (High solar priority): ${leads.filter((l) => l.isFavorite).length}`)
   console.log(`Batch: ${importBatchId}`)
   console.log(`Importer label: ${importUploaderName}`)
+  console.log("These appear under CRM → Leads → Local data (not Favorites).")
 }
 
 main()
