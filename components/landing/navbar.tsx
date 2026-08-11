@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
+import IndependenceDayFx, { NavbarIndependenceLights } from "@/components/landing/independence-day-fx"
 import { usePathname } from "next/navigation"
 
 const primaryLinks = [
@@ -74,6 +75,8 @@ export default function Navbar() {
     : "h-7 w-auto object-contain"
 
   return (
+    <>
+    <IndependenceDayFx />
     <div
       className="fixed top-4 left-0 right-0 z-50 flex flex-col items-center gap-2 px-4"
       style={{
@@ -86,6 +89,7 @@ export default function Navbar() {
       <nav
         className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-x-3 xl:gap-x-5 px-4 sm:px-5 xl:px-7 py-2.5 rounded-xl w-full max-w-7xl transition-all duration-500 ${navClass}`}
       >
+        <NavbarIndependenceLights transparent={transparent} />
         <a href="/" onClick={closeMenu} className="shrink-0 flex items-center">
           <Image
             src="/logo.png"
@@ -157,5 +161,6 @@ export default function Navbar() {
         </div>
       )}
     </div>
+    </>
   )
 }
