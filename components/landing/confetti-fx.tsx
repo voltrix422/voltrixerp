@@ -15,6 +15,10 @@ const COLORS = [
   "#86efac",
 ]
 
+const BURST_SESSION_KEY = "voltrix-confetti-burst-done"
+
+type Phase = "burst" | "flat"
+
 type Piece = {
   x: number
   y: number
@@ -32,26 +36,58 @@ function isIndependenceSeason(d = new Date()) {
   return d.getMonth() === 7 && d.getDate() >= 1 && d.getDate() <= 20
 }
 
-function spawnPiece(w: number, h: number, navbarBias = false): Piece {
-  const x = navbarBias ? w * (0.08 + Math.random() * 0.84) : Math.random() * w
-  const y = navbarBias ? -20 - Math.random() * 80 : -20 - Math.random() * h * 0.4
+function spawnBurstPiece(originX: number, originY: number): Piece {
+  const angle = Math.random() * Math.PI * 2
+  const speed = 7 + Math.random() * 16
   return {
-    x,
-    y,
-    w: 4 + Math.random() * 7,
-    h: 10 + Math.random() * 16,
+    x: originX + (Math.random() - 0.5) * 24,
+    y: originY + (Math.random() - 0.5) * 16,
+    w: 4 + Math.random() * 6,
+    h: 10 + Math.random() * 18,
     color: COLORS[Math.floor(Math.random() * COLORS.length)],
     rot: Math.random() * Math.PI * 2,
-    spin: (Math.random() - 0.5) * 0.14,
-    vx: (Math.random() - 0.5) * 1.4,
-    vy: 1.2 + Math.random() * 2.2,
-    opacity: 0.75 + Math.random() * 0.25,
+    spin: (Math.random() - 0.5) * 0.28,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed - 3,
+    opacity: 1,
   }
 }
 
-function initPieces(w: number, h: number, count: number): Piece[] {
-  return Array.from({ length: count }, (_, i) => {
-    const p = spawnPiece(w, h, i % 3 === 0)
+function spawnFlatPiece(w: number, h: number): Piece {
+  return {
+    x: Math.random() * w,
+    y: -16 - Math.random() * h * 0.15,
+    w: 9 + Math.random() * 12,
+    h: 3 + Math.random() * 4,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    rot: (Math.random() - 0.5) * 0.35,
+    spin: (Math.random() - 0.5) * 0.018,
+    vx: (Math.random() - 0.5) * 0.7,
+    vy: 0.7 + Math.random() * 1.1,
+    opacity: 0.65 + Math.random() * 0.25,
+  }
+}
+
+function createBurst(w: number, h: number): Piece[] {
+  const origins = [
+    { x: w * 0.5, y: Math.min(h * 0.14, 96) },
+    { x: w * 0.18, y: Math.min(h * 0.1, 72) },
+    { x: w * 0.82, y: Math.min(h * 0.1, 72) },
+  ]
+  const perOrigin = w < 640 ? 45 : w < 1024 ? 60 : 75
+  const pieces: Piece[] = []
+  for (const o of origins) {
+    for (let i = 0; i < perOrigin; i++) {
+      pieces.push(spawnBurstPiece(o.x, o.y))
+    }
+  }
+  return pieces
+}
+
+function createFlatField(w: number, h: number): Piece[] {
+  const count = w < 640 ? 45 : w < 1024 ? 65 : 85
+  return Array.from({ length: count }, () => {
+    const p = spawnFlatPiece(w, h)
     p.y = Math.random() * h
     return p
   })
@@ -63,6 +99,8 @@ export default function ConfettiFx() {
   const rafRef = useRef(0)
   const sizeRef = useRef({ w: 0, h: 0 })
   const tickRef = useRef(0)
+  const phaseRef = useRef<Phase>("burst")
+  const burstUntilRef = useRef(0)
   const [active, setActive] = useState(false)
 
   useEffect(() => {
@@ -79,6 +117,10 @@ export default function ConfettiFx() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
+    const alreadyBurst =
+      typeof sessionStorage !== "undefined" &&
+      sessionStorage.getItem(BURST_SESSION_KEY) === "1"
+
     const setSize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const w = window.innerWidth
@@ -90,9 +132,16 @@ export default function ConfettiFx() {
       canvas.style.height = `${h}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-      const count = w < 640 ? 70 : w < 1024 ? 100 : 130
       if (piecesRef.current.length === 0) {
-        piecesRef.current = initPieces(w, h, count)
+        if (alreadyBurst) {
+          phaseRef.current = "flat"
+          piecesRef.current = createFlatField(w, h)
+        } else {
+          phaseRef.current = "burst"
+          piecesRef.current = createBurst(w, h)
+          burstUntilRef.current = performance.now() + 2200
+          sessionStorage.setItem(BURST_SESSION_KEY, "1")
+        }
       }
     }
 
@@ -104,17 +153,37 @@ export default function ConfettiFx() {
       tickRef.current += 1
       ctx.clearRect(0, 0, w, h)
 
+      if (phaseRef.current === "burst" && performance.now() >= burstUntilRef.current) {
+        phaseRef.current = "flat"
+        piecesRef.current = createFlatField(w, h)
+      }
+
+      const flat = phaseRef.current === "flat"
+
       for (const p of piecesRef.current) {
-        p.vy = Math.min(p.vy + 0.045, 5.5)
-        p.vx += Math.sin(tickRef.current * 0.02 + p.x * 0.01) * 0.015
-        p.vx *= 0.992
+        if (flat) {
+          p.vy = Math.min(p.vy + 0.018, 2.4)
+          p.vx += Math.sin(tickRef.current * 0.012 + p.x * 0.008) * 0.004
+          p.vx *= 0.996
+          p.spin *= 0.998
+        } else {
+          p.vy = Math.min(p.vy + 0.22, 9)
+          p.vx *= 0.985
+          p.spin *= 0.992
+        }
+
         p.x += p.vx
         p.y += p.vy
         p.rot += p.spin
 
-        if (p.y > h + 30 || p.x < -30 || p.x > w + 30) {
-          const navbarZone = Math.random() < 0.45
-          Object.assign(p, spawnPiece(w, h, navbarZone))
+        if (p.y > h + 24 || p.x < -40 || p.x > w + 40) {
+          if (flat) {
+            Object.assign(p, spawnFlatPiece(w, h))
+          } else {
+            Object.assign(p, spawnBurstPiece(w * 0.5, Math.min(h * 0.12, 90)))
+            p.vy = 2 + Math.random() * 3
+            p.opacity = 0.4
+          }
         }
 
         ctx.save()
@@ -124,12 +193,6 @@ export default function ConfettiFx() {
         ctx.fillStyle = p.color
         ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h)
         ctx.restore()
-      }
-
-      // Extra navbar shower every few frames
-      if (tickRef.current % 18 === 0) {
-        const extra = piecesRef.current[Math.floor(Math.random() * piecesRef.current.length)]
-        if (extra) Object.assign(extra, spawnPiece(w, h, true))
       }
 
       rafRef.current = requestAnimationFrame(tick)
