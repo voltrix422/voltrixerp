@@ -177,6 +177,26 @@ export interface Order {
    * Remaining returnable qty is simply each item's current `qty`.
    */
   returnMerchandiseApplied?: boolean
+  /** Swap faulty/damaged units on delivered orders without changing order qty. */
+  replacementLines?: OrderReplacementLine[]
+}
+
+export type OrderReplacementDisposition = "main" | "faulty"
+
+export interface OrderReplacementLine {
+  id: string
+  orderItemId: string
+  oldSerialNumber?: string
+  newSerialNumber?: string
+  qty: number
+  disposition: OrderReplacementDisposition
+  reason: string
+  photoUrls?: string[]
+  replacedAt: string
+  replacedBy: string
+  description?: string
+  model?: string
+  unit?: string
 }
 
 export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"
@@ -560,6 +580,15 @@ export function canReturnOrder(
   return orderHasReturnableQty(order)
 }
 
+export function canReplaceOrderItem(
+  order: Pick<Order, "status" | "source" | "inventoryDeductedAt" | "items">,
+) {
+  if (order.status !== "delivered") return false
+  if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
+  if (!order.inventoryDeductedAt) return false
+  return order.items.some((item) => !item.isCustom && Math.floor(Number(item.qty) || 0) > 0)
+}
+
 export function canAddReturnPayment(
   order: Pick<Order, "status" | "items" | "returnLines" | "returnedAt">,
 ) {
@@ -711,7 +740,7 @@ export function getOrderPaymentProofUrls(payment: OrderPayment): string[] {
   return []
 }
 
-function rowToOrder(r: Record<string, unknown>): Order {
+export function rowToOrder(r: Record<string, unknown>): Order {
   return {
     id: r.id as string,
     orderNumber: r.orderNumber as string,
@@ -772,6 +801,9 @@ function rowToOrder(r: Record<string, unknown>): Order {
       ? (r.returnLines as OrderReturnLine[])
       : [],
     returnMerchandiseApplied: Boolean(r.returnMerchandiseApplied),
+    replacementLines: Array.isArray(r.replacementLines)
+      ? (r.replacementLines as OrderReplacementLine[])
+      : [],
   }
 }
 

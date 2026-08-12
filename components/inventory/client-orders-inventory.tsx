@@ -1,13 +1,13 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from "react"
-import { getOrders, saveOrder, hasOutstandingCredit, type Order } from "@/lib/orders"
+import { getOrders, saveOrder, hasOutstandingCredit, canReplaceOrderItem, type Order } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SuccessNotification } from "@/components/ui/success-notification"
-import { Loader2, X, Eye, Download, Truck, FileText, Search, Package, ScanLine, PackageMinus } from "lucide-react"
+import { Loader2, X, Eye, Download, Truck, FileText, Search, Package, ScanLine, PackageMinus, RefreshCw } from "lucide-react"
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder, orderNeedsInventoryDeduction } from "@/lib/inventory"
@@ -29,6 +29,7 @@ import {
   warehouseStockByModelFromRows,
 } from "@/lib/order-fulfillment-serials"
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
+import { OrderItemReplacement } from "@/components/inventory/order-item-replacement"
 import {
   computeDeliveredProductQty,
   hasProductFilter,
@@ -505,6 +506,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [dispatchMode, setDispatchMode] = useState<"scan" | "no_scan">("scan")
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [deductingStock, setDeductingStock] = useState(false)
+  const [showReplaceDialog, setShowReplaceDialog] = useState(false)
   const [stockDeductionNotice, setStockDeductionNotice] = useState<string | null>(null)
   const autoDeductAttempted = useRef(false)
 
@@ -953,6 +955,17 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <Truck className="h-3 w-3 mr-1.5" />{" "}
             {updating ? "Processing..." : hasDispatcher ? "Update dispatch" : "Create dispatch note"}
           </Button>
+          {canReplaceOrderItem(order) && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs border-[#1faca6]/40 text-[#1faca6]"
+              onClick={() => setShowReplaceDialog(true)}
+            >
+              <RefreshCw className="h-3 w-3 mr-1.5" />
+              Replace item
+            </Button>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6 space-y-4">
@@ -966,9 +979,35 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 </p>
                 <ul className="space-y-1.5 text-xs">
                   {order.fulfillmentSerialAllocations!.map((a) => (
-                    <li key={`${a.orderItemId}-${a.unitId}`} className="flex flex-wrap gap-x-2">
+                    <li key={`${a.orderItemId}-${a.serialNumber}`} className="flex flex-wrap gap-x-2">
                       <span className="font-semibold tabular-nums">{a.model}</span>
                       <span className="font-mono text-[hsl(var(--primary))]">{a.serialNumber}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(order.replacementLines?.length ?? 0) > 0 && (
+              <div className="mt-3 rounded-lg border border-[#1faca6]/20 bg-[#1faca6]/5 p-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#1faca6]">
+                  Item replacements
+                </p>
+                <ul className="space-y-1.5 text-xs">
+                  {order.replacementLines!.map((r) => (
+                    <li key={r.id} className="text-[hsl(var(--muted-foreground))]">
+                      {r.oldSerialNumber && r.newSerialNumber ? (
+                        <span>
+                          <span className="font-mono line-through opacity-70">{r.oldSerialNumber}</span>
+                          {" → "}
+                          <span className="font-mono text-[hsl(var(--foreground))] font-semibold">{r.newSerialNumber}</span>
+                        </span>
+                      ) : (
+                        <span>{r.qty} {r.unit || "pcs"} swapped</span>
+                      )}
+                      {" · "}
+                      {r.disposition === "faulty" ? "to faulty" : "to main stock"}
+                      {" · "}
+                      {new Date(r.replacedAt).toLocaleDateString()}
                     </li>
                   ))}
                 </ul>
@@ -1159,6 +1198,17 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
             <Truck className="h-3.5 w-3.5 mr-1.5" />{" "}
             {updating ? "Processing..." : hasDispatcher ? "Update dispatch" : "Create dispatch note"}
           </Button>
+          {canReplaceOrderItem(order) && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-10 w-full text-xs border-[#1faca6]/40 text-[#1faca6]"
+              onClick={() => setShowReplaceDialog(true)}
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Replace item
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -1722,6 +1772,14 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
         onClose={() => setShowFulfillSuccess(false)}
         autoCloseDelay={4000}
       />
+
+      {showReplaceDialog && (
+        <OrderItemReplacement
+          order={order}
+          onClose={() => setShowReplaceDialog(false)}
+          onComplete={(updated) => onUpdate(updated)}
+        />
+      )}
     </>
   )
 }
