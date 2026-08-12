@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@prisma/client"
 import {
   countInStockSerialsForModel,
   ensureInventoryStockForModel,
@@ -424,8 +425,8 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     const updated = await prisma.erpOrder.update({
       where: { id: order.id },
       data: {
-        fulfillmentSerialAllocations: nextAllocations,
-        replacementLines: [...existingReplacements, replacement],
+        fulfillmentSerialAllocations: nextAllocations as unknown as Prisma.InputJsonValue,
+        replacementLines: [...existingReplacements, replacement] as unknown as Prisma.InputJsonValue,
       },
     })
 
@@ -478,7 +479,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     return prisma.erpOrder.update({
       where: { id: order.id },
       data: {
-        replacementLines: [...existingReplacements, replacement],
+        replacementLines: [...existingReplacements, replacement] as unknown as Prisma.InputJsonValue,
       },
     })
   }
