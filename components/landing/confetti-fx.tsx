@@ -101,6 +101,7 @@ export default function ConfettiFx() {
   const tickRef = useRef(0)
   const phaseRef = useRef<Phase>("burst")
   const burstUntilRef = useRef(0)
+  const pointerRef = useRef({ x: -9999, y: -9999, prevX: -9999, prevY: -9999 })
   const [active, setActive] = useState(false)
 
   useEffect(() => {
@@ -148,8 +149,21 @@ export default function ConfettiFx() {
     setSize()
     window.addEventListener("resize", setSize)
 
+    const onMove = (e: PointerEvent) => {
+      const ptr = pointerRef.current
+      ptr.prevX = ptr.x
+      ptr.prevY = ptr.y
+      ptr.x = e.clientX
+      ptr.y = e.clientY
+    }
+    window.addEventListener("pointermove", onMove, { passive: true })
+
     const tick = () => {
       const { w, h } = sizeRef.current
+      const ptr = pointerRef.current
+      const mx = ptr.x - ptr.prevX
+      const my = ptr.y - ptr.prevY
+      const pointerSpeed = Math.hypot(mx, my)
       tickRef.current += 1
       ctx.clearRect(0, 0, w, h)
 
@@ -170,6 +184,18 @@ export default function ConfettiFx() {
           p.vy = Math.min(p.vy + 0.22, 9)
           p.vx *= 0.985
           p.spin *= 0.992
+        }
+
+        const hitR = Math.max(p.w, p.h) * 0.75 + (flat ? 26 : 34)
+        const dx = p.x - ptr.x
+        const dy = p.y - ptr.y
+        const dist = Math.hypot(dx, dy)
+        if (dist < hitR && dist > 0.1) {
+          const base = flat ? 0.55 : 0.95
+          const force = ((hitR - dist) / hitR) * (base + Math.min(pointerSpeed, 40) * (flat ? 0.05 : 0.08))
+          p.vx += (dx / dist) * force
+          p.vy += (dy / dist) * force
+          p.spin += (mx + my) * (flat ? 0.012 : 0.022)
         }
 
         p.x += p.vx
@@ -202,6 +228,7 @@ export default function ConfettiFx() {
 
     return () => {
       window.removeEventListener("resize", setSize)
+      window.removeEventListener("pointermove", onMove)
       cancelAnimationFrame(rafRef.current)
     }
   }, [active])
