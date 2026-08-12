@@ -1,43 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { ArrowRight, Zap } from "lucide-react"
 import GradualBlur from "./gradual-blur"
 import RotatingText from "./rotating-text"
 import SideRays from "./side-rays"
-
-const fillAnimation = `
-@keyframes fill {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-`
-
-const heroImages = [
-  "/craiyon_130718_image.png",
-  "/craiyon_130930_image.png",
-  "/craiyon_131152_image.png",
-  "/craiyon_132822_image.png",
-]
+import HeroProductCarousel from "./hero-product-carousel"
 
 export default function Hero() {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
-
-  useEffect(() => {
-    const style = document.createElement("style")
-    style.textContent = fillAnimation
-    document.head.appendChild(style)
-    return () => {
-      document.head.removeChild(style)
-    }
-  }, [])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex(prev => (prev + 1) % heroImages.length)
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [])
 
   return (
     <section className="relative min-h-screen flex flex-col overflow-hidden bg-neutral-950">
@@ -140,59 +109,12 @@ export default function Hero() {
             </a>
           </div>
 
-          <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative gap-5 w-[400px] shrink-0">
-            <div className="relative w-full flex flex-col items-center">
-              <div
-                className="absolute -top-4 right-0 w-[85%] h-[65%] pointer-events-none"
-                style={{
-                  background:
-                    "radial-gradient(ellipse 65% 50% at 68% 20%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 45%, transparent 75%)",
-                  filter: "blur(12px)",
-                }}
-                aria-hidden
-              />
-              <div
-                className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[78%] h-10 rounded-[100%] bg-black/40 blur-2xl pointer-events-none"
-                aria-hidden
-              />
-              <div
-                className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[72%] h-3 rounded-[100%] bg-[#1a9f9a]/20 blur-md pointer-events-none"
-                aria-hidden
-              />
+          <div className="hidden lg:flex flex-col items-center justify-center flex-1 relative w-[400px] shrink-0">
+            <HeroProductCarousel />
+          </div>
 
-              <div className="relative w-96 h-[450px] rounded-3xl overflow-visible">
-                {heroImages.map((img, index) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={img}
-                    src={img}
-                    alt=""
-                    className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 drop-shadow-[0_32px_48px_rgba(0,0,0,0.45)] ${
-                      index === currentImageIndex ? "opacity-100" : "opacity-0"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              {heroImages.map((_, index) => (
-                <div
-                  key={index}
-                  className="relative w-1.5 h-1.5 rounded-full overflow-hidden bg-neutral-700"
-                  aria-label={`Slide ${index + 1}`}
-                >
-                  <div
-                    className={`absolute inset-0 bg-[#1a9f9a] origin-left ${
-                      index === currentImageIndex ? "animate-fill" : "scale-x-0"
-                    }`}
-                    style={{
-                      animation: index === currentImageIndex ? "fill 4s linear" : "none",
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
+          <div className="lg:hidden w-full mt-4">
+            <HeroProductCarousel />
           </div>
         </div>
       </div>

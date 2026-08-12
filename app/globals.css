@@ -95,6 +95,28 @@
   }
 }
 
+@keyframes promo-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes carousel-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-promo-marquee {
+  animation: promo-marquee 28s linear infinite;
+}
+
 * {
   border-color: hsl(var(--border));
   box-sizing: border-box;
