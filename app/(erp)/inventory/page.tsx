@@ -8,10 +8,11 @@ import { ClientOrdersInventory } from "@/components/inventory/client-orders-inve
 import { OrderReturnsInventory } from "@/components/inventory/order-returns-inventory"
 import { BranchesTab } from "@/components/branches/branches-tab"
 import { InventoryMovementOverview } from "@/components/inventory/inventory-movement-overview"
+import { FaultyInventoryTab } from "@/components/inventory/faulty-inventory-tab"
 
 const HISTORY_TAB_ENABLED = false
 
-type InventoryTab = "orders" | "inventory" | "manual" | "returns" | "branches" | "history"
+type InventoryTab = "orders" | "inventory" | "manual" | "faulty" | "returns" | "branches" | "history"
 
 export default function InventoryPage() {
   const [tab, setTab] = useState<InventoryTab>("orders")
@@ -20,6 +21,7 @@ export default function InventoryPage() {
     { id: "orders", label: "Client Orders", shortLabel: "Orders" },
     { id: "inventory", label: "Inventory", shortLabel: "Inventory" },
     { id: "manual", label: "Manual added inventory", shortLabel: "Manual" },
+    { id: "faulty", label: "Faulty / Damaged", shortLabel: "Faulty" },
     { id: "returns", label: "Order returns", shortLabel: "Returns" },
     { id: "branches", label: "Branches", shortLabel: "Branches" },
     ...(HISTORY_TAB_ENABLED
@@ -55,6 +57,7 @@ export default function InventoryPage() {
           {tab === "orders" && <ClientOrdersInventory />}
           {tab === "inventory" && <InventoryList />}
           {tab === "manual" && <ManualInventoryTab />}
+          {tab === "faulty" && <FaultyInventoryTab />}
           {tab === "returns" && <OrderReturnsInventory />}
           {tab === "branches" && <BranchesTab />}
           {HISTORY_TAB_ENABLED && tab === "history" && <InventoryMovementOverview />}

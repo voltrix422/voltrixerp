@@ -13,6 +13,7 @@ export type ManualInventoryItem = {
   model: string
   qty: number
   availableQty: number
+  faultyQty?: number
   unit: string
   notes: string
   inventoryStockId: string | null

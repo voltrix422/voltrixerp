@@ -4,9 +4,11 @@ import type { ManualInventoryItem } from "@/lib/manual-inventory"
 export type StockOnlyMeta = {
   inStock: number
   total: number
+  faultyQty?: number
   unit: string
   isManual: boolean
   manualId?: string
+  stockId?: string
 }
 
 export type UnifiedInventoryModelGroup = {
@@ -17,10 +19,12 @@ export type UnifiedInventoryModelGroup = {
 }
 
 type StockRow = {
+  id?: string
   description?: string | null
   name?: string | null
   availableQty?: number | null
   receivedQty?: number | null
+  faultyQty?: number | null
   unit?: string | null
   poType?: string | null
 }
@@ -65,9 +69,11 @@ export function buildUnifiedInventoryGroups(
         stockOnly: {
           inStock: manual.availableQty ?? 0,
           total: manual.qty ?? 0,
+          faultyQty: Number(manual.faultyQty) || 0,
           unit: manual.unit || "pcs",
           isManual: true,
           manualId: manual.id,
+          stockId: manual.inventoryStockId ?? undefined,
         },
       })
       continue
@@ -78,9 +84,11 @@ export function buildUnifiedInventoryGroups(
       existing.stockOnly = {
         inStock: manual.availableQty ?? 0,
         total: manual.qty ?? 0,
+        faultyQty: Number(manual.faultyQty) || 0,
         unit: manual.unit || "pcs",
         isManual: true,
         manualId: manual.id,
+        stockId: manual.inventoryStockId ?? undefined,
       }
     }
   }
@@ -102,13 +110,21 @@ export function buildUnifiedInventoryGroups(
       stockOnly: {
         inStock,
         total,
+        faultyQty: Math.max(0, Number(stock.faultyQty) || 0),
         unit: stock.unit?.trim() || "pcs",
         isManual: false,
+        stockId: stock.id,
       },
     })
   }
 
   return Array.from(groups.values()).sort((a, b) => a.modelKey.localeCompare(b.modelKey))
+}
+
+export function unifiedGroupFaulty(group: UnifiedInventoryModelGroup): number {
+  const serialFaulty = group.units.filter((u) => u.status === "faulty").length
+  if (serialFaulty > 0) return serialFaulty
+  return group.stockOnly?.faultyQty ?? 0
 }
 
 export function unifiedGroupInStock(group: UnifiedInventoryModelGroup): number {

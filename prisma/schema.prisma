@@ -320,6 +320,7 @@ model ErpInventoryStock {
   specs           String   @default("")
   receivedQty     Float    @default(0) @map("received_qty")
   availableQty    Float    @default(0) @map("available_qty")
+  faultyQty       Float    @default(0) @map("faulty_qty")
   allocatedQty    Float    @default(0) @map("allocated_qty")
   costPrice       Float    @default(0) @map("cost_price")
   supplierName    String   @default("") @map("supplier_name")
@@ -341,6 +342,7 @@ model ErpManualInventoryItem {
   model            String   @unique
   qty              Float
   availableQty     Float    @map("available_qty")
+  faultyQty        Float    @default(0) @map("faulty_qty")
   unit             String   @default("pcs")
   notes            String   @default("")
   inventoryStockId String?  @map("inventory_stock_id")

@@ -23,6 +23,11 @@ import {
   type UnifiedInventoryModelGroup,
 } from "@/lib/unified-inventory-groups"
 import { downloadUnifiedInventoryExcel } from "@/lib/inventory-excel-export"
+import {
+  markSerialUnitFaulty,
+  moveManualQtyToFaulty,
+  moveStockQtyToFaulty,
+} from "@/lib/faulty-inventory"
 import { InventoryModelGroup } from "@/components/inventory/inventory-model-group"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
@@ -57,6 +62,8 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [editingName, setEditingName] = useState("")
   const [savingModelLabel, setSavingModelLabel] = useState(false)
   const [adjustingManual, setAdjustingManual] = useState<{ id: string; mode: "stock" | "units" } | null>(null)
+  const [markingFaultyId, setMarkingFaultyId] = useState<string | null>(null)
+  const [movingToFaulty, setMovingToFaulty] = useState(false)
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
@@ -344,6 +351,77 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     }
   }
 
+  async function handleMarkSerialFaulty(unit: InventorySerialUnit): Promise<boolean> {
+    const ok = await confirmDialog({
+      type: "confirm",
+      title: "Mark as faulty / damaged?",
+      message: `Move SN ${unit.serialNumber} out of main inventory into faulty/damaged stock.`,
+      confirmLabel: "Mark faulty",
+      cancelLabel: "Cancel",
+    })
+    if (!ok) return false
+
+    setMarkingFaultyId(unit.id)
+    try {
+      await markSerialUnitFaulty({
+        unitId: unit.id,
+        actor: getSession()?.name || "Inventory",
+      })
+      await loadUnits()
+      onUnitsChanged?.()
+      toast({
+        title: "Moved to faulty",
+        message: `${unit.serialNumber} is now in faulty/damaged inventory.`,
+        type: "success",
+      })
+      return true
+    } catch (err) {
+      toast({
+        title: "Could not mark faulty",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+      return false
+    } finally {
+      setMarkingFaultyId(null)
+    }
+  }
+
+  async function handleMoveQtyToFaulty(input: {
+    manualId?: string
+    stockId?: string
+    qty: number
+  }): Promise<boolean> {
+    setMovingToFaulty(true)
+    try {
+      const actor = getSession()?.name || "Inventory"
+      if (input.manualId) {
+        await moveManualQtyToFaulty({ manualId: input.manualId, qty: input.qty, actor })
+      } else if (input.stockId) {
+        await moveStockQtyToFaulty({ stockId: input.stockId, qty: input.qty, actor })
+      } else {
+        throw new Error("No inventory source selected")
+      }
+      await loadUnits()
+      onUnitsChanged?.()
+      toast({
+        title: "Moved to faulty",
+        message: `${input.qty} unit(s) moved to faulty/damaged inventory.`,
+        type: "success",
+      })
+      return true
+    } catch (err) {
+      toast({
+        title: "Could not move to faulty",
+        message: err instanceof Error ? err.message : undefined,
+        type: "error",
+      })
+      return false
+    } finally {
+      setMovingToFaulty(false)
+    }
+  }
+
   function renderGroupTable(title: string, groups: UnifiedInventoryModelGroup[]) {
     return (
       <div className="rounded-lg border overflow-hidden bg-[hsl(var(--background))]">
@@ -385,7 +463,11 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
               onDeleteModel={() => handleDeleteModel(group)}
               onSubtractManualStock={handleSubtractManualStock}
               onSubtractManualUnits={handleSubtractManualUnits}
+              onMarkSerialFaulty={handleMarkSerialFaulty}
+              onMoveQtyToFaulty={handleMoveQtyToFaulty}
               adjustingManual={adjustingManual}
+              markingFaultyId={markingFaultyId}
+              movingToFaulty={movingToFaulty}
             />
           ))}
         </div>

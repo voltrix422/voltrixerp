@@ -13,6 +13,7 @@ function mapRow(row: {
   model: string
   qty: number
   availableQty: number
+  faultyQty?: number
   unit: string
   notes: string
   inventoryStockId: string | null
@@ -27,6 +28,7 @@ function mapRow(row: {
     model: row.model,
     qty: row.qty,
     availableQty: row.availableQty,
+    faultyQty: Number(row.faultyQty) || 0,
     unit: row.unit,
     notes: row.notes,
     inventoryStockId: row.inventoryStockId,

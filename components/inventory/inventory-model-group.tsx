@@ -11,7 +11,7 @@ import { InventoryModelPricePanel } from "@/components/inventory/inventory-model
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { StockOnlyMeta } from "@/lib/unified-inventory-groups"
-import { ChevronDown, ChevronRight, Loader2, Minus, Pencil, Trash2, X } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2, Minus, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
 
 function formatDate(iso?: string) {
   if (!iso) return "—"
@@ -41,7 +41,11 @@ export function InventoryModelGroup({
   onDeleteModel,
   onSubtractManualStock,
   onSubtractManualUnits,
+  onMarkSerialFaulty,
+  onMoveQtyToFaulty,
   adjustingManual,
+  markingFaultyId,
+  movingToFaulty,
   stockOnly,
 }: {
   modelKey: string
@@ -62,7 +66,15 @@ export function InventoryModelGroup({
   onDeleteModel: () => void | Promise<boolean | void>
   onSubtractManualStock?: (manualId: string, qty: number) => boolean | Promise<boolean>
   onSubtractManualUnits?: (manualId: string, qty: number) => boolean | Promise<boolean>
+  onMarkSerialFaulty?: (unit: InventorySerialUnit) => boolean | Promise<boolean>
+  onMoveQtyToFaulty?: (input: {
+    manualId?: string
+    stockId?: string
+    qty: number
+  }) => boolean | Promise<boolean>
   adjustingManual?: { id: string; mode: "stock" | "units" } | null
+  markingFaultyId?: string | null
+  movingToFaulty?: boolean
   stockOnly?: StockOnlyMeta
 }) {
   const count = modelUnits.length > 0 ? modelUnits.length : (stockOnly?.total ?? 0)
@@ -80,6 +92,8 @@ export function InventoryModelGroup({
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [adjustMode, setAdjustMode] = useState<"stock" | "units">("stock")
   const [adjustQty, setAdjustQty] = useState("1")
+  const [faultyOpen, setFaultyOpen] = useState(false)
+  const [faultyQty, setFaultyQty] = useState("1")
 
   const manualId = stockOnly?.manualId
   const isManualStock = Boolean(stockOnly?.isManual && manualId)
@@ -107,6 +121,19 @@ export function InventoryModelGroup({
         : await onSubtractManualUnits?.(manualId, qty)
     if (ok) setAdjustOpen(false)
   }
+
+  async function confirmFaultyMove() {
+    const qty = Math.floor(Number(faultyQty))
+    if (!Number.isFinite(qty) || qty <= 0 || qty > inStock) return
+    const ok = await onMoveQtyToFaulty?.({
+      manualId: stockOnly?.manualId,
+      stockId: stockOnly?.stockId,
+      qty,
+    })
+    if (ok) setFaultyOpen(false)
+  }
+
+  const canMoveQtyToFaulty = !hasSerials && inStock > 0 && Boolean(onMoveQtyToFaulty)
 
   return (
     <div className="bg-[hsl(var(--background))]">
@@ -237,6 +264,25 @@ export function InventoryModelGroup({
                   </button>
                 </>
               ) : null}
+              {canMoveQtyToFaulty ? (
+                <button
+                  type="button"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFaultyQty("1")
+                    setFaultyOpen(true)
+                  }}
+                  disabled={movingToFaulty}
+                  title="Move to faulty/damaged"
+                >
+                  {movingToFaulty ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4" />
+                  )}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="flex h-8 w-8 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[hsl(var(--muted))]/20"
@@ -342,6 +388,21 @@ export function InventoryModelGroup({
                   </button>
                 </>
               ) : null}
+              {canMoveQtyToFaulty ? (
+                <button
+                  type="button"
+                  className="p-1 rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFaultyQty("1")
+                    setFaultyOpen(true)
+                  }}
+                  disabled={movingToFaulty}
+                  title="Move to faulty/damaged"
+                >
+                  {movingToFaulty ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
@@ -396,19 +457,36 @@ export function InventoryModelGroup({
                   <div key={unit.id} className="px-3 py-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-mono text-xs break-all leading-relaxed">{unit.serialNumber}</p>
-                      <button
-                        type="button"
-                        className="shrink-0 p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
-                        disabled={deletingId === unit.id}
-                        onClick={() => onDeleteUnit(unit)}
-                        title="Remove"
-                      >
+                      <div className="flex shrink-0 items-center gap-1">
+                        {unit.status === "in_stock" && onMarkSerialFaulty ? (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                            disabled={markingFaultyId === unit.id}
+                            onClick={() => void onMarkSerialFaulty(unit)}
+                            title="Mark faulty/damaged"
+                          >
+                            {markingFaultyId === unit.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4" />
+                            )}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
+                          disabled={deletingId === unit.id}
+                          onClick={() => onDeleteUnit(unit)}
+                          title="Remove"
+                        >
                         {deletingId === unit.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Trash2 className="h-4 w-4" />
                         )}
                       </button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
                       <span className="text-[hsl(var(--muted-foreground))]">Order</span>
@@ -463,19 +541,36 @@ export function InventoryModelGroup({
                       {unit.status.replace(/_/g, " ")}
                     </td>
                     <td className="px-2 py-2.5 text-right">
-                      <button
-                        type="button"
-                        className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
-                        disabled={deletingId === unit.id}
-                        onClick={() => onDeleteUnit(unit)}
-                        title="Remove"
-                      >
-                        {deletingId === unit.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </button>
+                      <div className="flex justify-end items-center gap-0.5">
+                        {unit.status === "in_stock" && onMarkSerialFaulty ? (
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                            disabled={markingFaultyId === unit.id}
+                            onClick={() => void onMarkSerialFaulty(unit)}
+                            title="Mark faulty/damaged"
+                          >
+                            {markingFaultyId === unit.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4" />
+                            )}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-600 hover:bg-red-500/10"
+                          disabled={deletingId === unit.id}
+                          onClick={() => onDeleteUnit(unit)}
+                          title="Remove"
+                        >
+                          {deletingId === unit.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )})}
@@ -545,6 +640,60 @@ export function InventoryModelGroup({
                 onClick={() => void confirmAdjust()}
               >
                 {isAdjusting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Subtract"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {faultyOpen && canMoveQtyToFaulty ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setFaultyOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border bg-[hsl(var(--background))] p-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div>
+                <p className="text-sm font-semibold">Move to faulty / damaged</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{title}</p>
+              </div>
+              <button
+                type="button"
+                className="p-1 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20"
+                onClick={() => setFaultyOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+              Available in main stock:{" "}
+              <span className="font-semibold text-[hsl(var(--foreground))]">{inStock}</span> {unitLabel}
+            </p>
+            <label className="block text-xs font-medium mb-1.5">Quantity to move</label>
+            <input
+              type="number"
+              min={1}
+              max={inStock}
+              value={faultyQty}
+              onChange={(e) => setFaultyQty(e.target.value)}
+              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setFaultyOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={movingToFaulty}
+                onClick={() => void confirmFaultyMove()}
+              >
+                {movingToFaulty ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Move to faulty"}
               </Button>
             </div>
           </div>
