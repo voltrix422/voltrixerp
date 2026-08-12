@@ -434,7 +434,10 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
   }
 
   // Qty-only line (no serial allocations)
-  if (!oldSn && !newSn) {
+  // Old unit received by qty; new unit can optionally be a scanned serial or plain qty
+  const qtyReplace = lineAllocations.length === 0
+
+  if (qtyReplace) {
     await restoreOldQtyUnit({
       orderItem: orderItem as never,
       orderNumber: order.orderNumber,
@@ -444,6 +447,64 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       photoUrls,
     })
 
+    if (newSn) {
+      // Caller scanned a new unit — link it to the order
+      const newUnit = await prisma.erpInventorySerialUnit.findFirst({
+        where: {
+          serialNumber: { equals: newSn, mode: "insensitive" },
+          status: "in_stock",
+        },
+      })
+      if (!newUnit) throw new Error("New serial is not available in main inventory")
+
+      await dispatchNewSerialUnit({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        clientName: order.clientName,
+        createdBy: input.replacedBy,
+        orderItem: orderItem as never,
+        serialNumber: newSn,
+        model: newUnit.model?.trim() || model,
+      })
+
+      const nextAllocations = allocations.concat([
+        {
+          orderItemId: input.orderItemId,
+          model: newUnit.model?.trim() || model,
+          serialNumber: newSn,
+          unitId: newUnit.id,
+        },
+      ])
+
+      const replacement: OrderReplacementLine = {
+        id: `repl-${Date.now()}`,
+        orderItemId: input.orderItemId,
+        newSerialNumber: newSn,
+        qty: 1,
+        disposition: input.disposition,
+        reason,
+        photoUrls,
+        replacedAt: new Date().toISOString(),
+        replacedBy: input.replacedBy,
+        description: String(orderItem.description || ""),
+        model: newUnit.model?.trim() || model,
+        unit: String(orderItem.unit || "pcs"),
+      }
+
+      const existingReplacements = Array.isArray(order.replacementLines)
+        ? (order.replacementLines as unknown as OrderReplacementLine[])
+        : []
+
+      return prisma.erpOrder.update({
+        where: { id: order.id },
+        data: {
+          fulfillmentSerialAllocations: nextAllocations as unknown as Prisma.InputJsonValue,
+          replacementLines: [...existingReplacements, replacement] as unknown as Prisma.InputJsonValue,
+        },
+      })
+    }
+
+    // No new serial — plain qty swap (deduct 1 fresh unit from stock)
     const manual = await resolveManualInventoryForOrderLine(orderItem as never)
     if (manual) {
       await decrementManualInventoryByModel(manual.model, 1)

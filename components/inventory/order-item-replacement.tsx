@@ -88,6 +88,7 @@ export function OrderItemReplacement({
         return
       }
     }
+    // For qty-only lines: newSerial is optional — validated on server if provided
     if (!reason.trim()) {
       toast({ title: "Reason required", message: "Add a short note about why this item is being replaced.", type: "error" })
       return
@@ -104,7 +105,7 @@ export function OrderItemReplacement({
         orderId: order.id,
         orderItemId: selectedLine.id,
         oldSerialNumber: requiresSerial ? oldSerial.trim() : undefined,
-        newSerialNumber: requiresSerial ? newSerial.trim() : undefined,
+        newSerialNumber: (requiresSerial || newSerial.trim()) ? newSerial.trim() : undefined,
         disposition,
         reason: reason.trim(),
         photoUrls,
@@ -113,9 +114,12 @@ export function OrderItemReplacement({
       onComplete(rowToOrder(updated))
       toast({
         title: "Item replaced",
-        message: requiresSerial
-          ? `${oldSerial.trim()} → ${newSerial.trim()} on ${order.orderNumber}`
-          : `1 unit replaced on ${order.orderNumber}`,
+        message:
+          requiresSerial
+            ? `${oldSerial.trim()} → ${newSerial.trim()} on ${order.orderNumber}`
+            : newSerial.trim()
+            ? `1 unit replaced · new SN ${newSerial.trim()} linked on ${order.orderNumber}`
+            : `1 unit replaced on ${order.orderNumber}`,
         type: "success",
       })
       onClose()
@@ -227,10 +231,42 @@ export function OrderItemReplacement({
               </div>
             </>
           ) : (
-            <p className="text-xs text-[hsl(var(--muted-foreground))] rounded-lg border bg-[hsl(var(--muted))]/20 p-3">
-              This line uses quantity tracking (no serial list). Receive the old unit, take photos, then confirm — 1 unit
-              will move out and 1 fresh unit will be deducted from stock.
-            </p>
+            <>
+              <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 text-xs text-[hsl(var(--muted-foreground))]">
+                This line has no pre-scanned serials. Receive the old unit and take photos. You can optionally scan the
+                new replacement unit to link it — or leave blank to deduct 1 unit from stock by quantity only.
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  New serial — scan replacement unit
+                  <span className="font-normal normal-case tracking-normal text-[hsl(var(--muted-foreground))] ml-1">
+                    (optional)
+                  </span>
+                </label>
+                <div className="mt-1.5 flex gap-2">
+                  <input
+                    ref={newScanRef}
+                    value={newSerial}
+                    onChange={(e) => setNewSerial(extractSerial(e.target.value))}
+                    placeholder="Scan or type new serial…"
+                    className="flex-1 h-10 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm font-mono"
+                  />
+                  <Button type="button" size="sm" variant="outline" className="h-10" onClick={() => setShowNewScanner(true)}>
+                    <ScanLine className="h-4 w-4" />
+                  </Button>
+                </div>
+                {newSerial.trim() ? (
+                  <p className="text-[11px] text-[#1faca6] mt-1.5">
+                    ✓ New unit will be scanned in and linked to this order
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1.5">
+                    Leave blank: 1 unit deducted from stock by quantity, no serial linked
+                  </p>
+                )}
+              </div>
+            </>
           )}
 
           <div>
