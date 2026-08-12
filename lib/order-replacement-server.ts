@@ -342,7 +342,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
   if (Boolean(orderItem.isCustom)) throw new Error("Custom lines cannot be replaced through inventory")
 
   const allocations = Array.isArray(order.fulfillmentSerialAllocations)
-    ? (order.fulfillmentSerialAllocations as OrderFulfillmentSerialAllocation[])
+    ? (order.fulfillmentSerialAllocations as unknown as OrderFulfillmentSerialAllocation[])
     : []
   const lineAllocations = allocations.filter((a) => a.orderItemId === input.orderItemId)
   const oldSn = input.oldSerialNumber?.trim() || ""
@@ -418,7 +418,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     }
 
     const existingReplacements = Array.isArray(order.replacementLines)
-      ? (order.replacementLines as OrderReplacementLine[])
+      ? (order.replacementLines as unknown as OrderReplacementLine[])
       : []
 
     const updated = await prisma.erpOrder.update({
@@ -472,7 +472,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     }
 
     const existingReplacements = Array.isArray(order.replacementLines)
-      ? (order.replacementLines as OrderReplacementLine[])
+      ? (order.replacementLines as unknown as OrderReplacementLine[])
       : []
 
     return prisma.erpOrder.update({
