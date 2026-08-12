@@ -104,7 +104,7 @@ export function OrderItemReplacement({
       const updated = await replaceOrderItem({
         orderId: order.id,
         orderItemId: selectedLine.id,
-        oldSerialNumber: requiresSerial ? oldSerial.trim() : undefined,
+        oldSerialNumber: (requiresSerial || oldSerial.trim()) ? oldSerial.trim() : undefined,
         newSerialNumber: (requiresSerial || newSerial.trim()) ? newSerial.trim() : undefined,
         disposition,
         reason: reason.trim(),
@@ -232,19 +232,46 @@ export function OrderItemReplacement({
             </>
           ) : (
             <>
-              <div className="rounded-lg border bg-[hsl(var(--muted))]/20 p-3 text-xs text-[hsl(var(--muted-foreground))]">
-                This line has no pre-scanned serials. Receive the old unit and take photos. You can optionally scan the
-                new replacement unit to link it — or leave blank to deduct 1 unit from stock by quantity only.
+              <div className="rounded-lg border border-[#1faca6]/30 bg-[#1faca6]/5 p-3 space-y-2">
+                <p className="text-xs font-semibold text-[#17857f]">Manual dispatch — no serials on this order line</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                  This order was dispatched by quantity only. You do not need the old serial — just receive the returned
+                  unit, take photos, and choose where it goes (main or faulty).
+                </p>
               </div>
 
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  New serial — scan replacement unit
+                  Step 1 · Old serial
                   <span className="font-normal normal-case tracking-normal text-[hsl(var(--muted-foreground))] ml-1">
                     (optional)
                   </span>
                 </label>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                  Scan only if the returned unit has a serial sticker — otherwise skip this.
+                </p>
                 <div className="mt-1.5 flex gap-2">
+                  <input
+                    ref={oldScanRef}
+                    value={oldSerial}
+                    onChange={(e) => setOldSerial(extractSerial(e.target.value))}
+                    placeholder="Scan or type old serial…"
+                    className="flex-1 h-10 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm font-mono"
+                  />
+                  <Button type="button" size="sm" variant="outline" className="h-10" onClick={() => setShowOldScanner(true)}>
+                    <Camera className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border-2 border-dashed border-[#1faca6]/40 bg-[#1faca6]/5 p-3">
+                <label className="text-xs font-semibold uppercase tracking-wide text-[#17857f]">
+                  Step 2 · New serial — scan replacement unit
+                </label>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                  Scan the new unit you are giving the customer. Leave blank only if this product has no serial numbers.
+                </p>
+                <div className="mt-2 flex gap-2">
                   <input
                     ref={newScanRef}
                     value={newSerial}
@@ -252,17 +279,23 @@ export function OrderItemReplacement({
                     placeholder="Scan or type new serial…"
                     className="flex-1 h-10 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm font-mono"
                   />
-                  <Button type="button" size="sm" variant="outline" className="h-10" onClick={() => setShowNewScanner(true)}>
-                    <ScanLine className="h-4 w-4" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-10 bg-[#1faca6] hover:bg-[#17857f] text-white shrink-0"
+                    onClick={() => setShowNewScanner(true)}
+                  >
+                    <ScanLine className="h-4 w-4 mr-1" />
+                    Scan
                   </Button>
                 </div>
                 {newSerial.trim() ? (
-                  <p className="text-[11px] text-[#1faca6] mt-1.5">
-                    ✓ New unit will be scanned in and linked to this order
+                  <p className="text-[11px] text-[#1faca6] mt-2 font-medium">
+                    ✓ New unit {newSerial.trim()} will be linked to this order
                   </p>
                 ) : (
-                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1.5">
-                    Leave blank: 1 unit deducted from stock by quantity, no serial linked
+                  <p className="text-[11px] text-amber-700 mt-2">
+                    No serial scanned — 1 unit will be deducted from stock by quantity only
                   </p>
                 )}
               </div>
@@ -271,7 +304,7 @@ export function OrderItemReplacement({
 
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-              Return old item to
+              {requiresSerial ? "Return old item to" : "Step 3 · Return old item to"}
             </label>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <button
@@ -306,7 +339,7 @@ export function OrderItemReplacement({
 
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-              Photos of returned item
+              {requiresSerial ? "Photos of returned item" : "Step 4 · Photos of returned item"}
             </label>
             <input
               type="file"
@@ -322,7 +355,7 @@ export function OrderItemReplacement({
 
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-              Reason
+              {requiresSerial ? "Reason" : "Step 5 · Reason"}
             </label>
             <textarea
               value={reason}

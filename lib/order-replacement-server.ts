@@ -438,14 +438,43 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
   const qtyReplace = lineAllocations.length === 0
 
   if (qtyReplace) {
-    await restoreOldQtyUnit({
-      orderItem: orderItem as never,
-      orderNumber: order.orderNumber,
-      disposition: input.disposition,
-      replacedBy: input.replacedBy,
-      reason,
-      photoUrls,
-    })
+    if (oldSn) {
+      const oldUnit = await prisma.erpInventorySerialUnit.findFirst({
+        where: {
+          serialNumber: { equals: oldSn, mode: "insensitive" },
+          status: { in: ["delivered", "at_branch"] },
+        },
+      })
+      if (oldUnit) {
+        await restoreOldSerialUnit({
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          serialNumber: oldSn,
+          disposition: input.disposition,
+          replacedBy: input.replacedBy,
+          reason,
+          photoUrls,
+        })
+      } else {
+        await restoreOldQtyUnit({
+          orderItem: orderItem as never,
+          orderNumber: order.orderNumber,
+          disposition: input.disposition,
+          replacedBy: input.replacedBy,
+          reason,
+          photoUrls,
+        })
+      }
+    } else {
+      await restoreOldQtyUnit({
+        orderItem: orderItem as never,
+        orderNumber: order.orderNumber,
+        disposition: input.disposition,
+        replacedBy: input.replacedBy,
+        reason,
+        photoUrls,
+      })
+    }
 
     if (newSn) {
       // Caller scanned a new unit — link it to the order
@@ -479,6 +508,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       const replacement: OrderReplacementLine = {
         id: `repl-${Date.now()}`,
         orderItemId: input.orderItemId,
+        oldSerialNumber: oldSn || undefined,
         newSerialNumber: newSn,
         qty: 1,
         disposition: input.disposition,
@@ -522,6 +552,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     const replacement: OrderReplacementLine = {
       id: `repl-${Date.now()}`,
       orderItemId: input.orderItemId,
+      oldSerialNumber: oldSn || undefined,
       qty: 1,
       disposition: input.disposition,
       reason,
