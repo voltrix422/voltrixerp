@@ -626,7 +626,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       },
       {
         title: "How to scan & dispatch a client order",
-        summary: "Full guide — QR scan mode vs qty-only mode.",
+        summary: "Full guide — scan serials and create dispatch note.",
         keywords: "dispatch fulfill deliver client order scan serial qr",
         content: (
           <GuideBody>
@@ -634,29 +634,19 @@ export const HELP_SECTIONS: HelpSection[] = [
             <VerticalFlowchart nodes={[
               { title: "Open order in Client Orders", variant: "start" },
               { title: 'Click "Create dispatch note"', variant: "action" },
-              { title: "Choose dispatch method", body: "With QR scanning OR Without scanning", variant: "decision" },
               { title: "Step 1: Dispatcher tab", body: "Name, receiver, CNIC, vehicle", variant: "action" },
-              { title: "Step 2: Scan QR tab", body: "Only if With QR scanning", variant: "action" },
+              { title: "Step 2: Scan QR tab", body: "Scan one serial per ordered unit", variant: "action" },
               { title: "Submit → Dispatch Note PDF", variant: "action" },
               { title: "Order Delivered — stock deducted", variant: "end" },
             ]} />
-            <p className="font-semibold mt-4">With QR scanning (recommended)</p>
             <NumberedSteps steps={[
-              "Select With QR scanning.",
+              "Open Create dispatch note on the order.",
               "Dispatcher tab: enter dispatcher name, receiver name, CNIC, vehicle number.",
               "Scan QR tab: scan each unit's QR code — one per ordered quantity.",
               "All serials must match order qty before you can submit.",
               "Click Create dispatch note — PDF downloads with serial numbers for warranty.",
             ]} />
-            <p className="font-semibold mt-4">Without scanning (qty only)</p>
-            <NumberedSteps steps={[
-              "Select Without scanning.",
-              "Enter dispatcher and receiver details.",
-              "Inventory qty is reduced without linking serial numbers.",
-              "Use when QR labels are missing or for urgent dispatch.",
-              "No warranty serials on dispatch note.",
-            ]} />
-            <TipBox type="warning">Without scanning does not record which serial went to which client. Use QR scanning whenever possible for warranty tracking.</TipBox>
+            <TipBox type="info">QR scanning is required for serial-tracked products so warranty and inventory stay linked to the correct unit.</TipBox>
           </GuideBody>
         ),
       },
