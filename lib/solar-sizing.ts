@@ -14,6 +14,14 @@ import {
   isInverterProduct,
 } from "@/lib/solar-product-specs"
 
+export type SolarFormulaStep = {
+  step: number
+  title: string
+  formula: string
+  calculation: string
+  result: string
+}
+
 export type SolarCalculatorInput = {
   monthlyUnits: number
   billAmountPkr?: number | null
@@ -21,6 +29,8 @@ export type SolarCalculatorInput = {
   city?: string
   phase?: "single" | "three"
   backupHours?: number
+  /** Peak simultaneous load (kW) — from appliances or estimated from bill */
+  peakLoadKw?: number | null
   /** When set, overrides backup kWh derived from hours */
   backupKwhOverride?: number | null
   sunHoursPerDay?: number
@@ -52,6 +62,9 @@ export type SolarSizingResult = {
   estimatedBillPkr: number | null
   tariffPerUnit: number
   requiredSystemKw: number
+  rawSystemKw: number
+  peakSunHours: number
+  peakLoadKw: number
   recommendedPanel: RecommendedPanel
   /** Primary pick kept for backward compatibility */
   recommendedInverter: CatalogProduct | null
@@ -66,15 +79,58 @@ export type SolarSizingResult = {
   /** True when inverter pick is an all-in-one Fusion unit (covers battery too). */
   kitIsFusionCombo: boolean
   backupKwh: number
+  backupHours: number
   estimatedMonthlySavingPkr: number | null
   offsetPercent: number
   analysisNotes: string[]
+  formulaSteps: SolarFormulaStep[]
   estimateSource?: "bill" | "appliances"
 }
 
 const DEFAULT_TARIFF_PKR = 32
-const ANNUAL_UNITS_PER_KW = 1300
-const SYSTEM_OVERSIZE = 1.5
+/** Inverter + panel losses — add ~25% to raw system size */
+const SYSTEM_LOSS_FACTOR = 1.25
+/** LiFePO₄ usable capacity (~80% depth of discharge) */
+const LITHIUM_USABLE_FACTOR = 0.8
+/** Default active load hours when peak load is estimated from bill */
+const DEFAULT_USAGE_HOURS = 6
+
+/** Peak sun hours per day — Pakistan averages ~4–5, varies by city */
+export const CITY_PEAK_SUN_HOURS: Record<string, number> = {
+  Islamabad: 4.5,
+  Rawalpindi: 4.5,
+  Lahore: 4.8,
+  Karachi: 5.0,
+  Peshawar: 4.6,
+  Multan: 5.0,
+  Faisalabad: 4.9,
+  Quetta: 5.2,
+  Other: 4.5,
+}
+
+export function getPeakSunHours(city?: string, override?: number): number {
+  if (override && override > 0) return override
+  if (city && CITY_PEAK_SUN_HOURS[city]) return CITY_PEAK_SUN_HOURS[city]
+  return CITY_PEAK_SUN_HOURS.Other
+}
+
+export function estimatePeakLoadFromBill(dailyKwh: number): number {
+  return Math.max(0.5, Math.round((dailyKwh / DEFAULT_USAGE_HOURS) * 10) / 10)
+}
+
+export function calculateBatteryCapacityKwh(peakLoadKw: number, backupHours: number): number {
+  if (peakLoadKw <= 0 || backupHours <= 0) return 0
+  return Math.round(((peakLoadKw * backupHours) / LITHIUM_USABLE_FACTOR) * 10) / 10
+}
+
+export function calculateSystemKwFromDaily(dailyKwh: number, peakSunHours: number): {
+  rawSystemKw: number
+  requiredSystemKw: number
+} {
+  const rawSystemKw = Math.round(((dailyKwh / peakSunHours) * SYSTEM_LOSS_FACTOR) * 100) / 100
+  const requiredSystemKw = Math.ceil(rawSystemKw * 10) / 10
+  return { rawSystemKw, requiredSystemKw }
+}
 
 export function resolveMonthlyUnits(
   units: number | null | undefined,
@@ -396,6 +452,59 @@ function totalLineCapacity(lines: RecommendedProductLine[]): number {
   return Math.round(lines.reduce((sum, l) => sum + l.totalCapacity, 0) * 10) / 10
 }
 
+function buildFormulaSteps(
+  input: SolarCalculatorInput,
+  monthlyUnits: number,
+  dailyKwh: number,
+  peakSunHours: number,
+  rawSystemKw: number,
+  requiredSystemKw: number,
+  peakLoadKw: number,
+  backupHours: number,
+  backupKwh: number,
+): SolarFormulaStep[] {
+  const cityLabel = input.city || "Pakistan"
+  const steps: SolarFormulaStep[] = []
+
+  if (input.estimateSource === "appliances") {
+    steps.push({
+      step: 1,
+      title: "Daily energy consumption",
+      formula: "Load (kW) × Hours used per day = Daily kWh",
+      calculation: `${peakLoadKw} kW peak load from appliances`,
+      result: `${dailyKwh.toFixed(1)} kWh/day (${monthlyUnits.toLocaleString()} units/month)`,
+    })
+  } else {
+    steps.push({
+      step: 1,
+      title: "Monthly to daily (from bill)",
+      formula: "Monthly units ÷ 30 = Daily kWh",
+      calculation: `${monthlyUnits.toLocaleString()} ÷ 30`,
+      result: `${dailyKwh.toFixed(1)} kWh/day`,
+    })
+  }
+
+  steps.push({
+    step: 2,
+    title: "Solar system size needed",
+    formula: `Daily kWh ÷ Peak sun hours × 1.25 = kW (${cityLabel}: ~${peakSunHours}h/day)`,
+    calculation: `${dailyKwh.toFixed(1)} ÷ ${peakSunHours} × ${SYSTEM_LOSS_FACTOR}`,
+    result: `~${rawSystemKw} kW → ${requiredSystemKw} kW system`,
+  })
+
+  if (backupHours > 0 && backupKwh > 0) {
+    steps.push({
+      step: 3,
+      title: "Battery sizing (backup hours)",
+      formula: "Peak load (kW) × Backup hours ÷ 0.8 = LiFePO₄ battery capacity",
+      calculation: `${peakLoadKw} × ${backupHours} ÷ ${LITHIUM_USABLE_FACTOR}`,
+      result: `${backupKwh} kWh battery`,
+    })
+  }
+
+  return steps
+}
+
 export function calculateSolarSizing(
   input: SolarCalculatorInput,
   catalog: CatalogProduct[],
@@ -404,18 +513,20 @@ export function calculateSolarSizing(
   if (!monthlyUnits || monthlyUnits <= 0) return null
 
   const tariff = resolveTariff(input.billAmountPkr, monthlyUnits, input.tariffPerUnit ?? null)
-  const dailyKwh = monthlyUnits / 30
-  const annualUnits = monthlyUnits * 12
-  const requiredSystemKw =
-    Math.round(((annualUnits / ANNUAL_UNITS_PER_KW) * SYSTEM_OVERSIZE) * 10) / 10
+  const dailyKwh = Math.round((monthlyUnits / 30) * 10) / 10
+  const peakSunHours = getPeakSunHours(input.city, input.sunHoursPerDay)
+  const { rawSystemKw, requiredSystemKw } = calculateSystemKwFromDaily(dailyKwh, peakSunHours)
 
   const backupHours = input.backupHours ?? 0
+  const peakLoadKw =
+    input.peakLoadKw && input.peakLoadKw > 0
+      ? Math.round(input.peakLoadKw * 10) / 10
+      : estimatePeakLoadFromBill(dailyKwh)
+
   const backupKwh =
     input.backupKwhOverride != null && input.backupKwhOverride > 0
       ? Math.round(input.backupKwhOverride * 10) / 10
-      : backupHours > 0
-        ? Math.round((dailyKwh * (backupHours / 24)) * 10) / 10
-        : 0
+      : calculateBatteryCapacityKwh(peakLoadKw, backupHours)
 
   const panelPick = pickPanel(catalog)
   const panelQty = Math.max(1, Math.ceil((requiredSystemKw * 1000) / panelPick.wattage))
@@ -505,6 +616,18 @@ export function calculateSolarSizing(
   const offsetPercent = 85
   const estimatedMonthlySavingPkr = Math.round(estimatedBillPkr * (offsetPercent / 100))
 
+  const formulaSteps = buildFormulaSteps(
+    input,
+    monthlyUnits,
+    dailyKwh,
+    peakSunHours,
+    rawSystemKw,
+    requiredSystemKw,
+    peakLoadKw,
+    backupHours,
+    backupKwh,
+  )
+
   const analysisNotes: string[] = []
   if (input.estimateSource === "appliances") {
     analysisNotes.push(
@@ -512,14 +635,21 @@ export function calculateSolarSizing(
     )
   } else {
     analysisNotes.push(
-      `Based on ${monthlyUnits.toLocaleString()} units/month (~${dailyKwh.toFixed(1)} kWh/day, ${annualUnits.toLocaleString()} units/year).`,
+      `Based on ${monthlyUnits.toLocaleString()} units/month (~${dailyKwh.toFixed(1)} kWh/day).`,
     )
   }
   analysisNotes.push(
-    `Recommended system size: ~${requiredSystemKw} kW = (annual units ÷ ${ANNUAL_UNITS_PER_KW}) × ${SYSTEM_OVERSIZE}.`,
+    `Recommended system size: ${requiredSystemKw} kW = ${dailyKwh.toFixed(1)} kWh/day ÷ ${peakSunHours} peak sun hours × ${SYSTEM_LOSS_FACTOR}.`,
   )
   if (backupKwh > 0) {
-    analysisNotes.push(`Backup target: ~${backupKwh} kWh storage${backupHours > 0 ? ` (${backupHours} hours)` : ""}.`)
+    analysisNotes.push(
+      `Backup target: ${backupKwh} kWh LiFePO₄ capacity (${peakLoadKw} kW peak × ${backupHours}h ÷ ${LITHIUM_USABLE_FACTOR}).`,
+    )
+  }
+  if (input.estimateSource !== "appliances" && !input.peakLoadKw) {
+    analysisNotes.push(
+      `Peak load estimated at ~${peakLoadKw} kW (daily use ÷ ${DEFAULT_USAGE_HOURS}h) — add appliances for a precise battery size.`,
+    )
   }
   if (kitIsFusionCombo) {
     analysisNotes.push("Inverter + battery recommendation is a single Voltrix Fusion all-in-one unit.")
@@ -549,6 +679,9 @@ export function calculateSolarSizing(
     estimatedBillPkr,
     tariffPerUnit: tariff,
     requiredSystemKw,
+    rawSystemKw,
+    peakSunHours,
+    peakLoadKw,
     recommendedPanel,
     recommendedInverter,
     recommendedBattery,
@@ -559,9 +692,11 @@ export function calculateSolarSizing(
     panelAvailability,
     kitIsFusionCombo,
     backupKwh,
+    backupHours,
     estimatedMonthlySavingPkr,
     offsetPercent,
     analysisNotes,
+    formulaSteps,
     estimateSource: input.estimateSource,
   }
 }

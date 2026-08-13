@@ -47,7 +47,7 @@ import {
 } from "@/lib/solar-product-specs"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
-import type { SolarSizingResult, RecommendedProductLine } from "@/lib/solar-sizing"
+import type { SolarSizingResult, RecommendedProductLine, SolarFormulaStep } from "@/lib/solar-sizing"
 
 const CITIES = [
   "Islamabad",
@@ -71,6 +71,22 @@ const APPLIANCE_ICONS: Record<string, typeof Home> = {
   laundry: WashingMachine,
   water: Droplets,
   other: Wifi,
+}
+
+function FormulaStepCard({ step }: { step: SolarFormulaStep }) {
+  return (
+    <div className="rounded-lg border border-neutral-100 bg-white/80 p-2.5 space-y-1">
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#1a9f9a]/10 text-[10px] font-bold text-[#1a9f9a]">
+          {step.step}
+        </span>
+        <p className="text-[11px] font-semibold text-neutral-900">{step.title}</p>
+      </div>
+      <p className="text-[10px] text-neutral-500 pl-7">{step.formula}</p>
+      <p className="text-[10px] text-neutral-700 pl-7 font-mono">{step.calculation}</p>
+      <p className="text-[11px] font-semibold text-[#1a9f9a] pl-7">{step.result}</p>
+    </div>
+  )
 }
 
 function AvailabilityBadge({ status }: { status: ProductAvailability }) {
@@ -331,6 +347,7 @@ export default function SolarCalculator() {
         city,
         phase,
         backupHours: est.backupHours,
+        peakLoadKw: est.peakLoadKw,
         backupKwhOverride: est.backupKwh,
         estimateSource: "appliances",
       },
@@ -674,7 +691,19 @@ export default function SolarCalculator() {
                         {result.requiredSystemKw} <span className="text-[10px] font-normal text-neutral-500">kW</span>
                       </p>
                     </div>
-                    {result.estimatedBillPkr != null && (
+                    <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
+                      <p className="text-[9px] uppercase tracking-wider text-neutral-500">Sun hours</p>
+                      <p className="text-sm font-bold text-neutral-900">
+                        {result.peakSunHours} <span className="text-[10px] font-normal text-neutral-500">h/day</span>
+                      </p>
+                    </div>
+                    {result.backupKwh > 0 && (
+                      <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
+                        <p className="text-[9px] uppercase tracking-wider text-neutral-500">Battery</p>
+                        <p className="text-sm font-bold text-neutral-900">{result.backupKwh} kWh</p>
+                      </div>
+                    )}
+                    {result.estimatedBillPkr != null && result.backupKwh <= 0 && (
                       <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
                         <p className="text-[9px] uppercase tracking-wider text-neutral-500">Bill</p>
                         <p className="text-sm font-bold text-neutral-900">
@@ -682,12 +711,19 @@ export default function SolarCalculator() {
                         </p>
                       </div>
                     )}
-                    {result.backupKwh > 0 && (
-                      <div className="rounded-lg bg-white/80 border border-neutral-100 p-2">
-                        <p className="text-[9px] uppercase tracking-wider text-neutral-500">Backup</p>
-                        <p className="text-sm font-bold text-neutral-900">~{result.backupKwh} kWh</p>
-                      </div>
-                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-[#1a9f9a]/15 bg-white/60 p-3 space-y-2">
+                    <p className="text-[11px] font-semibold text-neutral-900">The right formula</p>
+                    <p className="text-[10px] text-neutral-600 leading-relaxed">
+                      Bill units ÷ 30 = Daily kWh → Daily kWh ÷ Peak sun hours × 1.25 = Solar kW →
+                      Peak load × Backup hours ÷ 0.8 = Battery kWh
+                    </p>
+                    <div className="space-y-2">
+                      {result.formulaSteps.map((step) => (
+                        <FormulaStepCard key={step.step} step={step} />
+                      ))}
+                    </div>
                   </div>
 
                   {appliancePreview && result.estimateSource === "appliances" && (

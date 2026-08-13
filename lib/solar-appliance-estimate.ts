@@ -51,7 +51,8 @@ export type ApplianceEstimateResult = {
   peakLoadKw: number
 }
 
-const BACKUP_DIVERSITY = 0.75
+/** LiFePO₄ usable capacity (~80% depth of discharge) */
+const LITHIUM_USABLE_FACTOR = 0.8
 
 export function calculateApplianceEstimate(
   selections: ApplianceSelection,
@@ -71,7 +72,7 @@ export function calculateApplianceEstimate(
     peakLoadW += appliance.watts * qty
 
     if (appliance.backupEssential) {
-      backupLoadW += appliance.watts * qty * BACKUP_DIVERSITY
+      backupLoadW += appliance.watts * qty
     }
 
     breakdown.push({
@@ -90,9 +91,10 @@ export function calculateApplianceEstimate(
   const dailyKwh = Math.round((dailyWh / 1000) * 10) / 10
   const monthlyUnits = Math.round(dailyKwh * 30)
   const hours = Math.max(0, Math.min(24, backupHours))
+  const peakLoadKw = Math.round((peakLoadW / 1000) * 10) / 10
   const backupKwh =
     hours > 0
-      ? Math.round(((backupLoadW / 1000) * hours) * 10) / 10
+      ? Math.round(((peakLoadKw * hours) / LITHIUM_USABLE_FACTOR) * 10) / 10
       : 0
 
   return {
@@ -102,6 +104,6 @@ export function calculateApplianceEstimate(
     backupLoadKw: Math.round((backupLoadW / 1000) * 10) / 10,
     backupKwh,
     backupHours: hours,
-    peakLoadKw: Math.round((peakLoadW / 1000) * 10) / 10,
+    peakLoadKw,
   }
 }
