@@ -192,13 +192,13 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                       Bill to — Client
                     </p>
                   </div>
-                  <div className="p-3 sm:p-4 space-y-2">
+                  <div className="p-3 sm:p-4 space-y-3">
                     <p className="text-sm font-bold text-gray-900">{order.clientName}</p>
                     {companyName && <p className="text-xs text-gray-600">{companyName}</p>}
                     {clientDetailRows.length > 0 ? (
-                      <dl className="grid grid-cols-1 gap-1.5 pt-1">
+                      <dl className="grid grid-cols-1 gap-2.5 pt-1">
                         {clientDetailRows.map((row) => (
-                          <div key={row.label} className="text-xs">
+                          <div key={row.label} className="text-xs leading-relaxed">
                             <dt className="font-semibold text-gray-500 inline">{row.label}: </dt>
                             <dd className="text-gray-700 inline break-words">{row.value}</dd>
                           </div>
@@ -320,9 +320,9 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                 </div>
               </div>
 
-              <div className="flex justify-stretch sm:justify-end">
+              <div className="flex justify-stretch sm:justify-end mt-1">
                 <div className="w-full sm:w-72 space-y-1.5">
-                  <div className="flex justify-between text-xs text-gray-600 border-t pt-2 gap-2">
+                  <div className="flex justify-between text-xs text-gray-600 border-t pt-3 gap-2">
                     <span>Subtotal</span>
                     <span className="font-medium tabular-nums">{fmt(subtotal)}</span>
                   </div>
@@ -416,16 +416,42 @@ export function InvoicePreviewModal({ order, onClose }: InvoicePreviewModalProps
                       ))}
                     </div>
                   )}
+                  {pay.balanceDue > 0.004 && (
+                    <div className="rounded-md border border-gray-200 bg-white/70 p-3 space-y-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#148f8b]">
+                        Bank details
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-800">
+                        <p>
+                          <span className="font-semibold text-gray-500">Bank:</span> UBL
+                        </p>
+                        <p>
+                          <span className="font-semibold text-gray-500">Account #:</span> 0109000340713349
+                        </p>
+                        <p className="sm:col-span-2">
+                          <span className="font-semibold text-gray-500">Title:</span> Voltrix Batteries Pvt
+                          Limited
+                        </p>
+                        <p className="sm:col-span-2 break-all">
+                          <span className="font-semibold text-gray-500">IBAN:</span> PK29UNIL0109000340713349
+                        </p>
+                      </div>
+                      <p className="text-[10px] font-semibold text-red-600 pt-1">
+                        Double-check details before sending · Send screenshot after payment
+                      </p>
+                    </div>
+                  )}
                   {pay.isPaidInFull ? (
                     <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 pt-1">
                       <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
                       <span>Paid in full</span>
                     </div>
                   ) : pay.hasOutstanding && pay.isOnCredit ? (
-                    <p className="text-[11px] text-amber-800 leading-snug pt-1">
-                      This invoice is on <span className="font-semibold">credit</span>. The amount to pay above
-                      remains payable to Voltrix Batteries.
-                    </p>
+                    <div className="rounded-md bg-amber-100/80 px-3 py-2">
+                      <p className="text-[11px] text-amber-900 leading-snug">
+                        Credit invoice — balance payable to Voltrix Batteries.
+                      </p>
+                    </div>
                   ) : null}
                   </div>
                 </div>

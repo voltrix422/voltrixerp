@@ -161,8 +161,8 @@ export async function POST(request: NextRequest) {
       ...(order.deliveryDate ? [{ label: 'DELIVERY DATE', value: new Date(order.deliveryDate).toLocaleDateString('en-PK') }] : []),
       { label: 'STATUS',        value: (order.status || '').replace(/_/g, ' ').toUpperCase().substring(0, 16) },
       { label: 'PREPARED BY',   value: order.createdBy || '—' },
-      { label: 'ORDER SOURCE',  value: orderSourceLabel.substring(0, 20) },
-      ...(pay.showPaymentSection ? [{ label: 'PAYMENT', value: pay.paymentStatusLabel.substring(0, 18) }] : []),
+      { label: 'ORDER SOURCE',  value: orderSourceLabel.substring(0, 22) },
+      ...(pay.showPaymentSection ? [{ label: 'PAYMENT', value: pay.paymentStatusLabel }] : []),
     ]
     const colW = (pageW - mL - mR) / metaItems.length
     metaItems.forEach((m, i) => {
@@ -172,9 +172,11 @@ export async function POST(request: NextRequest) {
       doc.setTextColor(180, 230, 228)
       doc.text(m.label, x, 49.5)
       doc.setFont(FONT, 'normal')
-      doc.setFontSize(8)
+      const valueSize = m.value.length > 16 ? 7 : 8
+      doc.setFontSize(valueSize)
       doc.setTextColor(...white)
-      doc.text(m.value, x, 55.5)
+      const valueLines = doc.splitTextToSize(m.value, colW - 2)
+      doc.text(valueLines[0], x, 55.5)
     })
 
     // ── Bill To + Invoice Info ────────────────────────────────────────────────
@@ -198,8 +200,9 @@ export async function POST(request: NextRequest) {
       ['Source', orderSourceLabel],
       ...(pay.showPaymentSection ? [['Payment', pay.paymentStatusLabel]] : []),
     ]
-    const billContentH = Math.max(40, 22 + companyLine * 5 + clientDetailRows.length * 4.3)
-    const infoContentH = Math.max(40, 13 + infoRows.length * 7)
+    const detailRowH = 5.6
+    const billContentH = Math.max(42, 24 + companyLine * 5.5 + clientDetailRows.length * detailRowH)
+    const infoContentH = Math.max(42, 15 + infoRows.length * 7.2)
     const billBoxH = Math.max(billContentH, infoContentH)
     doc.setFillColor(...lightBg)
     doc.setDrawColor(...lightGray)
@@ -214,14 +217,14 @@ export async function POST(request: NextRequest) {
     doc.setTextColor(...white)
     doc.text('BILL TO — CLIENT', mL + 4, y + 5)
 
-    let by = y + 13
+    let by = y + 14
     doc.setFont(FONT, 'bold')
     doc.setFontSize(11)
     doc.setTextColor(...black)
     doc.text(order.clientName || '—', mL + 4, by)
 
     if (companyLine > 0) {
-      by += 5
+      by += 5.5
       doc.setFont(FONT, 'normal')
       doc.setFontSize(9)
       doc.setTextColor(...gray)
@@ -229,24 +232,24 @@ export async function POST(request: NextRequest) {
     }
 
     if (clientDetailRows.length > 0) {
-      by += 5
-      doc.setFont(FONT, 'normal')
+      by += 6
       doc.setFontSize(7.5)
       doc.setTextColor(...gray)
       clientDetailRows.forEach((row) => {
+        const labelText = `${row.label}: `
         doc.setFont(FONT, 'bold')
-        doc.text(`${row.label}:`, mL + 4, by)
+        const labelW = doc.getTextWidth(labelText)
+        doc.text(labelText, mL + 4, by)
         doc.setFont(FONT, 'normal')
-        const labelW = doc.getTextWidth(`${row.label}: `)
-        const valueLines = doc.splitTextToSize(row.value, billW - 8 - labelW)
+        const valueLines = doc.splitTextToSize(row.value, billW - 10 - labelW)
         doc.text(valueLines[0] || row.value, mL + 4 + labelW, by)
         if (valueLines.length > 1) {
           for (let i = 1; i < valueLines.length; i++) {
-            by += 4
+            by += 4.2
             doc.text(valueLines[i], mL + 4 + labelW, by)
           }
         }
-        by += 4.3
+        by += detailRowH
       })
     }
 
@@ -264,7 +267,7 @@ export async function POST(request: NextRequest) {
     doc.text('INVOICE DETAILS', infoX + 4, y + 5)
 
     infoRows.forEach(([label, val], i) => {
-      const ry = y + 13 + i * 7
+      const ry = y + 14 + i * 7.2
       doc.setFont(FONT, 'bold')
       doc.setFontSize(7)
       doc.setTextColor(...gray)
@@ -277,7 +280,7 @@ export async function POST(request: NextRequest) {
     })
 
     // ── Items table ───────────────────────────────────────────────────────────
-    y += billBoxH + 6
+    y += billBoxH + 8
 
     const itemsWithModel = order.items.map((item: any) => ({
       item,
@@ -374,7 +377,8 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    y = (doc as any).lastAutoTable.finalY + 8
+    // Keep totals close under the items table (avoid a large empty gap)
+    y = (doc as any).lastAutoTable.finalY + 5
 
     // ── Discount calculation ──────────────────────────────────────────────────
     const rawDiscount = Number(order.discount) || 0
@@ -423,13 +427,16 @@ export async function POST(request: NextRequest) {
     const payments: { id?: string; amount?: number; method?: string; date?: string; notes?: string }[] =
       order.payments || []
     const showBankDetails = pay.balanceDue > 0.004
-    const bankBlockH = showBankDetails ? 28 : 0
+    const showCreditBanner = pay.hasOutstanding && pay.isOnCredit
+    const paymentLinesH = payments.length > 0 ? 5 + Math.min(payments.length, 4) * 5 : 0
+    const bankBlockH = showBankDetails ? 34 : 0
+    const creditBannerH = showCreditBanner ? 12 : pay.isPaidInFull ? 12 : 0
     const payBoxH = pay.showPaymentSection
-      ? 32 + (payments.length > 0 ? Math.min(payments.length, 4) * 5 : 0) + bankBlockH
+      ? 30 + paymentLinesH + bankBlockH + creditBannerH + 4
       : 0
-    const bottomBlockH = Math.max(totBoxH, order.notes ? totBoxH : 0) + (pay.showPaymentSection ? payBoxH + 6 : 0)
 
-    y = ensurePageSpace(doc, y, bottomBlockH, pageH)
+    // Only reserve space for totals here — payment block can start on the next page
+    y = ensurePageSpace(doc, y, totBoxH + 2, pageH)
 
     // Notes box (left)
     if (order.notes) {
@@ -487,7 +494,7 @@ export async function POST(request: NextRequest) {
 
     // ── Payment / credit block ────────────────────────────────────────────────
     if (pay.showPaymentSection) {
-      const payY = ensurePageSpace(doc, y + totBoxH + 6, payBoxH, pageH)
+      const payY = ensurePageSpace(doc, y + totBoxH + 5, payBoxH, pageH)
       const payW = pageW - mL - mR
       doc.setFillColor(...lightBg)
       doc.setDrawColor(...teal)
@@ -524,14 +531,14 @@ export async function POST(request: NextRequest) {
         col2,
         py,
       )
-      py += 8
+      py += 7
 
       if (payments.length > 0) {
         doc.setFont(FONT, 'bold')
         doc.setFontSize(6.5)
         doc.setTextColor(100, 100, 100)
         doc.text('PAYMENT DETAILS', col1, py)
-        py += 4
+        py += 4.5
         doc.setFont(FONT, 'normal')
         doc.setFontSize(7.5)
         doc.setTextColor(...gray)
@@ -543,53 +550,55 @@ export async function POST(request: NextRequest) {
       }
 
       if (showBankDetails) {
-        const bankY = payY + payBoxH - 28
+        py += 2
+        const bankBoxH = 28
         doc.setFillColor(241, 249, 248)
-        doc.roundedRect(mL + 3, bankY, payW - 6, 22, 1.5, 1.5, 'F')
+        doc.roundedRect(mL + 3, py, payW - 6, bankBoxH, 1.5, 1.5, 'F')
         doc.setDrawColor(...lightGray)
         doc.setLineWidth(0.2)
-        doc.roundedRect(mL + 3, bankY, payW - 6, 22, 1.5, 1.5, 'S')
+        doc.roundedRect(mL + 3, py, payW - 6, bankBoxH, 1.5, 1.5, 'S')
 
         doc.setFont(FONT, 'bold')
         doc.setFontSize(7)
         doc.setTextColor(...tealDark)
-        doc.text('BANK DETAILS', mL + 6, bankY + 4.5)
+        doc.text('BANK DETAILS', mL + 6, py + 5)
 
         doc.setFont(FONT, 'normal')
         doc.setFontSize(7)
         doc.setTextColor(...black)
-        doc.text('Bank: UBL', mL + 6, bankY + 9)
-        doc.text('Account #: 0109000340713349', mL + 6, bankY + 13)
-        doc.text('Title: Voltrix Batteries Pvt Limited', mL + 6, bankY + 17)
-        doc.text('IBAN: PK29UNIL0109000340713349', mL + 6, bankY + 21)
+        doc.text('Bank: UBL', mL + 6, py + 10)
+        doc.text('Account #: 0109000340713349', mL + 6, py + 14.5)
+        doc.text('Title: Voltrix Batteries Pvt Limited', mL + 6, py + 19)
+        doc.text('IBAN: PK29UNIL0109000340713349', mL + 6, py + 23.5)
 
         doc.setFont(FONT, 'bold')
+        doc.setFontSize(6.5)
         doc.setTextColor(180, 40, 40)
-        doc.text(
+        const warnLines = doc.splitTextToSize(
           'Double-check details before sending · Send screenshot after payment',
-          mL + payW - 6,
-          bankY + 21,
-          { align: 'right' },
+          payW * 0.42,
         )
+        doc.text(warnLines, mL + payW - 6, py + 10, { align: 'right' })
+        py += bankBoxH + 3
       }
 
       if (pay.isPaidInFull) {
         doc.setFillColor(34, 139, 34)
-        doc.roundedRect(mL + payW - 56, payY + payBoxH - 11, 52, 9, 2, 2, 'F')
+        doc.roundedRect(mL + payW - 56, py, 52, 9, 2, 2, 'F')
         doc.setFont(FONT, 'bold')
         doc.setFontSize(8)
         doc.setTextColor(...white)
-        doc.text('PAID IN FULL', mL + payW - 52, payY + payBoxH - 5)
-      } else if (pay.hasOutstanding && pay.isOnCredit) {
+        doc.text('PAID IN FULL', mL + payW - 52, py + 6)
+      } else if (showCreditBanner) {
         doc.setFillColor(255, 243, 224)
-        doc.roundedRect(mL + 3, payY + payBoxH - 12, payW - 6, 9, 1.5, 1.5, 'F')
+        doc.roundedRect(mL + 3, py, payW - 6, 9, 1.5, 1.5, 'F')
         doc.setFont(FONT, 'normal')
         doc.setFontSize(7.5)
         doc.setTextColor(140, 80, 10)
         doc.text(
           'Credit invoice — balance payable to Voltrix Batteries.',
           col1,
-          payY + payBoxH - 5.5,
+          py + 6,
         )
       }
     }
