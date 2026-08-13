@@ -1,7 +1,7 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import {
-  getAllocationsForOrderItem,
+  getDisplayAllocationsForOrderItem,
   orderHasSerialAllocations,
 } from "@/lib/order-fulfillment-serials"
 import type { Client } from "@/lib/crm"
@@ -92,7 +92,7 @@ function buildDispatchTableRows(
   let rowNum = 0
 
   for (const item of order.items) {
-    const allocations = showSerialCol ? getAllocationsForOrderItem(order, item.id) : []
+    const allocations = showSerialCol ? getDisplayAllocationsForOrderItem(order, item.id) : []
     const serials = allocations.map((a) => a.serialNumber)
     const model = allocations[0]?.model || resolveOrderItemModel(item) || ""
 

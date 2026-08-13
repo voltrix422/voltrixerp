@@ -496,14 +496,23 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         model: newUnit.model?.trim() || model,
       })
 
-      const nextAllocations = allocations.concat([
-        {
+      const nextAllocations = (() => {
+        const lineQty = Math.max(0, Math.floor(Number(orderItem.qty) || 0))
+        const other = allocations.filter((a) => a.orderItemId !== input.orderItemId)
+        const line = allocations.filter((a) => a.orderItemId === input.orderItemId)
+        const added = {
           orderItemId: input.orderItemId,
           model: newUnit.model?.trim() || model,
           serialNumber: newSn,
           unitId: newUnit.id,
-        },
-      ])
+        }
+        // Keep at most line qty serials for this item (drop oldest extras).
+        const nextLine =
+          lineQty > 0 && line.length >= lineQty
+            ? [...line.slice(-(lineQty - 1)), added]
+            : [...line, added]
+        return [...other, ...nextLine]
+      })()
 
       const replacement: OrderReplacementLine = {
         id: `repl-${Date.now()}`,

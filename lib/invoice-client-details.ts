@@ -43,7 +43,8 @@ export function buildInvoiceClientDetailRows(
 ): InvoiceClientDetailRow[] {
   const rows: InvoiceClientDetailRow[] = []
   const push = (label: string, value?: string) => {
-    const v = value?.trim()
+    // Strip leading punctuation leftovers (e.g. ":Raja …" from bad address entry).
+    const v = value?.trim().replace(/^[:\-–—,\s]+/, "").trim()
     if (v) rows.push({ label, value: v })
   }
 

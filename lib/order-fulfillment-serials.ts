@@ -53,11 +53,29 @@ export function getAllocationsForOrderItem(
   return (order.fulfillmentSerialAllocations ?? []).filter((a) => a.orderItemId === orderItemId)
 }
 
+/**
+ * Serials for a line, capped to ordered qty when allocations were over-scanned
+ * (e.g. replacement adds without removing). Prefer the latest scans.
+ */
+export function getDisplayAllocationsForOrderItem(
+  order: Pick<Order, "fulfillmentSerialAllocations" | "items">,
+  orderItemId: string,
+): OrderFulfillmentSerialAllocation[] {
+  const allocations = getAllocationsForOrderItem(order, orderItemId)
+  const item = order.items?.find((i) => i.id === orderItemId)
+  const qty = Math.max(0, Math.floor(Number(item?.qty) || 0))
+  if (qty > 0 && allocations.length > qty) {
+    // Prefer original dispatch scans (first N); extras are usually appended later.
+    return allocations.slice(0, qty)
+  }
+  return allocations
+}
+
 export function formatSerialListForLine(
-  order: Pick<Order, "fulfillmentSerialAllocations">,
+  order: Pick<Order, "fulfillmentSerialAllocations" | "items">,
   orderItemId: string,
 ): string {
-  const serials = getAllocationsForOrderItem(order, orderItemId)
+  const serials = getDisplayAllocationsForOrderItem(order, orderItemId)
     .map((a) => a.serialNumber.trim())
     .filter(Boolean)
   if (serials.length === 0) return "—"
