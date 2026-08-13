@@ -6,11 +6,11 @@ import { Plus, Minus } from "lucide-react"
 import ScrollFloat from "./scroll-float"
 
 const faqs = [
-  { q: "How long do Voltrix batteries last?",         a: "Voltrix batteries last between 10–15 years depending upon usage and the type of battery purchased." },
-  { q: "Do Voltrix batteries come with a warranty?",  a: "Yes. All Voltrix products come with a warranty ranging from 1 to 10 years depending on the product line. Our residential wall-mount batteries carry up to a 10-year warranty." },
-  { q: "Are Voltrix batteries safe to use?",          a: "Absolutely. Every Voltrix battery is built with multi-layer safety protection including overcharge, over-discharge, short circuit, and thermal runaway prevention, meeting IEC 62619 and UN 38.3 standards." },
-  { q: "Can I use Voltrix batteries with solar systems?", a: "Yes. Voltrix batteries are fully compatible with solar systems and are designed to integrate seamlessly with inverters and solar charge controllers for residential and commercial applications." },
-  { q: "Do you provide installation and support?",    a: "Yes. We offer end-to-end installation, commissioning, and after-sales technical support. Our team is available 24/7 to assist with any queries or issues." },
+  { q: "How long do Voltrix lithium batteries last?",         a: "Voltrix lithium batteries last between 10–15 years depending upon usage and the type of lithium battery purchased." },
+  { q: "Do Voltrix lithium batteries come with a warranty?",  a: "Yes. All Voltrix lithium battery products come with a warranty ranging from 1 to 10 years depending on the product line. Our residential wall-mount lithium batteries carry up to a 10-year warranty." },
+  { q: "Are Voltrix lithium batteries safe to use?",          a: "Absolutely. Every Voltrix lithium battery is built with multi-layer safety protection including overcharge, over-discharge, short circuit, and thermal runaway prevention, meeting IEC 62619 and UN 38.3 standards." },
+  { q: "Can I use Voltrix lithium batteries with solar systems?", a: "Yes. Voltrix lithium batteries are fully compatible with solar systems and are designed to integrate seamlessly with inverters and solar charge controllers for residential and commercial applications." },
+  { q: "Do you provide installation and support?",    a: "Yes. We offer end-to-end installation, commissioning, and after-sales technical support for Voltrix lithium battery systems. Our team is available 24/7 to assist with any queries or issues." },
 ]
 
 export default function FAQ() {

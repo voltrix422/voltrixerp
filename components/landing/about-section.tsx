@@ -2,19 +2,19 @@
 import { Shield, Cpu, Globe, Leaf, Factory, Zap, ArrowRight, Award, Users, TrendingUp } from "lucide-react"
 
 const stats = [
-  { value: "Smart", label: "BMS", sub: "Bluetooth diagnostics built-in" },
-  { value: "6+", label: "Products", sub: "Diverse energy solutions" },
+  { value: "Smart", label: "BMS", sub: "Bluetooth diagnostics on every lithium pack" },
+  { value: "6+", label: "Products", sub: "Diverse lithium battery solutions" },
   { value: "4+", label: "Focus Areas", sub: "Residential to Industrial" },
-  { value: "100%", label: "Standards", sub: "Global benchmarks met" },
+  { value: "100%", label: "Standards", sub: "Global lithium battery benchmarks met" },
 ]
 
 const reasons = [
-  { icon: Factory, title: "Chinese Partners", desc: "Manufactured with leading Chinese partners for world-class quality." },
-  { icon: Zap, title: "Complete Ecosystem", desc: "EV packs to industrial BESS — all under one roof." },
-  { icon: Globe, title: "Global Partners", desc: "Collaborating with world leaders for top-tier quality." },
-  { icon: Leaf, title: "Green Impact", desc: "Earning green credits, reducing emissions." },
-  { icon: Shield, title: "Multi-layer Safety", desc: "IEC 62619 & UN 38.3 certified protection." },
-  { icon: Cpu, title: "Smart BMS", desc: "Real-time monitoring with Bluetooth diagnostics." },
+  { icon: Factory, title: "Chinese Partners", desc: "Voltrix lithium batteries manufactured with leading Chinese partners for world-class quality." },
+  { icon: Zap, title: "Complete Ecosystem", desc: "EV lithium packs to industrial BESS — all under one roof." },
+  { icon: Globe, title: "Global Partners", desc: "Collaborating with world leaders for top-tier lithium battery quality." },
+  { icon: Leaf, title: "Green Impact", desc: "Earning green credits, reducing emissions with lithium storage." },
+  { icon: Shield, title: "Multi-layer Safety", desc: "IEC 62619 & UN 38.3 certified lithium battery protection." },
+  { icon: Cpu, title: "Smart BMS", desc: "Real-time monitoring with Bluetooth diagnostics on every lithium pack." },
 ]
 
 export default function AboutSection() {
@@ -30,13 +30,13 @@ export default function AboutSection() {
               Who We Are
             </span>
             <h2 className="text-4xl md:text-5xl font-bold text-neutral-900 leading-tight">
-              Powering the Future with <span className="text-[#1a9f9a]">Innovative Energy</span>
+              Powering the Future with <span className="text-[#1a9f9a]">Lithium Batteries</span>
             </h2>
             <p className="text-lg text-neutral-600 leading-relaxed">
               We specialize in design, integration, and delivery of advanced lithium battery systems and BESS for commercial, industrial, and EV applications across Pakistan.
             </p>
             <p className="text-neutral-500">
-              Our products are manufactured with leading Chinese partners — bringing global quality with local sales and support.
+              Our lithium battery products are manufactured with leading Chinese partners — bringing global quality with local sales and support.
             </p>
             <a
               href="#contact"
@@ -94,7 +94,7 @@ export default function AboutSection() {
               </h4>
             </div>
             <p className="text-neutral-600 leading-relaxed">
-              From EV battery packs to grid-scale storage, Voltrix bridges clean energy generation with dependable storage — combining Chinese manufacturing partners with local expertise and support.
+              From EV lithium battery packs to grid-scale storage, Voltrix bridges clean energy generation with dependable lithium battery storage — combining Chinese manufacturing partners with local expertise and support.
             </p>
           </div>
         </div>

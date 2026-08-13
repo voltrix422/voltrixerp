@@ -30,7 +30,7 @@ export default function RDSection() {
             Where Innovation Meets <span className="text-[#1a9f9a]">Precision</span>
           </h2>
           <p className="text-lg text-neutral-600 max-w-2xl mx-auto">
-            Partnered with leading Chinese manufacturers — delivering certified battery solutions with local expertise and support.
+            Partnered with leading Chinese manufacturers — delivering certified lithium battery solutions with local expertise and support.
           </p>
         </div>
 
@@ -48,10 +48,10 @@ export default function RDSection() {
                 <h3 className="text-2xl font-bold mt-1">Smart BMS Technology</h3>
               </div>
               <p className="text-neutral-400 leading-relaxed">
-                Advanced Battery Management Systems with real-time monitoring, smart balancing, and Bluetooth diagnostics — across EV packs, residential, and industrial BESS.
+                Advanced Battery Management Systems with real-time monitoring, smart balancing, and Bluetooth diagnostics — across EV lithium packs, residential, and industrial lithium battery BESS.
               </p>
               <div className="flex flex-wrap gap-2">
-                {["Advanced BMS", "Smart Inverters", "Residential BESS", "Industrial BESS"].map((t) => (
+                {["Advanced BMS", "Smart Inverters", "Lithium Batteries", "Industrial BESS"].map((t) => (
                   <span key={t} className="px-3 py-1 rounded-full bg-[#1a9f9a]/10 text-[#1a9f9a] text-xs font-medium">
                     {t}
                   </span>
@@ -71,7 +71,7 @@ export default function RDSection() {
                 <h3 className="text-2xl font-bold mt-1 text-neutral-900">Chinese Excellence</h3>
               </div>
               <p className="text-neutral-600 leading-relaxed">
-                Our Chinese manufacturing partners produce Voltrix batteries to strict quality systems so every pack meets global standards. Eco-friendly precision engineering.
+                Our Chinese manufacturing partners produce Voltrix lithium batteries to strict quality systems so every pack meets global standards. Eco-friendly precision engineering.
               </p>
               <div className="space-y-2">
                 {["Partner quality control", "Certified production", "Global certification"].map((t, i) => (
@@ -112,7 +112,7 @@ export default function RDSection() {
                 Intelligent Battery <span className="text-[#1a9f9a]">Management System</span>
               </h3>
               <p className="text-neutral-400 text-lg leading-relaxed">
-                Every Voltrix pack ships with a Smart BMS — enabling real-time monitoring, smart balancing, and wireless diagnostics.
+                Every Voltrix lithium battery pack ships with a Smart BMS — enabling real-time monitoring, smart balancing, and wireless diagnostics.
               </p>
               <p className="text-sm text-[#1a9f9a] font-semibold">Partner-built quality · Local support in Pakistan</p>
             </div>

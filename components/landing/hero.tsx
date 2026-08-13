@@ -88,11 +88,11 @@ export default function Hero() {
                 />
               </span>
               <br />
-              <span className="text-[#1a9f9a]">with Voltrix.</span>
+              <span className="text-[#1a9f9a]">with Voltrix lithium batteries.</span>
             </h1>
 
             <p className="text-base text-neutral-400 leading-relaxed max-w-2xl">
-              Empowering Sustainable Living with Innovative Batteries, Smart Inverters, and{" "}
+              Empowering Sustainable Living with Innovative Lithium Batteries, Smart Inverters, and{" "}
               <span className="whitespace-nowrap">Next-Generation Energy Solutions</span>
             </p>
 

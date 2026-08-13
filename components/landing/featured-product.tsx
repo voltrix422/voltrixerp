@@ -38,9 +38,14 @@ export default function FeaturedProduct() {
         .filter((s): s is { label?: unknown; value?: unknown } => s && typeof s === "object")
         .slice(0, 4)
     : []
+  const rawDescription = String(fusionProduct.full_desc || fusionProduct.description || "").trim()
   const description =
-    String(fusionProduct.full_desc || fusionProduct.description || "").trim() ||
-    "Explore our Voltrix Fusion energy storage system."
+    rawDescription ||
+    "An all-in-one residential lithium battery energy storage solution combining a 3.6 kW pure sine wave inverter with an integrated Lithium Iron Phosphate (LiFePO₄) battery module."
+  const descriptionWithLithium =
+    /lithium|lifepo|li-ion|li ion/i.test(description)
+      ? description
+      : `Lithium battery system — ${description}`
 
   return (
     <section className="py-20 px-4 bg-white text-neutral-900">
@@ -67,9 +72,9 @@ export default function FeaturedProduct() {
 
           <div className="lg:col-span-7 space-y-6">
             <div>
-              <p className="text-xs text-neutral-500 mb-1">Voltrix Fusion</p>
+              <p className="text-xs text-neutral-500 mb-1">Voltrix Fusion · Lithium Battery</p>
               <h3 className="text-3xl font-bold text-neutral-900 mb-2">{display.title}</h3>
-              <p className="text-neutral-600 text-sm leading-relaxed max-w-md">{description}</p>
+              <p className="text-neutral-600 text-sm leading-relaxed max-w-md">{descriptionWithLithium}</p>
               {display.model ? (
                 <p className="mt-2 text-xs font-mono text-neutral-500">{display.model}</p>
               ) : null}

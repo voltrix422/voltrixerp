@@ -6,22 +6,22 @@ const highlights = [
   { 
     icon: Cpu, 
     title: "Smart BMS",
-    desc: "Real-time monitoring with Bluetooth diagnostics on every pack"
+    desc: "Real-time monitoring with Bluetooth diagnostics on every lithium battery pack"
   },
   { 
     icon: Battery, 
     title: "Complete Ecosystem",
-    desc: "Comprehensive energy solutions for all applications"
+    desc: "Comprehensive lithium battery solutions for home, commercial, and EV applications"
   },
   { 
     icon: Factory, 
     title: "Chinese Partners",
-    desc: "Manufactured with leading Chinese partners for top-tier quality"
+    desc: "Voltrix lithium batteries manufactured with leading Chinese partners for top-tier quality"
   },
   { 
     icon: Globe, 
     title: "Global Standards",
-    desc: "International quality with local sales and support"
+    desc: "International lithium battery quality with local sales and support in Pakistan"
   },
 ]
 

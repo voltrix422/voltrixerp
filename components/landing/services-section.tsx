@@ -10,7 +10,7 @@ const cards = [
     icon: RefreshCw,
     heading: "Build-Operate-Transfer.",
     sub: "Zero upfront investment.",
-    body: "Voltrix finances, builds, and operates the solar energy system for a fixed term. Clients benefit from solar power with no upfront cost. At term end, ownership transfers to the client — a sustainable, low-risk path to renewable energy.",
+    body: "Voltrix finances, builds, and operates solar + lithium battery energy systems for a fixed term. Clients benefit from clean power with no upfront cost. At term end, ownership transfers to the client — a sustainable, low-risk path to renewable energy.",
     items: null,
   },
   {
@@ -18,10 +18,10 @@ const cards = [
     icon: HardHat,
     heading: "Complete engineering,",
     sub: "procurement & construction.",
-    body: "We provide full Engineering, Procurement & Construction services for large-scale energy infrastructure projects.",
+    body: "We provide full Engineering, Procurement & Construction services for large-scale energy infrastructure — including lithium battery storage and solar systems.",
     items: [
       { icon: Settings, title: "Design & Engineering",        desc: "Tailored designs for site-specific requirements." },
-      { icon: Truck,    title: "Procurement",                 desc: "High-quality components from trusted manufacturers." },
+      { icon: Truck,    title: "Procurement",                 desc: "High-quality lithium batteries and components from trusted manufacturers." },
       { icon: Zap,      title: "Construction & Commissioning",desc: "Complete installation and operational handover." },
     ],
   },
@@ -30,7 +30,7 @@ const cards = [
     icon: Wrench,
     heading: "End-to-end EPC solutions",
     sub: "for commercial & industrial.",
-    body: "Turnkey execution from initial design through final commissioning — with a strong emphasis on quality, safety, and long-term performance.",
+    body: "Turnkey execution from initial design through final commissioning of lithium battery and solar systems — with a strong emphasis on quality, safety, and long-term performance.",
     items: null,
   },
   {
@@ -38,10 +38,10 @@ const cards = [
     icon: ClipboardList,
     heading: "Everything covered,",
     sub: "end to end.",
-    body: "System design, certified procurement, professional installation, performance testing, and ongoing O&M — all under one roof.",
+    body: "System design, certified lithium battery procurement, professional installation, performance testing, and ongoing O&M — all under one roof.",
     items: [
-      { icon: Settings,      title: "System Design",          desc: "Customized solutions for site-specific needs." },
-      { icon: Truck,         title: "Procurement & Supply",   desc: "Only certified panels, inverters, and components." },
+      { icon: Settings,      title: "System Design",          desc: "Customized lithium battery solutions for site-specific needs." },
+      { icon: Truck,         title: "Procurement & Supply",   desc: "Only certified panels, inverters, and lithium batteries." },
       { icon: Zap,           title: "Installation",           desc: "Professional install to global safety standards." },
       { icon: ClipboardList, title: "Performance Testing",    desc: "Thorough testing to guarantee all benchmarks." },
       { icon: RefreshCw,     title: "O&M",                   desc: "Ongoing monitoring for peak efficiency." },
@@ -53,7 +53,7 @@ const cards = [
     icon: Leaf,
     heading: "Sustainable power",
     sub: "for a greener tomorrow.",
-    body: "From rooftop solar to grid-scale BESS, Voltrix delivers clean energy solutions that reduce costs and carbon footprints for businesses across Pakistan.",
+    body: "From rooftop solar to grid-scale lithium battery BESS, Voltrix delivers clean energy solutions that reduce costs and carbon footprints for businesses across Pakistan.",
     items: null,
   },
   {
@@ -61,7 +61,7 @@ const cards = [
     icon: Building2,
     heading: "Built for industry,",
     sub: "engineered to last.",
-    body: "Heavy-duty energy systems designed for factories, commercial facilities, and large-scale operations — reliable, scalable, and backed by expert support.",
+    body: "Heavy-duty lithium battery energy systems designed for factories, commercial facilities, and large-scale operations — reliable, scalable, and backed by expert support.",
     items: null,
   },
   {
@@ -69,7 +69,7 @@ const cards = [
     icon: Cpu,
     heading: "Intelligent BMS",
     sub: "at the core of every pack.",
-    body: "Every Voltrix pack includes a Smart BMS for optimal cell health, safety, and real-time diagnostics via Bluetooth — built for LiFePO₄ chemistry.",
+    body: "Every Voltrix lithium battery pack includes a Smart BMS for optimal cell health, safety, and real-time diagnostics via Bluetooth — built for LiFePO₄ chemistry.",
     items: null,
   },
 ]

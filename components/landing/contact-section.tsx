@@ -1,10 +1,11 @@
 // @ts-nocheck
 import { ExternalLink, MapPin, Phone, Mail } from "lucide-react"
 import ScrollFloat from "./scroll-float"
-import ScrollReveal from "./scroll-reveal"
 
 const OFFICE_ADDRESS = "Plot 73 Street 14 I-9/2 Industrial Area Islamabad 44000 Pakistan"
 const GOOGLE_MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(OFFICE_ADDRESS)}`
+const GOOGLE_MAPS_EMBED_URL =
+  "https://maps.google.com/maps?q=Plot%2073%20Street%2014%20I-9%2F2%20Industrial%20Area%20Islamabad%20Pakistan&t=&z=16&ie=UTF8&iwloc=&output=embed"
 
 export default function ContactSection() {
   return (
@@ -114,35 +115,33 @@ export default function ContactSection() {
       {/* ── Map ── */}
       <div className="px-4 pb-24">
         <div className="max-w-5xl mx-auto space-y-3">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4" style={{ color: "#1a9f9a" }} />
-            <p className="text-sm font-semibold text-neutral-700">Head Office — I-9/2 Industrial Area, Islamabad</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" style={{ color: "#1a9f9a" }} />
+              <p className="text-sm font-semibold text-neutral-700">Head Office — I-9/2 Industrial Area, Islamabad</p>
+            </div>
+            <a
+              href={GOOGLE_MAPS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1a9f9a] hover:underline"
+            >
+              Open in Google Maps
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           </div>
-          <a
-            href={GOOGLE_MAPS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group flex w-full flex-col items-center justify-center gap-4 rounded-2xl border border-neutral-100 bg-gradient-to-br from-[#1a9f9a]/10 via-white to-neutral-50 px-6 text-center transition-colors hover:border-[#1a9f9a]/40"
-            style={{ minHeight: "280px" }}
-          >
-            <div
-              className="flex h-14 w-14 items-center justify-center rounded-2xl"
-              style={{ backgroundColor: "#1a9f9a18" }}
-            >
-              <MapPin className="h-7 w-7" style={{ color: "#1a9f9a" }} />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-neutral-900">View head office on Google Maps</p>
-              <p className="max-w-md text-sm text-neutral-500">{OFFICE_ADDRESS}</p>
-            </div>
-            <span
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition-opacity group-hover:opacity-90"
-              style={{ backgroundColor: "#1a9f9a" }}
-            >
-              Open map
-              <ExternalLink className="h-4 w-4" />
-            </span>
-          </a>
+          <div className="overflow-hidden rounded-2xl border border-neutral-100 shadow-sm">
+            <iframe
+              title="Voltrix Batteries head office map"
+              src={GOOGLE_MAPS_EMBED_URL}
+              className="w-full border-0"
+              style={{ minHeight: "360px", height: "min(55vh, 420px)" }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+          </div>
+          <p className="text-xs text-neutral-500">{OFFICE_ADDRESS}</p>
         </div>
       </div>
 

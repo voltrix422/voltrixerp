@@ -42,10 +42,10 @@ export default function VisionSection() {
                 <span className="text-sm font-semibold uppercase tracking-wider opacity-80">Our Mission</span>
               </div>
               <p className="text-lg leading-relaxed opacity-95">
-                To empower individuals and organizations to embrace clean energy while reducing their carbon footprint. Every solution is built with Chinese manufacturing partners and backed by local sales and support in Pakistan.
+                To empower individuals and organizations to embrace clean energy with advanced lithium batteries while reducing their carbon footprint. Every lithium battery solution is built with Chinese manufacturing partners and backed by local sales and support in Pakistan.
               </p>
               <p className="text-sm opacity-70">
-                Committed to delivering durable, high-quality products that meet international standards for customers across Pakistan.
+                Committed to delivering durable, high-quality lithium battery products that meet international standards for customers across Pakistan.
               </p>
             </div>
           </div>
@@ -64,7 +64,7 @@ export default function VisionSection() {
                 A cleaner, smarter energy future for Pakistan and beyond.
               </h3>
               <p className="text-neutral-400 leading-relaxed">
-                We envision a Pakistan where every home, business, and vehicle runs on clean energy — independent of fossil fuels and powered by reliable storage solutions.
+                We envision a Pakistan where every home, business, and vehicle runs on clean energy — independent of fossil fuels and powered by reliable Voltrix lithium battery storage solutions.
               </p>
             </div>
           </div>

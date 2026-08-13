@@ -5,14 +5,14 @@ import { useState, useEffect } from "react"
 import { Quote, Star, ChevronLeft, ChevronRight } from "lucide-react"
 
 const reviews = [
-  { name: "Ali Khan",    role: "Business Owner",      text: "Voltrix provide long-lasting power and excellent customer support. Truly a game-changer for our facility.", initials: "AK" },
-  { name: "Sara Ahmed",  role: "Operations Manager",  text: "Reliable and efficient! Our operations have never been smoother since switching to Voltrix energy systems.", initials: "SA" },
-  { name: "Bilal Shah",  role: "Factory Director",    text: "Highly recommend Voltrix for their performance and durability. The ROI has been exceptional.", initials: "BS" },
-  { name: "Usman Malik", role: "Solar Consultant",    text: "The BMS technology is outstanding. Real-time Bluetooth monitoring gives us complete peace of mind.", initials: "UM" },
-  { name: "Hina Raza",   role: "Homeowner",           text: "Switched from lead-acid to Voltrix LiFePO₄ — the difference is night and day. Zero maintenance headaches.", initials: "HR" },
-  { name: "Tariq Butt",  role: "EV Fleet Manager",    text: "Our electric rickshaw fleet runs on Voltrix EV packs. Range improved by 40% and downtime is near zero.", initials: "TB" },
-  { name: "Amir Khan",   role: "Restaurant Owner",    text: "The backup power system has been flawless. No interruptions even during load shedding.", initials: "AK" },
-  { name: "Fatima Ali",  role: "School Administrator", text: "Our institution runs on Voltrix storage. Reliable and cost-effective for our energy needs.", initials: "FA" },
+  { name: "Ali Khan",    role: "Business Owner",      text: "Voltrix lithium batteries provide long-lasting power and excellent customer support. Truly a game-changer for our facility.", initials: "AK" },
+  { name: "Sara Ahmed",  role: "Operations Manager",  text: "Reliable and efficient! Our operations have never been smoother since switching to Voltrix lithium battery energy systems.", initials: "SA" },
+  { name: "Bilal Shah",  role: "Factory Director",    text: "Highly recommend Voltrix lithium batteries for their performance and durability. The ROI has been exceptional.", initials: "BS" },
+  { name: "Usman Malik", role: "Solar Consultant",    text: "The BMS on every Voltrix lithium battery pack is outstanding. Real-time Bluetooth monitoring gives us complete peace of mind.", initials: "UM" },
+  { name: "Hina Raza",   role: "Homeowner",           text: "Switched from lead-acid to Voltrix LiFePO₄ lithium batteries — the difference is night and day. Zero maintenance headaches.", initials: "HR" },
+  { name: "Tariq Butt",  role: "EV Fleet Manager",    text: "Our electric rickshaw fleet runs on Voltrix EV lithium battery packs. Range improved by 40% and downtime is near zero.", initials: "TB" },
+  { name: "Amir Khan",   role: "Restaurant Owner",    text: "The Voltrix lithium battery backup system has been flawless. No interruptions even during load shedding.", initials: "AK" },
+  { name: "Fatima Ali",  role: "School Administrator", text: "Our institution runs on Voltrix lithium battery storage. Reliable and cost-effective for our energy needs.", initials: "FA" },
 ]
 
 function StarRating() {
@@ -81,7 +81,7 @@ export default function Testimonials() {
           What our clients say
         </h2>
         <p className="text-neutral-500 text-base max-w-2xl mx-auto">
-          Trusted by homeowners, businesses, and fleet operators across Pakistan.
+          Trusted by homeowners, businesses, and fleet operators across Pakistan who rely on Voltrix lithium batteries.
         </p>
       </div>
 
