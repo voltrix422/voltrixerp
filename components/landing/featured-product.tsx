@@ -11,41 +11,40 @@ import {
 import { getProductDisplayName } from "@/lib/product-display-name"
 import { getProductImageList, PRODUCT_IMAGE_FALLBACK } from "@/lib/product-image"
 
+const FEATURED_FALLBACK_DESC =
+  "A high-capacity, heavy-duty 51.2V 305Ah Lithium Iron Phosphate battery system engineered for high-demand residential or commercial solar storage, delivering a powerful 15.6 kWh of energy with over 8,000 cycles at 90 % depth of discharge."
+
 export default function FeaturedProduct() {
   const [specsOpen, setSpecsOpen] = useState(false)
-  const [fusionProduct, setFusionProduct] = useState<Record<string, unknown> | null>(null)
+  const [featuredProduct, setFeaturedProduct] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     fetch("/api/products", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : []
-        setFusionProduct(findFeaturedFusionProduct(list))
+        setFeaturedProduct(findFeaturedFusionProduct(list))
       })
-      .catch(() => setFusionProduct(null))
+      .catch(() => setFeaturedProduct(null))
   }, [])
 
-  if (!fusionProduct) return null
+  if (!featuredProduct) return null
 
   const display = getProductDisplayName({
-    name: String(fusionProduct.name ?? ""),
-    model: fusionProduct.model != null ? String(fusionProduct.model) : undefined,
+    name: String(featuredProduct.name ?? ""),
+    model: featuredProduct.model != null ? String(featuredProduct.model) : undefined,
   })
-  const images = getProductImageList(fusionProduct)
+  const category = String(featuredProduct.category ?? "Energy Storage Battery").trim()
+  const images = getProductImageList(featuredProduct)
   const heroImage = images[0] ?? PRODUCT_IMAGE_FALLBACK
-  const specRows = Array.isArray(fusionProduct.specs)
-    ? fusionProduct.specs
+  const specRows = Array.isArray(featuredProduct.specs)
+    ? featuredProduct.specs
         .filter((s): s is { label?: unknown; value?: unknown } => s && typeof s === "object")
         .slice(0, 4)
     : []
-  const rawDescription = String(fusionProduct.full_desc || fusionProduct.description || "").trim()
   const description =
-    rawDescription ||
-    "An all-in-one residential lithium battery energy storage solution combining a 3.6 kW pure sine wave inverter with an integrated Lithium Iron Phosphate (LiFePO₄) battery module."
-  const descriptionWithLithium =
-    /lithium|lifepo|li-ion|li ion/i.test(description)
-      ? description
-      : `Lithium battery system — ${description}`
+    String(featuredProduct.full_desc || featuredProduct.description || "").trim() ||
+    FEATURED_FALLBACK_DESC
 
   return (
     <section className="py-20 px-4 bg-white text-neutral-900">
@@ -53,7 +52,7 @@ export default function FeaturedProduct() {
         <div className="flex items-center gap-2 mb-8">
           <Sparkles className="w-4 h-4 text-[#1a9f9a]" />
           <span className="text-xs font-medium text-[#1a9f9a] tracking-widest uppercase">
-            Innovative Technology
+            Featured Lithium Battery
           </span>
         </div>
 
@@ -62,7 +61,7 @@ export default function FeaturedProduct() {
             <div className="relative aspect-square max-w-sm mx-auto rounded-xl overflow-hidden bg-white border border-neutral-200">
               <Image
                 src={heroImage}
-                alt={display.title || "Voltrix Fusion"}
+                alt={display.title || "15 kWh Energy Storage Battery"}
                 fill
                 className="object-contain p-4"
                 unoptimized={heroImage.startsWith("/uploads/")}
@@ -72,12 +71,18 @@ export default function FeaturedProduct() {
 
           <div className="lg:col-span-7 space-y-6">
             <div>
-              <p className="text-xs text-neutral-500 mb-1">Voltrix Fusion · Lithium Battery</p>
-              <h3 className="text-3xl font-bold text-neutral-900 mb-2">{display.title}</h3>
-              <p className="text-neutral-600 text-sm leading-relaxed max-w-md">{descriptionWithLithium}</p>
+              <p className="text-xs text-neutral-500 mb-1">
+                {category || "Energy Storage Battery"} · Lithium Battery
+              </p>
+              <h3 className="text-3xl font-bold text-neutral-900 mb-2">
+                {display.title || "15 kWh Energy Storage Battery"}
+              </h3>
+              <p className="text-neutral-600 text-sm leading-relaxed max-w-md">{description}</p>
               {display.model ? (
                 <p className="mt-2 text-xs font-mono text-neutral-500">{display.model}</p>
-              ) : null}
+              ) : (
+                <p className="mt-2 text-xs font-mono text-neutral-500">HS-LD15KW-A</p>
+              )}
             </div>
 
             {specRows.length > 0 ? (
@@ -117,7 +122,7 @@ export default function FeaturedProduct() {
         open={specsOpen}
         onClose={() => setSpecsOpen(false)}
         focusSpecSheet
-        product={fusionProductToSpecsPayload(fusionProduct)}
+        product={fusionProductToSpecsPayload(featuredProduct)}
       />
     </section>
   )
