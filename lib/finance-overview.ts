@@ -29,6 +29,18 @@ export function parseOrderPayments(payments: unknown): OrderPayment[] {
   return payments as OrderPayment[]
 }
 
+export function parseOrderCashbackPayments(payments: unknown) {
+  if (!Array.isArray(payments)) return []
+  return payments as import("@/lib/orders").OrderCashbackPayment[]
+}
+
+export function orderCashbackTotal(payments: unknown) {
+  return parseOrderCashbackPayments(payments).reduce(
+    (sum, p) => sum + (Number(p.amount) || 0),
+    0,
+  )
+}
+
 export function orderPaidTotal(order: Pick<Order, "payments" | "status">) {
   return getOrderAmountPaid(order)
 }

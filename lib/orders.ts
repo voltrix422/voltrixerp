@@ -94,6 +94,23 @@ export interface OrderReturnPayment {
   createdBy: string
 }
 
+/** Cashback / bonus paid to client — tied to order balance or separate goodwill. */
+export type OrderCashbackSource = "order" | "other"
+
+export interface OrderCashbackPayment {
+  id: string
+  amount: number
+  method: string
+  date: string
+  notes: string
+  /** "order" reduces order balance; "other" is goodwill bonus outside order value. */
+  source: OrderCashbackSource
+  proofUrl?: string
+  proofUrls?: string[]
+  createdAt: string
+  createdBy: string
+}
+
 /** One batch of returned qty for a single order line (supports partial returns). */
 export interface OrderReturnLine {
   id: string
@@ -170,6 +187,8 @@ export interface Order {
   inventoryReturnedAt?: string
   /** Refunds / money sent back to the client for a returned order */
   returnPayments?: OrderReturnPayment[]
+  /** Cashback / bonus payments — from order balance or separate goodwill amount. */
+  cashbackPayments?: OrderCashbackPayment[]
   /** Line quantities returned (partial or full). Accumulates across return batches. */
   returnLines?: OrderReturnLine[]
   /**
@@ -260,21 +279,63 @@ export function getOrderAmountPaid(order: Pick<Order, "payments" | "status">) {
   )
 }
 
-export function getOrderCreditBalance(
-  order: Pick<Order, "total" | "payments" | "status" | "returnPayments">,
+export function getOrderReturnAmount(order: Pick<Order, "returnPayments">) {
+  return (order.returnPayments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+}
+
+export function getOrderCashbackAmount(
+  order: Pick<Order, "cashbackPayments">,
+  source?: OrderCashbackSource,
+) {
+  const list = order.cashbackPayments || []
+  if (!source) {
+    return list.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  }
+  return list
+    .filter((p) => (p.source || "order") === source)
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+}
+
+/** Order-sourced cashback + payments − refunds = effective settlement toward order total. */
+export function getOrderEffectivePaid(
+  order: Pick<Order, "payments" | "status" | "returnPayments" | "cashbackPayments">,
 ) {
   const paid = getOrderAmountPaid(order)
   const refunded = getOrderReturnAmount(order)
-  const netPaid = Math.max(0, paid - refunded)
-  return Math.max(0, Number(order.total) - netPaid)
+  const orderCashback = getOrderCashbackAmount(order, "order")
+  return Math.max(0, paid + orderCashback - refunded)
+}
+
+export function getOrderCreditBalance(
+  order: Pick<Order, "total" | "payments" | "status" | "returnPayments" | "cashbackPayments">,
+) {
+  return Math.max(0, Number(order.total) - getOrderEffectivePaid(order))
+}
+
+/** Max cashback that can still be applied against this order's balance. */
+export function getOrderCashbackRemainingFromOrder(
+  order: Pick<Order, "total" | "payments" | "status" | "returnPayments" | "cashbackPayments">,
+) {
+  return getOrderCreditBalance(order)
+}
+
+export function orderHasCashback(order: Pick<Order, "cashbackPayments">) {
+  return (order.cashbackPayments || []).length > 0
+}
+
+export function getOrderCashbackPaymentProofUrls(payment: OrderCashbackPayment): string[] {
+  if (payment.proofUrls && payment.proofUrls.length > 0) return payment.proofUrls
+  if (payment.proofUrl) return [payment.proofUrl]
+  return []
+}
+
+/** Orders that can receive cashback (confirmed through delivered). */
+export function canAddCashback(order: Pick<Order, "status">) {
+  return ["confirmed", "processing", "shipped", "delivered", "returned"].includes(order.status)
 }
 
 export function isOrderReturned(order: Pick<Order, "status">) {
   return order.status === "returned"
-}
-
-export function getOrderReturnAmount(order: Pick<Order, "returnPayments">) {
-  return (order.returnPayments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
 }
 
 /** Total returned qty per order item id (from returnLines). */
@@ -521,7 +582,7 @@ export function applyReturnMerchandiseToOrder(
 
 /** Suggested refund for a set of return quantities (this batch). */
 export function getSuggestedReturnRefund(
-  order: Pick<Order, "items" | "taxPercent" | "payments" | "status" | "returnPayments">,
+  order: Pick<Order, "items" | "taxPercent" | "payments" | "status" | "returnPayments" | "cashbackPayments">,
   returnQtys: Record<string, number>,
 ): number {
   let subtotal = 0
@@ -533,8 +594,9 @@ export function getSuggestedReturnRefund(
   const taxPercent = Number(order.taxPercent) || 0
   const merchandise = subtotal * (1 + taxPercent / 100)
   const amountPaid = getOrderAmountPaid(order)
-  const alreadyRefunded = getOrderReturnAmount(order)
-  const refundable = Math.max(0, amountPaid - alreadyRefunded)
+  const alreadyReturned = getOrderReturnAmount(order)
+  const alreadyCashbackOrder = getOrderCashbackAmount(order, "order")
+  const refundable = Math.max(0, amountPaid - alreadyReturned - alreadyCashbackOrder)
   if (amountPaid <= 0.004) return 0
   return Math.min(merchandise, refundable)
 }
@@ -803,6 +865,9 @@ export function rowToOrder(r: Record<string, unknown>): Order {
     returnMerchandiseApplied: Boolean(r.returnMerchandiseApplied),
     replacementLines: Array.isArray(r.replacementLines)
       ? (r.replacementLines as OrderReplacementLine[])
+      : [],
+    cashbackPayments: Array.isArray(r.cashbackPayments)
+      ? (r.cashbackPayments as OrderCashbackPayment[])
       : [],
   }
 }

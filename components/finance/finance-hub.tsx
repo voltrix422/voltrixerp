@@ -11,6 +11,7 @@ type Summary = {
   moneyIn: number
   moneyOut: number
   netCashFlow: number
+  cashbackInPeriod?: number
 }
 
 function fmt(n: number) {
@@ -99,8 +100,8 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     {
       label: "Money out",
       value: fmt(summary.moneyOut),
-      hint: `Cash that left during ${periodLabel.toLowerCase()}: finance expenses (expense, payment, tax, salary) + purchase-order payments + petty-cash receipts.`,
-      detail: "Expenses + PO + petty cash",
+      hint: `Cash that left during ${periodLabel.toLowerCase()}: finance expenses + purchase-order payments + petty-cash receipts + client cashback/bonus payouts${summary.cashbackInPeriod ? ` (PKR ${summary.cashbackInPeriod.toLocaleString()} cashback)` : ""}.`,
+      detail: "Expenses + PO + petty cash + cashback",
       icon: TrendingDown,
       tone: "out" as const,
     },

@@ -1,6 +1,6 @@
 "use client"
-import { useState, useEffect } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { useState, useEffect, type ReactNode } from "react"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
@@ -20,12 +20,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw } from "lucide-react"
+import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderReturn, ReturnPaymentCapture } from "@/components/crm/order-return"
+import { CashbackCapture } from "@/components/crm/order-cashback"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
 import { InvoiceEditModal } from "@/components/crm/invoice-edit-modal"
@@ -46,7 +47,7 @@ import {
 } from "@/lib/crm-product-prices"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed" | "returned"
-type PaymentFilter = "all" | "on_credit" | "paid" | "not_credit"
+type PaymentFilter = "all" | "on_credit" | "paid" | "not_credit" | "cashback"
 type DatePreset = "" | "today" | "tomorrow" | "last_3" | "last_7" | "last_15" | "last_30"
 const STATUS_FILTER_OPTIONS: { value: OrderStatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -61,6 +62,7 @@ const PAYMENT_FILTER_OPTIONS: { value: PaymentFilter; label: string }[] = [
   { value: "on_credit", label: "On Credit" },
   { value: "paid", label: "Fully Paid" },
   { value: "not_credit", label: "Not Credit" },
+  { value: "cashback", label: "Cashback" },
 ]
 
 function formatOrderPkr(amount: number) {
@@ -69,6 +71,7 @@ function formatOrderPkr(amount: number) {
 
 function orderMatchesPaymentFilter(order: Order, filter: PaymentFilter): boolean {
   if (filter === "all") return true
+  if (filter === "cashback") return orderHasCashback(order)
   if (filter === "on_credit") return hasOutstandingCredit(order)
   if (filter === "paid") return getOrderCreditBalance(order) <= 0.004
   if (filter === "not_credit") return !isOrderOnCredit(order)
@@ -100,6 +103,8 @@ function OrderSummaryHoverPanel({
   hint,
   orders,
   emptyLabel = "No partially paid orders",
+  panelTitle = "Partially paid orders",
+  renderRowExtra,
 }: {
   label: string
   count: number
@@ -108,6 +113,8 @@ function OrderSummaryHoverPanel({
   hint: string
   orders: { order: Order; paid: number; balance: number }[]
   emptyLabel?: string
+  panelTitle?: string
+  renderRowExtra?: (order: Order) => ReactNode
 }) {
   return (
     <div className="relative group sm:border-l sm:pl-6 focus-within:z-50" tabIndex={0}>
@@ -122,7 +129,7 @@ function OrderSummaryHoverPanel({
       <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 w-[min(20rem,calc(100vw-2rem))] opacity-0 translate-y-1 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0">
         <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
-            Partially paid orders
+            {panelTitle}
           </p>
           {orders.length === 0 ? (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">{emptyLabel}</p>
@@ -142,10 +149,14 @@ function OrderSummaryHoverPanel({
                       {order.status.replace(/_/g, " ")}
                     </span>
                   </div>
-                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
-                    <span className="text-emerald-700">Paid {formatOrderPkr(paid)}</span>
-                    <span className="text-amber-700">Due {formatOrderPkr(balance)}</span>
-                  </div>
+                  {renderRowExtra ? (
+                    renderRowExtra(order)
+                  ) : (
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
+                      <span className="text-emerald-700">Paid {formatOrderPkr(paid)}</span>
+                      <span className="text-amber-700">Due {formatOrderPkr(balance)}</span>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -365,6 +376,15 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   )
   const partialPaymentAmount = partiallyPaidOrders.reduce((sum, row) => sum + row.paid, 0)
   const returnedRefundAmount = returnedOrders.reduce((sum, o) => sum + getOrderReturnAmount(o), 0)
+  const cashbackOrders = filtered.filter(orderHasCashback)
+  const cashbackAmount = filtered.reduce((sum, o) => sum + getOrderCashbackAmount(o), 0)
+  const cashbackOrderRows = cashbackOrders
+    .map((order) => ({
+      order,
+      paid: getOrderCashbackAmount(order),
+      balance: getOrderCashbackAmount(order, "other"),
+    }))
+    .sort((a, b) => b.paid - a.paid)
 
   return (
     <div className="space-y-4">
@@ -579,6 +599,31 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 Refunded to clients · stock restored
               </p>
             </div>
+            <OrderSummaryHoverPanel
+              label="Cashback"
+              count={cashbackOrders.length}
+              amount={formatOrderPkr(cashbackAmount)}
+              amountClassName="text-violet-700"
+              hint="Hover to see cashback orders"
+              emptyLabel="No cashback orders"
+              panelTitle="Cashback orders"
+              orders={cashbackOrderRows.map(({ order, paid }) => ({
+                order,
+                paid,
+                balance: getOrderCashbackAmount(order, "other"),
+              }))}
+              renderRowExtra={(order) => {
+                const fromOrder = getOrderCashbackAmount(order, "order")
+                const other = getOrderCashbackAmount(order, "other")
+                return (
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
+                    <span className="text-violet-700">Total {formatOrderPkr(getOrderCashbackAmount(order))}</span>
+                    {fromOrder > 0 && <span className="text-violet-600">From order {formatOrderPkr(fromOrder)}</span>}
+                    {other > 0 && <span className="text-violet-500">Bonus {formatOrderPkr(other)}</span>}
+                  </div>
+                )
+              }}
+            />
           </div>
 
           <CrmOrdersListCards
@@ -1415,6 +1460,7 @@ function OrderDetail({
   const [showPayment, setShowPayment] = useState(false)
   const [showReturn, setShowReturn] = useState(false)
   const [showReturnPayment, setShowReturnPayment] = useState(false)
+  const [showCashback, setShowCashback] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
   const [deletingPayment, setDeletingPayment] = useState(false)
@@ -1483,10 +1529,14 @@ function OrderDetail({
   const canDeletePayments = detailOrder.status === "delivered" && canManagePayments
   const canReturn = canReturnOrder(detailOrder) && !workspace?.readOnly
   const canManageReturnPayments = canAddReturnPayment(detailOrder) && !workspace?.readOnly
+  const canManageCashback = canAddCashback(detailOrder) && !workspace?.readOnly
   const hasReturns = orderHasAnyReturns(detailOrder)
   const creditBalance = getOrderCreditBalance(detailOrder)
   const amountPaid = getOrderAmountPaid(detailOrder)
   const returnAmount = getOrderReturnAmount(detailOrder)
+  const cashbackAmount = getOrderCashbackAmount(detailOrder)
+  const cashbackFromOrder = getOrderCashbackAmount(detailOrder, "order")
+  const cashbackOther = getOrderCashbackAmount(detailOrder, "other")
 
   async function handleDeletePayment(paymentId: string) {
     const payment = detailOrder.payments?.find(p => p.id === paymentId)
@@ -1581,6 +1631,17 @@ function OrderDetail({
           order={detailOrder}
           currentUser={currentUser}
           onClose={() => setShowReturnPayment(false)}
+          onUpdate={o => {
+            setDetailOrder(o)
+            setStatus(o.status)
+            onUpdate(o)
+          }}
+        />
+      ) : showCashback ? (
+        <CashbackCapture
+          order={detailOrder}
+          currentUser={currentUser}
+          onClose={() => setShowCashback(false)}
           onUpdate={o => {
             setDetailOrder(o)
             setStatus(o.status)
@@ -1810,26 +1871,50 @@ function OrderDetail({
                 {isOrderOnCredit(detailOrder) && creditBalance <= 0.004 && (
                   <Badge variant="success" className="text-[10px]">Credit cleared</Badge>
                 )}
+                {cashbackAmount > 0 && (
+                  <Badge className="text-[10px] bg-violet-100 text-violet-800 border-violet-200">
+                    Cashback PKR {cashbackAmount.toLocaleString()}
+                  </Badge>
+                )}
               </div>
-              {canManagePayments && (
-                <Button size="sm" className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {canManageCashback && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-50 cursor-pointer"
+                    onClick={() => setShowCashback(true)}
+                  >
+                    <Gift className="h-3.5 w-3.5 mr-1" />
+                    Add cashback
+                  </Button>
+                )}
+                {canManagePayments && (
+                  <Button size="sm" className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="text-sm">
               <p className="font-medium text-blue-900 dark:text-blue-100">
                 Total Amount: PKR {detailOrder.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
-              {(detailOrder.payments?.length ?? 0) > 0 && (
+              {(detailOrder.payments?.length ?? 0) > 0 || cashbackFromOrder > 0 || returnAmount > 0 ? (
                 <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
                   Paid PKR {amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {cashbackFromOrder > 0 && (
+                    <> · Cashback (order) PKR {cashbackFromOrder.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
+                  )}
+                  {returnAmount > 0 && (
+                    <> · Refunded PKR {returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
+                  )}
                   {creditBalance > 0.004 && (
                     <> · Balance PKR {creditBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
                   )}
                 </p>
-              )}
+              ) : null}
               {detailOrder.payments && detailOrder.payments.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {detailOrder.payments.map((p, i) => {
@@ -1954,12 +2039,84 @@ function OrderDetail({
                 {submittedTotal < detailOrder.total && (
                   <div className="flex items-center justify-between text-xs font-bold text-orange-700 dark:text-orange-300">
                     <span>Remaining</span>
-                    <span>PKR {(detailOrder.total - submittedTotal).toLocaleString()}</span>
+                    <span>PKR {creditBalance.toLocaleString()}</span>
                   </div>
                 )}
                     </>
                   )
                 })()}
+              </div>
+            </div>
+          )}
+
+          {(detailOrder.cashbackPayments?.length ?? 0) > 0 && (
+            <div className="rounded-lg border bg-violet-50 dark:bg-violet-950/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-violet-900 dark:text-violet-100 flex items-center gap-1.5">
+                  <Gift className="h-3.5 w-3.5" />
+                  Cashback
+                </p>
+                {canManageCashback && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-100 cursor-pointer"
+                    onClick={() => setShowCashback(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add cashback
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-violet-800 dark:text-violet-200">
+                <div>
+                  <p className="font-bold uppercase text-[10px]">Total</p>
+                  <p className="mt-0.5 font-medium">PKR {cashbackAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                </div>
+                {cashbackFromOrder > 0 && (
+                  <div>
+                    <p className="font-bold uppercase text-[10px]">From order</p>
+                    <p className="mt-0.5 font-medium">PKR {cashbackFromOrder.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+                {cashbackOther > 0 && (
+                  <div>
+                    <p className="font-bold uppercase text-[10px]">Goodwill bonus</p>
+                    <p className="mt-0.5 font-medium">PKR {cashbackOther.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2 pt-1 border-t border-violet-200 dark:border-violet-800">
+                {detailOrder.cashbackPayments!.map((p, i) => {
+                  const proofs = getOrderCashbackPaymentProofUrls(p)
+                  return (
+                    <div key={p.id} className="flex items-start justify-between gap-2 text-xs">
+                      <div>
+                        <p className="font-medium text-violet-900 dark:text-violet-100">
+                          {p.source === "other" ? "Bonus" : "From order"} {i + 1}: PKR {p.amount.toLocaleString()} · {p.method} ·{" "}
+                          {new Date(p.date).toLocaleDateString()}
+                        </p>
+                        {p.notes && (
+                          <p className="text-violet-700 dark:text-violet-300 text-[10px] mt-0.5">{p.notes}</p>
+                        )}
+                        <p className="text-violet-600 dark:text-violet-400 text-[10px] mt-0.5">By {p.createdBy}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 shrink-0">
+                        {proofs.map((url, idx) => (
+                          <a
+                            key={`${p.id}-${idx}`}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline text-violet-700 dark:text-violet-300 text-[10px]"
+                          >
+                            {proofs.length > 1 ? `Attachment ${idx + 1}` : "View attachment"}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -1980,6 +2137,17 @@ function OrderDetail({
                 <Button size="sm" className="h-10 text-sm bg-blue-400 hover:bg-blue-500 text-white cursor-pointer" onClick={() => setShowPayment(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   {detailOrder.payments?.length ? "Manage payments" : hasOutstandingCredit(detailOrder) ? "Record payment" : "Add payment"}
+                </Button>
+              )}
+              {canManageCashback && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 text-sm border-violet-300 text-violet-700 hover:bg-violet-50 cursor-pointer"
+                  onClick={() => setShowCashback(true)}
+                >
+                  <Gift className="h-4 w-4 mr-2" />
+                  Add cashback
                 </Button>
               )}
           {canReturn && (

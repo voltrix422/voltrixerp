@@ -266,6 +266,8 @@ model ErpOrder {
   returnMerchandiseApplied       Boolean @default(false) @map("return_merchandise_applied")
   /** Item swap history on delivered orders (old SN/qty out, new SN/qty in). */
   replacementLines               Json    @default("[]") @map("replacement_lines")
+  /** Cashback / bonus payments to client — from order balance or goodwill. */
+  cashbackPayments               Json    @default("[]") @map("cashback_payments")
 
   @@index([branchId])
   @@index([source])

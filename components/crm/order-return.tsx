@@ -5,6 +5,7 @@ import {
   saveOrder,
   getOrderAmountPaid,
   getOrderReturnAmount,
+  getOrderCashbackAmount,
   getItemRemainingReturnableQty,
   getItemReturnedQty,
   getSuggestedReturnRefund,
@@ -52,7 +53,10 @@ export function OrderReturn({
 
   const amountPaid = getOrderAmountPaid(order)
   const alreadyReturned = getOrderReturnAmount(order)
-  const remainingRefundable = Math.max(0, amountPaid - alreadyReturned)
+  const remainingRefundable = Math.max(
+    0,
+    amountPaid - alreadyReturned - getOrderCashbackAmount(order, "order"),
+  )
 
   const selectedCount = Object.values(selectedQty).reduce((s, q) => s + (q > 0 ? 1 : 0), 0)
   const selectedUnits = Object.values(selectedQty).reduce((s, q) => s + Math.max(0, q), 0)
@@ -483,7 +487,10 @@ export function ReturnPaymentCapture({
 
   const amountPaid = getOrderAmountPaid(order)
   const alreadyReturned = getOrderReturnAmount(order)
-  const remainingRefundable = Math.max(0, amountPaid - alreadyReturned)
+  const remainingRefundable = Math.max(
+    0,
+    amountPaid - alreadyReturned - getOrderCashbackAmount(order, "order"),
+  )
 
   async function handleSubmit() {
     const value = Number(amount)

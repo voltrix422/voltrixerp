@@ -9,6 +9,8 @@ import {
   shouldShowOrderInFinance,
   getOrderAmountPaid,
   getOrderCreditBalance,
+  getOrderCashbackAmount,
+  getOrderCashbackPaymentProofUrls,
   hasOutstandingCredit,
   isOrderOnCredit,
   canCapturePaymentsForOrder,
@@ -499,6 +501,46 @@ function ClientOrderDetail({
           {(!order.payments || order.payments.length === 0) && (
             <div className="rounded-lg border border-dashed p-4 text-center">
               <p className="text-sm text-[hsl(var(--muted-foreground))]">No payments received yet</p>
+            </div>
+          )}
+
+          {(order.cashbackPayments?.length ?? 0) > 0 && (
+            <div>
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Cashback</p>
+              <div className="rounded-lg border border-violet-200 bg-violet-50/50 divide-y overflow-hidden">
+                {order.cashbackPayments!.map((p, i) => (
+                  <div key={p.id} className="p-3 sm:p-4 space-y-2 bg-[hsl(var(--background))]/60">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-violet-900">
+                          {p.source === "other" ? "Goodwill bonus" : "From order"} {i + 1} — PKR {p.amount.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-violet-700 mt-0.5">
+                          {p.method} · {new Date(p.date).toLocaleDateString()}
+                        </p>
+                        {p.notes && <p className="text-xs text-violet-600 mt-1">{p.notes}</p>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {getOrderCashbackPaymentProofUrls(p).map((url, idx) => (
+                          <a
+                            key={`${p.id}-${idx}`}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-violet-700 underline text-xs"
+                          >
+                            Attachment {idx + 1}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="px-3 sm:px-4 py-3 bg-violet-100/40 text-sm font-semibold text-violet-900 flex justify-between gap-2">
+                  <span>Total cashback</span>
+                  <span className="tabular-nums">PKR {getOrderCashbackAmount(order).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

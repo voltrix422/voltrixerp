@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import type { Order } from "@/lib/orders"
 import {
   parseOrderPayments,
+  parseOrderCashbackPayments,
   approvedBalancePaymentAmount,
   isFinanceRelevantOrder,
   type FinanceOverviewAction,
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
     let pendingClientPayments = 0
     let clientReceivedInPeriod = 0
     let clientOutstanding = 0
+    let cashbackInPeriod = 0
     let ordersNeedingAction = 0
     let confirmedOrderValueInPeriod = 0
     let salesCommissionInPeriod = 0
@@ -91,6 +93,10 @@ export async function GET(req: NextRequest) {
         id: row.id,
         paymentTerms: (row.paymentTerms as Order["paymentTerms"]) ?? "full",
         creditApprovedAt: row.creditApprovedAt ?? undefined,
+        returnPayments: Array.isArray(row.returnPayments)
+          ? (row.returnPayments as unknown as Order["returnPayments"])
+          : [],
+        cashbackPayments: parseOrderCashbackPayments((row as { cashbackPayments?: unknown }).cashbackPayments),
       }
 
       const pending = payments.filter(
@@ -159,6 +165,14 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+
+      const cashbackPayments = parseOrderCashbackPayments((row as { cashbackPayments?: unknown }).cashbackPayments)
+      for (const cb of cashbackPayments) {
+        const amount = Number(cb.amount) || 0
+        if (amount <= 0) continue
+        const d = new Date(cb.date || row.createdAt)
+        if (inRange(d, start, end)) cashbackInPeriod += amount
+      }
     }
 
     clientOutstandingList.sort((a, b) => b.remaining - a.remaining)
@@ -217,7 +231,7 @@ export async function GET(req: NextRequest) {
     const pettyRemaining = Math.max(0, pettyTotal - pettyUsed)
 
     const moneyIn = clientReceivedInPeriod + posSalesInPeriod + incomeRecordsInPeriod
-    const moneyOut = expensesInPeriod + poPaidInPeriod + pettyUsed
+    const moneyOut = expensesInPeriod + poPaidInPeriod + pettyUsed + cashbackInPeriod
     const netCashFlow = moneyIn - moneyOut
 
     // Last 6 months trend
@@ -237,6 +251,13 @@ export async function GET(req: NextRequest) {
           if (amount <= 0) continue
           const d = new Date(p.date || row.createdAt)
           if (inRange(d, mStart, mEnd)) mi += amount
+        }
+        const cashbackPayments = parseOrderCashbackPayments((row as { cashbackPayments?: unknown }).cashbackPayments)
+        for (const cb of cashbackPayments) {
+          const amount = Number(cb.amount) || 0
+          if (amount <= 0) continue
+          const d = new Date(cb.date || row.createdAt)
+          if (inRange(d, mStart, mEnd)) mo += amount
         }
       }
       for (const sale of posSales) {
@@ -296,6 +317,19 @@ export async function GET(req: NextRequest) {
           source: "client",
         })
       }
+      const cashbackPayments = parseOrderCashbackPayments((row as { cashbackPayments?: unknown }).cashbackPayments)
+      for (const cb of cashbackPayments) {
+        const amount = Number(cb.amount) || 0
+        if (amount <= 0) continue
+        activities.push({
+          id: `cb-${cb.id}`,
+          date: cb.date || row.createdAt.toISOString(),
+          label: `Cashback — ${row.orderNumber} (${row.clientName})${cb.source === "other" ? " · bonus" : ""}`,
+          amount: -amount,
+          category: cb.method || "Cashback",
+          source: "client",
+        })
+      }
     }
     for (const r of pettyReceipts.slice(0, 10)) {
       activities.push({
@@ -330,6 +364,7 @@ export async function GET(req: NextRequest) {
         confirmedOrderValueInPeriod,
         ordersConfirmedInPeriod,
         openPoCount,
+        cashbackInPeriod,
         moneyIn,
         moneyOut,
         netCashFlow,
