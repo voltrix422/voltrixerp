@@ -25,7 +25,7 @@ interface FinanceRecord {
   createdAt: string
 }
 
-const CATEGORIES = ["Payment", "Expense", "Invoice", "Salary", "Tax", "Refund", "Other"]
+const CATEGORIES = ["Payment", "Expense", "Invoice", "Salary", "Tax", "Refund", "Loan", "Other"]
 const CURRENCIES = ["USD", "PKR", "EUR", "GBP", "AED"]
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -35,6 +35,7 @@ const CATEGORY_STYLES: Record<string, string> = {
   Salary:   "bg-green-500/10 text-green-700 border-green-200 dark:text-green-400",
   Tax:      "bg-orange-500/10 text-orange-700 border-orange-200 dark:text-orange-400",
   Refund:   "bg-teal-500/10 text-teal-700 border-teal-200 dark:text-teal-400",
+  Loan:     "bg-amber-500/10 text-amber-800 border-amber-200 dark:text-amber-400",
   Other:    "bg-gray-500/10 text-gray-700 border-gray-200 dark:text-gray-400",
 }
 
