@@ -96,55 +96,86 @@ function isPartiallyPaid(order: Order): boolean {
   return isPartiallyPaidOrder(order)
 }
 
+function ToggleChip({
+  on,
+  label,
+  onClick,
+}: {
+  on: boolean
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors shrink-0 ${
+        on
+          ? "border-[hsl(var(--foreground))]/40 bg-[hsl(var(--muted))]/30 text-[hsl(var(--foreground))]"
+          : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]"
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full border ${
+          on ? "bg-[hsl(var(--foreground))] border-[hsl(var(--foreground))]" : "border-[hsl(var(--muted-foreground))]"
+        }`}
+      />
+      {label}
+    </button>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="text-[hsl(var(--muted-foreground))]">{label}</span>
+      <span className="tabular-nums font-medium shrink-0">{value}</span>
+    </div>
+  )
+}
+
 function OrderSummaryHoverPanel({
   label,
   count,
   amount,
-  amountClassName,
   hint,
   orders,
-  emptyLabel = "No partially paid orders",
-  panelTitle = "Partially paid orders",
+  emptyLabel = "No orders",
+  panelTitle,
   renderRowExtra,
 }: {
   label: string
   count: number
   amount: string
-  amountClassName?: string
-  hint: string
+  hint?: string
   orders: { order: Order; paid: number; balance: number }[]
   emptyLabel?: string
   panelTitle?: string
   renderRowExtra?: (order: Order) => ReactNode
 }) {
   return (
-    <div className="relative group sm:border-l sm:pl-6 focus-within:z-50" tabIndex={0}>
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+    <div className="relative group bg-[hsl(var(--card))] p-3 focus-within:z-50" tabIndex={0}>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
         {label} ({count})
       </p>
-      <p className={`text-sm sm:text-lg font-bold tabular-nums leading-tight cursor-default ${amountClassName || ""}`}>
-        {amount}
-      </p>
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{hint}</p>
+      <p className="text-sm font-semibold tabular-nums mt-0.5">{amount}</p>
+      {hint && <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{hint}</p>}
 
       <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 w-[min(20rem,calc(100vw-2rem))] opacity-0 translate-y-1 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0">
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
-            {panelTitle}
+        <div className="rounded-lg border bg-[hsl(var(--card))] shadow-lg p-3">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
+            {panelTitle ?? label}
           </p>
           {orders.length === 0 ? (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">{emptyLabel}</p>
           ) : (
             <ul className="space-y-2 max-h-56 overflow-y-auto">
               {orders.map(({ order, paid, balance }) => (
-                <li
-                  key={order.id}
-                  className="rounded-md border border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/20 px-2.5 py-2"
-                >
+                <li key={order.id} className="rounded-md border px-2.5 py-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-[#1faca6]">{order.orderNumber || "—"}</p>
-                      <p className="text-[11px] text-[hsl(var(--foreground))] truncate">{order.clientName || "—"}</p>
+                      <p className="text-xs font-semibold">{order.orderNumber || "—"}</p>
+                      <p className="text-[11px] truncate">{order.clientName || "—"}</p>
                     </div>
                     <span className="shrink-0 text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
                       {order.status.replace(/_/g, " ")}
@@ -153,9 +184,9 @@ function OrderSummaryHoverPanel({
                   {renderRowExtra ? (
                     renderRowExtra(order)
                   ) : (
-                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
-                      <span className="text-emerald-700">Paid {formatOrderPkr(paid)}</span>
-                      <span className="text-amber-700">Due {formatOrderPkr(balance)}</span>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums text-[hsl(var(--muted-foreground))]">
+                      <span>Paid {formatOrderPkr(paid)}</span>
+                      <span>Due {formatOrderPkr(balance)}</span>
                     </div>
                   )}
                 </li>
@@ -535,207 +566,168 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       ) : (
         <>
           <div className="space-y-3">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-800">
-                  Money received from clients (orders)
-                </p>
-                <button
-                  type="button"
+            {/* Money received */}
+            <section className="rounded-lg border">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-2.5 border-b">
+                <div>
+                  <p className="text-xs font-semibold">Money received</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    Sum of Paid column · excl. returned · matches Finance
+                  </p>
+                </div>
+                <ToggleChip
+                  on={includeOutstandingInTotal}
+                  label={includeOutstandingInTotal ? "Including outstanding" : "+ Still outstanding"}
                   onClick={() => setIncludeOutstandingInTotal(v => !v)}
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-medium transition-colors shrink-0 ${
-                    includeOutstandingInTotal
-                      ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
-                      : "border-emerald-600/30 bg-white/50 text-emerald-900 hover:bg-white/80"
-                  }`}
-                  title={
-                    includeOutstandingInTotal
-                      ? "Showing received + still outstanding"
-                      : "Toggle to add still outstanding to this total"
-                  }
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      includeOutstandingInTotal ? "bg-amber-600" : "bg-emerald-600"
-                    }`}
-                  />
-                  {includeOutstandingInTotal ? "Including outstanding" : "+ Still outstanding"}
-                </button>
+                />
               </div>
-              <p className="text-xl sm:text-2xl font-bold tabular-nums text-emerald-800 leading-tight mt-1">
-                {formatOrderPkr(headlineTotal)}
-              </p>
-              {includeOutstandingInTotal && (
-                <p className="text-[10px] text-amber-800 mt-1 tabular-nums">
-                  Received {formatOrderPkr(totalReceived)} + still owed {formatOrderPkr(totalOutstanding)}
-                </p>
-              )}
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">
-                Sum of the <strong className="font-medium text-[hsl(var(--foreground))]">Paid</strong> column on all orders (excluding returned). Same as Finance → Client Orders → Total Payments.
-              </p>
-              <div className="mt-3 pt-3 border-t border-emerald-500/20 space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900">
-                  This total is the sum of:
-                </p>
-                <ul className="space-y-1.5 text-xs">
-                  <li className="flex items-center justify-between gap-3">
-                    <span className="text-[hsl(var(--muted-foreground))]">
-                      Delivered fully paid ({deliveredFullyPaid.length} orders)
-                    </span>
-                    <span className="tabular-nums font-semibold text-emerald-800 shrink-0">
-                      {formatOrderPkr(deliveredFullyPaidReceived)}
-                    </span>
-                  </li>
-                  <li className="flex items-center justify-between gap-3">
-                    <span className="text-[hsl(var(--muted-foreground))]">
-                      Partial payments received ({partiallyPaidOrders.length} orders)
-                    </span>
-                    <span className="tabular-nums font-semibold text-sky-800 shrink-0">
-                      {formatOrderPkr(partialPaymentAmount)}
-                    </span>
-                  </li>
+              <div className="p-4 space-y-3">
+                <div>
+                  <p className="text-2xl font-semibold tabular-nums">{formatOrderPkr(headlineTotal)}</p>
+                  {includeOutstandingInTotal && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
+                      Received {formatOrderPkr(totalReceived)} + owed {formatOrderPkr(totalOutstanding)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid sm:grid-cols-3 gap-px rounded-lg border overflow-hidden bg-[hsl(var(--border))]">
+                  <div className="bg-[hsl(var(--card))] p-3">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total received</p>
+                    <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalReceived)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] p-3">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Still outstanding</p>
+                    <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOutstanding)}</p>
+                  </div>
+                  <div className="bg-[hsl(var(--card))] p-3">
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Orders in view</p>
+                    <p className="text-sm font-semibold tabular-nums mt-0.5">{filtered.length}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-3 space-y-1.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1">
+                    Breakdown
+                  </p>
+                  <SummaryRow
+                    label={`Delivered fully paid (${deliveredFullyPaid.length})`}
+                    value={formatOrderPkr(deliveredFullyPaidReceived)}
+                  />
+                  <SummaryRow
+                    label={`Partial payments (${partiallyPaidOrders.length})`}
+                    value={formatOrderPkr(partialPaymentAmount)}
+                  />
                   {otherPaymentsReceived > 0.004 && (
-                    <li className="flex items-center justify-between gap-3">
-                      <span className="text-[hsl(var(--muted-foreground))]">
-                        Confirmed / in progress (paid, not delivered)
-                      </span>
-                      <span className="tabular-nums font-semibold text-emerald-800 shrink-0">
-                        {formatOrderPkr(otherPaymentsReceived)}
-                      </span>
-                    </li>
+                    <SummaryRow
+                      label="Confirmed / in progress"
+                      value={formatOrderPkr(otherPaymentsReceived)}
+                    />
                   )}
                   {creditPaymentsReceived > 0.004 && (
-                    <li className="flex items-center justify-between gap-3">
-                      <span className="text-[hsl(var(--muted-foreground))]">
-                        Credit orders (installments received)
-                      </span>
-                      <span className="tabular-nums font-semibold text-emerald-800 shrink-0">
-                        {formatOrderPkr(creditPaymentsReceived)}
-                      </span>
-                    </li>
+                    <SummaryRow
+                      label="Credit installments"
+                      value={formatOrderPkr(creditPaymentsReceived)}
+                    />
                   )}
-                  <li className="flex items-center justify-between gap-3 pt-1.5 border-t border-emerald-500/20 font-bold">
-                    <span className="text-emerald-900">Total received</span>
-                    <span className="tabular-nums text-emerald-900">{formatOrderPkr(totalReceived)}</span>
-                  </li>
-                </ul>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-relaxed">
-                  Not included: amounts still owed (credit / unpaid), refunds on returned orders, or cashback paid out to clients.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 pt-3 border-t border-emerald-500/20 text-xs">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                    Still outstanding
+                  <div className="flex items-baseline justify-between gap-3 text-xs pt-1.5 border-t font-medium">
+                    <span>Total received</span>
+                    <span className="tabular-nums">{formatOrderPkr(totalReceived)}</span>
+                  </div>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] pt-1">
+                    Excludes still owed, returned refunds, and cashback paid out.
                   </p>
-                  <p className="font-bold tabular-nums text-amber-700">{formatOrderPkr(totalOutstanding)}</p>
                 </div>
               </div>
-            </div>
+            </section>
 
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-[hsl(var(--muted))]/20 px-4 py-3 text-xs">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Total orders
-              </p>
-              <p className="text-lg font-bold tabular-nums leading-tight">{filtered.length}</p>
-            </div>
-            <div className="sm:border-l sm:pl-6">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Total qty
-              </p>
-              <p className="text-lg font-bold tabular-nums leading-tight">{totalOrderQty}</p>
-            </div>
-            <div className="sm:border-l sm:pl-6">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Total value
-              </p>
-              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight">
-                {formatOrderPkr(totalOrderValue)}
-              </p>
-            </div>
-            <div className="sm:border-l sm:pl-6">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Delivered fully paid ({deliveredFullyPaid.length})
-              </p>
-              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-emerald-700">
-                {formatOrderPkr(deliveredFullyPaidReceived)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Cash received · delivered · zero balance
-              </p>
-            </div>
-            <div className="sm:border-l sm:pl-6">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                On credit ({creditOrders.length})
-              </p>
-              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-amber-700">
-                {formatOrderPkr(onCreditAmount)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Still owed
-                {creditPaymentsReceived > 0.004
-                  ? ` · ${formatOrderPkr(creditPaymentsReceived)} already received`
-                  : ""}
-              </p>
-            </div>
-            <OrderSummaryHoverPanel
-              label="Partial received"
-              count={partiallyPaidOrders.length}
-              amount={formatOrderPkr(partialPaymentAmount)}
-              amountClassName="text-sky-700"
-              hint="Hover — cash received on orders still owing"
-              orders={partiallyPaidOrders}
-              panelTitle="Partial payments received"
-            />
-            <div className="sm:border-l sm:pl-6">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Approved unpaid ({approvedAwaitingPayment.length})
-              </p>
-              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-red-600">
-                {formatOrderPkr(approvedUnpaidAmount)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Not credit · not delivered · payment pending
-              </p>
-            </div>
-            <div className="sm:border-l sm:pl-6">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Returned ({returnedOrders.length})
-              </p>
-              <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-orange-700">
-                {formatOrderPkr(returnedRefundAmount)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Refunded to clients · stock restored
-              </p>
-            </div>
-            <OrderSummaryHoverPanel
-              label="Cashback"
-              count={cashbackOrders.length}
-              amount={formatOrderPkr(cashbackAmount)}
-              amountClassName="text-violet-700"
-              hint="Hover to see cashback orders"
-              emptyLabel="No cashback orders"
-              panelTitle="Cashback orders"
-              orders={cashbackOrderRows.map(({ order, paid }) => ({
-                order,
-                paid,
-                balance: getOrderCashbackAmount(order, "other"),
-              }))}
-              renderRowExtra={(order) => {
-                const fromOrder = getOrderCashbackAmount(order, "order")
-                const other = getOrderCashbackAmount(order, "other")
-                return (
-                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
-                    <span className="text-violet-700">Total {formatOrderPkr(getOrderCashbackAmount(order))}</span>
-                    {fromOrder > 0 && <span className="text-violet-600">From order {formatOrderPkr(fromOrder)}</span>}
-                    {other > 0 && <span className="text-violet-500">Bonus {formatOrderPkr(other)}</span>}
-                  </div>
-                )
-              }}
-            />
-          </div>
+            {/* Order summary */}
+            <section className="rounded-lg border overflow-hidden">
+              <div className="px-4 py-2.5 border-b">
+                <p className="text-xs font-semibold">Order summary</p>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-px bg-[hsl(var(--border))] border-b">
+                <div className="bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total orders</p>
+                  <p className="text-lg font-semibold tabular-nums mt-0.5">{filtered.length}</p>
+                </div>
+                <div className="bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total qty</p>
+                  <p className="text-lg font-semibold tabular-nums mt-0.5">{totalOrderQty}</p>
+                </div>
+                <div className="bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total value</p>
+                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(totalOrderValue)}</p>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-[hsl(var(--border))]">
+                <div className="bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    Delivered fully paid ({deliveredFullyPaid.length})
+                  </p>
+                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(deliveredFullyPaidReceived)}</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Delivered · zero balance</p>
+                </div>
+                <div className="bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    On credit ({creditOrders.length})
+                  </p>
+                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(onCreditAmount)}</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                    Still owed
+                    {creditPaymentsReceived > 0.004
+                      ? ` · ${formatOrderPkr(creditPaymentsReceived)} received`
+                      : ""}
+                  </p>
+                </div>
+                <OrderSummaryHoverPanel
+                  label="Partial received"
+                  count={partiallyPaidOrders.length}
+                  amount={formatOrderPkr(partialPaymentAmount)}
+                  hint="Hover for order list"
+                  orders={partiallyPaidOrders}
+                  panelTitle="Partial payments received"
+                />
+                <div className="bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    Approved unpaid ({approvedAwaitingPayment.length})
+                  </p>
+                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(approvedUnpaidAmount)}</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Not delivered · payment pending</p>
+                </div>
+                <div className="bg-[hsl(var(--card))] p-3">
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                    Returned ({returnedOrders.length})
+                  </p>
+                  <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Refunded · stock restored</p>
+                </div>
+                <OrderSummaryHoverPanel
+                  label="Cashback"
+                  count={cashbackOrders.length}
+                  amount={formatOrderPkr(cashbackAmount)}
+                  hint="Hover for order list"
+                  emptyLabel="No cashback orders"
+                  panelTitle="Cashback orders"
+                  orders={cashbackOrderRows.map(({ order, paid }) => ({
+                    order,
+                    paid,
+                    balance: getOrderCashbackAmount(order, "other"),
+                  }))}
+                  renderRowExtra={(order) => {
+                    const fromOrder = getOrderCashbackAmount(order, "order")
+                    const other = getOrderCashbackAmount(order, "other")
+                    return (
+                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] tabular-nums text-[hsl(var(--muted-foreground))]">
+                        <span>Total {formatOrderPkr(getOrderCashbackAmount(order))}</span>
+                        {fromOrder > 0 && <span>From order {formatOrderPkr(fromOrder)}</span>}
+                        {other > 0 && <span>Bonus {formatOrderPkr(other)}</span>}
+                      </div>
+                    )
+                  }}
+                />
+              </div>
+            </section>
           </div>
 
           <CrmOrdersListCards
