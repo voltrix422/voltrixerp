@@ -23,6 +23,10 @@ import {
   isCrmErpOrderForPaymentStats,
   type OrderPaymentStatsOrder,
 } from "@/lib/order-payment-stats"
+import {
+  purchaseLedgerPaidInPeriod,
+  sumJsonPaymentsInPeriod,
+} from "@/lib/finance-purchase-outflows"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
     const period = new URL(req.url).searchParams.get("period") || "month"
     const { start, end, label: periodLabel } = periodRange(period)
 
-    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments] = await Promise.all([
+    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
@@ -63,6 +67,10 @@ export async function GET(req: NextRequest) {
         take: 500,
       }),
       prisma.erpImportShipment.findMany({ orderBy: { createdAt: "desc" }, take: 300 }),
+      prisma.erpPurchaseLedger.findMany({
+        select: { payments: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
     ])
 
     const orders = [...ordersRaw]
@@ -236,12 +244,15 @@ export async function GET(req: NextRequest) {
 
     let importShipmentsPaidInPeriod = 0
     for (const sh of importShipments) {
-      const payments = Array.isArray(sh.payments) ? (sh.payments as { amount: number; date?: string }[]) : []
-      for (const p of payments) {
-        const d = new Date(p.date || sh.createdAt)
-        if (inRange(d, start, end)) importShipmentsPaidInPeriod += Number(p.amount) || 0
-      }
+      importShipmentsPaidInPeriod += sumJsonPaymentsInPeriod(
+        sh.payments,
+        start,
+        end,
+        sh.createdAt,
+      )
     }
+
+    const purchaseLedgerPaidInPeriodTotal = purchaseLedgerPaidInPeriod(purchaseLedger, start, end)
 
     const recordsInPeriod = records.filter(r => inRange(new Date(r.createdAt), start, end))
     const salariesInPeriod = recordsInPeriod
@@ -349,6 +360,7 @@ export async function GET(req: NextRequest) {
         expenses: expensesInPeriod,
         salaries: salariesInPeriod,
         localPurchases: localPoPaidInPeriod,
+        purchaseLedger: purchaseLedgerPaidInPeriodTotal,
         importedPurchases: importedPoPaidInPeriod,
         importShipments: importShipmentsPaidInPeriod,
         pettyCash: pettyUsed,
@@ -369,6 +381,7 @@ export async function GET(req: NextRequest) {
       breakdown.moneyOut.expenses +
       breakdown.moneyOut.salaries +
       breakdown.moneyOut.localPurchases +
+      breakdown.moneyOut.purchaseLedger +
       breakdown.moneyOut.pettyCash +
       breakdown.moneyOut.advances +
       breakdown.moneyOut.cashback

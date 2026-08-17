@@ -84,11 +84,17 @@ export function PettyCashDashboard() {
   }, [])
 
   async function loadData() {
+    setLoading(true)
     try {
-      const [allocationsData, receiptsData] = await Promise.all([
+      const timeoutMs = 15000
+      const dataPromise = Promise.all([
         getPettyCashAllocations(),
-        getPettyCashReceipts()
+        getPettyCashReceipts(),
       ])
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Petty cash load timed out")), timeoutMs)
+      })
+      const [allocationsData, receiptsData] = await Promise.race([dataPromise, timeoutPromise])
       setAllocations(allocationsData)
       setReceipts(receiptsData)
       setSelectedAllocation(prev => {
@@ -97,7 +103,11 @@ export function PettyCashDashboard() {
       })
     } catch (error) {
       console.error("Error loading petty cash data:", error)
-      toast({ title: "Error", message: "Failed to load petty cash data", type: "error" })
+      toast({
+        title: "Error",
+        message: error instanceof Error ? error.message : "Failed to load petty cash data",
+        type: "error",
+      })
     } finally {
       setLoading(false)
     }
@@ -171,13 +181,16 @@ export function PettyCashDashboard() {
 
   useEffect(() => {
     if (!canManagePettyCash) return
-    fetch("/api/finance/migrate-to-petty-cash")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.eligibleCount > 0) setMigrationPreview(data)
-        else setMigrationPreview(null)
-      })
-      .catch(() => setMigrationPreview(null))
+    const timer = setTimeout(() => {
+      fetch("/api/finance/migrate-to-petty-cash")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.eligibleCount > 0) setMigrationPreview(data)
+          else setMigrationPreview(null)
+        })
+        .catch(() => setMigrationPreview(null))
+    }, 800)
+    return () => clearTimeout(timer)
   }, [canManagePettyCash])
 
   async function handleMigrateFinanceRecords() {

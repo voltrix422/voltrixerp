@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { PrismaClient } from '@prisma/client'
-import { syncOfficeLedgerDisplayName } from '@/lib/migrate-finance-records-to-petty-cash'
+import { prisma } from '@/lib/db'
 import { appendPettyCashTopUpNote } from '@/lib/petty-cash-topup'
 import { isPersonalLedgerAllocation } from '@/lib/petty-cash-personal'
 import {
@@ -8,13 +7,29 @@ import {
   notifyOnPettyCashReviewed,
 } from '@/lib/notifications-server'
 
-const prisma = new PrismaClient()
+const ALLOCATION_LIST_SELECT = {
+  id: true,
+  employeeId: true,
+  employeeName: true,
+  employeeRole: true,
+  amount: true,
+  purpose: true,
+  payoutMethod: true,
+  notes: true,
+  status: true,
+  allocatedBy: true,
+  allocatedAt: true,
+  settledAt: true,
+  reviewedBy: true,
+  reviewedAt: true,
+  reviewNotes: true,
+} as const
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
-      await syncOfficeLedgerDisplayName()
       const allocations = await prisma.erpPettyCashAllocation.findMany({
+        select: ALLOCATION_LIST_SELECT,
         orderBy: { allocatedAt: 'desc' }
       })
       return res.status(200).json(allocations)

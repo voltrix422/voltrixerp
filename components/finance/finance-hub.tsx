@@ -22,6 +22,7 @@ type Breakdown = {
     expenses: number
     salaries: number
     localPurchases: number
+    purchaseLedger: number
     importedPurchases: number
     importShipments: number
     pettyCash: number
@@ -47,6 +48,7 @@ type ToggleKey =
   | "expenses"
   | "salaries"
   | "localPurchases"
+  | "purchaseLedger"
   | "importedPurchases"
   | "importShipments"
   | "pettyCash"
@@ -67,8 +69,9 @@ const TOGGLES: ToggleDef[] = [
   { key: "loans", label: "Loans received", side: "in", defaultOn: true },
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries", side: "out", defaultOn: true },
-  { key: "localPurchases", label: "Local purchases", side: "out", defaultOn: true },
-  { key: "importedPurchases", label: "Imported purchases", side: "out", defaultOn: true },
+  { key: "localPurchases", label: "Local PO payments", side: "out", defaultOn: true },
+  { key: "purchaseLedger", label: "Purchase ledger", side: "out", defaultOn: true },
+  { key: "importedPurchases", label: "Imported PO payments", side: "out", defaultOn: true },
   { key: "importShipments", label: "Import shipments", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
   { key: "advances", label: "Advances", side: "out", defaultOn: true },
@@ -96,6 +99,7 @@ function emptyBreakdown(): Breakdown {
       expenses: 0,
       salaries: 0,
       localPurchases: 0,
+      purchaseLedger: 0,
       importedPurchases: 0,
       importShipments: 0,
       pettyCash: 0,
@@ -440,10 +444,11 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
             <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1">
               Money out — breakdown
             </p>
-            <Row label="Expenses" value={fmt(breakdown.moneyOut.expenses)} />
+            <Row label="Expenses (finance records)" value={fmt(breakdown.moneyOut.expenses)} />
             <Row label="Salaries" value={fmt(breakdown.moneyOut.salaries)} />
-            <Row label="Local purchases" value={fmt(breakdown.moneyOut.localPurchases)} />
-            <Row label="Imported purchases" value={fmt(breakdown.moneyOut.importedPurchases)} />
+            <Row label="Local PO payments" value={fmt(breakdown.moneyOut.localPurchases)} />
+            <Row label="Purchase ledger" value={fmt(breakdown.moneyOut.purchaseLedger)} />
+            <Row label="Imported PO payments" value={fmt(breakdown.moneyOut.importedPurchases)} />
             <Row label="Import shipments" value={fmt(breakdown.moneyOut.importShipments)} />
             <Row label="Petty cash" value={fmt(breakdown.moneyOut.pettyCash)} />
             <Row label="Supplier advances" value={fmt(breakdown.moneyOut.supplierAdvances ?? 0)} />

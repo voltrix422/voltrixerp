@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '@/lib/db'
-import { syncOfficeLedgerDisplayName } from '@/lib/migrate-finance-records-to-petty-cash'
 import {
   PERSONAL_LEDGER_MARKER,
   PERSONAL_LEDGER_PURPOSE,
@@ -50,21 +49,37 @@ async function ensurePersonalLedger(data: {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
-      await syncOfficeLedgerDisplayName()
       const { allocationId } = req.query
-      
+
+      const listSelect = {
+        id: true,
+        allocationId: true,
+        employeeName: true,
+        description: true,
+        category: true,
+        amount: true,
+        receiptProofName: true,
+        notes: true,
+        status: true,
+        submittedAt: true,
+        reviewedBy: true,
+        reviewedAt: true,
+        reviewNotes: true,
+      } as const
+
       let receipts
       if (allocationId) {
         receipts = await prisma.erpPettyCashReceipt.findMany({
           where: { allocationId: allocationId as string },
-          orderBy: { submittedAt: 'desc' }
+          orderBy: { submittedAt: 'desc' },
         })
       } else {
         receipts = await prisma.erpPettyCashReceipt.findMany({
-          orderBy: { submittedAt: 'desc' }
+          select: listSelect,
+          orderBy: { submittedAt: 'desc' },
         })
       }
-      
+
       return res.status(200).json(receipts)
     }
 
