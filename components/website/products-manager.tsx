@@ -425,7 +425,7 @@ export default function ProductsManager() {
             <div className="min-w-0">
               <p className="text-sm font-semibold">Homepage popup banner</p>
               <p className="text-[11px] text-muted-foreground truncate">
-                Short homepage popup — product image, price, logo & 14 August flag theme
+                Short homepage popup — product image, price, and logo
               </p>
             </div>
           </div>

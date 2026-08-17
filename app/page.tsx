@@ -16,7 +16,6 @@ import AboutSection from "@/components/landing/about-section"
 import ContactSection from "@/components/landing/contact-section"
 import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
-import HomeProductBanner from "@/components/landing/home-product-banner"
 import { buildPageMetadata, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo"
 
 const spaceGrotesk = Space_Grotesk({
@@ -45,7 +44,6 @@ export default function Home() {
       style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}
     >
       <Navbar />
-      <HomeProductBanner />
       <div id="home">
         <Hero />
       </div>

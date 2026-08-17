@@ -5,14 +5,7 @@ import { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
-import IndependenceDayFx from "@/components/landing/independence-day-fx"
-import ConfettiFx from "@/components/landing/confetti-fx"
-import PromoMarquee from "@/components/landing/promo-marquee"
 import { usePathname } from "next/navigation"
-
-function isIndependenceSeason(d = new Date()) {
-  return d.getMonth() === 7 && d.getDate() >= 1 && d.getDate() <= 20
-}
 
 const primaryLinks = [
   { label: "Products",            hash: "products"  },
@@ -36,7 +29,6 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [promoActive, setPromoActive] = useState(false)
   const pathname = usePathname()
   const isHome = pathname === "/"
 
@@ -59,7 +51,6 @@ export default function Navbar() {
 
   useEffect(() => {
     setVisible(true)
-    setPromoActive(isIndependenceSeason())
   }, [])
 
   const navClass = glass
@@ -83,12 +74,8 @@ export default function Navbar() {
     : "h-7 w-auto object-contain"
 
   return (
-    <>
-    <PromoMarquee />
-    <IndependenceDayFx />
-    <ConfettiFx />
     <div
-      className={`fixed left-0 right-0 z-50 flex flex-col items-center gap-2 px-4 ${promoActive ? "top-10 sm:top-11" : "top-4"}`}
+      className="fixed left-0 right-0 top-4 z-50 flex flex-col items-center gap-2 px-4"
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? "translateY(0)" : "translateY(-20px)",
@@ -170,6 +157,5 @@ export default function Navbar() {
         </div>
       )}
     </div>
-    </>
   )
 }
