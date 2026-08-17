@@ -65,7 +65,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "incomeRecords", label: "Income records", side: "in", defaultOn: true },
   { key: "loans", label: "Loans received", side: "in", defaultOn: true },
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
-  { key: "salaries", label: "Salaries (paid)", side: "out", defaultOn: true },
+  { key: "salaries", label: "Salaries (payroll)", side: "out", defaultOn: true },
   { key: "purchaseLedger", label: "Purchase ledger", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
   { key: "advances", label: "Supplier advances", side: "out", defaultOn: true },
@@ -113,7 +113,7 @@ function amountFor(b: Breakdown, key: ToggleKey): number {
 function buildMoneyOutDisplayRows(b: Breakdown["moneyOut"]) {
   const rows: { label: string; amount: number }[] = []
   if (b.expenses > 0.004) rows.push({ label: "Expenses (finance records)", amount: b.expenses })
-  if (b.salaries > 0.004) rows.push({ label: "Salaries (paid)", amount: b.salaries })
+  if (b.salaries > 0.004) rows.push({ label: "Salaries (payroll · paid)", amount: b.salaries })
   if (b.purchaseLedger > 0.004) {
     rows.push({ label: "Purchase ledger · Main Office", amount: b.purchaseLedger })
   }

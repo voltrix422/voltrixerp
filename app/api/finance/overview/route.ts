@@ -48,12 +48,19 @@ function inRange(d: Date, start: Date, end: Date) {
   return d >= start && d <= end
 }
 
+/** YYYY-MM for payroll month filtering (matches HRM Make Salaries). */
+function payrollMonthKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
 export async function GET(req: NextRequest) {
   try {
     const period = new URL(req.url).searchParams.get("period") || "month"
     const { start, end, label: periodLabel } = periodRange(period)
+    const payrollMonthFrom = payrollMonthKey(start)
+    const payrollMonthTo = payrollMonthKey(end)
 
-    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, paidSalarySlips] = await Promise.all([
+    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, payrollSalarySlips] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
@@ -73,8 +80,11 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       }),
       prisma.erpSalarySlip.findMany({
-        where: { paidAt: { not: null, gte: start, lte: end } },
-        select: { netSalary: true },
+        where: {
+          status: "finalized",
+          month: { gte: payrollMonthFrom, lte: payrollMonthTo },
+        },
+        select: { netSalary: true, month: true },
       }),
     ])
 
@@ -265,7 +275,7 @@ export async function GET(req: NextRequest) {
     const salariesFromRecords = recordsInPeriod
       .filter(r => r.category === "Salary")
       .reduce((s, r) => s + r.amount, 0)
-    const salariesFromSlips = paidSalarySlips.reduce((s, slip) => s + (Number(slip.netSalary) || 0), 0)
+    const salariesFromSlips = payrollSalarySlips.reduce((s, slip) => s + (Number(slip.netSalary) || 0), 0)
     const salariesInPeriod = salariesFromRecords + salariesFromSlips
     const expensesInPeriod = recordsInPeriod
       .filter(r => ["Expense", "Payment", "Tax", "Other"].includes(r.category))
@@ -431,6 +441,13 @@ export async function GET(req: NextRequest) {
         else if (r.category === "Salary") mo += r.amount
         else if (["Invoice", "Refund"].includes(r.category)) mi += r.amount
         else if (r.category === "Loan") mi += r.amount
+      }
+      const trendMonthFrom = payrollMonthKey(mStart)
+      const trendMonthTo = payrollMonthKey(mEnd)
+      for (const slip of payrollSalarySlips) {
+        if (slip.month >= trendMonthFrom && slip.month <= trendMonthTo) {
+          mo += Number(slip.netSalary) || 0
+        }
       }
       for (const po of pos) {
         const payments = Array.isArray(po.payments) ? (po.payments as { amount: number; date?: string }[]) : []
