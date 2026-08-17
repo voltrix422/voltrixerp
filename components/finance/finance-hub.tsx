@@ -6,6 +6,13 @@ import {
   ArrowRight, Loader2, TrendingUp, TrendingDown, RefreshCw, CircleHelp, ListTree,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown, OrderPaymentReconciliation } from "@/lib/order-payment-stats"
+
+type OrderPaymentsPayload = {
+  allTime: OrderPaymentAggregate
+  inPeriod: OrderPaymentPeriodBreakdown
+  reconciliation: OrderPaymentReconciliation
+}
 
 type Breakdown = {
   moneyIn: {
@@ -58,7 +65,7 @@ type ToggleDef = {
 }
 
 const TOGGLES: ToggleDef[] = [
-  { key: "clientPayments", label: "Client payments", side: "in", defaultOn: true },
+  { key: "clientPayments", label: "Client payments (period)", side: "in", defaultOn: true },
   { key: "posSales", label: "POS sales", side: "in", defaultOn: true },
   { key: "incomeRecords", label: "Income records", side: "in", defaultOn: true },
   { key: "loans", label: "Loans", side: "in", defaultOn: true },
@@ -76,8 +83,8 @@ function defaultEnabled(): Record<ToggleKey, boolean> {
   return Object.fromEntries(TOGGLES.map(t => [t.key, t.defaultOn])) as Record<ToggleKey, boolean>
 }
 
-function fmt(n: number) {
-  return `PKR ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+function fmt(n: number, decimals = 0) {
+  return `PKR ${n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`
 }
 
 const PERIODS = [
@@ -155,6 +162,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
   const [error, setError] = useState("")
   const [periodLabel, setPeriodLabel] = useState("This month")
   const [summary, setSummary] = useState<Summary | null>(null)
+  const [orderPayments, setOrderPayments] = useState<OrderPaymentsPayload | null>(null)
   const [enabled, setEnabled] = useState<Record<ToggleKey, boolean>>(defaultEnabled)
   const [showDetails, setShowDetails] = useState(false)
 
@@ -167,6 +175,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
       if (!res.ok) throw new Error(data.error || "Failed to load")
       setPeriodLabel(data.periodLabel || "This month")
       setSummary(data.summary)
+      setOrderPayments(data.orderPayments ?? null)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -322,6 +331,130 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
           </Button>
         </div>
       </div>
+
+      {orderPayments && (
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 sm:p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div>
+              <p className="text-[11px] sm:text-xs font-semibold text-emerald-900 uppercase tracking-wider">
+                Order payments — matches CRM Orders
+              </p>
+              <p className="text-[10px] sm:text-[11px] text-[hsl(var(--muted-foreground))] mt-1 max-w-2xl leading-relaxed">
+                Same totals as CRM → Orders → &quot;Money received from clients&quot;. Period row below uses payment date for {periodLabel.toLowerCase()}.
+              </p>
+            </div>
+            <Link
+              href="/crm?tab=orders"
+              className="text-[11px] text-[#1faca6] hover:underline inline-flex items-center gap-1 shrink-0"
+            >
+              Open CRM Orders <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                All-time received
+              </p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums text-emerald-800 mt-1">
+                {fmt(orderPayments.allTime.totalReceived, 2)}
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                {orderPayments.allTime.orderCount} orders · incl. partial & credit
+              </p>
+            </div>
+            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                {periodLabel} — approved cash in
+              </p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums text-emerald-800 mt-1">
+                {fmt(orderPayments.inPeriod.approvedInPeriod, 2)}
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                By payment date · matches Client payments toggle
+              </p>
+            </div>
+            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
+              <p className="text-[10px] uppercase tracking-wider text-amber-700">Still outstanding</p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums text-amber-800 mt-1">
+                {fmt(orderPayments.allTime.totalOutstanding, 2)}
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                Unpaid balance on active orders
+              </p>
+            </div>
+            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
+              <p className="text-[10px] uppercase tracking-wider text-sky-700">Partial received (all-time)</p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums text-sky-800 mt-1">
+                {fmt(orderPayments.allTime.partialPaymentsReceived, 2)}
+              </p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                {orderPayments.allTime.partialPaymentCount} order(s) with balance left
+              </p>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3 text-xs">
+            <div className="rounded-lg border bg-[hsl(var(--background))]/60 p-3 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                All-time breakdown (received)
+              </p>
+              <div className="flex justify-between gap-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Delivered fully paid</span>
+                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.deliveredFullyPaidReceived, 2)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Partial payments</span>
+                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.partialPaymentsReceived, 2)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Credit installments</span>
+                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.creditPaymentsReceived, 2)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Other (confirmed / in progress)</span>
+                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.otherPaymentsReceived, 2)}</span>
+              </div>
+            </div>
+            <div className="rounded-lg border bg-[hsl(var(--background))]/60 p-3 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                {periodLabel} — by payment date
+              </p>
+              <div className="flex justify-between gap-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Delivered fully paid</span>
+                <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.deliveredFullyPaidInPeriod, 2)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Partial / credit</span>
+                <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.partialPaymentsInPeriod, 2)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Other</span>
+                <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.otherPaymentsInPeriod, 2)}</span>
+              </div>
+              {orderPayments.inPeriod.pendingApprovalInPeriod > 0.004 && (
+                <div className="flex justify-between gap-2 text-amber-800">
+                  <span>Pending approval (not in cash snapshot)</span>
+                  <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.pendingApprovalInPeriod, 2)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {orderPayments.reconciliation.reasons.length > 0 && (
+            <div className="rounded-lg border border-[#1faca6]/20 bg-[hsl(var(--background))]/50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
+                Why CRM and {periodLabel.toLowerCase()} cash snapshot differ
+              </p>
+              <ul className="space-y-1.5 text-[11px] text-[hsl(var(--muted-foreground))] leading-relaxed list-disc pl-4">
+                {orderPayments.reconciliation.reasons.map((reason, i) => (
+                  <li key={i}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-2xl border bg-gradient-to-br from-[#1faca6]/12 via-[hsl(var(--card))] to-transparent p-4 sm:p-5 space-y-4">
         <div className="flex items-center gap-2">

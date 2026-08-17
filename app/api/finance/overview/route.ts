@@ -16,6 +16,12 @@ import {
   hasOutstandingCredit,
   reconcileDeliveredOrderPayments,
 } from "@/lib/orders"
+import {
+  aggregateOrderPaymentStats,
+  aggregateOrderPaymentsInPeriod,
+  buildOrderPaymentReconciliation,
+  type OrderPaymentStatsOrder,
+} from "@/lib/order-payment-stats"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -456,6 +462,30 @@ export async function GET(req: NextRequest) {
 
     activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
+    const statsOrders: OrderPaymentStatsOrder[] = orders.map(row => ({
+      status: row.status as Order["status"],
+      payments: parseOrderPayments(row.payments),
+      total: row.total,
+      paymentTerms: (row.paymentTerms as Order["paymentTerms"]) ?? "full",
+      creditApprovedAt: row.creditApprovedAt ?? undefined,
+      returnPayments: Array.isArray(row.returnPayments)
+        ? (row.returnPayments as unknown as Order["returnPayments"])
+        : [],
+      cashbackPayments: parseOrderCashbackPayments((row as { cashbackPayments?: unknown }).cashbackPayments),
+      items: row.items as unknown as Order["items"],
+      returnLines: (row as { returnLines?: unknown }).returnLines as Order["returnLines"],
+      taxPercent: row.taxPercent ?? undefined,
+      createdAt: row.createdAt,
+    }))
+
+    const orderPaymentsAllTime = aggregateOrderPaymentStats(statsOrders)
+    const orderPaymentsInPeriod = aggregateOrderPaymentsInPeriod(statsOrders, start, end)
+    const orderPaymentsReconciliation = buildOrderPaymentReconciliation(
+      orderPaymentsAllTime,
+      orderPaymentsInPeriod,
+      periodLabel,
+    )
+
     return NextResponse.json({
       periodLabel,
       summary: {
@@ -502,6 +532,11 @@ export async function GET(req: NextRequest) {
       monthlyTrend,
       actions: actions.slice(0, 15),
       recentActivity: activities.slice(0, 25),
+      orderPayments: {
+        allTime: orderPaymentsAllTime,
+        inPeriod: orderPaymentsInPeriod,
+        reconciliation: orderPaymentsReconciliation,
+      },
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

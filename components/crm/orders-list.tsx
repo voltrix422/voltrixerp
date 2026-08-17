@@ -45,6 +45,12 @@ import {
   type CrmPriceTier,
   type CrmProductPrice,
 } from "@/lib/crm-product-prices"
+import {
+  aggregateOrderPaymentStats,
+  isApprovedAwaitingPaymentOrder,
+  isDeliveredFullyPaidOrder,
+  isPartiallyPaidOrder,
+} from "@/lib/order-payment-stats"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed" | "returned"
 type PaymentFilter = "all" | "on_credit" | "paid" | "not_credit" | "cashback"
@@ -79,20 +85,15 @@ function orderMatchesPaymentFilter(order: Order, filter: PaymentFilter): boolean
 }
 
 function isApprovedAwaitingPayment(order: Order): boolean {
-  if (order.status !== "approved") return false
-  if (isOrderOnCredit(order)) return false
-  return getOrderCreditBalance(order) > 0.004
+  return isApprovedAwaitingPaymentOrder(order)
 }
 
 function isDeliveredFullyPaid(order: Order): boolean {
-  if (order.status !== "delivered") return false
-  return getOrderCreditBalance(order) <= 0.004
+  return isDeliveredFullyPaidOrder(order)
 }
 
 function isPartiallyPaid(order: Order): boolean {
-  if (isOrderReturned(order)) return false
-  const paid = getOrderAmountPaid(order)
-  return paid > 0.004 && getOrderCreditBalance(order) > 0.004
+  return isPartiallyPaidOrder(order)
 }
 
 function OrderSummaryHoverPanel({
@@ -351,8 +352,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     }
   }
 
-  // Returned refunds subtract from total value; returned orders drop out of paid/credit stats.
-  const totalOrderValue = filtered.reduce((sum, o) => sum + getOrderNetSalesValue(o), 0)
+  // Payment stats — shared logic with Finance overview (lib/order-payment-stats).
+  const paymentStats = aggregateOrderPaymentStats(filtered)
+  const totalOrderValue = paymentStats.totalOrderValue
   const totalOrderQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
 
   const deliveredFullyPaid = filtered.filter(isDeliveredFullyPaid)
@@ -368,16 +370,17 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     }))
     .sort((a, b) => b.paid - a.paid)
 
-  const deliveredPaidAmount = deliveredFullyPaid.reduce((sum, o) => sum + (o.total || 0), 0)
-  const onCreditAmount = creditOrders.reduce((sum, o) => sum + getOrderCreditBalance(o), 0)
-  const approvedUnpaidAmount = approvedAwaitingPayment.reduce(
-    (sum, o) => sum + getOrderCreditBalance(o),
-    0,
-  )
-  const partialPaymentAmount = partiallyPaidOrders.reduce((sum, row) => sum + row.paid, 0)
-  const returnedRefundAmount = returnedOrders.reduce((sum, o) => sum + getOrderReturnAmount(o), 0)
+  const totalReceived = paymentStats.totalReceived
+  const totalOutstanding = paymentStats.totalOutstanding
+  const deliveredFullyPaidReceived = paymentStats.deliveredFullyPaidReceived
+  const onCreditAmount = paymentStats.creditOutstanding
+  const creditPaymentsReceived = paymentStats.creditPaymentsReceived
+  const approvedUnpaidAmount = paymentStats.approvedUnpaidOutstanding
+  const partialPaymentAmount = paymentStats.partialPaymentsReceived
+  const otherPaymentsReceived = paymentStats.otherPaymentsReceived
+  const returnedRefundAmount = paymentStats.returnedRefundAmount
   const cashbackOrders = filtered.filter(orderHasCashback)
-  const cashbackAmount = filtered.reduce((sum, o) => sum + getOrderCashbackAmount(o), 0)
+  const cashbackAmount = paymentStats.cashbackAmount
   const cashbackOrderRows = cashbackOrders
     .map((order) => ({
       order,
@@ -526,6 +529,36 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       ) : (
         <>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-800">
+                Money received from clients (orders)
+              </p>
+              <p className="text-xl sm:text-2xl font-bold tabular-nums text-emerald-800 leading-tight mt-1">
+                {formatOrderPkr(totalReceived)}
+              </p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">
+                Sum of all payments on orders — fully paid, partial, and credit installments. Matches Finance → Client Orders → Total Payments.
+              </p>
+              <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 pt-3 border-t border-emerald-500/20 text-xs">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                    Still outstanding
+                  </p>
+                  <p className="font-bold tabular-nums text-amber-700">{formatOrderPkr(totalOutstanding)}</p>
+                </div>
+                {otherPaymentsReceived > 0.004 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                      Other received
+                    </p>
+                    <p className="font-bold tabular-nums text-emerald-700">{formatOrderPkr(otherPaymentsReceived)}</p>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Confirmed / in progress</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-[hsl(var(--muted))]/20 px-4 py-3 text-xs">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
@@ -549,13 +582,13 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             </div>
             <div className="sm:border-l sm:pl-6">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-                Delivered paid ({deliveredFullyPaid.length})
+                Delivered fully paid ({deliveredFullyPaid.length})
               </p>
               <p className="text-sm sm:text-lg font-bold tabular-nums leading-tight text-emerald-700">
-                {formatOrderPkr(deliveredPaidAmount)}
+                {formatOrderPkr(deliveredFullyPaidReceived)}
               </p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Delivered · full payment received
+                Cash received · delivered · zero balance
               </p>
             </div>
             <div className="sm:border-l sm:pl-6">
@@ -566,16 +599,20 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 {formatOrderPkr(onCreditAmount)}
               </p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Outstanding credit balance
+                Still owed
+                {creditPaymentsReceived > 0.004
+                  ? ` · ${formatOrderPkr(creditPaymentsReceived)} already received`
+                  : ""}
               </p>
             </div>
             <OrderSummaryHoverPanel
-              label="Partial payment"
+              label="Partial received"
               count={partiallyPaidOrders.length}
               amount={formatOrderPkr(partialPaymentAmount)}
               amountClassName="text-sky-700"
-              hint="Hover to see partially paid orders"
+              hint="Hover — cash received on orders still owing"
               orders={partiallyPaidOrders}
+              panelTitle="Partial payments received"
             />
             <div className="sm:border-l sm:pl-6">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
@@ -624,6 +661,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 )
               }}
             />
+          </div>
           </div>
 
           <CrmOrdersListCards

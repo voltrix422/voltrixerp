@@ -119,6 +119,9 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
             <p className="text-sm sm:text-xl font-bold tabular-nums leading-tight break-words">
               PKR {totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+              Same as CRM Orders → Money received (incl. partial)
+            </p>
           </div>
           <div className="sm:border-l sm:pl-6 border-t sm:border-t-0 pt-2 sm:pt-0">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-300">
