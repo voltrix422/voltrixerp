@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     const period = new URL(req.url).searchParams.get("period") || "month"
     const { start, end, label: periodLabel } = periodRange(period)
 
-    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger] = await Promise.all([
+    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, paidSalarySlips] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
@@ -71,6 +71,10 @@ export async function GET(req: NextRequest) {
       prisma.erpPurchaseLedger.findMany({
         select: { payments: true, createdAt: true, amountPaid: true, purchaseScopeId: true },
         orderBy: { createdAt: "desc" },
+      }),
+      prisma.erpSalarySlip.findMany({
+        where: { paidAt: { not: null, gte: start, lte: end } },
+        select: { netSalary: true },
       }),
     ])
 
@@ -258,9 +262,11 @@ export async function GET(req: NextRequest) {
     })
 
     const recordsInPeriod = records.filter(r => inRange(new Date(r.createdAt), start, end))
-    const salariesInPeriod = recordsInPeriod
+    const salariesFromRecords = recordsInPeriod
       .filter(r => r.category === "Salary")
       .reduce((s, r) => s + r.amount, 0)
+    const salariesFromSlips = paidSalarySlips.reduce((s, slip) => s + (Number(slip.netSalary) || 0), 0)
+    const salariesInPeriod = salariesFromRecords + salariesFromSlips
     const expensesInPeriod = recordsInPeriod
       .filter(r => ["Expense", "Payment", "Tax", "Other"].includes(r.category))
       .reduce((s, r) => s + r.amount, 0)
@@ -305,9 +311,8 @@ export async function GET(req: NextRequest) {
       if (!inRange(new Date(adv.givenAt), start, end)) continue
       salaryAdvancesInPeriod += Number(adv.amount) || 0
     }
-    // Skip salary advances in totals when salaries are already in finance records (avoid double count).
-    const salaryAdvancesForOut = salariesInPeriod > 0 ? 0 : salaryAdvancesInPeriod
-    const advancesInPeriod = supplierAdvancesInPeriod + salaryAdvancesForOut
+    // Salary advances are separate from monthly salary payments.
+    const advancesInPeriod = supplierAdvancesInPeriod + salaryAdvancesInPeriod
 
     // Petty cash spent in period — approved receipts only (matches Petty Cash page logic)
     const pettyUsed = sumApprovedReceiptsInPeriod(pettyReceipts, start, end)
@@ -369,7 +374,7 @@ export async function GET(req: NextRequest) {
         pettyCash: pettyUsed,
         advances: advancesInPeriod,
         supplierAdvances: supplierAdvancesInPeriod,
-        salaryAdvances: salaryAdvancesForOut,
+        salaryAdvances: salaryAdvancesInPeriod,
         cashback: cashbackInPeriod,
       },
     }
