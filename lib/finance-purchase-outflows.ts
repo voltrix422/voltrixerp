@@ -18,14 +18,37 @@ export function sumJsonPaymentsInPeriod(
   return sum
 }
 
+function sumAllJsonPayments(payments: unknown, fallback: Date): number {
+  if (!Array.isArray(payments)) return 0
+  let sum = 0
+  for (const raw of payments) {
+    if (!raw || typeof raw !== "object") continue
+    const amount = Number((raw as { amount?: number }).amount) || 0
+    if (amount > 0) sum += amount
+  }
+  return sum
+}
+
 export function purchaseLedgerPaidInPeriod(
-  entries: Array<{ payments: unknown; createdAt: Date }>,
+  entries: Array<{ payments: unknown; createdAt: Date; amountPaid?: number }>,
   start: Date,
   end: Date,
 ): number {
   let sum = 0
   for (const entry of entries) {
-    sum += sumJsonPaymentsInPeriod(entry.payments, start, end, entry.createdAt)
+    const inPeriod = sumJsonPaymentsInPeriod(entry.payments, start, end, entry.createdAt)
+    if (inPeriod <= 0) continue
+    const amountPaid = Number(entry.amountPaid) || 0
+    if (amountPaid <= 0) {
+      sum += inPeriod
+      continue
+    }
+    const allLogged = sumAllJsonPayments(entry.payments, entry.createdAt)
+    if (allLogged > amountPaid + 0.01) {
+      sum += inPeriod * (amountPaid / allLogged)
+    } else {
+      sum += inPeriod
+    }
   }
   return sum
 }

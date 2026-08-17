@@ -58,6 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         description: true,
         category: true,
         amount: true,
+        receiptProof: true,
         receiptProofName: true,
         notes: true,
         status: true,

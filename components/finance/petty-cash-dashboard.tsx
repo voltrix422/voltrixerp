@@ -14,7 +14,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
-import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive } from "lucide-react"
+import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive, FileText } from "lucide-react"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
   allocationBelongsToUser,
@@ -769,6 +769,7 @@ export function PettyCashDashboard() {
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Amount</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Status</th>
                     <th className="h-9 px-4 text-left text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Submitted</th>
+                    <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-16">Proof</th>
                     <th className="h-9 px-4 text-center text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] w-20">Actions</th>
                   </tr>
                 </thead>
@@ -788,6 +789,21 @@ export function PettyCashDashboard() {
                       </td>
                       <td className="px-4 py-2.5 text-xs text-[hsl(var(--muted-foreground))]">
                         {new Date(receipt.submittedAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-center">
+                        {receipt.receiptProof ? (
+                          <a
+                            href={receipt.receiptProof}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center text-[#1faca6] hover:text-[#1faca6]/80"
+                            title={receipt.receiptProofName || "View receipt proof"}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                          </a>
+                        ) : (
+                          <span className="text-[hsl(var(--muted-foreground))]">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-center">
                         <div className="flex items-center justify-center gap-1">

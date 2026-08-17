@@ -490,8 +490,8 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                   rows={[
                     { label: "Expenses (finance records)", value: fmt(breakdown.moneyOut.expenses) },
                     { label: "Salaries", value: fmt(breakdown.moneyOut.salaries) },
-                    { label: "Local PO payments", value: fmt(breakdown.moneyOut.localPurchases) },
-                    { label: "Purchase ledger", value: fmt(breakdown.moneyOut.purchaseLedger) },
+                    { label: "Local PO (on PO record)", value: fmt(breakdown.moneyOut.localPurchases) },
+                    { label: "Purchase ledger (paid in period)", value: fmt(breakdown.moneyOut.purchaseLedger) },
                     { label: "Imported PO payments", value: fmt(breakdown.moneyOut.importedPurchases) },
                     { label: "Import shipments", value: fmt(breakdown.moneyOut.importShipments) },
                     { label: "Petty cash (approved)", value: fmt(breakdown.moneyOut.pettyCash) },

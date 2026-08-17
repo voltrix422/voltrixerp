@@ -70,8 +70,7 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
 
   async function loadReceipts() {
     try {
-      const allReceipts = await getPettyCashReceipts()
-      const allocationReceipts = allReceipts.filter(r => r.allocationId === allocation.id)
+      const allocationReceipts = await getPettyCashReceipts(allocation.id)
       setReceipts(allocationReceipts)
     } catch (error) {
       console.error('Error loading receipts:', error)

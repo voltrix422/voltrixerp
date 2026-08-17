@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.erpImportShipment.findMany({ orderBy: { createdAt: "desc" }, take: 300 }),
       prisma.erpPurchaseLedger.findMany({
-        select: { payments: true, createdAt: true },
+        select: { payments: true, createdAt: true, amountPaid: true },
         orderBy: { createdAt: "desc" },
       }),
     ])
