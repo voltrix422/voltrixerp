@@ -18,6 +18,7 @@ import {
   normalizeOrderPaymentTerms,
   type Order,
 } from "@/lib/orders"
+import { aggregateOrderPaymentStats, isCrmErpOrderForPaymentStats } from "@/lib/order-payment-stats"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { useAuth } from "@/components/auth-provider"
 import { Badge } from "@/components/ui/badge"
@@ -50,22 +51,22 @@ function matchesCreditFilter(order: Order, creditFilter: ClientOrdersCreditFilte
 }
 
 export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "all" }: ClientOrdersFinanceProps) {
-  const [orders, setOrders] = useState<Order[]>([])
+  const [crmOrdersAll, setCrmOrdersAll] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [includeOutstanding, setIncludeOutstanding] = useState(false)
 
   useEffect(() => {
-    getOrders().then((o) => {
-      setOrders(o.filter((order) => shouldShowOrderInFinance(order)))
-      setLoading(false)
-    })
-    const interval = setInterval(() => {
-      getOrders().then((o) => setOrders(o.filter((order) => shouldShowOrderInFinance(order))))
-    }, 30000)
+    const load = () =>
+      getOrders().then((o) => {
+        setCrmOrdersAll(o.filter(isCrmErpOrderForPaymentStats))
+      })
+    load().then(() => setLoading(false))
+    const interval = setInterval(load, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  const filteredOrders = orders.filter((order) => {
+  const filteredCrmOrders = crmOrdersAll.filter((order) => {
     const q = search.toLowerCase()
     const matchSearch =
       !search ||
@@ -79,14 +80,19 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
     return matchSearch && matchFrom && matchTo && matchesCreditFilter(order, creditFilter)
   })
 
-  const totalPayments = filteredOrders.reduce((sum, order) => sum + getOrderAmountPaid(order), 0)
+  const filteredOrders = filteredCrmOrders.filter(shouldShowOrderInFinance)
 
-  const totalCreditOutstanding = filteredOrders.reduce(
+  const paymentStats = aggregateOrderPaymentStats(filteredCrmOrders)
+  const totalPayments = paymentStats.totalReceived
+  const totalOutstandingAll = paymentStats.totalOutstanding
+  const displayPaymentsTotal = includeOutstanding ? totalPayments + totalOutstandingAll : totalPayments
+
+  const totalCreditOutstanding = filteredCrmOrders.reduce(
     (sum, order) => (hasOutstandingCredit(order) ? sum + getOrderCreditBalance(order) : sum),
     0,
   )
 
-  const creditOrdersInView = filteredOrders.filter(hasOutstandingCredit).length
+  const creditOrdersInView = filteredCrmOrders.filter(hasOutstandingCredit).length
 
   const hasFilters = search || dateFrom || dateTo || creditFilter !== "all"
 
@@ -101,26 +107,41 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
 
   return (
     <div className="space-y-3">
-      {(filteredOrders.length > 0 || orders.length > 0) && (
+      {(filteredOrders.length > 0 || crmOrdersAll.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border bg-[hsl(var(--muted))]/20 p-3 sm:flex sm:flex-wrap sm:items-center sm:gap-6 sm:p-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
               {hasFilters ? "Filtered" : ""} Orders
             </p>
-            <p className="text-lg sm:text-xl font-bold tabular-nums leading-tight">{filteredOrders.length}</p>
+            <p className="text-lg sm:text-xl font-bold tabular-nums leading-tight">{filteredCrmOrders.length}</p>
             {creditFilter === "outstanding" && creditOrdersInView > 0 && (
               <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">with balance due</p>
             )}
           </div>
           <div className="sm:border-l sm:pl-6">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-              {hasFilters ? "Filtered" : "Total"} Payments
+              {hasFilters ? "Filtered" : "Money"} received
             </p>
-            <p className="text-sm sm:text-xl font-bold tabular-nums leading-tight break-words">
-              PKR {totalPayments.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <p className="text-sm sm:text-xl font-bold tabular-nums leading-tight break-words text-emerald-800">
+              PKR {displayPaymentsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-              Same as CRM Orders → Money received (incl. partial)
+            <button
+              type="button"
+              onClick={() => setIncludeOutstanding(v => !v)}
+              className={`mt-1.5 inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${
+                includeOutstanding
+                  ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
+                  : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40"
+              }`}
+              title={includeOutstanding ? "Showing received + still outstanding" : "Add still outstanding to total"}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${includeOutstanding ? "bg-amber-600" : "bg-[hsl(var(--muted-foreground))]"}`} />
+              {includeOutstanding ? "Including outstanding" : "+ Still outstanding"}
+            </button>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+              {includeOutstanding
+                ? `Received PKR ${totalPayments.toLocaleString()} + owed PKR ${totalOutstandingAll.toLocaleString()}`
+                : "Matches CRM Orders → Money received (excl. Branch POS)"}
             </p>
           </div>
           <div className="sm:border-l sm:pl-6 border-t sm:border-t-0 pt-2 sm:pt-0">
@@ -284,7 +305,7 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
           onUpdate={(updatedOrder) => {
-            setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)))
+            setCrmOrdersAll((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)))
             setSelectedOrder(updatedOrder)
           }}
         />

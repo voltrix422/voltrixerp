@@ -20,6 +20,7 @@ import {
   aggregateOrderPaymentStats,
   aggregateOrderPaymentsInPeriod,
   buildOrderPaymentReconciliation,
+  isCrmErpOrderForPaymentStats,
   type OrderPaymentStatsOrder,
 } from "@/lib/order-payment-stats"
 
@@ -96,6 +97,16 @@ export async function GET(req: NextRequest) {
     const paymentMethodTotals: Record<string, number> = {}
 
     for (const row of orders) {
+      if (
+        !isCrmErpOrderForPaymentStats({
+          source: row.source,
+          notes: row.notes,
+          branchId: (row as { branchId?: string | null }).branchId,
+        })
+      ) {
+        continue
+      }
+
       const payments = parseOrderPayments(row.payments)
       const order = {
         status: row.status as Order["status"],
@@ -462,7 +473,15 @@ export async function GET(req: NextRequest) {
 
     activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-    const statsOrders: OrderPaymentStatsOrder[] = orders.map(row => ({
+    const statsOrders: OrderPaymentStatsOrder[] = orders
+      .filter(row =>
+        isCrmErpOrderForPaymentStats({
+          source: row.source,
+          notes: row.notes,
+          branchId: (row as { branchId?: string | null }).branchId,
+        }),
+      )
+      .map(row => ({
       status: row.status as Order["status"],
       payments: parseOrderPayments(row.payments),
       total: row.total,

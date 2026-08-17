@@ -12,6 +12,16 @@ import {
   paymentCountsTowardBalance,
 } from "@/lib/orders"
 import { approvedBalancePaymentAmount } from "@/lib/finance-overview"
+import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
+
+/** Same order set as CRM Orders (excludes Branch POS — not ERP client orders). */
+export function isCrmErpOrderForPaymentStats(order: {
+  source?: string | null
+  notes?: string | null
+  branchId?: string | null
+}): boolean {
+  return !isBranchPosOrderHiddenFromErp(order)
+}
 
 export type OrderPaymentStatsOrder = Pick<
   Order,
@@ -218,7 +228,7 @@ export function buildOrderPaymentReconciliation(
   const reasons: string[] = []
 
   reasons.push(
-    `CRM Orders shows all-time totals on current orders (${allTime.orderCount} orders): PKR ${allTime.totalReceived.toLocaleString()} received so far.`,
+    `CRM Orders and this panel use the same ERP client orders (Branch POS orders excluded). ${allTime.orderCount} order(s) in scope.`,
   )
   reasons.push(
     `Finance cash snapshot for ${periodLabel} counts only approved payments by payment date: PKR ${period.approvedInPeriod.toLocaleString()}.`,

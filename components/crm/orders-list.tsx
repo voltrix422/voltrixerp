@@ -255,6 +255,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<Order | null>(null)
   const [exportingExcel, setExportingExcel] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
+  const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
 
   async function handleListDownloadPdf(order: Order, e?: { stopPropagation: () => void }) {
     e?.stopPropagation()
@@ -388,6 +389,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       balance: getOrderCashbackAmount(order, "other"),
     }))
     .sort((a, b) => b.paid - a.paid)
+
+  const headlineTotal = includeOutstandingInTotal
+    ? totalReceived + totalOutstanding
+    : totalReceived
 
   return (
     <div className="space-y-4">
@@ -531,12 +536,40 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         <>
           <div className="space-y-3">
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-800">
-                Money received from clients (orders)
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-800">
+                  Money received from clients (orders)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIncludeOutstandingInTotal(v => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-medium transition-colors shrink-0 ${
+                    includeOutstandingInTotal
+                      ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
+                      : "border-emerald-600/30 bg-white/50 text-emerald-900 hover:bg-white/80"
+                  }`}
+                  title={
+                    includeOutstandingInTotal
+                      ? "Showing received + still outstanding"
+                      : "Toggle to add still outstanding to this total"
+                  }
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      includeOutstandingInTotal ? "bg-amber-600" : "bg-emerald-600"
+                    }`}
+                  />
+                  {includeOutstandingInTotal ? "Including outstanding" : "+ Still outstanding"}
+                </button>
+              </div>
               <p className="text-xl sm:text-2xl font-bold tabular-nums text-emerald-800 leading-tight mt-1">
-                {formatOrderPkr(totalReceived)}
+                {formatOrderPkr(headlineTotal)}
               </p>
+              {includeOutstandingInTotal && (
+                <p className="text-[10px] text-amber-800 mt-1 tabular-nums">
+                  Received {formatOrderPkr(totalReceived)} + still owed {formatOrderPkr(totalOutstanding)}
+                </p>
+              )}
               <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">
                 Sum of the <strong className="font-medium text-[hsl(var(--foreground))]">Paid</strong> column on all orders (excluding returned). Same as Finance → Client Orders → Total Payments.
               </p>

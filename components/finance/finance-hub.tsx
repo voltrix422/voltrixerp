@@ -163,6 +163,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
   const [periodLabel, setPeriodLabel] = useState("This month")
   const [summary, setSummary] = useState<Summary | null>(null)
   const [orderPayments, setOrderPayments] = useState<OrderPaymentsPayload | null>(null)
+  const [includeOutstanding, setIncludeOutstanding] = useState(false)
   const [enabled, setEnabled] = useState<Record<ToggleKey, boolean>>(defaultEnabled)
   const [showDetails, setShowDetails] = useState(false)
 
@@ -249,6 +250,10 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
   }
 
   if (!summary) return null
+
+  const orderReceived = orderPayments?.allTime.totalReceived ?? 0
+  const orderOutstanding = orderPayments?.allTime.totalOutstanding ?? 0
+  const orderDisplayTotal = includeOutstanding ? orderReceived + orderOutstanding : orderReceived
 
   const snapshot = [
     {
@@ -352,16 +357,36 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                All-time received
+            <div className="rounded-xl border border-emerald-500/30 bg-[hsl(var(--background))]/80 p-3.5 sm:col-span-2">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold">
+                  Money received (matches CRM)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIncludeOutstanding(v => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors shrink-0 ${
+                    includeOutstanding
+                      ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
+                      : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${includeOutstanding ? "bg-amber-600" : "bg-emerald-600"}`} />
+                  {includeOutstanding ? "Including outstanding" : "+ Still outstanding"}
+                </button>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold tabular-nums text-emerald-800 mt-1">
+                {fmt(orderDisplayTotal, 2)}
               </p>
-              <p className="text-lg sm:text-xl font-bold tabular-nums text-emerald-800 mt-1">
-                {fmt(orderPayments.allTime.totalReceived, 2)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                {orderPayments.allTime.orderCount} orders · incl. partial & credit
-              </p>
+              {includeOutstanding ? (
+                <p className="text-[10px] text-amber-800 mt-1 tabular-nums">
+                  Received {fmt(orderReceived, 2)} + owed {fmt(orderOutstanding, 2)}
+                </p>
+              ) : (
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                  {orderPayments.allTime.orderCount} ERP client orders · excl. Branch POS · same as CRM Paid total
+                </p>
+              )}
             </div>
             <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
               <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
@@ -371,7 +396,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                 {fmt(orderPayments.inPeriod.approvedInPeriod, 2)}
               </p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                By payment date · matches Client payments toggle
+                Payment date in period · Client payments toggle
               </p>
             </div>
             <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
@@ -380,16 +405,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                 {fmt(orderPayments.allTime.totalOutstanding, 2)}
               </p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                Unpaid balance on active orders
-              </p>
-            </div>
-            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
-              <p className="text-[10px] uppercase tracking-wider text-sky-700">Partial received (all-time)</p>
-              <p className="text-lg sm:text-xl font-bold tabular-nums text-sky-800 mt-1">
-                {fmt(orderPayments.allTime.partialPaymentsReceived, 2)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                {orderPayments.allTime.partialPaymentCount} order(s) with balance left
+                Unpaid on active orders
               </p>
             </div>
           </div>
