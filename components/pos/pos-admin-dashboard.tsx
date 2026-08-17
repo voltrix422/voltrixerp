@@ -1,9 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
   Loader2,
+  Package,
   RefreshCw,
   Search,
   X,
@@ -19,6 +20,7 @@ import {
   type PosAdminSummary,
 } from "@/lib/pos-admin"
 import { PosAdminOrderDetailModal } from "@/components/pos/pos-admin-order-detail"
+import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
 
 type RangeMode =
   | "yesterday"
@@ -140,11 +142,39 @@ export function PosAdminDashboard() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [productSearch, setProductSearch] = useState("")
   const [productQuery, setProductQuery] = useState("")
+  const [selectedProductId, setSelectedProductId] = useState("")
+  const [inventoryProducts, setInventoryProducts] = useState<InventoryProductOption[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(true)
 
   useEffect(() => {
+    loadInventoryProductOptions()
+      .then(setInventoryProducts)
+      .finally(() => setLoadingProducts(false))
+  }, [])
+
+  const selectedProductOption = useMemo(
+    () => inventoryProducts.find((p) => p.id === selectedProductId) || null,
+    [inventoryProducts, selectedProductId],
+  )
+
+  const filteredInventoryProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q || selectedProductId) return inventoryProducts
+    return inventoryProducts.filter(
+      (p) =>
+        p.displayName.toLowerCase().includes(q) ||
+        p.modelKey.toLowerCase().includes(q) ||
+        p.matchTerms.some((term) => term.toLowerCase().includes(q)),
+    )
+  }, [inventoryProducts, productSearch, selectedProductId])
+
+  const isProductFiltered = !!(selectedProductId || productQuery)
+
+  useEffect(() => {
+    if (selectedProductId) return
     const timer = window.setTimeout(() => setProductQuery(productSearch.trim()), 300)
     return () => window.clearTimeout(timer)
-  }, [productSearch])
+  }, [productSearch, selectedProductId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -152,7 +182,8 @@ export function PosAdminDashboard() {
     const summary = await getPosAdminSummary({
       from,
       to,
-      productQuery: productQuery || undefined,
+      productQuery: selectedProductOption?.displayName || productQuery || undefined,
+      productMatchTerms: selectedProductOption?.matchTerms,
     })
     if (!summary) {
       setError("Failed to load POS admin data")
@@ -161,7 +192,24 @@ export function PosAdminDashboard() {
       setData(summary)
     }
     setLoading(false)
-  }, [from, to, productQuery])
+  }, [from, to, productQuery, selectedProductOption])
+
+  function handleProductDropdownChange(value: string) {
+    setSelectedProductId(value)
+    setProductSearch("")
+    setProductQuery("")
+  }
+
+  function handleProductSearchChange(value: string) {
+    setProductSearch(value)
+    if (value.trim()) setSelectedProductId("")
+  }
+
+  function clearProductFilter() {
+    setSelectedProductId("")
+    setProductSearch("")
+    setProductQuery("")
+  }
 
   useEffect(() => {
     void load()
@@ -179,7 +227,8 @@ export function PosAdminDashboard() {
       to,
       branchId: selectedBranchId,
       detail: true,
-      productQuery: productQuery || undefined,
+      productQuery: selectedProductOption?.displayName || productQuery || undefined,
+      productMatchTerms: selectedProductOption?.matchTerms,
     }).then((summary) => {
       if (cancelled) return
       setBranchDetail(summary?.byBranch?.[0] || null)
@@ -188,7 +237,7 @@ export function PosAdminDashboard() {
     return () => {
       cancelled = true
     }
-  }, [view, selectedBranchId, from, to, productQuery])
+  }, [view, selectedBranchId, from, to, productQuery, selectedProductOption])
 
   function applyPreset(next: RangeMode) {
     setMode(next)
@@ -303,25 +352,46 @@ export function PosAdminDashboard() {
             </label>
           </div>
         )}
-        <div className="relative max-w-md">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-          <input
-            type="text"
-            value={productSearch}
-            onChange={(e) => setProductSearch(e.target.value)}
-            placeholder="Search item / product sold in POS…"
-            className="h-7 w-full rounded-sm border border-[hsl(var(--border))] bg-transparent pl-7 pr-7 text-xs"
-          />
-          {productSearch && (
-            <button
-              type="button"
-              onClick={() => setProductSearch("")}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Clear product search"
+        <div className="flex flex-col sm:flex-row gap-2 max-w-2xl">
+          <div className="relative sm:w-72 shrink-0">
+            <Package className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+            <select
+              value={selectedProductId}
+              onChange={(e) => handleProductDropdownChange(e.target.value)}
+              disabled={loadingProducts}
+              className="h-7 w-full rounded-sm border border-[hsl(var(--border))] bg-transparent pl-7 pr-6 text-xs appearance-none cursor-pointer"
             >
-              <X className="h-3 w-3" />
-            </button>
-          )}
+              <option value="">
+                {loadingProducts ? "Loading products…" : "All products"}
+              </option>
+              {filteredInventoryProducts.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.displayName}
+                  {product.inStock > 0 ? ` (${product.inStock} in stock)` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="relative flex-1 min-w-[160px]">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+            <input
+              type="text"
+              value={productSearch}
+              onChange={(e) => handleProductSearchChange(e.target.value)}
+              placeholder="Or type product name…"
+              className="h-7 w-full rounded-sm border border-[hsl(var(--border))] bg-transparent pl-7 pr-7 text-xs"
+            />
+            {isProductFiltered && (
+              <button
+                type="button"
+                onClick={clearProductFilter}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Clear product filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
       </Panel>
 
@@ -366,7 +436,7 @@ export function PosAdminDashboard() {
             />
           </div>
 
-          {productQuery && (
+          {isProductFiltered && (
             <ProductSalesPanel
               summary={data?.productSummary || null}
               loading={loading}
@@ -385,7 +455,7 @@ export function PosAdminDashboard() {
                       <th className={th}>Branch</th>
                       <th className={thR}>Term.</th>
                       <th className={thR}>Orders</th>
-                      {productQuery && <th className={thR}>Sold</th>}
+                      {isProductFiltered && <th className={thR}>Sold</th>}
                       <th className={thR}>Order sales</th>
                       <th className={thR}>Profit</th>
                       <th className={thR}>Receipts</th>
@@ -415,7 +485,7 @@ export function PosAdminDashboard() {
                             {b.deliveredCount}d / {b.openCount}o
                           </span>
                         </td>
-                        {productQuery && (
+                        {isProductFiltered && (
                           <td className={tdR}>
                             {productBranch ? (
                               <>
@@ -454,7 +524,7 @@ export function PosAdminDashboard() {
         </>
       ) : (
         <>
-          {productQuery && (
+          {isProductFiltered && (
             <ProductSalesPanel
               summary={data?.productSummary || null}
               loading={loading || detailLoading}

@@ -7,6 +7,7 @@ import {
 } from "@/lib/branch-pos-profit"
 import type { OrderItem } from "@/lib/orders"
 import { aggregatePosProductSales } from "@/lib/pos-product-sales"
+import type { ProductFilter } from "@/lib/order-product-search"
 
 export const dynamic = "force-dynamic"
 
@@ -138,6 +139,18 @@ export async function GET(req: NextRequest) {
     const branchIdFilter = req.nextUrl.searchParams.get("branchId")?.trim() || null
     const detail = req.nextUrl.searchParams.get("detail") === "1"
     const productQuery = req.nextUrl.searchParams.get("productQuery")?.trim() || ""
+    const productMatchTermsRaw = req.nextUrl.searchParams.get("productMatchTerms")?.trim() || ""
+    let productMatchTerms: string[] | undefined
+    if (productMatchTermsRaw) {
+      try {
+        const parsed = JSON.parse(productMatchTermsRaw) as unknown
+        if (Array.isArray(parsed)) {
+          productMatchTerms = parsed.map(String).filter(Boolean)
+        }
+      } catch {
+        productMatchTerms = productMatchTermsRaw.split("|").map((s) => s.trim()).filter(Boolean)
+      }
+    }
     const unassignedOnly = branchIdFilter === "__unassigned__"
     const realBranchFilter =
       branchIdFilter && !unassignedOnly ? branchIdFilter : null
@@ -371,14 +384,22 @@ export async function GET(req: NextRequest) {
     for (const b of branches) branchNameMap.set(b.id, b.name)
     branchNameMap.set("__unassigned__", "Unassigned")
 
-    const productSummary = productQuery
-      ? aggregatePosProductSales(
-          productQuery,
-          orders as OrderRow[],
-          sales as SaleRow[],
-          branchNameMap,
-        )
-      : null
+    const productFilter: ProductFilter = productMatchTerms?.length
+      ? { matchTerms: productMatchTerms, modelKey: productQuery || undefined }
+      : productQuery
+        ? { query: productQuery }
+        : {}
+
+    const productSummary =
+      productQuery || productMatchTerms?.length
+        ? aggregatePosProductSales(
+            productFilter,
+            productQuery || productMatchTerms?.[0] || "",
+            orders as OrderRow[],
+            sales as SaleRow[],
+            branchNameMap,
+          )
+        : null
 
     return NextResponse.json({
       from: fromDate,

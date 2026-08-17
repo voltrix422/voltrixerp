@@ -129,6 +129,7 @@ export async function getPosAdminSummary(params: {
   branchId?: string
   detail?: boolean
   productQuery?: string
+  productMatchTerms?: string[]
 }): Promise<PosAdminSummary | null> {
   const qs = new URLSearchParams({
     from: params.from,
@@ -137,6 +138,9 @@ export async function getPosAdminSummary(params: {
   if (params.branchId) qs.set("branchId", params.branchId)
   if (params.detail) qs.set("detail", "1")
   if (params.productQuery?.trim()) qs.set("productQuery", params.productQuery.trim())
+  if (params.productMatchTerms?.length) {
+    qs.set("productMatchTerms", JSON.stringify(params.productMatchTerms))
+  }
 
   const res = await fetch(`/api/db/pos/admin-summary?${qs}`)
   if (!res.ok) return null

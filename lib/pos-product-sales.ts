@@ -1,5 +1,9 @@
 import type { OrderItem } from "@/lib/orders"
-import { normalizeProductText, orderItemMatchesProductQuery } from "@/lib/order-product-search"
+import {
+  hasProductFilter,
+  orderItemMatchesProductFilter,
+  type ProductFilter,
+} from "@/lib/order-product-search"
 import type { PosCartItem } from "@/lib/pos"
 
 export type PosProductRateLine = {
@@ -40,12 +44,18 @@ type MutableBucket = {
   byRate: Map<number, PosProductRateLine>
 }
 
-function posCartItemMatchesQuery(item: PosCartItem, query: string): boolean {
-  const q = normalizeProductText(query)
-  if (!q) return true
-  const desc = normalizeProductText(item.description || "")
-  if (!desc) return false
-  return desc.includes(q) || q.includes(desc)
+function posCartItemMatchesFilter(item: PosCartItem, filter: ProductFilter): boolean {
+  return orderItemMatchesProductFilter(
+    {
+      id: item.stockId || "",
+      description: item.description || "",
+      qty: item.qty,
+      unit: item.unit || "pcs",
+      unitPrice: item.unitPrice,
+      isCustom: false,
+    },
+    filter,
+  )
 }
 
 function rateKey(unitPrice: number): number {
@@ -124,13 +134,20 @@ type ReceiptInput = {
 }
 
 export function aggregatePosProductSales(
-  query: string,
+  filter: ProductFilter,
+  label: string,
   orders: OrderInput[],
   receipts: ReceiptInput[],
   branchNames: Map<string, string>,
 ): PosProductSalesSummary | null {
-  const q = query.trim()
-  if (!q) return null
+  if (!hasProductFilter(filter)) return null
+
+  const displayLabel =
+    label.trim() ||
+    filter.modelKey?.trim() ||
+    filter.query?.trim() ||
+    filter.matchTerms?.[0]?.trim() ||
+    "Product"
 
   const combinedKey = "__combined__"
   const buckets = new Map<string, MutableBucket>()
@@ -143,7 +160,7 @@ export function aggregatePosProductSales(
     let matched = false
 
     for (const item of items) {
-      if (!orderItemMatchesProductQuery(item, q)) continue
+      if (!orderItemMatchesProductFilter(item, filter)) continue
       matched = true
       const qty = Number(item.qty) || 0
       const rate = Number(item.unitPrice) || 0
@@ -165,7 +182,7 @@ export function aggregatePosProductSales(
     let matched = false
 
     for (const item of items) {
-      if (!posCartItemMatchesQuery(item, q)) continue
+      if (!posCartItemMatchesFilter(item, filter)) continue
       matched = true
       const qty = Number(item.qty) || 0
       const rate = Number(item.unitPrice) || 0
@@ -198,7 +215,7 @@ export function aggregatePosProductSales(
   byBranch.sort((a, b) => b.sellTotal - a.sellTotal)
 
   return {
-    query: q,
+    query: displayLabel,
     soldQty: combinedFinal.soldQty,
     sellTotal: combinedFinal.sellTotal,
     avgUnitPrice: combinedFinal.soldQty > 0 ? combinedFinal.sellTotal / combinedFinal.soldQty : 0,
@@ -208,4 +225,14 @@ export function aggregatePosProductSales(
     byRate: combinedFinal.byRate,
     byBranch,
   }
+}
+
+/** @deprecated use aggregatePosProductSales with ProductFilter */
+export function aggregatePosProductSalesByQuery(
+  query: string,
+  orders: OrderInput[],
+  receipts: ReceiptInput[],
+  branchNames: Map<string, string>,
+): PosProductSalesSummary | null {
+  return aggregatePosProductSales({ query }, query, orders, receipts, branchNames)
 }
