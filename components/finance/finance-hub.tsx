@@ -146,9 +146,9 @@ function ToggleChip({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-2 text-[11px] py-0.5">
-      <span className="text-[hsl(var(--muted-foreground))] truncate">{label}</span>
-      <span className="tabular-nums font-medium shrink-0">{value}</span>
+    <div className="inline-grid grid-cols-[auto_auto] gap-x-3 gap-y-0 items-baseline text-[11px] py-0.5 max-w-full">
+      <span className="text-[hsl(var(--muted-foreground))]">{label}</span>
+      <span className="tabular-nums font-medium">{value}</span>
     </div>
   )
 }
@@ -451,7 +451,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                 {inLines.map(l => (
                   <Row key={l.key} label={l.label} value={fmt(l.amount)} />
                 ))}
-                <div className="flex justify-between gap-2 text-[11px] font-medium pt-1 border-t mt-1">
+                <div className="inline-grid grid-cols-[auto_auto] gap-x-3 text-[11px] font-medium pt-1 border-t mt-1">
                   <span>Total</span>
                   <span className="tabular-nums">{fmt(moneyInAll)}</span>
                 </div>
@@ -471,11 +471,11 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                 <Row label="Purchase ledger" value={fmt(breakdown.moneyOut.purchaseLedger)} />
                 <Row label="Imported PO payments" value={fmt(breakdown.moneyOut.importedPurchases)} />
                 <Row label="Import shipments" value={fmt(breakdown.moneyOut.importShipments)} />
-                <Row label="Petty cash" value={fmt(breakdown.moneyOut.pettyCash)} />
+                <Row label="Petty cash (approved)" value={fmt(breakdown.moneyOut.pettyCash)} />
                 <Row label="Supplier advances" value={fmt(breakdown.moneyOut.supplierAdvances ?? 0)} />
                 <Row label="Salary advances" value={fmt(breakdown.moneyOut.salaryAdvances ?? 0)} />
                 <Row label="Cashback" value={fmt(breakdown.moneyOut.cashback)} />
-                <div className="flex justify-between gap-2 text-[11px] font-medium pt-1 border-t mt-1">
+                <div className="inline-grid grid-cols-[auto_auto] gap-x-3 text-[11px] font-medium pt-1 border-t mt-1">
                   <span>Total</span>
                   <span className="tabular-nums">{fmt(moneyOutAll)}</span>
                 </div>

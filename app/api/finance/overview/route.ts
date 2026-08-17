@@ -27,6 +27,7 @@ import {
   purchaseLedgerPaidInPeriod,
   sumJsonPaymentsInPeriod,
 } from "@/lib/finance-purchase-outflows"
+import { sumApprovedReceiptsInPeriod } from "@/lib/petty-cash-display"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
       prisma.erpPettyCashAllocation.findMany({ where: { status: "active" } }),
-      prisma.erpPettyCashReceipt.findMany({ where: { status: { in: ["pending", "approved"] } } }),
+      prisma.erpPettyCashReceipt.findMany({ where: { status: "approved" } }),
       prisma.erpPosSale.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
       prisma.erpPettyCashReceipt.count({ where: { status: "pending" } }),
       prisma.erpAdvanceAccount.findMany({ orderBy: { createdAt: "desc" } }),
@@ -304,15 +305,13 @@ export async function GET(req: NextRequest) {
     }
     const advancesInPeriod = supplierAdvancesInPeriod + salaryAdvancesInPeriod
 
-    // Petty cash spent in period (approved + pending with activity date)
-    const pettyUsed = pettyReceipts
-      .filter(r => {
-        const d = r.reviewedAt || r.submittedAt
-        return d && inRange(new Date(d), start, end)
-      })
-      .reduce((s, r) => s + r.amount, 0)
+    // Petty cash spent in period — approved receipts only (matches Petty Cash page logic)
+    const pettyUsed = sumApprovedReceiptsInPeriod(pettyReceipts, start, end)
     const pettyTotal = pettyAllocations.reduce((s, a) => s + a.amount, 0)
-    const pettyRemaining = Math.max(0, pettyTotal - pettyReceipts.reduce((s, r) => s + r.amount, 0))
+    const pettyRemaining = Math.max(
+      0,
+      pettyTotal - pettyReceipts.reduce((s, r) => s + r.amount, 0),
+    )
 
     const statsOrders: OrderPaymentStatsOrder[] = orders
       .filter(row =>
@@ -434,10 +433,7 @@ export async function GET(req: NextRequest) {
           if (inRange(d, mStart, mEnd)) mo += Number(p.amount) || 0
         }
       }
-      for (const r of pettyReceipts) {
-        const d = r.reviewedAt || r.submittedAt
-        if (d && inRange(new Date(d), mStart, mEnd)) mo += r.amount
-      }
+      mo += sumApprovedReceiptsInPeriod(pettyReceipts, mStart, mEnd)
       for (const account of advanceAccounts) {
         const txns = Array.isArray(account.transactions)
           ? (account.transactions as { type?: string; amount?: number; date?: string; createdAt?: string }[])

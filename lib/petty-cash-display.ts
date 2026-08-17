@@ -57,6 +57,31 @@ export function sumApprovedReceipts(receipts: PettyCashReceipt[], allocationId?:
     .reduce((sum, r) => sum + r.amount, 0)
 }
 
+/** Approved petty cash spent in a date range (uses reviewedAt, then submittedAt). */
+export function sumApprovedReceiptsInPeriod(
+  receipts: Array<{
+    status: string
+    amount: number
+    allocationId?: string
+    reviewedAt?: Date | string | null
+    submittedAt: Date | string
+  }>,
+  start: Date,
+  end: Date,
+  allocationId?: string,
+) {
+  return receipts
+    .filter((r) => {
+      if (r.status !== "approved") return false
+      if (allocationId && r.allocationId !== allocationId) return false
+      const raw = r.reviewedAt ?? r.submittedAt
+      if (!raw) return false
+      const date = new Date(raw)
+      return date >= start && date <= end
+    })
+    .reduce((sum, r) => sum + r.amount, 0)
+}
+
 export function sumPendingReceipts(receipts: PettyCashReceipt[], allocationId?: string) {
   return receipts
     .filter(
