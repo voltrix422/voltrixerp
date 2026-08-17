@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.erpImportShipment.findMany({ orderBy: { createdAt: "desc" }, take: 300 }),
       prisma.erpPurchaseLedger.findMany({
-        select: { payments: true, createdAt: true, amountPaid: true },
+        select: { payments: true, createdAt: true, amountPaid: true, purchaseScopeId: true },
         orderBy: { createdAt: "desc" },
       }),
     ])
@@ -253,7 +253,9 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const purchaseLedgerPaidInPeriodTotal = purchaseLedgerPaidInPeriod(purchaseLedger, start, end)
+    const purchaseLedgerPaidInPeriodTotal = purchaseLedgerPaidInPeriod(purchaseLedger, start, end, {
+      purchaseScopeId: "P1",
+    })
 
     const recordsInPeriod = records.filter(r => inRange(new Date(r.createdAt), start, end))
     const salariesInPeriod = recordsInPeriod
@@ -303,7 +305,9 @@ export async function GET(req: NextRequest) {
       if (!inRange(new Date(adv.givenAt), start, end)) continue
       salaryAdvancesInPeriod += Number(adv.amount) || 0
     }
-    const advancesInPeriod = supplierAdvancesInPeriod + salaryAdvancesInPeriod
+    // Skip salary advances in totals when salaries are already in finance records (avoid double count).
+    const salaryAdvancesForOut = salariesInPeriod > 0 ? 0 : salaryAdvancesInPeriod
+    const advancesInPeriod = supplierAdvancesInPeriod + salaryAdvancesForOut
 
     // Petty cash spent in period — approved receipts only (matches Petty Cash page logic)
     const pettyUsed = sumApprovedReceiptsInPeriod(pettyReceipts, start, end)
@@ -365,7 +369,7 @@ export async function GET(req: NextRequest) {
         pettyCash: pettyUsed,
         advances: advancesInPeriod,
         supplierAdvances: supplierAdvancesInPeriod,
-        salaryAdvances: salaryAdvancesInPeriod,
+        salaryAdvances: salaryAdvancesForOut,
         cashback: cashbackInPeriod,
       },
     }
@@ -379,7 +383,6 @@ export async function GET(req: NextRequest) {
     const moneyOut =
       breakdown.moneyOut.expenses +
       breakdown.moneyOut.salaries +
-      breakdown.moneyOut.localPurchases +
       breakdown.moneyOut.purchaseLedger +
       breakdown.moneyOut.pettyCash +
       breakdown.moneyOut.advances +

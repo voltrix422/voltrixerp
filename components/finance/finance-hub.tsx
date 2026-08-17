@@ -47,10 +47,7 @@ type ToggleKey =
   | "loans"
   | "expenses"
   | "salaries"
-  | "localPurchases"
   | "purchaseLedger"
-  | "importedPurchases"
-  | "importShipments"
   | "pettyCash"
   | "advances"
   | "cashback"
@@ -69,12 +66,9 @@ const TOGGLES: ToggleDef[] = [
   { key: "loans", label: "Loans received", side: "in", defaultOn: true },
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries", side: "out", defaultOn: true },
-  { key: "localPurchases", label: "Local PO payments", side: "out", defaultOn: true },
   { key: "purchaseLedger", label: "Purchase ledger", side: "out", defaultOn: true },
-  { key: "importedPurchases", label: "Imported PO payments", side: "out", defaultOn: true },
-  { key: "importShipments", label: "Import shipments", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
-  { key: "advances", label: "Advances", side: "out", defaultOn: true },
+  { key: "advances", label: "Supplier advances", side: "out", defaultOn: true },
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
 ]
 
@@ -111,7 +105,27 @@ function emptyBreakdown(): Breakdown {
 
 function amountFor(b: Breakdown, key: ToggleKey): number {
   if (key in b.moneyIn) return b.moneyIn[key as keyof Breakdown["moneyIn"]]
+  if (key === "advances") return b.moneyOut.supplierAdvances ?? b.moneyOut.advances
+  if (key === "purchaseLedger") return b.moneyOut.purchaseLedger
   return b.moneyOut[key as keyof Breakdown["moneyOut"]] as number
+}
+
+function buildMoneyOutDisplayRows(b: Breakdown) {
+  const rows: { label: string; amount: number }[] = []
+  if (b.expenses > 0.004) rows.push({ label: "Expenses (finance records)", amount: b.expenses })
+  if (b.salaries > 0.004) rows.push({ label: "Salaries", amount: b.salaries })
+  if (b.purchaseLedger > 0.004) {
+    rows.push({ label: "Purchase ledger · Main Office", amount: b.purchaseLedger })
+  }
+  if (b.pettyCash > 0.004) rows.push({ label: "Petty cash (approved)", amount: b.pettyCash })
+  const supplierAdv = b.supplierAdvances ?? 0
+  if (supplierAdv > 0.004) rows.push({ label: "Supplier advances", amount: supplierAdv })
+  const salaryAdv = b.salaryAdvances ?? 0
+  if (salaryAdv > 0.004 && b.salaries <= 0.004) {
+    rows.push({ label: "Salary advances", amount: salaryAdv })
+  }
+  if (b.cashback > 0.004) rows.push({ label: "Cashback", amount: b.cashback })
+  return rows
 }
 
 function ToggleChip({
@@ -152,13 +166,15 @@ function BreakdownTable({
   total: string
 }) {
   return (
-    <div className="rounded-md border overflow-hidden">
-      <table className="w-full border-collapse text-[11px]">
+    <div className="inline-block max-w-full rounded-md border overflow-hidden">
+      <table className="border-collapse text-[11px]">
         <tbody>
           {rows.map((row, i) => (
             <tr key={row.label} className={i > 0 ? "border-t" : undefined}>
-              <td className="px-2.5 py-1 text-[hsl(var(--muted-foreground))] align-middle">{row.label}</td>
-              <td className="px-2.5 py-1 tabular-nums font-medium text-right whitespace-nowrap align-middle w-[1%]">
+              <td className="pl-2.5 pr-3 py-0.5 text-[hsl(var(--muted-foreground))] align-middle whitespace-nowrap">
+                {row.label}
+              </td>
+              <td className="pl-2 pr-2.5 py-0.5 tabular-nums font-medium text-right align-middle whitespace-nowrap">
                 {row.value}
               </td>
             </tr>
@@ -166,8 +182,8 @@ function BreakdownTable({
         </tbody>
         <tfoot>
           <tr className="border-t bg-[hsl(var(--muted))]/10">
-            <td className="px-2.5 py-1.5 font-semibold align-middle">Total</td>
-            <td className="px-2.5 py-1.5 tabular-nums font-semibold text-right whitespace-nowrap align-middle w-[1%]">
+            <td className="pl-2.5 pr-3 py-1 font-semibold align-middle">Total</td>
+            <td className="pl-2 pr-2.5 py-1 tabular-nums font-semibold text-right align-middle whitespace-nowrap">
               {total}
             </td>
           </tr>
@@ -271,6 +287,12 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
         on: enabled[t.key],
       })),
     [breakdown, enabled],
+  )
+
+  const moneyOutDisplayRows = useMemo(() => buildMoneyOutDisplayRows(breakdown), [breakdown])
+  const moneyInDisplayRows = useMemo(
+    () => inLines.filter(l => l.amount > 0.004).map(l => ({ label: l.label, amount: l.amount })),
+    [inLines],
   )
 
   const moneyIn = inLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
@@ -473,7 +495,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
             >
               <div className="pt-1.5">
                 <BreakdownTable
-                  rows={inLines.map(l => ({ label: l.label, value: fmt(l.amount) }))}
+                  rows={moneyInDisplayRows.map(r => ({ label: r.label, value: fmt(r.amount) }))}
                   total={fmt(moneyInAll)}
                 />
               </div>
@@ -487,18 +509,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
             >
               <div className="pt-1.5">
                 <BreakdownTable
-                  rows={[
-                    { label: "Expenses (finance records)", value: fmt(breakdown.moneyOut.expenses) },
-                    { label: "Salaries", value: fmt(breakdown.moneyOut.salaries) },
-                    { label: "Local PO (on PO record)", value: fmt(breakdown.moneyOut.localPurchases) },
-                    { label: "Purchase ledger (paid in period)", value: fmt(breakdown.moneyOut.purchaseLedger) },
-                    { label: "Imported PO payments", value: fmt(breakdown.moneyOut.importedPurchases) },
-                    { label: "Import shipments", value: fmt(breakdown.moneyOut.importShipments) },
-                    { label: "Petty cash (approved)", value: fmt(breakdown.moneyOut.pettyCash) },
-                    { label: "Supplier advances", value: fmt(breakdown.moneyOut.supplierAdvances ?? 0) },
-                    { label: "Salary advances", value: fmt(breakdown.moneyOut.salaryAdvances ?? 0) },
-                    { label: "Cashback", value: fmt(breakdown.moneyOut.cashback) },
-                  ]}
+                  rows={moneyOutDisplayRows.map(r => ({ label: r.label, value: fmt(r.amount) }))}
                   total={fmt(moneyOutAll)}
                 />
               </div>
@@ -518,13 +529,13 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                 </div>
                 <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Money in</p>
                 <div className="flex flex-wrap gap-1">
-                  {inLines.map(l => (
+                  {inLines.filter(l => l.amount > 0.004).map(l => (
                     <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
                   ))}
                 </div>
                 <p className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase">Money out</p>
                 <div className="flex flex-wrap gap-1">
-                  {outLines.map(l => (
+                  {outLines.filter(l => l.amount > 0.004).map(l => (
                     <ToggleChip key={l.key} on={l.on} label={l.label} amount={l.amount} onClick={() => toggle(l.key)} />
                   ))}
                 </div>

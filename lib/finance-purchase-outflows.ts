@@ -30,12 +30,21 @@ function sumAllJsonPayments(payments: unknown, fallback: Date): number {
 }
 
 export function purchaseLedgerPaidInPeriod(
-  entries: Array<{ payments: unknown; createdAt: Date; amountPaid?: number }>,
+  entries: Array<{
+    payments: unknown
+    createdAt: Date
+    amountPaid?: number
+    purchaseScopeId?: string
+  }>,
   start: Date,
   end: Date,
+  options?: { purchaseScopeId?: string },
 ): number {
+  const scopeId = (options?.purchaseScopeId ?? "P1").trim().toUpperCase()
   let sum = 0
   for (const entry of entries) {
+    const sid = String(entry.purchaseScopeId ?? "P1").trim().toUpperCase()
+    if (scopeId && sid !== scopeId) continue
     const inPeriod = sumJsonPaymentsInPeriod(entry.payments, start, end, entry.createdAt)
     if (inPeriod <= 0) continue
     const amountPaid = Number(entry.amountPaid) || 0
