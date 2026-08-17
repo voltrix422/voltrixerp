@@ -52,9 +52,17 @@ interface FinanceManagerProps {
   search: string
   dateFrom: string
   dateTo: string
+  initialCategory?: string
+  openAddLoan?: boolean
 }
 
-export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps) {
+export function FinanceManager({
+  search,
+  dateFrom,
+  dateTo,
+  initialCategory,
+  openAddLoan,
+}: FinanceManagerProps) {
   const { user } = useAuth()
   const [records, setRecords] = useState<FinanceRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -112,6 +120,21 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
   useEffect(() => {
     if (showForm) loadActivePettyCash()
   }, [showForm])
+
+  useEffect(() => {
+    if (!openAddLoan) return
+    setCategory("Loan")
+    setCurrency("PKR")
+    setPurpose("Loan received")
+    setFilterCategory("Loan")
+    setShowForm(true)
+  }, [openAddLoan])
+
+  useEffect(() => {
+    if (initialCategory && CATEGORIES.includes(initialCategory) && !openAddLoan) {
+      setFilterCategory(initialCategory)
+    }
+  }, [initialCategory, openAddLoan])
 
   useEffect(() => {
     async function fetchRecords() {
@@ -214,6 +237,13 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
     }
   }
 
+  function openLoanForm() {
+    setCategory("Loan")
+    setCurrency("PKR")
+    setPurpose("Loan received")
+    setShowForm(true)
+  }
+
   function resetForm() {
     setTitle(""); setAmount(""); setCurrency("PKR"); setPurpose("")
     setCategory("Payment"); setTag(""); setSupplierName(""); setReceiptPersonName(""); setPettyCashAllocationId(""); setNotes("")
@@ -270,6 +300,14 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
               Clear Filters
             </button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 sm:h-8 flex-1 sm:flex-none text-xs gap-1.5 border-amber-500/40 text-amber-900 hover:bg-amber-500/10 cursor-pointer justify-center"
+            onClick={openLoanForm}
+          >
+            <TrendingUp className="h-3.5 w-3.5" /> Add Loan
+          </Button>
           <Button size="sm" className="h-9 sm:h-8 flex-1 sm:flex-none text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer justify-center" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5" /> Add Record
           </Button>
@@ -381,12 +419,25 @@ export function FinanceManager({ search, dateFrom, dateTo }: FinanceManagerProps
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={resetForm}>
           <div className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b shrink-0">
-              <p className="text-sm font-semibold">Add Finance Record</p>
+              <p className="text-sm font-semibold">
+                {category === "Loan" ? "Add Loan (money in)" : "Add Finance Record"}
+              </p>
               <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={resetForm}><X className="h-4 w-4" /></Button>
             </div>
             <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-3.5">
+              {category === "Loan" && (
+                <p className="text-xs text-amber-900 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2 leading-relaxed">
+                  Loan records appear in Finance Overview under Money in. Use the <strong>Loans received</strong> toggle on Overview to include or exclude them from the cash snapshot total.
+                </p>
+              )}
               <Field label="Title *">
-                <input value={title} onChange={e => setTitle(e.target.value)} required placeholder="e.g. Office rent payment" className={inputCls} />
+                <input
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  required
+                  placeholder={category === "Loan" ? "e.g. Bank loan — ABC Bank" : "e.g. Office rent payment"}
+                  className={inputCls}
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Amount *">

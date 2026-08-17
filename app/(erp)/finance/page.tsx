@@ -33,6 +33,7 @@ export default function FinancePage() {
     const tab = searchParams.get("tab")
     const section = searchParams.get("section")
     const payroll = searchParams.get("payroll")
+    const add = searchParams.get("add")
     if (
       tab === "overview" ||
       tab === "client" ||
@@ -43,8 +44,11 @@ export default function FinancePage() {
       tab === "reports"
     ) {
       setActiveTab(tab === "sales-salaries" ? "payroll" : (tab as Tab))
+    } else if (add === "loan") {
+      setActiveTab("manage")
     }
     if (section === "petty-cash" || section === "finance") setManageSection(section)
+    else if (add === "loan") setManageSection("finance")
     if (payroll === "sales" || payroll === "staff") setPayrollSection(payroll)
     else if (tab === "sales-salaries") setPayrollSection("sales")
   }, [searchParams])
@@ -201,7 +205,12 @@ export default function FinancePage() {
                 ))}
               </div>
               {manageSection === "finance" && (
-                <FinanceManager search={search} dateFrom={dateFrom} dateTo={dateTo} />
+                <FinanceManager
+                  search={search}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  openAddLoan={searchParams?.get("add") === "loan"}
+                />
               )}
               {manageSection === "petty-cash" && <PettyCashDashboard />}
             </div>

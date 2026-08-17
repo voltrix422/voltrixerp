@@ -3,15 +3,14 @@
 import { useEffect, useState, useCallback, useMemo, type ReactNode } from "react"
 import Link from "next/link"
 import {
-  ArrowRight, Loader2, TrendingUp, TrendingDown, RefreshCw, CircleHelp, ListTree,
+  ArrowRight, Loader2, TrendingUp, TrendingDown, RefreshCw, CircleHelp, ListTree, Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown, OrderPaymentReconciliation } from "@/lib/order-payment-stats"
+import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 
 type OrderPaymentsPayload = {
   allTime: OrderPaymentAggregate
   inPeriod: OrderPaymentPeriodBreakdown
-  reconciliation: OrderPaymentReconciliation
 }
 
 type Breakdown = {
@@ -68,7 +67,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "clientPayments", label: "Client payments (period)", side: "in", defaultOn: true },
   { key: "posSales", label: "POS sales", side: "in", defaultOn: true },
   { key: "incomeRecords", label: "Income records", side: "in", defaultOn: true },
-  { key: "loans", label: "Loans", side: "in", defaultOn: true },
+  { key: "loans", label: "Loans received", side: "in", defaultOn: true },
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries", side: "out", defaultOn: true },
   { key: "localPurchases", label: "Local purchases", side: "out", defaultOn: true },
@@ -457,27 +456,40 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
             </div>
           </div>
 
-          {orderPayments.reconciliation.reasons.length > 0 && (
-            <div className="rounded-lg border border-[#1faca6]/20 bg-[hsl(var(--background))]/50 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
-                Why CRM and {periodLabel.toLowerCase()} cash snapshot differ
-              </p>
-              <ul className="space-y-1.5 text-[11px] text-[hsl(var(--muted-foreground))] leading-relaxed list-disc pl-4">
-                {orderPayments.reconciliation.reasons.map((reason, i) => (
-                  <li key={i}>{reason}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
+
+      <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-amber-900 font-semibold">
+              Loans — money in ({periodLabel.toLowerCase()})
+            </p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums text-amber-900 mt-1">
+              {fmt(breakdown.moneyIn.loans, 2)}
+            </p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 max-w-xl leading-relaxed">
+              Record each loan under Finance → Records & Petty Cash → Finance Records, category{" "}
+              <strong className="font-medium text-[hsl(var(--foreground))]">Loan</strong>. Use the toggle
+              below to include or exclude loans from Money in.
+            </p>
+          </div>
+          <Link
+            href="/finance?tab=manage&section=finance&add=loan"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-600/40 bg-white/80 px-4 py-2.5 text-xs font-semibold text-amber-900 hover:bg-amber-50 transition-colors shrink-0"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add loan record
+          </Link>
+        </div>
+      </div>
 
       <div className="rounded-2xl border bg-gradient-to-br from-[#1faca6]/12 via-[hsl(var(--card))] to-transparent p-4 sm:p-5 space-y-4">
         <div className="flex items-center gap-2">
           <p className="text-[11px] sm:text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
             {periodLabel} — cash snapshot
           </p>
-          <Hint text="Totals follow the include toggles below. Imported purchases and import shipments are off by default. Hover each card for a line-by-line split. Add loans as finance records with category Loan." />
+          <Hint text="Totals follow the include toggles below. Toggle Loans received to add or remove loan records from Money in." />
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
