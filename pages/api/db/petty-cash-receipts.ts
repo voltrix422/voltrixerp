@@ -46,10 +46,39 @@ async function ensurePersonalLedger(data: {
   })
 }
 
+function sanitizeReceiptForList<T extends { receiptProof?: string | null; receiptProofName?: string | null }>(
+  receipt: T,
+) {
+  const proof = receipt.receiptProof?.trim()
+  const hasReceiptProof = Boolean(proof || receipt.receiptProofName?.trim())
+  const isUrl =
+    proof &&
+    (proof.startsWith("/") || proof.startsWith("http://") || proof.startsWith("https://")) &&
+    proof.length < 2048
+  const { receiptProof: _omit, ...rest } = receipt
+  return {
+    ...rest,
+    hasReceiptProof,
+    receiptProof: isUrl ? proof : undefined,
+  }
+}
+
+function sanitizeReceiptsForBulk<T extends { receiptProof?: string | null; receiptProofName?: string | null }>(
+  receipts: T[],
+) {
+  return receipts.map(sanitizeReceiptForList)
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
-      const { allocationId } = req.query
+      const { allocationId, id } = req.query
+
+      if (id && typeof id === 'string') {
+        const receipt = await prisma.erpPettyCashReceipt.findUnique({ where: { id } })
+        if (!receipt) return res.status(404).json({ error: 'Receipt not found' })
+        return res.status(200).json(receipt)
+      }
 
       const listSelect = {
         id: true,
@@ -58,7 +87,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         description: true,
         category: true,
         amount: true,
-        receiptProof: true,
         receiptProofName: true,
         notes: true,
         status: true,
@@ -74,14 +102,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           where: { allocationId: allocationId as string },
           orderBy: { submittedAt: 'desc' },
         })
-      } else {
-        receipts = await prisma.erpPettyCashReceipt.findMany({
-          select: listSelect,
-          orderBy: { submittedAt: 'desc' },
-        })
+        return res.status(200).json(sanitizeReceiptsForBulk(receipts))
       }
 
-      return res.status(200).json(receipts)
+      receipts = await prisma.erpPettyCashReceipt.findMany({
+        select: listSelect,
+        orderBy: { submittedAt: 'desc' },
+      })
+      return res.status(200).json(
+        receipts.map(r => ({
+          ...r,
+          hasReceiptProof: Boolean(r.receiptProofName?.trim()),
+        })),
+      )
     }
 
     if (req.method === 'POST') {

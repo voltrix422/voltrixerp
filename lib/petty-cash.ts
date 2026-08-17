@@ -62,6 +62,8 @@ export interface PettyCashReceipt {
   reviewedBy?: string
   reviewedAt?: string
   reviewNotes?: string
+  /** Set on list API when proof exists but blob is omitted for performance */
+  hasReceiptProof?: boolean
 }
 
 export async function getPettyCashAllocations(): Promise<PettyCashAllocation[]> {
@@ -205,6 +207,12 @@ export async function getPettyCashReceipts(allocationId?: string): Promise<Petty
     : '/api/db/petty-cash-receipts'
   const res = await fetch(url)
   if (!res.ok) throw new Error('Failed to fetch petty cash receipts')
+  return res.json()
+}
+
+export async function getPettyCashReceiptById(id: string): Promise<PettyCashReceipt> {
+  const res = await fetch(`/api/db/petty-cash-receipts?id=${encodeURIComponent(id)}`)
+  if (!res.ok) throw new Error('Failed to fetch receipt proof')
   return res.json()
 }
 

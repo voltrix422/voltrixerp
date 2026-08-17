@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getPettyCashAllocations, getPettyCashReceipts, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, rejectPettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
+import { getPettyCashAllocations, getPettyCashReceipts, getPettyCashReceiptById, updatePettyCashAllocationStatus, updatePettyCashReceiptStatus, rejectPettyCashAllocation, type PettyCashAllocation, type PettyCashReceipt } from "@/lib/petty-cash"
 import { PettyCashAllocation as PettyCashAllocationForm } from "./petty-cash-allocation"
 import { PettyCashReceipt as PettyCashReceiptForm } from "./petty-cash-receipt"
 import { PettyCashAllocationDetail } from "./petty-cash-allocation-detail"
@@ -57,6 +57,7 @@ export function PettyCashDashboard() {
   const [allocations, setAllocations] = useState<PettyCashAllocation[]>([])
   const [receipts, setReceipts] = useState<PettyCashReceipt[]>([])
   const [loading, setLoading] = useState(true)
+  const [receiptsLoading, setReceiptsLoading] = useState(true)
   const [showAllocationForm, setShowAllocationForm] = useState(false)
   const [showReceiptForm, setShowReceiptForm] = useState(false)
   const [showRequestForm, setShowRequestForm] = useState(false)
@@ -85,31 +86,37 @@ export function PettyCashDashboard() {
 
   async function loadData() {
     setLoading(true)
+    setReceiptsLoading(true)
     try {
-      const timeoutMs = 15000
-      const dataPromise = Promise.all([
-        getPettyCashAllocations(),
-        getPettyCashReceipts(),
-      ])
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Petty cash load timed out")), timeoutMs)
-      })
-      const [allocationsData, receiptsData] = await Promise.race([dataPromise, timeoutPromise])
+      const allocationsData = await getPettyCashAllocations()
       setAllocations(allocationsData)
-      setReceipts(receiptsData)
       setSelectedAllocation(prev => {
         if (!prev) return prev
         return allocationsData.find(a => a.id === prev.id) ?? prev
       })
     } catch (error) {
-      console.error("Error loading petty cash data:", error)
+      console.error("Error loading petty cash allocations:", error)
       toast({
         title: "Error",
-        message: error instanceof Error ? error.message : "Failed to load petty cash data",
+        message: error instanceof Error ? error.message : "Failed to load petty cash allocations",
         type: "error",
       })
     } finally {
       setLoading(false)
+    }
+
+    try {
+      const receiptsData = await getPettyCashReceipts()
+      setReceipts(receiptsData)
+    } catch (error) {
+      console.error("Error loading petty cash receipts:", error)
+      toast({
+        title: "Warning",
+        message: error instanceof Error ? error.message : "Receipts could not be loaded — try Refresh",
+        type: "error",
+      })
+    } finally {
+      setReceiptsLoading(false)
     }
   }
 
@@ -271,6 +278,23 @@ export function PettyCashDashboard() {
     : user?.modules[0]
       ? MODULE_LABELS[user.modules[0]]
       : "Employee"
+
+  async function openReceiptProof(receipt: PettyCashReceipt) {
+    if (receipt.receiptProof) {
+      window.open(receipt.receiptProof, "_blank", "noopener,noreferrer")
+      return
+    }
+    try {
+      const full = await getPettyCashReceiptById(receipt.id)
+      if (full.receiptProof) {
+        window.open(full.receiptProof, "_blank", "noopener,noreferrer")
+      } else {
+        toast({ title: "No proof", message: "This receipt has no attachment on file.", type: "error" })
+      }
+    } catch {
+      toast({ title: "Error", message: "Could not load receipt proof.", type: "error" })
+    }
+  }
 
   if (loading) {
     return (
@@ -791,16 +815,15 @@ export function PettyCashDashboard() {
                         {new Date(receipt.submittedAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-center">
-                        {receipt.receiptProof ? (
-                          <a
-                            href={receipt.receiptProof}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {receipt.receiptProof || receipt.hasReceiptProof ? (
+                          <button
+                            type="button"
+                            onClick={() => void openReceiptProof(receipt)}
                             className="inline-flex items-center justify-center text-[#1faca6] hover:text-[#1faca6]/80"
                             title={receipt.receiptProofName || "View receipt proof"}
                           >
                             <FileText className="h-3.5 w-3.5" />
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-[hsl(var(--muted-foreground))]">—</span>
                         )}

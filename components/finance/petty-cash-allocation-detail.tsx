@@ -4,6 +4,7 @@ import {
   PettyCashAllocation,
   PettyCashReceipt,
   getPettyCashReceipts,
+  getPettyCashReceiptById,
   createPettyCashReceipt,
   updatePettyCashAllocationStatus,
   updatePettyCashReceiptStatus,
@@ -436,16 +437,20 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                       <p className="text-sm font-bold text-red-600">
                         {formatPettyCashExpense(receipt.amount)}
                       </p>
-                      {receipt.receiptProof && (
-                        <a
-                          href={receipt.receiptProof}
-                          target="_blank"
-                          rel="noreferrer"
+                      {(receipt.receiptProof || receipt.hasReceiptProof) && (
+                        <button
+                          type="button"
                           className="inline-flex items-center gap-1 text-xs text-[#1faca6] hover:underline"
+                          onClick={async () => {
+                            const url =
+                              receipt.receiptProof ||
+                              (await getPettyCashReceiptById(receipt.id)).receiptProof
+                            if (url) window.open(url, "_blank", "noopener,noreferrer")
+                          }}
                         >
                           <FileText className="h-3 w-3" />
                           {receipt.receiptProofName || "View receipt proof"}
-                        </a>
+                        </button>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -837,9 +842,9 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                               <span>By: {receipt.reviewedBy}</span>
                             )}
                           </div>
-                          {receipt.receiptProof && (
+                          {(receipt.receiptProof || receipt.hasReceiptProof) && (
                             <div className="mt-2">
-                              {isImage(receipt.receiptProof) ? (
+                              {receipt.receiptProof && isImage(receipt.receiptProof) ? (
                                 <a href={receipt.receiptProof} target="_blank" rel="noopener noreferrer" className="inline-block">
                                   <img
                                     src={receipt.receiptProof}
@@ -847,26 +852,20 @@ export function PettyCashAllocationDetail({ allocation, currentUser, currentUser
                                     className="max-h-28 rounded border object-contain"
                                   />
                                 </a>
-                              ) : isPdf(receipt.receiptProof) ? (
-                                <a
-                                  href={receipt.receiptProof}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                >
-                                  <FileText className="h-3 w-3" />
-                                  Open PDF Proof
-                                </a>
                               ) : (
-                                <a
-                                  href={receipt.receiptProof}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  type="button"
                                   className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                  onClick={async () => {
+                                    const url =
+                                      receipt.receiptProof ||
+                                      (await getPettyCashReceiptById(receipt.id)).receiptProof
+                                    if (url) window.open(url, "_blank", "noopener,noreferrer")
+                                  }}
                                 >
                                   <FileText className="h-3 w-3" />
-                                  View Proof
-                                </a>
+                                  {receipt.receiptProofName || "View proof"}
+                                </button>
                               )}
                             </div>
                           )}
