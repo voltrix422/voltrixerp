@@ -183,7 +183,6 @@ export async function GET(req: NextRequest) {
           if (amount <= 0) continue
           const d = new Date(p.date || row.createdAt)
           if (inRange(d, start, end)) {
-            clientReceivedInPeriod += amount
             const method = p.method || "Other"
             paymentMethodTotals[method] = (paymentMethodTotals[method] || 0) + amount
           }
@@ -304,9 +303,44 @@ export async function GET(req: NextRequest) {
     const pettyTotal = pettyAllocations.reduce((s, a) => s + a.amount, 0)
     const pettyRemaining = Math.max(0, pettyTotal - pettyReceipts.reduce((s, r) => s + r.amount, 0))
 
+    const statsOrders: OrderPaymentStatsOrder[] = orders
+      .filter(row =>
+        isCrmErpOrderForPaymentStats({
+          source: row.source,
+          notes: row.notes,
+          branchId: (row as { branchId?: string | null }).branchId,
+        }),
+      )
+      .map(row => ({
+        status: row.status as Order["status"],
+        payments: parseOrderPayments(row.payments),
+        total: row.total,
+        paymentTerms: (row.paymentTerms as Order["paymentTerms"]) ?? "full",
+        creditApprovedAt: row.creditApprovedAt ?? undefined,
+        returnPayments: Array.isArray(row.returnPayments)
+          ? (row.returnPayments as unknown as Order["returnPayments"])
+          : [],
+        cashbackPayments: parseOrderCashbackPayments((row as { cashbackPayments?: unknown }).cashbackPayments),
+        items: row.items as unknown as Order["items"],
+        returnLines: (row as { returnLines?: unknown }).returnLines as Order["returnLines"],
+        taxPercent: row.taxPercent ?? undefined,
+        createdAt: row.createdAt,
+      }))
+
+    const orderPaymentsAllTime = aggregateOrderPaymentStats(statsOrders)
+    const orderPaymentsInPeriod = aggregateOrderPaymentsInPeriod(statsOrders, start, end)
+    const orderPaymentsReconciliation = buildOrderPaymentReconciliation(
+      orderPaymentsAllTime,
+      orderPaymentsInPeriod,
+      periodLabel,
+    )
+
+    // Same CRM-aligned logic as orderPayments panel (excludes returned orders, Branch POS).
+    clientReceivedInPeriod = orderPaymentsInPeriod.approvedInPeriod
+
     const breakdown = {
       moneyIn: {
-        clientPayments: clientReceivedInPeriod,
+        clientPayments: orderPaymentsInPeriod.approvedInPeriod,
         posSales: posSalesInPeriod,
         incomeRecords: incomeRecordsInPeriod,
         loans: loansInPeriod,
@@ -472,38 +506,6 @@ export async function GET(req: NextRequest) {
     }
 
     activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
-    const statsOrders: OrderPaymentStatsOrder[] = orders
-      .filter(row =>
-        isCrmErpOrderForPaymentStats({
-          source: row.source,
-          notes: row.notes,
-          branchId: (row as { branchId?: string | null }).branchId,
-        }),
-      )
-      .map(row => ({
-      status: row.status as Order["status"],
-      payments: parseOrderPayments(row.payments),
-      total: row.total,
-      paymentTerms: (row.paymentTerms as Order["paymentTerms"]) ?? "full",
-      creditApprovedAt: row.creditApprovedAt ?? undefined,
-      returnPayments: Array.isArray(row.returnPayments)
-        ? (row.returnPayments as unknown as Order["returnPayments"])
-        : [],
-      cashbackPayments: parseOrderCashbackPayments((row as { cashbackPayments?: unknown }).cashbackPayments),
-      items: row.items as unknown as Order["items"],
-      returnLines: (row as { returnLines?: unknown }).returnLines as Order["returnLines"],
-      taxPercent: row.taxPercent ?? undefined,
-      createdAt: row.createdAt,
-    }))
-
-    const orderPaymentsAllTime = aggregateOrderPaymentStats(statsOrders)
-    const orderPaymentsInPeriod = aggregateOrderPaymentsInPeriod(statsOrders, start, end)
-    const orderPaymentsReconciliation = buildOrderPaymentReconciliation(
-      orderPaymentsAllTime,
-      orderPaymentsInPeriod,
-      periodLabel,
-    )
 
     return NextResponse.json({
       periodLabel,

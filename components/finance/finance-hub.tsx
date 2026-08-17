@@ -1,10 +1,8 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo, type ReactNode } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import Link from "next/link"
-import {
-  ArrowRight, Loader2, TrendingUp, TrendingDown, RefreshCw, CircleHelp, ListTree, Plus,
-} from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, ListTree, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 
@@ -38,7 +36,6 @@ type Summary = {
   moneyIn: number
   moneyOut: number
   netCashFlow: number
-  cashbackInPeriod?: number
   breakdown?: Breakdown
 }
 
@@ -64,7 +61,7 @@ type ToggleDef = {
 }
 
 const TOGGLES: ToggleDef[] = [
-  { key: "clientPayments", label: "Client payments (period)", side: "in", defaultOn: true },
+  { key: "clientPayments", label: "Client payments", side: "in", defaultOn: true },
   { key: "posSales", label: "POS sales", side: "in", defaultOn: true },
   { key: "incomeRecords", label: "Income records", side: "in", defaultOn: true },
   { key: "loans", label: "Loans received", side: "in", defaultOn: true },
@@ -87,9 +84,9 @@ function fmt(n: number, decimals = 0) {
 }
 
 const PERIODS = [
-  { id: "month", label: "This month", hint: "From the 1st of this month through today." },
-  { id: "last_month", label: "Last month", hint: "The full previous calendar month." },
-  { id: "year", label: "This year", hint: "From 1 January this year through today." },
+  { id: "month", label: "This month" },
+  { id: "last_month", label: "Last month" },
+  { id: "year", label: "This year" },
 ]
 
 function emptyBreakdown(): Breakdown {
@@ -113,45 +110,40 @@ function amountFor(b: Breakdown, key: ToggleKey): number {
   return b.moneyOut[key as keyof Breakdown["moneyOut"]] as number
 }
 
-function Hint({ text, children }: { text: string; children?: ReactNode }) {
+function ToggleChip({
+  on,
+  label,
+  amount,
+  onClick,
+}: {
+  on: boolean
+  label: string
+  amount?: number
+  onClick: () => void
+}) {
   return (
-    <span className="relative inline-flex items-center group/hint">
-      {children ?? (
-        <CircleHelp className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]/70 group-hover/hint:text-[#1faca6] transition-colors" />
-      )}
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 w-64 -translate-x-1/2 rounded-lg border bg-[hsl(var(--popover))] px-3 py-2 text-left text-[11px] leading-relaxed text-[hsl(var(--popover-foreground))] shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover/hint:opacity-100 group-hover/hint:translate-y-0"
-      >
-        {text}
-      </span>
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+        on
+          ? "border-[hsl(var(--foreground))]/40 bg-[hsl(var(--muted))]/30 text-[hsl(var(--foreground))]"
+          : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] opacity-60"
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full border ${on ? "bg-[hsl(var(--foreground))] border-[hsl(var(--foreground))]" : "border-[hsl(var(--muted-foreground))]"}`} />
+      {label}
+      {amount != null && <span className="tabular-nums opacity-70">{fmt(amount, 2)}</span>}
+    </button>
   )
 }
 
-function BreakdownTooltip({
-  lines,
-  emptyLabel,
-}: {
-  lines: { label: string; amount: number; on: boolean }[]
-  emptyLabel: string
-}) {
-  const shown = lines.filter(l => l.on)
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <span className="pointer-events-none absolute left-3 right-3 top-full z-30 mt-2 rounded-lg border bg-[hsl(var(--popover))] px-3 py-2.5 text-[11px] leading-relaxed text-[hsl(var(--popover-foreground))] shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover/snap:opacity-100 group-hover/snap:translate-y-0">
-      {shown.length === 0 ? (
-        <p className="text-[hsl(var(--muted-foreground))]">{emptyLabel}</p>
-      ) : (
-        <ul className="space-y-1">
-          {shown.map(l => (
-            <li key={l.label} className="flex items-center justify-between gap-3">
-              <span className="text-[hsl(var(--muted-foreground))]">{l.label}</span>
-              <span className="tabular-nums font-medium shrink-0">{fmt(l.amount)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </span>
+    <div className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="text-[hsl(var(--muted-foreground))]">{label}</span>
+      <span className="tabular-nums font-medium shrink-0">{value}</span>
+    </div>
   )
 }
 
@@ -233,462 +225,269 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
 
   if (loading && !summary) {
     return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-[#1faca6]" />
+      <div className="flex justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-500/5 p-6 text-center space-y-3">
-        <p className="text-sm text-red-700">{error}</p>
+      <div className="rounded-lg border p-6 text-center space-y-3">
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">{error}</p>
         <Button size="sm" variant="outline" onClick={load}>Retry</Button>
       </div>
     )
   }
 
-  if (!summary) return null
+  if (!summary || !orderPayments) return null
 
-  const orderReceived = orderPayments?.allTime.totalReceived ?? 0
-  const orderOutstanding = orderPayments?.allTime.totalOutstanding ?? 0
-  const orderDisplayTotal = includeOutstanding ? orderReceived + orderOutstanding : orderReceived
+  const periodReceived = orderPayments.inPeriod.approvedInPeriod
+  const allTimeReceived = orderPayments.allTime.totalReceived
+  const outstanding = orderPayments.allTime.totalOutstanding
+  const loansInPeriod = breakdown.moneyIn.loans
 
-  const snapshot = [
-    {
-      label: "Money in",
-      value: fmt(moneyIn),
-      detail: inLines.filter(l => l.on).map(l => l.label).join(" · ") || "Nothing selected",
-      icon: TrendingUp,
-      tone: "in" as const,
-      lines: inLines,
-      emptyLabel: "Turn on at least one money-in source below.",
-    },
-    {
-      label: "Money out",
-      value: fmt(moneyOut),
-      detail: outLines.filter(l => l.on).map(l => l.label).join(" · ") || "Nothing selected",
-      icon: TrendingDown,
-      tone: "out" as const,
-      lines: outLines,
-      emptyLabel: "Turn on at least one money-out source below.",
-    },
-    {
-      label: "Net / profit",
-      value: fmt(net),
-      detail: "Money in − money out (using toggles below). Cash snapshot, not accounting profit.",
-      icon: net >= 0 ? TrendingUp : TrendingDown,
-      tone: net >= 0 ? ("net-pos" as const) : ("net-neg" as const),
-      lines: [
-        { label: "Money in (selected)", amount: moneyIn, on: true },
-        { label: "Money out (selected)", amount: moneyOut, on: true },
-        { label: "Net", amount: net, on: true },
-      ],
-      emptyLabel: "",
-    },
-  ]
+  const displayTotal =
+    periodReceived +
+    (enabled.loans ? loansInPeriod : 0) +
+    (includeOutstanding ? outstanding : 0)
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex w-full sm:w-auto rounded-xl border bg-[hsl(var(--muted))]/20 p-0.5">
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex rounded-lg border p-0.5">
           {PERIODS.map(p => (
             <button
               key={p.id}
               type="button"
-              title={p.hint}
               onClick={() => setPeriod(p.id)}
-              className={`group/period relative flex-1 sm:flex-none px-2.5 sm:px-3 py-2 sm:py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-colors cursor-pointer text-center ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 period === p.id
-                  ? "bg-[#1faca6] text-white shadow-sm"
-                  : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--background))] hover:text-[hsl(var(--foreground))]"
+                  ? "border border-[hsl(var(--foreground))]/20 bg-[hsl(var(--muted))]/40"
+                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
             >
               {p.label}
-              <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 w-52 -translate-x-1/2 rounded-lg border bg-[hsl(var(--popover))] px-3 py-2 text-left text-[11px] leading-relaxed text-[hsl(var(--popover-foreground))] shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover/period:opacity-100 group-hover/period:translate-y-0">
-                {p.hint}
-              </span>
             </button>
           ))}
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 sm:flex-none h-9 sm:h-8 gap-1.5"
-            onClick={() => setShowDetails(v => !v)}
-            title="Show every bucket with amounts"
-          >
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={() => setShowDetails(v => !v)}>
             <ListTree className="h-3.5 w-3.5" />
-            {showDetails ? "Hide details" : "Details"}
+            {showDetails ? "Hide" : "Details"}
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 sm:flex-none h-9 sm:h-8 gap-1.5"
-            onClick={load}
-            disabled={loading}
-            title="Reload live numbers from the database."
-          >
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={load} disabled={loading}>
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             Refresh
           </Button>
         </div>
       </div>
 
-      {orderPayments && (
-        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 sm:p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-            <div>
-              <p className="text-[11px] sm:text-xs font-semibold text-emerald-900 uppercase tracking-wider">
-                Order payments — matches CRM Orders
-              </p>
-              <p className="text-[10px] sm:text-[11px] text-[hsl(var(--muted-foreground))] mt-1 max-w-2xl leading-relaxed">
-                Same totals as CRM → Orders → &quot;Money received from clients&quot;. Period row below uses payment date for {periodLabel.toLowerCase()}.
-              </p>
-            </div>
-            <Link
-              href="/crm?tab=orders"
-              className="text-[11px] text-[#1faca6] hover:underline inline-flex items-center gap-1 shrink-0"
-            >
-              Open CRM Orders <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-emerald-500/30 bg-[hsl(var(--background))]/80 p-3.5 sm:col-span-2">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold">
-                  Money received (matches CRM)
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setIncludeOutstanding(v => !v)}
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors shrink-0 ${
-                    includeOutstanding
-                      ? "border-amber-500/50 bg-amber-500/10 text-amber-800"
-                      : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40"
-                  }`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${includeOutstanding ? "bg-amber-600" : "bg-emerald-600"}`} />
-                  {includeOutstanding ? "Including outstanding" : "+ Still outstanding"}
-                </button>
-              </div>
-              <p className="text-xl sm:text-2xl font-bold tabular-nums text-emerald-800 mt-1">
-                {fmt(orderDisplayTotal, 2)}
-              </p>
-              {includeOutstanding ? (
-                <p className="text-[10px] text-amber-800 mt-1 tabular-nums">
-                  Received {fmt(orderReceived, 2)} + owed {fmt(orderOutstanding, 2)}
-                </p>
-              ) : (
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                  {orderPayments.allTime.orderCount} ERP client orders · excl. Branch POS · same as CRM Paid total
-                </p>
-              )}
-            </div>
-            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                {periodLabel} — approved cash in
-              </p>
-              <p className="text-lg sm:text-xl font-bold tabular-nums text-emerald-800 mt-1">
-                {fmt(orderPayments.inPeriod.approvedInPeriod, 2)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                Payment date in period · Client payments toggle
-              </p>
-            </div>
-            <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5">
-              <p className="text-[10px] uppercase tracking-wider text-amber-700">Still outstanding</p>
-              <p className="text-lg sm:text-xl font-bold tabular-nums text-amber-800 mt-1">
-                {fmt(orderPayments.allTime.totalOutstanding, 2)}
-              </p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                Unpaid on active orders
-              </p>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-3 text-xs">
-            <div className="rounded-lg border bg-[hsl(var(--background))]/60 p-3 space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                All-time breakdown (received)
-              </p>
-              <div className="flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Delivered fully paid</span>
-                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.deliveredFullyPaidReceived, 2)}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Partial payments</span>
-                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.partialPaymentsReceived, 2)}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Credit installments</span>
-                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.creditPaymentsReceived, 2)}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Other (confirmed / in progress)</span>
-                <span className="tabular-nums font-medium">{fmt(orderPayments.allTime.otherPaymentsReceived, 2)}</span>
-              </div>
-            </div>
-            <div className="rounded-lg border bg-[hsl(var(--background))]/60 p-3 space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                {periodLabel} — by payment date
-              </p>
-              <div className="flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Delivered fully paid</span>
-                <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.deliveredFullyPaidInPeriod, 2)}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Partial / credit</span>
-                <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.partialPaymentsInPeriod, 2)}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Other</span>
-                <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.otherPaymentsInPeriod, 2)}</span>
-              </div>
-              {orderPayments.inPeriod.pendingApprovalInPeriod > 0.004 && (
-                <div className="flex justify-between gap-2 text-amber-800">
-                  <span>Pending approval (not in cash snapshot)</span>
-                  <span className="tabular-nums font-medium">{fmt(orderPayments.inPeriod.pendingApprovalInPeriod, 2)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* Client receipts */}
+      <section className="rounded-lg border">
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-amber-900 font-semibold">
-              Loans — money in ({periodLabel.toLowerCase()})
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tabular-nums text-amber-900 mt-1">
-              {fmt(breakdown.moneyIn.loans, 2)}
-            </p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 max-w-xl leading-relaxed">
-              Record each loan under Finance → Records & Petty Cash → Finance Records, category{" "}
-              <strong className="font-medium text-[hsl(var(--foreground))]">Loan</strong>. Use the toggle
-              below to include or exclude loans from Money in.
+            <p className="text-xs font-semibold">Client receipts</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              Matches CRM Orders · {orderPayments.allTime.orderCount} orders · excl. Branch POS
             </p>
           </div>
-          <Link
-            href="/finance?tab=manage&section=finance&add=loan"
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-600/40 bg-white/80 px-4 py-2.5 text-xs font-semibold text-amber-900 hover:bg-amber-50 transition-colors shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add loan record
+          <Link href="/crm?tab=orders" className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-1">
+            CRM <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
-      </div>
 
-      <div className="rounded-2xl border bg-gradient-to-br from-[#1faca6]/12 via-[hsl(var(--card))] to-transparent p-4 sm:p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <p className="text-[11px] sm:text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
-            {periodLabel} — cash snapshot
-          </p>
-          <Hint text="Totals follow the include toggles below. Toggle Loans received to add or remove loan records from Money in." />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-          {snapshot.map(s => {
-            const Icon = s.icon
-            const valueClass =
-              s.tone === "in"
-                ? "text-emerald-700"
-                : s.tone === "out"
-                  ? "text-red-700"
-                  : s.tone === "net-pos"
-                    ? "text-[#1faca6]"
-                    : "text-red-700"
-            const iconClass =
-              s.tone === "in" || s.tone === "net-pos"
-                ? "text-emerald-600"
-                : "text-red-600"
-            return (
-              <div
-                key={s.label}
-                className="group/snap relative rounded-xl border bg-[hsl(var(--background))]/70 p-3.5 transition-all hover:border-[#1faca6]/40 hover:shadow-md hover:-translate-y-0.5"
-              >
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))] flex items-center gap-1.5">
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${iconClass}`} />
-                  {s.label}
-                </p>
-                <p className={`text-xl sm:text-2xl font-bold tabular-nums break-words leading-snug mt-1.5 ${valueClass}`}>
-                  {s.value}
-                </p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed line-clamp-2">
-                  {s.detail}
-                </p>
-                {s.label === "Net / profit" && (
-                  <Link
-                    href="/finance?tab=reports"
-                    className="text-[10px] text-[#1faca6] hover:underline mt-2 inline-flex items-center gap-1"
-                  >
-                    View full reports <ArrowRight className="h-3 w-3" />
-                  </Link>
-                )}
-                <BreakdownTooltip lines={s.lines} emptyLabel={s.emptyLabel} />
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="space-y-3 pt-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))] font-semibold">
-              Include in totals
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => setEnabled(defaultEnabled())}
-                className="text-[10px] px-2 py-1 rounded-md border text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/40"
-              >
-                Reset defaults
-              </button>
-              <button
-                type="button"
-                onClick={() => setSide("in", true)}
-                className="text-[10px] px-2 py-1 rounded-md border text-emerald-700 hover:bg-emerald-500/10"
-              >
-                All in
-              </button>
-              <button
-                type="button"
-                onClick={() => setSide("out", true)}
-                className="text-[10px] px-2 py-1 rounded-md border text-red-700 hover:bg-red-500/10"
-              >
-                All out
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-[10px] text-emerald-700/80 font-medium">Money in</p>
-            <div className="flex flex-wrap gap-1.5">
-              {TOGGLES.filter(t => t.side === "in").map(t => {
-                const on = enabled[t.key]
-                const amt = amountFor(breakdown, t.key)
-                return (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => toggle(t.key)}
-                    title={`${t.label}: ${fmt(amt)}. Click to ${on ? "exclude" : "include"}.`}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] transition-colors ${
-                      on
-                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-800"
-                        : "bg-[hsl(var(--muted))]/20 text-[hsl(var(--muted-foreground))] opacity-70"
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${on ? "bg-emerald-600" : "bg-[hsl(var(--muted-foreground))]"}`} />
-                    {t.label}
-                    <span className="tabular-nums text-[10px] opacity-80">{fmt(amt)}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-[10px] text-red-700/80 font-medium">Money out</p>
-            <div className="flex flex-wrap gap-1.5">
-              {TOGGLES.filter(t => t.side === "out").map(t => {
-                const on = enabled[t.key]
-                const amt = amountFor(breakdown, t.key)
-                return (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => toggle(t.key)}
-                    title={`${t.label}: ${fmt(amt)}. Click to ${on ? "exclude" : "include"}.`}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] transition-colors ${
-                      on
-                        ? "bg-red-500/10 border-red-500/35 text-red-800"
-                        : "bg-[hsl(var(--muted))]/20 text-[hsl(var(--muted-foreground))] opacity-70"
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${on ? "bg-red-600" : "bg-[hsl(var(--muted-foreground))]"}`} />
-                    {t.label}
-                    <span className="tabular-nums text-[10px] opacity-80">{fmt(amt)}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {showDetails && (
-          <div className="rounded-xl border bg-[hsl(var(--background))]/80 p-3.5 space-y-4">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-2">
-                  Money in detail
-                </p>
-                <ul className="space-y-1.5">
-                  {inLines.map(l => (
-                    <li
-                      key={l.key}
-                      className={`flex items-center justify-between gap-2 text-xs ${l.on ? "" : "opacity-45 line-through"}`}
-                    >
-                      <span className="text-[hsl(var(--muted-foreground))]">{l.label}</span>
-                      <span className="tabular-nums font-medium text-emerald-800">{fmt(l.amount)}</span>
-                    </li>
-                  ))}
-                  <li className="flex items-center justify-between gap-2 text-xs pt-1.5 border-t font-semibold">
-                    <span>Total in</span>
-                    <span className="tabular-nums text-emerald-800">{fmt(moneyIn)}</span>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-red-700 font-semibold mb-2">
-                  Money out detail
-                </p>
-                <ul className="space-y-1.5">
-                  {outLines.map(l => (
-                    <li
-                      key={l.key}
-                      className={`flex items-center justify-between gap-2 text-xs ${l.on ? "" : "opacity-45 line-through"}`}
-                    >
-                      <span className="text-[hsl(var(--muted-foreground))]">
-                        {l.label}
-                        {l.key === "advances" && breakdown.moneyOut.supplierAdvances != null && (
-                          <span className="block text-[10px] font-normal">
-                            Supplier {fmt(breakdown.moneyOut.supplierAdvances || 0)} · Salary{" "}
-                            {fmt(breakdown.moneyOut.salaryAdvances || 0)}
-                          </span>
-                        )}
-                      </span>
-                      <span className="tabular-nums font-medium text-red-800 shrink-0">{fmt(l.amount)}</span>
-                    </li>
-                  ))}
-                  <li className="flex items-center justify-between gap-2 text-xs pt-1.5 border-t font-semibold">
-                    <span>Total out</span>
-                    <span className="tabular-nums text-red-800">{fmt(moneyOut)}</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2 rounded-lg border bg-[hsl(var(--muted))]/20 px-3 py-2.5">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                  Net / profit (selected)
-                </p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                  In − out for {periodLabel.toLowerCase()} with current toggles
-                </p>
-              </div>
-              <p className={`text-lg font-bold tabular-nums ${net >= 0 ? "text-[#1faca6]" : "text-red-700"}`}>
-                {fmt(net)}
+        <div className="p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                {periodLabel} — received
               </p>
+              <p className="text-2xl font-semibold tabular-nums mt-0.5">{fmt(displayTotal, 2)}</p>
+              {(enabled.loans || includeOutstanding) && (
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
+                  Client {fmt(periodReceived, 2)}
+                  {enabled.loans && loansInPeriod > 0 ? ` + loans ${fmt(loansInPeriod, 2)}` : ""}
+                  {includeOutstanding ? ` + outstanding ${fmt(outstanding, 2)}` : ""}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <ToggleChip
+                on={includeOutstanding}
+                label="+ Still outstanding"
+                amount={outstanding}
+                onClick={() => setIncludeOutstanding(v => !v)}
+              />
+              <ToggleChip
+                on={enabled.loans}
+                label="+ Loans"
+                amount={loansInPeriod}
+                onClick={() => toggle("loans")}
+              />
+              <Link
+                href="/finance?tab=manage&section=finance&add=loan"
+                className="inline-flex items-center gap-1 rounded-md border border-[hsl(var(--border))] px-2 py-1 text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              >
+                <Plus className="h-3 w-3" /> Add loan
+              </Link>
             </div>
           </div>
-        )}
-      </div>
+
+          <div className="grid sm:grid-cols-3 gap-px rounded-lg border overflow-hidden bg-[hsl(var(--border))]">
+            <div className="bg-[hsl(var(--card))] p-3">
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{periodLabel} cash in</p>
+              <p className="text-sm font-semibold tabular-nums mt-1">{fmt(periodReceived, 2)}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Payment date in period</p>
+            </div>
+            <div className="bg-[hsl(var(--card))] p-3">
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">All-time received</p>
+              <p className="text-sm font-semibold tabular-nums mt-1">{fmt(allTimeReceived, 2)}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">CRM Paid total</p>
+            </div>
+            <div className="bg-[hsl(var(--card))] p-3">
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Still outstanding</p>
+              <p className="text-sm font-semibold tabular-nums mt-1">{fmt(outstanding, 2)}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Unpaid on active orders</p>
+            </div>
+          </div>
+
+          {showDetails && (
+            <div className="grid sm:grid-cols-2 gap-3 pt-1">
+              <div className="rounded-lg border p-3 space-y-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
+                  All-time breakdown
+                </p>
+                <Row label="Delivered fully paid" value={fmt(orderPayments.allTime.deliveredFullyPaidReceived, 2)} />
+                <Row label="Partial payments" value={fmt(orderPayments.allTime.partialPaymentsReceived, 2)} />
+                <Row label="Credit installments" value={fmt(orderPayments.allTime.creditPaymentsReceived, 2)} />
+                <Row label="Other" value={fmt(orderPayments.allTime.otherPaymentsReceived, 2)} />
+              </div>
+              <div className="rounded-lg border p-3 space-y-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">
+                  {periodLabel} by payment date
+                </p>
+                <Row label="Delivered fully paid" value={fmt(orderPayments.inPeriod.deliveredFullyPaidInPeriod, 2)} />
+                <Row label="Partial / credit" value={fmt(orderPayments.inPeriod.partialPaymentsInPeriod, 2)} />
+                <Row label="Other" value={fmt(orderPayments.inPeriod.otherPaymentsInPeriod, 2)} />
+                {orderPayments.inPeriod.pendingApprovalInPeriod > 0.004 && (
+                  <Row label="Pending approval" value={fmt(orderPayments.inPeriod.pendingApprovalInPeriod, 2)} />
+                )}
+                {enabled.loans && loansInPeriod > 0 && (
+                  <Row label="Loans received" value={fmt(loansInPeriod, 2)} />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Cash snapshot */}
+      <section className="rounded-lg border">
+        <div className="px-4 py-2.5 border-b">
+          <p className="text-xs font-semibold">{periodLabel} — cash snapshot</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            Toggle sources below · client payments matches period received above
+          </p>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { label: "Money in", value: moneyIn },
+              { label: "Money out", value: moneyOut },
+              { label: "Net", value: net },
+            ].map(item => (
+              <div key={item.label} className="rounded-lg border p-3">
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">{item.label}</p>
+                <p className="text-xl font-semibold tabular-nums mt-1">{fmt(item.value)}</p>
+              </div>
+            ))}
+          </div>
+
+          {enabled.loans && loansInPeriod > 0 && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
+              <span className="text-[hsl(var(--muted-foreground))]">Loans included in money in</span>
+              <span className="tabular-nums font-medium">{fmt(loansInPeriod, 2)}</span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))] font-medium">Include</p>
+              <div className="flex flex-wrap gap-1">
+                <button type="button" onClick={() => setEnabled(defaultEnabled())} className="text-[10px] px-2 py-0.5 rounded border text-[hsl(var(--muted-foreground))]">Reset</button>
+                <button type="button" onClick={() => setSide("in", true)} className="text-[10px] px-2 py-0.5 rounded border text-[hsl(var(--muted-foreground))]">All in</button>
+                <button type="button" onClick={() => setSide("out", true)} className="text-[10px] px-2 py-0.5 rounded border text-[hsl(var(--muted-foreground))]">All out</button>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Money in</p>
+            <div className="flex flex-wrap gap-1.5">
+              {inLines.map(l => (
+                <ToggleChip
+                  key={l.key}
+                  on={l.on}
+                  label={l.label}
+                  amount={l.amount}
+                  onClick={() => toggle(l.key)}
+                />
+              ))}
+            </div>
+
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] pt-1">Money out</p>
+            <div className="flex flex-wrap gap-1.5">
+              {outLines.map(l => (
+                <ToggleChip
+                  key={l.key}
+                  on={l.on}
+                  label={l.label}
+                  amount={l.amount}
+                  onClick={() => toggle(l.key)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {showDetails && (
+            <div className="grid sm:grid-cols-2 gap-3 pt-1 border-t">
+              <div className="pt-3 space-y-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Money in detail</p>
+                {inLines.map(l => (
+                  <div key={l.key} className={`flex justify-between gap-2 text-xs ${l.on ? "" : "opacity-40 line-through"}`}>
+                    <span className="text-[hsl(var(--muted-foreground))]">{l.label}</span>
+                    <span className="tabular-nums font-medium">{fmt(l.amount)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-2 text-xs pt-1.5 border-t font-medium">
+                  <span>Total</span>
+                  <span className="tabular-nums">{fmt(moneyIn)}</span>
+                </div>
+              </div>
+              <div className="pt-3 space-y-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-2">Money out detail</p>
+                {outLines.map(l => (
+                  <div key={l.key} className={`flex justify-between gap-2 text-xs ${l.on ? "" : "opacity-40 line-through"}`}>
+                    <span className="text-[hsl(var(--muted-foreground))]">{l.label}</span>
+                    <span className="tabular-nums font-medium">{fmt(l.amount)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-2 text-xs pt-1.5 border-t font-medium">
+                  <span>Total</span>
+                  <span className="tabular-nums">{fmt(moneyOut)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-1">
+            <Link href="/finance?tab=reports" className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-1">
+              Full reports <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

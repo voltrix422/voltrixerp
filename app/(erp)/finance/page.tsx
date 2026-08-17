@@ -91,7 +91,7 @@ export default function FinancePage() {
                   <span className="sm:hidden">{tab.shortLabel}</span>
                   <span className="hidden sm:inline">{tab.label}</span>
                   {activeTab === tab.id && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />
+                    <div className="absolute bottom-0 left-0 right-0 h-px bg-[hsl(var(--foreground))]" />
                   )}
                 </button>
               ))}
