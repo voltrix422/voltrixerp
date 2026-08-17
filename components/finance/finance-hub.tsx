@@ -68,8 +68,8 @@ const TOGGLES: ToggleDef[] = [
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries", side: "out", defaultOn: true },
   { key: "localPurchases", label: "Local purchases", side: "out", defaultOn: true },
-  { key: "importedPurchases", label: "Imported purchases", side: "out", defaultOn: false },
-  { key: "importShipments", label: "Import shipments", side: "out", defaultOn: false },
+  { key: "importedPurchases", label: "Imported purchases", side: "out", defaultOn: true },
+  { key: "importShipments", label: "Import shipments", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
   { key: "advances", label: "Advances", side: "out", defaultOn: true },
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
@@ -207,6 +207,8 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
 
   const moneyIn = inLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
   const moneyOut = outLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
+  const moneyInAll = inLines.reduce((s, l) => s + l.amount, 0)
+  const moneyOutAll = outLines.reduce((s, l) => s + l.amount, 0)
   const net = moneyIn - moneyOut
 
   const toggle = (key: ToggleKey) => {
@@ -394,16 +396,63 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
 
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { label: "Money in", value: moneyIn },
-              { label: "Money out", value: moneyOut },
-              { label: "Net", value: net },
-            ].map(item => (
-              <div key={item.label} className="rounded-lg border p-3">
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">{item.label}</p>
-                <p className="text-xl font-semibold tabular-nums mt-1">{fmt(item.value)}</p>
-              </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Money in</p>
+              <p className="text-xl font-semibold tabular-nums mt-1">{fmt(moneyInAll)}</p>
+              {moneyIn !== moneyInAll && (
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
+                  In net: {fmt(moneyIn)}
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg border p-3 sm:col-span-1">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Money out</p>
+              <p className="text-xl font-semibold tabular-nums mt-1">{fmt(moneyOutAll)}</p>
+              {moneyOut !== moneyOutAll && (
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
+                  In net: {fmt(moneyOut)}
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Net</p>
+              <p className="text-xl font-semibold tabular-nums mt-1">{fmt(net)}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">Money in − money out (toggles)</p>
+            </div>
+          </div>
+
+          {/* Money in breakdown */}
+          <div className="rounded-lg border p-3 space-y-1.5">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1">
+              Money in — breakdown
+            </p>
+            {inLines.map(l => (
+              <Row key={l.key} label={l.label} value={fmt(l.amount)} />
             ))}
+            <div className="flex items-baseline justify-between gap-3 text-xs pt-1.5 border-t font-medium">
+              <span>Total</span>
+              <span className="tabular-nums">{fmt(moneyInAll)}</span>
+            </div>
+          </div>
+
+          {/* Money out breakdown */}
+          <div className="rounded-lg border p-3 space-y-1.5">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1">
+              Money out — breakdown
+            </p>
+            <Row label="Expenses" value={fmt(breakdown.moneyOut.expenses)} />
+            <Row label="Salaries" value={fmt(breakdown.moneyOut.salaries)} />
+            <Row label="Local purchases" value={fmt(breakdown.moneyOut.localPurchases)} />
+            <Row label="Imported purchases" value={fmt(breakdown.moneyOut.importedPurchases)} />
+            <Row label="Import shipments" value={fmt(breakdown.moneyOut.importShipments)} />
+            <Row label="Petty cash" value={fmt(breakdown.moneyOut.pettyCash)} />
+            <Row label="Supplier advances" value={fmt(breakdown.moneyOut.supplierAdvances ?? 0)} />
+            <Row label="Salary advances" value={fmt(breakdown.moneyOut.salaryAdvances ?? 0)} />
+            <Row label="Cashback" value={fmt(breakdown.moneyOut.cashback)} />
+            <div className="flex items-baseline justify-between gap-3 text-xs pt-1.5 border-t font-medium">
+              <span>Total money out</span>
+              <span className="tabular-nums">{fmt(moneyOutAll)}</span>
+            </div>
           </div>
 
           {enabled.loans && loansInPeriod > 0 && (
@@ -415,7 +464,9 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
 
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))] font-medium">Include</p>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))] font-medium">
+                Include in net calculation
+              </p>
               <div className="flex flex-wrap gap-1">
                 <button type="button" onClick={() => setEnabled(defaultEnabled())} className="text-[10px] px-2 py-0.5 rounded border text-[hsl(var(--muted-foreground))]">Reset</button>
                 <button type="button" onClick={() => setSide("in", true)} className="text-[10px] px-2 py-0.5 rounded border text-[hsl(var(--muted-foreground))]">All in</button>
