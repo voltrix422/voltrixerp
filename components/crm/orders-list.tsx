@@ -538,8 +538,58 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 {formatOrderPkr(totalReceived)}
               </p>
               <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 leading-relaxed">
-                Sum of all payments on orders — fully paid, partial, and credit installments. Matches Finance → Client Orders → Total Payments.
+                Sum of the <strong className="font-medium text-[hsl(var(--foreground))]">Paid</strong> column on all orders (excluding returned). Same as Finance → Client Orders → Total Payments.
               </p>
+              <div className="mt-3 pt-3 border-t border-emerald-500/20 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-900">
+                  This total is the sum of:
+                </p>
+                <ul className="space-y-1.5 text-xs">
+                  <li className="flex items-center justify-between gap-3">
+                    <span className="text-[hsl(var(--muted-foreground))]">
+                      Delivered fully paid ({deliveredFullyPaid.length} orders)
+                    </span>
+                    <span className="tabular-nums font-semibold text-emerald-800 shrink-0">
+                      {formatOrderPkr(deliveredFullyPaidReceived)}
+                    </span>
+                  </li>
+                  <li className="flex items-center justify-between gap-3">
+                    <span className="text-[hsl(var(--muted-foreground))]">
+                      Partial payments received ({partiallyPaidOrders.length} orders)
+                    </span>
+                    <span className="tabular-nums font-semibold text-sky-800 shrink-0">
+                      {formatOrderPkr(partialPaymentAmount)}
+                    </span>
+                  </li>
+                  {otherPaymentsReceived > 0.004 && (
+                    <li className="flex items-center justify-between gap-3">
+                      <span className="text-[hsl(var(--muted-foreground))]">
+                        Confirmed / in progress (paid, not delivered)
+                      </span>
+                      <span className="tabular-nums font-semibold text-emerald-800 shrink-0">
+                        {formatOrderPkr(otherPaymentsReceived)}
+                      </span>
+                    </li>
+                  )}
+                  {creditPaymentsReceived > 0.004 && (
+                    <li className="flex items-center justify-between gap-3">
+                      <span className="text-[hsl(var(--muted-foreground))]">
+                        Credit orders (installments received)
+                      </span>
+                      <span className="tabular-nums font-semibold text-emerald-800 shrink-0">
+                        {formatOrderPkr(creditPaymentsReceived)}
+                      </span>
+                    </li>
+                  )}
+                  <li className="flex items-center justify-between gap-3 pt-1.5 border-t border-emerald-500/20 font-bold">
+                    <span className="text-emerald-900">Total received</span>
+                    <span className="tabular-nums text-emerald-900">{formatOrderPkr(totalReceived)}</span>
+                  </li>
+                </ul>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] leading-relaxed">
+                  Not included: amounts still owed (credit / unpaid), refunds on returned orders, or cashback paid out to clients.
+                </p>
+              </div>
               <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 pt-3 border-t border-emerald-500/20 text-xs">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
@@ -547,15 +597,6 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   </p>
                   <p className="font-bold tabular-nums text-amber-700">{formatOrderPkr(totalOutstanding)}</p>
                 </div>
-                {otherPaymentsReceived > 0.004 && (
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                      Other received
-                    </p>
-                    <p className="font-bold tabular-nums text-emerald-700">{formatOrderPkr(otherPaymentsReceived)}</p>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Confirmed / in progress</p>
-                  </div>
-                )}
               </div>
             </div>
 
