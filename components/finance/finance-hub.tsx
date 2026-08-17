@@ -110,7 +110,7 @@ function amountFor(b: Breakdown, key: ToggleKey): number {
   return b.moneyOut[key as keyof Breakdown["moneyOut"]] as number
 }
 
-function buildMoneyOutDisplayRows(b: Breakdown) {
+function buildMoneyOutDisplayRows(b: Breakdown["moneyOut"]) {
   const rows: { label: string; amount: number }[] = []
   if (b.expenses > 0.004) rows.push({ label: "Expenses (finance records)", amount: b.expenses })
   if (b.salaries > 0.004) rows.push({ label: "Salaries", amount: b.salaries })
@@ -289,7 +289,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     [breakdown, enabled],
   )
 
-  const moneyOutDisplayRows = useMemo(() => buildMoneyOutDisplayRows(breakdown), [breakdown])
+  const moneyOutDisplayRows = useMemo(() => buildMoneyOutDisplayRows(breakdown.moneyOut), [breakdown.moneyOut])
   const moneyInDisplayRows = useMemo(
     () => inLines.filter(l => l.amount > 0.004).map(l => ({ label: l.label, amount: l.amount })),
     [inLines],
