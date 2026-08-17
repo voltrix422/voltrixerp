@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift } from "lucide-react"
+import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
@@ -134,11 +134,61 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function OrderSummaryHoverPanel({
+function CollapsibleSection({
+  title,
+  subtitle,
+  summary,
+  open,
+  onToggle,
+  headerRight,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  summary?: string
+  open: boolean
+  onToggle: () => void
+  headerRight?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className="rounded-lg border overflow-hidden">
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex flex-1 items-start gap-2 px-4 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors min-w-0"
+        >
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 mt-0.5 text-[hsl(var(--muted-foreground))] transition-transform duration-200 ${
+              open ? "" : "-rotate-90"
+            }`}
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold">{title}</p>
+            {subtitle && (
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{subtitle}</p>
+            )}
+            {!open && summary && (
+              <p className="text-sm font-semibold tabular-nums mt-1">{summary}</p>
+            )}
+          </div>
+        </button>
+        {headerRight && (
+          <div className="flex items-center px-3 py-2.5 shrink-0" onClick={e => e.stopPropagation()}>
+            {headerRight}
+          </div>
+        )}
+      </div>
+      {open && <div className="border-t">{children}</div>}
+    </section>
+  )
+}
+
+function ExpandableOrderPanel({
   label,
   count,
   amount,
-  hint,
   orders,
   emptyLabel = "No orders",
   panelTitle,
@@ -147,22 +197,34 @@ function OrderSummaryHoverPanel({
   label: string
   count: number
   amount: string
-  hint?: string
   orders: { order: Order; paid: number; balance: number }[]
   emptyLabel?: string
   panelTitle?: string
   renderRowExtra?: (order: Order) => ReactNode
 }) {
-  return (
-    <div className="relative group bg-[hsl(var(--card))] p-3 focus-within:z-50" tabIndex={0}>
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-        {label} ({count})
-      </p>
-      <p className="text-sm font-semibold tabular-nums mt-0.5">{amount}</p>
-      {hint && <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{hint}</p>}
+  const [open, setOpen] = useState(false)
 
-      <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 w-[min(20rem,calc(100vw-2rem))] opacity-0 translate-y-1 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0">
-        <div className="rounded-lg border bg-[hsl(var(--card))] shadow-lg p-3">
+  return (
+    <div className="bg-[hsl(var(--card))] p-3">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-start justify-between gap-2 text-left"
+      >
+        <div className="min-w-0">
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            {label} ({count})
+          </p>
+          <p className="text-sm font-semibold tabular-nums mt-0.5">{amount}</p>
+        </div>
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 mt-0.5 text-[hsl(var(--muted-foreground))] transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <div className="mt-2 pt-2 border-t">
           <p className="text-[10px] font-medium uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-2">
             {panelTitle ?? label}
           </p>
@@ -194,7 +256,7 @@ function OrderSummaryHoverPanel({
             </ul>
           )}
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -287,6 +349,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [exportingExcel, setExportingExcel] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
+  const [moneyReceivedOpen, setMoneyReceivedOpen] = useState(false)
+  const [orderSummaryOpen, setOrderSummaryOpen] = useState(false)
 
   async function handleListDownloadPdf(order: Order, e?: { stopPropagation: () => void }) {
     e?.stopPropagation()
@@ -566,21 +630,20 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       ) : (
         <>
           <div className="space-y-3">
-            {/* Money received */}
-            <section className="rounded-lg border">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-2.5 border-b">
-                <div>
-                  <p className="text-xs font-semibold">Money received</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                    Sum of Paid column · excl. returned · matches Finance
-                  </p>
-                </div>
+            <CollapsibleSection
+              title="Money received"
+              subtitle="Sum of Paid column · excl. returned · matches Finance"
+              summary={formatOrderPkr(headlineTotal)}
+              open={moneyReceivedOpen}
+              onToggle={() => setMoneyReceivedOpen(v => !v)}
+              headerRight={
                 <ToggleChip
                   on={includeOutstandingInTotal}
                   label={includeOutstandingInTotal ? "Including outstanding" : "+ Still outstanding"}
                   onClick={() => setIncludeOutstandingInTotal(v => !v)}
                 />
-              </div>
+              }
+            >
               <div className="p-4 space-y-3">
                 <div>
                   <p className="text-2xl font-semibold tabular-nums">{formatOrderPkr(headlineTotal)}</p>
@@ -639,13 +702,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   </p>
                 </div>
               </div>
-            </section>
+            </CollapsibleSection>
 
-            {/* Order summary */}
-            <section className="rounded-lg border overflow-hidden">
-              <div className="px-4 py-2.5 border-b">
-                <p className="text-xs font-semibold">Order summary</p>
-              </div>
+            <CollapsibleSection
+              title="Order summary"
+              summary={`${filtered.length} orders · ${formatOrderPkr(totalOrderValue)}`}
+              open={orderSummaryOpen}
+              onToggle={() => setOrderSummaryOpen(v => !v)}
+            >
               <div className="grid sm:grid-cols-3 gap-px bg-[hsl(var(--border))] border-b">
                 <div className="bg-[hsl(var(--card))] p-3">
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Total orders</p>
@@ -680,11 +744,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                       : ""}
                   </p>
                 </div>
-                <OrderSummaryHoverPanel
+                <ExpandableOrderPanel
                   label="Partial received"
                   count={partiallyPaidOrders.length}
                   amount={formatOrderPkr(partialPaymentAmount)}
-                  hint="Hover for order list"
                   orders={partiallyPaidOrders}
                   panelTitle="Partial payments received"
                 />
@@ -702,11 +765,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   <p className="text-sm font-semibold tabular-nums mt-0.5">{formatOrderPkr(returnedRefundAmount)}</p>
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">Refunded · stock restored</p>
                 </div>
-                <OrderSummaryHoverPanel
+                <ExpandableOrderPanel
                   label="Cashback"
                   count={cashbackOrders.length}
                   amount={formatOrderPkr(cashbackAmount)}
-                  hint="Hover for order list"
                   emptyLabel="No cashback orders"
                   panelTitle="Cashback orders"
                   orders={cashbackOrderRows.map(({ order, paid }) => ({
@@ -727,7 +789,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                   }}
                 />
               </div>
-            </section>
+            </CollapsibleSection>
           </div>
 
           <CrmOrdersListCards
