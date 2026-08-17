@@ -6,6 +6,7 @@ import {
   getPosOrderSellAmount,
 } from "@/lib/branch-pos-profit"
 import type { OrderItem } from "@/lib/orders"
+import { aggregatePosProductSales } from "@/lib/pos-product-sales"
 
 export const dynamic = "force-dynamic"
 
@@ -136,6 +137,7 @@ export async function GET(req: NextRequest) {
     const { from, to, fromDate, toDate } = parseRange(req)
     const branchIdFilter = req.nextUrl.searchParams.get("branchId")?.trim() || null
     const detail = req.nextUrl.searchParams.get("detail") === "1"
+    const productQuery = req.nextUrl.searchParams.get("productQuery")?.trim() || ""
     const unassignedOnly = branchIdFilter === "__unassigned__"
     const realBranchFilter =
       branchIdFilter && !unassignedOnly ? branchIdFilter : null
@@ -365,6 +367,19 @@ export async function GET(req: NextRequest) {
           (s.branchId ? "Unknown branch" : "Unassigned"),
       }))
 
+    const branchNameMap = new Map<string, string>()
+    for (const b of branches) branchNameMap.set(b.id, b.name)
+    branchNameMap.set("__unassigned__", "Unassigned")
+
+    const productSummary = productQuery
+      ? aggregatePosProductSales(
+          productQuery,
+          orders as OrderRow[],
+          sales as SaleRow[],
+          branchNameMap,
+        )
+      : null
+
     return NextResponse.json({
       from: fromDate,
       to: toDate,
@@ -372,6 +387,7 @@ export async function GET(req: NextRequest) {
       byBranch,
       recentOrders,
       recentReceipts,
+      productSummary,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load POS admin summary"

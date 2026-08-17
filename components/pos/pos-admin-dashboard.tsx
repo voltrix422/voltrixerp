@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   Loader2,
   RefreshCw,
+  Search,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -13,6 +15,7 @@ import {
   formatPosPkr,
   getPosAdminSummary,
   type PosAdminBranchSummary,
+  type PosAdminProductSummary,
   type PosAdminSummary,
 } from "@/lib/pos-admin"
 import { PosAdminOrderDetailModal } from "@/components/pos/pos-admin-order-detail"
@@ -135,11 +138,22 @@ export function PosAdminDashboard() {
   const [branchDetail, setBranchDetail] = useState<PosAdminBranchSummary | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [productSearch, setProductSearch] = useState("")
+  const [productQuery, setProductQuery] = useState("")
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setProductQuery(productSearch.trim()), 300)
+    return () => window.clearTimeout(timer)
+  }, [productSearch])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError("")
-    const summary = await getPosAdminSummary({ from, to })
+    const summary = await getPosAdminSummary({
+      from,
+      to,
+      productQuery: productQuery || undefined,
+    })
     if (!summary) {
       setError("Failed to load POS admin data")
       setData(null)
@@ -147,7 +161,7 @@ export function PosAdminDashboard() {
       setData(summary)
     }
     setLoading(false)
-  }, [from, to])
+  }, [from, to, productQuery])
 
   useEffect(() => {
     void load()
@@ -160,7 +174,13 @@ export function PosAdminDashboard() {
     }
     let cancelled = false
     setDetailLoading(true)
-    void getPosAdminSummary({ from, to, branchId: selectedBranchId, detail: true }).then((summary) => {
+    void getPosAdminSummary({
+      from,
+      to,
+      branchId: selectedBranchId,
+      detail: true,
+      productQuery: productQuery || undefined,
+    }).then((summary) => {
       if (cancelled) return
       setBranchDetail(summary?.byBranch?.[0] || null)
       setDetailLoading(false)
@@ -168,7 +188,7 @@ export function PosAdminDashboard() {
     return () => {
       cancelled = true
     }
-  }, [view, selectedBranchId, from, to])
+  }, [view, selectedBranchId, from, to, productQuery])
 
   function applyPreset(next: RangeMode) {
     setMode(next)
@@ -283,6 +303,26 @@ export function PosAdminDashboard() {
             </label>
           </div>
         )}
+        <div className="relative max-w-md">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <input
+            type="text"
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+            placeholder="Search item / product sold in POS…"
+            className="h-7 w-full rounded-sm border border-[hsl(var(--border))] bg-transparent pl-7 pr-7 text-xs"
+          />
+          {productSearch && (
+            <button
+              type="button"
+              onClick={() => setProductSearch("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Clear product search"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </Panel>
 
       {error && (
@@ -326,6 +366,13 @@ export function PosAdminDashboard() {
             />
           </div>
 
+          {productQuery && (
+            <ProductSalesPanel
+              summary={data?.productSummary || null}
+              loading={loading}
+            />
+          )}
+
           <Panel className="overflow-hidden">
             <PanelHead title="Sales by branch" hint="Click row for details" />
             {(data?.byBranch.length || 0) === 0 ? (
@@ -338,6 +385,7 @@ export function PosAdminDashboard() {
                       <th className={th}>Branch</th>
                       <th className={thR}>Term.</th>
                       <th className={thR}>Orders</th>
+                      {productQuery && <th className={thR}>Sold</th>}
                       <th className={thR}>Order sales</th>
                       <th className={thR}>Profit</th>
                       <th className={thR}>Receipts</th>
@@ -346,7 +394,11 @@ export function PosAdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data!.byBranch.map((b) => (
+                    {data!.byBranch.map((b) => {
+                      const productBranch = data?.productSummary?.byBranch.find(
+                        (p) => p.branchId === b.branchId,
+                      )
+                      return (
                       <tr
                         key={b.branchId}
                         className="border-b border-[hsl(var(--border))] last:border-0 cursor-pointer hover:bg-[hsl(var(--muted))]/30"
@@ -363,6 +415,20 @@ export function PosAdminDashboard() {
                             {b.deliveredCount}d / {b.openCount}o
                           </span>
                         </td>
+                        {productQuery && (
+                          <td className={tdR}>
+                            {productBranch ? (
+                              <>
+                                {productBranch.soldQty.toLocaleString()} {productBranch.byRate[0]?.unit || "pcs"}
+                                <span className="block text-[10px] text-muted-foreground font-normal">
+                                  {formatPosPkr(productBranch.sellTotal)}
+                                </span>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        )}
                         <td className={tdR}>{formatPosPkr(b.orderSellTotal)}</td>
                         <td className={tdR}>{formatPosPkr(b.orderProfitTotal)}</td>
                         <td className={tdR}>
@@ -379,7 +445,7 @@ export function PosAdminDashboard() {
                           </span>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -387,11 +453,20 @@ export function PosAdminDashboard() {
           </Panel>
         </>
       ) : (
-        <BranchDetailPanel
-          loading={detailLoading}
-          branch={branchDetail || selectedMeta || null}
-          onOrderClick={setSelectedOrderId}
-        />
+        <>
+          {productQuery && (
+            <ProductSalesPanel
+              summary={data?.productSummary || null}
+              loading={loading || detailLoading}
+              branchId={selectedBranchId}
+            />
+          )}
+          <BranchDetailPanel
+            loading={detailLoading}
+            branch={branchDetail || selectedMeta || null}
+            onOrderClick={setSelectedOrderId}
+          />
+        </>
       )}
 
       {selectedOrderId && (
@@ -401,6 +476,122 @@ export function PosAdminDashboard() {
         />
       )}
     </div>
+  )
+}
+
+function ProductSalesPanel({
+  summary,
+  loading,
+  branchId,
+}: {
+  summary: PosAdminProductSummary | null
+  loading: boolean
+  branchId?: string | null
+}) {
+  const scoped =
+    branchId && summary
+      ? summary.byBranch.find((b) => b.branchId === branchId) || null
+      : null
+  const display = scoped
+    ? {
+        query: summary!.query,
+        soldQty: scoped.soldQty,
+        sellTotal: scoped.sellTotal,
+        avgUnitPrice: scoped.soldQty > 0 ? scoped.sellTotal / scoped.soldQty : 0,
+        unit: scoped.byRate[0]?.unit || summary!.unit,
+        orderCount: scoped.orderCount,
+        receiptCount: scoped.receiptCount,
+        byRate: scoped.byRate,
+        byBranch: [],
+      }
+    : summary
+
+  if (loading && !display) {
+    return (
+      <Panel className="px-2.5 py-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Searching product sales…
+      </Panel>
+    )
+  }
+
+  if (!display || display.soldQty <= 0) {
+    return (
+      <Panel className="px-2.5 py-3 text-xs text-muted-foreground">
+        No POS sales found for &ldquo;{summary?.query || "—"}&rdquo; in this period.
+      </Panel>
+    )
+  }
+
+  return (
+    <Panel className="overflow-hidden">
+      <PanelHead
+        title={`Product sales · ${display.query}`}
+        hint={`${display.orderCount} orders · ${display.receiptCount} receipts`}
+      />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2.5 border-b border-[hsl(var(--border))]">
+        <Stat
+          label="Sold qty"
+          value={`${display.soldQty.toLocaleString()} ${display.unit}`}
+        />
+        <Stat label="Sales total" value={formatPosPkr(display.sellTotal)} />
+        <Stat label="Avg rate" value={formatPosPkr(display.avgUnitPrice)} hint="Weighted average" />
+        <Stat
+          label="Rate lines"
+          value={String(display.byRate.length)}
+          hint="Distinct sell prices"
+        />
+      </div>
+      <div className="overflow-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-[hsl(var(--border))]">
+              <th className={th}>Sell rate</th>
+              <th className={thR}>Qty</th>
+              <th className={thR}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {display.byRate.map((line) => (
+              <tr key={line.unitPrice} className="border-b border-[hsl(var(--border))] last:border-0">
+                <td className={td}>{formatPosPkr(line.unitPrice)} / {line.unit}</td>
+                <td className={tdR}>{line.qty.toLocaleString()} {line.unit}</td>
+                <td className={cn(tdR, "font-medium")}>{formatPosPkr(line.sellTotal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!branchId && display.byBranch.length > 0 && (
+        <div className="border-t border-[hsl(var(--border))] overflow-auto">
+          <div className="px-2.5 py-1.5 border-b border-[hsl(var(--border))]">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">By branch</p>
+          </div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-[hsl(var(--border))]">
+                <th className={th}>Branch</th>
+                <th className={thR}>Qty</th>
+                <th className={thR}>Rates</th>
+                <th className={thR}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {display.byBranch.map((b) => (
+                <tr key={b.branchId} className="border-b border-[hsl(var(--border))] last:border-0">
+                  <td className={td}>{b.branchName}</td>
+                  <td className={tdR}>{b.soldQty.toLocaleString()}</td>
+                  <td className={cn(tdR, "text-[10px] text-muted-foreground max-w-[200px]")}>
+                    {b.byRate.map((r) => `${r.qty} @ ${formatPosPkr(r.unitPrice)}`).join(" · ")}
+                  </td>
+                  <td className={cn(tdR, "font-medium")}>{formatPosPkr(b.sellTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
   )
 }
 

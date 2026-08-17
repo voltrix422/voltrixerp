@@ -84,6 +84,35 @@ export type PosAdminCombined = {
   stockQty: number
 }
 
+export type PosAdminProductRateLine = {
+  unitPrice: number
+  qty: number
+  sellTotal: number
+  unit: string
+}
+
+export type PosAdminProductBranchSummary = {
+  branchId: string
+  branchName: string
+  soldQty: number
+  sellTotal: number
+  orderCount: number
+  receiptCount: number
+  byRate: PosAdminProductRateLine[]
+}
+
+export type PosAdminProductSummary = {
+  query: string
+  soldQty: number
+  sellTotal: number
+  avgUnitPrice: number
+  unit: string
+  orderCount: number
+  receiptCount: number
+  byRate: PosAdminProductRateLine[]
+  byBranch: PosAdminProductBranchSummary[]
+}
+
 export type PosAdminSummary = {
   from: string
   to: string
@@ -91,6 +120,7 @@ export type PosAdminSummary = {
   byBranch: PosAdminBranchSummary[]
   recentOrders: PosAdminOrderBrief[]
   recentReceipts: PosAdminReceiptBrief[]
+  productSummary?: PosAdminProductSummary | null
 }
 
 export async function getPosAdminSummary(params: {
@@ -98,6 +128,7 @@ export async function getPosAdminSummary(params: {
   to: string
   branchId?: string
   detail?: boolean
+  productQuery?: string
 }): Promise<PosAdminSummary | null> {
   const qs = new URLSearchParams({
     from: params.from,
@@ -105,6 +136,7 @@ export async function getPosAdminSummary(params: {
   })
   if (params.branchId) qs.set("branchId", params.branchId)
   if (params.detail) qs.set("detail", "1")
+  if (params.productQuery?.trim()) qs.set("productQuery", params.productQuery.trim())
 
   const res = await fetch(`/api/db/pos/admin-summary?${qs}`)
   if (!res.ok) return null
