@@ -144,11 +144,35 @@ function ToggleChip({
   )
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function BreakdownTable({
+  rows,
+  total,
+}: {
+  rows: { label: string; value: string }[]
+  total: string
+}) {
   return (
-    <div className="inline-grid grid-cols-[auto_auto] gap-x-3 gap-y-0 items-baseline text-[11px] py-0.5 max-w-full">
-      <span className="text-[hsl(var(--muted-foreground))]">{label}</span>
-      <span className="tabular-nums font-medium">{value}</span>
+    <div className="rounded-md border overflow-hidden">
+      <table className="w-full border-collapse text-[11px]">
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={row.label} className={i > 0 ? "border-t" : undefined}>
+              <td className="px-2.5 py-1 text-[hsl(var(--muted-foreground))] align-middle">{row.label}</td>
+              <td className="px-2.5 py-1 tabular-nums font-medium text-right whitespace-nowrap align-middle w-[1%]">
+                {row.value}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t bg-[hsl(var(--muted))]/10">
+            <td className="px-2.5 py-1.5 font-semibold align-middle">Total</td>
+            <td className="px-2.5 py-1.5 tabular-nums font-semibold text-right whitespace-nowrap align-middle w-[1%]">
+              {total}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   )
 }
@@ -447,14 +471,11 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
               open={inBreakdownOpen}
               onToggle={() => setInBreakdownOpen(v => !v)}
             >
-              <div className="pt-1.5 space-y-0">
-                {inLines.map(l => (
-                  <Row key={l.key} label={l.label} value={fmt(l.amount)} />
-                ))}
-                <div className="inline-grid grid-cols-[auto_auto] gap-x-3 text-[11px] font-medium pt-1 border-t mt-1">
-                  <span>Total</span>
-                  <span className="tabular-nums">{fmt(moneyInAll)}</span>
-                </div>
+              <div className="pt-1.5">
+                <BreakdownTable
+                  rows={inLines.map(l => ({ label: l.label, value: fmt(l.amount) }))}
+                  total={fmt(moneyInAll)}
+                />
               </div>
             </Accordion>
 
@@ -464,21 +485,22 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
               open={outBreakdownOpen}
               onToggle={() => setOutBreakdownOpen(v => !v)}
             >
-              <div className="pt-1.5 space-y-0">
-                <Row label="Expenses (finance records)" value={fmt(breakdown.moneyOut.expenses)} />
-                <Row label="Salaries" value={fmt(breakdown.moneyOut.salaries)} />
-                <Row label="Local PO payments" value={fmt(breakdown.moneyOut.localPurchases)} />
-                <Row label="Purchase ledger" value={fmt(breakdown.moneyOut.purchaseLedger)} />
-                <Row label="Imported PO payments" value={fmt(breakdown.moneyOut.importedPurchases)} />
-                <Row label="Import shipments" value={fmt(breakdown.moneyOut.importShipments)} />
-                <Row label="Petty cash (approved)" value={fmt(breakdown.moneyOut.pettyCash)} />
-                <Row label="Supplier advances" value={fmt(breakdown.moneyOut.supplierAdvances ?? 0)} />
-                <Row label="Salary advances" value={fmt(breakdown.moneyOut.salaryAdvances ?? 0)} />
-                <Row label="Cashback" value={fmt(breakdown.moneyOut.cashback)} />
-                <div className="inline-grid grid-cols-[auto_auto] gap-x-3 text-[11px] font-medium pt-1 border-t mt-1">
-                  <span>Total</span>
-                  <span className="tabular-nums">{fmt(moneyOutAll)}</span>
-                </div>
+              <div className="pt-1.5">
+                <BreakdownTable
+                  rows={[
+                    { label: "Expenses (finance records)", value: fmt(breakdown.moneyOut.expenses) },
+                    { label: "Salaries", value: fmt(breakdown.moneyOut.salaries) },
+                    { label: "Local PO payments", value: fmt(breakdown.moneyOut.localPurchases) },
+                    { label: "Purchase ledger", value: fmt(breakdown.moneyOut.purchaseLedger) },
+                    { label: "Imported PO payments", value: fmt(breakdown.moneyOut.importedPurchases) },
+                    { label: "Import shipments", value: fmt(breakdown.moneyOut.importShipments) },
+                    { label: "Petty cash (approved)", value: fmt(breakdown.moneyOut.pettyCash) },
+                    { label: "Supplier advances", value: fmt(breakdown.moneyOut.supplierAdvances ?? 0) },
+                    { label: "Salary advances", value: fmt(breakdown.moneyOut.salaryAdvances ?? 0) },
+                    { label: "Cashback", value: fmt(breakdown.moneyOut.cashback) },
+                  ]}
+                  total={fmt(moneyOutAll)}
+                />
               </div>
             </Accordion>
 
