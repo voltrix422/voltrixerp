@@ -95,18 +95,32 @@ export function FinanceManager({
   async function loadActivePettyCash() {
     setLoadingPettyCash(true)
     try {
-      const [allocations, receipts] = await Promise.all([
+      const timeoutMs = 12000
+      const dataPromise = Promise.all([
         getPettyCashAllocations(),
         getPettyCashReceipts(),
       ])
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Petty cash load timed out")), timeoutMs)
+      })
+      const [allocations, receipts] = await Promise.race([dataPromise, timeoutPromise])
+
+      const usedByAllocation = new Map<string, number>()
+      for (const r of receipts) {
+        if (r.status === "pending" || r.status === "approved") {
+          usedByAllocation.set(
+            r.allocationId,
+            (usedByAllocation.get(r.allocationId) ?? 0) + r.amount,
+          )
+        }
+      }
+
       const active = allocations
         .filter(a => a.status === "active")
-        .map(a => {
-          const used = receipts
-            .filter(r => r.allocationId === a.id && (r.status === "pending" || r.status === "approved"))
-            .reduce((sum, r) => sum + r.amount, 0)
-          return { ...a, remaining: Math.max(0, a.amount - used) }
-        })
+        .map(a => ({
+          ...a,
+          remaining: Math.max(0, a.amount - (usedByAllocation.get(a.id) ?? 0)),
+        }))
         .filter(a => a.remaining > 0)
       setActivePettyCash(active)
     } catch (error) {
@@ -118,8 +132,14 @@ export function FinanceManager({
   }
 
   useEffect(() => {
-    if (showForm) loadActivePettyCash()
-  }, [showForm])
+    if (!showForm) return
+    if (category === "Loan") {
+      setPettyCashAllocationId("")
+      setLoadingPettyCash(false)
+      return
+    }
+    loadActivePettyCash()
+  }, [showForm, category])
 
   useEffect(() => {
     if (!openAddLoan) return
@@ -417,14 +437,15 @@ export function FinanceManager({
       {/* Add Record Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={resetForm}>
-          <div className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] min-h-0" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b shrink-0">
               <p className="text-sm font-semibold">
                 {category === "Loan" ? "Add Loan (money in)" : "Add Finance Record"}
               </p>
               <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={resetForm}><X className="h-4 w-4" /></Button>
             </div>
-            <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-3.5">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto p-5 space-y-3.5 flex-1 min-h-0">
               {category === "Loan" && (
                 <p className="text-xs text-amber-900 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2 leading-relaxed">
                   Loan records appear in Finance Overview under Money in. Use the <strong>Loans received</strong> toggle on Overview to include or exclude them from the cash snapshot total.
@@ -459,6 +480,7 @@ export function FinanceManager({
                   <input value={tag} onChange={e => setTag(e.target.value)} placeholder="e.g. Q1, Ahmed" className={inputCls} />
                 </Field>
               </div>
+              {category !== "Loan" && (
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Supplier name">
                   <input value={supplierName} onChange={e => setSupplierName(e.target.value)} placeholder="e.g. ABC Traders" className={inputCls} />
@@ -467,6 +489,8 @@ export function FinanceManager({
                   <input value={receiptPersonName} onChange={e => setReceiptPersonName(e.target.value)} placeholder="Person who brought receipt" className={inputCls} />
                 </Field>
               </div>
+              )}
+              {category !== "Loan" && (
               <Field label="Link to petty cash (optional)">
                 <select
                   value={pettyCashAllocationId}
@@ -501,6 +525,7 @@ export function FinanceManager({
                   )
                 })()}
               </Field>
+              )}
               <Field label="Purpose">
                 <input value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="What was this for?" className={inputCls} />
               </Field>
@@ -530,12 +555,15 @@ export function FinanceManager({
                     className="text-[10px] text-red-500 hover:underline mt-1">Remove file</button>
                 )}
               </Field>
-              {saveError && <p className="text-xs text-red-500">{saveError}</p>}
-              <div className="flex gap-2 pt-1">
-                <Button type="button" variant="outline" size="sm" className="flex-1 h-9 cursor-pointer" onClick={resetForm}>Cancel</Button>
-                <Button type="submit" size="sm" className="flex-1 h-9 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" disabled={saving}>
-                  {saving ? "Saving..." : "Save Record"}
-                </Button>
+              </div>
+              <div className="shrink-0 border-t px-5 py-3 space-y-2 bg-[hsl(var(--card))]">
+                {saveError && <p className="text-xs text-red-500">{saveError}</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" className="flex-1 h-9 cursor-pointer" onClick={resetForm}>Cancel</Button>
+                  <Button type="submit" size="sm" className="flex-1 h-9 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer" disabled={saving}>
+                    {saving ? "Saving..." : category === "Loan" ? "Save Loan" : "Save Record"}
+                  </Button>
+                </div>
               </div>
             </form>
           </div>
