@@ -68,7 +68,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "salaries", label: "Salaries (payroll)", side: "out", defaultOn: true },
   { key: "purchaseLedger", label: "Purchase ledger", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
-  { key: "advances", label: "Supplier advances", side: "out", defaultOn: true },
+  { key: "advances", label: "Advances", side: "out", defaultOn: true },
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
 ]
 
@@ -105,7 +105,7 @@ function emptyBreakdown(): Breakdown {
 
 function amountFor(b: Breakdown, key: ToggleKey): number {
   if (key in b.moneyIn) return b.moneyIn[key as keyof Breakdown["moneyIn"]]
-  if (key === "advances") return b.moneyOut.supplierAdvances ?? b.moneyOut.advances
+  if (key === "advances") return b.moneyOut.advances
   if (key === "purchaseLedger") return b.moneyOut.purchaseLedger
   return b.moneyOut[key as keyof Breakdown["moneyOut"]] as number
 }
