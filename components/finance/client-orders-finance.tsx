@@ -113,7 +113,15 @@ export function ClientOrdersFinance({ search, dateFrom, dateTo, creditFilter = "
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
               {hasFilters ? "Filtered" : ""} Orders
             </p>
-            <p className="text-lg sm:text-xl font-bold tabular-nums leading-tight">{filteredCrmOrders.length}</p>
+            <p className="text-lg sm:text-xl font-bold tabular-nums leading-tight">
+              {paymentStats.orderCount}
+              {paymentStats.returnedCount > 0 ? (
+                <span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">
+                  {" "}
+                  (+{paymentStats.returnedCount} returned)
+                </span>
+              ) : null}
+            </p>
             {creditFilter === "outstanding" && creditOrdersInView > 0 && (
               <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">with balance due</p>
             )}

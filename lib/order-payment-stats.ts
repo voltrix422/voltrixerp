@@ -84,14 +84,14 @@ export function isApprovedAwaitingPaymentOrder(order: OrderPaymentStatsOrder): b
   return getOrderCreditBalance(order) > 0.004
 }
 
-/** Sum client payments on orders — same logic as CRM Paid column & Finance → Client Orders. */
+/** Sum client payments on orders — gross collected (all CRM orders, incl. fully returned). */
 export function aggregateOrderPaymentStats(
   orders: OrderPaymentStatsOrder[],
 ): OrderPaymentAggregate {
   const active = orders.filter(o => !isOrderReturned(o))
   const returned = orders.filter(isOrderReturned)
 
-  let totalReceived = 0
+  const totalReceived = orders.reduce((s, o) => s + getOrderAmountPaid(o), 0)
   let totalOutstanding = 0
   let deliveredFullyPaidCount = 0
   let deliveredFullyPaidReceived = 0
@@ -145,9 +145,31 @@ export function aggregateOrderPaymentStats(
     approvedUnpaidOutstanding,
     otherPaymentsReceived,
     returnedCount: returned.length,
-    returnedRefundAmount: returned.reduce((s, o) => s + getOrderReturnAmount(o), 0),
+    returnedRefundAmount: orders.reduce((s, o) => s + getOrderReturnAmount(o), 0),
     cashbackAmount: orders.reduce((s, o) => s + getOrderCashbackAmount(o), 0),
   }
+}
+
+/** Client return refunds dated within range — cash sent back to clients (money out). */
+export function aggregateClientRefundsInPeriod(
+  orders: OrderPaymentStatsOrder[],
+  start: Date,
+  end: Date,
+): number {
+  let sum = 0
+  const inRange = (d: Date) => d >= start && d <= end
+
+  for (const order of orders) {
+    const fallback = order.createdAt ? new Date(order.createdAt) : new Date()
+    for (const rp of order.returnPayments || []) {
+      const amount = Number(rp.amount) || 0
+      if (amount <= 0) continue
+      const d = new Date(rp.date || rp.createdAt || fallback)
+      if (inRange(d)) sum += amount
+    }
+  }
+
+  return sum
 }
 
 function paymentDate(payment: OrderPayment, fallback: Date): Date {
@@ -169,7 +191,6 @@ export function aggregateOrderPaymentsInPeriod(
   const inRange = (d: Date) => d >= start && d <= end
 
   for (const order of orders) {
-    if (isOrderReturned(order)) continue
     const fallback = order.createdAt ? new Date(order.createdAt) : new Date()
     const payments = order.payments || []
 
@@ -249,6 +270,12 @@ export function buildOrderPaymentReconciliation(
   if (allTime.partialPaymentsReceived > 0.004) {
     reasons.push(
       `Partial payments (PKR ${allTime.partialPaymentsReceived.toLocaleString()} on ${allTime.partialPaymentCount} order(s)) are part of total received and also appear in the period breakdown when payment date falls in range.`,
+    )
+  }
+
+  if (allTime.returnedRefundAmount > 0.004) {
+    reasons.push(
+      `Return refunds (PKR ${allTime.returnedRefundAmount.toLocaleString()} all-time) are shown as client refunds in money out when refund date falls in the selected period — not subtracted from money received.`,
     )
   }
 

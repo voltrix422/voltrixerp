@@ -30,6 +30,7 @@ type Breakdown = {
     supplierAdvances?: number
     salaryAdvances?: number
     cashback: number
+    clientRefunds?: number
   }
 }
 
@@ -51,6 +52,7 @@ type ToggleKey =
   | "pettyCash"
   | "advances"
   | "cashback"
+  | "clientRefunds"
 
 type ToggleDef = {
   key: ToggleKey
@@ -70,6 +72,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
   { key: "advances", label: "Advances", side: "out", defaultOn: true },
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
+  { key: "clientRefunds", label: "Client refunds", side: "out", defaultOn: true },
 ]
 
 function defaultEnabled(): Record<ToggleKey, boolean> {
@@ -99,6 +102,7 @@ function emptyBreakdown(): Breakdown {
       pettyCash: 0,
       advances: 0,
       cashback: 0,
+      clientRefunds: 0,
     },
   }
 }
@@ -120,6 +124,8 @@ function buildMoneyOutDisplayRows(b: Breakdown["moneyOut"]) {
   if (b.pettyCash > 0.004) rows.push({ label: "Petty cash (approved)", amount: b.pettyCash })
   const supplierAdv = b.supplierAdvances ?? 0
   if (supplierAdv > 0.004) rows.push({ label: "Supplier advances", amount: supplierAdv })
+  const clientRefunds = b.clientRefunds ?? 0
+  if (clientRefunds > 0.004) rows.push({ label: "Client refunds (returns)", amount: clientRefunds })
   if (b.cashback > 0.004) rows.push({ label: "Cashback", amount: b.cashback })
   return rows
 }
@@ -332,6 +338,8 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
 
   const periodReceived = orderPayments.inPeriod.approvedInPeriod
   const outstanding = orderPayments.allTime.totalOutstanding
+  const returnedOrderCount = orderPayments.allTime.returnedCount
+  const activeOrderCount = orderPayments.allTime.orderCount
   const loansInPeriod = breakdown.moneyIn.loans
 
   const displayTotal =
@@ -371,7 +379,8 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
           <div>
             <p className="text-xs font-semibold">Client receipts</p>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              CRM · {orderPayments.allTime.orderCount} orders · excl. Branch POS
+              CRM · {activeOrderCount} active
+              {returnedOrderCount > 0 ? ` (+${returnedOrderCount} returned)` : ""} · excl. Branch POS
             </p>
           </div>
           <Link

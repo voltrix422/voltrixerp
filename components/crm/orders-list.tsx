@@ -698,7 +698,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                     <span className="tabular-nums">{formatOrderPkr(totalReceived)}</span>
                   </div>
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] pt-1">
-                    Excludes still owed, returned refunds, and cashback paid out.
+                    Gross client payments collected. Refunds and cashback appear as money out in Finance.
                   </p>
                 </div>
               </div>

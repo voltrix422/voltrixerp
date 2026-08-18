@@ -19,6 +19,7 @@ import {
 import {
   aggregateOrderPaymentStats,
   aggregateOrderPaymentsInPeriod,
+  aggregateClientRefundsInPeriod,
   buildOrderPaymentReconciliation,
   isCrmErpOrderForPaymentStats,
   type OrderPaymentStatsOrder,
@@ -358,6 +359,7 @@ export async function GET(req: NextRequest) {
 
     const orderPaymentsAllTime = aggregateOrderPaymentStats(statsOrders)
     const orderPaymentsInPeriod = aggregateOrderPaymentsInPeriod(statsOrders, start, end)
+    const clientRefundsInPeriod = aggregateClientRefundsInPeriod(statsOrders, start, end)
     const orderPaymentsReconciliation = buildOrderPaymentReconciliation(
       orderPaymentsAllTime,
       orderPaymentsInPeriod,
@@ -386,6 +388,7 @@ export async function GET(req: NextRequest) {
         supplierAdvances: supplierAdvancesInPeriod,
         salaryAdvances: salaryAdvancesInPeriod,
         cashback: cashbackInPeriod,
+        clientRefunds: clientRefundsInPeriod,
       },
     }
 
@@ -401,7 +404,8 @@ export async function GET(req: NextRequest) {
       breakdown.moneyOut.purchaseLedger +
       breakdown.moneyOut.pettyCash +
       breakdown.moneyOut.advances +
-      breakdown.moneyOut.cashback
+      breakdown.moneyOut.cashback +
+      breakdown.moneyOut.clientRefunds
     const netCashFlow = moneyIn - moneyOut
 
     // Last 6 months trend (default buckets: exclude imported)
@@ -427,6 +431,15 @@ export async function GET(req: NextRequest) {
           const amount = Number(cb.amount) || 0
           if (amount <= 0) continue
           const d = new Date(cb.date || row.createdAt)
+          if (inRange(d, mStart, mEnd)) mo += amount
+        }
+        const returnPayments = Array.isArray(row.returnPayments)
+          ? (row.returnPayments as { amount?: number; date?: string; createdAt?: string }[])
+          : []
+        for (const rp of returnPayments) {
+          const amount = Number(rp.amount) || 0
+          if (amount <= 0) continue
+          const d = new Date(rp.date || rp.createdAt || row.createdAt)
           if (inRange(d, mStart, mEnd)) mo += amount
         }
       }
@@ -524,6 +537,21 @@ export async function GET(req: NextRequest) {
           source: "client",
         })
       }
+      const returnPayments = Array.isArray(row.returnPayments)
+        ? (row.returnPayments as { id?: string; amount?: number; date?: string; createdAt?: string; method?: string }[])
+        : []
+      for (const rp of returnPayments) {
+        const amount = Number(rp.amount) || 0
+        if (amount <= 0) continue
+        activities.push({
+          id: `ret-${rp.id || row.id}`,
+          date: rp.date || rp.createdAt || row.createdAt.toISOString(),
+          label: `Return refund — ${row.orderNumber} (${row.clientName})`,
+          amount: -amount,
+          category: rp.method || "Refund",
+          source: "client",
+        })
+      }
     }
     for (const r of pettyReceipts.slice(0, 10)) {
       activities.push({
@@ -569,6 +597,7 @@ export async function GET(req: NextRequest) {
         openPoCount,
         cashbackInPeriod,
         incomeRecordsInPeriod,
+        clientRefundsInPeriod,
         moneyIn,
         moneyOut,
         netCashFlow,
