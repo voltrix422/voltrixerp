@@ -107,7 +107,6 @@ export function aggregateOrderPaymentStats(
   for (const order of active) {
     const paid = getOrderAmountPaid(order)
     const balance = getOrderCreditBalance(order)
-    totalReceived += paid
     totalOutstanding += balance
 
     if (isDeliveredFullyPaidOrder(order)) {
