@@ -120,8 +120,6 @@ function buildMoneyOutDisplayRows(b: Breakdown["moneyOut"]) {
   if (b.pettyCash > 0.004) rows.push({ label: "Petty cash (approved)", amount: b.pettyCash })
   const supplierAdv = b.supplierAdvances ?? 0
   if (supplierAdv > 0.004) rows.push({ label: "Supplier advances", amount: supplierAdv })
-  const salaryAdv = b.salaryAdvances ?? 0
-  if (salaryAdv > 0.004) rows.push({ label: "Salary advances", amount: salaryAdv })
   if (b.cashback > 0.004) rows.push({ label: "Cashback", amount: b.cashback })
   return rows
 }

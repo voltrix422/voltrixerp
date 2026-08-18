@@ -302,7 +302,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Advances given (supplier/person deposits) + salary advances paid out
+    // Supplier advances are real extra cash outflows for the period.
+    // Salary advances are recovered inside payroll, so exclude them from finance money-out totals.
     let supplierAdvancesInPeriod = 0
     for (const account of advanceAccounts) {
       const txns = Array.isArray(account.transactions)
@@ -321,8 +322,7 @@ export async function GET(req: NextRequest) {
       if (!inRange(new Date(adv.givenAt), start, end)) continue
       salaryAdvancesInPeriod += Number(adv.amount) || 0
     }
-    // Salary advances are separate from monthly salary payments.
-    const advancesInPeriod = supplierAdvancesInPeriod + salaryAdvancesInPeriod
+    const advancesInPeriod = supplierAdvancesInPeriod
 
     // Petty cash spent in period — approved receipts only (matches Petty Cash page logic)
     const pettyUsed = sumApprovedReceiptsInPeriod(pettyReceipts, start, end)
@@ -470,9 +470,6 @@ export async function GET(req: NextRequest) {
           const d = new Date(t.date || t.createdAt || account.createdAt)
           if (inRange(d, mStart, mEnd)) mo += amount
         }
-      }
-      for (const adv of salaryAdvances) {
-        if (inRange(new Date(adv.givenAt), mStart, mEnd)) mo += Number(adv.amount) || 0
       }
       monthlyTrend.push({ month: monthLabel, moneyIn: mi, moneyOut: mo })
     }
