@@ -5,6 +5,10 @@ import Link from "next/link"
 import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
+import {
+  type MoneyOutDetailLine,
+  type MoneyOutDetailsPayload,
+} from "@/lib/finance-money-out-details"
 
 type OrderPaymentsPayload = {
   allTime: OrderPaymentAggregate
@@ -114,8 +118,11 @@ function amountFor(b: Breakdown, key: ToggleKey): number {
   return b.moneyOut[key as keyof Breakdown["moneyOut"]] as number
 }
 
-function buildMoneyOutDisplayRows(b: Breakdown["moneyOut"]) {
-  const rows: { label: string; amount: number }[] = []
+function buildMoneyOutDisplayRows(
+  b: Breakdown["moneyOut"],
+  details?: MoneyOutDetailsPayload | null,
+) {
+  const rows: { label: string; amount: number; details?: MoneyOutDetailLine[] }[] = []
   if (b.expenses > 0.004) rows.push({ label: "Expenses (finance records)", amount: b.expenses })
   if (b.salaries > 0.004) rows.push({ label: "Salaries (payroll · paid)", amount: b.salaries })
   if (b.purchaseLedger > 0.004) {
@@ -123,10 +130,28 @@ function buildMoneyOutDisplayRows(b: Breakdown["moneyOut"]) {
   }
   if (b.pettyCash > 0.004) rows.push({ label: "Petty cash (approved)", amount: b.pettyCash })
   const supplierAdv = b.supplierAdvances ?? 0
-  if (supplierAdv > 0.004) rows.push({ label: "Supplier advances", amount: supplierAdv })
+  if (supplierAdv > 0.004) {
+    rows.push({
+      label: "Supplier advances",
+      amount: supplierAdv,
+      details: details?.supplierAdvances,
+    })
+  }
   const clientRefunds = b.clientRefunds ?? 0
-  if (clientRefunds > 0.004) rows.push({ label: "Client refunds (returns)", amount: clientRefunds })
-  if (b.cashback > 0.004) rows.push({ label: "Cashback", amount: b.cashback })
+  if (clientRefunds > 0.004) {
+    rows.push({
+      label: "Client refunds (returns)",
+      amount: clientRefunds,
+      details: details?.clientRefunds,
+    })
+  }
+  if (b.cashback > 0.004) {
+    rows.push({
+      label: "Cashback",
+      amount: b.cashback,
+      details: details?.cashback,
+    })
+  }
   return rows
 }
 
@@ -164,17 +189,50 @@ function BreakdownTable({
   rows,
   total,
 }: {
-  rows: { label: string; value: string }[]
+  rows: { label: string; value: string; details?: MoneyOutDetailLine[] }[]
   total: string
 }) {
   return (
-    <div className="inline-block max-w-full rounded-md border overflow-hidden">
+    <div className="inline-block max-w-full rounded-md border overflow-visible">
       <table className="border-collapse text-[11px]">
         <tbody>
           {rows.map((row, i) => (
-            <tr key={row.label} className={i > 0 ? "border-t" : undefined}>
-              <td className="pl-2.5 pr-3 py-0.5 text-[hsl(var(--muted-foreground))] align-middle whitespace-nowrap">
-                {row.label}
+            <tr key={row.label} className={`group ${i > 0 ? "border-t" : ""}`}>
+              <td className="relative pl-2.5 pr-3 py-0.5 align-middle whitespace-nowrap">
+                <span
+                  className={`text-[hsl(var(--muted-foreground))] ${
+                    row.details?.length
+                      ? "cursor-help underline decoration-dotted decoration-[hsl(var(--muted-foreground))]/50 underline-offset-2"
+                      : ""
+                  }`}
+                >
+                  {row.label}
+                </span>
+                {row.details && row.details.length > 0 && (
+                  <div
+                    role="tooltip"
+                    className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden min-w-[15rem] max-w-[22rem] group-hover:block rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg p-2 text-[10px]"
+                  >
+                    <ul className="space-y-1.5 max-h-52 overflow-y-auto">
+                      {row.details.map(d => (
+                        <li key={d.id} className="flex justify-between gap-3 leading-snug">
+                          <span className="min-w-0">
+                            <span className="font-medium text-[hsl(var(--foreground))]">{d.label}</span>
+                            {d.sublabel ? (
+                              <span className="text-[hsl(var(--muted-foreground))]"> · {d.sublabel}</span>
+                            ) : null}
+                            {d.date ? (
+                              <span className="block text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                                {d.date}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="tabular-nums font-medium shrink-0">{fmt(d.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </td>
               <td className="pl-2 pr-2.5 py-0.5 tabular-nums font-medium text-right align-middle whitespace-nowrap">
                 {row.value}
@@ -209,7 +267,7 @@ function Accordion({
   children: ReactNode
 }) {
   return (
-    <div className="border rounded-md overflow-hidden">
+    <div className={`border rounded-md ${open ? "overflow-visible" : "overflow-hidden"}`}>
       <button
         type="button"
         onClick={onToggle}
@@ -239,6 +297,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
   const [orderPayments, setOrderPayments] = useState<OrderPaymentsPayload | null>(null)
   const [includeOutstanding, setIncludeOutstanding] = useState(false)
   const [enabled, setEnabled] = useState<Record<ToggleKey, boolean>>(defaultEnabled)
+  const [moneyOutDetails, setMoneyOutDetails] = useState<MoneyOutDetailsPayload | null>(null)
   const [snapshotOpen, setSnapshotOpen] = useState(false)
   const [inBreakdownOpen, setInBreakdownOpen] = useState(false)
   const [outBreakdownOpen, setOutBreakdownOpen] = useState(false)
@@ -254,6 +313,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
       setPeriodLabel(data.periodLabel || "This month")
       setSummary(data.summary)
       setOrderPayments(data.orderPayments ?? null)
+      setMoneyOutDetails(data.moneyOutDetails ?? null)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -291,7 +351,10 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     [breakdown, enabled],
   )
 
-  const moneyOutDisplayRows = useMemo(() => buildMoneyOutDisplayRows(breakdown.moneyOut), [breakdown.moneyOut])
+  const moneyOutDisplayRows = useMemo(
+    () => buildMoneyOutDisplayRows(breakdown.moneyOut, moneyOutDetails),
+    [breakdown.moneyOut, moneyOutDetails],
+  )
   const moneyInDisplayRows = useMemo(
     () => inLines.filter(l => l.amount > 0.004).map(l => ({ label: l.label, amount: l.amount })),
     [inLines],
@@ -514,7 +577,11 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
             >
               <div className="pt-1.5">
                 <BreakdownTable
-                  rows={moneyOutDisplayRows.map(r => ({ label: r.label, value: fmt(r.amount) }))}
+                  rows={moneyOutDisplayRows.map(r => ({
+                    label: r.label,
+                    value: fmt(r.amount),
+                    details: r.details,
+                  }))}
                   total={fmt(moneyOutAll)}
                 />
               </div>

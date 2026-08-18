@@ -29,6 +29,11 @@ import {
   sumJsonPaymentsInPeriod,
 } from "@/lib/finance-purchase-outflows"
 import { sumApprovedReceiptsInPeriod } from "@/lib/petty-cash-display"
+import {
+  buildCashbackDetails,
+  buildClientRefundDetails,
+  buildSupplierAdvanceDetails,
+} from "@/lib/finance-money-out-details"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -566,6 +571,32 @@ export async function GET(req: NextRequest) {
 
     activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
+    const crmOrderRows = orders
+      .filter(row =>
+        isCrmErpOrderForPaymentStats({
+          source: row.source,
+          notes: row.notes,
+          branchId: (row as { branchId?: string | null }).branchId,
+        }),
+      )
+      .map(row => ({
+        id: row.id,
+        orderNumber: row.orderNumber,
+        clientName: row.clientName,
+        createdAt: row.createdAt,
+        source: row.source,
+        notes: row.notes,
+        branchId: (row as { branchId?: string | null }).branchId,
+        returnPayments: row.returnPayments,
+        cashbackPayments: (row as { cashbackPayments?: unknown }).cashbackPayments,
+      }))
+
+    const moneyOutDetails = {
+      supplierAdvances: buildSupplierAdvanceDetails(advanceAccounts, start, end),
+      clientRefunds: buildClientRefundDetails(crmOrderRows, start, end),
+      cashback: buildCashbackDetails(crmOrderRows, start, end),
+    }
+
     return NextResponse.json({
       periodLabel,
       summary: {
@@ -618,6 +649,7 @@ export async function GET(req: NextRequest) {
         inPeriod: orderPaymentsInPeriod,
         reconciliation: orderPaymentsReconciliation,
       },
+      moneyOutDetails,
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
