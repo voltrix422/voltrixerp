@@ -863,6 +863,30 @@ export function formatTransactionTypeLabel(type: PurchaseTransactionType | strin
   return PURCHASE_TRANSACTION_TYPES.find(t => t.value === type)?.label ?? type
 }
 
+export type PurchaseLedgerStats = {
+  count: number
+  total: number
+  paid: number
+  due: number
+}
+
+/** Rent rows: explicit type or legacy supplier rent lines (e.g. "Rent for Lahore Outlet"). */
+export function isRentLedgerEntry(entry: PurchaseLedgerEntry): boolean {
+  if (entry.transactionType === "rent") return true
+  const items =
+    entry.items.length > 0 ? entry.items : flattenSupplierGroupItems(entry.supplierGroups)
+  return items.some(item => /^\s*rent(\s+for)?\b/i.test(item.productName.trim()))
+}
+
+export function aggregateLedgerStats(entries: PurchaseLedgerEntry[]): PurchaseLedgerStats {
+  return {
+    count: entries.length,
+    total: entries.reduce((sum, entry) => sum + entry.totalAmount, 0),
+    paid: entries.reduce((sum, entry) => sum + entry.amountPaid, 0),
+    due: entries.reduce((sum, entry) => sum + entry.amountDue, 0),
+  }
+}
+
 /** Build a supplier-based rent row for the purchase ledger (counts in totals like other entries). */
 export function buildRentLedgerPayload(params: {
   purchaseScopeId: string

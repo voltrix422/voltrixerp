@@ -42,6 +42,9 @@ import {
   buildRentLedgerPayload,
   formatTransactionTypeLabel,
   type LedgerAttachment,
+  aggregateLedgerStats,
+  isRentLedgerEntry,
+  type PurchaseLedgerStats,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
   type PurchaseLedgerPayment,
@@ -380,6 +383,76 @@ function SupplierGroupAttachments({
 
 function fmtMoney(n: number) {
   return `Rs. ${n.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`
+}
+
+function LedgerFilterSummary({
+  stats,
+}: {
+  stats: {
+    combined: PurchaseLedgerStats
+    purchases: PurchaseLedgerStats
+    rents: PurchaseLedgerStats
+  }
+}) {
+  const row = (
+    label: string,
+    hint: string,
+    s: PurchaseLedgerStats,
+    highlight = false,
+  ) => (
+    <div
+      className={
+        highlight
+          ? "rounded-md border border-[#1faca6]/30 bg-[#1faca6]/8 px-3 py-2.5"
+          : "rounded-md bg-[hsl(var(--muted))]/15 px-3 py-2.5"
+      }
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold text-[hsl(var(--foreground))]">{label}</p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{hint}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
+          <span>
+            <strong className="text-[hsl(var(--foreground))]">{s.count}</strong> shown
+          </span>
+          <span>
+            Total <strong className="text-[#1faca6]">{fmtMoney(s.total)}</strong>
+          </span>
+          <span>
+            Paid <strong className="text-emerald-600">{fmtMoney(s.paid)}</strong>
+          </span>
+          <span>
+            Due <strong className="text-amber-600">{fmtMoney(s.due)}</strong>
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-2">
+      {row(
+        "Combined total (purchases + rents)",
+        "All ledger entries matching your filters",
+        stats.combined,
+        true,
+      )}
+      {row(
+        "Purchases only",
+        "Entries that are not classified as rent",
+        stats.purchases,
+      )}
+      {row(
+        "Rents only",
+        "Rent entries from Add rents or lines starting with “Rent for …”",
+        stats.rents,
+      )}
+      <p className="text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))] px-0.5">
+        Combined total = purchases + rents. Counts and amounts update with search and filters above.
+      </p>
+    </div>
+  )
 }
 
 function getEntryBillLinks(entry: PurchaseLedgerEntry) {
@@ -1276,12 +1349,15 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     filterDueTo,
   ])
 
-  const filterStats = useMemo(() => ({
-    count: filtered.length,
-    total: filtered.reduce((s, e) => s + e.totalAmount, 0),
-    paid: filtered.reduce((s, e) => s + e.amountPaid, 0),
-    due: filtered.reduce((s, e) => s + e.amountDue, 0),
-  }), [filtered])
+  const filterStats = useMemo(() => {
+    const rentEntries = filtered.filter(isRentLedgerEntry)
+    const purchaseEntries = filtered.filter(entry => !isRentLedgerEntry(entry))
+    return {
+      combined: aggregateLedgerStats(filtered),
+      purchases: aggregateLedgerStats(purchaseEntries),
+      rents: aggregateLedgerStats(rentEntries),
+    }
+  }, [filtered])
 
   const hasActiveFilters = Boolean(
     filterLinkMode !== "all"
@@ -1417,7 +1493,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           )}
           <span className="ml-auto flex items-center gap-2">
             <span className="text-[10px] text-[hsl(var(--muted-foreground))] hidden sm:inline">
-              {filterStats.count} shown · purchases + rents · {fmtMoney(filterStats.total)}
+              {filterStats.combined.count} shown · combined {fmtMoney(filterStats.combined.total)}
             </span>
             {filtersOpen
               ? <ChevronUp className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
@@ -1488,12 +1564,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] rounded-md bg-[hsl(var(--muted))]/15 px-3 py-2">
-            <span><strong className="text-[hsl(var(--foreground))]">{filterStats.count}</strong> shown · purchases + rents</span>
-            <span>Total <strong className="text-[#1faca6]">{fmtMoney(filterStats.total)}</strong></span>
-            <span>Paid <strong className="text-emerald-600">{fmtMoney(filterStats.paid)}</strong></span>
-            <span>Due <strong className="text-amber-600">{fmtMoney(filterStats.due)}</strong></span>
-          </div>
+          <LedgerFilterSummary stats={filterStats} />
         </div>
       </section>
 
