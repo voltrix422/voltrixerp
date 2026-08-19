@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal, Receipt, Paperclip } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal, Receipt, Paperclip, Building2 } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -39,6 +39,8 @@ import {
   withSyncedLegacyAttachments,
   taxAmountFromPercent,
   ledgerGrandTotal,
+  buildRentLedgerPayload,
+  formatTransactionTypeLabel,
   type LedgerAttachment,
   type PurchaseLedgerEntry,
   type PurchaseLedgerItem,
@@ -483,6 +485,28 @@ function LineItemsEditor({
 
 const filterSelectCls = "h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs min-w-0"
 
+type RentRow = {
+  id: string
+  outletName: string
+  supplierId: string | null
+  landlordName: string
+  amount: string
+  periodLabel: string
+  dueDate: string
+}
+
+function newRentRow(): RentRow {
+  return {
+    id: `rent-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    outletName: "",
+    supplierId: null,
+    landlordName: "",
+    amount: "",
+    periodLabel: "",
+    dueDate: "",
+  }
+}
+
 export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: string }) {
   const { user } = useAuth()
   const [entries, setEntries] = useState<PurchaseLedgerEntry[]>([])
@@ -501,6 +525,10 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [filterDueTo, setFilterDueTo] = useState("")
   const [exporting, setExporting] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [showRentForm, setShowRentForm] = useState(false)
+  const [rentRows, setRentRows] = useState<RentRow[]>([newRentRow()])
+  const [rentTransactionDate, setRentTransactionDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [rentSaving, setRentSaving] = useState(false)
 
   const [payEntry, setPayEntry] = useState<PurchaseLedgerEntry | null>(null)
   const [paySupplierGroupId, setPaySupplierGroupId] = useState("")
@@ -1079,6 +1107,66 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     if (detailEntryId === id) setDetailEntryId(null)
   }
 
+  function openRentForm() {
+    setRentRows([newRentRow()])
+    setRentTransactionDate(new Date().toISOString().slice(0, 10))
+    setShowRentForm(true)
+  }
+
+  function updateRentRow(id: string, patch: Partial<RentRow>) {
+    setRentRows(prev => prev.map(row => row.id === id ? { ...row, ...patch } : row))
+  }
+
+  const rentPreviewTotal = useMemo(
+    () =>
+      rentRows.reduce((sum, row) => {
+        const amount = parseFloat(row.amount) || 0
+        return row.outletName.trim() && amount > 0 ? sum + amount : sum
+      }, 0),
+    [rentRows],
+  )
+
+  async function handleSaveRents(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user) return
+    const valid = rentRows.filter(row => row.outletName.trim() && (parseFloat(row.amount) || 0) > 0)
+    if (valid.length === 0) {
+      alert("Add at least one rent with outlet / property name and amount.")
+      return
+    }
+    setRentSaving(true)
+    try {
+      const saved: PurchaseLedgerEntry[] = []
+      for (const row of valid) {
+        const ledgerNumber = await getNextLedgerNumber(purchaseScopeId)
+        const supplier = suppliers.find(s => s.id === row.supplierId)
+        const landlordName = supplier?.name ?? row.landlordName.trim()
+        const entry = await savePurchaseLedgerEntry(
+          buildRentLedgerPayload({
+            purchaseScopeId,
+            ledgerNumber,
+            transactionDate: rentTransactionDate,
+            outletName: row.outletName.trim(),
+            landlordSupplierId: row.supplierId,
+            landlordName,
+            amount: parseFloat(row.amount) || 0,
+            dueDate: row.dueDate,
+            periodLabel: row.periodLabel.trim(),
+            createdBy: user.name,
+          }),
+        )
+        saved.push(entry)
+      }
+      setEntries(prev => [...saved, ...prev])
+      setShowRentForm(false)
+      setRentRows([newRentRow()])
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to save rent entries.")
+    } finally {
+      setRentSaving(false)
+    }
+  }
+
   function openPayModal(entry: PurchaseLedgerEntry) {
     setPayEntry(entry)
     const projectGroups = entry.linkMode === "project" && entry.supplierGroups.length > 0
@@ -1305,6 +1393,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           >
             <Download className="h-3.5 w-3.5" /> PDF
           </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => void openRentForm()}>
+            <Building2 className="h-3.5 w-3.5" /> Add rents
+          </Button>
           <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => void openNewForm()}>
             <Plus className="h-3.5 w-3.5" /> New purchase
           </Button>
@@ -1326,7 +1417,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           )}
           <span className="ml-auto flex items-center gap-2">
             <span className="text-[10px] text-[hsl(var(--muted-foreground))] hidden sm:inline">
-              {filterStats.count} shown · {fmtMoney(filterStats.total)}
+              {filterStats.count} shown · purchases + rents · {fmtMoney(filterStats.total)}
             </span>
             {filtersOpen
               ? <ChevronUp className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
@@ -1398,7 +1489,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           )}
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] rounded-md bg-[hsl(var(--muted))]/15 px-3 py-2">
-            <span><strong className="text-[hsl(var(--foreground))]">{filterStats.count}</strong> shown</span>
+            <span><strong className="text-[hsl(var(--foreground))]">{filterStats.count}</strong> shown · purchases + rents</span>
             <span>Total <strong className="text-[#1faca6]">{fmtMoney(filterStats.total)}</strong></span>
             <span>Paid <strong className="text-emerald-600">{fmtMoney(filterStats.paid)}</strong></span>
             <span>Due <strong className="text-amber-600">{fmtMoney(filterStats.due)}</strong></span>
@@ -1885,6 +1976,169 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         />
       )}
 
+      {showRentForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
+          onClick={() => !rentSaving && setShowRentForm(false)}
+        >
+          <div
+            className="w-full sm:max-w-4xl max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b shrink-0 bg-[hsl(var(--muted))]/15">
+              <div className="min-w-0 pr-2">
+                <p className="text-sm font-semibold">Add rents</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Multiple outlet / property rents · saved to purchase ledger · included in totals
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                disabled={rentSaving}
+                onClick={() => setShowRentForm(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <form onSubmit={e => void handleSaveRents(e)} className="flex flex-col min-h-0 flex-1">
+              <div className="overflow-y-auto px-4 sm:px-5 py-4 space-y-3 overscroll-contain">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Rent date" hint="Applied to all rows below">
+                    <input
+                      type="date"
+                      required
+                      value={rentTransactionDate}
+                      onChange={e => setRentTransactionDate(e.target.value)}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-3 py-2 flex items-center justify-between">
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Batch total</span>
+                    <span className="text-sm font-semibold text-[#1faca6] tabular-nums">{fmtMoney(rentPreviewTotal)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold">Rent lines</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px] cursor-pointer"
+                      onClick={() => setRentRows(prev => [...prev, newRentRow()])}
+                    >
+                      <Plus className="h-3 w-3" /> Add another rent
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {rentRows.map((row, index) => (
+                      <section
+                        key={row.id}
+                        className="rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                            Rent {index + 1}
+                          </p>
+                          {rentRows.length > 1 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-[10px] text-red-500 cursor-pointer"
+                              onClick={() => setRentRows(prev => prev.filter(r => r.id !== row.id))}
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove
+                            </Button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <Field label="Outlet / property" hint="e.g. Lahore Outlet Rent">
+                            <input
+                              required
+                              value={row.outletName}
+                              onChange={e => updateRentRow(row.id, { outletName: e.target.value })}
+                              placeholder="Property or outlet name"
+                              className={inputCls}
+                            />
+                          </Field>
+                          <Field label="Amount (PKR)" hint="Monthly rent">
+                            <input
+                              required
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={row.amount}
+                              onChange={e => updateRentRow(row.id, { amount: e.target.value })}
+                              placeholder="0"
+                              className={inputCls}
+                              inputMode="decimal"
+                            />
+                          </Field>
+                        </div>
+                        <Field label="Landlord / payee" hint="Select supplier or type name">
+                          <SupplierPicker
+                            suppliers={suppliers}
+                            supplierId={row.supplierId || ""}
+                            supplierName={row.landlordName}
+                            purchaseScopeId={purchaseScopeId}
+                            onSupplierIdChange={id => {
+                              const supplier = suppliers.find(s => s.id === id)
+                              updateRentRow(row.id, {
+                                supplierId: id || null,
+                                landlordName: supplier?.name ?? "",
+                              })
+                            }}
+                            onSupplierNameChange={name =>
+                              updateRentRow(row.id, { supplierId: null, landlordName: name })
+                            }
+                            onSuppliersChange={setSuppliers}
+                            compact
+                          />
+                        </Field>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <Field label="Period" hint="Optional · e.g. August 2026">
+                            <input
+                              value={row.periodLabel}
+                              onChange={e => updateRentRow(row.id, { periodLabel: e.target.value })}
+                              placeholder="Month or period"
+                              className={inputCls}
+                            />
+                          </Field>
+                          <Field label="Due date" hint="Optional">
+                            <input
+                              type="date"
+                              value={row.dueDate}
+                              onChange={e => updateRentRow(row.id, { dueDate: e.target.value })}
+                              className={inputCls}
+                            />
+                          </Field>
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 px-4 sm:px-5 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs" disabled={rentSaving} onClick={() => setShowRentForm(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" className="h-8 text-xs cursor-pointer" disabled={rentSaving || rentPreviewTotal <= 0}>
+                  {rentSaving ? "Saving…" : `Save ${rentRows.filter(r => r.outletName.trim() && parseFloat(r.amount) > 0).length} rent(s)`}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {payEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setPayEntry(null)}>
           <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-xl" onClick={e => e.stopPropagation()}>
@@ -2054,7 +2308,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                 <td className="px-2 py-2 whitespace-nowrap">{entry.transactionDate}</td>
                 <td className="px-2 py-2">
                   <div className="flex flex-col gap-0.5">
-                    <Badge variant="outline" className="text-[10px] w-fit">{formatLinkModeLabel(entry.linkMode)}</Badge>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge variant="outline" className="text-[10px] w-fit">{formatLinkModeLabel(entry.linkMode)}</Badge>
+                      {entry.transactionType === "rent" && (
+                        <Badge variant="outline" className="text-[10px] w-fit border-amber-500/40 text-amber-700 dark:text-amber-300">
+                          {formatTransactionTypeLabel(entry.transactionType)}
+                        </Badge>
+                      )}
+                    </div>
                     <span>{formatLedgerProject(entry)}</span>
                   </div>
                 </td>

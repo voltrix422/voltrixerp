@@ -2,7 +2,7 @@ import { extractBillFromNotes } from "@/lib/purchase-ledger-bill"
 
 export type PurchaseLinkMode = "project" | "supplier" | "general"
 export type PurchaseCategory = "expense" | "service_charge" | "inventory" | "transport" | "other"
-export type PurchaseTransactionType = "purchase" | "expense" | "service" | "payment" | "other"
+export type PurchaseTransactionType = "purchase" | "expense" | "service" | "payment" | "rent" | "other"
 
 export interface PurchaseLedgerItem {
   id: string
@@ -92,6 +92,7 @@ export const PURCHASE_TRANSACTION_TYPES: { value: PurchaseTransactionType; label
   { value: "expense", label: "Expense" },
   { value: "service", label: "Service" },
   { value: "payment", label: "Payment" },
+  { value: "rent", label: "Rent" },
   { value: "other", label: "Other" },
 ]
 
@@ -856,4 +857,77 @@ export function formatLedgerItemsSummary(entry: PurchaseLedgerEntry): string {
 
 export function formatLinkModeLabel(mode: PurchaseLinkMode | string): string {
   return PURCHASE_LINK_MODES.find(m => m.value === normalizeLinkMode(mode))?.label ?? mode
+}
+
+export function formatTransactionTypeLabel(type: PurchaseTransactionType | string): string {
+  return PURCHASE_TRANSACTION_TYPES.find(t => t.value === type)?.label ?? type
+}
+
+/** Build a supplier-based rent row for the purchase ledger (counts in totals like other entries). */
+export function buildRentLedgerPayload(params: {
+  purchaseScopeId: string
+  ledgerNumber: string
+  transactionDate: string
+  outletName: string
+  landlordSupplierId: string | null
+  landlordName: string
+  amount: number
+  dueDate: string
+  periodLabel: string
+  createdBy: string
+}): Omit<PurchaseLedgerEntry, "id" | "createdAt"> {
+  const outlet = params.outletName.trim()
+  const landlord = params.landlordName.trim() || outlet
+  const period = params.periodLabel.trim()
+  const itemName = period ? `Rent for ${outlet} (${period})` : `Rent for ${outlet}`
+  const amount = Math.max(0, Number(params.amount) || 0)
+  const group = withGroupPaymentTotals(
+    newSupplierGroup({
+      supplierId: params.landlordSupplierId,
+      supplierName: landlord,
+      items: [
+        newLedgerItem({
+          productName: itemName,
+          quantity: 1,
+          unitPrice: amount,
+          lineTotal: amount,
+        }),
+      ],
+      date: params.transactionDate,
+    }),
+    0,
+  )
+
+  return {
+    purchaseScopeId: params.purchaseScopeId,
+    ledgerNumber: params.ledgerNumber,
+    transactionDate: params.transactionDate,
+    linkMode: "supplier",
+    projectName: outlet,
+    orderId: null,
+    orderNumber: "",
+    supplierId: params.landlordSupplierId,
+    supplierName: landlord,
+    productName: itemName,
+    transactionType: "rent",
+    category: "expense",
+    quantity: 1,
+    unitPrice: amount,
+    taxPercent: 0,
+    taxAmount: 0,
+    totalAmount: amount,
+    amountPaid: 0,
+    amountDue: amount,
+    items: group.items,
+    supplierGroups: [group],
+    payments: [],
+    notes: "",
+    dueDate: params.dueDate,
+    accountDetails: "",
+    paymentProofUrl: "",
+    paymentProofName: "",
+    billUrl: "",
+    billName: "",
+    createdBy: params.createdBy,
+  }
 }
