@@ -456,10 +456,68 @@ export function itemWeightKg(item: ImportItem): number {
   return Number(item.grossWeightKg) || 0
 }
 
-function itemUnitPrice(item: ImportItem): number {
+/** Unit price for product cost: Actual → foreign → Assessed → Declared. */
+export function itemUnitPrice(item: ImportItem): number {
   const actual = Number(item.actualPrice)
   if (actual > 0) return actual
-  return Number(item.unitPriceForeign) || 0
+  const foreign = Number(item.unitPriceForeign)
+  if (foreign > 0) return foreign
+  const assessed = Number(item.assessedPrice)
+  if (assessed > 0) return assessed
+  const declared = Number(item.declaredPrice)
+  if (declared > 0) return declared
+  return 0
+}
+
+/** FX used for landed cost. PKR shipments default to 1 when FX is blank. */
+export function effectiveShipmentFx(shipment: { fxRate?: number; currency?: string }): number {
+  const fx = Number(shipment.fxRate) || 0
+  if (fx > 0) return fx
+  if (String(shipment.currency || "").toUpperCase() === "PKR") return 1
+  return 0
+}
+
+/** Blockers prevent Calculate/Lock; warnings are informational (e.g. price fallbacks). */
+export function getLandedCostIssues(
+  shipment: Pick<ImportShipment, "items" | "fxRate" | "currency">,
+): { blockers: string[]; warnings: string[] } {
+  const blockers: string[] = []
+  const warnings: string[] = []
+  const items = shipment.items || []
+  const currency = String(shipment.currency || "USD").toUpperCase()
+  const fx = effectiveShipmentFx(shipment)
+
+  if (items.length === 0) {
+    blockers.push("Add invoice items on step 2 before calculating landed cost.")
+  }
+
+  if (fx <= 0) {
+    blockers.push(`Set FX rate on Basics (1 ${currency} = ? PKR). Product cost stays 0 without it.`)
+  }
+
+  const missingPrice = items.filter(i => itemUnitPrice(i) <= 0)
+  if (missingPrice.length > 0) {
+    blockers.push(
+      `${missingPrice.length} item(s) have no Actual, Assessed, or Declared unit price on Invoice.`,
+    )
+  }
+
+  const usingFallback = items.filter(i => {
+    const invoice = Number(i.actualPrice) || Number(i.unitPriceForeign) || 0
+    if (invoice > 0) return false
+    return (Number(i.assessedPrice) || Number(i.declaredPrice) || 0) > 0
+  })
+  if (usingFallback.length > 0) {
+    warnings.push(
+      `${usingFallback.length} item(s) use Assessed/Declared price because Actual invoice price is blank.`,
+    )
+  }
+
+  if (currency === "PKR" && !(Number(shipment.fxRate) > 0)) {
+    warnings.push("Currency is PKR — using FX = 1. Set FX on Basics if you need a different rate.")
+  }
+
+  return { blockers, warnings }
 }
 
 function itemBasis(item: ImportItem, method: AllocationMethod, fxRate: number): number {
@@ -521,7 +579,7 @@ export function calculateLandedCost(shipment: Pick<
   ImportShipment,
   "items" | "charges" | "fxRate" | "currency" | "allocationMethod"
 >): LandedCostSummary {
-  const fxRate = Number(shipment.fxRate) || 0
+  const fxRate = effectiveShipmentFx(shipment)
   const currency = shipment.currency || "USD"
   const method = shipment.allocationMethod || "by_value"
   const items = shipment.items || []

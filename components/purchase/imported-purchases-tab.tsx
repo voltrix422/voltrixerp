@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import {
   Plus, Search, Loader2, Ship, ArrowLeft, Trash2, Lock, Calculator,
   ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked, Hash,
-  Maximize2, Minimize2, PanelsTopLeft, FileDown,
+  Maximize2, Minimize2, PanelsTopLeft, FileDown, AlertTriangle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +34,7 @@ import {
   emptyShipment,
   formatPkr,
   getImportShipments,
+  getLandedCostIssues,
   importDisplayName,
   loadAgentLibrary,
   loadSroLibrary,
@@ -1453,7 +1454,7 @@ function StepInvoice({
                       <th className="px-1.5 py-1">Description</th>
                       <th className="px-1.5 py-1">HS</th>
                       <th className="px-1.5 py-1">Qty</th>
-                      <th className="px-1.5 py-1">Actual {draft.currency}</th>
+                      <th className="px-1.5 py-1">Actual {draft.currency} *</th>
                       <th className="px-1.5 py-1">Declared</th>
                       <th className="px-1.5 py-1">Assessed</th>
                       <th className="px-1.5 py-1">Gross kg</th>
@@ -2604,18 +2605,32 @@ function StepLanded({
   saving: boolean
   userName: string
 }) {
+  const { toast } = useToast()
   const preview = useMemo(
     () => calculateLandedCost(draft),
     [draft],
   )
+  const issues = useMemo(() => getLandedCostIssues(draft), [draft])
+  const blocked = issues.blockers.length > 0
 
   function applyLocal() {
+    if (blocked) {
+      toast({ type: "error", title: "Cannot calculate", message: issues.blockers[0] })
+      return
+    }
     const summary = calculateLandedCost(draft)
     const items = applyLandedCostToItems(draft.items || [], summary)
     setDraft(d => d ? { ...d, items, landedCostSummary: summary } : d)
+    if (issues.warnings.length > 0) {
+      toast({ type: "warning", title: "Calculated with warnings", message: issues.warnings[0] })
+    }
   }
 
   async function lock() {
+    if (blocked) {
+      toast({ type: "error", title: "Cannot lock", message: issues.blockers[0] })
+      return
+    }
     applyLocal()
     await onPersist({
       recalculateLandedCost: true,
@@ -2650,19 +2665,63 @@ function StepLanded({
               <option value="by_qty">Quantity</option>
             </select>
           </Field>
-          <Field label="FX rate in use">
-            <input disabled value={draft.fxRate} className={inputCls} />
+          <Field label={`FX rate in use (1 ${draft.currency || "USD"} = ? PKR)`}>
+            <input
+              disabled={draft.landedCostLocked}
+              type="number"
+              min="0"
+              step="0.01"
+              value={draft.fxRate || ""}
+              onChange={e => patch({ fxRate: Number(e.target.value) || 0 })}
+              className={inputCls}
+              placeholder="e.g. 280"
+            />
           </Field>
           <div className="flex items-end gap-1.5">
-            <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" disabled={draft.landedCostLocked} onClick={applyLocal}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-[11px]"
+              disabled={draft.landedCostLocked || blocked}
+              onClick={applyLocal}
+            >
               <Calculator className="h-3 w-3 mr-1" /> Calculate
             </Button>
-            <Button type="button" size="sm" className="h-7 text-[11px]" disabled={saving || draft.landedCostLocked} onClick={() => void lock()}>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 text-[11px]"
+              disabled={saving || draft.landedCostLocked || blocked}
+              onClick={() => void lock()}
+            >
               {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Lock className="h-3 w-3 mr-1" />}
               Lock
             </Button>
           </div>
         </div>
+        {blocked && (
+          <div className="mt-1.5 rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-2.5 py-2 space-y-1">
+            <p className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3 shrink-0" /> Fix before Calculate / Lock
+            </p>
+            <ul className="text-[10px] text-amber-900 dark:text-amber-100 list-disc pl-4 space-y-0.5">
+              {issues.blockers.map(b => <li key={b}>{b}</li>)}
+            </ul>
+            <p className="text-[9px] text-amber-700 dark:text-amber-300">
+              Enter FX above (or on Basics), and set Actual unit price on Invoice step 2. Assessed/Declared is used as fallback.
+            </p>
+          </div>
+        )}
+        {!blocked && issues.warnings.length > 0 && (
+          <div className="mt-1.5 rounded border border-sky-200 bg-sky-50 dark:bg-sky-950/30 dark:border-sky-800 px-2.5 py-2 space-y-0.5">
+            {issues.warnings.map(w => (
+              <p key={w} className="text-[10px] text-sky-800 dark:text-sky-200 flex items-start gap-1">
+                <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /> {w}
+              </p>
+            ))}
+          </div>
+        )}
         {draft.landedCostLocked && (
           <p className="text-[10px] text-emerald-700 mt-1.5 flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3" /> Landed cost locked.
