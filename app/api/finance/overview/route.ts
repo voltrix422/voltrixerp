@@ -25,7 +25,7 @@ import {
   type OrderPaymentStatsOrder,
 } from "@/lib/order-payment-stats"
 import {
-  purchaseLedgerPaidInPeriod,
+  purchaseLedgerPaidSplitInPeriod,
   sumJsonPaymentsInPeriod,
 } from "@/lib/finance-purchase-outflows"
 import { sumApprovedReceiptsInPeriod } from "@/lib/petty-cash-display"
@@ -82,7 +82,16 @@ export async function GET(req: NextRequest) {
       }),
       prisma.erpImportShipment.findMany({ orderBy: { createdAt: "desc" }, take: 300 }),
       prisma.erpPurchaseLedger.findMany({
-        select: { payments: true, createdAt: true, amountPaid: true, purchaseScopeId: true },
+        select: {
+          payments: true,
+          createdAt: true,
+          amountPaid: true,
+          purchaseScopeId: true,
+          transactionType: true,
+          items: true,
+          supplierGroups: true,
+          productName: true,
+        },
         orderBy: { createdAt: "desc" },
       }),
       prisma.erpSalarySlip.findMany({
@@ -273,9 +282,10 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const purchaseLedgerPaidInPeriodTotal = purchaseLedgerPaidInPeriod(purchaseLedger, start, end, {
+    const purchaseLedgerPaidSplit = purchaseLedgerPaidSplitInPeriod(purchaseLedger, start, end, {
       purchaseScopeId: "P1",
     })
+    const purchaseLedgerPaidInPeriodTotal = purchaseLedgerPaidSplit.combined
 
     const recordsInPeriod = records.filter(r => inRange(new Date(r.createdAt), start, end))
     const salariesFromRecords = recordsInPeriod
@@ -386,6 +396,8 @@ export async function GET(req: NextRequest) {
         salaries: salariesInPeriod,
         localPurchases: localPoPaidInPeriod,
         purchaseLedger: purchaseLedgerPaidInPeriodTotal,
+        purchaseLedgerPurchases: purchaseLedgerPaidSplit.purchases,
+        purchaseLedgerRents: purchaseLedgerPaidSplit.rents,
         importedPurchases: importedPoPaidInPeriod,
         importShipments: importShipmentsPaidInPeriod,
         pettyCash: pettyUsed,

@@ -871,11 +871,32 @@ export type PurchaseLedgerStats = {
 }
 
 /** Rent rows: explicit type or legacy supplier rent lines (e.g. "Rent for Lahore Outlet"). */
-export function isRentLedgerEntry(entry: PurchaseLedgerEntry): boolean {
+export function isRentLedgerEntry(
+  entry: Pick<PurchaseLedgerEntry, "transactionType" | "items" | "supplierGroups" | "productName">,
+): boolean {
   if (entry.transactionType === "rent") return true
   const items =
     entry.items.length > 0 ? entry.items : flattenSupplierGroupItems(entry.supplierGroups)
   return items.some(item => /^\s*rent(\s+for)?\b/i.test(item.productName.trim()))
+}
+
+/** Classify a raw DB / API row (finance overview, reports). */
+export function isRentLedgerDbRow(row: {
+  transactionType?: string | null
+  items?: unknown
+  supplierGroups?: unknown
+  productName?: string | null
+}): boolean {
+  const topItems = parseJsonArray<PurchaseLedgerItem>(row.items)
+  const groupItems = parseJsonArray<{ items?: unknown }>(row.supplierGroups).flatMap(group =>
+    parseJsonArray<PurchaseLedgerItem>(group.items),
+  )
+  return isRentLedgerEntry({
+    transactionType: (row.transactionType ?? "purchase") as PurchaseTransactionType,
+    items: topItems.length > 0 ? topItems : groupItems,
+    supplierGroups: [],
+    productName: String(row.productName ?? ""),
+  })
 }
 
 export function aggregateLedgerStats(entries: PurchaseLedgerEntry[]): PurchaseLedgerStats {

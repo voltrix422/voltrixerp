@@ -27,6 +27,8 @@ type Breakdown = {
     salaries: number
     localPurchases: number
     purchaseLedger: number
+    purchaseLedgerPurchases?: number
+    purchaseLedgerRents?: number
     importedPurchases: number
     importShipments: number
     pettyCash: number
@@ -72,7 +74,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "loans", label: "Loans received", side: "in", defaultOn: true },
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries (payroll)", side: "out", defaultOn: true },
-  { key: "purchaseLedger", label: "Purchase ledger", side: "out", defaultOn: true },
+  { key: "purchaseLedger", label: "Purchase ledger (purchases + rents)", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
   { key: "advances", label: "Advances", side: "out", defaultOn: true },
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
@@ -101,6 +103,8 @@ function emptyBreakdown(): Breakdown {
       salaries: 0,
       localPurchases: 0,
       purchaseLedger: 0,
+      purchaseLedgerPurchases: 0,
+      purchaseLedgerRents: 0,
       importedPurchases: 0,
       importShipments: 0,
       pettyCash: 0,
@@ -125,8 +129,26 @@ function buildMoneyOutDisplayRows(
   const rows: { label: string; amount: number; details?: MoneyOutDetailLine[] }[] = []
   if (b.expenses > 0.004) rows.push({ label: "Expenses (finance records)", amount: b.expenses })
   if (b.salaries > 0.004) rows.push({ label: "Salaries (payroll · paid)", amount: b.salaries })
-  if (b.purchaseLedger > 0.004) {
-    rows.push({ label: "Purchase ledger · Main Office", amount: b.purchaseLedger })
+
+  const ledgerPurchases = b.purchaseLedgerPurchases ?? b.purchaseLedger
+  const ledgerRents = b.purchaseLedgerRents ?? 0
+  const ledgerCombined = b.purchaseLedger
+  const hasPurchases = ledgerPurchases > 0.004
+  const hasRents = ledgerRents > 0.004
+
+  if (ledgerCombined > 0.004) {
+    if (hasPurchases && hasRents) {
+      rows.push({ label: "Purchase ledger · purchases · Main Office", amount: ledgerPurchases })
+      rows.push({ label: "Purchase ledger · rents · Main Office", amount: ledgerRents })
+      rows.push({
+        label: "Purchase ledger · total (purchases + rents) · Main Office",
+        amount: ledgerCombined,
+      })
+    } else if (hasRents) {
+      rows.push({ label: "Purchase ledger · rents · Main Office", amount: ledgerRents })
+    } else {
+      rows.push({ label: "Purchase ledger · purchases · Main Office", amount: ledgerPurchases })
+    }
   }
   if (b.pettyCash > 0.004) rows.push({ label: "Petty cash (approved)", amount: b.pettyCash })
   const supplierAdv = b.supplierAdvances ?? 0
