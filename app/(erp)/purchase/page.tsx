@@ -17,8 +17,8 @@ export default function PurchasePage() {
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const tabParam = searchParams.get("tab")
-  const shipmentParam = searchParams.get("shipment")
+  const tabParam = searchParams?.get("tab") ?? null
+  const shipmentParam = searchParams?.get("shipment") ?? null
   const initialTab =
     tabParam === "imports" ||
     tabParam === "suppliers" ||
@@ -64,7 +64,7 @@ export default function PurchasePage() {
 
   function selectTab(next: typeof tab) {
     setTab(next)
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(searchParams?.toString() || "")
     params.set("tab", next)
     if (next !== "imports") params.delete("shipment")
     router.replace(`/purchase?${params.toString()}`, { scroll: false })
