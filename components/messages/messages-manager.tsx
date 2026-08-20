@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Send } from "lucide-react"
+import { MessageSquare, Send, Search, Users } from "lucide-react"
 
 type ErpUserRow = {
   id: string
@@ -27,6 +27,29 @@ type ConversationSummary = {
   unreadCount: number
 }
 
+type SidebarTab = "chats" | "people"
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
+}
+
+function formatTime(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  const now = new Date()
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  if (sameDay) {
+    return d.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" })
+  }
+  return d.toLocaleDateString("en-PK", { day: "numeric", month: "short" })
+}
+
 export function MessagesManager() {
   const { user } = useAuth()
   const [users, setUsers] = useState<ErpUserRow[]>([])
@@ -38,6 +61,7 @@ export function MessagesManager() {
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState("")
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("chats")
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -45,7 +69,15 @@ export function MessagesManager() {
       try {
         const res = await fetch("/api/db/users")
         const data = (await res.json()) as ErpUserRow[]
-        setUsers(Array.isArray(data) ? data : [])
+        setUsers(
+          Array.isArray(data)
+            ? data.map(u => ({
+                id: String(u.id || ""),
+                name: String(u.name || "User"),
+                email: String(u.email || ""),
+              }))
+            : [],
+        )
       } finally {
         setLoadingUsers(false)
       }
@@ -66,32 +98,58 @@ export function MessagesManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
-  const contacts = useMemo(() => {
-    const currentId = user?.id
-    const q = search.trim().toLowerCase()
-    return users
-      .filter((u) => u.id !== currentId)
-      .filter((u) =>
+  const otherUsers = useMemo(
+    () => users.filter(u => u.id && u.id !== user?.id),
+    [users, user?.id],
+  )
+
+  const userById = useMemo(() => {
+    const map = new Map<string, ErpUserRow>()
+    for (const u of otherUsers) map.set(u.id, u)
+    return map
+  }, [otherUsers])
+
+  const q = search.trim().toLowerCase()
+
+  const chatRows = useMemo(() => {
+    return conversations
+      .map(conv => ({
+        user: userById.get(conv.partnerId) || {
+          id: conv.partnerId,
+          name: "User",
+          email: "",
+        },
+        conv,
+      }))
+      .filter(({ user: u, conv }) => {
+        if (!q) return true
+        return (
+          u.name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
+          conv.text.toLowerCase().includes(q)
+        )
+      })
+      .sort((a, b) => new Date(b.conv.createdAt).getTime() - new Date(a.conv.createdAt).getTime())
+  }, [conversations, userById, q])
+
+  const peopleRows = useMemo(() => {
+    return otherUsers
+      .filter(u =>
         !q
           ? true
           : u.name.toLowerCase().includes(q) ||
-            u.email.toLowerCase().includes(q) ||
-            u.id.toLowerCase().includes(q),
+            u.email.toLowerCase().includes(q),
       )
-  }, [users, user?.id, search])
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [otherUsers, q])
 
-  const contactRows = useMemo(() => {
-    const convMap = new Map(conversations.map((c) => [c.partnerId, c]))
-    return contacts
-      .map((u) => ({ user: u, conv: convMap.get(u.id) || null }))
-      .sort((a, b) => {
-        const at = a.conv ? new Date(a.conv.createdAt).getTime() : 0
-        const bt = b.conv ? new Date(b.conv.createdAt).getTime() : 0
-        return bt - at
-      })
-  }, [contacts, conversations])
+  const selectedUser =
+    otherUsers.find(u => u.id === selectedUserId) ||
+    (selectedUserId
+      ? { id: selectedUserId, name: "User", email: "" }
+      : null)
 
-  const selectedUser = users.find((u) => u.id === selectedUserId) || null
+  const totalUnread = conversations.reduce((s, c) => s + (c.unreadCount || 0), 0)
 
   async function loadMessages() {
     if (!user?.id || !selectedUserId) return
@@ -113,6 +171,10 @@ export function MessagesManager() {
   }
 
   useEffect(() => {
+    if (!selectedUserId) {
+      setMessages([])
+      return
+    }
     void loadMessages()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, selectedUserId])
@@ -135,12 +197,6 @@ export function MessagesManager() {
   }, [user?.id])
 
   useEffect(() => {
-    if (!selectedUserId && contactRows.length > 0) {
-      setSelectedUserId(contactRows[0].user.id)
-    }
-  }, [contactRows, selectedUserId])
-
-  useEffect(() => {
     if (!listRef.current) return
     listRef.current.scrollTop = listRef.current.scrollHeight
   }, [messages, selectedUserId, loadingMessages])
@@ -150,7 +206,7 @@ export function MessagesManager() {
     if (!user?.id || !selectedUser || !text.trim()) return
     setSending(true)
     try {
-      await fetch("/api/db/messages", {
+      const res = await fetch("/api/db/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -161,7 +217,12 @@ export function MessagesManager() {
           text: text.trim(),
         }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to send")
+      }
       setText("")
+      setSidebarTab("chats")
       await loadMessages()
       await loadConversations()
     } finally {
@@ -169,96 +230,217 @@ export function MessagesManager() {
     }
   }
 
+  function openChat(userId: string) {
+    setSelectedUserId(userId)
+    setSidebarTab("chats")
+  }
+
   if (!user) return null
 
   return (
-    <div className="rounded-xl border bg-[hsl(var(--card))] h-[calc(100vh-11rem)] overflow-hidden">
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] h-full">
-        <div className="border-r bg-[hsl(var(--muted))]/15 flex flex-col">
-          <div className="p-3 border-b">
-            <p className="text-sm font-semibold">Messages</p>
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-              Use user ID, name, or email to find people.
-            </p>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search users..."
-              className="mt-2 w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]"
-            />
+    <div className="rounded-xl border bg-[hsl(var(--card))] h-[calc(100vh-10rem)] min-h-[420px] overflow-hidden shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] h-full">
+        {/* Sidebar */}
+        <div className="border-r bg-[hsl(var(--muted))]/10 flex flex-col min-h-0">
+          <div className="p-3 border-b space-y-2.5 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Messages</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Chat with ERP users
+                </p>
+              </div>
+              {totalUnread > 0 && (
+                <span className="h-5 min-w-5 rounded-full bg-[#1faca6] px-1.5 text-[10px] text-white flex items-center justify-center font-semibold">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
+            </div>
+            <div className="flex rounded-md border p-0.5 bg-[hsl(var(--background))]">
+              <button
+                type="button"
+                onClick={() => setSidebarTab("chats")}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[11px] font-medium transition-colors ${
+                  sidebarTab === "chats"
+                    ? "bg-[#1faca6]/15 text-[#0d6b67]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                <MessageSquare className="h-3 w-3" />
+                Chats
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebarTab("people")}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[11px] font-medium transition-colors ${
+                  sidebarTab === "people"
+                    ? "bg-[#1faca6]/15 text-[#0d6b67]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                <Users className="h-3 w-3" />
+                People
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={sidebarTab === "chats" ? "Search chats..." : "Search people..."}
+                className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]"
+              />
+            </div>
           </div>
-          <div className="flex-1 overflow-auto p-2 space-y-1">
+
+          <div className="flex-1 overflow-auto p-2 space-y-1 min-h-0">
             {loadingUsers ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))] px-2 py-3">Loading users...</p>
-            ) : contactRows.length === 0 ? (
+              <p className="text-xs text-[hsl(var(--muted-foreground))] px-2 py-3">Loading...</p>
+            ) : sidebarTab === "chats" ? (
+              chatRows.length === 0 ? (
+                <div className="px-2 py-6 text-center">
+                  <MessageSquare className="h-7 w-7 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">No chats yet</p>
+                  <button
+                    type="button"
+                    onClick={() => setSidebarTab("people")}
+                    className="mt-2 text-[11px] text-[#0d6b67] underline cursor-pointer"
+                  >
+                    Start a conversation
+                  </button>
+                </div>
+              ) : (
+                chatRows.map(({ user: u, conv }) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => openChat(u.id)}
+                    className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors cursor-pointer ${
+                      selectedUserId === u.id
+                        ? "border-[#1faca6]/50 bg-[#1faca6]/10"
+                        : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/30"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="h-8 w-8 rounded-full bg-[#1faca6]/20 text-[#0d6b67] text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {initials(u.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold truncate">{u.name}</p>
+                          <span className="text-[9px] text-[hsl(var(--muted-foreground))] shrink-0">
+                            {formatTime(conv.createdAt)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 mt-0.5">
+                          <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                            {conv.text}
+                          </p>
+                          {conv.unreadCount > 0 && (
+                            <span className="h-4 min-w-4 rounded-full bg-[#1faca6] px-1 text-[10px] text-white flex items-center justify-center shrink-0">
+                              {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )
+            ) : peopleRows.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))] px-2 py-3">No users found.</p>
             ) : (
-              contactRows.map(({ user: u, conv }) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => setSelectedUserId(u.id)}
-                  className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
-                    selectedUserId === u.id
-                      ? "border-[#1faca6]/50 bg-[#1faca6]/10"
-                      : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold truncate">{u.name}</p>
-                    {conv && conv.unreadCount > 0 && (
-                      <span className="h-4 min-w-4 rounded-full bg-[#1faca6] px-1 text-[10px] text-white flex items-center justify-center">
-                        {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{u.email}</p>
-                  <p className="text-[10px] text-[#0d6b67] truncate">ID: {u.id}</p>
-                  {conv && (
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate mt-1">{conv.text}</p>
-                  )}
-                </button>
-              ))
+              peopleRows.map(u => {
+                const conv = conversations.find(c => c.partnerId === u.id)
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => openChat(u.id)}
+                    className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors cursor-pointer ${
+                      selectedUserId === u.id
+                        ? "border-[#1faca6]/50 bg-[#1faca6]/10"
+                        : "bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-[hsl(var(--muted))]/50 text-[hsl(var(--muted-foreground))] text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {initials(u.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate">{u.name}</p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                          {conv ? "Continue chat" : u.email || "Start chat"}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })
             )}
           </div>
         </div>
 
-        <div className="flex flex-col h-full">
-          <div className="h-12 border-b px-4 flex items-center justify-between">
+        {/* Thread */}
+        <div className="flex flex-col h-full min-h-0 bg-[hsl(var(--background))]">
+          <div className="h-14 border-b px-4 flex items-center shrink-0 bg-[hsl(var(--card))]">
             {selectedUser ? (
-              <div>
-                <p className="text-sm font-semibold">{selectedUser.name}</p>
-                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{selectedUser.email}</p>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-9 w-9 rounded-full bg-[#1faca6]/20 text-[#0d6b67] text-xs font-bold flex items-center justify-center shrink-0">
+                  {initials(selectedUser.name)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate">{selectedUser.name}</p>
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                    {selectedUser.email || "ERP user"}
+                  </p>
+                </div>
               </div>
             ) : (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Select a user to start chat.</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Select someone to start chatting
+              </p>
             )}
           </div>
 
-          <div ref={listRef} className="flex-1 overflow-auto p-4 space-y-2 bg-[hsl(var(--background))]">
+          <div ref={listRef} className="flex-1 overflow-auto p-4 space-y-2.5 min-h-0">
             {!selectedUser ? (
               <div className="h-full flex items-center justify-center text-center text-[hsl(var(--muted-foreground))]">
                 <div>
-                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">Choose a user from the left.</p>
+                  <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-35" />
+                  <p className="text-sm font-medium">User-to-user messages</p>
+                  <p className="text-xs mt-1 max-w-[220px] mx-auto">
+                    Open <span className="font-medium">People</span> to start a chat, or pick an existing chat on the left.
+                  </p>
                 </div>
               </div>
-            ) : loadingMessages ? (
+            ) : loadingMessages && messages.length === 0 ? (
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Loading chat...</p>
             ) : messages.length === 0 ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">No messages yet.</p>
+              <div className="h-full flex items-center justify-center text-center">
+                <div>
+                  <p className="text-sm font-medium">No messages yet</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    Say hello to {selectedUser.name.split(" ")[0]}
+                  </p>
+                </div>
+              </div>
             ) : (
-              messages.map((m) => (
+              messages.map(m => (
                 <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${
+                    className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-[13px] shadow-sm ${
                       m.mine
-                        ? "bg-[#1faca6] text-white"
-                        : "bg-[hsl(var(--muted))]/40 text-[hsl(var(--foreground))]"
+                        ? "bg-[#1faca6] text-white rounded-br-md"
+                        : "bg-[hsl(var(--card))] border text-[hsl(var(--foreground))] rounded-bl-md"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                    <p className={`mt-1 text-[10px] ${m.mine ? "text-white/80" : "text-[hsl(var(--muted-foreground))]"}`}>
+                    <p className="whitespace-pre-wrap break-words leading-snug">{m.text}</p>
+                    <p
+                      className={`mt-1 text-[10px] ${
+                        m.mine ? "text-white/75 text-right" : "text-[hsl(var(--muted-foreground))]"
+                      }`}
+                    >
                       {new Date(m.createdAt).toLocaleString("en-PK", {
                         dateStyle: "short",
                         timeStyle: "short",
@@ -270,22 +452,25 @@ export function MessagesManager() {
             )}
           </div>
 
-          <form onSubmit={sendMessage} className="border-t p-3 flex items-center gap-2">
+          <form
+            onSubmit={sendMessage}
+            className="border-t p-3 flex items-center gap-2 shrink-0 bg-[hsl(var(--card))]"
+          >
             <input
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              disabled={!selectedUser}
-              placeholder={selectedUser ? "Type a message..." : "Select a user first"}
-              className="flex-1 h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6] disabled:opacity-60"
+              onChange={e => setText(e.target.value)}
+              disabled={!selectedUser || sending}
+              placeholder={selectedUser ? `Message ${selectedUser.name.split(" ")[0]}…` : "Select a person first"}
+              className="flex-1 h-10 rounded-full border bg-[hsl(var(--background))] px-4 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6] disabled:opacity-60"
             />
             <Button
               type="submit"
               size="sm"
-              className="h-9 bg-[#1faca6] hover:bg-[#17857f] text-white"
+              className="h-10 w-10 rounded-full p-0 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer"
               disabled={!selectedUser || !text.trim() || sending}
+              title="Send"
             >
-              <Send className="h-3.5 w-3.5 mr-1" />
-              {sending ? "Sending..." : "Send"}
+              <Send className="h-4 w-4" />
             </Button>
           </form>
         </div>
@@ -293,4 +478,3 @@ export function MessagesManager() {
     </div>
   )
 }
-

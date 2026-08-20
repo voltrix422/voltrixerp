@@ -8,7 +8,11 @@ export async function GET(req: NextRequest) {
   }
 
   const notifications = await prisma.erpNotification.findMany({
-    where: { userId },
+    where: {
+      userId,
+      // Chat lives in Messages — keep the bell for system alerts only
+      NOT: { type: "chat_message" },
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
   })

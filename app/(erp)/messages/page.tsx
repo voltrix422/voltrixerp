@@ -4,13 +4,12 @@ import { MessagesManager } from "@/components/messages/messages-manager"
 export default function MessagesPage() {
   return (
     <>
-      <Topbar title="Messages" description="Internal ERP messaging between user IDs" />
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
+      <Topbar title="Messages" description="Chat with other ERP users" />
+      <div className="flex-1 overflow-hidden">
+        <div className="p-4 sm:p-6 h-full">
           <MessagesManager />
         </div>
       </div>
     </>
   )
 }
-
