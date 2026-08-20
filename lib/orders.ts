@@ -334,6 +334,11 @@ export function canAddCashback(order: Pick<Order, "status">) {
   return ["confirmed", "processing", "shipped", "delivered", "returned"].includes(order.status)
 }
 
+/** Mistaken cashback rows can be removed when cashback can still be managed. */
+export function isCashbackDeletable(order: Pick<Order, "status">) {
+  return canAddCashback(order)
+}
+
 export function isOrderReturned(order: Pick<Order, "status">) {
   return order.status === "returned"
 }

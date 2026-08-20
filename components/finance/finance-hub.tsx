@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
-import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown } from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 import {
@@ -214,57 +215,74 @@ function ToggleChip({
 function BreakdownTable({
   rows,
   total,
+  onOpenDetails,
 }: {
   rows: { label: string; value: string; details?: MoneyOutDetailLine[] }[]
   total: string
+  onOpenDetails?: (row: { label: string; value: string; details: MoneyOutDetailLine[] }) => void
 }) {
   return (
     <div className="inline-block max-w-full rounded-md border overflow-visible">
       <table className="border-collapse text-[11px]">
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={row.label} className={`group ${i > 0 ? "border-t" : ""}`}>
-              <td className="relative pl-2.5 pr-3 py-0.5 align-middle whitespace-nowrap">
-                <span
-                  className={`text-[hsl(var(--muted-foreground))] ${
-                    row.details?.length
-                      ? "cursor-help underline decoration-dotted decoration-[hsl(var(--muted-foreground))]/50 underline-offset-2"
-                      : ""
-                  }`}
-                >
-                  {row.label}
-                </span>
-                {row.details && row.details.length > 0 && (
-                  <div
-                    role="tooltip"
-                    className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden min-w-[15rem] max-w-[22rem] group-hover:block rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg p-2 text-[10px]"
-                  >
-                    <ul className="space-y-1.5 max-h-52 overflow-y-auto">
-                      {row.details.map(d => (
-                        <li key={d.id} className="flex justify-between gap-3 leading-snug">
-                          <span className="min-w-0">
-                            <span className="font-medium text-[hsl(var(--foreground))]">{d.label}</span>
-                            {d.sublabel ? (
-                              <span className="text-[hsl(var(--muted-foreground))]"> · {d.sublabel}</span>
-                            ) : null}
-                            {d.date ? (
-                              <span className="block text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                                {d.date}
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="tabular-nums font-medium shrink-0">{fmt(d.amount)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </td>
-              <td className="pl-2 pr-2.5 py-0.5 tabular-nums font-medium text-right align-middle whitespace-nowrap">
-                {row.value}
-              </td>
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const hasDetails = (row.details?.length ?? 0) > 0
+            return (
+              <tr key={row.label} className={`group ${i > 0 ? "border-t" : ""}`}>
+                <td className="relative pl-2.5 pr-3 py-0.5 align-middle whitespace-nowrap">
+                  {hasDetails ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenDetails?.({
+                          label: row.label,
+                          value: row.value,
+                          details: row.details || [],
+                        })
+                      }
+                      className="text-left text-[hsl(var(--muted-foreground))] cursor-pointer underline decoration-dotted decoration-[hsl(var(--muted-foreground))]/50 underline-offset-2 hover:text-[hsl(var(--foreground))]"
+                      title="Hover for preview · click for full detail"
+                    >
+                      {row.label}
+                    </button>
+                  ) : (
+                    <span className="text-[hsl(var(--muted-foreground))]">{row.label}</span>
+                  )}
+                  {hasDetails && (
+                    <div
+                      role="tooltip"
+                      className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden min-w-[15rem] max-w-[22rem] group-hover:block rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg p-2 text-[10px]"
+                    >
+                      <p className="text-[9px] text-[hsl(var(--muted-foreground))] mb-1.5">
+                        Preview · click label for full report
+                      </p>
+                      <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+                        {row.details!.slice(0, 6).map(d => (
+                          <li key={d.id} className="flex justify-between gap-3 leading-snug">
+                            <span className="min-w-0">
+                              <span className="font-medium text-[hsl(var(--foreground))]">{d.label}</span>
+                              {d.sublabel ? (
+                                <span className="text-[hsl(var(--muted-foreground))]"> · {d.sublabel}</span>
+                              ) : null}
+                            </span>
+                            <span className="tabular-nums font-medium shrink-0">{fmt(d.amount)}</span>
+                          </li>
+                        ))}
+                        {row.details!.length > 6 && (
+                          <li className="text-[9px] text-[hsl(var(--muted-foreground))]">
+                            +{row.details!.length - 6} more — click to open
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </td>
+                <td className="pl-2 pr-2.5 py-0.5 tabular-nums font-medium text-right align-middle whitespace-nowrap">
+                  {row.value}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
         <tfoot>
           <tr className="border-t bg-[hsl(var(--muted))]/10">
@@ -276,6 +294,79 @@ function BreakdownTable({
         </tfoot>
       </table>
     </div>
+  )
+}
+
+function MoneyOutDetailsModal({
+  title,
+  totalLabel,
+  details,
+  onClose,
+}: {
+  title: string
+  totalLabel: string
+  details: MoneyOutDetailLine[]
+  onClose: () => void
+}) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  const total = details.reduce((s, d) => s + (Number(d.amount) || 0), 0)
+  if (!mounted) return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <button type="button" className="absolute inset-0 bg-black/40 cursor-pointer" aria-label="Close" onClick={onClose} />
+      <div className="relative w-full sm:max-w-lg max-h-[85vh] flex flex-col rounded-t-xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-xl">
+        <div className="flex items-start justify-between gap-3 px-4 py-3 border-b shrink-0">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">{title}</p>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+              {details.length} line{details.length === 1 ? "" : "s"} · {totalLabel}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-md hover:bg-[hsl(var(--muted))]/40 cursor-pointer shrink-0"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-4 py-3 space-y-2">
+          {details.map(d => (
+            <div
+              key={d.id}
+              className="rounded-md border px-3 py-2.5 flex items-start justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[hsl(var(--foreground))]">{d.label}</p>
+                {d.sublabel ? (
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-snug">{d.sublabel}</p>
+                ) : null}
+                {d.date ? (
+                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">{d.date}</p>
+                ) : null}
+              </div>
+              <p className="text-xs font-semibold tabular-nums shrink-0">{fmt(d.amount)}</p>
+            </div>
+          ))}
+        </div>
+        <div className="border-t px-4 py-3 flex items-center justify-between gap-3 shrink-0 bg-[hsl(var(--muted))]/10">
+          <span className="text-xs font-semibold">Total</span>
+          <span className="text-sm font-bold tabular-nums">{fmt(total)}</span>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -324,10 +415,15 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
   const [includeOutstanding, setIncludeOutstanding] = useState(false)
   const [enabled, setEnabled] = useState<Record<ToggleKey, boolean>>(defaultEnabled)
   const [moneyOutDetails, setMoneyOutDetails] = useState<MoneyOutDetailsPayload | null>(null)
-  const [snapshotOpen, setSnapshotOpen] = useState(false)
-  const [inBreakdownOpen, setInBreakdownOpen] = useState(false)
-  const [outBreakdownOpen, setOutBreakdownOpen] = useState(false)
+  const [snapshotOpen, setSnapshotOpen] = useState(true)
+  const [inBreakdownOpen, setInBreakdownOpen] = useState(true)
+  const [outBreakdownOpen, setOutBreakdownOpen] = useState(true)
   const [togglesOpen, setTogglesOpen] = useState(false)
+  const [detailsModal, setDetailsModal] = useState<{
+    label: string
+    value: string
+    details: MoneyOutDetailLine[]
+  } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -609,6 +705,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                     details: r.details,
                   }))}
                   total={fmt(moneyOutAll)}
+                  onOpenDetails={setDetailsModal}
                 />
               </div>
             </Accordion>
@@ -651,6 +748,15 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
           </div>
         )}
       </section>
+
+      {detailsModal && (
+        <MoneyOutDetailsModal
+          title={detailsModal.label}
+          totalLabel={detailsModal.value}
+          details={detailsModal.details}
+          onClose={() => setDetailsModal(null)}
+        />
+      )}
     </div>
   )
 }

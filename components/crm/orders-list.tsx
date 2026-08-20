@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, type ReactNode } from "react"
-import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isReturnPaymentDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
+import { getOrders, saveOrder, deleteOrder, generateOrderNumber, getOrderPaymentProofUrls, getPaymentSubmissionStatus, getBalanceSubmittedPayments, getProofOnlyPayments, canCapturePaymentsForOrder, canShowOrderInvoiceActions, orderHasInvoiceDetails, getOrderAmountPaid, getOrderCreditBalance, getOrderReturnAmount, getOrderCashbackAmount, getOrderCashbackPaymentProofUrls, getOrderNetSalesValue, getOrderReturnPaymentProofUrls, hasOutstandingCredit, isOrderOnCredit, isOrderReturned, orderHasAnyReturns, orderHasCashback, getReturnedLinesSummary, getItemOriginalQty, getItemRemainingReturnableQty, canReturnOrder, canAddReturnPayment, canAddCashback, isPaymentDeletable, isReturnPaymentDeletable, isCashbackDeletable, isProofOnlyPayment, type Order, type OrderItem } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
 import { getClients, type Client } from "@/lib/crm"
@@ -1632,6 +1632,8 @@ function OrderDetail({
   const [deletingPayment, setDeletingPayment] = useState(false)
   const [deleteReturnPaymentId, setDeleteReturnPaymentId] = useState<string | null>(null)
   const [deletingReturnPayment, setDeletingReturnPayment] = useState(false)
+  const [deleteCashbackId, setDeleteCashbackId] = useState<string | null>(null)
+  const [deletingCashback, setDeletingCashback] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [detailOrder, setDetailOrder] = useState(order)
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
@@ -1744,6 +1746,27 @@ function OrderDetail({
       alert(err instanceof Error ? err.message : "Could not delete return payment.")
     } finally {
       setDeletingReturnPayment(false)
+    }
+  }
+
+  async function handleDeleteCashback(paymentId: string) {
+    if (!isCashbackDeletable(detailOrder) || workspace?.readOnly) return
+    const payment = detailOrder.cashbackPayments?.find(p => p.id === paymentId)
+    if (!payment) return
+
+    setDeletingCashback(true)
+    try {
+      const nextCashback = (detailOrder.cashbackPayments || []).filter(p => p.id !== paymentId)
+      const updated: Order = { ...detailOrder, cashbackPayments: nextCashback }
+      await saveOrder(updated)
+      setDetailOrder(updated)
+      onUpdate(updated)
+      setDeleteCashbackId(null)
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : "Could not delete cashback.")
+    } finally {
+      setDeletingCashback(false)
     }
   }
 
@@ -2290,6 +2313,7 @@ function OrderDetail({
               <div className="space-y-2 pt-1 border-t border-violet-200 dark:border-violet-800">
                 {detailOrder.cashbackPayments!.map((p, i) => {
                   const proofs = getOrderCashbackPaymentProofUrls(p)
+                  const canDeleteCb = canManageCashback && isCashbackDeletable(detailOrder)
                   return (
                     <div key={p.id} className="flex items-start justify-between gap-2 text-xs">
                       <div>
@@ -2302,7 +2326,7 @@ function OrderDetail({
                         )}
                         <p className="text-violet-600 dark:text-violet-400 text-[10px] mt-0.5">By {p.createdBy}</p>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                         {proofs.map((url, idx) => (
                           <a
                             key={`${p.id}-${idx}`}
@@ -2314,6 +2338,16 @@ function OrderDetail({
                             {proofs.length > 1 ? `Attachment ${idx + 1}` : "View attachment"}
                           </a>
                         ))}
+                        {canDeleteCb && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteCashbackId(p.id)}
+                            className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                            title="Delete cashback"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
@@ -2450,6 +2484,17 @@ function OrderDetail({
         variant="danger"
         onConfirm={() => deleteReturnPaymentId && handleDeleteReturnPayment(deleteReturnPaymentId)}
         onCancel={() => !deletingReturnPayment && setDeleteReturnPaymentId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteCashbackId !== null}
+        title="Delete cashback"
+        message="Remove this cashback / bonus? Order balance and finance money-out stats will update."
+        confirmText={deletingCashback ? "Deleting..." : "Delete cashback"}
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => deleteCashbackId && handleDeleteCashback(deleteCashbackId)}
+        onCancel={() => !deletingCashback && setDeleteCashbackId(null)}
       />
     </>
   )
