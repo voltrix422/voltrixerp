@@ -16,6 +16,7 @@ import {
   canAddReturnPayment,
   orderHasAnyReturns,
   isOrderReturned,
+  isReturnPaymentDeletable,
   getOrderReturnPaymentProofUrls,
   type Order,
   type OrderPayment,
@@ -97,6 +98,7 @@ function DocDetailModal({
   userName: string
 }) {
   const { toast } = useToast()
+  const { confirm } = useDialog()
   const number = kind === "order" ? (doc as Order).orderNumber : (doc as Quotation).quotationNumber
   const title = kind === "order" ? "Order details" : "Quotation details"
   const order = kind === "order" ? (doc as Order) : null
@@ -107,6 +109,7 @@ function DocDetailModal({
   const [showReturnPayment, setShowReturnPayment] = useState(false)
   const [saving, setSaving] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [deletingRefundId, setDeletingRefundId] = useState<string | null>(null)
 
   const [deliveryAddress, setDeliveryAddress] = useState(order?.deliveryAddress || doc.deliveryAddress || "")
   const [deliveryDate, setDeliveryDate] = useState(order?.deliveryDate || "")
@@ -165,6 +168,36 @@ function DocDetailModal({
       toast({ type: "error", title: "Could not save", message: err instanceof Error ? err.message : undefined })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDeleteReturnPayment(paymentId: string) {
+    if (!order || !isReturnPaymentDeletable(order)) return
+    const payment = order.returnPayments?.find((p) => p.id === paymentId)
+    if (!payment) return
+    const ok = await confirm({
+      type: "confirm",
+      title: "Delete refund?",
+      message: `Remove refund of ${formatPkr(payment.amount)}? Order balance and finance stats will update. Returned items stay unchanged.`,
+      confirmLabel: "Delete refund",
+    })
+    if (!ok) return
+    setDeletingRefundId(paymentId)
+    try {
+      const updated = await saveOrder({
+        ...order,
+        returnPayments: (order.returnPayments || []).filter((p) => p.id !== paymentId),
+      })
+      toast({ type: "success", title: "Refund removed" })
+      onSaved?.(updated)
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not delete refund",
+        message: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setDeletingRefundId(null)
     }
   }
 
@@ -498,16 +531,35 @@ function DocDetailModal({
                 <ul className="space-y-1.5">
                   {order.returnPayments!.map((p) => (
                     <li key={p.id} className="rounded border border-orange-200/80 bg-white/60 dark:bg-orange-950/20 px-2 py-1.5 text-[11px]">
-                      <div className="flex justify-between gap-2">
-                        <span>{p.method || "Refund"}</span>
-                        <span className="font-semibold tabular-nums">{formatPkr(p.amount)}</span>
+                      <div className="flex justify-between gap-2 items-start">
+                        <div className="min-w-0">
+                          <div className="flex justify-between gap-2">
+                            <span>{p.method || "Refund"}</span>
+                            <span className="font-semibold tabular-nums">{formatPkr(p.amount)}</span>
+                          </div>
+                          <p className="text-orange-700/80">{p.date} · {p.createdBy}</p>
+                          {getOrderReturnPaymentProofUrls(p).map((url) => (
+                            <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[#1faca6] underline text-[10px] mr-2">
+                              View proof
+                            </a>
+                          ))}
+                        </div>
+                        {canReturnPay && (
+                          <button
+                            type="button"
+                            disabled={deletingRefundId === p.id}
+                            onClick={() => void handleDeleteReturnPayment(p.id)}
+                            className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer shrink-0 disabled:opacity-50"
+                            title="Delete refund"
+                          >
+                            {deletingRefundId === p.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
                       </div>
-                      <p className="text-orange-700/80">{p.date} · {p.createdBy}</p>
-                      {getOrderReturnPaymentProofUrls(p).map((url) => (
-                        <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[#1faca6] underline text-[10px]">
-                          View proof
-                        </a>
-                      ))}
                     </li>
                   ))}
                 </ul>

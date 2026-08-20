@@ -657,6 +657,13 @@ export function canAddReturnPayment(
   return isOrderReturned(order) || orderHasAnyReturns(order)
 }
 
+/** Mistaken refunds can be removed; merchandise return / stock stay unchanged. */
+export function isReturnPaymentDeletable(
+  order: Pick<Order, "status" | "items" | "returnLines" | "returnedAt">,
+) {
+  return canAddReturnPayment(order)
+}
+
 export function isOrderOnCredit(order: Pick<Order, "paymentTerms" | "creditApprovedAt">) {
   return order.paymentTerms === "credit" || !!order.creditApprovedAt
 }
