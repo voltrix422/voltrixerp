@@ -31,6 +31,9 @@ type Breakdown = {
     purchaseLedgerRents?: number
     importedPurchases: number
     importShipments: number
+    importPsw?: number
+    importCharges?: number
+    importChargesCombined?: number
     pettyCash: number
     advances: number
     supplierAdvances?: number
@@ -56,7 +59,7 @@ type ToggleKey =
   | "salaries"
   | "purchaseLedger"
   | "pettyCash"
-  | "advances"
+  | "importCharges"
   | "cashback"
   | "clientRefunds"
 
@@ -76,7 +79,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "salaries", label: "Salaries (payroll)", side: "out", defaultOn: true },
   { key: "purchaseLedger", label: "Purchase ledger (purchases + rents)", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
-  { key: "advances", label: "Advances", side: "out", defaultOn: true },
+  { key: "importCharges", label: "Imported purchases (PSW + charges)", side: "out", defaultOn: true },
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
   { key: "clientRefunds", label: "Client refunds", side: "out", defaultOn: true },
 ]
@@ -107,6 +110,9 @@ function emptyBreakdown(): Breakdown {
       purchaseLedgerRents: 0,
       importedPurchases: 0,
       importShipments: 0,
+      importPsw: 0,
+      importCharges: 0,
+      importChargesCombined: 0,
       pettyCash: 0,
       advances: 0,
       cashback: 0,
@@ -117,8 +123,8 @@ function emptyBreakdown(): Breakdown {
 
 function amountFor(b: Breakdown, key: ToggleKey): number {
   if (key in b.moneyIn) return b.moneyIn[key as keyof Breakdown["moneyIn"]]
-  if (key === "advances") return b.moneyOut.advances
   if (key === "purchaseLedger") return b.moneyOut.purchaseLedger
+  if (key === "importCharges") return b.moneyOut.importChargesCombined ?? 0
   return b.moneyOut[key as keyof Breakdown["moneyOut"]] as number
 }
 
@@ -151,14 +157,44 @@ function buildMoneyOutDisplayRows(
     }
   }
   if (b.pettyCash > 0.004) rows.push({ label: "Petty cash (approved)", amount: b.pettyCash })
-  const supplierAdv = b.supplierAdvances ?? 0
-  if (supplierAdv > 0.004) {
-    rows.push({
-      label: "Supplier advances",
-      amount: supplierAdv,
-      details: details?.supplierAdvances,
-    })
+
+  const importPsw = b.importPsw ?? 0
+  const importCharges = b.importCharges ?? 0
+  const importCombined = b.importChargesCombined ?? importPsw + importCharges
+  const hasImportPsw = importPsw > 0.004
+  const hasImportCharges = importCharges > 0.004
+  if (importCombined > 0.004) {
+    if (hasImportPsw && hasImportCharges) {
+      rows.push({
+        label: "Imported purchases · PSW duties",
+        amount: importPsw,
+        details: details?.importPsw,
+      })
+      rows.push({
+        label: "Imported purchases · charges",
+        amount: importCharges,
+        details: details?.importCharges,
+      })
+      rows.push({
+        label: "Imported purchases · total (PSW + charges)",
+        amount: importCombined,
+        details: details?.importChargesCombined,
+      })
+    } else if (hasImportPsw) {
+      rows.push({
+        label: "Imported purchases · PSW duties",
+        amount: importPsw,
+        details: details?.importPsw,
+      })
+    } else {
+      rows.push({
+        label: "Imported purchases · charges",
+        amount: importCharges,
+        details: details?.importCharges,
+      })
+    }
   }
+
   const clientRefunds = b.clientRefunds ?? 0
   if (clientRefunds > 0.004) {
     rows.push({

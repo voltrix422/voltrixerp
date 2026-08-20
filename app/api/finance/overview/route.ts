@@ -32,8 +32,11 @@ import { sumApprovedReceiptsInPeriod } from "@/lib/petty-cash-display"
 import {
   buildCashbackDetails,
   buildClientRefundDetails,
-  buildSupplierAdvanceDetails,
+  buildImportChargeStepDetails,
+  buildImportCombinedDetails,
+  buildImportPswDetails,
 } from "@/lib/finance-money-out-details"
+import { importChargesSplitInPeriod } from "@/lib/finance-import-outflows"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -282,6 +285,26 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const importChargesSplit = importChargesSplitInPeriod(
+      importShipments.map(sh => ({
+        id: sh.id,
+        shipmentNumber: sh.shipmentNumber,
+        blNumber: sh.blNumber,
+        supplierName: sh.supplierName,
+        gdNumber: sh.gdNumber,
+        gdDate: sh.gdDate,
+        createdAt: sh.createdAt,
+        fxRate: sh.fxRate,
+        currency: sh.currency,
+        charges: sh.charges,
+      })),
+      start,
+      end,
+    )
+    const importPswInPeriod = importChargesSplit.pswPkr
+    const importChargesInPeriod = importChargesSplit.chargesPkr
+    const importChargesCombinedInPeriod = importChargesSplit.combinedPkr
+
     const purchaseLedgerPaidSplit = purchaseLedgerPaidSplitInPeriod(purchaseLedger, start, end, {
       purchaseScopeId: "P1",
     })
@@ -318,7 +341,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Supplier advances are real extra cash outflows for the period.
+    // Supplier advances are already reflected in local purchase ledger payments — exclude from money-out.
     // Salary advances are recovered inside payroll, so exclude them from finance money-out totals.
     let supplierAdvancesInPeriod = 0
     for (const account of advanceAccounts) {
@@ -338,7 +361,7 @@ export async function GET(req: NextRequest) {
       if (!inRange(new Date(adv.givenAt), start, end)) continue
       salaryAdvancesInPeriod += Number(adv.amount) || 0
     }
-    const advancesInPeriod = supplierAdvancesInPeriod
+    const advancesInPeriod = 0
 
     // Petty cash spent in period — approved receipts only (matches Petty Cash page logic)
     const pettyUsed = sumApprovedReceiptsInPeriod(pettyReceipts, start, end)
@@ -400,16 +423,19 @@ export async function GET(req: NextRequest) {
         purchaseLedgerRents: purchaseLedgerPaidSplit.rents,
         importedPurchases: importedPoPaidInPeriod,
         importShipments: importShipmentsPaidInPeriod,
+        importPsw: importPswInPeriod,
+        importCharges: importChargesInPeriod,
+        importChargesCombined: importChargesCombinedInPeriod,
         pettyCash: pettyUsed,
-        advances: advancesInPeriod,
-        supplierAdvances: supplierAdvancesInPeriod,
+        advances: 0,
+        supplierAdvances: 0,
         salaryAdvances: salaryAdvancesInPeriod,
         cashback: cashbackInPeriod,
         clientRefunds: clientRefundsInPeriod,
       },
     }
 
-    // Default snapshot: exclude imported purchases & import shipments (toggleable in UI)
+    // Default snapshot: exclude legacy imported PO payments; include import PSW + charges
     const moneyIn =
       breakdown.moneyIn.clientPayments +
       breakdown.moneyIn.posSales +
@@ -420,7 +446,7 @@ export async function GET(req: NextRequest) {
       breakdown.moneyOut.salaries +
       breakdown.moneyOut.purchaseLedger +
       breakdown.moneyOut.pettyCash +
-      breakdown.moneyOut.advances +
+      breakdown.moneyOut.importChargesCombined +
       breakdown.moneyOut.cashback +
       breakdown.moneyOut.clientRefunds
     const netCashFlow = moneyIn - moneyOut
@@ -489,18 +515,23 @@ export async function GET(req: NextRequest) {
         }
       }
       mo += sumApprovedReceiptsInPeriod(pettyReceipts, mStart, mEnd)
-      for (const account of advanceAccounts) {
-        const txns = Array.isArray(account.transactions)
-          ? (account.transactions as { type?: string; amount?: number; date?: string; createdAt?: string }[])
-          : []
-        for (const t of txns) {
-          if (t.type !== "deposit") continue
-          const amount = Number(t.amount) || 0
-          if (amount <= 0) continue
-          const d = new Date(t.date || t.createdAt || account.createdAt)
-          if (inRange(d, mStart, mEnd)) mo += amount
-        }
-      }
+      const monthImportCharges = importChargesSplitInPeriod(
+        importShipments.map(sh => ({
+          id: sh.id,
+          shipmentNumber: sh.shipmentNumber,
+          blNumber: sh.blNumber,
+          supplierName: sh.supplierName,
+          gdNumber: sh.gdNumber,
+          gdDate: sh.gdDate,
+          createdAt: sh.createdAt,
+          fxRate: sh.fxRate,
+          currency: sh.currency,
+          charges: sh.charges,
+        })),
+        mStart,
+        mEnd,
+      )
+      mo += monthImportCharges.combinedPkr
       monthlyTrend.push({ month: monthLabel, moneyIn: mi, moneyOut: mo })
     }
 
@@ -604,9 +635,11 @@ export async function GET(req: NextRequest) {
       }))
 
     const moneyOutDetails = {
-      supplierAdvances: buildSupplierAdvanceDetails(advanceAccounts, start, end),
       clientRefunds: buildClientRefundDetails(crmOrderRows, start, end),
       cashback: buildCashbackDetails(crmOrderRows, start, end),
+      importPsw: buildImportPswDetails(importChargesSplit.shipments),
+      importCharges: buildImportChargeStepDetails(importChargesSplit.shipments),
+      importChargesCombined: buildImportCombinedDetails(importChargesSplit.shipments),
     }
 
     return NextResponse.json({
@@ -620,6 +653,9 @@ export async function GET(req: NextRequest) {
         localPoPaidInPeriod,
         importedPoPaidInPeriod,
         importShipmentsPaidInPeriod,
+        importPswInPeriod,
+        importChargesInPeriod,
+        importChargesCombinedInPeriod,
         expensesInPeriod,
         salariesInPeriod,
         loansInPeriod,

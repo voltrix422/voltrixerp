@@ -149,15 +149,83 @@ export function buildCashbackDetails(
   return lines.sort((a, b) => b.amount - a.amount)
 }
 
+export function buildImportPswDetails(
+  shipments: Array<{
+    id: string
+    label: string
+    supplier: string
+    pswPkr: number
+    pswLines: string[]
+    dateIso: string
+  }>,
+): MoneyOutDetailLine[] {
+  return shipments
+    .filter(s => s.pswPkr > 0.004)
+    .map(s => ({
+      id: `psw-${s.id}`,
+      label: s.label,
+      sublabel: `${s.supplier}${s.pswLines.length ? ` · ${s.pswLines.slice(0, 4).join(", ")}${s.pswLines.length > 4 ? "…" : ""}` : ""}`,
+      amount: s.pswPkr,
+      date: fmtDate(s.dateIso),
+    }))
+}
+
+export function buildImportChargeStepDetails(
+  shipments: Array<{
+    id: string
+    label: string
+    supplier: string
+    chargesPkr: number
+    chargeLines: string[]
+    dateIso: string
+  }>,
+): MoneyOutDetailLine[] {
+  return shipments
+    .filter(s => s.chargesPkr > 0.004)
+    .map(s => ({
+      id: `chg-${s.id}`,
+      label: s.label,
+      sublabel: `${s.supplier}${s.chargeLines.length ? ` · ${s.chargeLines.slice(0, 4).join(", ")}${s.chargeLines.length > 4 ? "…" : ""}` : ""}`,
+      amount: s.chargesPkr,
+      date: fmtDate(s.dateIso),
+    }))
+}
+
+export function buildImportCombinedDetails(
+  shipments: Array<{
+    id: string
+    label: string
+    supplier: string
+    pswPkr: number
+    chargesPkr: number
+    combinedPkr: number
+    dateIso: string
+  }>,
+): MoneyOutDetailLine[] {
+  return shipments
+    .filter(s => s.combinedPkr > 0.004)
+    .map(s => ({
+      id: `imp-${s.id}`,
+      label: s.label,
+      sublabel: `${s.supplier} · PSW ${Math.round(s.pswPkr).toLocaleString()} + charges ${Math.round(s.chargesPkr).toLocaleString()}`,
+      amount: s.combinedPkr,
+      date: fmtDate(s.dateIso),
+    }))
+}
+
 export type MoneyOutDetailsPayload = {
-  supplierAdvances: MoneyOutDetailLine[]
   clientRefunds: MoneyOutDetailLine[]
   cashback: MoneyOutDetailLine[]
+  importPsw?: MoneyOutDetailLine[]
+  importCharges?: MoneyOutDetailLine[]
+  importChargesCombined?: MoneyOutDetailLine[]
 }
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
 export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload> = {
-  "Supplier advances": "supplierAdvances",
   "Client refunds (returns)": "clientRefunds",
   Cashback: "cashback",
+  "Imported purchases · PSW duties": "importPsw",
+  "Imported purchases · charges": "importCharges",
+  "Imported purchases · total (PSW + charges)": "importChargesCombined",
 }
