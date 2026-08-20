@@ -68,17 +68,37 @@ function parseDate(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-/** Charges step + any PSW duties not yet synced into charges. */
+/**
+ * Invoice / customs *value* (goods value) must never hit Money out.
+ * Only real PSW duties paid and landing charges count.
+ * Detects product category and duty lines labeled as value (e.g. "custom values").
+ */
+export function isInvoiceOrCustomsValueLine(
+  c: Pick<ImportCharge, "category" | "description"> & { name?: string },
+): boolean {
+  if (String(c.category || "") === "product") return true
+  const blob = `${c.category || ""} ${c.description || ""} ${c.name || ""}`.toLowerCase()
+  return /\b(custom(s)?\s*values?|invoice\s*value|assessed\s*value|declared\s*value|product\s*(cost|value)|cif\s*value|fob\s*value)\b/.test(
+    blob,
+  )
+}
+
+/** Charges step + any PSW duties not yet synced into charges. Excludes product / invoice value. */
 export function effectiveImportCharges(
   sh: Pick<ImportShipmentMoneyOutRow, "charges" | "customsDuties">,
 ): ImportCharge[] {
-  const charges = asCharges(sh.charges).filter(c => c.category !== "product")
+  const charges = asCharges(sh.charges).filter(c => !isInvoiceOrCustomsValueLine(c))
   const syncedDutyIds = new Set(
     charges.map(c => c.fromDutyId).filter(Boolean) as string[],
   )
   const duties = asDuties(sh.customsDuties)
   const missing: ImportCharge[] = duties
     .filter(d => d.id && !syncedDutyIds.has(d.id))
+    .filter(d => !isInvoiceOrCustomsValueLine({
+      category: d.category,
+      description: d.description || d.name,
+      name: d.name,
+    }))
     .map(d => ({
       id: `duty-${d.id}`,
       category: d.category,
@@ -97,13 +117,13 @@ export function effectiveImportCharges(
 }
 
 export function isPswCharge(c: ImportCharge): boolean {
-  if (c.category === "product") return false
+  if (isInvoiceOrCustomsValueLine(c)) return false
   if (c.fromDutyId) return true
   return PSW_CATEGORIES.has(String(c.category || ""))
 }
 
 export function isImportOtherCharge(c: ImportCharge): boolean {
-  if (c.category === "product") return false
+  if (isInvoiceOrCustomsValueLine(c)) return false
   return !isPswCharge(c)
 }
 
