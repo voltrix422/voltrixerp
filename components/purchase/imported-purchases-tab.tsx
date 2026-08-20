@@ -521,8 +521,16 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
               </thead>
               <tbody>
                 {filtered.map(s => {
-                  const summary = s.landedCostSummary as LandedCostSummary
-                  const total = summary?.grandTotalPkr
+                  const summary = s.landedCostSummary as LandedCostSummary | undefined
+                  const live = calculateLandedCost(s)
+                  const total =
+                    typeof summary?.grandTotalPkr === "number" && summary.grandTotalPkr > 0
+                      ? summary.grandTotalPkr
+                      : live.grandTotalPkr > 0
+                        ? live.grandTotalPkr
+                        : live.sharedChargesPkr + live.directChargesPkr > 0
+                          ? live.sharedChargesPkr + live.directChargesPkr
+                          : null
                   const step = normalizeImportStep(s.currentStep)
                   const title = importDisplayName(s)
                   const hasBl = !!String(s.blNumber || "").trim()

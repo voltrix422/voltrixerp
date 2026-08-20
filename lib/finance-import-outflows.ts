@@ -2,6 +2,7 @@ import {
   chargeAmountPkr,
   chargeTypeLabel,
   importDisplayName,
+  type CustomsDutyEntry,
   type ImportCharge,
 } from "@/lib/import-shipment"
 
@@ -26,16 +27,18 @@ export type ImportShipmentMoneyOutRow = {
   gdNumber?: string | null
   gdDate?: string | null
   createdAt: Date | string
+  updatedAt?: Date | string | null
   fxRate?: number | null
   currency?: string | null
   charges?: unknown
+  customsDuties?: unknown
 }
 
 export type ImportChargesSplit = {
   pswPkr: number
   chargesPkr: number
   combinedPkr: number
-  /** Per-shipment breakdown for hover tooltips */
+  /** Per-shipment breakdown for hover / popup — every import with amounts */
   shipments: Array<{
     id: string
     label: string
@@ -49,12 +52,46 @@ export type ImportChargesSplit = {
   }>
 }
 
-function inRange(d: Date, start: Date, end: Date) {
-  return d >= start && d <= end
-}
-
 function asCharges(raw: unknown): ImportCharge[] {
   return Array.isArray(raw) ? (raw as ImportCharge[]) : []
+}
+
+function asDuties(raw: unknown): CustomsDutyEntry[] {
+  return Array.isArray(raw) ? (raw as CustomsDutyEntry[]) : []
+}
+
+function parseDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null
+  const d = value instanceof Date ? value : new Date(String(value))
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Charges step + any PSW duties not yet synced into charges. */
+export function effectiveImportCharges(
+  sh: Pick<ImportShipmentMoneyOutRow, "charges" | "customsDuties">,
+): ImportCharge[] {
+  const charges = asCharges(sh.charges).filter(c => c.category !== "product")
+  const syncedDutyIds = new Set(
+    charges.map(c => c.fromDutyId).filter(Boolean) as string[],
+  )
+  const duties = asDuties(sh.customsDuties)
+  const missing: ImportCharge[] = duties
+    .filter(d => d.id && !syncedDutyIds.has(d.id))
+    .map(d => ({
+      id: `duty-${d.id}`,
+      category: d.category,
+      description: d.description || d.name,
+      amount: Number(d.amount) || 0,
+      currency: d.currency || "PKR",
+      fxRate: 0,
+      isShared: d.category === "cess" || !d.itemId,
+      itemId: d.category === "cess" ? "" : (d.itemId || ""),
+      paid: !!d.paid,
+      paymentRef: d.paymentRef || "",
+      notes: "",
+      fromDutyId: d.id,
+    }))
+  return [...charges, ...missing]
 }
 
 export function isPswCharge(c: ImportCharge): boolean {
@@ -68,32 +105,25 @@ export function isImportOtherCharge(c: ImportCharge): boolean {
   return !isPswCharge(c)
 }
 
-/** Sum PSW duties and Charges-step amounts for shipments whose GD or created date falls in period. */
+/**
+ * Sum PSW + Charges for every import shipment that has amounts.
+ * Includes the full Imported Purchases list (not period-truncated) so Finance
+ * matches Purchase → Imported Purchases. start/end kept for API compatibility.
+ */
 export function importChargesSplitInPeriod(
   shipments: ImportShipmentMoneyOutRow[],
-  start: Date,
-  end: Date,
+  _start: Date,
+  _end: Date,
 ): ImportChargesSplit {
   let pswPkr = 0
   let chargesPkr = 0
   const rows: ImportChargesSplit["shipments"] = []
 
   for (const sh of shipments) {
-    const createdIso =
-      sh.createdAt instanceof Date ? sh.createdAt.toISOString() : String(sh.createdAt || "")
-    const gd = String(sh.gdDate || "").trim()
-    const gdDate = gd ? new Date(gd) : null
-    const createdDate = createdIso ? new Date(createdIso) : null
-    const inPeriod =
-      (gdDate && !Number.isNaN(gdDate.getTime()) && inRange(gdDate, start, end)) ||
-      (createdDate && !Number.isNaN(createdDate.getTime()) && inRange(createdDate, start, end))
-    if (!inPeriod) continue
-
-    const dateIso =
-      gdDate && !Number.isNaN(gdDate.getTime()) ? gdDate.toISOString() : createdIso || new Date().toISOString()
-
+    const createdDate = parseDate(sh.createdAt)
+    const gdDate = parseDate(String(sh.gdDate || "").trim() || null)
     const fx = Number(sh.fxRate) || 0
-    const charges = asCharges(sh.charges)
+    const charges = effectiveImportCharges(sh)
     let shPsw = 0
     let shCharges = 0
     const pswLines: string[] = []
@@ -114,6 +144,7 @@ export function importChargesSplitInPeriod(
 
     if (shPsw <= 0.004 && shCharges <= 0.004) continue
 
+    const dateIso = (gdDate || createdDate || new Date()).toISOString()
     pswPkr += shPsw
     chargesPkr += shCharges
     rows.push({
