@@ -102,7 +102,13 @@ const DUTY_CATEGORIES: ChargeCategory[] = [
   "other",
 ]
 
-export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: string }) {
+export function ImportedPurchasesTab({
+  purchaseScopeId,
+  openShipmentId,
+}: {
+  purchaseScopeId: string
+  openShipmentId?: string
+}) {
   const { user } = useAuth()
   const { confirm } = useDialog()
   const { toast } = useToast()
@@ -119,6 +125,7 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   const [sroDrawerOpen, setSroDrawerOpen] = useState(false)
   const [sroLibrary, setSroLibrary] = useState<ImportSro[]>([])
   const [agentLibrary, setAgentLibrary] = useState<ClearingAgent[]>([])
+  const [openedFromQuery, setOpenedFromQuery] = useState<string | null>(null)
 
   const importedSuppliers = useMemo(
     () => suppliers.filter(s => s.type === "imported" || s.type === "trade"),
@@ -150,6 +157,15 @@ export function ImportedPurchasesTab({ purchaseScopeId }: { purchaseScopeId: str
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (loading || !openShipmentId || openedFromQuery === openShipmentId) return
+    const match = shipments.find(s => s.id === openShipmentId)
+    if (!match) return
+    setOpenedFromQuery(openShipmentId)
+    setViewMode("full")
+    loadShipmentDraft(match)
+  }, [loading, openShipmentId, openedFromQuery, shipments])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

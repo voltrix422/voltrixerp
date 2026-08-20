@@ -9,6 +9,8 @@ export type MoneyOutDetailLine = {
   date?: string
   /** Full charge / duty lines for popup (no truncation) */
   items?: { label: string; amount: number }[]
+  /** Deep link to open the related record (e.g. imported purchase) */
+  href?: string
 }
 
 function inRange(d: Date, start: Date, end: Date) {
@@ -170,6 +172,7 @@ export function buildImportPswDetails(
       sublabel: s.supplier,
       amount: s.pswPkr,
       date: fmtDate(s.dateIso),
+      href: `/purchase?tab=imports&shipment=${encodeURIComponent(s.id)}`,
       items:
         s.pswItems && s.pswItems.length > 0
           ? s.pswItems
@@ -202,6 +205,7 @@ export function buildImportChargeStepDetails(
       sublabel: s.supplier,
       amount: s.chargesPkr,
       date: fmtDate(s.dateIso),
+      href: `/purchase?tab=imports&shipment=${encodeURIComponent(s.id)}`,
       items:
         s.chargeItems && s.chargeItems.length > 0
           ? s.chargeItems

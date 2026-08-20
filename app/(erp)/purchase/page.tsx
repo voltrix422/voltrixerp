@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { Topbar } from "@/components/layout/topbar"
 import { PurchaseLedgerManager } from "@/components/purchase/purchase-ledger-manager"
@@ -14,7 +15,19 @@ import { getPurchaseScopes, purchaseScopeLabel, type PurchaseScope } from "@/lib
 
 export default function PurchasePage() {
   const { user } = useAuth()
-  const [tab, setTab] = useState<"ledger" | "imports" | "suppliers" | "advances" | "projects">("ledger")
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+  const shipmentParam = searchParams.get("shipment")
+  const initialTab =
+    tabParam === "imports" ||
+    tabParam === "suppliers" ||
+    tabParam === "advances" ||
+    tabParam === "projects" ||
+    tabParam === "ledger"
+      ? tabParam
+      : "ledger"
+  const [tab, setTab] = useState<"ledger" | "imports" | "suppliers" | "advances" | "projects">(initialTab)
   const [allScopes, setAllScopes] = useState<PurchaseScope[]>([])
   const isAdminLike = roleHasAllModules(user?.role)
   const allowedScopes = useMemo(() => {
@@ -29,6 +42,18 @@ export default function PurchasePage() {
   }, [])
 
   useEffect(() => {
+    if (
+      tabParam === "imports" ||
+      tabParam === "suppliers" ||
+      tabParam === "advances" ||
+      tabParam === "projects" ||
+      tabParam === "ledger"
+    ) {
+      setTab(tabParam)
+    }
+  }, [tabParam])
+
+  useEffect(() => {
     if (allowedScopes.length === 0) return
     if (!allowedScopes.includes(scopeId)) {
       setScopeId(allowedScopes[0])
@@ -36,6 +61,14 @@ export default function PurchasePage() {
   }, [allowedScopes, scopeId])
 
   const activeScopeName = purchaseScopeLabel(scopeId, allScopes)
+
+  function selectTab(next: typeof tab) {
+    setTab(next)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", next)
+    if (next !== "imports") params.delete("shipment")
+    router.replace(`/purchase?${params.toString()}`, { scroll: false })
+  }
 
   const tabs = [
     { key: "ledger" as const, label: "Purchase Ledger", icon: BookOpen },
@@ -64,7 +97,7 @@ export default function PurchasePage() {
                   return (
                     <button
                       key={t.key}
-                      onClick={() => setTab(t.key)}
+                      onClick={() => selectTab(t.key)}
                       className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                         active
                           ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
@@ -109,7 +142,10 @@ export default function PurchasePage() {
               <PurchaseLedgerManager purchaseScopeId={scopeId || "P1"} />
             </div>
           ) : tab === "imports" ? (
-            <ImportedPurchasesTab purchaseScopeId={scopeId || "P1"} />
+            <ImportedPurchasesTab
+              purchaseScopeId={scopeId || "P1"}
+              openShipmentId={shipmentParam || undefined}
+            />
           ) : tab === "advances" ? (
             <AdvanceAccountsTab purchaseScopeId={scopeId || "P1"} />
           ) : tab === "projects" ? (
