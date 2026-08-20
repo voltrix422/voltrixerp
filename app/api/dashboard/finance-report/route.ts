@@ -236,6 +236,7 @@ export async function GET(req: NextRequest) {
           where: { createdAt: { gte: from, lte: to } },
         }),
         prisma.erpImportShipment.findMany({
+          where: { archived: false },
           select: {
             id: true,
             shipmentNumber: true,

@@ -287,6 +287,11 @@ export interface ImportShipment {
   gdSros: ImportSro[]
   landedCostSummary: LandedCostSummary | Record<string, unknown>
   flowHistory: FlowHistoryEntry[]
+  /** When true, excluded from Finance money-out (PSW + charges) */
+  archived?: boolean
+  archiveRemark?: string
+  archivedAt?: string | null
+  archivedBy?: string
   createdBy: string
   createdAt?: string
   updatedAt?: string
@@ -849,6 +854,10 @@ export function emptyShipment(scopeId: string, createdBy = ""): Omit<ImportShipm
     gdSros: [],
     landedCostSummary: {},
     flowHistory: [],
+    archived: false,
+    archiveRemark: "",
+    archivedAt: null,
+    archivedBy: "",
     createdBy,
   }
 }
@@ -894,6 +903,30 @@ export async function deleteImportShipment(id: string): Promise<void> {
     body: JSON.stringify({ id }),
   })
   if (!res.ok) throw new Error("Failed to delete shipment")
+}
+
+/** Archive / restore — archived imports stay in Purchase but leave Finance money-out. */
+export async function setImportShipmentArchived(opts: {
+  id: string
+  archived: boolean
+  remark?: string
+  by?: string
+}): Promise<ImportShipment> {
+  const res = await fetch("/api/db/import-shipments", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: opts.id,
+      archived: opts.archived,
+      archiveRemark: opts.remark || "",
+      archivedBy: opts.by || "",
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || "Failed to update archive")
+  }
+  return res.json()
 }
 
 export function formatPkr(n: number) {

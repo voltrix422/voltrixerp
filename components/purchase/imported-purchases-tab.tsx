@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import {
   Plus, Search, Loader2, Ship, ArrowLeft, Trash2, Lock, Calculator,
   ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked, Hash,
-  Maximize2, Minimize2, PanelsTopLeft, FileDown, AlertTriangle,
+  Maximize2, Minimize2, PanelsTopLeft, FileDown, AlertTriangle, Archive, ArchiveRestore, X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,6 +45,7 @@ import {
   saveImportShipment,
   saveSroLibrary,
   serializePsids,
+  setImportShipmentArchived,
   statusForStep,
   sumChargesPkr,
   syncDutiesIntoCharges,
@@ -126,6 +127,10 @@ export function ImportedPurchasesTab({
   const [sroLibrary, setSroLibrary] = useState<ImportSro[]>([])
   const [agentLibrary, setAgentLibrary] = useState<ClearingAgent[]>([])
   const [openedFromQuery, setOpenedFromQuery] = useState<string | null>(null)
+  const [listTab, setListTab] = useState<"active" | "archived">("active")
+  const [archiveTarget, setArchiveTarget] = useState<ImportShipment | null>(null)
+  const [archiveRemark, setArchiveRemark] = useState("")
+  const [archiveBusy, setArchiveBusy] = useState(false)
 
   const importedSuppliers = useMemo(
     () => suppliers.filter(s => s.type === "imported" || s.type === "trade"),
@@ -168,15 +173,84 @@ export function ImportedPurchasesTab({
   }, [loading, openShipmentId, openedFromQuery, shipments])
 
   const filtered = useMemo(() => {
+    const archivedWanted = listTab === "archived"
+    const base = shipments.filter(s => !!s.archived === archivedWanted)
     const q = search.trim().toLowerCase()
-    if (!q) return shipments
-    return shipments.filter(s =>
-      [s.shipmentNumber, s.supplierName, s.blNumber, s.gdNumber, s.psid, parsePsids(s).join(" "), s.contractRef]
+    if (!q) return base
+    return base.filter(s =>
+      [
+        s.shipmentNumber,
+        s.supplierName,
+        s.blNumber,
+        s.gdNumber,
+        s.psid,
+        parsePsids(s).join(" "),
+        s.contractRef,
+        s.archiveRemark || "",
+      ]
         .join(" ")
         .toLowerCase()
         .includes(q),
     )
-  }, [shipments, search])
+  }, [shipments, search, listTab])
+
+  const activeCount = useMemo(() => shipments.filter(s => !s.archived).length, [shipments])
+  const archivedCount = useMemo(() => shipments.filter(s => !!s.archived).length, [shipments])
+
+  async function confirmArchive() {
+    if (!archiveTarget?.id) return
+    setArchiveBusy(true)
+    try {
+      await setImportShipmentArchived({
+        id: archiveTarget.id,
+        archived: true,
+        remark: archiveRemark.trim(),
+        by: user?.name || user?.email || "",
+      })
+      toast({
+        type: "success",
+        title: "Archived",
+        message: "Hidden from Finance money-out. Find it under Archived.",
+      })
+      setArchiveTarget(null)
+      setArchiveRemark("")
+      await load()
+    } catch (e) {
+      toast({
+        type: "error",
+        title: "Archive failed",
+        message: e instanceof Error ? e.message : "Error",
+      })
+    } finally {
+      setArchiveBusy(false)
+    }
+  }
+
+  async function restoreFromArchive(s: ImportShipment) {
+    if (!s.id) return
+    const ok = await confirm({
+      type: "confirm",
+      title: "Restore from archive?",
+      message: `${importDisplayName(s)} will show in Finance money-out again (PSW + charges).`,
+      confirmLabel: "Restore",
+    })
+    if (!ok) return
+    try {
+      await setImportShipmentArchived({
+        id: s.id,
+        archived: false,
+        by: user?.name || user?.email || "",
+      })
+      toast({ type: "success", title: "Restored", message: "Back in Active list and Finance." })
+      await load()
+    } catch (e) {
+      toast({
+        type: "error",
+        title: "Restore failed",
+        message: e instanceof Error ? e.message : "Error",
+      })
+    }
+  }
 
   function persistSroLibrary(next: ImportSro[]) {
     setSroLibrary(next)
@@ -494,12 +568,112 @@ export function ImportedPurchasesTab({
         onRemove={removeSroFromLibrary}
       />
 
+      {archiveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-[hsl(var(--card))] shadow-lg">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold">Archive import</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                  {importDisplayName(archiveTarget)} · removed from Finance money-out
+                </p>
+              </div>
+              <button
+                type="button"
+                className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-[hsl(var(--muted))] cursor-pointer"
+                onClick={() => {
+                  if (archiveBusy) return
+                  setArchiveTarget(null)
+                  setArchiveRemark("")
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Archived imports stay here under <strong>Archived</strong> but their PSW duties and charges will not count in Finance.
+              </p>
+              <div>
+                <label className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  Remark (optional)
+                </label>
+                <textarea
+                  value={archiveRemark}
+                  onChange={e => setArchiveRemark(e.target.value)}
+                  rows={3}
+                  placeholder="Why archive? e.g. duplicate entry, wrong values, closed consignment…"
+                  className="mt-1 w-full rounded-md border bg-[hsl(var(--background))] px-2.5 py-2 text-xs resize-y min-h-[72px]"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  disabled={archiveBusy}
+                  onClick={() => {
+                    setArchiveTarget(null)
+                    setArchiveRemark("")
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={archiveBusy}
+                  onClick={() => void confirmArchive()}
+                >
+                  {archiveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Archive className="h-3.5 w-3.5 mr-1" />}
+                  Archive
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/20 w-fit">
+        <button
+          type="button"
+          onClick={() => setListTab("active")}
+          className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+            listTab === "active"
+              ? "bg-[hsl(var(--background))] shadow-sm"
+              : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          }`}
+        >
+          Active
+          <Badge variant="secondary" className="text-[9px] h-4 px-1">{activeCount}</Badge>
+        </button>
+        <button
+          type="button"
+          onClick={() => setListTab("archived")}
+          className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+            listTab === "archived"
+              ? "bg-[hsl(var(--background))] shadow-sm"
+              : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          }`}
+        >
+          <Archive className="h-3 w-3" />
+          Archived
+          <Badge variant="secondary" className="text-[9px] h-4 px-1">{archivedCount}</Badge>
+        </button>
+      </div>
+
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search shipment #, supplier, B/L, GD, PSID…"
+          placeholder={
+            listTab === "archived"
+              ? "Search archived imports, remarks…"
+              : "Search shipment #, supplier, B/L, GD, PSID…"
+          }
           className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs"
         />
       </div>
@@ -511,13 +685,19 @@ export function ImportedPurchasesTab({
       ) : filtered.length === 0 ? (
         <div className="rounded-md border border-dashed px-4 py-10 text-center">
           <Ship className="h-7 w-7 mx-auto mb-2 text-[hsl(var(--muted-foreground))]" />
-          <p className="text-sm font-medium">No import shipments yet</p>
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 mb-3">
-            Create a shipment to track containers, PSW clearance, and landed cost.
+          <p className="text-sm font-medium">
+            {listTab === "archived" ? "No archived imports" : "No import shipments yet"}
           </p>
-          <Button size="sm" className={`h-8 text-xs ${btnHover}`} onClick={openNew}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Start first shipment
-          </Button>
+          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1 mb-3">
+            {listTab === "archived"
+              ? "Archive an import from the Active list to hide it from Finance."
+              : "Create a shipment to track containers, PSW clearance, and landed cost."}
+          </p>
+          {listTab === "active" && (
+            <Button size="sm" className={`h-8 text-xs ${btnHover}`} onClick={openNew}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Start first shipment
+            </Button>
+          )}
         </div>
       ) : (
         <div className="rounded-md border overflow-hidden">
@@ -531,7 +711,11 @@ export function ImportedPurchasesTab({
                   <th className="px-2.5 py-1.5 font-semibold">B/L · GD</th>
                   <th className="px-2.5 py-1.5 font-semibold">Status</th>
                   <th className="px-2.5 py-1.5 font-semibold text-right">Landed total</th>
+                  {listTab === "archived" && (
+                    <th className="px-2.5 py-1.5 font-semibold">Remark</th>
+                  )}
                   <th className="px-2.5 py-1.5 font-semibold w-16 text-center">PDF</th>
+                  <th className="px-2.5 py-1.5 font-semibold w-20 text-center">Archive</th>
                   <th className="px-2.5 py-1.5 font-semibold w-8" />
                 </tr>
               </thead>
@@ -591,6 +775,17 @@ export function ImportedPurchasesTab({
                       <td className="px-2.5 py-2 text-right text-[11px] font-medium">
                         {typeof total === "number" ? formatPkr(total) : "—"}
                       </td>
+                      {listTab === "archived" && (
+                        <td className="px-2.5 py-2 text-[10px] text-[hsl(var(--muted-foreground))] max-w-[180px]">
+                          <p className="line-clamp-2">{s.archiveRemark || "—"}</p>
+                          {s.archivedAt && (
+                            <p className="text-[9px] mt-0.5">
+                              {new Date(s.archivedAt).toLocaleDateString("en-PK")}
+                              {s.archivedBy ? ` · ${s.archivedBy}` : ""}
+                            </p>
+                          )}
+                        </td>
+                      )}
                       <td className="px-2.5 py-2 text-center" onClick={e => e.stopPropagation()}>
                         <Button
                           type="button"
@@ -613,6 +808,34 @@ export function ImportedPurchasesTab({
                         >
                           <FileDown className="h-3.5 w-3.5" />
                         </Button>
+                      </td>
+                      <td className="px-2.5 py-2 text-center" onClick={e => e.stopPropagation()}>
+                        {listTab === "archived" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2 text-[10px] ${btnHover}`}
+                            title="Restore to Active (include in Finance)"
+                            onClick={() => void restoreFromArchive(s)}
+                          >
+                            <ArchiveRestore className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2 text-[10px] ${btnHover}`}
+                            title="Archive (hide from Finance)"
+                            onClick={() => {
+                              setArchiveRemark("")
+                              setArchiveTarget(s)
+                            }}
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </td>
                       <td className="px-2.5 py-2">
                         <ChevronRight className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />

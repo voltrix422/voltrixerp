@@ -1446,6 +1446,12 @@ model ErpImportShipment {
   landedCostSummary Json     @default("{}") @map("landed_cost_summary")
   flowHistory       Json     @default("[]") @map("flow_history")
 
+  /// Hidden from Finance money-out when true; still visible under Imported Purchases → Archived
+  archived          Boolean  @default(false)
+  archiveRemark     String   @default("") @map("archive_remark")
+  archivedAt        DateTime? @map("archived_at")
+  archivedBy        String   @default("") @map("archived_by")
+
   createdBy         String   @default("") @map("created_by")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -1454,6 +1460,7 @@ model ErpImportShipment {
   @@index([purchaseScopeId])
   @@index([status])
   @@index([supplierId])
+  @@index([archived])
   @@map("erp_import_shipments")
 }
 

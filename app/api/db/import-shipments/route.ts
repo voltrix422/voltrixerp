@@ -232,3 +232,43 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const id = String(body.id || "").trim()
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
+
+    const archived = Boolean(body.archived)
+    const remark = String(body.archiveRemark ?? "").trim()
+    const by = String(body.archivedBy ?? "").trim()
+
+    const existing = await prisma.erpImportShipment.findUnique({ where: { id } })
+    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+    const history = asArray<FlowHistoryEntry>(existing.flowHistory)
+    history.push({
+      at: new Date().toISOString(),
+      by: by || "user",
+      action: archived ? "archived" : "unarchived",
+      note: archived
+        ? remark || "Moved to archive (hidden from Finance)"
+        : "Restored from archive (included in Finance again)",
+    })
+
+    const updated = await prisma.erpImportShipment.update({
+      where: { id },
+      data: {
+        archived,
+        archiveRemark: archived ? remark : "",
+        archivedAt: archived ? new Date() : null,
+        archivedBy: archived ? by : "",
+        flowHistory: jsonVal(history),
+      },
+    })
+    return NextResponse.json(updated)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update archive"
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
