@@ -138,61 +138,29 @@ function buildMoneyOutDisplayRows(
 
   const ledgerPurchases = b.purchaseLedgerPurchases ?? b.purchaseLedger
   const ledgerRents = b.purchaseLedgerRents ?? 0
-  const ledgerCombined = b.purchaseLedger
-  const hasPurchases = ledgerPurchases > 0.004
-  const hasRents = ledgerRents > 0.004
-
-  if (ledgerCombined > 0.004) {
-    if (hasPurchases && hasRents) {
-      rows.push({ label: "Purchase ledger · purchases · Main Office", amount: ledgerPurchases })
-      rows.push({ label: "Purchase ledger · rents · Main Office", amount: ledgerRents })
-      rows.push({
-        label: "Purchase ledger · total (purchases + rents) · Main Office",
-        amount: ledgerCombined,
-      })
-    } else if (hasRents) {
-      rows.push({ label: "Purchase ledger · rents · Main Office", amount: ledgerRents })
-    } else {
-      rows.push({ label: "Purchase ledger · purchases · Main Office", amount: ledgerPurchases })
-    }
+  if (ledgerPurchases > 0.004) {
+    rows.push({ label: "Purchase ledger · purchases · Main Office", amount: ledgerPurchases })
+  }
+  if (ledgerRents > 0.004) {
+    rows.push({ label: "Purchase ledger · rents · Main Office", amount: ledgerRents })
   }
   if (b.pettyCash > 0.004) rows.push({ label: "Petty cash (approved)", amount: b.pettyCash })
 
   const importPsw = b.importPsw ?? 0
   const importCharges = b.importCharges ?? 0
-  const importCombined = b.importChargesCombined ?? importPsw + importCharges
-  const hasImportPsw = importPsw > 0.004
-  const hasImportCharges = importCharges > 0.004
-  if (importCombined > 0.004) {
-    if (hasImportPsw && hasImportCharges) {
-      rows.push({
-        label: "Imported purchases · PSW duties",
-        amount: importPsw,
-        details: details?.importPsw,
-      })
-      rows.push({
-        label: "Imported purchases · charges",
-        amount: importCharges,
-        details: details?.importCharges,
-      })
-      rows.push({
-        label: "Imported purchases · total (PSW + charges)",
-        amount: importCombined,
-        details: details?.importChargesCombined,
-      })
-    } else if (hasImportPsw) {
-      rows.push({
-        label: "Imported purchases · PSW duties",
-        amount: importPsw,
-        details: details?.importPsw,
-      })
-    } else {
-      rows.push({
-        label: "Imported purchases · charges",
-        amount: importCharges,
-        details: details?.importCharges,
-      })
-    }
+  if (importPsw > 0.004) {
+    rows.push({
+      label: "Imported purchases · PSW duties",
+      amount: importPsw,
+      details: details?.importPsw,
+    })
+  }
+  if (importCharges > 0.004) {
+    rows.push({
+      label: "Imported purchases · charges",
+      amount: importCharges,
+      details: details?.importCharges,
+    })
   }
 
   const clientRefunds = b.clientRefunds ?? 0
