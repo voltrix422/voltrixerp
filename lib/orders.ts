@@ -312,11 +312,14 @@ export function getOrderCreditBalance(
   return Math.max(0, Number(order.total) - getOrderEffectivePaid(order))
 }
 
-/** Max cashback that can still be applied against this order's balance. */
+/** Max cashback from this order: payments received minus refunds and prior order cashback. */
 export function getOrderCashbackRemainingFromOrder(
   order: Pick<Order, "total" | "payments" | "status" | "returnPayments" | "cashbackPayments">,
 ) {
-  return getOrderCreditBalance(order)
+  const paid = getOrderAmountPaid(order)
+  const refunded = getOrderReturnAmount(order)
+  const already = getOrderCashbackAmount(order, "order")
+  return Math.max(0, paid - refunded - already)
 }
 
 export function orderHasCashback(order: Pick<Order, "cashbackPayments">) {

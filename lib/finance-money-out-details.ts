@@ -7,6 +7,8 @@ export type MoneyOutDetailLine = {
   sublabel?: string
   amount: number
   date?: string
+  /** Full charge / duty lines for popup (no truncation) */
+  items?: { label: string; amount: number }[]
 }
 
 function inRange(d: Date, start: Date, end: Date) {
@@ -156,6 +158,7 @@ export function buildImportPswDetails(
     supplier: string
     pswPkr: number
     pswLines: string[]
+    pswItems?: { label: string; amount: number }[]
     dateIso: string
   }>,
 ): MoneyOutDetailLine[] {
@@ -164,9 +167,19 @@ export function buildImportPswDetails(
     .map(s => ({
       id: `psw-${s.id}`,
       label: s.label,
-      sublabel: `${s.supplier}${s.pswLines.length ? ` · ${s.pswLines.slice(0, 4).join(", ")}${s.pswLines.length > 4 ? "…" : ""}` : ""}`,
+      sublabel: s.supplier,
       amount: s.pswPkr,
       date: fmtDate(s.dateIso),
+      items:
+        s.pswItems && s.pswItems.length > 0
+          ? s.pswItems
+          : s.pswLines.map(line => {
+              const m = line.match(/^(.*):\s*PKR\s*([\d,]+)/)
+              return {
+                label: m ? m[1] : line,
+                amount: m ? Number(m[2].replace(/,/g, "")) || 0 : 0,
+              }
+            }),
     }))
 }
 
@@ -177,6 +190,7 @@ export function buildImportChargeStepDetails(
     supplier: string
     chargesPkr: number
     chargeLines: string[]
+    chargeItems?: { label: string; amount: number }[]
     dateIso: string
   }>,
 ): MoneyOutDetailLine[] {
@@ -185,9 +199,19 @@ export function buildImportChargeStepDetails(
     .map(s => ({
       id: `chg-${s.id}`,
       label: s.label,
-      sublabel: `${s.supplier}${s.chargeLines.length ? ` · ${s.chargeLines.slice(0, 4).join(", ")}${s.chargeLines.length > 4 ? "…" : ""}` : ""}`,
+      sublabel: s.supplier,
       amount: s.chargesPkr,
       date: fmtDate(s.dateIso),
+      items:
+        s.chargeItems && s.chargeItems.length > 0
+          ? s.chargeItems
+          : s.chargeLines.map(line => {
+              const m = line.match(/^(.*):\s*PKR\s*([\d,]+)/)
+              return {
+                label: m ? m[1] : line,
+                amount: m ? Number(m[2].replace(/,/g, "")) || 0 : 0,
+              }
+            }),
     }))
 }
 

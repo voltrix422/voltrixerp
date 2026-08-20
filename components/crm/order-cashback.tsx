@@ -42,7 +42,7 @@ export function CashbackCapture({
     }
     if (source === "order" && value > remainingFromOrder + 0.004) {
       setError(
-        `Cashback from order cannot exceed remaining balance (PKR ${remainingFromOrder.toLocaleString()}).`,
+        `Cashback from order cannot exceed payments available (PKR ${remainingFromOrder.toLocaleString()}).`,
       )
       return
     }
@@ -116,10 +116,11 @@ export function CashbackCapture({
                     : "border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/30"
                 }`}
               >
-                <p className="font-semibold">From order balance</p>
+                <p className="font-semibold">From order (payments received)</p>
                 <p className="text-[hsl(var(--muted-foreground))] mt-0.5">
-                  Refund or bonus against this order — reduces balance by up to PKR{" "}
-                  {remainingFromOrder.toLocaleString()}
+                  Cashback / refund against this order — up to PKR{" "}
+                  {remainingFromOrder.toLocaleString()} of payments received
+                  {remainingFromOrder <= 0.004 ? " (none left)" : ""}
                 </p>
               </button>
               <button

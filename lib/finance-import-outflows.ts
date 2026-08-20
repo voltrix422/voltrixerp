@@ -48,6 +48,8 @@ export type ImportChargesSplit = {
     combinedPkr: number
     pswLines: string[]
     chargeLines: string[]
+    pswItems: { label: string; amount: number }[]
+    chargeItems: { label: string; amount: number }[]
     dateIso: string
   }>
 }
@@ -128,6 +130,8 @@ export function importChargesSplitInPeriod(
     let shCharges = 0
     const pswLines: string[] = []
     const chargeLines: string[] = []
+    const pswItems: { label: string; amount: number }[] = []
+    const chargeItems: { label: string; amount: number }[] = []
 
     for (const c of charges) {
       const amt = chargeAmountPkr(c, fx)
@@ -136,9 +140,11 @@ export function importChargesSplitInPeriod(
       if (isPswCharge(c)) {
         shPsw += amt
         pswLines.push(`${label}: PKR ${Math.round(amt).toLocaleString()}`)
+        pswItems.push({ label, amount: amt })
       } else if (isImportOtherCharge(c)) {
         shCharges += amt
         chargeLines.push(`${label}: PKR ${Math.round(amt).toLocaleString()}`)
+        chargeItems.push({ label, amount: amt })
       }
     }
 
@@ -159,6 +165,8 @@ export function importChargesSplitInPeriod(
       combinedPkr: shPsw + shCharges,
       pswLines,
       chargeLines,
+      pswItems,
+      chargeItems,
       dateIso,
     })
   }
