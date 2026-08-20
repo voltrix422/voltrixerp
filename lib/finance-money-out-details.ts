@@ -251,9 +251,12 @@ export type MoneyOutDetailsPayload = {
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
 export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload> = {
+  "Client refunds": "clientRefunds",
   "Client refunds (returns)": "clientRefunds",
   Cashback: "cashback",
+  "Import · PSW duties": "importPsw",
   "Imported purchases · PSW duties": "importPsw",
+  "Import · charges": "importCharges",
   "Imported purchases · charges": "importCharges",
   "Imported purchases · total (PSW + charges)": "importChargesCombined",
 }
