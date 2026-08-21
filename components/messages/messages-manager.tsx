@@ -65,7 +65,7 @@ function ReadTicks({ seen }: { seen?: boolean }) {
 export function MessagesManager() {
   const { user } = useAuth()
   const searchParams = useSearchParams()
-  const withParam = String(searchParams.get("with") || "").trim()
+  const withParam = String(searchParams?.get("with") || "").trim()
   const [users, setUsers] = useState<ErpUserRow[]>([])
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [selectedUserId, setSelectedUserId] = useState("")
