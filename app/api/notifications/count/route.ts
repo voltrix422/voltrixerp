@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   }
 
   const count = await prisma.erpNotification.count({
-    where: { userId, read: false },
+    where: { userId, read: false, type: { not: "chat_message" } },
   })
 
   return NextResponse.json({ count })

@@ -1,4 +1,4 @@
-export type NotificationType = "info" | "warning" | "success" | "error"
+export type NotificationType = "info" | "warning" | "success" | "error" | "chat_message"
 
 export interface AppNotification {
   id: string

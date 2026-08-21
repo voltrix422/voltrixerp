@@ -11,6 +11,7 @@ import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
+import { UnreadMessagesBadge } from "@/components/layout/messages-icon"
 import type { Module } from "@/lib/auth"
 import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
 
@@ -153,6 +154,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             <Link key={item.key} href={item.href!} onClick={onNavigate} className={linkClass(active)}>
               <Icon className="h-4 w-4 shrink-0" />
               <span className="flex-1 truncate">{item.label}</span>
+              {item.key === "messages" && <UnreadMessagesBadge />}
             </Link>
           )
         })}

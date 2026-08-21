@@ -8,11 +8,7 @@ export async function GET(req: NextRequest) {
   }
 
   const notifications = await prisma.erpNotification.findMany({
-    where: {
-      userId,
-      // Chat lives in Messages — keep the bell for system alerts only
-      NOT: { type: "chat_message" },
-    },
+    where: { userId, type: { not: "chat_message" } },
     orderBy: { createdAt: "desc" },
     take: 50,
   })
@@ -30,7 +26,7 @@ export async function PATCH(req: NextRequest) {
 
   if (body.all && body.userId) {
     await prisma.erpNotification.updateMany({
-      where: { userId: body.userId, read: false },
+      where: { userId: body.userId, read: false, type: { not: "chat_message" } },
       data: { read: true },
     })
     return NextResponse.json({ ok: true })

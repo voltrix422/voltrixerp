@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import { notifyMessagesChanged } from "@/components/layout/use-unread-messages"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Send, Search, Users } from "lucide-react"
+import { Check, CheckCheck, MessageSquare, Send, Search, Users } from "lucide-react"
 
 type ErpUserRow = {
   id: string
@@ -18,6 +20,7 @@ type ChatMessage = {
   recipientId: string
   createdAt: string
   mine: boolean
+  seen?: boolean
 }
 
 type ConversationSummary = {
@@ -25,6 +28,8 @@ type ConversationSummary = {
   text: string
   createdAt: string
   unreadCount: number
+  senderName?: string
+  partnerName?: string
 }
 
 type SidebarTab = "chats" | "people"
@@ -50,8 +55,17 @@ function formatTime(iso: string) {
   return d.toLocaleDateString("en-PK", { day: "numeric", month: "short" })
 }
 
+function ReadTicks({ seen }: { seen?: boolean }) {
+  if (seen) {
+    return <CheckCheck className="h-3.5 w-3.5 inline-block ml-1 text-sky-200" aria-label="Seen" />
+  }
+  return <Check className="h-3.5 w-3.5 inline-block ml-1 text-white/70" aria-label="Sent" />
+}
+
 export function MessagesManager() {
   const { user } = useAuth()
+  const searchParams = useSearchParams()
+  const withParam = String(searchParams.get("with") || "").trim()
   const [users, setUsers] = useState<ErpUserRow[]>([])
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [selectedUserId, setSelectedUserId] = useState("")
@@ -84,6 +98,13 @@ export function MessagesManager() {
     }
     void loadUsers()
   }, [])
+
+  useEffect(() => {
+    if (withParam) {
+      setSelectedUserId(withParam)
+      setSidebarTab("chats")
+    }
+  }, [withParam])
 
   async function loadConversations() {
     if (!user?.id) return
@@ -151,9 +172,9 @@ export function MessagesManager() {
 
   const totalUnread = conversations.reduce((s, c) => s + (c.unreadCount || 0), 0)
 
-  async function loadMessages() {
+  async function loadMessages(opts?: { silent?: boolean }) {
     if (!user?.id || !selectedUserId) return
-    setLoadingMessages(true)
+    if (!opts?.silent) setLoadingMessages(true)
     try {
       const params = new URLSearchParams({ userId: user.id, partnerId: selectedUserId })
       const res = await fetch(`/api/db/messages?${params.toString()}`)
@@ -164,9 +185,10 @@ export function MessagesManager() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, partnerId: selectedUserId }),
       })
+      notifyMessagesChanged()
       await loadConversations()
     } finally {
-      setLoadingMessages(false)
+      if (!opts?.silent) setLoadingMessages(false)
     }
   }
 
@@ -182,8 +204,8 @@ export function MessagesManager() {
   useEffect(() => {
     if (!user?.id || !selectedUserId) return
     const timer = setInterval(() => {
-      void loadMessages()
-    }, 5000)
+      void loadMessages({ silent: true })
+    }, 4000)
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, selectedUserId])
@@ -223,7 +245,8 @@ export function MessagesManager() {
       }
       setText("")
       setSidebarTab("chats")
-      await loadMessages()
+      notifyMessagesChanged()
+      await loadMessages({ silent: true })
       await loadConversations()
     } finally {
       setSending(false)
@@ -240,7 +263,6 @@ export function MessagesManager() {
   return (
     <div className="rounded-xl border bg-[hsl(var(--card))] h-[calc(100vh-10rem)] min-h-[420px] overflow-hidden shadow-sm">
       <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] h-full">
-        {/* Sidebar */}
         <div className="border-r bg-[hsl(var(--muted))]/10 flex flex-col min-h-0">
           <div className="p-3 border-b space-y-2.5 shrink-0">
             <div className="flex items-center justify-between gap-2">
@@ -381,7 +403,6 @@ export function MessagesManager() {
           </div>
         </div>
 
-        {/* Thread */}
         <div className="flex flex-col h-full min-h-0 bg-[hsl(var(--background))]">
           <div className="h-14 border-b px-4 flex items-center shrink-0 bg-[hsl(var(--card))]">
             {selectedUser ? (
@@ -437,14 +458,17 @@ export function MessagesManager() {
                   >
                     <p className="whitespace-pre-wrap break-words leading-snug">{m.text}</p>
                     <p
-                      className={`mt-1 text-[10px] ${
-                        m.mine ? "text-white/75 text-right" : "text-[hsl(var(--muted-foreground))]"
+                      className={`mt-1 text-[10px] flex items-center ${
+                        m.mine ? "text-white/75 justify-end" : "text-[hsl(var(--muted-foreground))]"
                       }`}
                     >
-                      {new Date(m.createdAt).toLocaleString("en-PK", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}
+                      <span>
+                        {new Date(m.createdAt).toLocaleString("en-PK", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </span>
+                      {m.mine && <ReadTicks seen={!!m.seen} />}
                     </p>
                   </div>
                 </div>
