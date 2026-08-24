@@ -15,6 +15,7 @@ import type { ParsedProductQr } from "@/lib/parse-product-qr"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
 import { formatGstPercent, formatRetailPricePkr } from "@/lib/format-inventory-price"
 import { runLabelOcrOnImageFile } from "@/lib/label-ocr-browser"
+import { productQrCameraConfig } from "@/lib/qr-camera-config"
 import { playScanRejectBeep, playScanSuccessBeep, prepareScanAudio } from "@/lib/scan-beep"
 import {
   getInventorySerialUnits,
@@ -327,7 +328,7 @@ export function InventoryQrScanPanel({
       const cameraId = await resolveCameraId()
       await scanner.start(
         cameraId,
-        { fps: 12, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
+        productQrCameraConfig(),
         (decodedText) => {
           addScanFromPayload(decodedText)
         },

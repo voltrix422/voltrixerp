@@ -62,13 +62,21 @@ export function parseAepModelAndSerial(glued: string): { model: string; serialNu
   return null
 }
 
+/** HS-25.6V100AH, HS-25.6V 100Ah, MAN-HS-25-6V100AH */
+export function looksLikeHsVoltageModel(value: string): boolean {
+  const v = value.trim()
+  if (!v) return false
+  return /^(MAN-)?HS-?\d+([.-]\d+)?V\s*\d+\s*Ah?$/i.test(v)
+}
+
 /** Voltrix / inverter model codes on labels */
 export function looksLikeProductModel(value: string): boolean {
   const v = value.trim()
   if (!v || v.length < 4 || v.length > 48) return false
   if (looksLikeUrlOrPath(v)) return false
   return (
-    /^(AEP|HS|BG|LD|HSLD)-[A-Z0-9]+$/i.test(v) ||
+    looksLikeHsVoltageModel(v) ||
+    /^(MAN-)?(AEP|HS|BG|LD|HSLD)-[A-Z0-9][A-Z0-9.\s-]*$/i.test(v) ||
     /^AEP-?\d+KS\d+P\d*$/i.test(v) ||
     /^\d{1,3}A-[A-Z]-[A-Z]-[A-Z]$/i.test(v) ||
     /^[A-Z]{2,6}\d{0,3}[A-Z]{0,3}-[A-Z0-9]{2,}$/i.test(v) ||

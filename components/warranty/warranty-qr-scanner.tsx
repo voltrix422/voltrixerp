@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 import { Camera, CameraOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { productQrCameraConfig } from "@/lib/qr-camera-config"
 
 type Props = {
   readerId?: string
@@ -82,7 +83,7 @@ export function WarrantyQrScanner({
       const cameraId = await resolveCameraId()
       await scanner.start(
         cameraId,
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        productQrCameraConfig(),
         (text) => {
           const payload = text.trim()
           if (!payload || payload === lastScanRef.current) return

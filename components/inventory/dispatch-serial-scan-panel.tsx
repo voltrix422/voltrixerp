@@ -13,9 +13,11 @@ import { Camera, CheckCircle2, ScanLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
 import { normalizeInventorySerialNumber, serialNumberKey } from "@/lib/inventory-serial-units"
+import { looksLikeProductModel } from "@/lib/label-field-utils"
 import {
   dispatchScanModelMatches,
   modelKey,
+  normalizeDispatchModelKey,
   type ManualDispatchMeta,
 } from "@/lib/order-fulfillment-serials"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
@@ -48,35 +50,43 @@ function extractSerialFromScan(raw: string): string {
   if (!trimmed) return ""
   try {
     const parsed = parseProductQrPayload(trimmed)
-    if (parsed.serialNumber?.trim()) return parsed.serialNumber.trim()
+    const serial = parsed.serialNumber?.trim() || ""
+    const model = parsed.model?.trim() || ""
+    if (serial && serial !== model) return serial
+    if (model && (!serial || serial === model)) return ""
   } catch {
     // plain barcode
   }
-  return trimmed.split(/[\s,;]+/)[0]?.trim() ?? trimmed
+  const fallback = trimmed.split(/[\s,;]+/)[0]?.trim() ?? trimmed
+  if (looksLikeProductModel(fallback)) return ""
+  return fallback
 }
 
 function parseScanDetails(raw: string, orderModel: string, fallbackName: string) {
   const trimmed = raw.trim()
-  if (orderModel && modelKey(trimmed) === modelKey(orderModel)) {
-    const lastHyphen = orderModel.lastIndexOf("-")
-    const serialFromModel =
-      lastHyphen > 0 && lastHyphen < orderModel.length - 1
-        ? orderModel.slice(lastHyphen + 1)
-        : trimmed
-    return {
-      serialNumber: serialFromModel,
-      model: orderModel,
-      productName: fallbackName,
-    }
-  }
-
   try {
     const parsed = parseProductQrPayload(trimmed)
-    const serialNumber = parsed.serialNumber?.trim() || extractSerialFromScan(raw)
-    let model = parsed.model?.trim() || orderModel
-    if (parsed.model?.trim() && serialNumber && orderModel) {
-      const glued = `${parsed.model.trim()}-${serialNumber}`
+    const parsedModel = parsed.model?.trim() || ""
+    const parsedSerial = parsed.serialNumber?.trim() || ""
+    const payloadIsProductCode =
+      looksLikeProductModel(trimmed) &&
+      normalizeDispatchModelKey(trimmed) === normalizeDispatchModelKey(orderModel)
+
+    if (payloadIsProductCode && (!parsedSerial || parsedSerial === parsedModel || parsedSerial === trimmed)) {
+      return {
+        serialNumber: "",
+        model: orderModel,
+        productName: fallbackName,
+      }
+    }
+
+    const serialNumber = parsedSerial && parsedSerial !== parsedModel ? parsedSerial : extractSerialFromScan(raw)
+    let model = parsedModel || orderModel
+    if (parsedModel && serialNumber && orderModel) {
+      const glued = `${parsedModel}-${serialNumber}`
       if (modelKey(glued) === modelKey(orderModel)) {
+        model = orderModel
+      } else if (normalizeDispatchModelKey(parsedModel) === normalizeDispatchModelKey(orderModel)) {
         model = orderModel
       }
     }
@@ -214,7 +224,10 @@ export function DispatchSerialScanPanel({
       const details = parseScanDetails(raw, model, item.description)
       const serialRaw = normalizeInventorySerialNumber(details.serialNumber)
       if (!serialRaw) {
-        setMessage({ type: "err", text: "Could not read serial from scan." })
+        setMessage({
+          type: "err",
+          text: `This QR is the product code (${details.model || model}) only — no serial number. Print a QR with model and serial, e.g. ${model}/SN12345.`,
+        })
         playScanRejectBeep()
         return false
       }

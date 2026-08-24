@@ -1,5 +1,6 @@
 import {
   isDateSegment,
+  looksLikeHsVoltageModel,
   looksLikeProductModel,
   looksLikeSerialNumber,
   looksLikeUrlOrPath,
@@ -184,7 +185,9 @@ function parseModelPrefixSlashPayload(trimmed: string): ParsedProductQr | null {
   if (!modelPart || !restPart) return null
 
   const isKnownModel =
-    looksLikeProductModel(modelPart) || /^HS[-\s]?TQ[\d.A-Za-z.]+V?\d*Ah?$/i.test(modelPart)
+    looksLikeProductModel(modelPart) ||
+    looksLikeHsVoltageModel(modelPart) ||
+    /^HS[-\s]?TQ[\d.A-Za-z.]+V?\d*Ah?$/i.test(modelPart)
   if (!isKnownModel) return null
 
   const queryValues = restPart.includes("?") ? parseQueryString(restPart) : {}

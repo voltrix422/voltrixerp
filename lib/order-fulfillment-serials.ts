@@ -92,6 +92,19 @@ export function modelKey(model: string): string {
 }
 
 /**
+ * Treat catalog vs manual SKUs as the same product:
+ * HS-25.6V100AH === MAN-HS-25-6V100AH === HS-25.6V 100Ah
+ */
+export function normalizeDispatchModelKey(model: string): string {
+  return model
+    .trim()
+    .toLowerCase()
+    .replace(/^man[-_]?/, "")
+    .replace(/\s+/g, "")
+    .replace(/\./g, "-")
+}
+
+/**
  * QR label base model vs order variant (e.g. MAN-LITHIUM-IRON-PHOSPHATE on label,
  * MAN-LITHIUM-IRON-PHOSPHATE-B on order).
  */
@@ -112,11 +125,13 @@ export function dispatchScanModelMatches(
   const order = modelKey(orderModel)
   if (!order) return true
 
+  const orderNorm = normalizeDispatchModelKey(orderModel)
   const raw = modelKey(rawPayload.trim())
-  if (raw === order) return true
+  if (raw === order || normalizeDispatchModelKey(rawPayload) === orderNorm) return true
 
   const scanned = modelKey(scannedModel.trim())
   if (scanned && scanned === order) return true
+  if (scanned && normalizeDispatchModelKey(scannedModel) === orderNorm) return true
   if (scanned && orderAcceptsScannedModelVariant(order, scanned)) return true
 
   const serial = serialNumber.trim()
