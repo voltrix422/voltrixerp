@@ -69,6 +69,24 @@ export function looksLikeHsVoltageModel(value: string): boolean {
   return /^(MAN-)?HS-?\d+([.-]\d+)?V\s*\d+\s*Ah?$/i.test(v)
 }
 
+/**
+ * BarTender glues HS voltage model + serial tail with no separator:
+ *   HS-25.6V100AHvoltrix-3 → model HS-25.6V100AH, SN HS-25.6V100AHvoltrix-3
+ * Also accepts "HS-25.6V100AH voltrix-3" and "HS-25.6V100AH-voltrix-3".
+ * The full payload is kept as the serial so every box stays unique.
+ */
+export function parseHsModelAndSerial(glued: string): { model: string; serialNumber: string } | null {
+  const trimmed = glued.trim()
+  const m = trimmed.match(
+    /^((?:MAN-)?HS-?\d+(?:[.-]\d+)?V\s*\d+\s*A[hH]?)[\s-]*([A-Za-z][A-Za-z0-9._-]{1,40})$/i,
+  )
+  if (!m) return null
+  const model = m[1].trim()
+  const tail = m[2].trim()
+  if (!tail) return null
+  return { model, serialNumber: trimmed }
+}
+
 /** Voltrix / inverter model codes on labels */
 export function looksLikeProductModel(value: string): boolean {
   const v = value.trim()

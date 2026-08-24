@@ -6,6 +6,7 @@ import {
   looksLikeUrlOrPath,
   normalizeAepModelCode,
   parseAepModelAndSerial,
+  parseHsModelAndSerial,
   scoreSerialCandidate,
 } from "@/lib/label-field-utils"
 
@@ -297,6 +298,22 @@ export function parseProductQrPayload(raw: string): ParsedProductQr {
 
   const multiline = parseMultilineModelSn(trimmed)
   if (multiline) return multiline
+
+  // Must run before the generic model-SN pair split so
+  // MAN-HS-25-6V100AHvoltrix-12 is not broken at the wrong dash.
+  const hsGluedEarly = parseHsModelAndSerial(trimmed)
+  if (hsGluedEarly) {
+    return {
+      serialNumber: hsGluedEarly.serialNumber,
+      productName: hsGluedEarly.model,
+      model: hsGluedEarly.model,
+      specs: "",
+      notes: "",
+      inventoryStockId: "",
+      productId: "",
+      extra: { source: "hs-glued" },
+    }
+  }
 
   const modelSnPair = parseModelSnPair(trimmed)
   if (modelSnPair) return modelSnPair
