@@ -124,6 +124,8 @@ export function DispatchSerialScanPanel({
   const [scannerOpen, setScannerOpen] = useState(false)
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null)
   const [scanRecords, setScanRecords] = useState<Record<string, ScanRecord[]>>({})
+  /** Line the user picked to scan first; falls back to first unfinished line. */
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
 
   const lineStates = useMemo(() => {
     return lines.map((item) => {
@@ -153,10 +155,20 @@ export function DispatchSerialScanPanel({
     })
   }, [lines, manualMeta, scanRecords, value, warehouseStockByModel, dispatchableQtyByLineId])
 
-  const activeLine = useMemo(
-    () => lineStates.find((l) => !l.done) ?? null,
-    [lineStates],
-  )
+  const activeLine = useMemo(() => {
+    if (selectedLineId) {
+      const picked = lineStates.find((l) => l.item.id === selectedLineId)
+      if (picked && !picked.done) return picked
+    }
+    return lineStates.find((l) => !l.done) ?? null
+  }, [lineStates, selectedLineId])
+
+  // When the picked line is complete, fall back to auto-advance.
+  useEffect(() => {
+    if (!selectedLineId) return
+    const picked = lineStates.find((l) => l.item.id === selectedLineId)
+    if (!picked || picked.done) setSelectedLineId(null)
+  }, [lineStates, selectedLineId])
 
   const allRecordsFlat = useMemo(
     () =>
@@ -375,6 +387,65 @@ export function DispatchSerialScanPanel({
         </div>
       </div>
 
+      <div className="space-y-2">
+        {!allDone && (
+          <p className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] px-1">
+            Select item to scan
+          </p>
+        )}
+        {lineStates.map(({ item, model, need, selectedSerials, manualInfo, stockQty, done }) => {
+          const isManual = isManualDispatchLine(item)
+          const isActive = !done && activeLine?.item.id === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              disabled={disabled || done}
+              onClick={() => {
+                setSelectedLineId(item.id)
+                setMessage(null)
+                wedgeRef.current?.focus()
+              }}
+              className={`w-full rounded-lg border px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-left transition-colors ${
+                done
+                  ? "border-green-500/30 bg-green-500/[0.04] cursor-default"
+                  : isActive
+                    ? "border-[#1faca6] bg-[#1faca6]/10 ring-1 ring-[#1faca6]/40 cursor-pointer"
+                    : "border-[hsl(var(--border))] hover:border-[#1faca6]/50 hover:bg-[#1faca6]/5 cursor-pointer"
+              }`}
+            >
+              <div className="min-w-0">
+                <span className="font-semibold">{item.description}</span>
+                <span className="text-[hsl(var(--muted-foreground))] font-mono ml-2">{model}</span>
+                {isManual && manualInfo !== undefined && (
+                  <span className="text-[hsl(var(--muted-foreground))] ml-1">
+                    · {manualInfo.availableQty} in stock
+                  </span>
+                )}
+                {!isManual && stockQty !== undefined && (
+                  <span className="text-[hsl(var(--muted-foreground))] ml-1">· {stockQty} in stock</span>
+                )}
+              </div>
+              <span className="flex items-center gap-2 shrink-0">
+                {isActive && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#1faca6]">
+                    Scanning
+                  </span>
+                )}
+                <span
+                  className={`font-bold tabular-nums ${
+                    done ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-300"
+                  }`}
+                >
+                  {selectedSerials.length}/{need}
+                  {done && " ✓"}
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       {!allDone && activeLine && (
         <div className="rounded-lg border border-[#1faca6]/30 bg-[hsl(var(--background))] p-4 space-y-4">
           <div className="text-center space-y-1">
@@ -534,40 +605,6 @@ export function DispatchSerialScanPanel({
         )}
       </div>
 
-      <div className="space-y-2">
-        {lineStates.map(({ item, model, need, selectedSerials, manualInfo, stockQty, done }) => {
-          const isManual = isManualDispatchLine(item)
-          return (
-            <div
-              key={item.id}
-              className={`rounded-lg border px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs ${
-                done ? "border-green-500/30 bg-green-500/[0.04]" : "border-[hsl(var(--border))]"
-              }`}
-            >
-              <div className="min-w-0">
-                <span className="font-semibold">{item.description}</span>
-                <span className="text-[hsl(var(--muted-foreground))] font-mono ml-2">{model}</span>
-                {isManual && manualInfo !== undefined && (
-                  <span className="text-[hsl(var(--muted-foreground))] ml-1">
-                    · {manualInfo.availableQty} in stock
-                  </span>
-                )}
-                {!isManual && stockQty !== undefined && (
-                  <span className="text-[hsl(var(--muted-foreground))] ml-1">· {stockQty} in stock</span>
-                )}
-              </div>
-              <span
-                className={`font-bold tabular-nums ${
-                  done ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-300"
-                }`}
-              >
-                {selectedSerials.length}/{need}
-                {done && " ✓"}
-              </span>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
