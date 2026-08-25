@@ -42,6 +42,8 @@ export type OrderFulfillmentSerialAllocation = {
 export function orderLinesRequiringSerials(order: Pick<Order, "items">): OrderItem[] {
   return order.items.filter((item) => {
     if (item.isCustom) return false
+    // Free / giveaway items are deducted when added — no QR scanning needed.
+    if (item.isFreeItem) return false
     return !!resolveOrderItemModel(item)
   })
 }

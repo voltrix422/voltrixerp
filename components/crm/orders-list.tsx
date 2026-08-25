@@ -26,6 +26,7 @@ import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderReturn, ReturnPaymentCapture } from "@/components/crm/order-return"
+import { OrderFreeItem } from "@/components/crm/order-free-item"
 import { CashbackCapture } from "@/components/crm/order-cashback"
 import { OrderFinalize } from "@/components/crm/order-finalize"
 import { InvoicePreviewModal } from "@/components/crm/invoice-preview-modal"
@@ -1627,6 +1628,7 @@ function OrderDetail({
   const [showReturn, setShowReturn] = useState(false)
   const [showReturnPayment, setShowReturnPayment] = useState(false)
   const [showCashback, setShowCashback] = useState(false)
+  const [showFreeItem, setShowFreeItem] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
   const [deletingPayment, setDeletingPayment] = useState(false)
@@ -1700,6 +1702,12 @@ function OrderDetail({
   const canReturn = canReturnOrder(detailOrder) && !workspace?.readOnly
   const canManageReturnPayments = canAddReturnPayment(detailOrder) && !workspace?.readOnly
   const canManageCashback = canAddCashback(detailOrder) && !workspace?.readOnly
+  const canAddFreeItem =
+    !workspace?.readOnly &&
+    !isOrderReturned(detailOrder) &&
+    ["approved", "finalized", "payment_added", "confirmed", "processing", "shipped", "delivered"].includes(
+      detailOrder.status,
+    )
   const hasReturns = orderHasAnyReturns(detailOrder)
   const creditBalance = getOrderCreditBalance(detailOrder)
   const amountPaid = getOrderAmountPaid(detailOrder)
@@ -1857,6 +1865,16 @@ function OrderDetail({
           onUpdate={o => {
             setDetailOrder(o)
             setStatus(o.status)
+            onUpdate(o)
+          }}
+        />
+      ) : showFreeItem ? (
+        <OrderFreeItem
+          order={detailOrder}
+          currentUser={currentUser}
+          onClose={() => setShowFreeItem(false)}
+          onSaved={o => {
+            setDetailOrder(o)
             onUpdate(o)
           }}
         />
@@ -2383,6 +2401,17 @@ function OrderDetail({
                 >
                   <Gift className="h-4 w-4 mr-2" />
                   Add cashback
+                </Button>
+              )}
+              {canAddFreeItem && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 text-sm border-emerald-300 text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+                  onClick={() => setShowFreeItem(true)}
+                >
+                  <Gift className="h-4 w-4 mr-2" />
+                  Add free item
                 </Button>
               )}
           {canReturn && (

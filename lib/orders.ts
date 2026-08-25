@@ -32,6 +32,15 @@ export interface OrderItem {
    * `unitPrice` is what the customer is actually charged.
    */
   companyPrice?: number
+  /**
+   * Free / giveaway item: price 0, excluded from QR scanning at dispatch.
+   * Inventory qty is deducted immediately when the free item is added.
+   */
+  isFreeItem?: boolean
+}
+
+export function isFreeOrderItem(item: Pick<OrderItem, "isFreeItem">): boolean {
+  return item.isFreeItem === true
 }
 
 export function resolveOrderItemModel(item: Pick<OrderItem, "model" | "inventoryItemId">): string | null {

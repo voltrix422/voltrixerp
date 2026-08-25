@@ -13,6 +13,8 @@ export type OrderDeductLine = {
   qty: number
   unit: string
   isCustom?: boolean
+  /** Free/giveaway line — stock was already deducted when the item was added. */
+  isFreeItem?: boolean
   model?: string
   inventoryItemId?: string
   branchInventoryId?: string
@@ -698,7 +700,8 @@ export async function deductInventoryForOrderServer(
     }
   }
 
-  const nonCustom = order.items.filter((i) => !i.isCustom)
+  // Free items were deducted the moment they were added — never re-deduct.
+  const nonCustom = order.items.filter((i) => !i.isCustom && !i.isFreeItem)
   if (nonCustom.length === 0) {
     return { success: true, alreadyDeducted: true, deductedLines: 0, failedLines: [], serialUnitsDeducted: 0 }
   }
@@ -799,9 +802,9 @@ export async function deductInventoryForOrderServer(
 /** True if delivery still needs serial/stock deduction (read-only). */
 export async function orderNeedsInventoryDeductionServer(order: OrderDeductInput): Promise<boolean> {
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") return false
-  if (order.items.every((i) => i.isCustom)) return false
+  if (order.items.every((i) => i.isCustom || i.isFreeItem)) return false
 
-  const nonCustom = order.items.filter((i) => !i.isCustom)
+  const nonCustom = order.items.filter((i) => !i.isCustom && !i.isFreeItem)
 
   if (order.status === "delivered") {
     for (const item of nonCustom) {
@@ -871,6 +874,8 @@ export async function restoreInventoryForOrderServer(
 ): Promise<void> {
   // Branch POS stock is restored separately via restoreBranchStockForPosOrder.
   if (String(order.source || "").trim().toLowerCase() === "branch_pos") return
+  // Free/giveaway lines stay given — never restock them on return/cancel.
+  order = { ...order, items: order.items.filter((i) => !i.isFreeItem) }
   const historyNotes =
     options?.historyNotes?.trim() ||
     `Stock restored · ${order.clientName}`

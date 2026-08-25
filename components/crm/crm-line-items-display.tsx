@@ -11,6 +11,15 @@ export type CrmLineItemDisplay = {
   companyPrice?: number
   model?: string
   inventoryItemId?: string
+  isFreeItem?: boolean
+}
+
+function FreeBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 ml-1.5 align-middle">
+      Free
+    </span>
+  )
 }
 
 function resolveCompanyPrice(item: CrmLineItemDisplay) {
@@ -66,6 +75,7 @@ export function CrmLineItemsDisplay({
               <p className={labelClass}>Description</p>
               <p className={`${size === "md" ? "text-sm" : "text-xs"} font-medium break-words`}>
                 {item.description}
+                {item.isFreeItem && <FreeBadge />}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -155,7 +165,10 @@ export function CrmLineItemsDisplay({
                 {showModel && (
                   <td className={`${cellClass} font-medium tabular-nums`}>{model || "—"}</td>
                 )}
-                <td className={cellClass}>{item.description}</td>
+                <td className={cellClass}>
+                  {item.description}
+                  {item.isFreeItem && <FreeBadge />}
+                </td>
                 <td className={`${cellClass} text-center`}>{item.qty}</td>
                 <td className={`${cellClass} text-center`}>{item.unit}</td>
                 {showCompanyPrice ? (
