@@ -170,19 +170,6 @@ export function DispatchSerialScanPanel({
     if (!picked || picked.done) setSelectedLineId(null)
   }, [lineStates, selectedLineId])
 
-  const allRecordsFlat = useMemo(
-    () =>
-      lineStates.flatMap((l) =>
-        l.records.map((record) => ({
-          record,
-          lineId: l.item.id,
-          lineDescription: l.item.description,
-          done: l.done,
-        })),
-      ),
-    [lineStates],
-  )
-
   const totalNeed = lineStates.reduce((s, l) => s + l.need, 0)
   const totalScanned = lineStates.reduce((s, l) => s + l.selectedSerials.length, 0)
   const allDone = lineStates.every((l) => l.done)
@@ -323,9 +310,12 @@ export function DispatchSerialScanPanel({
 
   const handleCameraScan = useCallback(
     (payload: string) => {
-      if (!activeLine || scanLockRef.current) return
-      const currentSerials = valueRef.current[activeLine.item.id] ?? []
-      if (currentSerials.length >= activeLine.need) return
+      if (scanLockRef.current) return
+      if (!activeLine) {
+        setMessage({ type: "err", text: "All units already scanned — nothing left to scan." })
+        playScanRejectBeep()
+        return
+      }
       prepareScanAudio()
       applyScan(activeLine.item.id, payload)
     },
@@ -333,9 +323,13 @@ export function DispatchSerialScanPanel({
   )
 
   function handleWedgeSubmit(raw: string) {
-    if (!activeLine || scanLockRef.current) return
-    const currentSerials = valueRef.current[activeLine.item.id] ?? []
-    if (currentSerials.length >= activeLine.need) return
+    if (scanLockRef.current) return
+    if (!activeLine) {
+      setMessage({ type: "err", text: "All units already scanned — nothing left to scan." })
+      playScanRejectBeep()
+      setWedgeBuffer("")
+      return
+    }
     prepareScanAudio()
     applyScan(activeLine.item.id, raw)
     setWedgeBuffer("")
@@ -393,55 +387,93 @@ export function DispatchSerialScanPanel({
             Select item to scan
           </p>
         )}
-        {lineStates.map(({ item, model, need, selectedSerials, manualInfo, stockQty, done }) => {
+        {lineStates.map(({ item, model, need, selectedSerials, records, manualInfo, stockQty, done }) => {
           const isManual = isManualDispatchLine(item)
           const isActive = !done && activeLine?.item.id === item.id
           return (
-            <button
+            <div
               key={item.id}
-              type="button"
-              disabled={disabled || done}
-              onClick={() => {
-                setSelectedLineId(item.id)
-                setMessage(null)
-                wedgeRef.current?.focus()
-              }}
-              className={`w-full rounded-lg border px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-left transition-colors ${
+              className={`rounded-lg border overflow-hidden transition-colors ${
                 done
-                  ? "border-green-500/30 bg-green-500/[0.04] cursor-default"
+                  ? "border-green-500/30 bg-green-500/[0.04]"
                   : isActive
-                    ? "border-[#1faca6] bg-[#1faca6]/10 ring-1 ring-[#1faca6]/40 cursor-pointer"
-                    : "border-[hsl(var(--border))] hover:border-[#1faca6]/50 hover:bg-[#1faca6]/5 cursor-pointer"
+                    ? "border-[#1faca6] ring-1 ring-[#1faca6]/40"
+                    : "border-[hsl(var(--border))]"
               }`}
             >
-              <div className="min-w-0">
-                <span className="font-semibold">{item.description}</span>
-                <span className="text-[hsl(var(--muted-foreground))] font-mono ml-2">{model}</span>
-                {isManual && manualInfo !== undefined && (
-                  <span className="text-[hsl(var(--muted-foreground))] ml-1">
-                    · {manualInfo.availableQty} in stock
+              <button
+                type="button"
+                disabled={disabled || done}
+                onClick={() => {
+                  setSelectedLineId(item.id)
+                  setMessage(null)
+                  wedgeRef.current?.focus()
+                }}
+                className={`w-full px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-left ${
+                  done
+                    ? "cursor-default"
+                    : isActive
+                      ? "bg-[#1faca6]/10 cursor-pointer"
+                      : "hover:bg-[#1faca6]/5 cursor-pointer"
+                }`}
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold">{item.description}</span>
+                  <span className="text-[hsl(var(--muted-foreground))] font-mono ml-2">{model}</span>
+                  {isManual && manualInfo !== undefined && (
+                    <span className="text-[hsl(var(--muted-foreground))] ml-1">
+                      · {manualInfo.availableQty} in stock
+                    </span>
+                  )}
+                  {!isManual && stockQty !== undefined && (
+                    <span className="text-[hsl(var(--muted-foreground))] ml-1">· {stockQty} in stock</span>
+                  )}
+                </div>
+                <span className="flex items-center gap-2 shrink-0">
+                  {isActive && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#1faca6]">
+                      Scanning
+                    </span>
+                  )}
+                  <span
+                    className={`font-bold tabular-nums ${
+                      done ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-300"
+                    }`}
+                  >
+                    {selectedSerials.length}/{need}
+                    {done && " ✓"}
                   </span>
-                )}
-                {!isManual && stockQty !== undefined && (
-                  <span className="text-[hsl(var(--muted-foreground))] ml-1">· {stockQty} in stock</span>
-                )}
-              </div>
-              <span className="flex items-center gap-2 shrink-0">
-                {isActive && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#1faca6]">
-                    Scanning
-                  </span>
-                )}
-                <span
-                  className={`font-bold tabular-nums ${
-                    done ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-300"
-                  }`}
-                >
-                  {selectedSerials.length}/{need}
-                  {done && " ✓"}
                 </span>
-              </span>
-            </button>
+              </button>
+
+              {records.length > 0 && (
+                <ul className="divide-y border-t bg-[hsl(var(--background))]">
+                  {records.map((record, index) => (
+                    <li
+                      key={`${item.id}-${record.serialNumber}`}
+                      className="flex items-start gap-3 px-3 py-2 hover:bg-[hsl(var(--muted))]/10"
+                    >
+                      <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] w-5 pt-0.5 tabular-nums shrink-0">
+                        {index + 1}.
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-mono text-xs font-semibold break-all">{record.serialNumber}</p>
+                        <p className="text-[11px] font-mono text-[#1faca6] mt-0.5">{record.model}</p>
+                      </div>
+                      {!disabled && (
+                        <button
+                          type="button"
+                          onClick={() => removeScan(item.id, record.serialNumber)}
+                          className="text-[10px] text-red-600 hover:underline cursor-pointer shrink-0 pt-0.5"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )
         })}
       </div>
@@ -542,69 +574,13 @@ export function DispatchSerialScanPanel({
         </p>
       )}
 
-      <div className="rounded-lg border overflow-hidden">
-        <div className="px-4 py-3 border-b flex items-center justify-between gap-2">
-          <p className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-            Scanned for dispatch
+      {allDone && (
+        <div className="rounded-lg border border-green-500/30 px-4 py-3 bg-green-500/[0.06] text-center">
+          <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+            All {totalNeed} unit{totalNeed === 1 ? "" : "s"} scanned. Create the dispatch note.
           </p>
-          <span
-            className={`text-xs font-bold tabular-nums ${
-              allDone ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-300"
-            }`}
-          >
-            {totalScanned}/{totalNeed}
-          </span>
         </div>
-
-        {allRecordsFlat.length === 0 ? (
-          <p className="text-xs text-[hsl(var(--muted-foreground))] text-center py-6 px-4">
-            No scans yet — open scanner and scan {totalNeed} QR code{totalNeed === 1 ? "" : "s"}
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {allRecordsFlat.map(({ record, lineId, lineDescription, done }, index) => (
-              <li
-                key={`${lineId}-${record.serialNumber}`}
-                className="flex items-start gap-3 px-4 py-3 hover:bg-[hsl(var(--muted))]/10"
-              >
-                <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] w-5 pt-0.5 tabular-nums shrink-0">
-                  {index + 1}.
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-mono text-sm font-semibold break-all">{record.serialNumber}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
-                    {record.productName}
-                  </p>
-                  <p className="text-[11px] font-mono text-[#1faca6] mt-0.5">{record.model}</p>
-                </div>
-                <div className="shrink-0 text-right space-y-1">
-                  <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate max-w-[80px]">
-                    {lineDescription}
-                  </span>
-                  {!disabled && !done && (
-                    <button
-                      type="button"
-                      onClick={() => removeScan(lineId, record.serialNumber)}
-                      className="text-[10px] text-red-600 hover:underline cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {allDone && (
-          <div className="px-4 py-3 border-t bg-green-500/[0.06] text-center">
-            <p className="text-xs text-green-700 dark:text-green-400 font-medium">
-              All {totalNeed} unit{totalNeed === 1 ? "" : "s"} scanned. Create the dispatch note.
-            </p>
-          </div>
-        )}
-      </div>
-
+      )}
     </div>
   )
 }

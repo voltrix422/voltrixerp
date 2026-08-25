@@ -477,6 +477,47 @@ export function ClientOrdersInventory() {
 }
 
 
+type DispatchDraft = {
+  serialSelections: Record<string, string[]>
+  dispatcherName?: string
+  receiverName?: string
+  receiverCnic?: string
+  vehicleNumber?: string
+  savedAt: string
+}
+
+function dispatchDraftKey(orderId: string) {
+  return `voltrix-dispatch-draft-${orderId}`
+}
+
+function loadDispatchDraft(orderId: string): DispatchDraft | null {
+  try {
+    const raw = localStorage.getItem(dispatchDraftKey(orderId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as DispatchDraft
+    if (!parsed || typeof parsed !== "object" || !parsed.serialSelections) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveDispatchDraft(orderId: string, draft: DispatchDraft) {
+  try {
+    localStorage.setItem(dispatchDraftKey(orderId), JSON.stringify(draft))
+  } catch {
+    // storage full / private mode — draft simply not persisted
+  }
+}
+
+function clearDispatchDraft(orderId: string) {
+  try {
+    localStorage.removeItem(dispatchDraftKey(orderId))
+  } catch {
+    // ignore
+  }
+}
+
 function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   order: Order
   onClose: () => void
@@ -502,6 +543,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [productImages, setProductImages] = useState<File[]>([])
   const [serialSelections, setSerialSelections] = useState<Record<string, string[]>>({})
   const [serialSelectionValid, setSerialSelectionValid] = useState(true)
+  const [draftRestoredNotice, setDraftRestoredNotice] = useState(false)
   const [fulfillTab, setFulfillTab] = useState<"dispatcher" | "products">("dispatcher")
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [deductingStock, setDeductingStock] = useState(false)
@@ -544,18 +586,83 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   }
 
   function openFulfillPrefilled() {
-    setFulfillDispatcherName(order.fulfillmentDispatcher || order.dispatcher || "")
-    setReceiverName(order.fulfillmentReceiverName || "")
-    setReceiverCnic(order.fulfillmentReceiverCnic || "")
-    setVehicleNumber(order.fulfillmentVehicleNumber || "")
+    const draft = order.inventoryDeductedAt ? null : loadDispatchDraft(order.id)
+    const draftHasScans =
+      !!draft && Object.values(draft.serialSelections).some((s) => (s?.length ?? 0) > 0)
+
+    setFulfillDispatcherName(
+      (draftHasScans && draft?.dispatcherName) || order.fulfillmentDispatcher || order.dispatcher || "",
+    )
+    setReceiverName((draftHasScans && draft?.receiverName) || order.fulfillmentReceiverName || "")
+    setReceiverCnic((draftHasScans && draft?.receiverCnic) || order.fulfillmentReceiverCnic || "")
+    setVehicleNumber((draftHasScans && draft?.vehicleNumber) || order.fulfillmentVehicleNumber || "")
     setReceiverImage(null)
     setReceiverCnicImage(null)
     setVehicleImage(null)
     setProductImages([])
-    setSerialSelections(selectionsFromAllocations(order.fulfillmentSerialAllocations))
+    setSerialSelections(
+      draftHasScans
+        ? draft!.serialSelections
+        : selectionsFromAllocations(order.fulfillmentSerialAllocations),
+    )
     setSerialSelectionValid(orderLinesRequiringSerials(order).length === 0)
     setFulfillTab("dispatcher")
+    setDraftRestoredNotice(draftHasScans)
     setShowFulfillDialog(true)
+  }
+
+  // Auto-save unfinished scans as a draft so nothing is lost if the
+  // dialog closes, the page reloads, or the tab crashes.
+  useEffect(() => {
+    if (!showFulfillDialog || updating || order.inventoryDeductedAt) return
+    const hasScans = Object.values(serialSelections).some((s) => s.length > 0)
+    if (!hasScans) return
+    saveDispatchDraft(order.id, {
+      serialSelections,
+      dispatcherName: fulfillDispatcherName,
+      receiverName,
+      receiverCnic,
+      vehicleNumber,
+      savedAt: new Date().toISOString(),
+    })
+  }, [
+    showFulfillDialog,
+    updating,
+    serialSelections,
+    fulfillDispatcherName,
+    receiverName,
+    receiverCnic,
+    vehicleNumber,
+    order.id,
+    order.inventoryDeductedAt,
+  ])
+
+  // While the dispatch dialog is open, the hardware/browser back button
+  // must not navigate away — the dialog only closes via its buttons.
+  useEffect(() => {
+    if (!showFulfillDialog) return
+    window.history.pushState({ dispatchDialog: true }, "")
+    const onPop = () => {
+      window.history.pushState({ dispatchDialog: true }, "")
+    }
+    window.addEventListener("popstate", onPop)
+    return () => {
+      window.removeEventListener("popstate", onPop)
+      if (window.history.state?.dispatchDialog) window.history.back()
+    }
+  }, [showFulfillDialog])
+
+  function saveDraftAndClose() {
+    saveDispatchDraft(order.id, {
+      serialSelections,
+      dispatcherName: fulfillDispatcherName,
+      receiverName,
+      receiverCnic,
+      vehicleNumber,
+      savedAt: new Date().toISOString(),
+    })
+    setShowFulfillDialog(false)
+    setStockDeductionNotice("Dispatch draft saved — scanned QRs will be restored when you reopen the dispatch note.")
   }
 
   async function handleFulfillOrder() {
@@ -670,6 +777,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
       setFulfilledOrderNumber(order.orderNumber)
       setShowFulfillSuccess(true)
 
+      clearDispatchDraft(order.id)
       setShowFulfillDialog(false)
       onUpdate(updatedOrder)
       if (!updatedOrder.inventoryDeductedAt) {
@@ -1395,10 +1503,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
 
       {/* Fulfillment Dialog */}
       {showFulfillDialog && (
-        <div
-          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
-          onClick={() => setShowFulfillDialog(false)}
-        >
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
           <div
             className="w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
@@ -1416,6 +1521,14 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <X className="h-4 w-4" />
               </Button>
             </div>
+
+            {draftRestoredNotice && (
+              <div className="px-4 sm:px-6 py-2 border-b shrink-0 bg-amber-500/10">
+                <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                  Draft restored — previously scanned QR codes were loaded. Continue scanning or create the dispatch note.
+                </p>
+              </div>
+            )}
 
             {linesNeedSerials && !order.inventoryDeductedAt ? (
               <div className="px-4 sm:px-6 py-3 border-b shrink-0 bg-[#1faca6]/5">
@@ -1661,6 +1774,17 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
               >
                 {updating ? "Creating…" : "Create dispatch note"}
               </Button>
+              {useQrScanDispatch && !order.inventoryDeductedAt && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 w-full sm:w-auto text-xs border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                  onClick={saveDraftAndClose}
+                  disabled={updating}
+                >
+                  Save draft & close
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"

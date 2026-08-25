@@ -28,6 +28,13 @@ export function WarrantyQrScanner({
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const lastScanRef = useRef("")
 
+  // Always call the latest onScan — the html5-qrcode callback is registered
+  // once at start and would otherwise keep a stale closure (e.g. old item line).
+  const onScanRef = useRef(onScan)
+  useEffect(() => {
+    onScanRef.current = onScan
+  }, [onScan])
+
   const autoStartedRef = useRef(false)
 
   useEffect(() => {
@@ -88,7 +95,7 @@ export function WarrantyQrScanner({
           const payload = text.trim()
           if (!payload || payload === lastScanRef.current) return
           lastScanRef.current = payload
-          void onScan(payload)
+          void onScanRef.current(payload)
           setTimeout(() => {
             lastScanRef.current = ""
           }, 2500)
