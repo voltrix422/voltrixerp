@@ -11,6 +11,7 @@ import { Loader2, X, Eye, Download, Truck, FileText, Search, Package, ScanLine, 
 import { downloadInvoicePDF } from "@/lib/generate-invoice-pdf"
 import { generateDispatchNotePDF } from "@/lib/generate-dispatch-note"
 import { deductInventoryForOrder, orderNeedsInventoryDeduction } from "@/lib/inventory"
+import { canDispatchWithoutScan, getSession } from "@/lib/auth"
 import { logOrderFulfillmentHistory } from "@/lib/order-fulfillment-history"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadDispatchOrdersExcel } from "@/lib/inventory-excel-export"
@@ -544,6 +545,9 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const [serialSelections, setSerialSelections] = useState<Record<string, string[]>>({})
   const [serialSelectionValid, setSerialSelectionValid] = useState(true)
   const [draftRestoredNotice, setDraftRestoredNotice] = useState(false)
+  /** Permission-gated: dispatch without QR scanning (qty still deducted). */
+  const [skipScanning, setSkipScanning] = useState(false)
+  const allowNoScanDispatch = useMemo(() => canDispatchWithoutScan(getSession()), [])
   const [fulfillTab, setFulfillTab] = useState<"dispatcher" | "products">("dispatcher")
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [deductingStock, setDeductingStock] = useState(false)
@@ -608,6 +612,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     setSerialSelectionValid(orderLinesRequiringSerials(order).length === 0)
     setFulfillTab("dispatcher")
     setDraftRestoredNotice(draftHasScans)
+    setSkipScanning(false)
     setShowFulfillDialog(true)
   }
 
@@ -674,7 +679,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
     const linesNeedSerials = orderLinesRequiringSerials(order)
     let fulfillmentSerialAllocations = order.fulfillmentSerialAllocations ?? []
 
-    if (linesNeedSerials.length > 0 && !order.inventoryDeductedAt) {
+    if (linesNeedSerials.length > 0 && !order.inventoryDeductedAt && !skipScanning) {
       const [manualItems, stockRes] = await Promise.all([
         getManualInventoryItems().catch(() => []),
         fetch("/api/db/inventory-stock", { cache: "no-store" }),
@@ -936,7 +941,7 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
   const proofComplete = orderHasCompleteFulfillmentProof(order)
   const hasDispatcher = !!(order.fulfillmentDispatcher || order.dispatcher || "").trim()
   const linesNeedSerials = orderLinesRequiringSerials(order).length > 0
-  const useQrScanDispatch = linesNeedSerials && !order.inventoryDeductedAt
+  const useQrScanDispatch = linesNeedSerials && !order.inventoryDeductedAt && !skipScanning
   const serialSelectionOk =
     !useQrScanDispatch || serialSelectionValid
   const canSubmitFulfillment = !!fulfillDispatcherName.trim() && serialSelectionOk
@@ -1535,13 +1540,57 @@ function ClientOrderInventoryDetail({ order, onClose, onUpdate }: {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1.5">
                   Dispatch method
                 </p>
-                <p className="flex items-center gap-2 text-sm font-semibold text-[hsl(var(--foreground))]">
-                  <ScanLine className="h-4 w-4 text-[#1faca6] shrink-0" />
-                  With QR scanning
-                </p>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                  Scan serials for warranty · then create dispatch note
-                </p>
+                {allowNoScanDispatch ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSkipScanning(false)}
+                      className={`rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
+                        !skipScanning
+                          ? "border-[#1faca6] bg-[#1faca6]/10 ring-1 ring-[#1faca6]/40"
+                          : "border-[hsl(var(--border))] hover:border-[#1faca6]/50"
+                      }`}
+                    >
+                      <p className="flex items-center gap-2 text-sm font-semibold">
+                        <ScanLine className="h-4 w-4 text-[#1faca6] shrink-0" />
+                        With QR scanning
+                      </p>
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                        Scan serials for warranty · then create dispatch note
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSkipScanning(true)
+                        setFulfillTab("dispatcher")
+                      }}
+                      className={`rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
+                        skipScanning
+                          ? "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/40"
+                          : "border-[hsl(var(--border))] hover:border-amber-500/50"
+                      }`}
+                    >
+                      <p className="flex items-center gap-2 text-sm font-semibold">
+                        <Truck className="h-4 w-4 text-amber-600 shrink-0" />
+                        Without scanning
+                      </p>
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                        Skip QR scans · inventory qty still deducted · no serials for warranty
+                      </p>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="flex items-center gap-2 text-sm font-semibold text-[hsl(var(--foreground))]">
+                      <ScanLine className="h-4 w-4 text-[#1faca6] shrink-0" />
+                      With QR scanning
+                    </p>
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+                      Scan serials for warranty · then create dispatch note
+                    </p>
+                  </>
+                )}
               </div>
             ) : null}
 

@@ -1,4 +1,4 @@
-export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos" | "pos_admin" | "users"
+export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos" | "pos_admin" | "users" | "dispatch_no_scan"
 
 export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager" | "view_only"
 
@@ -44,7 +44,7 @@ function normalizeRole(rawRole: unknown): UserRole {
   return "user"
 }
 
-export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty", "pos", "pos_admin", "users"]
+export const ALL_MODULES: Module[] = ["dashboard", "purchase", "finance", "crm", "inventory", "dispatches", "website", "docs", "hrm", "branches", "tickets", "warranty", "pos", "pos_admin", "users", "dispatch_no_scan"]
 
 export const MODULE_LABELS: Record<Module, string> = {
   dashboard: "Dashboard",
@@ -62,6 +62,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   pos: "POS",
   pos_admin: "POS Admin",
   users: "Manage Users",
+  dispatch_no_scan: "Dispatch without scanning",
 }
 
 /** Roles that superadmin can assign when creating/editing users. */
@@ -96,6 +97,17 @@ export function isErpAdmin(role: UserRole | string | undefined | null) {
 
 export function isSuperadmin(role: UserRole | string | undefined | null) {
   return normalizeRole(role) === "superadmin"
+}
+
+/**
+ * Dispatch orders without QR scanning.
+ * Superadmin/admin always can; others only when granted the permission in Manage Users.
+ */
+export function canDispatchWithoutScan(
+  user: { role?: string; modules?: Module[] } | null | undefined,
+): boolean {
+  if (!user) return false
+  return roleHasAllModules(user.role) || (user.modules?.includes("dispatch_no_scan") ?? false)
 }
 
 /** Page/module access — users management is superadmin-only unless explicitly granted. */
