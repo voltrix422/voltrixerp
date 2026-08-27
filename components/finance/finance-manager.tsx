@@ -442,7 +442,7 @@ export function FinanceManager({
               <div className="overflow-y-auto p-5 space-y-3.5 flex-1 min-h-0">
               {category === "Loan" && (
                 <p className="text-xs text-amber-900 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2 leading-relaxed">
-                  Loan records appear in Finance Overview under Money in. Use the <strong>Loans received</strong> toggle on Overview to include or exclude them from the cash snapshot total.
+                  Loan records appear in Finance Overview as their own Loans card. Received loans count as money in; given loans and repayments count as money out. Use the Overview toggles to include or exclude them from the cash snapshot.
                 </p>
               )}
               <Field label="Title *">

@@ -37,6 +37,11 @@ import {
   buildImportPswDetails,
 } from "@/lib/finance-money-out-details"
 import { importChargesSplitInPeriod } from "@/lib/finance-import-outflows"
+import {
+  buildLoanOutDetails,
+  isLoanCategory,
+  summarizeLoans,
+} from "@/lib/finance-loans"
 
 function periodRange(period: string) {
   const now = new Date()
@@ -69,10 +74,14 @@ export async function GET(req: NextRequest) {
     const payrollMonthFrom = payrollMonthKey(start)
     const payrollMonthTo = payrollMonthKey(end)
 
-    const [ordersRaw, pos, records, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, payrollSalarySlips] = await Promise.all([
+    const [ordersRaw, pos, records, loanRecords, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, payrollSalarySlips] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
+      prisma.erpFinanceRecord.findMany({
+        where: { category: { in: ["Loan", "Loan Given", "Loan Repayment", "Loan Recovery"] } },
+        orderBy: { createdAt: "desc" },
+      }),
       prisma.erpPettyCashAllocation.findMany({ where: { status: "active" } }),
       prisma.erpPettyCashReceipt.findMany({ where: { status: "approved" } }),
       prisma.erpPosSale.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
@@ -321,17 +330,15 @@ export async function GET(req: NextRequest) {
       .reduce((s, r) => s + r.amount, 0)
     const salariesFromSlips = payrollSalarySlips.reduce((s, slip) => s + (Number(slip.netSalary) || 0), 0)
     const salariesInPeriod = salariesFromRecords + salariesFromSlips
-    // "Loan Given" (loan paid out) and "Loan Repayment" (we return a loan we took) are money out.
-    // "Loan" (loan received) and "Loan Recovery" (a given loan returned to us) are money in.
     const expensesInPeriod = recordsInPeriod
-      .filter(r => ["Expense", "Payment", "Tax", "Other", "Loan Given", "Loan Repayment"].includes(r.category))
+      .filter(r => ["Expense", "Payment", "Tax", "Other"].includes(r.category))
       .reduce((s, r) => s + r.amount, 0)
     const incomeRecordsInPeriod = recordsInPeriod
       .filter(r => ["Invoice", "Refund"].includes(r.category))
       .reduce((s, r) => s + r.amount, 0)
-    const loansInPeriod = recordsInPeriod
-      .filter(r => r.category === "Loan" || r.category === "Loan Recovery")
-      .reduce((s, r) => s + r.amount, 0)
+    const loanSnapshot = summarizeLoans(loanRecords, start, end)
+    const loansInPeriod = loanSnapshot.moneyIn
+    const loansGivenInPeriod = loanSnapshot.moneyOut
 
     const expensesByCategory: Record<string, number> = {}
     for (const r of recordsInPeriod) {
@@ -420,9 +427,12 @@ export async function GET(req: NextRequest) {
         posSales: posSalesInPeriod,
         incomeRecords: incomeRecordsInPeriod,
         loans: loansInPeriod,
+        loansReceived: loanSnapshot.receivedInPeriod,
+        loanRecoveries: loanSnapshot.recoveredInPeriod,
       },
       moneyOut: {
         expenses: expensesInPeriod,
+        loansGiven: loansGivenInPeriod,
         salaries: salariesInPeriod,
         localPurchases: localPoPaidInPeriod,
         purchaseLedger: purchaseLedgerPaidInPeriodTotal,
@@ -450,6 +460,7 @@ export async function GET(req: NextRequest) {
       breakdown.moneyIn.loans
     const moneyOut =
       breakdown.moneyOut.expenses +
+      breakdown.moneyOut.loansGiven +
       breakdown.moneyOut.salaries +
       breakdown.moneyOut.purchaseLedger +
       breakdown.moneyOut.pettyCash +
@@ -500,10 +511,16 @@ export async function GET(req: NextRequest) {
       for (const r of records) {
         const d = new Date(r.createdAt)
         if (!inRange(d, mStart, mEnd)) continue
-        if (["Expense", "Payment", "Tax", "Other", "Loan Given", "Loan Repayment"].includes(r.category)) mo += r.amount
+        if (isLoanCategory(r.category)) continue
+        if (["Expense", "Payment", "Tax", "Other"].includes(r.category)) mo += r.amount
         else if (r.category === "Salary") mo += r.amount
         else if (["Invoice", "Refund"].includes(r.category)) mi += r.amount
-        else if (r.category === "Loan" || r.category === "Loan Recovery") mi += r.amount
+      }
+      for (const r of loanRecords) {
+        const d = new Date(r.createdAt)
+        if (!inRange(d, mStart, mEnd)) continue
+        if (r.category === "Loan" || r.category === "Loan Recovery") mi += r.amount
+        else if (r.category === "Loan Given" || r.category === "Loan Repayment") mo += r.amount
       }
       const trendMonthFrom = payrollMonthKey(mStart)
       const trendMonthTo = payrollMonthKey(mEnd)
@@ -649,6 +666,7 @@ export async function GET(req: NextRequest) {
       importPsw: buildImportPswDetails(importChargesSplit.shipments),
       importCharges: buildImportChargeStepDetails(importChargesSplit.shipments),
       importChargesCombined: buildImportCombinedDetails(importChargesSplit.shipments),
+      loansGiven: buildLoanOutDetails(loanRecords, start, end),
     }
 
     return NextResponse.json({
@@ -668,6 +686,8 @@ export async function GET(req: NextRequest) {
         expensesInPeriod,
         salariesInPeriod,
         loansInPeriod,
+        loansGivenInPeriod,
+        loans: loanSnapshot,
         advancesInPeriod,
         supplierAdvancesInPeriod,
         salaryAdvancesInPeriod,

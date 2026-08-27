@@ -247,6 +247,7 @@ export type MoneyOutDetailsPayload = {
   importPsw?: MoneyOutDetailLine[]
   importCharges?: MoneyOutDetailLine[]
   importChargesCombined?: MoneyOutDetailLine[]
+  loansGiven?: MoneyOutDetailLine[]
 }
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
@@ -259,4 +260,5 @@ export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload>
   "Import · charges": "importCharges",
   "Imported purchases · charges": "importCharges",
   "Imported purchases · total (PSW + charges)": "importChargesCombined",
+  "Loans given": "loansGiven",
 }

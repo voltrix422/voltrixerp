@@ -3,13 +3,14 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X } from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 import {
   type MoneyOutDetailLine,
   type MoneyOutDetailsPayload,
 } from "@/lib/finance-money-out-details"
+import type { LoanSnapshot } from "@/lib/finance-loans"
 
 type OrderPaymentsPayload = {
   allTime: OrderPaymentAggregate
@@ -22,9 +23,12 @@ type Breakdown = {
     posSales: number
     incomeRecords: number
     loans: number
+    loansReceived?: number
+    loanRecoveries?: number
   }
   moneyOut: {
     expenses: number
+    loansGiven?: number
     salaries: number
     localPurchases: number
     purchaseLedger: number
@@ -56,6 +60,7 @@ type ToggleKey =
   | "posSales"
   | "incomeRecords"
   | "loans"
+  | "loansGiven"
   | "expenses"
   | "salaries"
   | "purchaseLedger"
@@ -77,6 +82,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "incomeRecords", label: "Income records", side: "in", defaultOn: true },
   { key: "loans", label: "Loans received", side: "in", defaultOn: true },
   { key: "expenses", label: "Expenses", side: "out", defaultOn: true },
+  { key: "loansGiven", label: "Loans given", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries (payroll)", side: "out", defaultOn: true },
   { key: "purchaseLedger", label: "Purchase ledger (purchases + rents)", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
@@ -101,9 +107,10 @@ const PERIODS = [
 
 function emptyBreakdown(): Breakdown {
   return {
-    moneyIn: { clientPayments: 0, posSales: 0, incomeRecords: 0, loans: 0 },
+    moneyIn: { clientPayments: 0, posSales: 0, incomeRecords: 0, loans: 0, loansReceived: 0, loanRecoveries: 0 },
     moneyOut: {
       expenses: 0,
+      loansGiven: 0,
       salaries: 0,
       localPurchases: 0,
       purchaseLedger: 0,
@@ -123,10 +130,12 @@ function emptyBreakdown(): Breakdown {
 }
 
 function amountFor(b: Breakdown, key: ToggleKey): number {
-  if (key in b.moneyIn) return b.moneyIn[key as keyof Breakdown["moneyIn"]]
+  if (key === "loans") return b.moneyIn.loans
+  if (key in b.moneyIn) return (b.moneyIn[key as keyof Breakdown["moneyIn"]] as number) || 0
   if (key === "purchaseLedger") return b.moneyOut.purchaseLedger
   if (key === "importCharges") return b.moneyOut.importChargesCombined ?? 0
-  return b.moneyOut[key as keyof Breakdown["moneyOut"]] as number
+  if (key === "loansGiven") return b.moneyOut.loansGiven ?? 0
+  return (b.moneyOut[key as keyof Breakdown["moneyOut"]] as number) || 0
 }
 
 function buildMoneyOutDisplayRows(
@@ -135,6 +144,14 @@ function buildMoneyOutDisplayRows(
 ) {
   const rows: { label: string; amount: number; details?: MoneyOutDetailLine[] }[] = []
   if (b.expenses > 0.004) rows.push({ label: "Expenses", amount: b.expenses })
+  const loansGiven = b.loansGiven ?? 0
+  if (loansGiven > 0.004) {
+    rows.push({
+      label: "Loans given",
+      amount: loansGiven,
+      details: details?.loansGiven,
+    })
+  }
   if (b.salaries > 0.004) rows.push({ label: "Salaries", amount: b.salaries })
 
   const ledgerPurchases = b.purchaseLedgerPurchases ?? b.purchaseLedger
@@ -441,6 +458,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
   const [includeOutstanding, setIncludeOutstanding] = useState(false)
   const [enabled, setEnabled] = useState<Record<ToggleKey, boolean>>(defaultEnabled)
   const [moneyOutDetails, setMoneyOutDetails] = useState<MoneyOutDetailsPayload | null>(null)
+  const [loans, setLoans] = useState<LoanSnapshot | null>(null)
   const [togglesOpen, setTogglesOpen] = useState(false)
   const [detailsModal, setDetailsModal] = useState<{
     label: string
@@ -459,6 +477,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
       setSummary(data.summary)
       setOrderPayments(data.orderPayments ?? null)
       setMoneyOutDetails(data.moneyOutDetails ?? null)
+      setLoans(data.summary?.loans ?? null)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -500,10 +519,18 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     () => buildMoneyOutDisplayRows(breakdown.moneyOut, moneyOutDetails),
     [breakdown.moneyOut, moneyOutDetails],
   )
-  const moneyInDisplayRows = useMemo(
-    () => inLines.filter(l => l.amount > 0.004).map(l => ({ label: l.label, amount: l.amount })),
-    [inLines],
-  )
+  const moneyInDisplayRows = useMemo(() => {
+    const rows: { label: string; amount: number }[] = []
+    const mi = breakdown.moneyIn
+    if (mi.clientPayments > 0.004) rows.push({ label: "Client payments", amount: mi.clientPayments })
+    if (mi.posSales > 0.004) rows.push({ label: "POS sales", amount: mi.posSales })
+    if (mi.incomeRecords > 0.004) rows.push({ label: "Income records", amount: mi.incomeRecords })
+    const received = mi.loansReceived ?? (mi.loans - (mi.loanRecoveries ?? 0))
+    const recovered = mi.loanRecoveries ?? 0
+    if (received > 0.004) rows.push({ label: "Loans received", amount: received })
+    if (recovered > 0.004) rows.push({ label: "Returned to us", amount: recovered })
+    return rows
+  }, [breakdown.moneyIn])
 
   const moneyIn = inLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
   const moneyOut = outLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
@@ -548,12 +575,18 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
   const outstanding = orderPayments.allTime.totalOutstanding
   const returnedOrderCount = orderPayments.allTime.returnedCount
   const activeOrderCount = orderPayments.allTime.orderCount
-  const loansInPeriod = breakdown.moneyIn.loans
-
-  const displayTotal =
-    periodReceived +
-    (enabled.loans ? loansInPeriod : 0) +
-    (includeOutstanding ? outstanding : 0)
+  const displayTotal = periodReceived + (includeOutstanding ? outstanding : 0)
+  const loanSnap: LoanSnapshot = loans ?? {
+    receivedInPeriod: breakdown.moneyIn.loansReceived ?? breakdown.moneyIn.loans,
+    recoveredInPeriod: breakdown.moneyIn.loanRecoveries ?? 0,
+    givenInPeriod: breakdown.moneyOut.loansGiven ?? 0,
+    repaidInPeriod: 0,
+    moneyIn: breakdown.moneyIn.loans,
+    moneyOut: breakdown.moneyOut.loansGiven ?? 0,
+    weOwe: 0,
+    theyOwe: 0,
+    peopleCount: 0,
+  }
 
   return (
     <div className="space-y-3 max-w-5xl">
@@ -645,11 +678,9 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
             <div>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{periodLabel} received</p>
               <p className="text-xl font-bold tabular-nums leading-none mt-1">{fmt(displayTotal, 0)}</p>
-              {(enabled.loans && loansInPeriod > 0) || includeOutstanding ? (
+              {includeOutstanding ? (
                 <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-1">
-                  Base {fmt(periodReceived, 0)}
-                  {enabled.loans && loansInPeriod > 0 ? ` + loans` : ""}
-                  {includeOutstanding ? ` + outstanding` : ""}
+                  Base {fmt(periodReceived, 0)} + outstanding
                 </p>
               ) : null}
             </div>
@@ -660,18 +691,6 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
                 amount={outstanding}
                 onClick={() => setIncludeOutstanding(v => !v)}
               />
-              <ToggleChip
-                on={enabled.loans}
-                label="+ Loans"
-                amount={loansInPeriod}
-                onClick={() => toggle("loans")}
-              />
-              <Link
-                href="/finance?tab=manage&section=finance&add=loan"
-                className="inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              >
-                <Plus className="h-3 w-3" /> Loan
-              </Link>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
               <div className="rounded-md border px-2 py-1.5">
@@ -701,8 +720,80 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
           </div>
         </section>
 
-        {/* Money out */}
+        {/* Loans */}
         <section className="rounded-lg border overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/15">
+            <div className="min-w-0 flex items-center gap-2">
+              <HandCoins className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold">Loans</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                  {loanSnap.peopleCount} {loanSnap.peopleCount === 1 ? "person" : "people"} · give, receive & return
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/finance?tab=manage&section=finance"
+              className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5 shrink-0"
+            >
+              Records <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <div className="p-3 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-md border border-emerald-200/70 dark:border-emerald-500/30 bg-emerald-500/5 px-2.5 py-2">
+                <p className="text-[9px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 font-medium">
+                  {periodLabel} in
+                </p>
+                <p className="text-base font-bold tabular-nums text-emerald-800 dark:text-emerald-300 mt-0.5">
+                  {fmt(loanSnap.moneyIn, 0)}
+                </p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-0.5">
+                  Received {fmt(loanSnap.receivedInPeriod, 0)}
+                  {loanSnap.recoveredInPeriod > 0.004 ? ` · returned to us ${fmt(loanSnap.recoveredInPeriod, 0)}` : ""}
+                </p>
+              </div>
+              <div className="rounded-md border border-rose-200/70 dark:border-rose-500/30 bg-rose-500/5 px-2.5 py-2">
+                <p className="text-[9px] uppercase tracking-wide text-rose-700 dark:text-rose-400 font-medium">
+                  {periodLabel} out
+                </p>
+                <p className="text-base font-bold tabular-nums text-rose-800 dark:text-rose-300 mt-0.5">
+                  {fmt(loanSnap.moneyOut, 0)}
+                </p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums mt-0.5">
+                  Given {fmt(loanSnap.givenInPeriod, 0)}
+                  {loanSnap.repaidInPeriod > 0.004 ? ` · we returned ${fmt(loanSnap.repaidInPeriod, 0)}` : ""}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div className="rounded-md border px-2 py-1.5">
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">We owe</p>
+                <p className="text-[11px] font-semibold tabular-nums mt-0.5 text-rose-700 dark:text-rose-400">
+                  {fmt(loanSnap.weOwe, 0)}
+                </p>
+              </div>
+              <div className="rounded-md border px-2 py-1.5">
+                <p className="text-[9px] text-[hsl(var(--muted-foreground))]">Owed to us</p>
+                <p className="text-[11px] font-semibold tabular-nums mt-0.5 text-emerald-700 dark:text-emerald-400">
+                  {fmt(loanSnap.theyOwe, 0)}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <Link
+                href="/finance?tab=manage&section=finance&add=loan"
+                className="inline-flex items-center gap-0.5 rounded-md border px-2 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              >
+                <Plus className="h-3 w-3" /> Add loan
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Money out */}
+      <section className="rounded-lg border overflow-hidden">
           <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/15">
             <div className="min-w-0">
               <p className="text-xs font-semibold">Money out</p>
@@ -726,7 +817,6 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
             />
           </div>
         </section>
-      </div>
 
       {/* Net toggles — compact, collapsed */}
       <section className="rounded-lg border overflow-hidden">
