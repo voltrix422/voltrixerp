@@ -321,14 +321,16 @@ export async function GET(req: NextRequest) {
       .reduce((s, r) => s + r.amount, 0)
     const salariesFromSlips = payrollSalarySlips.reduce((s, slip) => s + (Number(slip.netSalary) || 0), 0)
     const salariesInPeriod = salariesFromRecords + salariesFromSlips
+    // "Loan Given" (loan paid out) and "Loan Repayment" (we return a loan we took) are money out.
+    // "Loan" (loan received) and "Loan Recovery" (a given loan returned to us) are money in.
     const expensesInPeriod = recordsInPeriod
-      .filter(r => ["Expense", "Payment", "Tax", "Other"].includes(r.category))
+      .filter(r => ["Expense", "Payment", "Tax", "Other", "Loan Given", "Loan Repayment"].includes(r.category))
       .reduce((s, r) => s + r.amount, 0)
     const incomeRecordsInPeriod = recordsInPeriod
       .filter(r => ["Invoice", "Refund"].includes(r.category))
       .reduce((s, r) => s + r.amount, 0)
     const loansInPeriod = recordsInPeriod
-      .filter(r => r.category === "Loan")
+      .filter(r => r.category === "Loan" || r.category === "Loan Recovery")
       .reduce((s, r) => s + r.amount, 0)
 
     const expensesByCategory: Record<string, number> = {}
@@ -498,10 +500,10 @@ export async function GET(req: NextRequest) {
       for (const r of records) {
         const d = new Date(r.createdAt)
         if (!inRange(d, mStart, mEnd)) continue
-        if (["Expense", "Payment", "Tax", "Other"].includes(r.category)) mo += r.amount
+        if (["Expense", "Payment", "Tax", "Other", "Loan Given", "Loan Repayment"].includes(r.category)) mo += r.amount
         else if (r.category === "Salary") mo += r.amount
         else if (["Invoice", "Refund"].includes(r.category)) mi += r.amount
-        else if (r.category === "Loan") mi += r.amount
+        else if (r.category === "Loan" || r.category === "Loan Recovery") mi += r.amount
       }
       const trendMonthFrom = payrollMonthKey(mStart)
       const trendMonthTo = payrollMonthKey(mEnd)

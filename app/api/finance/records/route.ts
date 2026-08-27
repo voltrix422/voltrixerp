@@ -97,6 +97,9 @@ export async function POST(req: NextRequest) {
       proof_name: String(recordData.proof_name || ''),
       notes: String(recordData.notes || ''),
       created_by: String(recordData.created_by || 'Unknown'),
+      loan_person: String(recordData.loan_person || ''),
+      loan_direction: String(recordData.loan_direction || ''),
+      loan_parent_id: String(recordData.loan_parent_id || ''),
     },
   })
 

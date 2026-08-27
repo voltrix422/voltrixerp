@@ -592,6 +592,11 @@ model ErpFinanceRecord {
   created_by          String   @map("created_by")
   createdAt           DateTime @default(now()) @map("created_at")
 
+  /// Loan tracking: person the loan is with, "received" | "given", and optional link to the principal record
+  loan_person         String   @default("") @map("loan_person")
+  loan_direction      String   @default("") @map("loan_direction")
+  loan_parent_id      String   @default("") @map("loan_parent_id")
+
   @@map("erp_finance_records")
 }
 

@@ -4,6 +4,7 @@ import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Plus, Upload, X, FileText, Trash2, TrendingUp, DollarSign, Eye, Wallet } from "lucide-react"
 import { getPettyCashAllocations, getPettyCashReceipts, type PettyCashAllocation } from "@/lib/petty-cash"
+import { FinanceLoans } from "@/components/finance/finance-loans"
 
 interface FinanceRecord {
   id: string
@@ -23,9 +24,13 @@ interface FinanceRecord {
   notes: string
   created_by: string
   createdAt: string
+  loan_person?: string
+  loan_direction?: string
+  loan_parent_id?: string
 }
 
 const CATEGORIES = ["Payment", "Expense", "Invoice", "Salary", "Tax", "Refund", "Loan", "Other"]
+const FILTER_CATEGORIES = [...CATEGORIES, "Loan Given", "Loan Repayment", "Loan Recovery"]
 const CURRENCIES = ["USD", "PKR", "EUR", "GBP", "AED"]
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -36,6 +41,9 @@ const CATEGORY_STYLES: Record<string, string> = {
   Tax:      "bg-orange-500/10 text-orange-700 border-orange-200 dark:text-orange-400",
   Refund:   "bg-teal-500/10 text-teal-700 border-teal-200 dark:text-teal-400",
   Loan:     "bg-amber-500/10 text-amber-800 border-amber-200 dark:text-amber-400",
+  "Loan Given":     "bg-rose-500/10 text-rose-700 border-rose-200 dark:text-rose-400",
+  "Loan Repayment": "bg-rose-500/10 text-rose-700 border-rose-200 dark:text-rose-400",
+  "Loan Recovery":  "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:text-emerald-400",
   Other:    "bg-gray-500/10 text-gray-700 border-gray-200 dark:text-gray-400",
 }
 
@@ -142,16 +150,7 @@ export function FinanceManager({
   }, [showForm, category])
 
   useEffect(() => {
-    if (!openAddLoan) return
-    setCategory("Loan")
-    setCurrency("PKR")
-    setPurpose("Loan received")
-    setFilterCategory("Loan")
-    setShowForm(true)
-  }, [openAddLoan])
-
-  useEffect(() => {
-    if (initialCategory && CATEGORIES.includes(initialCategory) && !openAddLoan) {
+    if (initialCategory && FILTER_CATEGORIES.includes(initialCategory) && !openAddLoan) {
       setFilterCategory(initialCategory)
     }
   }, [initialCategory, openAddLoan])
@@ -182,6 +181,7 @@ export function FinanceManager({
       r.tag.toLowerCase().includes(q) ||
       (r.supplier_name || "").toLowerCase().includes(q) ||
       (r.receipt_person_name || "").toLowerCase().includes(q) ||
+      (r.loan_person || "").toLowerCase().includes(q) ||
       (r.petty_cash_label || "").toLowerCase().includes(q)
     const matchCat = filterCategory === "All" || r.category === filterCategory
     const matchTag = filterTag === "All" || r.tag === filterTag
@@ -257,13 +257,6 @@ export function FinanceManager({
     }
   }
 
-  function openLoanForm() {
-    setCategory("Loan")
-    setCurrency("PKR")
-    setPurpose("Loan received")
-    setShowForm(true)
-  }
-
   function resetForm() {
     setTitle(""); setAmount(""); setCurrency("PKR"); setPurpose("")
     setCategory("Payment"); setTag(""); setSupplierName(""); setReceiptPersonName(""); setPettyCashAllocationId(""); setNotes("")
@@ -320,19 +313,20 @@ export function FinanceManager({
               Clear Filters
             </button>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9 sm:h-8 flex-1 sm:flex-none text-xs gap-1.5 border-amber-500/40 text-amber-900 hover:bg-amber-500/10 cursor-pointer justify-center"
-            onClick={openLoanForm}
-          >
-            <TrendingUp className="h-3.5 w-3.5" /> Add Loan
-          </Button>
           <Button size="sm" className="h-9 sm:h-8 flex-1 sm:flex-none text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer justify-center" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5" /> Add Record
           </Button>
         </div>
       </div>
+
+      {/* Loan center: give / receive / return loans, person profiles & history */}
+      <FinanceLoans
+        records={records}
+        userName={user?.name ?? "Unknown"}
+        autoOpenReceive={!!openAddLoan}
+        onCreated={(record) => setRecords(prev => [record as FinanceRecord, ...prev])}
+        onDelete={handleDelete}
+      />
 
       {/* Additional filters for Manage tab */}
       {hasFilters && (
@@ -341,7 +335,7 @@ export function FinanceManager({
           <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
             className="h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]">
             <option value="All">All Categories</option>
-            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+            {FILTER_CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
 
           {/* Tags */}
@@ -610,6 +604,12 @@ export function FinanceManager({
 
               {/* Details grid */}
               <div className="grid grid-cols-2 gap-2 text-xs">
+                {viewRecord.loan_person && (
+                  <div className="col-span-2 rounded-md border bg-amber-500/5 border-amber-500/25 px-3 py-2.5">
+                    <p className="text-[10px] text-amber-800 dark:text-amber-400 font-medium mb-0.5">Loan person</p>
+                    <p className="font-medium">{viewRecord.loan_person}</p>
+                  </div>
+                )}
                 {viewRecord.supplier_name && (
                   <div className="rounded-md border bg-[hsl(var(--background))] px-3 py-2.5">
                     <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium mb-0.5">Supplier</p>
