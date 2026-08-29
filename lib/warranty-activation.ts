@@ -103,6 +103,12 @@ export type ActivateWarrantyOptions = {
   customerAddress?: string
   installLocation?: string
   invoiceDocumentUrl?: string
+  /**
+   * ERP admin only: create and start a warranty even if the serial is not in
+   * inventory or the warranty registry. Never enable this on the public scan API.
+   */
+  allowUnregistered?: boolean
+  productName?: string
 }
 
 async function findWarrantyBySerial(serialNumber: string) {
@@ -144,20 +150,57 @@ export async function activateWarrantyBySerial(
       ? await prisma.erpWarranty.findFirst({ where: { warrantyId: unit.warrantyId } })
       : null) || (await findWarrantyBySerial(serialNumber))
 
-  if (!warranty && !unit) {
-    return {
-      ok: false,
-      error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
-      code: "NOT_FOUND",
-    }
-  }
-
   const customerPatch = {
     customerName: options?.customerName?.trim() || undefined,
     customerPhone: options?.customerPhone?.trim() || undefined,
     customerAddress: options?.customerAddress?.trim() || undefined,
     installLocation: options?.installLocation?.trim() || undefined,
     invoiceDocumentUrl: options?.invoiceDocumentUrl?.trim() || undefined,
+  }
+
+  const activationNote = `Warranty activated ${now.toISOString().slice(0, 10)}${
+    options?.activatedBy ? ` by ${options.activatedBy}` : ""
+  }`
+
+  if (!warranty && !unit) {
+    if (!options?.allowUnregistered) {
+      return {
+        ok: false,
+        error: `Serial ${serialNumber} is not registered. Contact Voltrix support.`,
+        code: "NOT_FOUND",
+      }
+    }
+
+    const parsed = parseProductQrPayload(rawScan)
+    const productName =
+      options.productName?.trim() ||
+      parsed.model?.trim() ||
+      parsed.productName?.trim() ||
+      serialNumber
+    const generatedWarrantyId = await generatePublicWarrantyNumber()
+    const created = await prisma.erpWarranty.create({
+      data: {
+        warrantyId: generatedWarrantyId,
+        serialNumber,
+        productName,
+        soldDate: now,
+        warrantyStartDate: now,
+        warrantyEndDate: warrantyEnd,
+        activatedAt: now,
+        customerName: customerPatch.customerName || null,
+        customerPhone: customerPatch.customerPhone || null,
+        customerAddress: customerPatch.customerAddress || null,
+        installLocation: customerPatch.installLocation || null,
+        invoiceDocumentUrl: customerPatch.invoiceDocumentUrl || null,
+        notes: `${activationNote}\nStarted by ERP admin from QR (serial was not in registry).`,
+        createdBy: options?.activatedBy || "ERP admin",
+      },
+    })
+    return {
+      ok: true,
+      alreadyActive: false,
+      warranty: await serializeWarrantyPublic(created),
+    }
   }
 
   if (warranty?.activatedAt && isWarrantyActivated(warranty)) {
@@ -180,10 +223,6 @@ export async function activateWarrantyBySerial(
       warranty: await serializeWarrantyPublic(warranty),
     }
   }
-
-  const activationNote = `Warranty activated ${now.toISOString().slice(0, 10)}${
-    options?.activatedBy ? ` by ${options.activatedBy}` : ""
-  }`
 
   if (warranty) {
     const assignedWarrantyId =

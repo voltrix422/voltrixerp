@@ -3,7 +3,10 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, Filter, PlayCircle, Truck, RotateCcw } from "lucide-react"
+import { Calendar, Shield, Trash2, Edit, Plus, Search, AlertCircle, CheckCircle, Filter, PlayCircle, Truck, RotateCcw, Camera, X } from "lucide-react"
+import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
+import { useAuth } from "@/components/auth-provider"
+import { parseProductQrPayload } from "@/lib/parse-product-qr"
 
 interface Warranty {
   id: string
@@ -25,6 +28,7 @@ interface Warranty {
 }
 
 export function WarrantyManager() {
+  const { user } = useAuth()
   const [startedWarranties, setStartedWarranties] = useState<Warranty[]>([])
   const [deliveredWarranties, setDeliveredWarranties] = useState<Warranty[]>([])
   const [listTab, setListTab] = useState<"delivered" | "started">("delivered")
@@ -53,6 +57,12 @@ export function WarrantyManager() {
   const [customerEmail, setCustomerEmail] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
   const [notes, setNotes] = useState("")
+  const [showScanner, setShowScanner] = useState(false)
+  const [scanBusy, setScanBusy] = useState(false)
+  const [scanManual, setScanManual] = useState("")
+  const [scanCustomer, setScanCustomer] = useState("")
+  const [scanMessage, setScanMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null)
+  const [lastScanSerial, setLastScanSerial] = useState("")
 
   useEffect(() => {
     fetchWarranties()
@@ -116,6 +126,46 @@ export function WarrantyManager() {
       alert("Failed to start warranty")
     } finally {
       setActivatingId(null)
+    }
+  }
+
+  async function handleErpScan(payload: string) {
+    const parsed = parseProductQrPayload(payload)
+    const serial = (parsed.serialNumber || payload).trim()
+    if (!serial || scanBusy) return
+    setScanBusy(true)
+    setScanMessage(null)
+    setLastScanSerial(serial)
+    try {
+      const res = await fetch("/api/db/warranties/scan-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scan: payload,
+          productName: parsed.model || parsed.productName || undefined,
+          customerName: scanCustomer.trim() || undefined,
+          activatedBy: user?.name || "ERP admin",
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setScanMessage({ type: "err", text: data.error || "Could not start warranty from this QR." })
+        return
+      }
+      const w = data.warranty as { serialNumber?: string; productName?: string; customerName?: string } | undefined
+      const label = w?.serialNumber || serial
+      setScanMessage({
+        type: "ok",
+        text: data.alreadyActive
+          ? `Already started: ${label}`
+          : `Warranty started${w?.productName ? ` · ${w.productName}` : ""} · ${label}${w?.customerName ? ` · ${w.customerName}` : ""}`,
+      })
+      setScanManual("")
+      await fetchWarranties()
+    } catch {
+      setScanMessage({ type: "err", text: "Network error. Try again." })
+    } finally {
+      setScanBusy(false)
     }
   }
 
@@ -286,7 +336,7 @@ export function WarrantyManager() {
     <div className="space-y-3">
       <p className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed">
         <strong>Delivered</strong> lists units dispatched to customers whose warranty has not been started yet.
-        After someone scans the product QR (branch or{" "}
+        After someone scans the product QR (branch, this page, or{" "}
         <a href="https://voltrixbatteries.com/warranty" className="text-[#1a9f9a] underline" target="_blank" rel="noreferrer">
           voltrixbatteries.com/warranty
         </a>
@@ -330,6 +380,17 @@ export function WarrantyManager() {
         >
           <Filter className="h-4 w-4" />
         </button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 text-sm gap-2"
+          onClick={() => {
+            setScanMessage(null)
+            setShowScanner(true)
+          }}
+        >
+          <Camera className="h-4 w-4" /> Scan QR
+        </Button>
         <Button size="sm" className="h-9 text-sm gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" /> Add Warranty
         </Button>
@@ -508,6 +569,80 @@ export function WarrantyManager() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {showScanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowScanner(false)}>
+          <div
+            className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 border-b shrink-0">
+              <div>
+                <p className="text-sm font-semibold">Scan product QR</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                  Starts warranty from this list. Unregistered serials can still be started here.
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowScanner(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-3">
+              <WarrantyQrScanner
+                readerId="erp-warranty-start-reader"
+                onScan={handleErpScan}
+                busy={scanBusy}
+                autoStart
+              />
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">Customer name (optional)</label>
+                <input
+                  value={scanCustomer}
+                  onChange={e => setScanCustomer(e.target.value)}
+                  placeholder="Applied on the next scan"
+                  className="w-full h-9 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={scanManual}
+                  onChange={e => setScanManual(e.target.value)}
+                  placeholder="Or paste serial / QR text"
+                  className="flex-1 h-9 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm font-mono"
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && scanManual.trim()) void handleErpScan(scanManual)
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="h-9 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+                  disabled={scanBusy || !scanManual.trim()}
+                  onClick={() => void handleErpScan(scanManual)}
+                >
+                  Start
+                </Button>
+              </div>
+              {lastScanSerial && (
+                <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))]">Last scan: {lastScanSerial}</p>
+              )}
+              {scanMessage && (
+                <div
+                  className={`rounded-lg border px-3 py-2 text-xs ${
+                    scanMessage.type === "ok"
+                      ? "border-green-200 bg-green-50 text-green-900 dark:bg-green-950/40 dark:text-green-200"
+                      : "border-red-200 bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200"
+                  }`}
+                >
+                  {scanMessage.text}
+                </div>
+              )}
+              {scanBusy && (
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Starting warranty…</p>
+              )}
+            </div>
           </div>
         </div>
       )}
