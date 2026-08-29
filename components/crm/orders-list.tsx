@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield } from "lucide-react"
+import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield, PlayCircle } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
@@ -1644,11 +1644,15 @@ function OrderDetail({
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
   const [warrantyHolderDraft, setWarrantyHolderDraft] = useState(order.warrantyHolderName || "")
   const [savingWarrantyHolder, setSavingWarrantyHolder] = useState(false)
+  const [showStartWarrantiesConfirm, setShowStartWarrantiesConfirm] = useState(false)
+  const [startingWarranties, setStartingWarranties] = useState(false)
+  const [warrantyStartResult, setWarrantyStartResult] = useState<string | null>(null)
 
   useEffect(() => {
     setDetailOrder(order)
     setStatus(order.status)
     setWarrantyHolderDraft(order.warrantyHolderName || "")
+    setWarrantyStartResult(null)
   }, [order])
 
   const canEditOrder =
@@ -1737,6 +1741,61 @@ function OrderDetail({
       alert(err instanceof Error ? err.message : "Could not save warranty name.")
     } finally {
       setSavingWarrantyHolder(false)
+    }
+  }
+
+  const scannedSerialCount = (detailOrder.fulfillmentSerialAllocations || []).filter(
+    (a) => String(a.serialNumber || "").trim(),
+  ).length
+  const savedWarrantyName = (detailOrder.warrantyHolderName || "").trim()
+  const canStartOrderWarranties =
+    !workspace?.readOnly &&
+    detailOrder.status === "delivered" &&
+    Boolean(savedWarrantyName) &&
+    scannedSerialCount > 0
+
+  async function handleStartOrderWarranties() {
+    if (!canStartOrderWarranties || startingWarranties) return
+    setStartingWarranties(true)
+    setWarrantyStartResult(null)
+    try {
+      const res = await fetch("/api/db/orders/start-warranties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: detailOrder.id,
+          confirm: true,
+          activatedBy: currentUser || "ERP admin",
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Could not start warranties")
+      }
+      const failCount = Array.isArray(data.failed) ? data.failed.length : 0
+      const failHint =
+        failCount && Array.isArray(data.failed)
+          ? ` Failed: ${(data.failed as { serialNumber: string }[])
+              .slice(0, 3)
+              .map((f) => f.serialNumber)
+              .join(", ")}${failCount > 3 ? "…" : ""}`
+          : ""
+      const parts = [
+        data.started ? `${data.started} started` : null,
+        data.alreadyActive ? `${data.alreadyActive} already started` : null,
+        failCount ? `${failCount} failed` : null,
+      ].filter(Boolean)
+      setWarrantyStartResult(
+        parts.length
+          ? `${data.orderNumber}: ${parts.join(" · ")}.${failHint}`
+          : "No warranties were started.",
+      )
+      setShowStartWarrantiesConfirm(false)
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : "Could not start warranties.")
+    } finally {
+      setStartingWarranties(false)
     }
   }
 
@@ -2020,6 +2079,37 @@ function OrderDetail({
                   >
                     {savingWarrantyHolder ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
                   </Button>
+                </div>
+              )}
+              {!workspace?.readOnly && (
+                <div className="pt-1 space-y-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 w-full sm:w-auto cursor-pointer border-[#1a9f9a] text-[#1a9f9a] hover:bg-[#1a9f9a]/10"
+                    disabled={!canStartOrderWarranties || startingWarranties}
+                    onClick={() => setShowStartWarrantiesConfirm(true)}
+                  >
+                    {startingWarranties ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <PlayCircle className="h-4 w-4 mr-2" />
+                    )}
+                    {startingWarranties
+                      ? "Starting warranties…"
+                      : scannedSerialCount > 0
+                        ? `Start warranty for ${scannedSerialCount} scanned units`
+                        : "Start warranty for scanned units"}
+                  </Button>
+                  {!savedWarrantyName && (
+                    <p className="text-[11px] text-amber-700">Save a warranty name before starting all units.</p>
+                  )}
+                  {savedWarrantyName && scannedSerialCount === 0 && (
+                    <p className="text-[11px] text-amber-700">No scanned serials on this order.</p>
+                  )}
+                  {warrantyStartResult && (
+                    <p className="text-[11px] text-emerald-800">{warrantyStartResult}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -2546,6 +2636,17 @@ function OrderDetail({
     </div>
     </>
       )}
+
+      <ConfirmDialog
+        isOpen={showStartWarrantiesConfirm}
+        title="Start all warranties?"
+        message={`Start the 5-year warranty today for all scanned units on ${detailOrder.orderNumber}? Warranty name will be ${savedWarrantyName || "—"}. Already-started units are skipped. This cannot be undone without a warranty reset.`}
+        confirmText={startingWarranties ? "Starting…" : "Start all warranties"}
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={() => void handleStartOrderWarranties()}
+        onCancel={() => !startingWarranties && setShowStartWarrantiesConfirm(false)}
+      />
 
       <ConfirmDialog
         isOpen={showDeleteConfirm}
