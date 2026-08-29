@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown } from "lucide-react"
+import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
@@ -397,7 +397,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     const matchesSearch =
       !search ||
       (o.orderNumber?.toLowerCase() || "").includes(q) ||
-      (o.clientName?.toLowerCase() || "").includes(q)
+      (o.clientName?.toLowerCase() || "").includes(q) ||
+      (o.warrantyHolderName?.toLowerCase() || "").includes(q)
 
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
     const matchesPayment = orderMatchesPaymentFilter(o, paymentFilter)
@@ -832,9 +833,11 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                     <OrderSourceBadge order={order} />
                   </td>
                   <td className="px-4 py-2.5 text-xs font-medium cursor-pointer" onClick={() => setSelected(order)}>
-                    <div className="flex items-center gap-1">
-                      <ShoppingCart className="h-4 w-4 text-blue-600" />
-                      <span className="ml-2">{order.clientName || "—"}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{order.clientName || "—"}</p>
+                      {order.warrantyHolderName?.trim() && (
+                        <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {order.warrantyHolderName}</p>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>
@@ -1639,10 +1642,13 @@ function OrderDetail({
   const [showEdit, setShowEdit] = useState(false)
   const [detailOrder, setDetailOrder] = useState(order)
   const [invoiceLoading, setInvoiceLoading] = useState<null | "view" | "download">(null)
+  const [warrantyHolderDraft, setWarrantyHolderDraft] = useState(order.warrantyHolderName || "")
+  const [savingWarrantyHolder, setSavingWarrantyHolder] = useState(false)
 
   useEffect(() => {
     setDetailOrder(order)
     setStatus(order.status)
+    setWarrantyHolderDraft(order.warrantyHolderName || "")
   }, [order])
 
   const canEditOrder =
@@ -1715,6 +1721,24 @@ function OrderDetail({
   const cashbackAmount = getOrderCashbackAmount(detailOrder)
   const cashbackFromOrder = getOrderCashbackAmount(detailOrder, "order")
   const cashbackOther = getOrderCashbackAmount(detailOrder, "other")
+
+  async function handleSaveWarrantyHolder() {
+    const nextName = warrantyHolderDraft.trim()
+    if (workspace?.readOnly || detailOrder.status !== "delivered") return
+    setSavingWarrantyHolder(true)
+    try {
+      const updated: Order = { ...detailOrder, warrantyHolderName: nextName }
+      const saved = await saveOrder(updated)
+      setDetailOrder(saved)
+      setWarrantyHolderDraft(saved.warrantyHolderName || nextName)
+      onUpdate(saved)
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : "Could not save warranty name.")
+    } finally {
+      setSavingWarrantyHolder(false)
+    }
+  }
 
   async function handleDeletePayment(paymentId: string) {
     const payment = detailOrder.payments?.find(p => p.id === paymentId)
@@ -1905,6 +1929,9 @@ function OrderDetail({
                 <OrderStatusBadge status={detailOrder.status} className="sm:text-xs sm:px-3 sm:py-1" />
               </div>
               <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 capitalize truncate">{detailOrder.clientName}</p>
+              {detailOrder.warrantyHolderName?.trim() && (
+                <p className="text-xs text-[#1a9f9a] mt-0.5 truncate">Warranty: {detailOrder.warrantyHolderName}</p>
+              )}
               <div className="lg:hidden grid grid-cols-2 gap-2 mt-2 text-[10px]">
                 {detailOrder.deliveryDate && (
                   <div>
@@ -1957,6 +1984,44 @@ function OrderDetail({
             <div className="border-b pb-4">
               <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Notes</p>
               <p className="text-sm whitespace-pre-wrap">{detailOrder.notes}</p>
+            </div>
+          )}
+
+          {detailOrder.status === "delivered" && (
+            <div className="rounded-lg border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-[#1a9f9a]" />
+                <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
+                  Warranty name
+                </p>
+              </div>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Person or company who will start this warranty — not the client ({detailOrder.clientName}).
+                They must type this name when they scan. After start, this name appears on the warranty.
+              </p>
+              {workspace?.readOnly ? (
+                <p className="text-sm font-medium">{detailOrder.warrantyHolderName?.trim() || "Not set"}</p>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    value={warrantyHolderDraft}
+                    onChange={(e) => setWarrantyHolderDraft(e.target.value)}
+                    placeholder="e.g. Ali Khan or Green Energy Pvt Ltd"
+                    className="flex-1 h-9 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-9 bg-[#1a9f9a] hover:bg-[#158a85] text-white cursor-pointer"
+                    disabled={
+                      savingWarrantyHolder ||
+                      warrantyHolderDraft.trim() === (detailOrder.warrantyHolderName || "").trim()
+                    }
+                    onClick={() => void handleSaveWarrantyHolder()}
+                  >
+                    {savingWarrantyHolder ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 

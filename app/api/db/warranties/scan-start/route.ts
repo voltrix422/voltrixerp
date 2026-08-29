@@ -13,10 +13,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Scan payload is required" }, { status: 400 })
     }
 
+    const typedName = body.customerName ? String(body.customerName).trim() : ""
     const result = await activateWarrantyBySerial(scan, {
       allowUnregistered: true,
       activatedBy: body.activatedBy ? String(body.activatedBy) : "ERP admin",
-      customerName: body.customerName ? String(body.customerName) : undefined,
+      customerName: typedName || undefined,
+      useAssignedHolderName: !typedName,
       customerPhone: body.customerPhone ? String(body.customerPhone) : undefined,
       productName: body.productName ? String(body.productName) : undefined,
     })

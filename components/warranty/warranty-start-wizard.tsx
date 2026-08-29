@@ -24,6 +24,7 @@ export type WarrantyStartPreview = {
   customerPhone?: string | null
   customerAddress?: string | null
   installLocation?: string | null
+  requiresHolderName?: boolean
 }
 
 export type WarrantyStartFormData = {
@@ -88,12 +89,13 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
           serialNumber: data.serialNumber || "",
           productName: data.productName || "Product",
           invoiceNumber: data.invoiceNumber,
-          customerName: data.customerName,
+          customerName: null,
           customerPhone: data.customerPhone,
           customerAddress: data.customerAddress,
           installLocation: data.installLocation,
+          requiresHolderName: Boolean(data.requiresHolderName),
         })
-        if (data.customerName) setCustomerName(String(data.customerName))
+        setCustomerName("")
         if (data.customerPhone) setCustomerPhone(String(data.customerPhone))
         if (data.customerAddress) setCustomerAddress(String(data.customerAddress))
         if (data.installLocation) setInstallLocation(String(data.installLocation))
@@ -228,21 +230,36 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
           </div>
 
           <div className="rounded-xl bg-[#1a9f9a]/10 border border-[#1a9f9a]/20 px-4 py-3 text-sm text-gray-700 text-center">
-            Step 2: Enter your information to start warranty
+            {preview.requiresHolderName
+              ? "Step 2: Type the warranty name given by your dealer, then your contact details"
+              : "Step 2: Enter your information to start warranty"}
           </div>
 
           <div className="space-y-3">
             <label className="block space-y-1">
               <span className="text-xs font-medium text-gray-600 flex items-center gap-1">
-                <User className="h-3.5 w-3.5" /> Name (Naam) *
+                <User className="h-3.5 w-3.5" />{" "}
+                {preview.requiresHolderName
+                  ? "Warranty name (person or company) *"
+                  : "Name (Naam) *"}
               </span>
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 required
-                placeholder="Full name"
+                placeholder={
+                  preview.requiresHolderName
+                    ? "Type the name exactly as given by your dealer"
+                    : "Full name"
+                }
+                autoComplete="off"
                 className="w-full h-11 rounded-lg border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a]"
               />
+              {preview.requiresHolderName && (
+                <span className="text-[11px] text-gray-500">
+                  This name will appear on the warranty after it is started.
+                </span>
+              )}
             </label>
             <label className="block space-y-1">
               <span className="text-xs font-medium text-gray-600 flex items-center gap-1">
@@ -309,7 +326,9 @@ export function WarrantyStartWizard({ scannerKey, busy, onBack, onComplete }: Pr
             <p className="text-gray-500 text-xs uppercase tracking-wide">Ready to start warranty</p>
             <p className="font-semibold text-gray-900 capitalize mt-1">{preview.productName}</p>
             <p className="font-mono text-xs text-gray-600 mt-1">SN: {preview.serialNumber}</p>
-            <p className="text-xs text-gray-600 mt-2 capitalize">Naam: {customerName}</p>
+            <p className="text-xs text-gray-600 mt-2 capitalize">
+              {preview.requiresHolderName ? "Warranty name" : "Naam"}: {customerName}
+            </p>
           </div>
 
           <div className="rounded-xl bg-[#1a9f9a]/10 border border-[#1a9f9a]/20 px-4 py-3 text-sm text-gray-700 text-center">

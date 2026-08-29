@@ -139,6 +139,8 @@ export interface Order {
   orderNumber: string
   clientId: string
   clientName: string
+  /** Person or company who starts/owns the warranty (not the CRM client). */
+  warrantyHolderName?: string
   items: OrderItem[]
   subtotal: number
   taxPercent: number // Tax as percentage (e.g., 18 for 18%)
@@ -832,6 +834,7 @@ export function rowToOrder(r: Record<string, unknown>): Order {
     orderNumber: r.orderNumber as string,
     clientId: r.clientId as string,
     clientName: r.clientName as string,
+    warrantyHolderName: ((r.warrantyHolderName as string) || "").trim() || undefined,
     items: (r.items as OrderItem[]) ?? [],
     subtotal: (r.subtotal as number) ?? 0,
     taxPercent: (r.taxPercent as number) ?? 0,

@@ -29,6 +29,7 @@ export function BranchWarrantyHub() {
   const [lastWarranty, setLastWarranty] = useState<WarrantyRow | null>(null)
   const [claimUnitId, setClaimUnitId] = useState<string | null>(null)
   const [claimSerial, setClaimSerial] = useState("")
+  const [warrantyName, setWarrantyName] = useState("")
 
   async function handleStartScan(payload: string) {
     setBusy(true)
@@ -40,6 +41,7 @@ export function BranchWarrantyHub() {
         body: JSON.stringify({
           scan: payload,
           activatedBy: user?.name || "Branch",
+          customerName: warrantyName.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -189,8 +191,17 @@ export function BranchWarrantyHub() {
       {tab === "start" && (
         <div className="space-y-4 rounded-lg border p-4">
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Product QR should link to warranty check. When the customer receives the unit, scan here once — warranty period starts <strong>today</strong>.
+            Type the warranty name set on the delivered order, then scan. That name appears on the warranty after start.
           </p>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">Warranty name</label>
+            <input
+              value={warrantyName}
+              onChange={(e) => setWarrantyName(e.target.value)}
+              placeholder="Person or company name from the order"
+              className="w-full h-9 px-3 text-sm border rounded-lg bg-[hsl(var(--background))]"
+            />
+          </div>
           <WarrantyQrScanner
             readerId="branch-warranty-start-reader"
             onScan={handleStartScan}

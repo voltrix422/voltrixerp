@@ -41,6 +41,7 @@ async function ensureWarrantyForReplacementSerial(params: {
   productName: string
   orderNumber: string
   clientName: string
+  warrantyHolderName?: string
   createdBy: string
 }) {
   const sn = params.serialNumber.trim()
@@ -48,6 +49,7 @@ async function ensureWarrantyForReplacementSerial(params: {
   const soldDate = new Date()
   const placeholderEnd = addYears(soldDate, 5)
   const dispatchNote = `Replacement on order ${params.orderNumber}. Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty.`
+  const holderName = (params.warrantyHolderName || "").trim() || null
 
   const bySerial = await prisma.erpWarranty.findFirst({
     where: { serialNumber: { equals: sn, mode: "insensitive" } },
@@ -56,7 +58,7 @@ async function ensureWarrantyForReplacementSerial(params: {
     await prisma.erpWarranty.update({
       where: { id: bySerial.id },
       data: {
-        customerName: params.clientName,
+        customerName: holderName,
         soldDate,
         warrantyStartDate: soldDate,
         warrantyEndDate: placeholderEnd,
@@ -77,7 +79,7 @@ async function ensureWarrantyForReplacementSerial(params: {
       warrantyStartDate: soldDate,
       warrantyEndDate: placeholderEnd,
       activatedAt: null,
-      customerName: params.clientName,
+      customerName: holderName,
       notes: dispatchNote,
       createdBy: params.createdBy || "system",
     },
@@ -255,6 +257,7 @@ async function dispatchNewSerialUnit(params: {
   orderId: string
   orderNumber: string
   clientName: string
+  warrantyHolderName?: string
   createdBy: string
   orderItem: {
     id?: string
@@ -276,6 +279,7 @@ async function dispatchNewSerialUnit(params: {
     productName: params.orderItem.description,
     orderNumber: params.orderNumber,
     clientName: params.clientName,
+    warrantyHolderName: params.warrantyHolderName,
     createdBy: params.createdBy,
   })
 
@@ -385,6 +389,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       orderId: order.id,
       orderNumber: order.orderNumber,
       clientName: order.clientName,
+      warrantyHolderName: order.warrantyHolderName,
       createdBy: input.replacedBy,
       orderItem: orderItem as never,
       serialNumber: newSn,
@@ -490,6 +495,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         orderId: order.id,
         orderNumber: order.orderNumber,
         clientName: order.clientName,
+        warrantyHolderName: order.warrantyHolderName,
         createdBy: input.replacedBy,
         orderItem: orderItem as never,
         serialNumber: newSn,

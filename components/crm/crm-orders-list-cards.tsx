@@ -50,6 +50,9 @@ export function CrmOrdersListCards({
                 <OrderSourceBadge order={order} />
                 <p className="text-xs font-semibold text-[#1faca6] truncate">{order.orderNumber || "—"}</p>
                 <p className="text-sm font-medium truncate">{order.clientName || "—"}</p>
+                {order.warrantyHolderName?.trim() && (
+                  <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {order.warrantyHolderName}</p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
                 <OrderStatusBadge status={order.status} />

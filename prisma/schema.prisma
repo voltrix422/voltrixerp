@@ -212,6 +212,8 @@ model ErpOrder {
   orderNumber      String   @map("order_number")
   clientId         String   @map("client_id")
   clientName       String   @map("client_name")
+  /** End-user / company name for warranty start (typed at scan). Not the CRM client. */
+  warrantyHolderName String  @default("") @map("warranty_holder_name")
   items            Json     @default("[]")
   subtotal         Float    @default(0)
   taxPercent       Float    @default(0) @map("tax_percent")

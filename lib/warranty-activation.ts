@@ -5,7 +5,9 @@ import {
   parseOrderNumberFromUnitNotes,
   parseOrderNumberFromWarrantyNotes,
   resolveInvoiceNumberForWarranty,
+  resolveWarrantyHolderName,
 } from "@/lib/warranty-order-resolver"
+import { warrantyHolderNamesMatch } from "@/lib/warranty-holder-name"
 
 const WARRANTY_YEARS = 5
 
@@ -109,6 +111,11 @@ export type ActivateWarrantyOptions = {
    */
   allowUnregistered?: boolean
   productName?: string
+  /**
+   * ERP admin only: if the order has a warranty name, use it when the operator
+   * did not type one. Never enable this on the public scan API.
+   */
+  useAssignedHolderName?: boolean
 }
 
 async function findWarrantyBySerial(serialNumber: string) {
@@ -149,6 +156,31 @@ export async function activateWarrantyBySerial(
     (unit?.warrantyId
       ? await prisma.erpWarranty.findFirst({ where: { warrantyId: unit.warrantyId } })
       : null) || (await findWarrantyBySerial(serialNumber))
+
+  const alreadyActive = Boolean(warranty?.activatedAt && isWarrantyActivated(warranty))
+
+  if (!alreadyActive) {
+    const requiredHolder = await resolveWarrantyHolderName({
+      serialNumber,
+      warrantyId: warranty?.warrantyId || unit?.warrantyId,
+      notes: warranty?.notes || unit?.notes,
+    })
+    if (requiredHolder) {
+      const typed = options?.customerName?.trim() || ""
+      if (options?.useAssignedHolderName && !typed) {
+        options = { ...options, customerName: requiredHolder }
+      } else if (!warrantyHolderNamesMatch(typed, requiredHolder)) {
+        return {
+          ok: false,
+          error:
+            "The warranty name does not match. Type the person or company name given by your dealer to start this warranty.",
+          code: "HOLDER_NAME_MISMATCH",
+        }
+      } else {
+        options = { ...options, customerName: requiredHolder }
+      }
+    }
+  }
 
   const customerPatch = {
     customerName: options?.customerName?.trim() || undefined,
@@ -470,6 +502,7 @@ export type WarrantyStartPreviewResult =
       customerAddress?: string | null
       installLocation?: string | null
       invoiceNumber?: string | null
+      requiresHolderName?: boolean
       message: string
     }
   | { ok: false; error: string; code?: string }
@@ -503,17 +536,25 @@ export async function previewWarrantyStart(rawScan: string): Promise<WarrantySta
 
   if (existing?.pending) {
     const w = existing.warranty
+    const requiredHolder = await resolveWarrantyHolderName({
+      serialNumber,
+      warrantyId: typeof w.warrantyId === "string" ? w.warrantyId : null,
+      notes: typeof w.notes === "string" ? w.notes : null,
+    })
     return {
       ok: true,
       status: "delivered_pending",
       serialNumber: String(w.serialNumber || serialNumber),
       productName: String(w.productName || unit?.model || unit?.productName || serialNumber),
-      customerName: w.customerName as string | null,
+      customerName: null,
       customerPhone: w.customerPhone as string | null,
       customerAddress: w.customerAddress as string | null,
       installLocation: w.installLocation as string | null,
       invoiceNumber: w.invoiceNumber as string | null,
-      message: "Product found and delivered. Please enter your details to start warranty.",
+      requiresHolderName: Boolean(requiredHolder),
+      message: requiredHolder
+        ? "Product found and delivered. Type the warranty name given by your dealer to start warranty."
+        : "Product found and delivered. Please enter your details to start warranty.",
     }
   }
 
@@ -522,6 +563,11 @@ export async function previewWarrantyStart(rawScan: string): Promise<WarrantySta
       serialNumber: unit.serialNumber,
       warrantyId: unit.warrantyId,
       notes: null,
+    })
+    const requiredHolder = await resolveWarrantyHolderName({
+      serialNumber: unit.serialNumber,
+      warrantyId: unit.warrantyId,
+      notes: unit.notes,
     })
 
     return {
@@ -534,7 +580,10 @@ export async function previewWarrantyStart(rawScan: string): Promise<WarrantySta
       customerAddress: null,
       installLocation: null,
       invoiceNumber,
-      message: "Product found and delivered. Please enter your details to start warranty.",
+      requiresHolderName: Boolean(requiredHolder),
+      message: requiredHolder
+        ? "Product found and delivered. Type the warranty name given by your dealer to start warranty."
+        : "Product found and delivered. Please enter your details to start warranty.",
     }
   }
 

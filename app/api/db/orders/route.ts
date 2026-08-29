@@ -28,6 +28,7 @@ import {
   type OrderItem,
   type OrderReturnLine,
 } from "@/lib/orders"
+import { syncPendingWarrantiesHolderName } from "@/lib/warranty-order-resolver"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -68,6 +69,7 @@ function toOrderDeductInput(record: {
   dispatcher: string | null
   fulfillmentDispatcher: string | null
   inventoryDeductedAt: string | null
+  warrantyHolderName?: string | null
   source?: string | null
   branchId?: string | null
   fulfillmentSerialAllocations: unknown
@@ -77,6 +79,7 @@ function toOrderDeductInput(record: {
     id: record.id,
     orderNumber: record.orderNumber,
     clientName: record.clientName,
+    warrantyHolderName: record.warrantyHolderName || "",
     createdBy: record.createdBy ?? undefined,
     status: record.status,
     dispatcher: record.dispatcher,
@@ -338,6 +341,7 @@ export async function POST(req: NextRequest) {
         where: { id: orderId || "__new__" },
         update: {
           orderNumber, clientId: o.clientId, clientName: o.clientName,
+          warrantyHolderName: String(o.warrantyHolderName ?? "").trim(),
           items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
           transportCost: o.transportCost, transportLabel: o.transportLabel,
           otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,
@@ -365,6 +369,7 @@ export async function POST(req: NextRequest) {
         },
         create: {
           id: o.id, orderNumber, clientId: o.clientId, clientName: o.clientName,
+          warrantyHolderName: String(o.warrantyHolderName ?? "").trim(),
           items: o.items, subtotal: o.subtotal, taxPercent: o.taxPercent, tax: o.tax,
           transportCost: o.transportCost, transportLabel: o.transportLabel,
           otherCost: o.otherCost, otherCostLabel: o.otherCostLabel,
@@ -447,6 +452,14 @@ export async function POST(req: NextRequest) {
         responseRecord.status,
         responseRecord.ownerUserId,
       )
+    }
+
+    if (responseRecord.status === "delivered") {
+      await syncPendingWarrantiesHolderName({
+        orderNumber: responseRecord.orderNumber,
+        warrantyHolderName: responseRecord.warrantyHolderName,
+        fulfillmentSerialAllocations: responseRecord.fulfillmentSerialAllocations,
+      })
     }
 
     return NextResponse.json({

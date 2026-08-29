@@ -24,6 +24,8 @@ export type OrderDeductInput = {
   id: string
   orderNumber: string
   clientName: string
+  /** End-user / company name for warranty — not the CRM client. */
+  warrantyHolderName?: string | null
   createdBy?: string
   status?: string
   dispatcher?: string | null
@@ -247,6 +249,7 @@ async function ensureWarrantyForDispatchBySerial(
     : new Date()
   const placeholderEnd = addYears(soldDate, 5)
   const dispatchNote = `Dispatched on order ${order.orderNumber}. Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty.`
+  const holderName = (order.warrantyHolderName || "").trim() || null
 
   try {
     const bySerial = await prisma.erpWarranty.findFirst({
@@ -256,7 +259,7 @@ async function ensureWarrantyForDispatchBySerial(
       await prisma.erpWarranty.update({
         where: { id: bySerial.id },
         data: {
-          customerName: order.clientName,
+          customerName: holderName,
           soldDate,
           warrantyStartDate: soldDate,
           warrantyEndDate: placeholderEnd,
@@ -277,7 +280,7 @@ async function ensureWarrantyForDispatchBySerial(
         warrantyStartDate: soldDate,
         warrantyEndDate: placeholderEnd,
         activatedAt: null,
-        customerName: order.clientName,
+        customerName: holderName,
         notes: dispatchNote,
         createdBy: order.createdBy || "system",
       },

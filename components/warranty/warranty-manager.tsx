@@ -110,10 +110,13 @@ export function WarrantyManager() {
     }
     setActivatingId(warranty.id)
     try {
-      const res = await fetch("/api/warranty/activate", {
+      const res = await fetch("/api/db/warranties/scan-start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scan: serial, activatedBy: "Website admin" }),
+        body: JSON.stringify({
+          scan: serial,
+          activatedBy: "Website admin",
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -480,7 +483,7 @@ export function WarrantyManager() {
               <thead>
                 <tr className="border-b border-[hsl(var(--border))]/50 bg-[hsl(var(--muted))]/40">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Product</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Customer</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Warranty name</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Sold Date</th>
                   {listTab === "started" && (
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Warranty Period</th>
@@ -598,13 +601,16 @@ export function WarrantyManager() {
                 autoStart
               />
               <div className="space-y-1.5">
-                <label className="text-xs font-medium">Customer name (optional)</label>
+                <label className="text-xs font-medium">Warranty name</label>
                 <input
                   value={scanCustomer}
                   onChange={e => setScanCustomer(e.target.value)}
-                  placeholder="Applied on the next scan"
+                  placeholder="Must match the name set on the delivered order"
                   className="w-full h-9 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm"
                 />
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Leave blank to use the warranty name already saved on the order.
+                </p>
               </div>
               <div className="flex gap-2">
                 <input
@@ -828,7 +834,7 @@ export function WarrantyManager() {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Customer Name</p>
+                    <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-1">Warranty name</p>
                     <p className="text-sm font-medium text-[hsl(var(--foreground))]">{viewDetail.customerName ? viewDetail.customerName.charAt(0).toUpperCase() + viewDetail.customerName.slice(1) : "-"}</p>
                   </div>
                   <div>
