@@ -36,10 +36,10 @@ export interface LoanRecord {
 
 /**
  * Loan record categories:
- *  - "Loan"            → loan received from a person (money in)
- *  - "Loan Given"      → loan given to a person (money out)
- *  - "Loan Repayment"  → we return money on a loan we received (money out)
- *  - "Loan Recovery"   → a person returns money we gave them (money in)
+ *  - "Loan"            â†’ loan received from a person (money in)
+ *  - "Loan Given"      â†’ loan given to a person (money out)
+ *  - "Loan Repayment"  â†’ we return money on a loan we received (money out)
+ *  - "Loan Recovery"   â†’ a person returns money we gave them (money in)
  */
 export const LOAN_CATEGORIES = ["Loan", "Loan Given", "Loan Repayment", "Loan Recovery"] as const
 
@@ -58,7 +58,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 /** Legacy loans stored the person inside the title, e.g. "Syed Tauseef Raza Loan 1". */
 function cleanLegacyPersonName(title: string): string {
-  const cleaned = title.replace(/\s*[-—–:]?\s*Loan(\s*(received|given|returned|\d+))?\s*$/i, "").trim()
+  const cleaned = title.replace(/\s*[-â€”â€“:]?\s*Loan(\s*(received|given|returned|\d+))?\s*$/i, "").trim()
   return cleaned || title.trim()
 }
 
@@ -276,7 +276,7 @@ function LoanFormDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `${name} — ${purpose}`,
+          title: `${name} â€” ${purpose}`,
           amount: parsedAmount,
           currency,
           purpose,
@@ -410,14 +410,14 @@ function LoanFormDialog({
                   onClick={() => setAmount(String(outstanding))}
                   className="text-[11px] px-2.5 py-1 rounded-md border border-[#1faca6]/40 text-[#1faca6] hover:bg-[#1faca6]/10 transition-colors cursor-pointer"
                 >
-                  Full amount — PKR {fmt(outstanding)}
+                  Full amount â€” PKR {fmt(outstanding)}
                 </button>
                 <span className="text-[10px] text-[hsl(var(--muted-foreground))]">or type any partial amount</span>
               </div>
             )}
             {overpay && (
               <p className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/25 rounded-md px-2.5 py-1.5">
-                Amount is more than the outstanding PKR {fmt(outstanding)} — it will still be saved.
+                Amount is more than the outstanding PKR {fmt(outstanding)} â€” it will still be saved.
               </p>
             )}
 
@@ -538,7 +538,7 @@ function LoanProfileDialog({
   const hasDateFilter = !!(dateFrom || dateTo)
   const periodLabel =
     dateFrom && dateTo
-      ? `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`
+      ? `${fmtDate(dateFrom)} â€“ ${fmtDate(dateTo)}`
       : dateFrom
         ? `From ${fmtDate(dateFrom)}`
         : dateTo
@@ -629,7 +629,7 @@ function LoanProfileDialog({
         rows: chrono.map((r) => ({
           date: fmtDate(r.createdAt),
           type: CATEGORY_LABEL[r.category] ?? r.category,
-          detail: [r.tag, r.notes].filter(Boolean).join(" · ") || r.created_by,
+          detail: [r.tag, r.notes].filter(Boolean).join(" Â· ") || r.created_by,
           moneyIn: r.moneyIn,
           moneyOut: r.moneyOut,
           weOweAfter: r.weOweAfter,
@@ -665,7 +665,7 @@ function LoanProfileDialog({
             <div className="min-w-0">
               <p className="text-sm font-bold truncate">{profile.name}</p>
               <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                Loan statement · {profile.records.length} transaction{profile.records.length === 1 ? "" : "s"} · last{" "}
+                Loan statement Â· {profile.records.length} transaction{profile.records.length === 1 ? "" : "s"} Â· last{" "}
                 {fmtDate(new Date(profile.lastAt).toISOString())}
               </p>
             </div>
@@ -681,14 +681,14 @@ function LoanProfileDialog({
               <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-700 dark:text-rose-400">We owe them</p>
               <p className="text-xl font-bold tabular-nums mt-0.5 text-rose-700 dark:text-rose-400">PKR {fmt(Math.max(0, weOwe))}</p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
-                Received PKR {fmt(profile.received)} · returned PKR {fmt(profile.repaid)}
+                Received PKR {fmt(profile.received)} Â· returned PKR {fmt(profile.repaid)}
               </p>
             </div>
             <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">They owe us</p>
               <p className="text-xl font-bold tabular-nums mt-0.5 text-emerald-700 dark:text-emerald-400">PKR {fmt(Math.max(0, theyOwe))}</p>
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
-                Given PKR {fmt(profile.given)} · returned PKR {fmt(profile.recovered)}
+                Given PKR {fmt(profile.given)} Â· returned PKR {fmt(profile.recovered)}
               </p>
             </div>
           </div>
@@ -757,7 +757,7 @@ function LoanProfileDialog({
                   onClick={() => void exportPdf()}
                   disabled={exporting}
                 >
-                  <FileText className="h-3.5 w-3.5" /> {exporting ? "PDF…" : "PDF"}
+                  <FileText className="h-3.5 w-3.5" /> {exporting ? "PDFâ€¦" : "PDF"}
                 </Button>
               </div>
             </div>
@@ -779,14 +779,14 @@ function LoanProfileDialog({
             </div>
             {(hasDateFilter || typeFilter !== "all") && (
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">
-                Showing {filtered.length} of {profile.records.length} · {periodLabel} · in PKR {fmt(periodIn)} · out PKR {fmt(periodOut)}
+                Showing {filtered.length} of {profile.records.length} Â· {periodLabel} Â· in PKR {fmt(periodIn)} Â· out PKR {fmt(periodOut)}
               </p>
             )}
           </div>
 
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-              Full history — receive, give & return
+              Full history â€” receive, give & return
             </p>
             {displayRows.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
@@ -817,15 +817,15 @@ function LoanProfileDialog({
                           <p className="font-semibold">{CATEGORY_LABEL[r.category] ?? r.category}</p>
                           {(r.tag || r.notes) && (
                             <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                              {[r.tag, r.notes].filter(Boolean).join(" · ")}
+                              {[r.tag, r.notes].filter(Boolean).join(" Â· ")}
                             </p>
                           )}
                         </td>
                         <td className="px-3 py-2.5 align-top text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
-                          {r.moneyIn > 0.004 ? `+ ${r.currency} ${r.moneyIn.toLocaleString()}` : "—"}
+                          {r.moneyIn > 0.004 ? `+ ${r.currency} ${r.moneyIn.toLocaleString()}` : "â€”"}
                         </td>
                         <td className="px-3 py-2.5 align-top text-right tabular-nums font-semibold text-rose-700 dark:text-rose-400">
-                          {r.moneyOut > 0.004 ? `− ${r.currency} ${r.moneyOut.toLocaleString()}` : "—"}
+                          {r.moneyOut > 0.004 ? `âˆ’ ${r.currency} ${r.moneyOut.toLocaleString()}` : "â€”"}
                         </td>
                         <td className="px-3 py-2.5 align-top text-right tabular-nums">{fmt(r.weOweAfter)}</td>
                         <td className="px-3 py-2.5 align-top text-right tabular-nums">{fmt(r.theyOweAfter)}</td>
@@ -860,185 +860,6 @@ function LoanProfileDialog({
           </div>
         </div>
 
-        {proofRecord && (
-          <div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-            onClick={() => setProofRecord(null)}
-          >
-            <div
-              className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b">
-                <p className="text-xs font-semibold truncate">{proofRecord.proof_name || "Proof"}</p>
-                <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={() => setProofRecord(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="p-4">
-                {proofRecord.proof_url.startsWith("data:image/") || proofRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
-                  <img src={proofRecord.proof_url} alt="proof" className="w-full rounded-lg object-contain max-h-[60vh] border" />
-                ) : proofRecord.proof_url.startsWith("data:application/pdf") ? (
-                  <iframe src={proofRecord.proof_url} className="w-full h-[60vh] rounded-lg border" title="proof" />
-                ) : (
-                  <a
-                    href={proofRecord.proof_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-[#1faca6] hover:underline"
-                  >
-                    <FileText className="h-4 w-4" /> View {proofRecord.proof_name || "document"}
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-  const [proofRecord, setProofRecord] = useState<LoanRecord | null>(null)
-  const weOwe = profile.received - profile.repaid
-  const theyOwe = profile.given - profile.recovered
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-2xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-[#1faca6] to-emerald-500" />
-
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-11 w-11 rounded-full bg-[#1faca6]/15 text-[#17857f] flex items-center justify-center text-sm font-bold shrink-0">
-              {initialsOf(profile.name)}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold truncate">{profile.name}</p>
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                {profile.records.length} loan transaction{profile.records.length === 1 ? "" : "s"} · last{" "}
-                {fmtDate(new Date(profile.lastAt).toISOString())}
-              </p>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 min-h-0 p-5 space-y-4">
-          {/* Balances */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-500/5 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-700 dark:text-rose-400">We owe them</p>
-              <p className="text-xl font-bold tabular-nums mt-0.5 text-rose-700 dark:text-rose-400">PKR {fmt(Math.max(0, weOwe))}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
-                Received PKR {fmt(profile.received)} · returned PKR {fmt(profile.repaid)}
-              </p>
-            </div>
-            <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">They owe us</p>
-              <p className="text-xl font-bold tabular-nums mt-0.5 text-emerald-700 dark:text-emerald-400">PKR {fmt(Math.max(0, theyOwe))}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
-                Given PKR {fmt(profile.given)} · returned PKR {fmt(profile.recovered)}
-              </p>
-            </div>
-          </div>
-
-          {/* Quick actions */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 cursor-pointer"
-              onClick={() => onOpenForm("receive", profile.name)}
-            >
-              <ArrowDownLeft className="h-3.5 w-3.5" /> Loan received
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 border-rose-500/40 text-rose-700 hover:bg-rose-500/10 cursor-pointer"
-              onClick={() => onOpenForm("give", profile.name)}
-            >
-              <ArrowUpRight className="h-3.5 w-3.5" /> Give loan
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-800 hover:bg-amber-500/10 cursor-pointer"
-              onClick={() => onOpenForm("return", profile.name)}
-            >
-              <Undo2 className="h-3.5 w-3.5" /> Return loan
-            </Button>
-          </div>
-
-          {/* History */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-              Loan history
-            </p>
-            <div className="rounded-lg border divide-y overflow-hidden">
-              {profile.records.map((r) => {
-                const moneyIn = MONEY_IN_CATEGORIES.has(r.category)
-                return (
-                  <div key={r.id} className="flex items-start gap-3 px-3.5 py-3 hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                    <div
-                      className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                        moneyIn ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
-                      }`}
-                    >
-                      {moneyIn ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-xs font-semibold">{CATEGORY_LABEL[r.category] ?? r.category}</p>
-                        {r.tag && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-[#1faca6]/10 text-[#1faca6] border border-[#1faca6]/20">
-                            {r.tag}
-                          </span>
-                        )}
-                      </div>
-                      {r.notes && <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{r.notes}</p>}
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                        {fmtDate(r.createdAt)} · by {r.created_by}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-xs font-bold tabular-nums ${moneyIn ? "text-emerald-600" : "text-rose-600"}`}>
-                        {moneyIn ? "+" : "−"} {r.currency} {r.amount.toLocaleString()}
-                      </p>
-                      <div className="flex items-center gap-1 justify-end mt-1">
-                        {r.proof_url && (
-                          <button
-                            onClick={() => setProofRecord(r)}
-                            className="inline-flex items-center gap-1 text-[10px] text-[#1faca6] hover:underline cursor-pointer"
-                          >
-                            <FileText className="h-3 w-3" /> Proof
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            if (confirm("Delete this loan transaction?")) onDelete(r.id)
-                          }}
-                          className="text-red-400 hover:text-red-600 cursor-pointer p-0.5"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Proof viewer */}
         {proofRecord && (
           <div
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
@@ -1119,7 +940,7 @@ export function FinanceLoans({
           <div>
             <p className="text-sm font-bold leading-tight">Loans</p>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              {profiles.length} {profiles.length === 1 ? "person" : "people"} · give, receive & return with proof
+              {profiles.length} {profiles.length === 1 ? "person" : "people"} Â· give, receive & return with proof
             </p>
           </div>
         </div>
@@ -1196,7 +1017,7 @@ export function FinanceLoans({
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold truncate">{p.name}</p>
                     <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                      {p.records.length} txn{p.records.length === 1 ? "" : "s"} · {fmtDate(new Date(p.lastAt).toISOString())}
+                      {p.records.length} txn{p.records.length === 1 ? "" : "s"} Â· {fmtDate(new Date(p.lastAt).toISOString())}
                     </p>
                   </div>
                 </div>
