@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Download,
   FileText,
   HandCoins,
   Trash2,
@@ -13,6 +14,7 @@ import {
   Users,
   X,
 } from "lucide-react"
+import { downloadLoanStatementPdf } from "@/lib/generate-loan-statement-pdf"
 
 export interface LoanRecord {
   id: string
@@ -115,6 +117,52 @@ function initialsOf(name: string): string {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+}
+
+type TypeFilter = "all" | "received" | "given" | "returned"
+
+type LedgerRow = LoanRecord & {
+  moneyIn: number
+  moneyOut: number
+  weOweAfter: number
+  theyOweAfter: number
+}
+
+function buildLedger(records: LoanRecord[]): LedgerRow[] {
+  const chrono = [...records].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  )
+  let weOwe = 0
+  let theyOwe = 0
+  return chrono.map((r) => {
+    const moneyIn = MONEY_IN_CATEGORIES.has(r.category) ? r.amount : 0
+    const moneyOut = moneyIn ? 0 : r.amount
+    if (r.category === "Loan") weOwe += r.amount
+    else if (r.category === "Loan Repayment") weOwe -= r.amount
+    else if (r.category === "Loan Given") theyOwe += r.amount
+    else if (r.category === "Loan Recovery") theyOwe -= r.amount
+    return { ...r, moneyIn, moneyOut, weOweAfter: weOwe, theyOweAfter: theyOwe }
+  })
+}
+
+function isoDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function matchesType(r: LoanRecord, filter: TypeFilter): boolean {
+  if (filter === "all") return true
+  if (filter === "received") return r.category === "Loan"
+  if (filter === "given") return r.category === "Loan Given"
+  return r.category === "Loan Repayment" || r.category === "Loan Recovery"
+}
+
+function csvEscape(v: string | number): string {
+  const s = String(v ?? "")
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
 }
 
 const inputCls =
@@ -449,15 +497,407 @@ function LoanFormDialog({
 
 function LoanProfileDialog({
   profile,
+  userName,
   onClose,
   onDelete,
   onOpenForm,
 }: {
   profile: LoanProfile
+  userName: string
   onClose: () => void
   onDelete: (id: string) => void
   onOpenForm: (mode: LoanFormMode, person: string) => void
 }) {
+  const [proofRecord, setProofRecord] = useState<LoanRecord | null>(null)
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
+  const [exporting, setExporting] = useState(false)
+
+  const weOwe = profile.received - profile.repaid
+  const theyOwe = profile.given - profile.recovered
+  const ledger = useMemo(() => buildLedger(profile.records), [profile.records])
+
+  const filtered = useMemo(() => {
+    return ledger.filter((r) => {
+      if (!matchesType(r, typeFilter)) return false
+      const d = new Date(r.createdAt)
+      if (dateFrom && d < new Date(dateFrom)) return false
+      if (dateTo && d > new Date(`${dateTo}T23:59:59`)) return false
+      return true
+    })
+  }, [ledger, dateFrom, dateTo, typeFilter])
+
+  const displayRows = useMemo(
+    () => [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [filtered],
+  )
+
+  const periodIn = filtered.reduce((s, r) => s + r.moneyIn, 0)
+  const periodOut = filtered.reduce((s, r) => s + r.moneyOut, 0)
+  const hasDateFilter = !!(dateFrom || dateTo)
+  const periodLabel =
+    dateFrom && dateTo
+      ? `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`
+      : dateFrom
+        ? `From ${fmtDate(dateFrom)}`
+        : dateTo
+          ? `Until ${fmtDate(dateTo)}`
+          : "All time"
+
+  function applyPreset(preset: "all" | "month" | "last" | "year") {
+    const now = new Date()
+    if (preset === "all") {
+      setDateFrom("")
+      setDateTo("")
+      return
+    }
+    if (preset === "month") {
+      setDateFrom(isoDate(new Date(now.getFullYear(), now.getMonth(), 1)))
+      setDateTo(isoDate(now))
+      return
+    }
+    if (preset === "last") {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+      setDateFrom(isoDate(start))
+      setDateTo(isoDate(end))
+      return
+    }
+    setDateFrom(isoDate(new Date(now.getFullYear(), 0, 1)))
+    setDateTo(isoDate(now))
+  }
+
+  function exportCsv() {
+    const header = [
+      "Date",
+      "Type",
+      "Tag",
+      "Notes",
+      "Currency",
+      "Money in",
+      "Money out",
+      "We owe after",
+      "They owe after",
+      "Recorded by",
+    ]
+    const lines = [
+      header.join(","),
+      ...[...filtered]
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        .map((r) =>
+          [
+            fmtDate(r.createdAt),
+            CATEGORY_LABEL[r.category] ?? r.category,
+            r.tag,
+            r.notes,
+            r.currency,
+            r.moneyIn,
+            r.moneyOut,
+            r.weOweAfter,
+            r.theyOweAfter,
+            r.created_by,
+          ]
+            .map(csvEscape)
+            .join(","),
+        ),
+    ]
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `Voltrix-Loan-${profile.name.replace(/[^\w]+/g, "-")}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function exportPdf() {
+    setExporting(true)
+    try {
+      const chrono = [...filtered].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      )
+      await downloadLoanStatementPdf({
+        personName: profile.name,
+        periodLabel,
+        generatedBy: userName,
+        weOwe,
+        theyOwe,
+        periodIn,
+        periodOut,
+        txnCount: chrono.length,
+        rows: chrono.map((r) => ({
+          date: fmtDate(r.createdAt),
+          type: CATEGORY_LABEL[r.category] ?? r.category,
+          detail: [r.tag, r.notes].filter(Boolean).join(" · ") || r.created_by,
+          moneyIn: r.moneyIn,
+          moneyOut: r.moneyOut,
+          weOweAfter: r.weOweAfter,
+          theyOweAfter: r.theyOweAfter,
+          recordedBy: r.created_by,
+        })),
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const typeChips: { id: TypeFilter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "received", label: "Received" },
+    { id: "given", label: "Given" },
+    { id: "returned", label: "Returned" },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-4xl rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[94vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-[#1faca6] to-emerald-500" />
+
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-11 w-11 rounded-full bg-[#1faca6]/15 text-[#17857f] flex items-center justify-center text-sm font-bold shrink-0">
+              {initialsOf(profile.name)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold truncate">{profile.name}</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Loan statement · {profile.records.length} transaction{profile.records.length === 1 ? "" : "s"} · last{" "}
+                {fmtDate(new Date(profile.lastAt).toISOString())}
+              </p>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 cursor-pointer" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 min-h-0 p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-500/5 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-700 dark:text-rose-400">We owe them</p>
+              <p className="text-xl font-bold tabular-nums mt-0.5 text-rose-700 dark:text-rose-400">PKR {fmt(Math.max(0, weOwe))}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
+                Received PKR {fmt(profile.received)} · returned PKR {fmt(profile.repaid)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">They owe us</p>
+              <p className="text-xl font-bold tabular-nums mt-0.5 text-emerald-700 dark:text-emerald-400">PKR {fmt(Math.max(0, theyOwe))}</p>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1 tabular-nums">
+                Given PKR {fmt(profile.given)} · returned PKR {fmt(profile.recovered)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 cursor-pointer"
+              onClick={() => onOpenForm("receive", profile.name)}
+            >
+              <ArrowDownLeft className="h-3.5 w-3.5" /> Loan received
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 border-rose-500/40 text-rose-700 hover:bg-rose-500/10 cursor-pointer"
+              onClick={() => onOpenForm("give", profile.name)}
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" /> Give loan
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 border-amber-500/40 text-amber-800 hover:bg-amber-500/10 cursor-pointer"
+              onClick={() => onOpenForm("return", profile.name)}
+            >
+              <Undo2 className="h-3.5 w-3.5" /> Return loan
+            </Button>
+          </div>
+
+          <div className="rounded-lg border p-3 space-y-2.5">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">From</label>
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inputCls + " h-8 w-[9.5rem]"} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-[hsl(var(--muted-foreground))]">To</label>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inputCls + " h-8 w-[9.5rem]"} />
+              </div>
+              <div className="flex flex-wrap gap-1 pb-0.5">
+                {([
+                  ["all", "All"],
+                  ["month", "This month"],
+                  ["last", "Last month"],
+                  ["year", "This year"],
+                ] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => applyPreset(id)}
+                    className="h-7 px-2 rounded-md border text-[10px] hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1.5 ml-auto">
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 cursor-pointer" onClick={exportCsv} disabled={filtered.length === 0}>
+                  <Download className="h-3.5 w-3.5" /> CSV
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 bg-[#1faca6] hover:bg-[#17857f] text-white cursor-pointer"
+                  onClick={() => void exportPdf()}
+                  disabled={exporting}
+                >
+                  <FileText className="h-3.5 w-3.5" /> {exporting ? "PDF…" : "PDF"}
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {typeChips.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setTypeFilter(c.id)}
+                  className={`h-7 px-2.5 rounded-md border text-[10px] font-medium cursor-pointer ${
+                    typeFilter === c.id
+                      ? "border-[#1faca6] bg-[#1faca6]/10 text-[#17857f]"
+                      : "hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            {(hasDateFilter || typeFilter !== "all") && (
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] tabular-nums">
+                Showing {filtered.length} of {profile.records.length} · {periodLabel} · in PKR {fmt(periodIn)} · out PKR {fmt(periodOut)}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+              Full history — receive, give & return
+            </p>
+            {displayRows.length === 0 ? (
+              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                No transactions in this date range.
+              </div>
+            ) : (
+              <div className="rounded-lg border overflow-x-auto">
+                <table className="w-full min-w-[40rem] text-[11px]">
+                  <thead>
+                    <tr className="border-b bg-[hsl(var(--muted))]/40">
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">Date</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">Type</th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">In</th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">Out</th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">We owe</th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-[10px] text-[hsl(var(--muted-foreground))]">They owe</th>
+                      <th className="w-16" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {displayRows.map((r) => (
+                      <tr key={r.id} className="hover:bg-[hsl(var(--muted))]/25">
+                        <td className="px-3 py-2.5 align-top whitespace-nowrap text-[hsl(var(--muted-foreground))]">
+                          {fmtDate(r.createdAt)}
+                          <p className="text-[9px]">by {r.created_by}</p>
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <p className="font-semibold">{CATEGORY_LABEL[r.category] ?? r.category}</p>
+                          {(r.tag || r.notes) && (
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                              {[r.tag, r.notes].filter(Boolean).join(" · ")}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
+                          {r.moneyIn > 0.004 ? `+ ${r.currency} ${r.moneyIn.toLocaleString()}` : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-right tabular-nums font-semibold text-rose-700 dark:text-rose-400">
+                          {r.moneyOut > 0.004 ? `− ${r.currency} ${r.moneyOut.toLocaleString()}` : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-right tabular-nums">{fmt(r.weOweAfter)}</td>
+                        <td className="px-3 py-2.5 align-top text-right tabular-nums">{fmt(r.theyOweAfter)}</td>
+                        <td className="px-3 py-2.5 align-top">
+                          <div className="flex items-center gap-1 justify-end">
+                            {r.proof_url && (
+                              <button
+                                onClick={() => setProofRecord(r)}
+                                className="text-[#1faca6] hover:underline cursor-pointer p-0.5"
+                                title="Proof"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                if (confirm("Delete this loan transaction?")) onDelete(r.id)
+                              }}
+                              className="text-red-400 hover:text-red-600 cursor-pointer p-0.5"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {proofRecord && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={() => setProofRecord(null)}
+          >
+            <div
+              className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <p className="text-xs font-semibold truncate">{proofRecord.proof_name || "Proof"}</p>
+                <Button variant="ghost" size="icon" className="h-7 w-7 cursor-pointer" onClick={() => setProofRecord(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="p-4">
+                {proofRecord.proof_url.startsWith("data:image/") || proofRecord.proof_url.match(/\.(jpg|jpeg|png|webp|gif)/i) ? (
+                  <img src={proofRecord.proof_url} alt="proof" className="w-full rounded-lg object-contain max-h-[60vh] border" />
+                ) : proofRecord.proof_url.startsWith("data:application/pdf") ? (
+                  <iframe src={proofRecord.proof_url} className="w-full h-[60vh] rounded-lg border" title="proof" />
+                ) : (
+                  <a
+                    href={proofRecord.proof_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-[#1faca6] hover:underline"
+                  >
+                    <FileText className="h-4 w-4" /> View {proofRecord.proof_name || "document"}
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
   const [proofRecord, setProofRecord] = useState<LoanRecord | null>(null)
   const weOwe = profile.received - profile.repaid
   const theyOwe = profile.given - profile.recovered
@@ -797,6 +1237,7 @@ export function FinanceLoans({
       {activeProfile && (
         <LoanProfileDialog
           profile={activeProfile}
+          userName={userName}
           onClose={() => setProfileKey(null)}
           onDelete={onDelete}
           onOpenForm={(mode, person) => setForm({ mode, person })}
