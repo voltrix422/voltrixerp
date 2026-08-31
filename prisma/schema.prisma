@@ -270,6 +270,12 @@ model ErpOrder {
   replacementLines               Json    @default("[]") @map("replacement_lines")
   /** Cashback / bonus payments to client — from order balance or goodwill. */
   cashbackPayments               Json    @default("[]") @map("cashback_payments")
+  /** FBR Digital Invoice (Branch POS only). Empty = never attempted (older orders stay blank). */
+  fbrStatus                      String  @default("") @map("fbr_status")
+  fbrInvoiceNumber               String  @default("") @map("fbr_invoice_number")
+  fbrQr                          String  @default("") @map("fbr_qr")
+  fbrError                       String  @default("") @map("fbr_error")
+  fbrPostedAt                    DateTime? @map("fbr_posted_at")
 
   @@index([branchId])
   @@index([source])

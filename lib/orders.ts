@@ -209,6 +209,12 @@ export interface Order {
   returnMerchandiseApplied?: boolean
   /** Swap faulty/damaged units on delivered orders without changing order qty. */
   replacementLines?: OrderReplacementLine[]
+  /** FBR Digital Invoice (Branch POS). Empty = never posted (older orders stay blank). */
+  fbrStatus?: string
+  fbrInvoiceNumber?: string
+  fbrQr?: string
+  fbrError?: string
+  fbrPostedAt?: string
 }
 
 export type OrderReplacementDisposition = "main" | "faulty"
@@ -896,6 +902,13 @@ export function rowToOrder(r: Record<string, unknown>): Order {
     cashbackPayments: Array.isArray(r.cashbackPayments)
       ? (r.cashbackPayments as OrderCashbackPayment[])
       : [],
+    fbrStatus: String(r.fbrStatus ?? ""),
+    fbrInvoiceNumber: String(r.fbrInvoiceNumber ?? ""),
+    fbrQr: String(r.fbrQr ?? ""),
+    fbrError: String(r.fbrError ?? ""),
+    fbrPostedAt: r.fbrPostedAt
+      ? new Date(r.fbrPostedAt as string | Date).toISOString()
+      : undefined,
   }
 }
 
@@ -944,6 +957,21 @@ export async function getCrmApprovalOrders(): Promise<CrmApprovalOrdersPayload> 
   } catch {
     return { pending: [], approved: [], counts: { pending: 0, approved: 0 } }
   }
+}
+
+export async function postOrderToFbr(orderId: string): Promise<Order> {
+  const res = await fetch("/api/db/orders/fbr-post", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderId }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || "Failed to post invoice to FBR")
+  }
+  const data = await res.json().catch(() => null)
+  if (!data) throw new Error("Failed to post invoice to FBR")
+  return rowToOrder(data)
 }
 
 export async function saveOrder(order: Order): Promise<Order> {

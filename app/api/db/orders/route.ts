@@ -29,6 +29,7 @@ import {
   type OrderReturnLine,
 } from "@/lib/orders"
 import { syncPendingWarrantiesHolderName } from "@/lib/warranty-order-resolver"
+import { postBranchPosOrderToFbr } from "@/lib/fbr-pos-order"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -460,6 +461,16 @@ export async function POST(req: NextRequest) {
         warrantyHolderName: responseRecord.warrantyHolderName,
         fulfillmentSerialAllocations: responseRecord.fulfillmentSerialAllocations,
       })
+    }
+
+    // New Branch POS orders only — never rewrite totals; FBR failure does not fail the save.
+    if (!existing && isBranchPosOrderSource(responseRecord.source)) {
+      try {
+        const posted = await postBranchPosOrderToFbr(responseRecord.id)
+        if (posted) responseRecord = posted
+      } catch (err) {
+        console.error("[orders POST] FBR post failed:", err)
+      }
     }
 
     return NextResponse.json({

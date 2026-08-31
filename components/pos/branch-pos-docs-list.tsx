@@ -12,6 +12,7 @@ import {
   hasOutstandingCredit,
   normalizeOrderPaymentTerms,
   saveOrder,
+  postOrderToFbr,
   canReturnOrder,
   canAddReturnPayment,
   orderHasAnyReturns,
@@ -48,6 +49,7 @@ import {
   getPosOrderProfit,
   summarizePosOrdersProfit,
 } from "@/lib/branch-pos-profit"
+import { canRetryFbrPost, fbrStatusLabel, normalizeFbrStatus } from "@/lib/fbr-status"
 
 type DocKind = "order" | "quotation"
 type CreditFilter = "all" | "credit" | "paid" | "returned"
@@ -76,6 +78,27 @@ const QUOTATION_STATUS_COLORS: Record<string, string> = {
 
 function formatPkr(n: number) {
   return `PKR ${n.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+}
+
+function FbrStatusBadge({ order }: { order: Order }) {
+  const status = normalizeFbrStatus(order.fbrStatus)
+  if (!status) {
+    return <span className="text-[hsl(var(--muted-foreground))]">—</span>
+  }
+  const colors =
+    status === "sent"
+      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+      : status === "failed"
+        ? "bg-red-50 text-red-700 border-red-200"
+        : "bg-amber-50 text-amber-800 border-amber-200"
+  return (
+    <span className={`inline-flex max-w-full items-center px-2 py-0.5 rounded-md border text-[10px] font-medium ${colors}`}>
+      <span>{fbrStatusLabel(status)}</span>
+      {status === "sent" && order.fbrInvoiceNumber ? (
+        <span className="ml-1 font-mono truncate">{order.fbrInvoiceNumber}</span>
+      ) : null}
+    </span>
+  )
 }
 
 function DocDetailModal({
@@ -110,6 +133,7 @@ function DocDetailModal({
   const [saving, setSaving] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const [deletingRefundId, setDeletingRefundId] = useState<string | null>(null)
+  const [postingFbr, setPostingFbr] = useState(false)
 
   const [deliveryAddress, setDeliveryAddress] = useState(order?.deliveryAddress || doc.deliveryAddress || "")
   const [deliveryDate, setDeliveryDate] = useState(order?.deliveryDate || "")
@@ -262,6 +286,34 @@ function DocDetailModal({
     }
   }
 
+  async function handleRetryFbr() {
+    if (!order) return
+    setPostingFbr(true)
+    try {
+      const updated = await postOrderToFbr(order.id)
+      onSaved?.(updated)
+      const status = normalizeFbrStatus(updated.fbrStatus)
+      toast({
+        type: status === "failed" ? "error" : "success",
+        title:
+          status === "sent"
+            ? "Sent to FBR"
+            : status === "pending"
+              ? "FBR still pending"
+              : "FBR post failed",
+        message: updated.fbrInvoiceNumber || updated.fbrError || undefined,
+      })
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not post to FBR",
+        message: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setPostingFbr(false)
+    }
+  }
+
   return (
     <>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={onClose}>
@@ -377,6 +429,31 @@ function DocDetailModal({
               )}
             </div>
           </div>
+
+          {order && (
+            <div className="rounded-md border px-3 py-2.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] uppercase font-semibold text-[hsl(var(--muted-foreground))]">FBR invoice</p>
+                {canRetryFbrPost(order.fbrStatus) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[10px] px-2"
+                    disabled={postingFbr || saving || busy}
+                    onClick={() => void handleRetryFbr()}
+                  >
+                    {postingFbr ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    Retry FBR
+                  </Button>
+                )}
+              </div>
+              <FbrStatusBadge order={order} />
+              {order.fbrError ? (
+                <p className="text-xs text-red-600">{order.fbrError}</p>
+              ) : null}
+            </div>
+          )}
 
           <div>
             <p className="text-[10px] uppercase font-semibold text-[hsl(var(--muted-foreground))] mb-2">Items</p>
@@ -931,6 +1008,7 @@ export function BranchPosDocsList({
                 <th className="text-left px-3 py-2.5">{kind === "order" ? "Order #" : "Quotation #"}</th>
                 <th className="text-left px-3 py-2.5">Client</th>
                 <th className="text-left px-3 py-2.5">Status</th>
+                {kind === "order" && <th className="text-left px-3 py-2.5">FBR</th>}
                 <th className="text-right px-3 py-2.5">Total</th>
                 {kind === "order" && <th className="text-right px-3 py-2.5">Company</th>}
                 {kind === "order" && <th className="text-right px-3 py-2.5">Profit</th>}
@@ -983,6 +1061,11 @@ export function BranchPosDocsList({
                         </span>
                       )}
                     </td>
+                    {kind === "order" && order && (
+                      <td className="px-3 py-2.5">
+                        <FbrStatusBadge order={order} />
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-right font-medium tabular-nums">{formatPkr(doc.total)}</td>
                     {kind === "order" && order && (
                       <td className="px-3 py-2.5 text-right tabular-nums">{formatPkr(getPosOrderCompanyAmount(order))}</td>
@@ -1104,7 +1187,7 @@ export function BranchPosDocsList({
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={kind === "order" ? 8 : 6} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
+                  <td colSpan={kind === "order" ? 11 : 6} className="px-3 py-10 text-center text-[hsl(var(--muted-foreground))]">
                     {emptyLabel}
                   </td>
                 </tr>
