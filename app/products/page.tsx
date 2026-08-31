@@ -7,24 +7,26 @@ import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
 import { CheckCircle2, XCircle, AlertCircle, ArrowRight, FileText } from "lucide-react"
 import Link from "next/link"
-import { promises as fs } from 'fs'
-import path from 'path'
 import { shouldRequestQuote } from "@/lib/product-display"
 import { ProductPriceDisplay } from "@/components/products/product-price-display"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
 import { getProductDisplayName } from "@/lib/product-display-name"
 import { buildPageMetadata } from "@/lib/seo"
+import { readProductsCatalog } from "@/lib/products-catalog-server"
+import { assignProductSlugs } from "@/lib/product-slug"
+import { isProductPublished } from "@/lib/product-published"
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Solar Batteries & Inverters",
+  title: "Lithium Battery Price in Pakistan | Solar Batteries & Inverters",
   description:
-    "Browse Voltrix LiFePO₄ energy storage batteries, hybrid solar inverters, and Fusion all-in-one systems. Check stock, specs, and request a quote in Pakistan.",
+    "Shop Voltrix LiFePO4 solar batteries and hybrid inverters in Pakistan. Compare 5 kWh, 15 kWh, and 100Ah packs. Request a quote.",
   path: "/products",
   keywords: [
-    "Voltrix battery catalog",
-    "LiFePO4 battery buy Pakistan",
-    "hybrid solar inverter",
-    "energy storage battery price",
+    "lithium battery price in Pakistan",
+    "lithium battery for solar system",
+    "LiFePO4 battery Pakistan",
+    "hybrid solar inverter Pakistan",
+    "solar battery Pakistan",
   ],
 })
 
@@ -51,21 +53,18 @@ function StockBadge({ stock }: { stock: any }) {
 }
 
 async function getProducts() {
-  try {
-    const dataFile = path.join(process.cwd(), 'data', 'products.json')
-    const data = await fs.readFile(dataFile, 'utf-8')
-    const products = JSON.parse(data)
-    return products.filter((p: any) => p.published)
-  } catch (error) {
-    console.error('Error reading products:', error)
-    return []
-  }
+  const read = await readProductsCatalog()
+  if (!read.ok) return { published: [] as Record<string, unknown>[], catalog: [] as Record<string, unknown>[] }
+  const catalog = read.products
+  const published = catalog.filter((p) => isProductPublished(p))
+  return { published, catalog }
 }
 
 export const revalidate = 0
 
 export default async function ProductsPage() {
-  const products = await getProducts()
+  const { published: products, catalog } = await getProducts()
+  const slugById = assignProductSlugs(catalog)
 
   return (
     <main className={`${spaceGrotesk.className} min-h-screen bg-white text-neutral-900 antialiased`}>
@@ -74,8 +73,8 @@ export default async function ProductsPage() {
         <div className="max-w-6xl mx-auto space-y-12">
           <div className="text-center space-y-3 max-w-xl mx-auto">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#1a9f9a" }}>Our Products</p>
-            <h1 className="text-5xl font-bold tracking-tight text-neutral-900">The full Voltrix lineup.</h1>
-            <p className="text-neutral-500 text-base leading-relaxed">From residential wall-mount packs to industrial-scale BESS — every product built on LiFePO₄.</p>
+            <h1 className="text-5xl font-bold tracking-tight text-neutral-900">Lithium batteries & solar inverters.</h1>
+            <p className="text-neutral-500 text-base leading-relaxed">LiFePO4 solar batteries and hybrid inverters for homes and businesses in Pakistan — compare specs and request a quote.</p>
           </div>
 
           {products.length === 0 ? (
@@ -89,7 +88,7 @@ export default async function ProductsPage() {
                   model: p.model != null ? String(p.model) : undefined,
                 })
                 return (
-                  <Link key={p.id} href={`/products/${p.id}`} className="group flex flex-col gap-4 p-6 rounded-2xl border border-neutral-100 bg-white hover:border-neutral-200 hover:shadow-lg hover:shadow-neutral-100 transition-all duration-200">
+                  <Link key={p.id} href={`/products/${slugById.get(p.id) || p.id}`} className="group flex flex-col gap-4 p-6 rounded-2xl border border-neutral-100 bg-white hover:border-neutral-200 hover:shadow-lg hover:shadow-neutral-100 transition-all duration-200">
                     <div className="flex items-start justify-between gap-2">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${categoryColors[p.category] || categoryColors[getMainCategory(p.category)] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>{getCategoryDisplayLabel(p.category)}</span>
                       <StockBadge stock={p.stock} />

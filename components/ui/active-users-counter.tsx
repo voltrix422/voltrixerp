@@ -1,7 +1,8 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
-import { Users, Activity, X, Globe, Clock, Trash2 } from "lucide-react"
+import { Users, X, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/components/auth-provider"
 
 interface ActiveUsersCounterProps {
   className?: string
@@ -14,6 +15,10 @@ interface Visitor {
   lastSeen: number
   userAgent?: string
   ip?: string
+  userId?: string | null
+  userName?: string | null
+  role?: string | null
+  roleLabel?: string | null
 }
 
 export function ActiveUsersCounter({ 
@@ -28,6 +33,7 @@ export function ActiveUsersCounter({
   const [showVisitorsModal, setShowVisitorsModal] = useState(false)
   const [visitors, setVisitors] = useState<Visitor[]>([])
   const sessionIdRef = useRef<string | null>(null)
+  const { user } = useAuth()
 
   // Size configurations
   const sizeConfig = {
@@ -53,12 +59,19 @@ export function ActiveUsersCounter({
   // Register/update user activity
   const updateActivity = async () => {
     try {
-      console.log('Updating activity...')
-      const response = await fetch('/api/active-users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      }
+      if (sessionIdRef.current) headers["x-session-id"] = sessionIdRef.current
+
+      const response = await fetch("/api/active-users", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          userId: user?.id || "",
+          userName: user?.name || "",
+          role: user?.role || "",
+        }),
       })
       
       if (response.ok) {
@@ -139,22 +152,18 @@ export function ActiveUsersCounter({
   }
 
   useEffect(() => {
-    // Initial registration
     updateActivity()
 
-    // Update activity every 30 seconds
     const activityInterval = setInterval(updateActivity, 30000)
-
-    // Fetch count every 10 seconds for more responsive updates
     const countInterval = setInterval(fetchActiveUsers, 10000)
 
-    // Cleanup on unmount
     return () => {
       clearInterval(activityInterval)
       clearInterval(countInterval)
       removeActivity()
     }
-  }, [])
+    // Re-register when the ERP session user is known so the list shows the real name.
+  }, [user?.id, user?.name, user?.role])
 
   // Handle page visibility changes
   useEffect(() => {
@@ -221,7 +230,7 @@ export function ActiveUsersCounter({
             <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 text-[hsl(var(--foreground))]" />
-                <p className="text-base font-semibold text-[hsl(var(--foreground))]">Active Visitors</p>
+                <p className="text-base font-semibold text-[hsl(var(--foreground))]">Active ERP users</p>
                 <Badge variant="outline" className="text-xs">{visitors.length}</Badge>
               </div>
               <button onClick={() => setShowVisitorsModal(false)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
@@ -232,22 +241,38 @@ export function ActiveUsersCounter({
               {visitors.length === 0 ? (
                 <div className="text-center py-6">
                   <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))] mb-2" />
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No active visitors</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No one is online in the ERP</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Except you (admin)</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {visitors.map((visitor) => (
                     <div key={visitor.sessionId} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Globe className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                          <div>
-                            <p className="text-xs font-mono text-[hsl(var(--foreground))]">{visitor.ip || 'Unknown'}</p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))]">{formatUserAgent(visitor.userAgent)}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--foreground))] text-[hsl(var(--background))] text-[10px] font-semibold">
+                            {(visitor.userName || "?")
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate">
+                              {visitor.userName || "Unknown user"}
+                            </p>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
+                              {[visitor.roleLabel, formatUserAgent(visitor.userAgent)].filter(Boolean).join(" · ")}
+                            </p>
+                            {visitor.ip && visitor.ip !== "unknown" && (
+                              <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] truncate">
+                                {visitor.ip}
+                              </p>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs text-[hsl(var(--muted-foreground))]">{formatTimeAgo(visitor.lastSeen)}</span>
                           <button
                             onClick={() => removeVisitor(visitor.sessionId)}

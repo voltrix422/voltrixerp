@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowRight, Sparkles } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import ProductSpecsModal from "@/components/products/product-specs-modal"
 import {
   findFeaturedFusionProduct,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/featured-fusion-product"
 import { getProductDisplayName } from "@/lib/product-display-name"
 import { getProductImageList, PRODUCT_IMAGE_FALLBACK } from "@/lib/product-image"
+import { productPublicPath } from "@/lib/product-slug"
 
 const FEATURED_FALLBACK_DESC =
   "A high-capacity, heavy-duty 51.2V 305Ah Lithium Iron Phosphate battery system engineered for high-demand residential or commercial solar storage, delivering a powerful 15.6 kWh of energy with over 8,000 cycles at 90 % depth of discharge."
@@ -17,12 +19,14 @@ const FEATURED_FALLBACK_DESC =
 export default function FeaturedProduct() {
   const [specsOpen, setSpecsOpen] = useState(false)
   const [featuredProduct, setFeaturedProduct] = useState<Record<string, unknown> | null>(null)
+  const [catalog, setCatalog] = useState<Record<string, unknown>[]>([])
 
   useEffect(() => {
     fetch("/api/products", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : []
+        setCatalog(list)
         setFeaturedProduct(findFeaturedFusionProduct(list))
       })
       .catch(() => setFeaturedProduct(null))
@@ -100,11 +104,17 @@ export default function FeaturedProduct() {
             ) : null}
 
             <div className="flex flex-wrap gap-3 pt-2">
+              <Link
+                href={productPublicPath(featuredProduct, catalog.length ? catalog : [featuredProduct])}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-neutral-950 bg-[#1a9f9a] hover:bg-[#158a85] transition-colors"
+              >
+                View this LiFePO4 battery <ArrowRight className="w-4 h-4" />
+              </Link>
               <a
                 href="#products"
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-neutral-950 bg-[#1a9f9a] hover:bg-[#158a85] transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-neutral-600 border border-neutral-300 hover:text-neutral-900 hover:border-[#1a9f9a]/50 transition-colors cursor-pointer"
               >
-                View All Products <ArrowRight className="w-4 h-4" />
+                View all products
               </a>
               <button
                 type="button"

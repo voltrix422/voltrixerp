@@ -11,6 +11,7 @@ import { shouldRequestQuote } from "@/lib/product-display"
 import { isProductPublished } from "@/lib/product-published"
 import { getProductDisplayName } from "@/lib/product-display-name"
 import { getCategoryDisplayLabel, getMainCategory } from "@/lib/product-categories"
+import { assignProductSlugs } from "@/lib/product-slug"
 
 const CAROUSEL_INTERVAL_MS = 3000
 
@@ -68,6 +69,7 @@ function sortForCarousel(products: Record<string, unknown>[]) {
 
 export default function HeroProductCarousel() {
   const [products, setProducts] = useState<Record<string, unknown>[]>([])
+  const [catalog, setCatalog] = useState<Record<string, unknown>[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loaded, setLoaded] = useState(false)
 
@@ -76,6 +78,7 @@ export default function HeroProductCarousel() {
       .then((res) => res.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : []
+        setCatalog(list)
         const published = list.filter((p) => isProductPublished(p))
         setProducts(sortForCarousel(published))
         setLoaded(true)
@@ -103,6 +106,8 @@ export default function HeroProductCarousel() {
 
   if (!loaded || count === 0) return null
 
+  const slugById = assignProductSlugs(catalog.length ? catalog : products)
+
   return (
     <div className="w-full max-w-[380px] mx-auto lg:mx-0">
       <div className="relative rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-md shadow-2xl shadow-black/40 overflow-hidden">
@@ -123,7 +128,7 @@ export default function HeroProductCarousel() {
             return (
               <Link
                 key={String(product.id)}
-                href={`/products/${product.id}`}
+                href={`/products/${slugById.get(String(product.id)) || product.id}`}
                 className={`absolute inset-0 flex flex-col transition-all duration-700 ease-out ${
                   index === currentIndex
                     ? "opacity-100 translate-x-0 pointer-events-auto z-10"

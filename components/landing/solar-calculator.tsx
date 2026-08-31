@@ -47,6 +47,7 @@ import {
 } from "@/lib/solar-product-specs"
 import { ProductThumbnail } from "@/components/products/product-thumbnail"
 import { GetQuoteButton } from "@/components/ui/get-quote-button"
+import { productPublicPath } from "@/lib/product-slug"
 import type { SolarSizingResult, RecommendedProductLine, SolarFormulaStep } from "@/lib/solar-sizing"
 
 const CITIES = [
@@ -109,10 +110,12 @@ function ProductLineCard({
   line,
   badge,
   unitLabel,
+  catalog,
 }: {
   line: RecommendedProductLine
   badge: string
   unitLabel: string
+  catalog: CatalogProduct[]
 }) {
   const qtyLabel = line.quantity > 1 ? `${line.quantity} × ` : ""
   const capLabel =
@@ -124,7 +127,7 @@ function ProductLineCard({
       {capLabel && (
         <p className="text-[11px] font-medium text-[#1a9f9a]">{capLabel}</p>
       )}
-      <ProductCard product={line.product} badge={badge} availability={line.availability} />
+      <ProductCard product={line.product} badge={badge} availability={line.availability} catalog={catalog} />
     </div>
   )
 }
@@ -133,10 +136,12 @@ function ProductCard({
   product,
   badge,
   availability,
+  catalog,
 }: {
   product: CatalogProduct
   badge: string
   availability: ProductAvailability
+  catalog: CatalogProduct[]
 }) {
   const { title, model } = getProductDisplayName(product)
   const images = getProductImageList(product)
@@ -170,7 +175,7 @@ function ProductCard({
         )}
         {product.id && !unavailable && (
           <Link
-            href={`/products/${product.id}`}
+            href={productPublicPath(product, catalog.length ? catalog : [product])}
             className="inline-flex items-center gap-1 text-xs font-medium text-[#1a9f9a] hover:underline mt-1"
           >
             View product <ArrowRight className="w-3 h-3" />
@@ -774,7 +779,10 @@ export default function SolarCalculator() {
                           {result.recommendedPanel.wattage}W each — {result.recommendedPanel.totalKw} kW total
                         </p>
                         <Link
-                          href={`/products/${result.recommendedPanel.product.id}`}
+                          href={productPublicPath(
+                            result.recommendedPanel.product,
+                            catalog.length ? catalog : [result.recommendedPanel.product],
+                          )}
                           className="inline-flex items-center gap-1 text-xs font-medium text-[#1a9f9a] hover:underline"
                         >
                           View in catalog <ArrowRight className="w-3 h-3" />
@@ -807,6 +815,7 @@ export default function SolarCalculator() {
                           line={line}
                           badge={result.kitIsFusionCombo ? "Inverter + Battery (all-in-one)" : "Inverter"}
                           unitLabel="kW"
+                          catalog={catalog}
                         />
                       ))}
                     </div>
@@ -832,6 +841,7 @@ export default function SolarCalculator() {
                             line={line}
                             badge="Battery backup"
                             unitLabel="kWh"
+                            catalog={catalog}
                           />
                         ))}
                       </div>

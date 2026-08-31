@@ -4,14 +4,7 @@
 import { useState } from "react"
 import { Plus, Minus } from "lucide-react"
 import ScrollFloat from "./scroll-float"
-
-const faqs = [
-  { q: "How long do Voltrix lithium batteries last?",         a: "Voltrix lithium batteries last between 10–15 years depending upon usage and the type of lithium battery purchased." },
-  { q: "Do Voltrix lithium batteries come with a warranty?",  a: "Yes. All Voltrix lithium battery products come with a warranty ranging from 1 to 10 years depending on the product line. Our residential wall-mount lithium batteries carry up to a 10-year warranty." },
-  { q: "Are Voltrix lithium batteries safe to use?",          a: "Absolutely. Every Voltrix lithium battery is built with multi-layer safety protection including overcharge, over-discharge, short circuit, and thermal runaway prevention, meeting IEC 62619 and UN 38.3 standards." },
-  { q: "Can I use Voltrix lithium batteries with solar systems?", a: "Yes. Voltrix lithium batteries are fully compatible with solar systems and are designed to integrate seamlessly with inverters and solar charge controllers for residential and commercial applications." },
-  { q: "Do you provide installation and support?",    a: "Yes. We offer end-to-end installation, commissioning, and after-sales technical support for Voltrix lithium battery systems. Our team is available 24/7 to assist with any queries or issues." },
-]
+import { HOME_FAQS } from "@/lib/seo"
 
 export default function FAQ() {
   const [open, setOpen] = useState<number | null>(0)
@@ -35,7 +28,7 @@ export default function FAQ() {
         </div>
 
         <div className="space-y-3">
-          {faqs.map((faq, i) => (
+          {HOME_FAQS.map((faq, i) => (
             <div
               key={i}
               className="rounded-2xl border border-neutral-100 bg-white overflow-hidden transition-all duration-200"
@@ -57,7 +50,7 @@ export default function FAQ() {
               </button>
               <div
                 className="overflow-hidden transition-all duration-300"
-                style={{ maxHeight: open === i ? "200px" : "0px" }}
+                style={{ maxHeight: open === i ? "480px" : "0px" }}
               >
                 <p className="px-6 pb-5 text-sm text-neutral-500 leading-relaxed">{faq.a}</p>
               </div>

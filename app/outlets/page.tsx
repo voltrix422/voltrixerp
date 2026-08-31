@@ -5,10 +5,11 @@ import { MapPin, Phone, Mail, Clock, ExternalLink } from "lucide-react"
 import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Outlets",
+  title: "Voltrix Outlets in Pakistan",
   description:
-    "Locate Voltrix Batteries outlets near you in Pakistan for LiFePO₄ batteries, inverters, and after-sales support.",
+    "Locate Voltrix Batteries outlets in Pakistan for LiFePO4 solar batteries, hybrid inverters, and after-sales support.",
   path: "/outlets",
+  keywords: ["Voltrix outlet", "lithium battery shop Pakistan", "solar battery Islamabad"],
 })
 
 type WebsiteOutlet = {

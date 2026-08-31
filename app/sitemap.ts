@@ -1,23 +1,10 @@
 import type { MetadataRoute } from "next"
-import { promises as fs } from "fs"
-import path from "path"
 import { MARKETING_ROUTES, SITE_URL } from "@/lib/seo"
+import { readProductsCatalog } from "@/lib/products-catalog-server"
+import { assignProductSlugs } from "@/lib/product-slug"
+import { isProductPublished } from "@/lib/product-published"
 
 export const dynamic = "force-dynamic"
-
-async function publishedProductIds(): Promise<string[]> {
-  try {
-    const file = path.join(process.cwd(), "data", "products.json")
-    const raw = await fs.readFile(file, "utf-8")
-    const products = JSON.parse(raw) as { id?: string; published?: boolean | string }[]
-    return products
-      .filter((p) => p.published === true || p.published === "true")
-      .map((p) => String(p.id || ""))
-      .filter(Boolean)
-  } catch {
-    return []
-  }
-}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
@@ -28,13 +15,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: r.priority,
   }))
 
-  const productIds = await publishedProductIds()
-  const productEntries: MetadataRoute.Sitemap = productIds.map((id) => ({
-    url: `${SITE_URL}/products/${id}`,
-    lastModified: now,
-    changeFrequency: "weekly",
-    priority: 0.85,
-  }))
+  const read = await readProductsCatalog()
+  const catalog = read.ok ? read.products : []
+  const slugs = assignProductSlugs(catalog)
+  const productEntries: MetadataRoute.Sitemap = catalog
+    .filter((p) => isProductPublished(p))
+    .map((p) => ({
+      url: `${SITE_URL}/products/${slugs.get(String(p.id)) || p.id}`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.85,
+    }))
 
   return [...staticEntries, ...productEntries]
 }

@@ -1,35 +1,13 @@
-import type { Metadata } from "next"
-import { Space_Grotesk } from "next/font/google"
-import { GeistSans } from "geist/font/sans"
-import { GeistMono } from "geist/font/mono"
-import { ThemeProvider } from "@/components/theme-provider"
-import { DialogProvider } from "@/components/ui/dialog-provider"
-import { ToastProvider } from "@/components/ui/toast"
-import "../globals.css"
+import type { ReactNode } from "react"
+import { buildPageMetadata } from "@/lib/seo"
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  display: "swap",
+export const metadata = buildPageMetadata({
+  title: "Careers at Voltrix Batteries",
+  description:
+    "Join Voltrix Batteries and help build safer LiFePO4 energy storage and hybrid inverters for Pakistan.",
+  path: "/careers",
 })
 
-export const metadata: Metadata = {
-  title: "Careers",
-  description: "Join Voltrix Batteries and help build safer LiFePO₄ energy storage for Pakistan.",
-}
-
-export default function CareersLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
-      <body className={spaceGrotesk.className}>
-        <ThemeProvider>
-          <DialogProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-          </DialogProvider>
-        </ThemeProvider>
-      </body>
-    </html>
-  )
+export default function CareersLayout({ children }: { children: ReactNode }) {
+  return children
 }

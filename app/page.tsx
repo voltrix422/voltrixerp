@@ -16,7 +16,8 @@ import AboutSection from "@/components/landing/about-section"
 import ContactSection from "@/components/landing/contact-section"
 import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
-import { buildPageMetadata, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo"
+import { JsonLd } from "@/components/landing/site-json-ld"
+import { buildPageMetadata, faqJsonLd, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo"
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -29,9 +30,10 @@ export const metadata: Metadata = buildPageMetadata({
   description: SITE_DESCRIPTION,
   path: "/",
   keywords: [
-    "Voltrix Batteries",
     "LiFePO4 battery Pakistan",
-    "solar battery Islamabad",
+    "solar battery Pakistan",
+    "lithium battery Islamabad",
+    "Voltrix batteries",
     "hybrid inverter Pakistan",
     "home energy storage",
   ],
@@ -43,6 +45,7 @@ export default function Home() {
       className={`${spaceGrotesk.variable} min-h-screen bg-white text-neutral-900 antialiased`}
       style={{ fontFamily: "var(--font-space-grotesk), sans-serif" }}
     >
+      <JsonLd data={faqJsonLd()} />
       <Navbar />
       <div id="home">
         <Hero />

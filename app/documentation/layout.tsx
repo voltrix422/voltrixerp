@@ -1,35 +1,13 @@
-import type { Metadata } from "next"
-import { Space_Grotesk } from "next/font/google"
-import { GeistSans } from "geist/font/sans"
-import { GeistMono } from "geist/font/mono"
-import { ThemeProvider } from "@/components/theme-provider"
-import { DialogProvider } from "@/components/ui/dialog-provider"
-import { ToastProvider } from "@/components/ui/toast"
-import "../globals.css"
+import type { ReactNode } from "react"
+import { buildPageMetadata } from "@/lib/seo"
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  display: "swap",
+export const metadata = buildPageMetadata({
+  title: "Voltrix Product Documentation",
+  description:
+    "Voltrix LiFePO4 battery and hybrid inverter manuals, specs, and installation guides.",
+  path: "/documentation",
 })
 
-export const metadata: Metadata = {
-  title: "Documentation",
-  description: "Voltrix product manuals, specs, and installation guides for batteries and inverters.",
-}
-
-export default function DocsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
-      <body className={spaceGrotesk.className}>
-        <ThemeProvider>
-          <DialogProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-          </DialogProvider>
-        </ThemeProvider>
-      </body>
-    </html>
-  )
+export default function DocsLayout({ children }: { children: ReactNode }) {
+  return children
 }

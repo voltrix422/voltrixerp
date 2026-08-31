@@ -19,6 +19,7 @@ const primaryLinks = [
 
 const secondaryLinks = [
   { label: "Dealerships", href: "/dealerships" },
+  { label: "Blog",        href: "/blog" },
   { label: "Warranty",    href: "/warranty" },
   { label: "ERP",         href: "/login" },
 ]

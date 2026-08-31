@@ -36,6 +36,9 @@ export const metadata: Metadata = {
   creator: SITE_NAME,
   publisher: SITE_NAME,
   category: "Energy Storage",
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION } }
+    : {}),
   alternates: {
     canonical: SITE_URL,
   },
@@ -80,7 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className={spaceGrotesk.className}>
-        <SiteJsonLd includeFaq />
+        <SiteJsonLd />
         <WebsiteAnalyticsBeacon />
         <ThemeProvider>
           <DialogProvider>

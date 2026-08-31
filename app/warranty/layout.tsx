@@ -1,35 +1,14 @@
-import type { Metadata } from "next"
-import { Space_Grotesk } from "next/font/google"
-import { GeistSans } from "geist/font/sans"
-import { GeistMono } from "geist/font/mono"
-import { ThemeProvider } from "@/components/theme-provider"
-import { DialogProvider } from "@/components/ui/dialog-provider"
-import { ToastProvider } from "@/components/ui/toast"
-import "../globals.css"
+import type { ReactNode } from "react"
+import { buildPageMetadata } from "@/lib/seo"
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  display: "swap",
+export const metadata = buildPageMetadata({
+  title: "Voltrix Warranty Lookup",
+  description:
+    "Check Voltrix LiFePO4 battery and inverter warranty status. Start or look up a serial from Voltrix Batteries Pakistan.",
+  path: "/warranty",
+  keywords: ["Voltrix warranty", "lithium battery warranty Pakistan"],
 })
 
-export const metadata: Metadata = {
-  title: "Warranty Lookup",
-  description: "Check your Voltrix battery or inverter warranty status online.",
-}
-
-export default function WarrantyLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
-      <body className={spaceGrotesk.className}>
-        <ThemeProvider>
-          <DialogProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-          </DialogProvider>
-        </ThemeProvider>
-      </body>
-    </html>
-  )
+export default function WarrantyLayout({ children }: { children: ReactNode }) {
+  return children
 }

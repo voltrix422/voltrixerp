@@ -10,6 +10,7 @@ import { shouldRequestQuote } from "@/lib/product-display"
 import { ProductPriceDisplay } from "@/components/products/product-price-display"
 import { isProductPublished } from "@/lib/product-published"
 import { getProductDisplayName } from "@/lib/product-display-name"
+import { assignProductSlugs } from "@/lib/product-slug"
 import {
   INVERTER_SUBCATEGORIES,
   countProductsForFilter,
@@ -41,6 +42,7 @@ function StockBadge({ stock }: { stock: any }) {
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([])
+  const [catalog, setCatalog] = useState<any[]>([])
   const [catalogTotal, setCatalogTotal] = useState(0)
   const [loadError, setLoadError] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("All")
@@ -54,6 +56,7 @@ export default function Products() {
           return
         }
         const list = Array.isArray(data) ? data : []
+        setCatalog(list)
         setCatalogTotal(list.length)
         const published = list.filter((p: any) => isProductPublished(p))
         const sorted = published.sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
@@ -69,6 +72,7 @@ export default function Products() {
   const activeInverterSubs = INVERTER_SUBCATEGORIES.filter((sub) =>
     products.some((p: any) => p.category === sub),
   )
+  const slugById = assignProductSlugs(catalog.length ? catalog : products)
   const filteredProducts = products.filter((p: any) =>
     productMatchesCategoryFilter(p.category || "", selectedCategory),
   )
@@ -139,7 +143,7 @@ export default function Products() {
               return (
                 <Link
                   key={p.id}
-                  href={`/products/${p.id}`}
+                  href={`/products/${slugById.get(p.id) || p.id}`}
                   className="group bg-white rounded-3xl border border-neutral-200 shadow-sm hover:shadow-xl hover:shadow-neutral-100 transition-all duration-300 overflow-hidden flex flex-col"
                 >
                   {/* Image Section */}

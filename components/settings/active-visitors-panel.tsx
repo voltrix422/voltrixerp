@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { Users, Wifi, WifiOff, RefreshCw, Trash2, Globe, Clock } from "lucide-react"
+import { Users, Wifi, WifiOff, RefreshCw, Trash2, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface Visitor {
@@ -8,6 +8,10 @@ interface Visitor {
   lastSeen: number
   userAgent?: string
   ip?: string
+  userId?: string | null
+  userName?: string | null
+  role?: string | null
+  roleLabel?: string | null
 }
 
 export function ActiveVisitorsPanel() {
@@ -97,9 +101,9 @@ export function ActiveVisitorsPanel() {
             <Users className="h-5 w-5 text-[hsl(var(--foreground))]" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">Active Visitors</h3>
+            <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">Active ERP users</h3>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {visitors.length} visitor{visitors.length !== 1 ? 's' : ''} online
+              {visitors.length} logged-in user{visitors.length !== 1 ? "s" : ""} online
             </p>
           </div>
         </div>
@@ -112,14 +116,15 @@ export function ActiveVisitorsPanel() {
       {visitors.length === 0 ? (
         <div className="text-center py-8 border border-dashed rounded-lg">
           <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))] mb-2" />
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">No active visitors</p>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">No one is online in the ERP</p>
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[hsl(var(--muted))]/40 border-b">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">IP Address</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">User</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Role</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Browser</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[hsl(var(--muted-foreground))]">Last Seen</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-[hsl(var(--muted-foreground))]">Actions</th>
@@ -129,10 +134,15 @@ export function ActiveVisitorsPanel() {
               {visitors.map((visitor) => (
                 <tr key={visitor.sessionId} className="hover:bg-[hsl(var(--muted))]/10">
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                      <span className="font-mono text-xs">{visitor.ip || 'Unknown'}</span>
-                    </div>
+                    <p className="text-sm font-semibold text-[hsl(var(--foreground))]">
+                      {visitor.userName || "Unknown user"}
+                    </p>
+                    {visitor.ip && visitor.ip !== "unknown" && (
+                      <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">{visitor.ip}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[hsl(var(--foreground))]">
+                    {visitor.roleLabel || visitor.role || "—"}
                   </td>
                   <td className="px-4 py-3 text-xs text-[hsl(var(--foreground))]">
                     {formatUserAgent(visitor.userAgent)}
@@ -161,7 +171,7 @@ export function ActiveVisitorsPanel() {
       )}
 
       <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Visitors are automatically removed after 5 minutes of inactivity.
+        Logged-in ERP accounts are listed by name. They are removed after 5 minutes of inactivity.
       </p>
     </div>
   )

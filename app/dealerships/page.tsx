@@ -7,10 +7,11 @@ import { mapsHref, normalizeDealership, type DealershipRecord } from "@/lib/deal
 import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Dealerships",
+  title: "Voltrix Battery Dealers in Pakistan",
   description:
-    "Find authorized Voltrix Batteries dealerships across Pakistan. Become a dealer or visit a partner near you.",
+    "Find authorized Voltrix lithium battery dealers across Pakistan. Become a dealer or visit a partner near Islamabad, Lahore, and Karachi.",
   path: "/dealerships",
+  keywords: ["battery dealer Islamabad", "Voltrix dealership", "lithium battery dealer Pakistan"],
 })
 
 async function getDealerships(): Promise<DealershipRecord[]> {

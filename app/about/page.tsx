@@ -1,6 +1,16 @@
 import { DM_Sans } from "next/font/google"
+import type { Metadata } from "next"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
+import { buildPageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "About Voltrix Batteries Pakistan",
+  description:
+    "Voltrix Batteries Pvt Ltd makes LiFePO4 solar batteries and hybrid inverters for Pakistan, with local warranty support in Islamabad.",
+  path: "/about",
+  keywords: ["Voltrix batteries", "LiFePO4 battery Pakistan", "about Voltrix"],
+})
 
 const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-dm-sans" })
 

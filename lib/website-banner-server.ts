@@ -1,6 +1,7 @@
 import { promises as fs } from "fs"
 import path from "path"
 import { readProductsCatalog } from "@/lib/products-catalog-server"
+import { productPublicPath } from "@/lib/product-slug"
 
 export const WEBSITE_BANNER_FILE = path.join(process.cwd(), "data", "website-banner.json")
 
@@ -53,7 +54,10 @@ export async function writeWebsiteBannerConfig(config: WebsiteBannerConfig): Pro
   await fs.rename(tmp, WEBSITE_BANNER_FILE)
 }
 
-export async function resolveHomeBannerProduct(): Promise<Record<string, unknown> | null> {
+export async function resolveHomeBannerProduct(): Promise<{
+  product: Record<string, unknown>
+  publicPath: string
+} | null> {
   const config = await readWebsiteBannerConfig()
   if (!config.enabled || !config.productId) return null
 
@@ -63,5 +67,8 @@ export async function resolveHomeBannerProduct(): Promise<Record<string, unknown
   const product = read.products.find(p => p.id === config.productId)
   if (!product || !product.published) return null
 
-  return product
+  return {
+    product,
+    publicPath: productPublicPath(product, read.products),
+  }
 }

@@ -92,8 +92,7 @@ export default function Hero() {
             </h1>
 
             <p className="text-base text-neutral-400 leading-relaxed max-w-2xl">
-              Empowering Sustainable Living with Innovative Lithium Batteries, Smart Inverters, and{" "}
-              <span className="whitespace-nowrap">Next-Generation Energy Solutions</span>
+              LiFePO4 solar batteries and hybrid inverters in Pakistan — home storage, load-shedding backup, and next-generation energy solutions.
             </p>
 
             <a

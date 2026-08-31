@@ -1,13 +1,18 @@
 import {
   faqJsonLd,
+  localBusinessJsonLd,
   organizationJsonLd,
   websiteJsonLd,
   HOME_FAQS,
 } from "@/lib/seo"
 
-/** Server-rendered JSON-LD for Organization, WebSite, and home FAQ. */
+/** Server-rendered JSON-LD for Organization, WebSite, LocalBusiness, and home FAQ. */
 export function SiteJsonLd({ includeFaq = false }: { includeFaq?: boolean }) {
-  const graphs: Record<string, unknown>[] = [organizationJsonLd(), websiteJsonLd()]
+  const graphs: Record<string, unknown>[] = [
+    organizationJsonLd(),
+    websiteJsonLd(),
+    localBusinessJsonLd(),
+  ]
   if (includeFaq) graphs.push(faqJsonLd(HOME_FAQS))
 
   return (

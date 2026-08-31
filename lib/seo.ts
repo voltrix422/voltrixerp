@@ -11,7 +11,7 @@ export const SITE_TAGLINE =
   "LiFePO₄ energy storage batteries, hybrid inverters & solar solutions in Pakistan"
 
 export const SITE_DESCRIPTION =
-  "Voltrix Batteries designs and sells LiFePO₄ energy storage batteries, hybrid solar inverters, and home energy systems across Pakistan. Get a free quote, size your solar system, and find outlets near you."
+  "Voltrix LiFePO4 batteries and hybrid solar inverters in Pakistan. Free quotes, solar sizing, and outlets in Islamabad."
 
 export const SITE_KEYWORDS = [
   "Voltrix Batteries",
@@ -32,6 +32,7 @@ export const ORGANIZATION = {
   url: SITE_URL,
   logo: `${SITE_URL}/logo.png`,
   email: "ops@voltrixbatteries.com",
+  telephone: "+92-303-4927779",
   address: {
     streetAddress: "Plot 73, Street 14, Industrial Area I-9/2",
     addressLocality: "Islamabad",
@@ -61,6 +62,13 @@ export const MARKETING_ROUTES: {
   { path: "/outlets", changeFrequency: "weekly", priority: 0.8 },
   { path: "/warranty", changeFrequency: "monthly", priority: 0.7 },
   { path: "/blog", changeFrequency: "weekly", priority: 0.65 },
+  { path: "/blog/lifepo4-battery-price-pakistan-2026", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/blog/lithium-vs-tubular-battery-pakistan", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/blog/best-lithium-battery-for-solar-pakistan", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/blog/5kwh-vs-15kwh-solar-battery-pakistan", changeFrequency: "monthly", priority: 0.65 },
+  { path: "/islamabad", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/lahore", changeFrequency: "monthly", priority: 0.65 },
+  { path: "/karachi", changeFrequency: "monthly", priority: 0.65 },
   { path: "/careers", changeFrequency: "monthly", priority: 0.5 },
   { path: "/documentation", changeFrequency: "monthly", priority: 0.55 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
@@ -70,26 +78,36 @@ export const MARKETING_ROUTES: {
 
 export const HOME_FAQS = [
   {
-    q: "How long do Voltrix batteries last?",
-    a: "Voltrix batteries last between 10–15 years depending upon usage and the type of battery purchased.",
+    q: "How long do Voltrix lithium batteries last?",
+    a: "Voltrix lithium batteries last between 10–15 years depending upon usage and the type of lithium battery purchased.",
   },
   {
-    q: "Do Voltrix batteries come with a warranty?",
-    a: "Yes. All Voltrix products come with a warranty ranging from 1 to 10 years depending on the product line. Our residential wall-mount batteries carry up to a 10-year warranty.",
+    q: "Do Voltrix lithium batteries come with a warranty?",
+    a: "Yes. All Voltrix lithium battery products come with a warranty ranging from 1 to 10 years depending on the product line. Our residential wall-mount lithium batteries carry up to a 10-year warranty.",
   },
   {
-    q: "Are Voltrix batteries safe to use?",
-    a: "Absolutely. Every Voltrix battery is built with multi-layer safety protection including overcharge, over-discharge, short circuit, and thermal runaway prevention, meeting IEC 62619 and UN 38.3 standards.",
+    q: "Are Voltrix lithium batteries safe to use?",
+    a: "Absolutely. Every Voltrix lithium battery is built with multi-layer safety protection including overcharge, over-discharge, short circuit, and thermal runaway prevention, meeting IEC 62619 and UN 38.3 standards.",
   },
   {
-    q: "Can I use Voltrix batteries with solar systems?",
-    a: "Yes. Voltrix batteries are fully compatible with solar systems and are designed to integrate seamlessly with inverters and solar charge controllers for residential and commercial applications.",
+    q: "Can I use Voltrix lithium batteries with solar systems?",
+    a: "Yes. Voltrix lithium batteries are fully compatible with solar systems and are designed to integrate seamlessly with inverters and solar charge controllers for residential and commercial applications.",
   },
   {
     q: "Do you provide installation and support?",
-    a: "Yes. We offer end-to-end installation, commissioning, and after-sales technical support. Our team is available 24/7 to assist with any queries or issues.",
+    a: "Yes. We offer end-to-end installation, commissioning, and after-sales technical support for Voltrix lithium battery systems. Our team is available 24/7 to assist with any queries or issues.",
   },
 ] as const
+
+/** Keep meta descriptions within Google's typical display length without cutting mid-word. */
+export function truncateMetaDescription(text: string, max = 155): string {
+  const compact = text.replace(/\s+/g, " ").trim()
+  if (compact.length <= max) return compact
+  const sliced = compact.slice(0, max)
+  const lastSpace = sliced.lastIndexOf(" ")
+  const cut = lastSpace > 80 ? sliced.slice(0, lastSpace) : sliced
+  return `${cut.replace(/[.,;:]+$/, "")}.`
+}
 
 export function absoluteUrl(path = "/"): string {
   if (!path || path === "/") return SITE_URL
@@ -112,6 +130,7 @@ export function buildPageMetadata({
   noIndex?: boolean
 }): Metadata {
   const url = absoluteUrl(path)
+  const metaDescription = truncateMetaDescription(description)
   const ogImage = image
     ? image.startsWith("http")
       ? image
@@ -120,7 +139,7 @@ export function buildPageMetadata({
 
   return {
     title,
-    description,
+    description: metaDescription,
     keywords: keywords?.length ? keywords : SITE_KEYWORDS,
     alternates: { canonical: url },
     openGraph: {
@@ -129,13 +148,13 @@ export function buildPageMetadata({
       url,
       siteName: SITE_NAME,
       title: title.includes(SITE_NAME) ? title : `${title} | ${SITE_NAME}`,
-      description,
+      description: metaDescription,
       images: [{ url: ogImage, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title: title.includes(SITE_NAME) ? title : `${title} | ${SITE_NAME}`,
-      description,
+      description: metaDescription,
       images: [ogImage],
     },
     robots: noIndex
@@ -153,6 +172,7 @@ export function organizationJsonLd() {
     url: ORGANIZATION.url,
     logo: ORGANIZATION.logo,
     email: ORGANIZATION.email,
+    telephone: ORGANIZATION.telephone,
     address: {
       "@type": "PostalAddress",
       ...ORGANIZATION.address,
@@ -161,6 +181,7 @@ export function organizationJsonLd() {
       {
         "@type": "ContactPoint",
         contactType: "customer service",
+        telephone: ORGANIZATION.telephone,
         email: ORGANIZATION.email,
         areaServed: "PK",
         availableLanguage: ["English", "Urdu"],
@@ -198,6 +219,29 @@ export function faqJsonLd(faqs: readonly { q: string; a: string }[] = HOME_FAQS)
   }
 }
 
+export function localBusinessJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: "Voltrix Batteries Pvt Ltd",
+    image: ORGANIZATION.logo,
+    url: ORGANIZATION.url,
+    telephone: ORGANIZATION.telephone,
+    email: ORGANIZATION.email,
+    address: {
+      "@type": "PostalAddress",
+      ...ORGANIZATION.address,
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: 33.658,
+      longitude: 73.066,
+    },
+    areaServed: ["Islamabad", "Rawalpindi", "Lahore", "Karachi", "Pakistan"],
+    priceRange: "PKR",
+  }
+}
+
 export function productJsonLd(product: {
   id: string
   name: string
@@ -209,6 +253,7 @@ export function productJsonLd(product: {
   image?: string
   warranty?: string
   stock?: string | number
+  path?: string
 }) {
   const images = Array.isArray(product.images) ? product.images : []
   const firstImage = images[0] || product.image
@@ -231,30 +276,36 @@ export function productJsonLd(product: {
           ? "LimitedAvailability"
           : "InStock"
 
+  const path = product.path || `/products/${product.id}`
+
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
-    description: product.description || `${product.name} by Voltrix Batteries`,
-    sku: product.id,
+    description: truncateMetaDescription(
+      product.description || `${product.name} by Voltrix Batteries`,
+      300,
+    ),
+    sku: product.model || product.id,
     mpn: product.model || product.id,
     brand: { "@type": "Brand", name: "Voltrix" },
     category: product.category || "Energy Storage Battery",
     image: [imageUrl],
-    url: absoluteUrl(`/products/${product.id}`),
+    url: absoluteUrl(path),
     ...(product.warranty
       ? {
           warranty: {
             "@type": "WarrantyPromise",
+            durationOfWarranty: product.warranty,
             description: product.warranty,
           },
         }
       : {}),
     offers: {
       "@type": "Offer",
-      url: absoluteUrl(`/products/${product.id}`),
+      url: absoluteUrl(path),
       priceCurrency: "PKR",
-      ...(hasPrice ? { price: String(price) } : {}),
+      ...(hasPrice ? { price: String(Math.round(price)) } : {}),
       availability: `https://schema.org/${stock}`,
       seller: { "@type": "Organization", name: SITE_NAME },
     },

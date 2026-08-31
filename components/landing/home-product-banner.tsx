@@ -201,6 +201,7 @@ function PopupFlares({ active }: { active: boolean }) {
 
 export default function HomeProductBanner() {
   const [product, setProduct] = useState<BannerProduct | null>(null)
+  const [productHref, setProductHref] = useState("/products")
   const [mounted, setMounted] = useState(false)
   const [animPhase, setAnimPhase] = useState<AnimPhase>("enter")
   const [fxOn, setFxOn] = useState(false)
@@ -217,6 +218,11 @@ export default function HomeProductBanner() {
         const dismissed = sessionStorage.getItem(`${SESSION_KEY_PREFIX}-${id}`)
         if (dismissed === "1") return
         setProduct(p)
+        setProductHref(
+          typeof data.publicPath === "string" && data.publicPath.startsWith("/products/")
+            ? data.publicPath
+            : `/products/${id}`,
+        )
         setMounted(true)
       })
       .catch(() => {})
@@ -277,7 +283,6 @@ export default function HomeProductBanner() {
     quoteMode: Boolean(product.quoteMode),
     price: product.price as number | string | null,
   })
-  const productId = String(product.id)
   const cutPct = hasCutPrice(product) ? cutPricePercentOff(product) : null
 
   return (
@@ -398,7 +403,7 @@ export default function HomeProductBanner() {
             </div>
 
             <Link
-              href={`/products/${productId}`}
+              href={productHref}
               onClick={close}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#01411C] shadow-md transition hover:bg-emerald-50 active:scale-[0.98]"
             >

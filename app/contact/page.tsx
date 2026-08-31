@@ -8,8 +8,9 @@ import { buildPageMetadata } from "@/lib/seo"
 export const metadata: Metadata = buildPageMetadata({
   title: "Contact Us",
   description:
-    "Contact Voltrix Batteries in Islamabad for quotes, support, and solar energy storage inquiries. Email ops@voltrixbatteries.com.",
+    "Contact Voltrix Batteries in Islamabad (I-9/2) for LiFePO4 solar batteries, quotes, and support. Call +92 303 4927779.",
   path: "/contact",
+  keywords: ["lithium battery Islamabad", "solar battery shop I-9 Islamabad", "Voltrix contact"],
 })
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" })
@@ -22,8 +23,8 @@ export default function ContactPage() {
         <div className="max-w-5xl mx-auto space-y-14">
           <div className="text-center space-y-4 max-w-xl mx-auto">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#1a9f9a" }}>Contact</p>
-            <h1 className="text-5xl font-bold tracking-tight text-neutral-900">Let's talk.</h1>
-            <p className="text-neutral-500 text-base leading-relaxed">Have a question, need a quote, or want to schedule a visit? We'd love to hear from you.</p>
+            <h1 className="text-5xl font-bold tracking-tight text-neutral-900">Contact Voltrix in Islamabad.</h1>
+            <p className="text-neutral-500 text-base leading-relaxed">Questions on LiFePO4 solar batteries, hybrid inverters, or a quote? Visit Plot 73, Street 14, I-9/2 or call +92 303 4927779.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

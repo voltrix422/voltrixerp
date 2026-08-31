@@ -27,6 +27,7 @@ const socialLinks = [
 
 const links = {
   Company: ["About", "Outlets", "Dealerships", "Blog", "Careers"],
+  Locations: ["Islamabad", "Lahore", "Karachi"],
   Legal: ["Privacy", "Terms", "Cookies"],
   Resources: ["Documentation", "ERP"],
 }
@@ -59,7 +60,7 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
             {Object.entries(links).map(([group, items]) => (
               <div key={group} className="space-y-3">
                 <p className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">{group}</p>
@@ -70,6 +71,9 @@ export default function Footer() {
                                  item === "Dealerships" ? "/dealerships" :
                                  item === "Blog" ? "/blog" :
                                  item === "Careers" ? "/careers" :
+                                 item === "Islamabad" ? "/islamabad" :
+                                 item === "Lahore" ? "/lahore" :
+                                 item === "Karachi" ? "/karachi" :
                                  item === "Privacy" ? "/privacy" :
                                  item === "Terms" ? "/terms" :
                                  item === "Cookies" ? "/cookies" :

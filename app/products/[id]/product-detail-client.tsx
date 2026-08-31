@@ -176,11 +176,13 @@ export default function ProductDetailClient({
   related,
   categoryColors,
   termsDisplay,
+  seoHeading,
 }: {
   product: Record<string, unknown>
   related: Record<string, unknown>[]
   categoryColors: Record<string, string>
   termsDisplay: { content: string; fileUrl?: string | null }
+  seoHeading?: string
 }) {
   const images = getProductImageList(product)
   const [termsOpen, setTermsOpen] = useState(false)
@@ -237,7 +239,7 @@ export default function ProductDetailClient({
 
               <div>
                 <h1 className="text-2xl sm:text-[1.75rem] font-bold tracking-tight text-neutral-900 leading-tight capitalize">
-                  {title}
+                  {seoHeading || title}
                 </h1>
                 {model ? (
                   <p className="mt-2 inline-flex items-center gap-2 text-sm font-mono font-medium text-neutral-500 bg-neutral-50 border border-neutral-200/80 rounded-lg px-3 py-1.5 w-fit">
@@ -406,7 +408,7 @@ export default function ProductDetailClient({
               return (
                 <Link
                   key={String(r.id)}
-                  href={`/products/${r.id}`}
+                  href={String(r.publicPath || `/products/${r.id}`)}
                   className="group flex flex-col bg-white rounded-xl border border-neutral-200 overflow-hidden hover:border-[#1a9f9a]/30 hover:shadow-md transition-all"
                 >
                   <div className="relative w-full aspect-[4/3] bg-neutral-50">
