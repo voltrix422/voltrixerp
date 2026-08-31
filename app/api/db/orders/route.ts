@@ -466,8 +466,9 @@ export async function POST(req: NextRequest) {
     // New Branch POS orders only — never rewrite totals; FBR failure does not fail the save.
     if (!existing && isBranchPosOrderSource(responseRecord.source)) {
       try {
-        const posted = await postBranchPosOrderToFbr(responseRecord.id)
-        if (posted) responseRecord = posted
+        await postBranchPosOrderToFbr(responseRecord.id)
+        const withFbr = await prisma.erpOrder.findUnique({ where: { id: responseRecord.id } })
+        if (withFbr) responseRecord = withFbr
       } catch (err) {
         console.error("[orders POST] FBR post failed:", err)
       }
