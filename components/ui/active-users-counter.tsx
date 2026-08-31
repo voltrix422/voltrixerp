@@ -58,6 +58,10 @@ export function ActiveUsersCounter({
 
   // Register/update user activity
   const updateActivity = async () => {
+    if (!user?.id || !user?.name) {
+      setIsLoading(false)
+      return
+    }
     try {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -68,9 +72,9 @@ export function ActiveUsersCounter({
         method: "POST",
         headers,
         body: JSON.stringify({
-          userId: user?.id || "",
-          userName: user?.name || "",
-          role: user?.role || "",
+          userId: user.id,
+          userName: user.name,
+          role: user.role || "",
         }),
       })
       
@@ -98,7 +102,7 @@ export function ActiveUsersCounter({
       if (response.ok) {
         const data = await response.json()
         setActiveCount(data.count)
-        setVisitors(data.visitors || [])
+        setVisitors((data.visitors || []).filter((v: Visitor) => Boolean(v.userName)))
         setIsOnline(true)
       } else {
         setIsOnline(false)
@@ -241,17 +245,16 @@ export function ActiveUsersCounter({
               {visitors.length === 0 ? (
                 <div className="text-center py-6">
                   <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))] mb-2" />
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No one is online in the ERP</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Except you (admin)</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No ERP users online</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {visitors.map((visitor) => (
+                  {visitors.filter((visitor) => visitor.userName).map((visitor) => (
                     <div key={visitor.sessionId} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--foreground))] text-[hsl(var(--background))] text-[10px] font-semibold">
-                            {(visitor.userName || "?")
+                            {(visitor.userName || "E")
                               .split(" ")
                               .map((n) => n[0])
                               .join("")
@@ -260,7 +263,7 @@ export function ActiveUsersCounter({
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-[hsl(var(--foreground))] truncate">
-                              {visitor.userName || "Unknown user"}
+                              {visitor.userName}
                             </p>
                             <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
                               {[visitor.roleLabel, formatUserAgent(visitor.userAgent)].filter(Boolean).join(" · ")}

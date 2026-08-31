@@ -24,7 +24,7 @@ export function ActiveVisitorsPanel() {
       const res = await fetch('/api/active-users')
       if (res.ok) {
         const data = await res.json()
-        setVisitors(data.visitors || [])
+        setVisitors((data.visitors || []).filter((v: Visitor) => Boolean(v.userName)))
         setIsOnline(data.active)
       } else {
         setIsOnline(false)
@@ -116,7 +116,7 @@ export function ActiveVisitorsPanel() {
       {visitors.length === 0 ? (
         <div className="text-center py-8 border border-dashed rounded-lg">
           <Users className="h-8 w-8 mx-auto text-[hsl(var(--muted-foreground))] mb-2" />
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">No one is online in the ERP</p>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">No ERP users online</p>
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
@@ -131,11 +131,11 @@ export function ActiveVisitorsPanel() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {visitors.map((visitor) => (
+              {visitors.filter((visitor) => visitor.userName).map((visitor) => (
                 <tr key={visitor.sessionId} className="hover:bg-[hsl(var(--muted))]/10">
                   <td className="px-4 py-3">
                     <p className="text-sm font-semibold text-[hsl(var(--foreground))]">
-                      {visitor.userName || "Unknown user"}
+                      {visitor.userName}
                     </p>
                     {visitor.ip && visitor.ip !== "unknown" && (
                       <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">{visitor.ip}</p>

@@ -6,8 +6,8 @@ type Presence = {
   lastSeen: number
   userAgent?: string
   ip?: string
-  userId?: string
-  userName?: string
+  userId: string
+  userName: string
   role?: string
 }
 
@@ -28,52 +28,48 @@ function roleLabel(role?: string): string | undefined {
   return ROLE_LABELS[role as UserRole] || role
 }
 
-function getUniqueCount(): number {
-  const keys = new Set<string>()
-  for (const [sessionId, data] of activeUsers.entries()) {
-    keys.add(data.userId || data.ip || sessionId)
-  }
-  return keys.size
+function isNamedErpUser(data: Presence | undefined): data is Presence {
+  return Boolean(data?.userId && data.userName)
 }
 
 function cleanupInactiveUsers() {
   const now = Date.now()
   const timeout = 5 * 60 * 1000
   for (const [sessionId, data] of activeUsers.entries()) {
-    if (now - data.lastSeen > timeout) {
+    if (now - data.lastSeen > timeout || !isNamedErpUser(data)) {
       activeUsers.delete(sessionId)
     }
   }
 }
 
-function listVisitors() {
+function listErpUsers() {
   cleanupInactiveUsers()
 
-  const identityMap = new Map<string, Presence & { sessionId: string }>()
+  const byUserId = new Map<string, Presence & { sessionId: string }>()
   for (const [sessionId, data] of activeUsers.entries()) {
-    const key = data.userId || data.ip || sessionId
-    const existing = identityMap.get(key)
+    if (!isNamedErpUser(data)) continue
+    const existing = byUserId.get(data.userId)
     if (!existing || data.lastSeen > existing.lastSeen) {
-      identityMap.set(key, { sessionId, ...data })
+      byUserId.set(data.userId, { sessionId, ...data })
     }
   }
 
-  return Array.from(identityMap.values())
+  return Array.from(byUserId.values())
     .sort((a, b) => b.lastSeen - a.lastSeen)
     .map((row) => ({
       sessionId: row.sessionId,
       lastSeen: row.lastSeen,
       userAgent: row.userAgent,
       ip: row.ip,
-      userId: row.userId || null,
-      userName: row.userName || null,
+      userId: row.userId,
+      userName: row.userName,
       role: row.role || null,
       roleLabel: roleLabel(row.role) || null,
     }))
 }
 
 export async function GET() {
-  const visitors = listVisitors()
+  const visitors = listErpUsers()
   return NextResponse.json({
     count: visitors.length,
     visitors,
@@ -89,58 +85,47 @@ export async function POST(request: NextRequest) {
       role?: string
     }
 
-    let userId = clip(body.userId, 64)
-    let userName = clip(body.userName)
-    let role = clip(body.role, 40)
-
-    if (userId) {
-      try {
-        const row = await prisma.erpUser.findUnique({
-          where: { id: userId },
-          select: { id: true, name: true, role: true },
-        })
-        if (row) {
-          userId = row.id
-          userName = clip(row.name) || userName
-          role = clip(row.role, 40) || role
-        }
-      } catch {
-        // Keep the name from the ERP session if the lookup fails.
-      }
+    const requestedId = clip(body.userId, 64)
+    if (!requestedId) {
+      return NextResponse.json({
+        count: listErpUsers().length,
+        sessionId: null,
+        active: true,
+        ignored: true,
+      })
     }
 
-    const cookieSession = request.cookies.get("session-id")?.value
-    const headerSession = request.headers.get("x-session-id")
-    const sessionId =
-      (userId ? `user:${userId}` : "") ||
-      cookieSession ||
-      headerSession ||
-      `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-
-    const previous = activeUsers.get(sessionId)
-    activeUsers.set(sessionId, {
-      lastSeen: Date.now(),
-      userAgent: request.headers.get("user-agent") || previous?.userAgent,
-      ip: clientIp(request),
-      userId: userId || previous?.userId,
-      userName: userName || previous?.userName,
-      role: role || previous?.role,
+    const row = await prisma.erpUser.findUnique({
+      where: { id: requestedId },
+      select: { id: true, name: true, role: true },
     })
 
-    cleanupInactiveUsers()
+    const userName = clip(row?.name) || clip(body.userName)
+    if (!row || !userName) {
+      return NextResponse.json({
+        count: listErpUsers().length,
+        sessionId: null,
+        active: true,
+        ignored: true,
+      })
+    }
 
-    const res = NextResponse.json({
-      count: getUniqueCount(),
+    const sessionId = `user:${row.id}`
+    activeUsers.set(sessionId, {
+      lastSeen: Date.now(),
+      userAgent: request.headers.get("user-agent") || undefined,
+      ip: clientIp(request),
+      userId: row.id,
+      userName,
+      role: clip(row.role, 40) || clip(body.role, 40),
+    })
+
+    const visitors = listErpUsers()
+    return NextResponse.json({
+      count: visitors.length,
       sessionId,
       active: true,
     })
-    res.cookies.set("session-id", sessionId, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60,
-    })
-    return res
   } catch (error) {
     console.error("Error tracking active user:", error)
     return NextResponse.json(
@@ -152,15 +137,13 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const sessionId =
-      request.cookies.get("session-id")?.value || request.headers.get("x-session-id")
-
+    const sessionId = request.headers.get("x-session-id")
     if (sessionId && activeUsers.has(sessionId)) {
       activeUsers.delete(sessionId)
     }
 
     return NextResponse.json({
-      count: getUniqueCount(),
+      count: listErpUsers().length,
       active: true,
     })
   } catch (error) {
