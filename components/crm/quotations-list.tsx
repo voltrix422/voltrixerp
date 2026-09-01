@@ -28,6 +28,8 @@ import { useToast } from "@/components/ui/toast"
 import { Plus, X, Trash2, FileText, Edit, ShoppingCart, Copy } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadQuotationsExcel } from "@/lib/crm-excel-export"
+import { QuoteRateBook } from "@/components/crm/quote-rate-book"
+import { ExtensiveQuotationsPanel } from "@/components/crm/extensive-quotations-panel"
 function defaultFromDate() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
@@ -84,6 +86,7 @@ export function QuotationsList({
   const [dateTo, setDateTo] = useState(todayDate)
   const [appliedFrom, setAppliedFrom] = useState(defaultFromDate)
   const [appliedTo, setAppliedTo] = useState(todayDate)
+  const [quoteKind, setQuoteKind] = useState<"q1" | "q2" | "rates">("q1")
 
   useEffect(() => {
     Promise.all([getQuotations(), getClients()]).then(([q, c]) => {
@@ -185,6 +188,42 @@ export function QuotationsList({
 
   return (
     <div className="space-y-4 max-w-full">
+      <div className="flex items-center gap-1 border-b -mt-1">
+        {(
+          [
+            { id: "q1" as const, label: "Q1" },
+            { id: "q2" as const, label: "Q2" },
+            { id: "rates" as const, label: "Rate book" },
+          ]
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setQuoteKind(tab.id)}
+            className={`px-3 py-2 text-xs font-medium relative cursor-pointer ${
+              quoteKind === tab.id
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+          >
+            {tab.label}
+            {quoteKind === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
+          </button>
+        ))}
+      </div>
+
+      {quoteKind === "q2" && (
+        <ExtensiveQuotationsPanel
+          currentUser={currentUser}
+          currentUserId={currentUserId}
+          workspace={workspace}
+        />
+      )}
+      {quoteKind === "rates" && (
+        <QuoteRateBook currentUser={currentUser} readOnly={!!workspace?.readOnly} />
+      )}
+      {quoteKind === "q1" && (
+    <>
       {isSalesAgent && (
         <SalesDateRangePanel
           dateFrom={dateFrom}
@@ -216,7 +255,7 @@ export function QuotationsList({
         {!workspace?.readOnly && (
           <Button size="sm" className="h-8 text-xs px-3 cursor-pointer w-full sm:w-auto" onClick={() => setShowForm(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" />
-            Create Quotation
+            Create Q1
           </Button>
         )}
       </div>
@@ -420,6 +459,8 @@ export function QuotationsList({
         onConfirm={() => { if (convertConfirm) void handleConvertToOrder(convertConfirm) }}
         onCancel={() => setConvertConfirm(null)}
       />
+    </>
+      )}
     </div>
   )
 }

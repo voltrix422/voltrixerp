@@ -996,6 +996,46 @@ model CrmQuotation {
   @@map("crm_quotations")
 }
 
+/// Supplier rate history for extensive (Q2) quotations. Same item can have many supplier/date/rate rows.
+model CrmQuoteRate {
+  id        String   @id @default(cuid())
+  itemName  String   @map("item_name")
+  supplier  String
+  rate      Float
+  rateDate  String   @map("rate_date")
+  notes     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String   @map("created_by")
+
+  @@index([itemName])
+  @@index([supplier])
+  @@map("crm_quote_rates")
+}
+
+/// Extensive CRM quotation (Q2). Line items snapshot selected rates; terms are heading + bullets.
+model CrmExtensiveQuotation {
+  id               String   @id @default(cuid())
+  quotationNumber  String   @map("quotation_number")
+  recipientName    String   @map("recipient_name")
+  recipientCompany String   @default("") @map("recipient_company")
+  recipientAddress String   @default("") @map("recipient_address")
+  quoteDate        String   @map("quote_date")
+  validUntil       String   @default("") @map("valid_until")
+  notes            String   @default("")
+  showBranding     Boolean  @default(true) @map("show_branding")
+  items            Json     @default("[]")
+  terms            Json     @default("[]")
+  subtotal         Float    @default(0)
+  total            Float    @default(0)
+  status           String   @default("draft")
+  createdAt        DateTime @default(now()) @map("created_at")
+  createdBy        String   @map("created_by")
+  ownerUserId      String?  @map("owner_user_id")
+
+  @@index([ownerUserId])
+  @@map("crm_extensive_quotations")
+}
+
 /// Sales leads (CSV import + manual). Separate from ErpClient (order/customer records).
 model CrmLead {
   id            String   @id @default(cuid())
