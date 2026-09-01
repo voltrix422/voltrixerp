@@ -51,27 +51,65 @@ export type GroupedQuoteRates = {
   suppliers: { supplier: string; rows: QuoteRate[] }[]
 }
 
-/** Item → supplier → rates newest date first. */
+export type RateTiming = "upcoming" | "current" | "past"
+
+export function todayIsoDate() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+/** Most recent rate date that is not in the future. */
+export function currentRateDate(rows: QuoteRate[], today = todayIsoDate()): string {
+  const notFuture = rows
+    .filter((r) => r.rateDate && r.rateDate <= today)
+    .sort((a, b) => b.rateDate.localeCompare(a.rateDate))
+  return notFuture[0]?.rateDate || ""
+}
+
+export function rateTiming(rateDate: string, currentDate: string, today = todayIsoDate()): RateTiming {
+  if (rateDate > today) return "upcoming"
+  if (currentDate && rateDate === currentDate) return "current"
+  if (rateDate < today) return "past"
+  return "current"
+}
+
+/** Upcoming (soonest first), then current/past (newest first). */
+export function sortRatesForDisplay(rows: QuoteRate[], today = todayIsoDate()): QuoteRate[] {
+  return [...rows].sort((a, b) => {
+    const aUp = a.rateDate > today
+    const bUp = b.rateDate > today
+    if (aUp && !bUp) return -1
+    if (!aUp && bUp) return 1
+    if (aUp && bUp) return a.rateDate.localeCompare(b.rateDate)
+    return b.rateDate.localeCompare(a.rateDate) || b.createdAt.localeCompare(a.createdAt)
+  })
+}
+
+/** Item → supplier → all dated rates (past and upcoming). */
 export function groupQuoteRates(rates: QuoteRate[]): GroupedQuoteRates[] {
-  const byItem = new Map<string, Map<string, QuoteRate[]>>()
+  const byItem = new Map<string, { name: string; suppliers: Map<string, { name: string; rows: QuoteRate[] }> }>()
   for (const rate of rates) {
-    const itemKey = rate.itemName.trim() || "Untitled"
-    const supplierKey = rate.supplier.trim() || "Unknown"
-    if (!byItem.has(itemKey)) byItem.set(itemKey, new Map())
-    const suppliers = byItem.get(itemKey)!
-    const list = suppliers.get(supplierKey) || []
-    list.push(rate)
-    suppliers.set(supplierKey, list)
+    const itemKey = rate.itemName.trim().toLowerCase() || "untitled"
+    const supplierKey = rate.supplier.trim().toLowerCase() || "unknown"
+    if (!byItem.has(itemKey)) byItem.set(itemKey, { name: rate.itemName.trim() || "Untitled", suppliers: new Map() })
+    const item = byItem.get(itemKey)!
+    if (!item.suppliers.has(supplierKey)) {
+      item.suppliers.set(supplierKey, { name: rate.supplier.trim() || "Unknown", rows: [] })
+    }
+    item.suppliers.get(supplierKey)!.rows.push(rate)
   }
-  return [...byItem.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([itemName, suppliers]) => ({
-      itemName,
-      suppliers: [...suppliers.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([supplier, rows]) => ({
-          supplier,
-          rows: [...rows].sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.createdAt.localeCompare(a.createdAt)),
+  return [...byItem.values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((item) => ({
+      itemName: item.name,
+      suppliers: [...item.suppliers.values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((sup) => ({
+          supplier: sup.name,
+          rows: sortRatesForDisplay(sup.rows),
         })),
     }))
 }

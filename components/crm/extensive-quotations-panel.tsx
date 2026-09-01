@@ -7,7 +7,15 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
-import { getQuoteRates, groupQuoteRates, type QuoteRate } from "@/lib/quote-rates"
+import {
+  currentRateDate,
+  getQuoteRates,
+  groupQuoteRates,
+  rateTiming,
+  todayIsoDate,
+  type QuoteRate,
+  type RateTiming,
+} from "@/lib/quote-rates"
 import { downloadExtensiveQuotationPDF } from "@/lib/generate-extensive-quotation-pdf"
 import {
   deleteExtensiveQuotation,
@@ -25,7 +33,13 @@ import {
 } from "@/lib/extensive-quotations"
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10)
+  return todayIsoDate()
+}
+
+function rateTimingLabel(timing: RateTiming) {
+  if (timing === "upcoming") return <span className="ml-1 text-[9px] font-bold text-sky-700">Upcoming</span>
+  if (timing === "current") return <span className="ml-1 text-[9px] font-bold text-emerald-700">Current</span>
+  return <span className="ml-1 text-[9px] font-bold text-gray-500">Past</span>
 }
 
 function formatPkr(n: number) {
@@ -471,23 +485,28 @@ function ExtensiveQuoteForm({
 
           <div className="border-t pt-4 space-y-2">
             <p className="text-xs font-semibold">Add supplier rates</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              Every date for that item and supplier is listed: upcoming, current, and past.
+            </p>
             <input
               value={rateSearch}
               onChange={(e) => setRateSearch(e.target.value)}
               placeholder="Search rate book..."
               className="h-8 w-full sm:w-64 rounded border px-3 text-xs"
             />
-            <div className="max-h-52 overflow-auto rounded border text-xs">
+            <div className="max-h-64 overflow-auto rounded border text-xs">
               {groupedRates.length === 0 ? (
                 <p className="p-3 text-[hsl(var(--muted-foreground))]">No rates. Add them in Rate book first.</p>
               ) : (
                 groupedRates.map((item) => (
                   <div key={item.itemName} className="border-b last:border-0">
                     <p className="px-3 py-1.5 bg-[hsl(var(--muted))]/40 font-semibold sticky top-0">{item.itemName}</p>
-                    {item.suppliers.map((sup) => (
+                    {item.suppliers.map((sup) => {
+                      const currentDate = currentRateDate(sup.rows)
+                      return (
                       <div key={`${item.itemName}-${sup.supplier}`}>
                         <p className="px-3 pt-1.5 text-[10px] font-semibold text-[#1faca6]">{sup.supplier}</p>
-                        {sup.rows.map((rate, idx) => (
+                        {sup.rows.map((rate) => (
                           <button
                             key={rate.id}
                             type="button"
@@ -496,9 +515,7 @@ function ExtensiveQuoteForm({
                           >
                             <span className="text-[hsl(var(--muted-foreground))]">
                               {rate.rateDate}
-                              {idx === 0 && (
-                                <span className="ml-1 text-[9px] font-bold text-emerald-700">Latest</span>
-                              )}
+                              {rateTimingLabel(rateTiming(rate.rateDate, currentDate))}
                             </span>
                             <span className="tabular-nums">
                               PKR {rate.rate.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
@@ -506,7 +523,8 @@ function ExtensiveQuoteForm({
                           </button>
                         ))}
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ))
               )}

@@ -6,15 +6,41 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import {
+  currentRateDate,
   deleteQuoteRate,
   getQuoteRates,
   groupQuoteRates,
+  rateTiming,
   saveQuoteRate,
+  todayIsoDate,
   type QuoteRate,
+  type RateTiming,
 } from "@/lib/quote-rates"
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10)
+  return todayIsoDate()
+}
+
+function timingBadge(timing: RateTiming) {
+  if (timing === "upcoming") {
+    return (
+      <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+        Upcoming
+      </span>
+    )
+  }
+  if (timing === "current") {
+    return (
+      <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+        Current
+      </span>
+    )
+  }
+  return (
+    <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+      Past
+    </span>
+  )
 }
 
 function emptyForm(): Omit<QuoteRate, "id" | "createdAt"> & { id?: string } {
@@ -127,13 +153,18 @@ export function QuoteRateBook({
       <div>
         <p className="text-sm font-semibold">Supplier rate book</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-          Same item and supplier can have many dates. Newest rate is marked Latest — older dates stay as history for Q2.
+          Add a new date to keep history. Edit only changes that one row. Past and upcoming dates all stay listed for Q2.
         </p>
       </div>
 
       {!readOnly && (
-        <div className="rounded-lg border p-3 sm:p-4 space-y-3">
-          <p className="text-xs font-semibold">{form.id ? "Edit rate" : "Add rate"}</p>
+        <div id="rate-book-form" className="rounded-lg border p-3 sm:p-4 space-y-3">
+          <p className="text-xs font-semibold">{form.id ? "Edit this date" : "Add rate"}</p>
+          {form.id && (
+            <p className="text-[10px] text-amber-700">
+              This updates the existing row. To keep history, cancel and use “Add another date”.
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <input
               value={form.itemName}
@@ -209,9 +240,32 @@ export function QuoteRateBook({
                   {item.suppliers.reduce((n, s) => n + s.rows.length, 0) === 1 ? "" : "s"}
                 </p>
               </div>
-              {item.suppliers.map((sup) => (
+              {item.suppliers.map((sup) => {
+                const currentDate = currentRateDate(sup.rows)
+                return (
                 <div key={`${item.itemName}-${sup.supplier}`} className="border-b last:border-b-0">
-                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold text-[#1faca6]">{sup.supplier}</p>
+                  <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1">
+                    <p className="text-[11px] font-semibold text-[#1faca6]">{sup.supplier}</p>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        className="text-[10px] text-[#1faca6] cursor-pointer"
+                        onClick={() => {
+                          setForm({
+                            itemName: item.itemName,
+                            supplier: sup.supplier,
+                            rate: 0,
+                            rateDate: todayDate(),
+                            notes: "",
+                            createdBy: currentUser,
+                          })
+                          document.getElementById("rate-book-form")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                        }}
+                      >
+                        + Add another date
+                      </button>
+                    )}
+                  </div>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
@@ -222,15 +276,11 @@ export function QuoteRateBook({
                       </tr>
                     </thead>
                     <tbody>
-                      {sup.rows.map((row, idx) => (
+                      {sup.rows.map((row) => (
                         <tr key={row.id} className="hover:bg-[hsl(var(--muted))]/20">
                           <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                             {row.rateDate || "—"}
-                            {idx === 0 && (
-                              <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                Latest
-                              </span>
-                            )}
+                            {timingBadge(rateTiming(row.rateDate, currentDate))}
                           </td>
                           <td className="px-3 py-1.5 text-right tabular-nums font-medium">
                             PKR {row.rate.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
@@ -261,7 +311,8 @@ export function QuoteRateBook({
                     </tbody>
                   </table>
                 </div>
-              ))}
+                )
+              })}
             </div>
           ))}
         </div>
