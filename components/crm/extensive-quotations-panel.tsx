@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { getClients, type Client } from "@/lib/crm"
 import { matchesOwnerRecord, resolveOwnerUserId, type CrmWorkspaceScope } from "@/lib/crm-workspace"
-import { getQuoteRates, type QuoteRate } from "@/lib/quote-rates"
+import { getQuoteRates, groupQuoteRates, type QuoteRate } from "@/lib/quote-rates"
 import { downloadExtensiveQuotationPDF } from "@/lib/generate-extensive-quotation-pdf"
 import {
   deleteExtensiveQuotation,
@@ -280,7 +280,7 @@ function ExtensiveQuoteForm({
   const [terms, setTerms] = useState<QuoteTermSection[]>(
     source?.terms?.length
       ? source.terms
-      : [{ id: "term-1", heading: "Terms & conditions", bullets: [""] }],
+      : [{ id: "term-1", heading: "", bullets: [""] }],
   )
   const [rates, setRates] = useState<QuoteRate[]>(initialRates)
   const [rateSearch, setRateSearch] = useState("")
@@ -294,8 +294,9 @@ function ExtensiveQuoteForm({
   const rateMatches = rates.filter((r) => {
     const q = rateSearch.trim().toLowerCase()
     if (!q) return true
-    return r.itemName.toLowerCase().includes(q) || r.supplier.toLowerCase().includes(q)
+    return r.itemName.toLowerCase().includes(q) || r.supplier.toLowerCase().includes(q) || r.rateDate.includes(q)
   })
+  const groupedRates = groupQuoteRates(rateMatches)
 
   function addRate(rate: QuoteRate) {
     setItems((prev) => [
@@ -476,25 +477,37 @@ function ExtensiveQuoteForm({
               placeholder="Search rate book..."
               className="h-8 w-full sm:w-64 rounded border px-3 text-xs"
             />
-            <div className="max-h-40 overflow-auto rounded border text-xs">
-              {rateMatches.length === 0 ? (
+            <div className="max-h-52 overflow-auto rounded border text-xs">
+              {groupedRates.length === 0 ? (
                 <p className="p-3 text-[hsl(var(--muted-foreground))]">No rates. Add them in Rate book first.</p>
               ) : (
-                rateMatches.slice(0, 40).map((rate) => (
-                  <button
-                    key={rate.id}
-                    type="button"
-                    className="w-full text-left px-3 py-2 border-b last:border-0 hover:bg-[hsl(var(--muted))]/30 flex justify-between gap-2 cursor-pointer"
-                    onClick={() => addRate(rate)}
-                  >
-                    <span>
-                      <span className="font-medium">{rate.itemName}</span>
-                      <span className="text-[hsl(var(--muted-foreground))]"> · {rate.supplier} · {rate.rateDate}</span>
-                    </span>
-                    <span className="tabular-nums shrink-0">
-                      PKR {rate.rate.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
-                    </span>
-                  </button>
+                groupedRates.map((item) => (
+                  <div key={item.itemName} className="border-b last:border-0">
+                    <p className="px-3 py-1.5 bg-[hsl(var(--muted))]/40 font-semibold sticky top-0">{item.itemName}</p>
+                    {item.suppliers.map((sup) => (
+                      <div key={`${item.itemName}-${sup.supplier}`}>
+                        <p className="px-3 pt-1.5 text-[10px] font-semibold text-[#1faca6]">{sup.supplier}</p>
+                        {sup.rows.map((rate, idx) => (
+                          <button
+                            key={rate.id}
+                            type="button"
+                            className="w-full text-left px-3 py-1.5 hover:bg-[hsl(var(--muted))]/30 flex justify-between gap-2 cursor-pointer"
+                            onClick={() => addRate(rate)}
+                          >
+                            <span className="text-[hsl(var(--muted-foreground))]">
+                              {rate.rateDate}
+                              {idx === 0 && (
+                                <span className="ml-1 text-[9px] font-bold text-emerald-700">Latest</span>
+                              )}
+                            </span>
+                            <span className="tabular-nums">
+                              PKR {rate.rate.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 ))
               )}
             </div>

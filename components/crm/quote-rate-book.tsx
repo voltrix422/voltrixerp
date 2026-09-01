@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import {
   deleteQuoteRate,
   getQuoteRates,
+  groupQuoteRates,
   saveQuoteRate,
   type QuoteRate,
 } from "@/lib/quote-rates"
@@ -61,9 +62,12 @@ export function QuoteRateBook({
     return rates.filter(
       (r) =>
         r.itemName.toLowerCase().includes(q) ||
-        r.supplier.toLowerCase().includes(q),
+        r.supplier.toLowerCase().includes(q) ||
+        r.rateDate.includes(q),
     )
   }, [rates, search])
+
+  const grouped = useMemo(() => groupQuoteRates(filtered), [filtered])
 
   async function handleSave() {
     if (readOnly) return
@@ -123,7 +127,7 @@ export function QuoteRateBook({
       <div>
         <p className="text-sm font-semibold">Supplier rate book</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-          Add item name, supplier, rate, and date. Same item can have many suppliers and dates — Q2 picks which ones to include.
+          Same item and supplier can have many dates. Newest rate is marked Latest — older dates stay as history for Q2.
         </p>
       </div>
 
@@ -194,54 +198,72 @@ export function QuoteRateBook({
           {rates.length === 0 ? "No rates yet. Add the first item and supplier rate." : "No rates match this search."}
         </p>
       ) : (
-        <div className="rounded-lg border overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="border-b bg-[hsl(var(--muted))]/40">
-                <th className="h-9 px-3 text-left text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Item</th>
-                <th className="h-9 px-3 text-left text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Supplier</th>
-                <th className="h-9 px-3 text-right text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Rate</th>
-                <th className="h-9 px-3 text-left text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Date</th>
-                <th className="h-9 px-3 text-left text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Notes</th>
-                {!readOnly && <th className="h-9 px-3 text-right text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map((row) => (
-                <tr key={row.id} className="hover:bg-[hsl(var(--muted))]/20">
-                  <td className="px-3 py-2 font-medium">{row.itemName}</td>
-                  <td className="px-3 py-2">{row.supplier}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    PKR {row.rate.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
-                  </td>
-                  <td className="px-3 py-2 text-xs">{row.rateDate || "—"}</td>
-                  <td className="px-3 py-2 text-xs text-[hsl(var(--muted-foreground))] max-w-[12rem] truncate">
-                    {row.notes || "—"}
-                  </td>
-                  {!readOnly && (
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        className="text-blue-600 text-xs mr-3 cursor-pointer"
-                        onClick={() => setForm({ ...row })}
-                      >
-                        <Pencil className="h-3.5 w-3.5 inline mr-0.5" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="text-red-600 text-xs cursor-pointer"
-                        onClick={() => setDeleteId(row.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 inline mr-0.5" />
-                        Delete
-                      </button>
-                    </td>
-                  )}
-                </tr>
+        <div className="space-y-3">
+          {grouped.map((item) => (
+            <div key={item.itemName} className="rounded-lg border overflow-hidden">
+              <div className="px-3 py-2 bg-[hsl(var(--muted))]/40 border-b">
+                <p className="text-sm font-semibold">{item.itemName}</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {item.suppliers.length} supplier{item.suppliers.length === 1 ? "" : "s"} ·{" "}
+                  {item.suppliers.reduce((n, s) => n + s.rows.length, 0)} rate
+                  {item.suppliers.reduce((n, s) => n + s.rows.length, 0) === 1 ? "" : "s"}
+                </p>
+              </div>
+              {item.suppliers.map((sup) => (
+                <div key={`${item.itemName}-${sup.supplier}`} className="border-b last:border-b-0">
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold text-[#1faca6]">{sup.supplier}</p>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
+                        <th className="px-3 pb-1 text-left font-medium">Date</th>
+                        <th className="px-3 pb-1 text-right font-medium">Rate</th>
+                        <th className="px-3 pb-1 text-left font-medium hidden sm:table-cell">Notes</th>
+                        {!readOnly && <th className="px-3 pb-1 text-right font-medium">Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sup.rows.map((row, idx) => (
+                        <tr key={row.id} className="hover:bg-[hsl(var(--muted))]/20">
+                          <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                            {row.rateDate || "—"}
+                            {idx === 0 && (
+                              <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                Latest
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums font-medium">
+                            PKR {row.rate.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="px-3 py-1.5 text-xs text-[hsl(var(--muted-foreground))] hidden sm:table-cell max-w-[14rem] truncate">
+                            {row.notes || "—"}
+                          </td>
+                          {!readOnly && (
+                            <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                className="text-blue-600 text-xs mr-3 cursor-pointer"
+                                onClick={() => setForm({ ...row })}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="text-red-600 text-xs cursor-pointer"
+                                onClick={() => setDeleteId(row.id)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          ))}
         </div>
       )}
 

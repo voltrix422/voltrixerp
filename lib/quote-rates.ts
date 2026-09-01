@@ -46,6 +46,36 @@ export async function saveQuoteRate(rate: Partial<QuoteRate> & Pick<QuoteRate, "
   return mapRow(await res.json())
 }
 
+export type GroupedQuoteRates = {
+  itemName: string
+  suppliers: { supplier: string; rows: QuoteRate[] }[]
+}
+
+/** Item → supplier → rates newest date first. */
+export function groupQuoteRates(rates: QuoteRate[]): GroupedQuoteRates[] {
+  const byItem = new Map<string, Map<string, QuoteRate[]>>()
+  for (const rate of rates) {
+    const itemKey = rate.itemName.trim() || "Untitled"
+    const supplierKey = rate.supplier.trim() || "Unknown"
+    if (!byItem.has(itemKey)) byItem.set(itemKey, new Map())
+    const suppliers = byItem.get(itemKey)!
+    const list = suppliers.get(supplierKey) || []
+    list.push(rate)
+    suppliers.set(supplierKey, list)
+  }
+  return [...byItem.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([itemName, suppliers]) => ({
+      itemName,
+      suppliers: [...suppliers.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([supplier, rows]) => ({
+          supplier,
+          rows: [...rows].sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.createdAt.localeCompare(a.createdAt)),
+        })),
+    }))
+}
+
 export async function deleteQuoteRate(id: string): Promise<void> {
   const res = await fetch("/api/crm/quote-rates", {
     method: "DELETE",
