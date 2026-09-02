@@ -23,6 +23,12 @@ import { useToast } from "@/components/ui/toast"
 import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield, PlayCircle } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
+import { ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
+import {
+  findLedgerClient,
+  listLedgerClients,
+  orderBelongsToClient,
+} from "@/lib/client-order-ledger"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
 import { OrderReturn, ReturnPaymentCapture } from "@/components/crm/order-return"
@@ -352,6 +358,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
   const [moneyReceivedOpen, setMoneyReceivedOpen] = useState(false)
   const [orderSummaryOpen, setOrderSummaryOpen] = useState(false)
+  const [ledgerClientId, setLedgerClientId] = useState("")
 
   async function handleListDownloadPdf(order: Order, e?: { stopPropagation: () => void }) {
     e?.stopPropagation()
@@ -392,6 +399,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     return () => clearInterval(interval)
   }, [])
 
+  const ledgerOptions = listLedgerClients(clients, orders)
+  const ledgerClient = findLedgerClient(ledgerOptions, ledgerClientId)
+
   const filtered = orders.filter(o => {
     const q = search.toLowerCase()
     const matchesSearch =
@@ -403,12 +413,13 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
     const matchesPayment = orderMatchesPaymentFilter(o, paymentFilter)
     const matchesDateRange = orderMatchesDateRange(o.createdAt, fromDate, toDate)
+    const matchesClient = !ledgerClient || orderBelongsToClient(o, ledgerClient)
 
-    return matchesSearch && matchesStatus && matchesPayment && matchesDateRange
+    return matchesSearch && matchesStatus && matchesPayment && matchesDateRange && matchesClient
   })
 
   const hasActiveFilters = Boolean(
-    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all",
+    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all" || ledgerClientId,
   )
 
   function applyDatePreset(preset: DatePreset) {
@@ -426,6 +437,18 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   }
 
   function clearFilters() {
+    setSearch("")
+    setFromDate("")
+    setToDate("")
+    setStatusFilter("all")
+    setPaymentFilter("all")
+    setDatePreset("")
+    setLedgerClientId("")
+  }
+
+  function selectLedgerClient(id: string) {
+    setLedgerClientId(id)
+    if (!id) return
     setSearch("")
     setFromDate("")
     setToDate("")
@@ -598,7 +621,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <ClientLedgerPicker
+            clients={clients}
+            orders={orders}
+            selectedId={ledgerClientId}
+            onSelect={selectLedgerClient}
+          />
+          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
           <CrmExcelExportButton
             onExport={exportListExcel}
             exporting={exportingExcel}
@@ -612,18 +642,26 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             <Plus className="h-3.5 w-3.5 mr-1" /> Order
           </Button>
           )}
+          </div>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">Loading orders...</p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : (
+        <>
+          {ledgerClient && (
+            <ClientLedgerSummary client={ledgerClient} orders={filtered} currentUser={currentUser} />
+          )}
+      {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <ShoppingCart className="h-12 w-12 text-[hsl(var(--muted-foreground))] opacity-30 mb-3" />
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {orders.length === 0
               ? "No orders found"
+              : ledgerClient
+                ? `No orders for ${ledgerClient.name}`
               : hasActiveFilters
                 ? "No orders match your filters"
                 : "No orders found"}
@@ -903,6 +941,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             </tbody>
           </table>
           </div>
+        </>
+      )}
         </>
       )}
 

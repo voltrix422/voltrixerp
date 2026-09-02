@@ -2,6 +2,7 @@ import type { Client } from "@/lib/crm"
 import type { CrmLeadRow } from "@/lib/crm-leads"
 import { buildLeadsExportCsv, type LeadsExportMeta } from "@/lib/csv-leads"
 import type { Order } from "@/lib/orders"
+import type { ClientLedgerPayload } from "@/lib/client-order-ledger"
 import { STATUS_LABELS as ORDER_STATUS_LABELS, getOrderSourcePdfLabel } from "@/lib/orders"
 import type { Quotation } from "@/lib/quotations"
 import { STATUS_LABELS as QUOTATION_STATUS_LABELS } from "@/lib/quotations"
@@ -324,4 +325,85 @@ export function downloadAllClientsDetailExcel(
 export function downloadLeadsExcel(leads: CrmLeadRow[], meta?: LeadsExportMeta) {
   const csv = buildLeadsExportCsv(leads, meta)
   downloadCsv(`leads-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+}
+
+export function downloadClientLedgerExcel(payload: ClientLedgerPayload) {
+  const { client, stats } = payload
+  const lines: string[] = []
+  lines.push(exportMetaHeader(payload.generatedBy).trimEnd())
+  lines.push("")
+  lines.push([escCsvCell("CLIENT LEDGER"), escCsvCell(client.name)].join(","))
+  lines.push([escCsvCell("Generated"), escCsvCell(payload.generatedAt)].join(","))
+  lines.push("")
+  lines.push(
+    rowsToCsv(
+      ["Field", "Value"],
+      [
+        ["Name", client.name],
+        ["Company", client.company],
+        ["Contact person", client.contactPerson],
+        ["Phone", client.phone],
+        ["Email", client.email],
+        ["NTN", client.ntn],
+        ["Address", [client.address, client.city, client.country].filter(Boolean).join(", ")],
+      ],
+    ),
+  )
+  lines.push("")
+  lines.push(
+    rowsToCsv(
+      ["Summary", "Amount / count"],
+      [
+        ["Orders", payload.orders.length],
+        ["Billed (PKR)", stats.totalOrderValue],
+        ["Paid / received (PKR)", stats.totalReceived],
+        ["Outstanding (PKR)", stats.totalOutstanding],
+        ["Fully paid orders", payload.fullyPaidCount],
+        ["Partial orders", payload.partialCount],
+        ["On credit orders", payload.onCreditCount],
+        ["Returned orders", stats.returnedCount],
+        ["Partial received (PKR)", stats.partialPaymentsReceived],
+        ["Credit still owed (PKR)", stats.creditOutstanding],
+        ["Refunds (PKR)", stats.returnedRefundAmount],
+        ["Cashback (PKR)", stats.cashbackAmount],
+      ],
+    ),
+  )
+  lines.push("")
+  lines.push(
+    rowsToCsv(
+      ["Order #", "Date", "Status", "Qty", "Items", "Total (PKR)", "Paid (PKR)", "Balance (PKR)", "Payment", "Created by", "Notes"],
+      payload.orders.map((row) => [
+        row.orderNumber,
+        row.date,
+        row.status,
+        row.qtyLabel,
+        row.items,
+        row.billed,
+        row.paid,
+        row.balance,
+        row.paymentLabel,
+        row.createdBy,
+        row.notes,
+      ]),
+    ),
+  )
+  lines.push("")
+  lines.push(
+    rowsToCsv(
+      ["Date", "Order #", "Type", "Method", "Amount (PKR)", "Status", "Notes"],
+      payload.payments.length
+        ? payload.payments.map((row) => [
+            row.date,
+            row.orderNumber,
+            row.type,
+            row.method,
+            row.amount,
+            row.status,
+            row.notes,
+          ])
+        : [["—", "", "No payments recorded", "", "", "", ""]],
+    ),
+  )
+  downloadCsv(`client-ledger-${slugClientName(client.name)}-${new Date().toISOString().slice(0, 10)}.csv`, lines.join("\r\n"))
 }
