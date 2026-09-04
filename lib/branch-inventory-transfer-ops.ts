@@ -11,6 +11,68 @@ import {
   restoreManualInventoryByStockId,
   resolveManualInventoryForBranchDispatch,
 } from "@/lib/manual-inventory-server"
+import {
+  normalizeProductText,
+  productCanonicalKeyFromText,
+} from "@/lib/order-product-search"
+
+type BranchInvMatch = { inventoryId: string; productDescription: string }
+
+export function branchInventoryRowsAreSameProduct(left: BranchInvMatch, right: BranchInvMatch) {
+  if (left.inventoryId && right.inventoryId && left.inventoryId === right.inventoryId) return true
+  if (normalizeProductText(left.productDescription) === normalizeProductText(right.productDescription)) {
+    return true
+  }
+  const leftKey = productCanonicalKeyFromText(left.productDescription)
+  const rightKey = productCanonicalKeyFromText(right.productDescription)
+  return leftKey === rightKey && leftKey !== "unknown"
+}
+
+export async function findMatchingBranchInventoryRows(
+  branchId: string,
+  match: BranchInvMatch,
+) {
+  const rows = await prisma.erpBranchInventory.findMany({
+    where: { branchId },
+    orderBy: { assignedAt: "asc" },
+  })
+  return rows.filter((row) =>
+    branchInventoryRowsAreSameProduct(
+      { inventoryId: row.inventoryId, productDescription: row.productDescription },
+      match,
+    ),
+  )
+}
+
+/** Collapse duplicate lines for the same product into the oldest row. */
+export async function collapseMatchingBranchInventoryRows(
+  branchId: string,
+  match: BranchInvMatch,
+) {
+  const matches = await findMatchingBranchInventoryRows(branchId, match)
+  if (matches.length <= 1) return matches[0] || null
+
+  const keeper = matches[0]
+  const extras = matches.slice(1)
+  const extraQty = extras.reduce((sum, row) => sum + Number(row.quantity || 0), 0)
+
+  await prisma.$transaction(async (tx) => {
+    if (extraQty !== 0) {
+      await tx.erpBranchInventory.update({
+        where: { id: keeper.id },
+        data: {
+          quantity: { increment: extraQty },
+          inventoryId: match.inventoryId || keeper.inventoryId,
+        },
+      })
+    }
+    await tx.erpBranchInventory.deleteMany({
+      where: { id: { in: extras.map((row) => row.id) } },
+    })
+  })
+
+  return prisma.erpBranchInventory.findUnique({ where: { id: keeper.id } })
+}
 
 /** Add qty to an existing branch line or create one — avoids duplicate rows per product. */
 export async function upsertBranchInventoryAssignment(params: {
@@ -23,12 +85,9 @@ export async function upsertBranchInventoryAssignment(params: {
   notes?: string
 }) {
   const productDescription = params.productDescription.trim()
-  const existing = await prisma.erpBranchInventory.findFirst({
-    where: {
-      branchId: params.branchId,
-      productDescription: { equals: productDescription, mode: "insensitive" },
-    },
-    orderBy: { assignedAt: "asc" },
+  const existing = await collapseMatchingBranchInventoryRows(params.branchId, {
+    inventoryId: params.inventoryId,
+    productDescription,
   })
 
   if (existing) {
@@ -434,12 +493,9 @@ export async function executeTransferLine(params: {
     userNote: line.userNote,
   })
 
-  const existingDestination = await prisma.erpBranchInventory.findFirst({
-    where: {
-      branchId: toBranchId,
-      productDescription: { equals: source.productDescription, mode: "insensitive" },
-    },
-    orderBy: { assignedAt: "asc" },
+  const existingDestination = await collapseMatchingBranchInventoryRows(toBranchId, {
+    inventoryId: source.inventoryId,
+    productDescription: source.productDescription,
   })
 
   await prisma.$transaction(async (tx) => {

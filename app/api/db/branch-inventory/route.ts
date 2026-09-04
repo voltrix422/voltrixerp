@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { permanentlyDeleteBranchInventoryRow } from "@/lib/branch-inventory-permanent-delete"
-import { upsertBranchInventoryAssignment } from "@/lib/branch-inventory-transfer-ops"
+import {
+  buildBranchTransferNote,
+  collapseMatchingBranchInventoryRows,
+  upsertBranchInventoryAssignment,
+} from "@/lib/branch-inventory-transfer-ops"
 import { buildModelLabelMap } from "@/lib/main-warehouse-inventory"
 import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
 import { restoreManualInventoryByStockId } from "@/lib/manual-inventory-server"
@@ -360,12 +364,12 @@ export async function PUT(req: NextRequest) {
     userNote: notes,
   })
 
-  const existingDestination = await prisma.erpBranchInventory.findFirst({
-    where: {
-      branchId: toBranchId,
-      inventoryId: source.inventoryId
-    }
-  })
+  const existingDestination = destinationBranch.type === "main_warehouse"
+    ? null
+    : await collapseMatchingBranchInventoryRows(toBranchId, {
+        inventoryId: source.inventoryId,
+        productDescription: source.productDescription,
+      })
 
   await prisma.$transaction(async tx => {
     await tx.erpBranchInventory.update({
