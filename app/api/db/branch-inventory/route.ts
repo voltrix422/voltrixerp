@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { permanentlyDeleteBranchInventoryRow } from "@/lib/branch-inventory-permanent-delete"
 import {
-  buildBranchTransferNote,
   collapseMatchingBranchInventoryRows,
   upsertBranchInventoryAssignment,
 } from "@/lib/branch-inventory-transfer-ops"
