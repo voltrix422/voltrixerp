@@ -10,6 +10,11 @@ import {
   markNotificationRead,
   type AppNotification,
 } from "@/lib/notifications"
+import {
+  announceIncomingAlerts,
+  requestDesktopNotificationPermission,
+  unlockNotificationAudio,
+} from "@/lib/notification-alerts"
 import { cn } from "@/lib/utils"
 
 const TYPE_DOT: Record<string, string> = {
@@ -38,6 +43,8 @@ export function NotificationBell() {
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const seenIdsRef = useRef<Set<string>>(new Set())
+  const primedRef = useRef(false)
 
   const refresh = useCallback(async () => {
     if (!user?.id) return
@@ -45,16 +52,58 @@ export function NotificationBell() {
       fetchNotifications(user.id),
       fetchUnreadCount(user.id),
     ])
+    const incoming = list.filter((n) => !n.read && !seenIdsRef.current.has(n.id))
+    if (!primedRef.current) {
+      primedRef.current = true
+    } else if (incoming.length > 0) {
+      announceIncomingAlerts(
+        incoming.map((n) => ({
+          title: n.title,
+          body: n.message,
+          link: n.link,
+          tag: `erp-${n.id}`,
+        })),
+      )
+    }
+    for (const n of list) seenIdsRef.current.add(n.id)
+    if (seenIdsRef.current.size > 400) {
+      seenIdsRef.current = new Set(list.map((n) => n.id))
+    }
     setItems(list)
     setUnread(count)
   }, [user?.id])
 
   useEffect(() => {
     if (!user?.id) return
-    refresh()
-    const interval = setInterval(refresh, 15000)
-    return () => clearInterval(interval)
+    primedRef.current = false
+    seenIdsRef.current = new Set()
+    void refresh()
+    const interval = setInterval(() => void refresh(), 8000)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
   }, [user?.id, refresh])
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("setAppBadge" in navigator)) return
+    const nav = navigator as Navigator & {
+      setAppBadge?: (count: number) => Promise<void>
+      clearAppBadge?: () => Promise<void>
+    }
+    if (unread > 0) void nav.setAppBadge?.(unread)
+    else void nav.clearAppBadge?.()
+  }, [unread])
+
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const base = document.title.replace(/^\(\d+\)\s/, "")
+    document.title = unread > 0 ? `(${unread}) ${base}` : base
+  }, [unread])
 
   useEffect(() => {
     if (open && user?.id) {
@@ -96,7 +145,11 @@ export function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          unlockNotificationAudio()
+          void requestDesktopNotificationPermission()
+          setOpen(v => !v)
+        }}
         className="relative flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))] transition-colors cursor-pointer"
         aria-label={`${unread} unread notifications`}
       >

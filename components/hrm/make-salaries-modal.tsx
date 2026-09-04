@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Save, CheckCircle2, Copy, Download, Paperclip, Loader2, Eye } from "lucide-react"
+import { X, Save, CheckCircle2, Copy, Download, Paperclip, Loader2, Eye, Trash2 } from "lucide-react"
 import {
   amountFromSalaryAdjustments,
   computeBatchSalaryFigures,
@@ -100,6 +100,12 @@ type PendingAttachment = {
   id: string
   file: File
   note: string
+}
+
+type ProofEditItem = SalaryPaymentAttachment & {
+  key: string
+  replaceFile: File | null
+  previewUrl: string | null
 }
 
 function normalizePaymentAttachments(raw: unknown): SalaryPaymentAttachment[] {
@@ -203,7 +209,10 @@ function MarkPaidDialog({
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (!saving) onClose()
+      }}
     >
       <div
         className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden"
@@ -313,6 +322,11 @@ function MarkPaidDialog({
   )
 }
 
+function isProofImage(att: { url: string; name: string }) {
+  const source = `${att.name} ${att.url}`.toLowerCase()
+  return /\.(png|jpe?g|gif|webp|avif|bmp)(\?|$)/i.test(source)
+}
+
 function PaidProofsDialog({
   staffName,
   month,
@@ -320,7 +334,9 @@ function PaidProofsDialog({
   attachments,
   paidBy,
   paidAt,
+  saving,
   onClose,
+  onSave,
 }: {
   staffName: string
   month: string
@@ -328,12 +344,61 @@ function PaidProofsDialog({
   attachments: SalaryPaymentAttachment[]
   paidBy?: string | null
   paidAt?: string | null
+  saving: boolean
   onClose: () => void
+  onSave: (payload: {
+    paymentNotes: string
+    attachments: ProofEditItem[]
+    newFiles: PendingAttachment[]
+  }) => void | Promise<void>
 }) {
+  const [paymentNotes, setPaymentNotes] = useState(notes)
+  const [existing, setExisting] = useState<ProofEditItem[]>(
+    attachments.map((att, i) => ({
+      key: `${att.url}-${i}`,
+      url: att.url,
+      name: att.name,
+      note: att.note,
+      uploadedAt: att.uploadedAt,
+      replaceFile: null,
+      previewUrl: null,
+    })),
+  )
+  const [newFiles, setNewFiles] = useState<(PendingAttachment & { previewUrl: string })[]>([])
+  const existingRef = useRef(existing)
+  const newFilesRef = useRef(newFiles)
+  existingRef.current = existing
+  newFilesRef.current = newFiles
+
+  useEffect(() => {
+    return () => {
+      for (const row of existingRef.current) {
+        if (row.previewUrl) URL.revokeObjectURL(row.previewUrl)
+      }
+      for (const row of newFilesRef.current) {
+        URL.revokeObjectURL(row.previewUrl)
+      }
+    }
+  }, [])
+
+  function addNewFiles(fileList: FileList | null) {
+    if (!fileList?.length) return
+    const next = Array.from(fileList).map((file) => ({
+      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      file,
+      note: "",
+      previewUrl: URL.createObjectURL(file),
+    }))
+    setNewFiles((prev) => [...prev, ...next])
+  }
+
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (!saving) onClose()
+      }}
     >
       <div
         className="w-full max-w-lg rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden"
@@ -343,10 +408,10 @@ function PaidProofsDialog({
           <div>
             <p className="text-sm font-semibold">Payment proof</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {staffName} · {monthLabel(month)}
+              {staffName} · {monthLabel(month)} — remove a wrong screenshot, replace it, or add another.
             </p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} disabled={saving}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -357,36 +422,186 @@ function PaidProofsDialog({
               {paidAt ? ` · ${new Date(paidAt).toLocaleString("en-PK")}` : ""}
             </p>
           )}
-          <div>
-            <p className="text-[10px] uppercase text-muted-foreground mb-1">Notes</p>
-            <p>{notes?.trim() || "—"}</p>
+          <div className="space-y-1.5">
+            <p className="text-[10px] uppercase text-muted-foreground">Notes</p>
+            <textarea
+              value={paymentNotes}
+              onChange={(e) => setPaymentNotes(e.target.value)}
+              rows={3}
+              disabled={saving}
+              placeholder="Payment notes…"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+            />
           </div>
-          <div>
-            <p className="text-[10px] uppercase text-muted-foreground mb-2">Attachments</p>
-            {attachments.length === 0 ? (
-              <p className="text-muted-foreground text-xs">No attachments</p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase text-muted-foreground">Attachments</p>
+              <label className="inline-flex items-center gap-1.5 text-xs text-[#1a9f9a] cursor-pointer hover:underline">
+                <Paperclip className="h-3.5 w-3.5" />
+                Add files
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  className="hidden"
+                  disabled={saving}
+                  onChange={(e) => {
+                    addNewFiles(e.target.files)
+                    e.target.value = ""
+                  }}
+                />
+              </label>
+            </div>
+            {existing.length === 0 && newFiles.length === 0 ? (
+              <p className="text-xs text-muted-foreground rounded-lg border border-dashed px-3 py-4 text-center">
+                No attachments. Add a screenshot or bank slip.
+              </p>
             ) : (
               <ul className="space-y-2">
-                {attachments.map((att, i) => (
-                  <li key={`${att.url}-${i}`} className="rounded-lg border p-2.5 space-y-1">
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs font-medium text-[#1a9f9a] underline break-all"
-                    >
-                      {att.name || `Attachment ${i + 1}`}
-                    </a>
-                    {att.note && <p className="text-xs text-muted-foreground">{att.note}</p>}
+                {existing.map((att) => {
+                  const previewUrl = att.previewUrl || att.url
+                  const previewName = att.replaceFile ? att.replaceFile.name : att.name
+                  return (
+                    <li key={att.key} className="rounded-lg border p-2.5 space-y-2">
+                      {isProofImage({ url: previewUrl, name: previewName }) && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={previewUrl}
+                          alt={previewName}
+                          className="max-h-36 w-full object-contain rounded-md bg-[hsl(var(--muted))]/30"
+                        />
+                      )}
+                      <div className="flex items-start justify-between gap-2">
+                        <a
+                          href={att.replaceFile ? previewUrl : att.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-medium text-[#1a9f9a] underline break-all"
+                        >
+                          {previewName || "Attachment"}
+                          {att.replaceFile ? " (will replace on save)" : ""}
+                        </a>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <label className="text-[10px] text-[#1a9f9a] cursor-pointer hover:underline">
+                            Replace
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="hidden"
+                              disabled={saving}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                e.target.value = ""
+                                if (!file) return
+                                setExisting((prev) =>
+                                  prev.map((row) => {
+                                    if (row.key !== att.key) return row
+                                    if (row.previewUrl) URL.revokeObjectURL(row.previewUrl)
+                                    return {
+                                      ...row,
+                                      replaceFile: file,
+                                      name: file.name,
+                                      previewUrl: URL.createObjectURL(file),
+                                    }
+                                  }),
+                                )
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="text-[10px] text-red-600 inline-flex items-center gap-0.5"
+                            disabled={saving}
+                            onClick={() =>
+                              setExisting((prev) => {
+                                const row = prev.find((r) => r.key === att.key)
+                                if (row?.previewUrl) URL.revokeObjectURL(row.previewUrl)
+                                return prev.filter((r) => r.key !== att.key)
+                              })
+                            }
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        value={att.note}
+                        onChange={(e) =>
+                          setExisting((prev) =>
+                            prev.map((row) =>
+                              row.key === att.key ? { ...row, note: e.target.value } : row,
+                            ),
+                          )
+                        }
+                        placeholder="Note for this attachment"
+                        className="w-full h-8 rounded-md border bg-background px-2 text-xs"
+                        disabled={saving}
+                      />
+                    </li>
+                  )
+                })}
+                {newFiles.map((att) => (
+                  <li key={att.id} className="rounded-lg border border-dashed p-2.5 space-y-2">
+                    {isProofImage({ url: att.file.name, name: att.file.name }) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={att.previewUrl}
+                        alt={att.file.name}
+                        className="max-h-36 w-full object-contain rounded-md bg-[hsl(var(--muted))]/30"
+                      />
+                    )}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-medium break-all">{att.file.name} (new)</p>
+                      <button
+                        type="button"
+                        className="text-[10px] text-red-600"
+                        disabled={saving}
+                        onClick={() =>
+                          setNewFiles((prev) => {
+                            const row = prev.find((a) => a.id === att.id)
+                            if (row?.previewUrl) URL.revokeObjectURL(row.previewUrl)
+                            return prev.filter((a) => a.id !== att.id)
+                          })
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <input
+                      value={att.note}
+                      onChange={(e) =>
+                        setNewFiles((prev) =>
+                          prev.map((a) => (a.id === att.id ? { ...a, note: e.target.value } : a)),
+                        )
+                      }
+                      placeholder="Note for this attachment"
+                      className="w-full h-8 rounded-md border bg-background px-2 text-xs"
+                      disabled={saving}
+                    />
                   </li>
                 ))}
               </ul>
             )}
           </div>
         </div>
-        <div className="px-4 py-3 border-t">
-          <Button variant="outline" className="w-full" onClick={onClose}>
-            Close
+        <div className="flex gap-2 px-4 py-3 border-t bg-muted/10">
+          <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+            disabled={saving}
+            onClick={() =>
+              void onSave({
+                paymentNotes,
+                attachments: existing,
+                newFiles,
+              })
+            }
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </div>
@@ -417,6 +632,7 @@ export function MakeSalariesModal({
   const [finalizing, setFinalizing] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
+  const [updatingProofs, setUpdatingProofs] = useState(false)
   const [payingStaffId, setPayingStaffId] = useState<string | null>(null)
   const [viewProofsStaffId, setViewProofsStaffId] = useState<string | null>(null)
 
@@ -731,6 +947,76 @@ export function MakeSalariesModal({
     }
   }
 
+  async function handleUpdatePaymentProofs(payload: {
+    paymentNotes: string
+    attachments: ProofEditItem[]
+    newFiles: PendingAttachment[]
+  }) {
+    if (!proofSlip?.id) {
+      alert("This paid record has no saved slip id, so proofs cannot be updated.")
+      return
+    }
+    setUpdatingProofs(true)
+    try {
+      const kept: SalaryPaymentAttachment[] = []
+      for (const att of payload.attachments) {
+        if (att.replaceFile) {
+          const [url] = await uploadFiles([att.replaceFile], "salary-proofs")
+          if (!url) throw new Error("Upload failed while replacing an attachment.")
+          kept.push({
+            url,
+            name: att.replaceFile.name,
+            note: att.note.trim(),
+            uploadedAt: new Date().toISOString(),
+          })
+        } else {
+          kept.push({
+            url: att.url,
+            name: att.name,
+            note: att.note.trim(),
+            uploadedAt: att.uploadedAt || new Date().toISOString(),
+          })
+        }
+      }
+
+      let added: SalaryPaymentAttachment[] = []
+      if (payload.newFiles.length > 0) {
+        const urls = await uploadFiles(
+          payload.newFiles.map((att) => att.file),
+          "salary-proofs",
+        )
+        added = payload.newFiles
+          .map((att, i) => ({
+            url: urls[i] || "",
+            name: att.file.name,
+            note: att.note.trim(),
+            uploadedAt: new Date().toISOString(),
+          }))
+          .filter((att) => att.url)
+      }
+
+      const res = await fetch("/api/hrm/salary-slips", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: proofSlip.id,
+          paymentNotes: payload.paymentNotes.trim(),
+          paymentAttachments: [...kept, ...added],
+        }),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(err.error || "Failed to update payment proof.")
+      }
+      await onSaved()
+      setViewProofsStaffId(null)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to update payment proof.")
+    } finally {
+      setUpdatingProofs(false)
+    }
+  }
+
   async function handleMarkPaidConfirm(payload: {
     paymentNotes: string
     attachments: PendingAttachment[]
@@ -771,7 +1057,7 @@ export function MakeSalariesModal({
     void navigator.clipboard.writeText(accountNumber.trim())
   }
 
-  const busy = saving || finalizing || !!markingPaidId
+  const busy = saving || finalizing || !!markingPaidId || updatingProofs
 
   return (
     <div
@@ -988,16 +1274,14 @@ export function MakeSalariesModal({
                           <Badge variant="success" className="text-[10px] w-fit">
                             Paid
                           </Badge>
-                          {(proofs.length > 0 || slip?.paymentNotes) && (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1 text-[10px] text-[#1a9f9a] hover:underline"
-                              onClick={() => setViewProofsStaffId(row.staffId)}
-                            >
-                              <Eye className="h-3 w-3" />
-                              View proof
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-[10px] text-[#1a9f9a] hover:underline"
+                            onClick={() => setViewProofsStaffId(row.staffId)}
+                          >
+                            <Eye className="h-3 w-3" />
+                            {proofs.length > 0 || slip?.paymentNotes ? "View / edit proof" : "Add proof"}
+                          </button>
                         </div>
                       ) : (
                         <Button
@@ -1077,13 +1361,22 @@ export function MakeSalariesModal({
 
       {proofSlip && viewProofsStaffId && (
         <PaidProofsDialog
-          staffName={proofSlip.staffName || ""}
+          key={proofSlip.id || viewProofsStaffId}
+          staffName={
+            computed.find((c) => c.row.staffId === viewProofsStaffId)?.row.staffName ||
+            proofSlip.staffName ||
+            ""
+          }
           month={month}
           notes={String(proofSlip.paymentNotes || "")}
           attachments={normalizePaymentAttachments(proofSlip.paymentAttachments)}
           paidBy={proofSlip.paidBy}
           paidAt={proofSlip.paidAt}
-          onClose={() => setViewProofsStaffId(null)}
+          saving={updatingProofs}
+          onClose={() => {
+            if (!updatingProofs) setViewProofsStaffId(null)
+          }}
+          onSave={handleUpdatePaymentProofs}
         />
       )}
     </div>

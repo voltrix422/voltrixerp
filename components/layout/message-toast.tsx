@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { MessageSquare, X } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { notifyMessagesChanged } from "@/components/layout/use-unread-messages"
+import { announceIncomingAlert } from "@/lib/notification-alerts"
 
 type ConversationSummary = {
   partnerId: string
@@ -84,6 +85,12 @@ export function MessageToastListener() {
               namesRef.current.get(c.partnerId) ||
               "New message"
             const id = `${c.partnerId}-${c.createdAt}-${count}`
+            announceIncomingAlert({
+              title: `Message from ${name}`,
+              body: c.text,
+              link: `/messages?with=${encodeURIComponent(c.partnerId)}`,
+              tag: `msg-${id}`,
+            })
             setToasts(prevToasts => {
               if (prevToasts.some(t => t.partnerId === c.partnerId && t.text === c.text)) {
                 return prevToasts
