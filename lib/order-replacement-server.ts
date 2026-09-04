@@ -5,6 +5,7 @@ import {
   ensureInventoryStockForModel,
   findStockByModel,
 } from "@/lib/ensure-model-stock-link"
+import { findManualInventoryByAnyModelOrAlias } from "@/lib/inventory-model-aliases"
 import {
   decrementManualInventoryByModel,
   resolveManualInventoryForOrderLine,
@@ -13,6 +14,7 @@ import {
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 import type { OrderReplacementDisposition, OrderReplacementLine } from "@/lib/orders"
 import { resolveOrderItemModel } from "@/lib/orders"
+import { parseProductQrPayload } from "@/lib/parse-product-qr"
 
 export type ReplaceOrderItemInput = {
   orderId: string
@@ -23,6 +25,76 @@ export type ReplaceOrderItemInput = {
   reason: string
   photoUrls?: string[]
   replacedBy: string
+}
+
+function extractReplacementSerial(raw: string) {
+  const trimmed = raw.trim()
+  if (!trimmed) return ""
+  try {
+    const parsed = parseProductQrPayload(trimmed)
+    if (parsed.serialNumber?.trim()) return parsed.serialNumber.trim()
+  } catch {
+    // plain serial
+  }
+  return trimmed.split(/[\s,;]+/)[0]?.trim() ?? trimmed
+}
+
+function serialNotDispatchableMessage(serialNumber: string, status: string) {
+  const sn = serialNumber.trim()
+  const s = status.trim().toLowerCase()
+  if (s === "at_branch") return `Serial ${sn} is at a branch, not in main warehouse`
+  if (s === "faulty") return `Serial ${sn} is already in faulty stock`
+  if (s === "delivered") return `Serial ${sn} is already delivered`
+  return `Serial ${sn} cannot be dispatched (status: ${status || "unknown"})`
+}
+
+type OrderLineForStock = {
+  id?: string
+  description: string
+  unit: string
+  isCustom?: boolean
+  model?: string
+  inventoryItemId?: string
+}
+
+async function findSerialUnitByNumber(serialNumber: string) {
+  const sn = serialNumber.trim()
+  if (!sn) return null
+  return prisma.erpInventorySerialUnit.findFirst({
+    where: { serialNumber: { equals: sn, mode: "insensitive" } },
+  })
+}
+
+async function warehouseHasReplacementStock(orderItem: OrderLineForStock) {
+  const manual = await resolveManualInventoryForOrderLine(orderItem)
+  if (manual && (Number(manual.availableQty) || 0) >= 1) return true
+  const model = resolveOrderItemModel(orderItem as never)
+  if (model) {
+    const aliased = await findManualInventoryByAnyModelOrAlias(model)
+    if (aliased && (Number(aliased.availableQty) || 0) >= 1) return true
+    const stock = await findStockByModel(model)
+    if (stock && (stock.availableQty ?? 0) >= 1) return true
+  }
+  const desc = orderItem.description?.trim()
+  if (desc) {
+    const byName = await findManualInventoryByAnyModelOrAlias(desc)
+    if (byName && (Number(byName.availableQty) || 0) >= 1) return true
+  }
+  return false
+}
+
+async function assertNewSerialCanDispatch(serialNumber: string, orderItem: OrderLineForStock) {
+  const unit = await findSerialUnitByNumber(serialNumber)
+  if (unit) {
+    if (String(unit.status || "").toLowerCase() !== "in_stock") {
+      throw new Error(serialNotDispatchableMessage(unit.serialNumber, unit.status))
+    }
+    return unit
+  }
+  if (await warehouseHasReplacementStock(orderItem)) return null
+  throw new Error(
+    `New serial ${serialNumber} is not in the warehouse register, and this product has no available stock`,
+  )
 }
 
 function orderUnitTag(orderId: string) {
@@ -116,14 +188,10 @@ async function restoreOldSerialUnit(params: {
   replacedBy: string
   reason: string
   photoUrls?: string[]
+  orderItem?: OrderLineForStock
 }) {
   const sn = params.serialNumber.trim()
-  const unit = await prisma.erpInventorySerialUnit.findFirst({
-    where: {
-      serialNumber: { equals: sn, mode: "insensitive" },
-      status: { in: ["delivered", "at_branch"] },
-    },
-  })
+  const unit = await findSerialUnitByNumber(sn)
 
   const photoNote =
     params.photoUrls && params.photoUrls.length > 0
@@ -158,7 +226,33 @@ async function restoreOldSerialUnit(params: {
     return
   }
 
-  // Warranty-only dispatch scan with no inventory serial row
+  // Typed/scanned serial on the order with no warehouse serial row — restore qty
+  // and register the returned unit so Faulty / main stock can show it.
+  if (params.orderItem) {
+    await restoreOldQtyUnit({
+      orderItem: params.orderItem,
+      orderNumber: params.orderNumber,
+      disposition: params.disposition,
+      replacedBy: params.replacedBy,
+      reason: params.reason,
+      photoUrls: params.photoUrls,
+    })
+    const model = resolveOrderItemModel(params.orderItem as never) || ""
+    const manual = await resolveManualInventoryForOrderLine(params.orderItem)
+    const stock = model ? await findStockByModel(model) : null
+    await prisma.erpInventorySerialUnit.create({
+      data: {
+        serialNumber: sn,
+        productName: params.orderItem.description || "",
+        model: model || manual?.model || "",
+        status: params.disposition === "faulty" ? "faulty" : "in_stock",
+        notes: replaceNote,
+        scannedBy: params.replacedBy,
+        inventoryStockId: manual?.inventoryStockId || stock?.id || null,
+      },
+    })
+  }
+
   const warranty = await prisma.erpWarranty.findFirst({
     where: { serialNumber: { equals: sn, mode: "insensitive" } },
   })
@@ -298,24 +392,65 @@ async function dispatchNewSerialUnit(params: {
         specs: params.orderNumber,
       },
     })
-    await syncStockForModel(params.model, existingUnit.inventoryStockId)
+    await syncStockForModel(existingUnit.model?.trim() || params.model, existingUnit.inventoryStockId)
+    await prisma.erpInventoryHistory.create({
+      data: {
+        itemDescription: params.orderItem.description,
+        transactionType: "out",
+        quantity: 1,
+        unit: params.orderItem.unit || "pcs",
+        referenceType: "order_replace",
+        referenceId: params.orderId,
+        referenceNumber: params.orderNumber,
+        notes: `Replacement dispatch SN ${sn} → ${params.clientName}`,
+        createdBy: params.createdBy,
+      },
+    })
+    return existingUnit
   }
 
-  const manual = await resolveManualInventoryForOrderLine(params.orderItem)
+  const alreadyRegistered = await findSerialUnitByNumber(sn)
+  if (alreadyRegistered) {
+    throw new Error(serialNotDispatchableMessage(alreadyRegistered.serialNumber, alreadyRegistered.status))
+  }
+
+  const manual =
+    (await resolveManualInventoryForOrderLine(params.orderItem)) ||
+    (params.model ? await findManualInventoryByAnyModelOrAlias(params.model) : null) ||
+    (params.orderItem.description
+      ? await findManualInventoryByAnyModelOrAlias(params.orderItem.description)
+      : null)
+  let stockId: string | null = null
   if (manual) {
+    if ((Number(manual.availableQty) || 0) < 1) {
+      throw new Error(`Not enough warehouse stock to dispatch ${sn}`)
+    }
     await decrementManualInventoryByModel(manual.model, 1)
+    stockId = manual.inventoryStockId
   } else {
     const stock = await findStockByModel(params.model)
-    if (stock) {
-      if ((stock.availableQty ?? 0) < 1) {
-        throw new Error(`Not enough stock for ${params.model}`)
-      }
-      await prisma.erpInventoryStock.update({
-        where: { id: stock.id },
-        data: { availableQty: (stock.availableQty ?? 0) - 1 },
-      })
+    if (!stock || (stock.availableQty ?? 0) < 1) {
+      throw new Error(`Not enough stock for ${params.model || "this product"}`)
     }
+    await prisma.erpInventoryStock.update({
+      where: { id: stock.id },
+      data: { availableQty: (stock.availableQty ?? 0) - 1 },
+    })
+    stockId = stock.id
   }
+
+  const created = await prisma.erpInventorySerialUnit.create({
+    data: {
+      serialNumber: sn,
+      productName: params.orderItem.description || "",
+      model: params.model || manual?.model || "",
+      specs: params.orderNumber,
+      status: "delivered",
+      notes: note,
+      scannedBy: params.createdBy,
+      inventoryStockId: stockId,
+    },
+  })
 
   await prisma.erpInventoryHistory.create({
     data: {
@@ -330,6 +465,8 @@ async function dispatchNewSerialUnit(params: {
       createdBy: params.createdBy,
     },
   })
+
+  return created
 }
 
 export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
@@ -350,11 +487,19 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     ? (order.fulfillmentSerialAllocations as unknown as OrderFulfillmentSerialAllocation[])
     : []
   const lineAllocations = allocations.filter((a) => a.orderItemId === input.orderItemId)
-  const oldSn = input.oldSerialNumber?.trim() || ""
-  const newSn = input.newSerialNumber?.trim() || ""
+  const oldSn = extractReplacementSerial(input.oldSerialNumber || "")
+  const newSn = extractReplacementSerial(input.newSerialNumber || "")
   const model = resolveOrderItemModel(orderItem as never) || lineAllocations[0]?.model?.trim() || ""
   const reason = input.reason?.trim() || "Item replacement"
   const photoUrls = (input.photoUrls || []).map((u) => u.trim()).filter(Boolean)
+  const lineForStock: OrderLineForStock = {
+    id: String(orderItem.id || ""),
+    description: String(orderItem.description || ""),
+    unit: String(orderItem.unit || "pcs"),
+    isCustom: Boolean(orderItem.isCustom),
+    model: typeof orderItem.model === "string" ? orderItem.model : undefined,
+    inventoryItemId: typeof orderItem.inventoryItemId === "string" ? orderItem.inventoryItemId : undefined,
+  }
 
   if (lineAllocations.length > 0) {
     if (!oldSn) throw new Error("Scan or select the old serial number being returned")
@@ -367,13 +512,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       throw new Error("New serial is already on this order")
     }
 
-    const newUnit = await prisma.erpInventorySerialUnit.findFirst({
-      where: {
-        serialNumber: { equals: newSn, mode: "insensitive" },
-        status: "in_stock",
-      },
-    })
-    if (!newUnit) throw new Error("New serial is not available in main inventory")
+    const registeredNew = await assertNewSerialCanDispatch(newSn, lineForStock)
 
     await restoreOldSerialUnit({
       orderId: order.id,
@@ -383,9 +522,10 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       replacedBy: input.replacedBy,
       reason,
       photoUrls,
+      orderItem: lineForStock,
     })
 
-    await dispatchNewSerialUnit({
+    const dispatched = await dispatchNewSerialUnit({
       orderId: order.id,
       orderNumber: order.orderNumber,
       clientName: order.clientName,
@@ -393,17 +533,18 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       createdBy: input.replacedBy,
       orderItem: orderItem as never,
       serialNumber: newSn,
-      model: newUnit.model?.trim() || model || oldAlloc.model,
+      model: registeredNew?.model?.trim() || model || oldAlloc.model,
     })
+    const dispatchModel = dispatched.model?.trim() || registeredNew?.model?.trim() || model || oldAlloc.model
 
     const nextAllocations = allocations
       .filter((a) => !(a.orderItemId === input.orderItemId && a.serialNumber.trim().toLowerCase() === oldSn.toLowerCase()))
       .concat([
         {
           orderItemId: input.orderItemId,
-          model: newUnit.model?.trim() || model || oldAlloc.model,
+          model: dispatchModel,
           serialNumber: newSn,
-          unitId: newUnit.id,
+          unitId: dispatched.id,
         },
       ])
 
@@ -419,7 +560,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       replacedAt: new Date().toISOString(),
       replacedBy: input.replacedBy,
       description: String(orderItem.description || ""),
-      model: newUnit.model?.trim() || model,
+      model: dispatchModel,
       unit: String(orderItem.unit || "pcs"),
     }
 
@@ -444,32 +585,16 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
 
   if (qtyReplace) {
     if (oldSn) {
-      const oldUnit = await prisma.erpInventorySerialUnit.findFirst({
-        where: {
-          serialNumber: { equals: oldSn, mode: "insensitive" },
-          status: { in: ["delivered", "at_branch"] },
-        },
+      await restoreOldSerialUnit({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        serialNumber: oldSn,
+        disposition: input.disposition,
+        replacedBy: input.replacedBy,
+        reason,
+        photoUrls,
+        orderItem: lineForStock,
       })
-      if (oldUnit) {
-        await restoreOldSerialUnit({
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          serialNumber: oldSn,
-          disposition: input.disposition,
-          replacedBy: input.replacedBy,
-          reason,
-          photoUrls,
-        })
-      } else {
-        await restoreOldQtyUnit({
-          orderItem: orderItem as never,
-          orderNumber: order.orderNumber,
-          disposition: input.disposition,
-          replacedBy: input.replacedBy,
-          reason,
-          photoUrls,
-        })
-      }
     } else {
       await restoreOldQtyUnit({
         orderItem: orderItem as never,
@@ -482,16 +607,8 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     }
 
     if (newSn) {
-      // Caller scanned a new unit — link it to the order
-      const newUnit = await prisma.erpInventorySerialUnit.findFirst({
-        where: {
-          serialNumber: { equals: newSn, mode: "insensitive" },
-          status: "in_stock",
-        },
-      })
-      if (!newUnit) throw new Error("New serial is not available in main inventory")
-
-      await dispatchNewSerialUnit({
+      const registeredNew = await assertNewSerialCanDispatch(newSn, lineForStock)
+      const dispatched = await dispatchNewSerialUnit({
         orderId: order.id,
         orderNumber: order.orderNumber,
         clientName: order.clientName,
@@ -499,8 +616,9 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         createdBy: input.replacedBy,
         orderItem: orderItem as never,
         serialNumber: newSn,
-        model: newUnit.model?.trim() || model,
+        model: registeredNew?.model?.trim() || model,
       })
+      const dispatchModel = dispatched.model?.trim() || registeredNew?.model?.trim() || model
 
       const nextAllocations = (() => {
         const lineQty = Math.max(0, Math.floor(Number(orderItem.qty) || 0))
@@ -508,9 +626,9 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         const line = allocations.filter((a) => a.orderItemId === input.orderItemId)
         const added = {
           orderItemId: input.orderItemId,
-          model: newUnit.model?.trim() || model,
+          model: dispatchModel,
           serialNumber: newSn,
-          unitId: newUnit.id,
+          unitId: dispatched.id,
         }
         // Keep at most line qty serials for this item (drop oldest extras).
         const nextLine =
@@ -532,7 +650,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         replacedAt: new Date().toISOString(),
         replacedBy: input.replacedBy,
         description: String(orderItem.description || ""),
-        model: newUnit.model?.trim() || model,
+        model: dispatchModel,
         unit: String(orderItem.unit || "pcs"),
       }
 
