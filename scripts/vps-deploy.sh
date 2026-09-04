@@ -62,6 +62,8 @@ if [ -d "public/uploads" ] && [ "$(ls -A public/uploads 2>/dev/null)" ]; then
   BACKUP_DIR="/var/backups/erpvoltrix-uploads-$(date +%Y%m%d-%H%M%S)"
   mkdir -p /var/backups
   cp -a public/uploads "$BACKUP_DIR" && echo "    Saved to $BACKUP_DIR"
+  echo "==> Keep only the 2 newest upload backups"
+  ls -1dt /var/backups/erpvoltrix-uploads-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
 fi
 
 echo "==> Ensure upload directories exist"
