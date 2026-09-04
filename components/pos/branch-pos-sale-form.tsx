@@ -9,6 +9,7 @@ import {
   type OrderItem,
   type OrderStatus,
 } from "@/lib/orders"
+import { orderLinesRequiringSerials } from "@/lib/order-fulfillment-serials"
 import {
   generateQuotationNumber,
   saveQuotation,
@@ -228,6 +229,9 @@ export function BranchPosSaleForm({
     toast({ type: "success", title: "Client added" })
   }
 
+  const needsSerialScan =
+    kind === "order" && orderLinesRequiringSerials({ items: items as OrderItem[] }).length > 0
+
   async function handleSubmit() {
     if (!clientId) {
       toast({ type: "error", title: "Select or add a client" })
@@ -271,7 +275,8 @@ export function BranchPosSaleForm({
         await saveQuotation(q)
         toast({ type: "success", title: `Quotation ${quotationNumber} created` })
       } else {
-        const status: OrderStatus = markDelivered ? "delivered" : "confirmed"
+        const deliverNow = markDelivered && !needsSerialScan
+        const status: OrderStatus = deliverNow ? "delivered" : "confirmed"
         const order: Order = {
           id: Date.now().toString(),
           orderNumber: await generateOrderNumber(),
@@ -308,9 +313,11 @@ export function BranchPosSaleForm({
         toast({
           type: "success",
           title: `Order ${order.orderNumber} created`,
-          message: markDelivered
+          message: deliverNow
             ? "Delivered · branch stock deducted · add payment anytime from order details"
-            : "Stock held at branch until delivered · add payment from order details",
+            : needsSerialScan
+              ? "Open the order and scan serials to deliver (same as warehouse dispatch)"
+              : "Stock held at branch until delivered · add payment from order details",
         })
       }
       onSaved?.()
@@ -539,6 +546,11 @@ export function BranchPosSaleForm({
           )}
 
           {kind === "order" && items.length > 0 && (
+            needsSerialScan ? (
+              <p className="text-xs text-[hsl(var(--muted-foreground))] pt-2 border-t">
+                After create, open the order and use <span className="font-semibold">Scan & deliver</span> — scan each unit, then start warranty if needed.
+              </p>
+            ) : (
             <label className="flex items-center gap-2 text-sm cursor-pointer pt-2 border-t">
               <input
                 type="checkbox"
@@ -548,6 +560,7 @@ export function BranchPosSaleForm({
               />
               Mark as delivered now (payment can be added later from order details)
             </label>
+            )
           )}
 
           <div className="space-y-1.5">
@@ -588,7 +601,7 @@ export function BranchPosSaleForm({
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             {kind === "order"
-              ? markDelivered
+              ? markDelivered && !needsSerialScan
                 ? "Create & deliver"
                 : "Create order"
               : "Create quotation"}

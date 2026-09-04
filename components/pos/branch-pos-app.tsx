@@ -123,6 +123,7 @@ export function BranchPosApp() {
             kind="order"
             orders={branchOrders}
             userName={userName}
+            branchId={branchId}
             onRefresh={() => void loadAll()}
             onNew={() => setShowNewOrder(true)}
           />

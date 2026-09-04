@@ -6,6 +6,7 @@ import {
   orderNeedsInventoryDeductionServer,
   restoreInventoryForOrderServer,
   orderMayNeedInventoryRestore,
+  registerPendingWarrantiesFromAllocations,
   type OrderDeductInput,
   type OrderRestoreLineQty,
 } from "@/lib/inventory-order-deduct-server"
@@ -409,6 +410,9 @@ export async function POST(req: NextRequest) {
             createdBy: saved.createdBy,
             branchId: branchId!,
             items: Array.isArray(o.items) ? o.items : [],
+            fulfillmentSerialAllocations: Array.isArray(o.fulfillmentSerialAllocations)
+              ? o.fulfillmentSerialAllocations
+              : [],
           },
           tx,
         )
@@ -453,6 +457,14 @@ export async function POST(req: NextRequest) {
         responseRecord.status,
         responseRecord.ownerUserId,
       )
+    }
+
+    if (needsBranchPosDeduct) {
+      try {
+        await registerPendingWarrantiesFromAllocations(toOrderDeductInput(responseRecord))
+      } catch (err) {
+        console.error("[orders POST] POS pending warranties failed:", err)
+      }
     }
 
     if (responseRecord.status === "delivered") {

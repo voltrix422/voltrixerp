@@ -180,6 +180,56 @@ export function warehouseStockByModelFromRows(
   return map
 }
 
+/** Branch POS stock keyed by model / description so warehouse scan UI can validate qty. */
+export function branchStockByModelFromProducts(
+  rows: Array<{
+    model?: string | null
+    description?: string | null
+    name?: string | null
+    availableQty?: number | null
+  }>,
+): Record<string, number> {
+  const map: Record<string, number> = {}
+  for (const row of rows) {
+    const qty = Math.max(0, Math.floor(Number(row.availableQty) || 0))
+    for (const raw of [row.model, row.description, row.name]) {
+      const model = raw?.trim()
+      if (!model) continue
+      const key = modelKey(model)
+      map[key] = Math.max(map[key] ?? 0, qty)
+    }
+  }
+  return map
+}
+
+export function branchManualMetaFromProducts(
+  rows: Array<{
+    id?: string
+    model?: string | null
+    description?: string | null
+    name?: string | null
+    availableQty?: number | null
+    inventoryId?: string | null
+  }>,
+): Record<string, ManualDispatchMeta> {
+  const map: Record<string, ManualDispatchMeta> = {}
+  for (const row of rows) {
+    const qty = Math.max(0, Math.floor(Number(row.availableQty) || 0))
+    for (const raw of [row.model, row.description, row.name]) {
+      const model = raw?.trim()
+      if (!model) continue
+      const key = modelKey(model)
+      const prev = map[key]
+      map[key] = {
+        availableQty: Math.max(prev?.availableQty ?? 0, qty),
+        inventoryStockId: row.inventoryId || prev?.inventoryStockId,
+        manualId: row.id || prev?.manualId,
+      }
+    }
+  }
+  return map
+}
+
 export function serialCountByModelFromUnits(
   units: Array<{ model?: string | null; status?: string | null }>,
 ): Record<string, number> {

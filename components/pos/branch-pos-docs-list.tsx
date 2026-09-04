@@ -49,7 +49,8 @@ import {
   getPosOrderProfit,
   summarizePosOrdersProfit,
 } from "@/lib/branch-pos-profit"
-import { canRetryFbrPost, fbrStatusLabel, normalizeFbrStatus } from "@/lib/fbr-status"
+import { PosDeliverScanDialog } from "@/components/pos/pos-deliver-scan-dialog"
+import { PosOrderWarrantyPanel } from "@/components/pos/pos-order-warranty-panel"
 
 type DocKind = "order" | "quotation"
 type CreditFilter = "all" | "credit" | "paid" | "returned"
@@ -460,6 +461,14 @@ function DocDetailModal({
             <CrmLineItemsDisplay items={doc.items} showCompanyPrice={kind === "order"} />
           </div>
 
+          {order && order.status === "delivered" && (
+            <PosOrderWarrantyPanel
+              order={order}
+              userName={userName}
+              onUpdated={(updated) => onSaved?.(updated)}
+            />
+          )}
+
           {order && (order.payments?.length ?? 0) > 0 && (
             <div>
               <p className="text-[10px] uppercase font-semibold text-[hsl(var(--muted-foreground))] mb-2">Payments</p>
@@ -682,7 +691,7 @@ function DocDetailModal({
               {order.status !== "delivered" && order.status !== "cancelled" && onDeliver && (
                 <Button type="button" size="sm" className="h-9 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white" disabled={busy || saving} onClick={onDeliver}>
                   {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
-                  Mark delivered
+                  Mark delivered / scan
                 </Button>
               )}
             </>
@@ -750,6 +759,7 @@ export function BranchPosDocsList({
   onRefresh,
   onNew,
   userName = "POS",
+  branchId,
 }: {
   kind: DocKind
   orders?: Order[]
@@ -757,6 +767,7 @@ export function BranchPosDocsList({
   onRefresh?: () => void
   onNew?: () => void
   userName?: string
+  branchId?: string
 }) {
   const { toast } = useToast()
   const { confirm } = useDialog()
@@ -765,6 +776,7 @@ export function BranchPosDocsList({
   const [creditFilter, setCreditFilter] = useState<CreditFilter>("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [deliverOrder, setDeliverOrder] = useState<Order | null>(null)
 
   const filteredOrders = useMemo(() => {
     let list = [...orders]
@@ -813,24 +825,7 @@ export function BranchPosDocsList({
     kind === "order" ? "No orders yet — create your first order" : "No quotations yet — create your first quotation"
 
   async function handleDeliver(order: Order) {
-    const ok = await confirm({
-      type: "confirm",
-      title: "Mark delivered?",
-      message: `${order.orderNumber} will be marked delivered and branch stock will be deducted. This appears in Stock history.`,
-      confirmLabel: "Deliver",
-    })
-    if (!ok) return
-    setBusyId(order.id)
-    try {
-      const saved = await saveOrder({ ...order, status: "delivered" })
-      toast({ type: "success", title: `${order.orderNumber} delivered`, message: "Branch stock deducted" })
-      setSelected(saved)
-      onRefresh?.()
-    } catch (err) {
-      toast({ type: "error", title: "Could not deliver", message: err instanceof Error ? err.message : undefined })
-    } finally {
-      setBusyId(null)
-    }
+    setDeliverOrder(order)
   }
 
   async function handleDelete(doc: Order | Quotation) {
@@ -1151,7 +1146,7 @@ export function BranchPosDocsList({
                             className="h-7 text-[10px] px-2"
                             disabled={rowBusy}
                             onClick={() => void handleDeliver(order)}
-                            title="Mark delivered"
+                            title="Scan & deliver"
                           >
                             {rowBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
                           </Button>
@@ -1212,6 +1207,19 @@ export function BranchPosDocsList({
           onDelete={() => void handleDelete(selected)}
           onSaved={(order) => {
             setSelected(order)
+            onRefresh?.()
+          }}
+        />
+      )}
+
+      {deliverOrder && (
+        <PosDeliverScanDialog
+          order={{ ...deliverOrder, branchId: deliverOrder.branchId || branchId }}
+          userName={userName}
+          onClose={() => setDeliverOrder(null)}
+          onDelivered={(saved) => {
+            setDeliverOrder(null)
+            setSelected(saved)
             onRefresh?.()
           }}
         />

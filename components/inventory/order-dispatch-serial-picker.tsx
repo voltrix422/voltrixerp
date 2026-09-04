@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { Loader2 } from "lucide-react"
 import { DispatchSerialScanPanel } from "@/components/inventory/dispatch-serial-scan-panel"
 import { getManualInventoryItems } from "@/lib/manual-inventory"
+import { getPosStockProducts } from "@/lib/pos"
 import {
+  branchManualMetaFromProducts,
+  branchStockByModelFromProducts,
   manualDispatchMetaByModel,
   orderLinesRequiringSerials,
   validateSerialSelections,
@@ -22,6 +25,8 @@ type Props = {
   dispatchableQtyByLineId?: Record<string, number>
   partialDispatch?: boolean
   onValidationChange?: (valid: boolean, errors: string[]) => void
+  /** Branch POS: validate against this branch's stock instead of the warehouse. */
+  branchId?: string
 }
 
 /** Progress hints — not shown as blocking errors in the UI. */
@@ -41,6 +46,7 @@ export function OrderDispatchSerialPicker({
   dispatchableQtyByLineId,
   partialDispatch = false,
   onValidationChange,
+  branchId,
 }: Props) {
   const [manualMeta, setManualMeta] = useState(manualDispatchMetaByModel([]))
   const [warehouseStockByModel, setWarehouseStockByModel] = useState<Record<string, number>>({})
@@ -55,14 +61,22 @@ export function OrderDispatchSerialPicker({
       setLoading(true)
       setLoadError(null)
       try {
-        const [manualItems, stockRes] = await Promise.all([
-          getManualInventoryItems().catch(() => []),
-          fetch("/api/db/inventory-stock", { cache: "no-store" }),
-        ])
-        const stockRows = stockRes.ok ? await stockRes.json() : []
-        if (!cancelled) {
-          setManualMeta(manualDispatchMetaByModel(manualItems))
-          setWarehouseStockByModel(warehouseStockByModelFromRows(stockRows))
+        if (branchId) {
+          const products = await getPosStockProducts(true, branchId)
+          if (!cancelled) {
+            setManualMeta(branchManualMetaFromProducts(products))
+            setWarehouseStockByModel(branchStockByModelFromProducts(products))
+          }
+        } else {
+          const [manualItems, stockRes] = await Promise.all([
+            getManualInventoryItems().catch(() => []),
+            fetch("/api/db/inventory-stock", { cache: "no-store" }),
+          ])
+          const stockRows = stockRes.ok ? await stockRes.json() : []
+          if (!cancelled) {
+            setManualMeta(manualDispatchMetaByModel(manualItems))
+            setWarehouseStockByModel(warehouseStockByModelFromRows(stockRows))
+          }
         }
       } catch {
         if (!cancelled) setLoadError("Could not load inventory.")
@@ -73,7 +87,7 @@ export function OrderDispatchSerialPicker({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [branchId])
 
   const validationOptions: ValidateSerialOptions = useMemo(
     () => ({

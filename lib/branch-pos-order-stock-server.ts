@@ -1,7 +1,9 @@
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
+import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 
 export type BranchPosOrderLine = {
+  id?: string
   description?: string
   qty?: number
   unit?: string
@@ -20,6 +22,28 @@ export type BranchPosOrderStockInput = {
   createdBy?: string
   branchId: string
   items: BranchPosOrderLine[]
+  fulfillmentSerialAllocations?: OrderFulfillmentSerialAllocation[]
+}
+
+function serialsForPosLine(
+  item: BranchPosOrderLine,
+  allocations: OrderFulfillmentSerialAllocation[] | undefined,
+): string[] {
+  if (!allocations?.length) return []
+  const itemId = item.id?.trim()
+  if (itemId) {
+    const byId = allocations
+      .filter((a) => a.orderItemId === itemId)
+      .map((a) => String(a.serialNumber || "").trim())
+      .filter(Boolean)
+    if (byId.length) return byId
+  }
+  const model = (item.model || item.description || "").trim().toLowerCase()
+  if (!model) return []
+  return allocations
+    .filter((a) => String(a.model || "").trim().toLowerCase() === model)
+    .map((a) => String(a.serialNumber || "").trim())
+    .filter(Boolean)
 }
 
 /** Resolve all matching branch inventory rows (supports duplicate split stock). */
@@ -121,6 +145,9 @@ export async function deductBranchStockForPosOrder(
 
       const stockAfter = stockBefore - qty
 
+      const serials = serialsForPosLine(item, order.fulfillmentSerialAllocations)
+      const serialNote = serials.length ? ` · ${serials.join(", ")}` : ""
+
       await tx.erpInventoryHistory.create({
         data: {
           itemDescription: rows[0].productDescription || item.description || item.model || "Item",
@@ -130,7 +157,7 @@ export async function deductBranchStockForPosOrder(
           referenceType: "branch_pos_order",
           referenceId: order.id,
           referenceNumber: order.orderNumber,
-          notes: `Branch POS delivered · ${branch.name}${order.clientName ? ` · ${order.clientName}` : ""}`,
+          notes: `Branch POS delivered${serialNote} · ${branch.name}${order.clientName ? ` · ${order.clientName}` : ""}`,
           stockBefore,
           stockAfter,
           locationLabel,

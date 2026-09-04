@@ -235,7 +235,7 @@ function addYears(date: Date, years: number) {
   return next
 }
 
-async function ensureWarrantyForDispatchBySerial(
+export async function ensureWarrantyForDispatchBySerial(
   serialNumber: string,
   model: string,
   productName: string,
@@ -288,6 +288,21 @@ async function ensureWarrantyForDispatchBySerial(
     return null
   } catch {
     return null
+  }
+}
+
+export async function registerPendingWarrantiesFromAllocations(order: OrderDeductInput) {
+  const allocations = order.fulfillmentSerialAllocations || []
+  for (const allocation of allocations) {
+    const serial = String(allocation.serialNumber || "").trim()
+    if (!serial) continue
+    const item = order.items.find((i) => i.id === allocation.orderItemId)
+    await ensureWarrantyForDispatchBySerial(
+      serial,
+      allocation.model || item?.model || "",
+      item?.description || allocation.model || serial,
+      order,
+    )
   }
 }
 
