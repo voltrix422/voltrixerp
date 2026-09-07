@@ -4,6 +4,7 @@ import {
   orderNeedsInventoryDeductionServer,
   restoreInventoryForOrderServer,
   type OrderDeductInput,
+  type OrderRestoreLineQty,
 } from "@/lib/inventory-order-deduct-server"
 
 export async function POST(req: NextRequest) {
@@ -17,7 +18,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "restore") {
-      await restoreInventoryForOrderServer(order)
+      const restoreLines = Array.isArray(body?.restoreLines)
+        ? (body.restoreLines as OrderRestoreLineQty[])
+        : undefined
+      const historyNotes =
+        typeof body?.historyNotes === "string" ? body.historyNotes.trim() : undefined
+      await restoreInventoryForOrderServer(order, {
+        ...(restoreLines && restoreLines.length > 0 ? { restoreLines } : {}),
+        ...(historyNotes ? { historyNotes } : {}),
+      })
       return NextResponse.json({ ok: true })
     }
 

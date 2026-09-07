@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import type { CrmWarehouseProduct } from "@/lib/warehouse-inventory-picker"
 import { Package, X } from "lucide-react"
@@ -11,6 +13,8 @@ export function CrmWarehouseInventoryPicker({
   onSearchChange,
   onClose,
   onSelect,
+  /** Overlay z-index — raise when opened above another modal (e.g. invoice edit). */
+  zClass = "z-[100]",
 }: {
   open: boolean
   products: CrmWarehouseProduct[]
@@ -18,8 +22,12 @@ export function CrmWarehouseInventoryPicker({
   onSearchChange: (value: string) => void
   onClose: () => void
   onSelect: (product: CrmWarehouseProduct) => void
+  zClass?: string
 }) {
-  if (!open) return null
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  if (!open || !mounted) return null
 
   const q = search.trim().toLowerCase()
   const filtered = products.filter(
@@ -68,9 +76,9 @@ export function CrmWarehouseInventoryPicker({
     ))
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+      className={`fixed inset-0 ${zClass} flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4`}
       onClick={onClose}
     >
       <div
@@ -89,6 +97,7 @@ export function CrmWarehouseInventoryPicker({
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search model or name…"
             className="w-full h-10 rounded-lg border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
+            autoFocus
           />
         </div>
         {filtered.length === 0 ? (
@@ -132,6 +141,7 @@ export function CrmWarehouseInventoryPicker({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

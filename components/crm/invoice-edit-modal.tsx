@@ -18,6 +18,72 @@ function stripStockLimits(items: OrderItem[]): OrderItem[] {
   return items.map(({ availableQty: _aq, costPrice: _cp, ...item }) => ({ ...item }))
 }
 
+function lineQty(item: Pick<OrderItem, "qty">) {
+  return Math.max(0, Math.floor(Number(item.qty) || 0))
+}
+
+/** Diff original vs edited lines for warehouse stock restore / deduct. */
+function computeInventoryDeltas(original: OrderItem[], next: OrderItem[]) {
+  const restoreLines: Array<{ orderItemId: string; qty: number }> = []
+  const freeRestoreItems: OrderItem[] = []
+  const deductItems: OrderItem[] = []
+  const nextById = new Map(next.map((i) => [i.id, i]))
+  const origIds = new Set(original.map((i) => i.id))
+
+  for (const old of original) {
+    if (old.isCustom) continue
+    const neu = nextById.get(old.id)
+    const oldQty = lineQty(old)
+    if (!neu) {
+      if (oldQty <= 0) continue
+      if (old.isFreeItem) {
+        freeRestoreItems.push({ ...old, qty: oldQty })
+      } else {
+        restoreLines.push({ orderItemId: old.id, qty: oldQty })
+      }
+      continue
+    }
+    const newQty = lineQty(neu)
+    if (newQty < oldQty) {
+      const delta = oldQty - newQty
+      if (old.isFreeItem) {
+        freeRestoreItems.push({ ...old, qty: delta })
+      } else {
+        restoreLines.push({ orderItemId: old.id, qty: delta })
+      }
+    } else if (newQty > oldQty && !neu.isFreeItem) {
+      deductItems.push({
+        ...neu,
+        id: `${neu.id}-add-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        qty: newQty - oldQty,
+      })
+    }
+  }
+
+  for (const neu of next) {
+    if (neu.isCustom || neu.isFreeItem) continue
+    if (origIds.has(neu.id)) continue
+    deductItems.push(neu)
+  }
+
+  return { restoreLines, freeRestoreItems, deductItems }
+}
+
+async function postInventoryAction(payload: Record<string, unknown>) {
+  const res = await fetch("/api/db/inventory-order-deduct", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(
+      typeof data?.error === "string" ? data.error : "Inventory update failed",
+    )
+  }
+  return data
+}
+
 export function InvoiceEditModal({
   order,
   onClose,
@@ -157,6 +223,98 @@ export function InvoiceEditModal({
     }
     setSaving(true)
     try {
+      const { restoreLines, freeRestoreItems, deductItems } = computeInventoryDeltas(
+        order.items,
+        items,
+      )
+      const shouldTouchStock =
+        Boolean(order.inventoryDeductedAt) ||
+        ["delivered", "shipped", "processing", "confirmed"].includes(order.status)
+
+      if (shouldTouchStock && restoreLines.length > 0) {
+        await postInventoryAction({
+          action: "restore",
+          historyNotes: `Invoice edit · ${order.orderNumber} · stock restored`,
+          restoreLines,
+          order: {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            clientName: order.clientName,
+            createdBy: order.createdBy,
+            status: order.status,
+            inventoryDeductedAt: order.inventoryDeductedAt,
+            source: order.source,
+            fulfillmentSerialAllocations: order.fulfillmentSerialAllocations,
+            items: order.items.map((i) => ({
+              id: i.id,
+              description: i.description,
+              qty: i.qty,
+              unit: i.unit,
+              isCustom: i.isCustom,
+              isFreeItem: i.isFreeItem,
+              model: i.model,
+              inventoryItemId: i.inventoryItemId,
+            })),
+          },
+        })
+      }
+
+      for (const freeItem of freeRestoreItems) {
+        await postInventoryAction({
+          action: "restore",
+          historyNotes: `Invoice edit · ${order.orderNumber} · free item restocked`,
+          order: {
+            id: `${order.id}-free-${freeItem.id}`,
+            orderNumber: order.orderNumber,
+            clientName: `${order.clientName} (free item)`,
+            createdBy: order.createdBy,
+            status: "processing",
+            items: [
+              {
+                id: freeItem.id,
+                description: freeItem.description,
+                qty: freeItem.qty,
+                unit: freeItem.unit,
+                isCustom: false,
+                model: freeItem.model,
+                inventoryItemId: freeItem.inventoryItemId,
+              },
+            ],
+          },
+        })
+      }
+
+      if (shouldTouchStock && deductItems.length > 0) {
+        const deductResult = await postInventoryAction({
+          action: "deduct",
+          order: {
+            id: `${order.id}-invoice-edit-${Date.now()}`,
+            orderNumber: order.orderNumber,
+            clientName: `${order.clientName} (invoice edit)`,
+            createdBy: order.createdBy,
+            status: "processing",
+            items: deductItems.map((i) => ({
+              id: i.id,
+              description: i.description,
+              qty: i.qty,
+              unit: i.unit,
+              isCustom: false,
+              model: i.model,
+              inventoryItemId: i.inventoryItemId,
+            })),
+          },
+        })
+        const deducted = Number(deductResult?.deductedLines) || 0
+        const failed = Array.isArray(deductResult?.failedLines) ? deductResult.failedLines : []
+        if (deducted === 0 || failed.length > 0) {
+          throw new Error(
+            failed.length > 0
+              ? `Not enough stock: ${failed.join("; ")}`
+              : "Could not deduct stock for newly added items",
+          )
+        }
+      }
+
       const updated: Order = {
         ...order,
         items,
@@ -181,8 +339,8 @@ export function InvoiceEditModal({
       const saved = await saveOrder(updated)
       onSave(saved)
       onClose()
-    } catch {
-      alert("Could not save invoice changes. Please try again.")
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not save invoice changes. Please try again.")
     } finally {
       setSaving(false)
     }
@@ -191,7 +349,7 @@ export function InvoiceEditModal({
   return (
     <>
       <div
-        className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
+        className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4"
         onClick={onClose}
       >
         <div
@@ -216,6 +374,7 @@ export function InvoiceEditModal({
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 space-y-5">
             <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
               Add, remove, or change line items and unit prices. Totals recalculate automatically.
+              Removing or reducing inventory items restores stock; adding items deducts stock.
               Order status and payments are not changed.
             </div>
 
@@ -409,6 +568,7 @@ export function InvoiceEditModal({
       {showInventory && (
         <CrmWarehouseInventoryPicker
           open={showInventory}
+          zClass="z-[100]"
           onClose={() => {
             setShowInventory(false)
             setInventorySearch("")
