@@ -15,7 +15,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <Topbar title="Settings" description="Manage your account, visitors, and ERP support tickets" />
+      <Topbar title="Settings" description="Manage your account, visitors, and after-sale cases" />
       <div className="flex-1 overflow-auto">
         <div className="p-6">
           <div className="flex gap-0 border-b mb-6">
@@ -46,7 +46,7 @@ export default function SettingsPage() {
                   tab === "tickets" ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                 }`}
               >
-                ERP Tickets
+                After Sale
                 {tab === "tickets" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
               </button>
             )}

@@ -711,6 +711,37 @@ model ErpTicket {
   @@map("erp_tickets")
 }
 
+/// After-sale custody log: batteries/items received for service (in) and released (out).
+model ErpAfterSaleItemMovement {
+  id            String   @id @default(cuid())
+  movementType  String   @map("movement_type") // in | out
+  ticketId      String?  @map("ticket_id")
+  ticketNumber  String?  @map("ticket_number")
+  serialNumber  String   @map("serial_number")
+  productName   String   @default("") @map("product_name")
+  model         String   @default("")
+  condition     String   @default("unknown") // good | faulty | unknown
+  customerName  String   @default("") @map("customer_name")
+  customerPhone String?  @map("customer_phone")
+  notes         String   @default("")
+  /// For type=in: held | released. For type=out: unused (empty).
+  status        String   @default("held")
+  /// Out movements link back to the Item In row they release.
+  linkedInId    String?  @map("linked_in_id")
+  /// returned_to_customer | replaced | to_faulty | scrap
+  disposition   String   @default("")
+  outSerialNumber String? @map("out_serial_number")
+  photoUrls     Json     @default("[]") @map("photo_urls")
+  createdBy     String   @default("") @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([ticketId])
+  @@index([serialNumber])
+  @@index([movementType, status])
+  @@map("erp_after_sale_item_movements")
+}
+
 model ErpWarranty {
   id                String   @id @default(cuid())
   warrantyId        String?  @unique @map("warranty_id")

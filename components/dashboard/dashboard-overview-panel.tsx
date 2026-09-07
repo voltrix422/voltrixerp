@@ -175,7 +175,7 @@ export function DashboardOverviewPanel() {
             )}
           </ChartCard>
 
-          <ChartCard title="Support tickets">
+          <ChartCard title="After Sale cases">
             {loading ? (
               <ChartLoading />
             ) : (

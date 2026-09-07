@@ -34,7 +34,7 @@ const NAV_ORDER: Array<{
   { key: "website", href: "/website", label: "Website", icon: Globe, module: "website", kind: "link" },
   { key: "docs", href: "/docs", label: "Documentation", icon: BookOpen, module: "docs", kind: "link" },
   { key: "hrm", href: "/hrm", label: "HRM", icon: UserCog, module: "hrm", kind: "link" },
-  { key: "tickets", href: "/tickets", label: "Tickets", icon: Ticket, module: "tickets", kind: "link" },
+  { key: "tickets", href: "/tickets", label: "After Sale", icon: Ticket, module: "tickets", kind: "link" },
   { key: "messages", href: "/messages", label: "Messages", icon: MessageSquare, kind: "link" },
   { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Wallet, kind: "link" },
 ]

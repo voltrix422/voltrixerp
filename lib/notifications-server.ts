@@ -336,7 +336,7 @@ export async function notifyOnTicketCreated(
   createdBy: string,
 ) {
   await notifyUsersByModule("tickets", {
-    title: "New support ticket",
+    title: "New after-sale case",
     message: `${ticketNumber}: ${subject} — created by ${createdBy}.`,
     type: "info",
     link: "/tickets",

@@ -57,7 +57,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   docs: "Documentation",
   hrm: "HRM",
   branches: "Branches",
-  tickets: "Tickets",
+  tickets: "After Sale",
   warranty: "Warranty",
   pos: "POS",
   pos_admin: "POS Admin",
