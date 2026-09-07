@@ -3,10 +3,16 @@ export type AfterSaleItemCondition = "good" | "faulty" | "unknown"
 export type AfterSaleInStatus = "held" | "released"
 export type AfterSaleDisposition =
   | "returned_to_customer"
+  | "not_serviceable"
   | "replaced"
   | "to_faulty"
   | "scrap"
   | ""
+
+export type AfterSalePhotos = {
+  before: string[]
+  after: string[]
+}
 
 export type AfterSaleItemMovement = {
   id: string
@@ -20,18 +26,34 @@ export type AfterSaleItemMovement = {
   customerName: string
   customerPhone?: string | null
   notes: string
+  beforeRemark: string
+  afterRemark: string
   status: AfterSaleInStatus | string
   linkedInId?: string | null
   disposition: AfterSaleDisposition | string
   outSerialNumber?: string | null
   photoUrls: string[]
+  photos: AfterSalePhotos
   createdBy: string
   createdAt: string
   updatedAt: string
 }
 
+function normalizePhotos(value: unknown): AfterSalePhotos {
+  if (Array.isArray(value)) {
+    return { before: value.map(String).filter(Boolean), after: [] }
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>
+    const before = Array.isArray(obj.before) ? obj.before.map(String).filter(Boolean) : []
+    const after = Array.isArray(obj.after) ? obj.after.map(String).filter(Boolean) : []
+    return { before, after }
+  }
+  return { before: [], after: [] }
+}
+
 function normalizeMovement(row: Record<string, unknown>): AfterSaleItemMovement {
-  const photos = row.photoUrls
+  const photos = normalizePhotos(row.photoUrls)
   return {
     id: String(row.id || ""),
     movementType: (String(row.movementType || "in") as AfterSaleMovementType),
@@ -44,11 +66,14 @@ function normalizeMovement(row: Record<string, unknown>): AfterSaleItemMovement 
     customerName: String(row.customerName || ""),
     customerPhone: row.customerPhone ? String(row.customerPhone) : null,
     notes: String(row.notes || ""),
+    beforeRemark: String(row.beforeRemark || ""),
+    afterRemark: String(row.afterRemark || ""),
     status: String(row.status || "held"),
     linkedInId: row.linkedInId ? String(row.linkedInId) : null,
     disposition: String(row.disposition || ""),
     outSerialNumber: row.outSerialNumber ? String(row.outSerialNumber) : null,
-    photoUrls: Array.isArray(photos) ? photos.map(String) : [],
+    photoUrls: [...photos.before, ...photos.after],
+    photos,
     createdBy: String(row.createdBy || ""),
     createdAt: String(row.createdAt || ""),
     updatedAt: String(row.updatedAt || ""),
@@ -80,6 +105,10 @@ export async function createAfterSaleItemIn(input: {
   customerName?: string
   customerPhone?: string
   notes?: string
+  beforeRemark?: string
+  afterRemark?: string
+  beforePhotoUrls?: string[]
+  afterPhotoUrls?: string[]
   photoUrls?: string[]
   createdBy?: string
 }): Promise<AfterSaleItemMovement> {
@@ -98,6 +127,8 @@ export async function createAfterSaleItemOut(input: {
   disposition: Exclude<AfterSaleDisposition, "">
   outSerialNumber?: string
   notes?: string
+  afterRemark?: string
+  afterPhotoUrls?: string[]
   photoUrls?: string[]
   createdBy?: string
 }): Promise<AfterSaleItemMovement> {

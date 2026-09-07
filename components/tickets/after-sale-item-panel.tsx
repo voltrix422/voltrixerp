@@ -1,14 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  Camera,
+  Check,
+  ImageIcon,
   Loader2,
   Package,
   Plus,
   Search,
+  Truck,
   X,
+  XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
@@ -21,6 +26,7 @@ import {
   type AfterSaleItemMovement,
 } from "@/lib/after-sale-items"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
+import { uploadFiles } from "@/lib/upload"
 
 function extractSerial(raw: string): string {
   const trimmed = raw.trim()
@@ -41,17 +47,132 @@ const CONDITION_LABELS: Record<string, string> = {
 }
 
 const DISPOSITION_LABELS: Record<string, string> = {
-  returned_to_customer: "Returned to customer",
+  returned_to_customer: "Dispatched to client",
+  not_serviceable: "Not serviceable",
   replaced: "Replaced unit issued",
   to_faulty: "Moved to faulty",
   scrap: "Scrapped",
 }
+
+const OUT_OPTIONS: Array<{
+  value: Exclude<AfterSaleDisposition, "">
+  title: string
+  description: string
+  icon: typeof Truck
+}> = [
+  {
+    value: "returned_to_customer",
+    title: "Dispatch to client",
+    description: "Return the battery to the customer",
+    icon: Truck,
+  },
+  {
+    value: "not_serviceable",
+    title: "Not serviceable",
+    description: "Move to not-serviceable stock",
+    icon: XCircle,
+  },
+]
 
 function formatWhen(iso: string) {
   if (!iso) return "—"
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return "—"
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+}
+
+type LocalPhoto = { file: File; preview: string }
+
+function PhotoRemarkBlock({
+  label,
+  remark,
+  onRemarkChange,
+  photos,
+  onAddFiles,
+  onRemovePhoto,
+  remarkPlaceholder,
+}: {
+  label: string
+  remark: string
+  onRemarkChange: (v: string) => void
+  photos: LocalPhoto[]
+  onAddFiles: (files: FileList | null) => void
+  onRemovePhoto: (index: number) => void
+  remarkPlaceholder: string
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/15 p-3 space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[hsl(var(--foreground))]">
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {photos.map((p, i) => (
+          <div key={`${p.preview}-${i}`} className="relative h-16 w-16 rounded-lg overflow-hidden border border-[hsl(var(--border))]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.preview} alt="" className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onRemovePhoto(i)}
+              className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+              aria-label="Remove photo"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="h-16 w-16 rounded-lg border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--background))] flex flex-col items-center justify-center gap-0.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/30"
+        >
+          <Camera className="h-4 w-4" />
+          <span className="text-[9px]">Upload</span>
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            onAddFiles(e.target.files)
+            e.target.value = ""
+          }}
+        />
+      </div>
+      <textarea
+        value={remark}
+        onChange={(e) => onRemarkChange(e.target.value)}
+        rows={2}
+        placeholder={remarkPlaceholder}
+        className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs resize-none"
+      />
+    </div>
+  )
+}
+
+function PhotoThumbs({ urls, label }: { urls: string[]; label: string }) {
+  if (urls.length === 0) return null
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {urls.map((url) => (
+          <a
+            key={url}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="h-12 w-12 rounded-md overflow-hidden border border-[hsl(var(--border))]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="h-full w-full object-cover" />
+          </a>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function AfterSaleItemPanel({
@@ -88,10 +209,15 @@ export function AfterSaleItemPanel({
   const [customerPhone, setCustomerPhone] = useState(lockCustomerPhone || "")
   const [ticketId, setTicketId] = useState(lockTicketId || "")
   const [notes, setNotes] = useState("")
+  const [beforeRemark, setBeforeRemark] = useState("")
+  const [afterRemark, setAfterRemark] = useState("")
+  const [beforePhotos, setBeforePhotos] = useState<LocalPhoto[]>([])
+  const [afterPhotos, setAfterPhotos] = useState<LocalPhoto[]>([])
 
   const [outDisposition, setOutDisposition] = useState<Exclude<AfterSaleDisposition, "">>("returned_to_customer")
   const [outSerial, setOutSerial] = useState("")
-  const [outNotes, setOutNotes] = useState("")
+  const [outAfterRemark, setOutAfterRemark] = useState("")
+  const [outAfterPhotos, setOutAfterPhotos] = useState<LocalPhoto[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -139,10 +265,40 @@ export function AfterSaleItemPanel({
         r.model.toLowerCase().includes(q) ||
         r.customerName.toLowerCase().includes(q) ||
         (r.ticketNumber || "").toLowerCase().includes(q) ||
-        (r.outSerialNumber || "").toLowerCase().includes(q)
+        (r.outSerialNumber || "").toLowerCase().includes(q) ||
+        r.beforeRemark.toLowerCase().includes(q) ||
+        r.afterRemark.toLowerCase().includes(q)
       )
     })
   }, [rows, search, filter])
+
+  function revokePhotos(list: LocalPhoto[]) {
+    for (const p of list) URL.revokeObjectURL(p.preview)
+  }
+
+  function addPhotos(
+    files: FileList | null,
+    setter: Dispatch<SetStateAction<LocalPhoto[]>>,
+  ) {
+    if (!files?.length) return
+    const next: LocalPhoto[] = Array.from(files)
+      .filter((f) => f.type.startsWith("image/"))
+      .map((file) => ({ file, preview: URL.createObjectURL(file) }))
+    if (next.length === 0) return
+    setter((prev) => [...prev, ...next].slice(0, 6))
+  }
+
+  function removePhoto(
+    index: number,
+    setter: Dispatch<SetStateAction<LocalPhoto[]>>,
+  ) {
+    setter((prev) => {
+      const copy = [...prev]
+      const [removed] = copy.splice(index, 1)
+      if (removed) URL.revokeObjectURL(removed.preview)
+      return copy
+    })
+  }
 
   function resetInForm() {
     setSerial("")
@@ -150,12 +306,27 @@ export function AfterSaleItemPanel({
     setModel("")
     setCondition("faulty")
     setNotes("")
+    setBeforeRemark("")
+    setAfterRemark("")
+    revokePhotos(beforePhotos)
+    revokePhotos(afterPhotos)
+    setBeforePhotos([])
+    setAfterPhotos([])
     if (!lockTicketId) {
       setTicketId("")
       setCustomerName("")
       setCustomerPhone("")
     }
     setShowIn(false)
+  }
+
+  function resetOutForm() {
+    revokePhotos(outAfterPhotos)
+    setOutAfterPhotos([])
+    setOutAfterRemark("")
+    setOutSerial("")
+    setOutDisposition("returned_to_customer")
+    setShowOut(null)
   }
 
   async function submitIn(e: React.FormEvent) {
@@ -168,6 +339,10 @@ export function AfterSaleItemPanel({
     setSaving(true)
     try {
       const ticket = tickets.find((t) => t.id === ticketId)
+      const [beforePhotoUrls, afterPhotoUrls] = await Promise.all([
+        beforePhotos.length ? uploadFiles(beforePhotos.map((p) => p.file), "after-sale-items") : Promise.resolve([] as string[]),
+        afterPhotos.length ? uploadFiles(afterPhotos.map((p) => p.file), "after-sale-items") : Promise.resolve([] as string[]),
+      ])
       await createAfterSaleItemIn({
         serialNumber: sn,
         productName: productName.trim(),
@@ -178,6 +353,10 @@ export function AfterSaleItemPanel({
         ticketId: ticketId || undefined,
         ticketNumber: ticket?.ticketNumber || lockTicketNumber,
         notes: notes.trim(),
+        beforeRemark: beforeRemark.trim(),
+        afterRemark: afterRemark.trim(),
+        beforePhotoUrls,
+        afterPhotoUrls,
         createdBy: actorName,
       })
       toast({ title: "Item In recorded", message: `${sn} is now held in after-sale.`, type: "success" })
@@ -199,11 +378,16 @@ export function AfterSaleItemPanel({
     if (!showOut) return
     setSaving(true)
     try {
+      const afterPhotoUrls = outAfterPhotos.length
+        ? await uploadFiles(outAfterPhotos.map((p) => p.file), "after-sale-items")
+        : []
       await createAfterSaleItemOut({
         linkedInId: showOut.id,
         disposition: outDisposition,
         outSerialNumber: extractSerial(outSerial) || undefined,
-        notes: outNotes.trim(),
+        afterRemark: outAfterRemark.trim(),
+        notes: outAfterRemark.trim(),
+        afterPhotoUrls,
         createdBy: actorName,
       })
       toast({
@@ -211,10 +395,7 @@ export function AfterSaleItemPanel({
         message: `${showOut.serialNumber} released (${DISPOSITION_LABELS[outDisposition]}).`,
         type: "success",
       })
-      setShowOut(null)
-      setOutSerial("")
-      setOutNotes("")
-      setOutDisposition("returned_to_customer")
+      resetOutForm()
       await load()
     } catch (err) {
       toast({
@@ -358,17 +539,35 @@ export function AfterSaleItemPanel({
                         {DISPOSITION_LABELS[row.disposition] || row.disposition}
                       </span>
                     )}
+                    {(row.photos.before.length > 0 || row.photos.after.length > 0) && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">
+                        <ImageIcon className="h-3 w-3" />
+                        {row.photos.before.length + row.photos.after.length}
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
                     {[row.productName || row.model, row.customerName, row.ticketNumber]
                       .filter(Boolean)
                       .join(" · ") || "—"}
                   </p>
+                  {row.beforeRemark && (
+                    <p className="text-[11px] text-[hsl(var(--foreground))] mt-1">
+                      <span className="text-[hsl(var(--muted-foreground))]">Before:</span> {row.beforeRemark}
+                    </p>
+                  )}
+                  {row.afterRemark && (
+                    <p className="text-[11px] text-[hsl(var(--foreground))] mt-0.5">
+                      <span className="text-[hsl(var(--muted-foreground))]">After:</span> {row.afterRemark}
+                    </p>
+                  )}
                   {!isIn && row.outSerialNumber && row.outSerialNumber !== row.serialNumber && (
                     <p className="text-[11px] text-[hsl(var(--foreground))] mt-0.5">
                       Out SN: {row.outSerialNumber}
                     </p>
                   )}
+                  <PhotoThumbs urls={row.photos.before} label="Before" />
+                  <PhotoThumbs urls={row.photos.after} label="After" />
                   <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
                     {formatWhen(row.createdAt)}
                     {row.createdBy ? ` · ${row.createdBy}` : ""}
@@ -383,7 +582,9 @@ export function AfterSaleItemPanel({
                       setShowOut(row)
                       setOutSerial(row.serialNumber)
                       setOutDisposition("returned_to_customer")
-                      setOutNotes("")
+                      setOutAfterRemark(row.afterRemark || "")
+                      revokePhotos(outAfterPhotos)
+                      setOutAfterPhotos([])
                     }}
                   >
                     <ArrowUpFromLine className="h-3 w-3" /> Item Out
@@ -503,13 +704,33 @@ export function AfterSaleItemPanel({
                   />
                 </div>
               </div>
+
+              <PhotoRemarkBlock
+                label="Before"
+                remark={beforeRemark}
+                onRemarkChange={setBeforeRemark}
+                photos={beforePhotos}
+                onAddFiles={(files) => addPhotos(files, setBeforePhotos)}
+                onRemovePhoto={(i) => removePhoto(i, setBeforePhotos)}
+                remarkPlaceholder="Condition on arrival, damage notes…"
+              />
+              <PhotoRemarkBlock
+                label="After"
+                remark={afterRemark}
+                onRemarkChange={setAfterRemark}
+                photos={afterPhotos}
+                onAddFiles={(files) => addPhotos(files, setAfterPhotos)}
+                onRemovePhoto={(i) => removePhoto(i, setAfterPhotos)}
+                remarkPlaceholder="Condition after inspection / repair…"
+              />
+
               <div>
-                <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">Notes</label>
+                <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">Other notes</label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
-                  placeholder="Symptoms, accessories received…"
+                  placeholder="Accessories received, extras…"
                   className="mt-1 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs resize-none"
                 />
               </div>
@@ -529,7 +750,7 @@ export function AfterSaleItemPanel({
       {showOut && (
         <div
           className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/45 p-0 sm:p-4"
-          onClick={() => setShowOut(null)}
+          onClick={resetOutForm}
         >
           <div
             className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] max-h-[92vh] overflow-hidden flex flex-col"
@@ -540,28 +761,55 @@ export function AfterSaleItemPanel({
                 <ArrowUpFromLine className="h-4 w-4 text-sky-600" />
                 <p className="text-sm font-semibold">Item Out · {showOut.serialNumber}</p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowOut(null)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={resetOutForm}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <form onSubmit={submitOut} className="overflow-y-auto p-4 space-y-3">
-              <div>
-                <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">Disposition *</label>
-                <select
-                  value={outDisposition}
-                  onChange={(e) => setOutDisposition(e.target.value as Exclude<AfterSaleDisposition, "">)}
-                  className="mt-1 w-full h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-xs"
-                >
-                  {Object.entries(DISPOSITION_LABELS).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-2">
+                <p className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">Choose outcome *</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {OUT_OPTIONS.map((opt) => {
+                    const selected = outDisposition === opt.value
+                    const Icon = opt.icon
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setOutDisposition(opt.value)}
+                        className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
+                          selected
+                            ? "border-[#1a9f9a] bg-[#1a9f9a]/10"
+                            : "border-[hsl(var(--border))] bg-[hsl(var(--background))] hover:bg-[hsl(var(--muted))]/20"
+                        }`}
+                      >
+                        <div
+                          className={`mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+                            selected
+                              ? "bg-[#1a9f9a] text-white"
+                              : "bg-[hsl(var(--muted))]/40 text-[hsl(var(--muted-foreground))]"
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-[hsl(var(--foreground))] flex items-center gap-1.5">
+                            {opt.title}
+                            {selected && <Check className="h-3.5 w-3.5 text-[#1a9f9a]" />}
+                          </p>
+                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                            {opt.description}
+                          </p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
+
               <div>
                 <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-                  Outgoing serial {outDisposition === "replaced" ? "(replacement)" : "(same if unchanged)"}
+                  Outgoing serial
                 </label>
                 <input
                   value={outSerial}
@@ -571,16 +819,17 @@ export function AfterSaleItemPanel({
                   className="mt-1 w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm"
                 />
               </div>
-              <div>
-                <label className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">Notes</label>
-                <textarea
-                  value={outNotes}
-                  onChange={(e) => setOutNotes(e.target.value)}
-                  rows={2}
-                  placeholder="Repair done, accessories returned…"
-                  className="mt-1 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-xs resize-none"
-                />
-              </div>
+
+              <PhotoRemarkBlock
+                label="After"
+                remark={outAfterRemark}
+                onRemarkChange={setOutAfterRemark}
+                photos={outAfterPhotos}
+                onAddFiles={(files) => addPhotos(files, setOutAfterPhotos)}
+                onRemovePhoto={(i) => removePhoto(i, setOutAfterPhotos)}
+                remarkPlaceholder="Final condition, packing notes…"
+              />
+
               <Button
                 type="submit"
                 disabled={saving}

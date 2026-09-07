@@ -724,14 +724,17 @@ model ErpAfterSaleItemMovement {
   customerName  String   @default("") @map("customer_name")
   customerPhone String?  @map("customer_phone")
   notes         String   @default("")
+  beforeRemark  String   @default("") @map("before_remark")
+  afterRemark   String   @default("") @map("after_remark")
   /// For type=in: held | released. For type=out: unused (empty).
   status        String   @default("held")
   /// Out movements link back to the Item In row they release.
   linkedInId    String?  @map("linked_in_id")
-  /// returned_to_customer | replaced | to_faulty | scrap
+  /// returned_to_customer | not_serviceable | replaced | to_faulty | scrap
   disposition   String   @default("")
   outSerialNumber String? @map("out_serial_number")
-  photoUrls     Json     @default("[]") @map("photo_urls")
+  /// Structured as { before: string[], after: string[] } (legacy flat arrays still accepted).
+  photoUrls     Json     @default("{\"before\":[],\"after\":[]}") @map("photo_urls")
   createdBy     String   @default("") @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")

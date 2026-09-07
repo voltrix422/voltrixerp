@@ -2,10 +2,28 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@prisma/client"
 
-function parsePhotoUrls(value: unknown): string[] {
+function parseStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.map((u) => String(u ?? "").trim()).filter(Boolean)
 }
+
+function buildPhotoUrls(body: Record<string, unknown>): Prisma.InputJsonValue {
+  const before = parseStringList(body.beforePhotoUrls)
+  const after = parseStringList(body.afterPhotoUrls)
+  const legacy = parseStringList(body.photoUrls)
+  return {
+    before: before.length > 0 ? before : legacy,
+    after,
+  } as unknown as Prisma.InputJsonValue
+}
+
+const OUT_DISPOSITIONS = new Set([
+  "returned_to_customer",
+  "not_serviceable",
+  "replaced",
+  "to_faulty",
+  "scrap",
+])
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -78,8 +96,10 @@ export async function POST(req: NextRequest) {
           customerName,
           customerPhone: customerPhone || null,
           notes: String(body.notes ?? "").trim(),
+          beforeRemark: String(body.beforeRemark ?? "").trim(),
+          afterRemark: String(body.afterRemark ?? "").trim(),
           status: "held",
-          photoUrls: parsePhotoUrls(body.photoUrls) as unknown as Prisma.InputJsonValue,
+          photoUrls: buildPhotoUrls(body),
           createdBy,
         },
       })
@@ -92,7 +112,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "linkedInId is required" }, { status: 400 })
       }
       const disposition = String(body.disposition ?? "").trim()
-      if (!["returned_to_customer", "replaced", "to_faulty", "scrap"].includes(disposition)) {
+      if (!OUT_DISPOSITIONS.has(disposition)) {
         return NextResponse.json({ error: "Invalid disposition" }, { status: 400 })
       }
 
@@ -105,6 +125,13 @@ export async function POST(req: NextRequest) {
       }
 
       const outSerial = String(body.outSerialNumber ?? "").trim() || held.serialNumber
+      const afterRemark = String(body.afterRemark ?? body.notes ?? "").trim()
+      const afterPhotos = parseStringList(body.afterPhotoUrls)
+      const heldPhotos =
+        held.photoUrls && typeof held.photoUrls === "object" && !Array.isArray(held.photoUrls)
+          ? (held.photoUrls as { before?: unknown; after?: unknown })
+          : { before: Array.isArray(held.photoUrls) ? held.photoUrls : [], after: [] }
+      const beforeFromHeld = parseStringList(heldPhotos.before)
 
       const [outRow] = await prisma.$transaction([
         prisma.erpAfterSaleItemMovement.create({
@@ -119,17 +146,35 @@ export async function POST(req: NextRequest) {
             customerName: held.customerName,
             customerPhone: held.customerPhone,
             notes: String(body.notes ?? "").trim(),
+            beforeRemark: held.beforeRemark || "",
+            afterRemark,
             status: "released",
             linkedInId: held.id,
             disposition,
             outSerialNumber: outSerial,
-            photoUrls: parsePhotoUrls(body.photoUrls) as unknown as Prisma.InputJsonValue,
+            photoUrls: {
+              before: beforeFromHeld,
+              after: afterPhotos,
+            } as unknown as Prisma.InputJsonValue,
             createdBy,
           },
         }),
         prisma.erpAfterSaleItemMovement.update({
           where: { id: held.id },
-          data: { status: "released" },
+          data: {
+            status: "released",
+            ...(afterRemark
+              ? { afterRemark }
+              : {}),
+            ...(afterPhotos.length > 0
+              ? {
+                  photoUrls: {
+                    before: beforeFromHeld,
+                    after: afterPhotos,
+                  } as unknown as Prisma.InputJsonValue,
+                }
+              : {}),
+          },
         }),
       ])
 
