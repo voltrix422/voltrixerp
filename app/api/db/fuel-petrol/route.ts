@@ -178,6 +178,9 @@ export async function POST(req: NextRequest) {
       if (existing.status === "settled") {
         return NextResponse.json({ error: "Already settled" }, { status: 409 })
       }
+      if (existing.status === "pending_review") {
+        return NextResponse.json({ error: "Already submitted for admin review" }, { status: 409 })
+      }
 
       const odoStart =
         body.odometerStart === null || body.odometerStart === undefined || body.odometerStart === ""
@@ -191,7 +194,7 @@ export async function POST(req: NextRequest) {
       const row = await prisma.erpFuelAllotment.update({
         where: { id },
         data: {
-          status: "settled",
+          status: "pending_review",
           kmDriven,
           odometerStart: Number.isFinite(odoStart as number) ? (odoStart as number) : null,
           odometerEnd: Number.isFinite(odoEnd as number) ? (odoEnd as number) : null,
@@ -205,14 +208,70 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(row)
     }
 
+    if (action === "review") {
+      const id = String(body.id ?? "").trim()
+      const decision = String(body.decision ?? "").trim().toLowerCase()
+      if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 })
+      if (decision !== "approve" && decision !== "reject") {
+        return NextResponse.json({ error: "decision must be approve or reject" }, { status: 400 })
+      }
+
+      const existing = await prisma.erpFuelAllotment.findUnique({ where: { id } })
+      if (!existing) return NextResponse.json({ error: "Allotment not found" }, { status: 404 })
+      if (existing.status !== "pending_review") {
+        return NextResponse.json({ error: "No settlement pending review" }, { status: 409 })
+      }
+
+      const reviewedBy = String(body.reviewedBy ?? "").trim()
+      if (decision === "approve") {
+        const row = await prisma.erpFuelAllotment.update({
+          where: { id },
+          data: {
+            status: "settled",
+            settledAt: new Date(),
+            settledBy: existing.settledBy || reviewedBy,
+            settlementNotes: existing.settlementNotes
+              ? `${existing.settlementNotes}${reviewedBy ? `\nApproved by ${reviewedBy}` : ""}`
+              : reviewedBy
+                ? `Approved by ${reviewedBy}`
+                : "",
+          },
+          include: allotmentInclude,
+        })
+        return NextResponse.json(row)
+      }
+
+      const rejectionNotes = String(body.rejectionNotes ?? "").trim()
+      const row = await prisma.erpFuelAllotment.update({
+        where: { id },
+        data: {
+          status: "allotted",
+          kmDriven: null,
+          odometerStart: null,
+          odometerEnd: null,
+          spendingProofUrls: [] as unknown as Prisma.InputJsonValue,
+          settledAt: null,
+          settledBy: "",
+          settlementNotes: "",
+          notes: [
+            existing.notes,
+            rejectionNotes
+              ? `Rejected${reviewedBy ? ` by ${reviewedBy}` : ""}: ${rejectionNotes}`
+              : `Rejected${reviewedBy ? ` by ${reviewedBy}` : ""} — resubmit KM and proofs.`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        },
+        include: allotmentInclude,
+      })
+      return NextResponse.json(row)
+    }
+
     if (action === "delete_allotment") {
       const id = String(body.id ?? "").trim()
       if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 })
       const existing = await prisma.erpFuelAllotment.findUnique({ where: { id } })
       if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
-      if (existing.status === "settled") {
-        return NextResponse.json({ error: "Cannot delete a settled allotment" }, { status: 400 })
-      }
       await prisma.erpFuelAllotment.delete({ where: { id } })
       return NextResponse.json({ ok: true })
     }

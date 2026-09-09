@@ -1,4 +1,4 @@
-export type FuelAllotmentStatus = "allotted" | "settled"
+export type FuelAllotmentStatus = "allotted" | "pending_review" | "settled"
 
 export type FuelVehicle = {
   id: string
@@ -172,6 +172,22 @@ export async function settleFuelAllotment(input: {
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error || "Failed to settle fuel")
+  return mapAllotment(data)
+}
+
+export async function reviewFuelAllotment(input: {
+  id: string
+  decision: "approve" | "reject"
+  reviewedBy?: string
+  rejectionNotes?: string
+}): Promise<FuelAllotment> {
+  const res = await fetch("/api/db/fuel-petrol", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "review", ...input }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Failed to review settlement")
   return mapAllotment(data)
 }
 

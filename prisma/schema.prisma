@@ -1643,7 +1643,7 @@ model ErpFuelAllotment {
   allottedAt         DateTime  @default(now()) @map("allotted_at")
   paymentProofUrls   Json      @default("[]") @map("payment_proof_urls")
   notes              String    @default("")
-  /// allotted | settled
+  /// allotted | pending_review | settled
   status             String    @default("allotted")
   kmDriven           Float?    @map("km_driven")
   odometerStart      Float?    @map("odometer_start")

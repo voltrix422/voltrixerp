@@ -13,6 +13,7 @@ import {
   Trash2,
   Upload,
   X,
+  XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
@@ -28,6 +29,7 @@ import {
   listFuelVehicles,
   saveFuelVehicle,
   settleFuelAllotment,
+  reviewFuelAllotment,
   type FuelAllotment,
   type FuelVehicle,
 } from "@/lib/fuel-petrol"
@@ -41,6 +43,17 @@ function fmtWhen(iso: string) {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return "—"
   return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+}
+
+function statusBadgeClass(status: string) {
+  if (status === "settled") return "bg-emerald-500/15 text-emerald-700"
+  if (status === "pending_review") return "bg-sky-500/15 text-sky-800"
+  return "bg-amber-500/15 text-amber-800"
+}
+
+function statusLabel(status: string) {
+  if (status === "pending_review") return "pending review"
+  return status
 }
 
 type LocalFile = { file: File; preview: string }
@@ -259,12 +272,9 @@ export function PetrolFuelDashboard() {
   const stats = useMemo(() => {
     const total = allotments.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0)
     const settled = allotments.filter((a) => a.status === "settled").length
-    return {
-      count: allotments.length,
-      total,
-      settled,
-      open: allotments.length - settled,
-    }
+    const pending = allotments.filter((a) => a.status === "pending_review").length
+    const open = allotments.filter((a) => a.status === "allotted").length
+    return { count: allotments.length, total, settled, pending, open }
   }, [allotments])
 
   function addFiles(list: FileList | null, setter: Dispatch<SetStateAction<LocalFile[]>>) {
@@ -407,7 +417,7 @@ export function PetrolFuelDashboard() {
             "fuel-proofs",
           )
         : []
-      await settleFuelAllotment({
+      const submitted = await settleFuelAllotment({
         id: selected.id,
         kmDriven: km,
         odometerStart: settleForm.odometerStart ? Number(settleForm.odometerStart) : undefined,
@@ -416,7 +426,20 @@ export function PetrolFuelDashboard() {
         spendingProofUrls,
         settledBy: user?.name || "",
       })
-      toast({ title: "Fuel settled", message: `${km} km recorded.`, type: "success" })
+      if (isAdmin) {
+        await reviewFuelAllotment({
+          id: submitted.id,
+          decision: "approve",
+          reviewedBy: user?.name || "",
+        })
+        toast({ title: "Settlement approved", message: `${km} km recorded.`, type: "success" })
+      } else {
+        toast({
+          title: "Submitted for review",
+          message: `${km} km sent to admin for approve / reject.`,
+          type: "success",
+        })
+      }
       spendFiles.forEach((f) => URL.revokeObjectURL(f.preview))
       setSpendFiles([])
       setSettleForm({ kmDriven: "", odometerStart: "", odometerEnd: "", settlementNotes: "" })
@@ -432,10 +455,75 @@ export function PetrolFuelDashboard() {
     }
   }
 
+  async function reviewSettlement(row: FuelAllotment, decision: "approve" | "reject") {
+    if (decision === "reject") {
+      const reason = window.prompt("Rejection reason (person will resubmit):", "")
+      if (reason === null) return
+      setSaving(true)
+      try {
+        await reviewFuelAllotment({
+          id: row.id,
+          decision: "reject",
+          reviewedBy: user?.name || "",
+          rejectionNotes: reason.trim(),
+        })
+        toast({ title: "Settlement rejected", message: "Person can submit again.", type: "success" })
+        await load()
+      } catch (err) {
+        toast({
+          title: "Reject failed",
+          message: err instanceof Error ? err.message : "Try again",
+          type: "error",
+        })
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
+    if (!confirm("Approve this settlement?")) return
+    setSaving(true)
+    try {
+      await reviewFuelAllotment({
+        id: row.id,
+        decision: "approve",
+        reviewedBy: user?.name || "",
+      })
+      toast({ title: "Settlement approved", type: "success" })
+      await load()
+    } catch (err) {
+      toast({
+        title: "Approve failed",
+        message: err instanceof Error ? err.message : "Try again",
+        type: "error",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const canSettle = (row: FuelAllotment) => {
-    if (row.status === "settled") return false
+    if (row.status !== "allotted") return false
     if (isAdmin) return true
     return belongsToUser(row, user?.id, user?.name, myStaffId)
+  }
+
+  async function removeAllotment(row: FuelAllotment) {
+    if (!isAdmin) return
+    if (!confirm(`Delete allotment for ${row.personName} (${fmtMoney(row.amountPkr)})?`)) return
+    try {
+      await deleteFuelAllotment(row.id)
+      setSelectedId(null)
+      setMobileDetail(false)
+      toast({ title: "Allotment deleted", type: "success" })
+      await load()
+    } catch (err) {
+      toast({
+        title: "Delete failed",
+        message: err instanceof Error ? err.message : "Try again",
+        type: "error",
+      })
+    }
   }
 
   function renderAllotmentCard(row: FuelAllotment) {
@@ -456,13 +544,9 @@ export function PetrolFuelDashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-semibold truncate">{row.personName}</p>
               <span
-                className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${
-                  row.status === "settled"
-                    ? "bg-emerald-500/15 text-emerald-700"
-                    : "bg-amber-500/15 text-amber-800"
-                }`}
+                className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${statusBadgeClass(row.status)}`}
               >
-                {row.status}
+                {statusLabel(row.status)}
               </span>
             </div>
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
@@ -498,13 +582,9 @@ export function PetrolFuelDashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold">{row.personName}</h2>
               <span
-                className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${
-                  row.status === "settled"
-                    ? "bg-emerald-500/15 text-emerald-700"
-                    : "bg-amber-500/15 text-amber-800"
-                }`}
+                className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${statusBadgeClass(row.status)}`}
               >
-                {row.status}
+                {statusLabel(row.status)}
               </span>
               {mine && !isAdmin && (
                 <span className="text-[10px] font-medium text-[#1faca6]">Your allotment</span>
@@ -531,27 +611,12 @@ export function PetrolFuelDashboard() {
               <p className="text-sm mt-2 rounded-lg bg-[hsl(var(--muted))]/30 px-3 py-2">{row.notes}</p>
             ) : null}
           </div>
-          {isAdmin && row.status === "allotted" && (
+          {isAdmin && (
             <Button
               size="sm"
               variant="ghost"
               className="h-8 text-xs text-red-600"
-              onClick={() => {
-                if (!confirm("Delete this allotment?")) return
-                void deleteFuelAllotment(row.id)
-                  .then(() => {
-                    setSelectedId(null)
-                    setMobileDetail(false)
-                    return load()
-                  })
-                  .catch((err) =>
-                    toast({
-                      title: "Delete failed",
-                      message: err instanceof Error ? err.message : "Try again",
-                      type: "error",
-                    }),
-                  )
-              }}
+              onClick={() => void removeAllotment(row)}
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </Button>
@@ -566,10 +631,12 @@ export function PetrolFuelDashboard() {
           />
         </div>
 
-        {row.status === "settled" ? (
+        {row.status === "settled" || row.status === "pending_review" ? (
           <div className="rounded-xl border bg-[hsl(var(--card))] p-4 space-y-4">
             <div>
-              <p className="text-xs font-semibold mb-1">Settlement</p>
+              <p className="text-xs font-semibold mb-1">
+                {row.status === "pending_review" ? "Submitted for admin review" : "Settlement"}
+              </p>
               <p className="text-sm">
                 <strong>{row.kmDriven ?? "—"} km</strong> driven
                 {exp != null ? ` · expected ~${exp.toFixed(0)} km` : ""}
@@ -580,7 +647,8 @@ export function PetrolFuelDashboard() {
                 </p>
               )}
               <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                Settled {fmtWhen(row.settledAt || "")}
+                {row.status === "pending_review" ? "Submitted" : "Settled"}{" "}
+                {fmtWhen(row.settledAt || "")}
                 {row.settledBy ? ` · ${row.settledBy}` : ""}
               </p>
               {row.settlementNotes ? (
@@ -594,6 +662,33 @@ export function PetrolFuelDashboard() {
               urls={row.spendingProofUrls}
               empty="No spending images submitted."
             />
+            {row.status === "pending_review" && isAdmin && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  type="button"
+                  disabled={saving}
+                  className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                  onClick={() => void reviewSettlement(row, "approve")}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  disabled={saving}
+                  variant="outline"
+                  className="h-9 text-red-600 border-red-200 gap-1.5"
+                  onClick={() => void reviewSettlement(row, "reject")}
+                >
+                  <XCircle className="h-4 w-4" /> Reject
+                </Button>
+              </div>
+            )}
+            {row.status === "pending_review" && !isAdmin && (
+              <p className="text-[11px] text-sky-700 bg-sky-500/10 rounded-lg px-3 py-2">
+                Waiting for admin to approve or reject this settlement.
+              </p>
+            )}
           </div>
         ) : canSettle(row) ? (
           <form
@@ -603,8 +698,7 @@ export function PetrolFuelDashboard() {
             <div>
               <p className="text-sm font-semibold">Settle this allotment</p>
               <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Enter KM driven and upload spending / pump photos. Admin will see this when they open
-                this allotment.
+                Enter KM driven and upload spending / pump photos. Admin will approve or reject.
               </p>
             </div>
             <div>
@@ -663,7 +757,7 @@ export function PetrolFuelDashboard() {
               className="h-10 bg-sky-600 hover:bg-sky-700 text-white gap-1.5"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Submit settlement
+              Submit for approval
             </Button>
           </form>
         ) : (
@@ -701,6 +795,10 @@ export function PetrolFuelDashboard() {
           <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
             <span className="text-[hsl(var(--muted-foreground))]">Open </span>
             <strong className="text-amber-700">{stats.open}</strong>
+          </div>
+          <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
+            <span className="text-[hsl(var(--muted-foreground))]">Review </span>
+            <strong className="text-sky-700">{stats.pending}</strong>
           </div>
           <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
             <span className="text-[hsl(var(--muted-foreground))]">Settled </span>

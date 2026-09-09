@@ -67,7 +67,7 @@ import {
   downloadPurchaseLedgerReportPDF,
 } from "@/lib/purchase-ledger-export"
 import { purchaseScopeLabel } from "@/lib/purchase-scopes"
-import { listFuelAllotments } from "@/lib/fuel-petrol"
+import { listFuelAllotments, type FuelAllotment } from "@/lib/fuel-petrol"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -396,7 +396,7 @@ function LedgerFilterSummary({
     purchases: PurchaseLedgerStats
     rents: PurchaseLedgerStats
   }
-  petrol: { count: number; total: number; settled: number; open: number }
+  petrol: { count: number; total: number; settled: number; open: number; pending: number }
 }) {
   const row = (
     label: string,
@@ -454,13 +454,13 @@ function LedgerFilterSummary({
       )}
       <Link
         href="/petrol"
-        className="rounded-md bg-[hsl(var(--muted))]/15 px-3 py-2.5 block hover:bg-[hsl(var(--muted))]/30 transition-colors"
+        className="rounded-md border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 block hover:bg-amber-500/15 transition-colors"
       >
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-[hsl(var(--foreground))]">Petrol / fuel</p>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              Open full Petrol page · allotments & settlements
+              Filter by “Petrol / fuel” above · or open full Petrol page
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
@@ -474,6 +474,9 @@ function LedgerFilterSummary({
               Open <strong className="text-amber-600">{petrol.open}</strong>
             </span>
             <span>
+              Review <strong className="text-sky-600">{petrol.pending}</strong>
+            </span>
+            <span>
               Settled <strong className="text-emerald-600">{petrol.settled}</strong>
             </span>
           </div>
@@ -481,7 +484,7 @@ function LedgerFilterSummary({
       </Link>
       <p className="text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))] px-0.5">
         Combined total = purchases + rents. Petrol is tracked separately and also counts in Finance → Money out.
-        Counts and amounts update with search and filters above (ledger) / live allotments (petrol).
+        Use transaction type filter → Petrol / fuel to list allotments here.
       </p>
     </div>
   )
@@ -631,7 +634,14 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [exporting, setExporting] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [showRentForm, setShowRentForm] = useState(false)
-  const [petrolStats, setPetrolStats] = useState({ count: 0, total: 0, settled: 0, open: 0 })
+  const [petrolStats, setPetrolStats] = useState({
+    count: 0,
+    total: 0,
+    settled: 0,
+    open: 0,
+    pending: 0,
+  })
+  const [petrolRows, setPetrolRows] = useState<FuelAllotment[]>([])
   const [rentRows, setRentRows] = useState<RentRow[]>([newRentRow()])
   const [rentTransactionDate, setRentTransactionDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [rentSaving, setRentSaving] = useState(false)
@@ -738,11 +748,13 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       setEntries(ledgerRows)
       setSuppliers(supplierRows)
       setClientProjects(projectRows)
+      setPetrolRows(fuelRows)
       setPetrolStats({
         count: fuelRows.length,
         total: fuelRows.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0),
         settled: fuelRows.filter((a) => a.status === "settled").length,
-        open: fuelRows.filter((a) => a.status !== "settled").length,
+        open: fuelRows.filter((a) => a.status === "allotted").length,
+        pending: fuelRows.filter((a) => a.status === "pending_review").length,
       })
       setLoading(false)
     }
@@ -1347,6 +1359,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   )
 
   const filtered = useMemo(() => {
+    if (filterTransactionType === "petrol") return [] as PurchaseLedgerEntry[]
     const q = filterSearch.trim().toLowerCase()
     return entries.filter(e => {
       if (filterLinkMode !== "all" && normalizeLinkMode(e.linkMode) !== filterLinkMode) return false
@@ -1389,6 +1402,35 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     filterDueTo,
   ])
 
+  const filteredPetrol = useMemo(() => {
+    if (filterTransactionType !== "petrol") return [] as FuelAllotment[]
+    const q = filterSearch.trim().toLowerCase()
+    return petrolRows.filter((a) => {
+      if (filterDateFrom) {
+        const d = a.allottedAt.slice(0, 10)
+        if (d < filterDateFrom) return false
+      }
+      if (filterDateTo) {
+        const d = a.allottedAt.slice(0, 10)
+        if (d > filterDateTo) return false
+      }
+      if (q) {
+        const hay = [
+          a.personName,
+          a.vehicleName,
+          a.vehiclePlate,
+          a.notes,
+          a.status,
+          a.allottedBy,
+        ]
+          .join(" ")
+          .toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [petrolRows, filterTransactionType, filterSearch, filterDateFrom, filterDateTo])
+
   const filterStats = useMemo(() => {
     const rentEntries = filtered.filter(isRentLedgerEntry)
     const purchaseEntries = filtered.filter(entry => !isRentLedgerEntry(entry))
@@ -1426,7 +1468,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   function buildFilterSummary() {
     const parts: string[] = []
     if (filterLinkMode !== "all") parts.push(formatLinkModeLabel(filterLinkMode))
-    if (filterTransactionType !== "all") parts.push(filterTransactionType)
+    if (filterTransactionType !== "all") {
+      parts.push(filterTransactionType === "petrol" ? "Petrol / fuel" : filterTransactionType)
+    }
     if (filterSupplierId !== "all") parts.push(suppliers.find(s => s.id === filterSupplierId)?.name || "Supplier")
     if (filterPaymentStatus !== "all") parts.push(filterPaymentStatus)
     if (filterSearch.trim()) parts.push(`search: ${filterSearch.trim()}`)
@@ -1538,7 +1582,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           )}
           <span className="ml-auto flex items-center gap-2">
             <span className="text-[10px] text-[hsl(var(--muted-foreground))] hidden sm:inline">
-              {filterStats.combined.count} shown · combined {fmtMoney(filterStats.combined.total)}
+              {filterTransactionType === "petrol"
+                ? `${filteredPetrol.length} petrol · ${fmtMoney(filteredPetrol.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0))}`
+                : `${filterStats.combined.count} shown · combined ${fmtMoney(filterStats.combined.total)}`}
             </span>
             {filtersOpen
               ? <ChevronUp className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
@@ -1578,6 +1624,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   {PURCHASE_TRANSACTION_TYPES.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
+                  <option value="petrol">Petrol / fuel</option>
                 </select>
                 <select value={filterSupplierId} onChange={e => setFilterSupplierId(e.target.value)} className={filterSelectCls + " lg:max-w-[180px]"}>
                   <option value="all">All suppliers</option>
@@ -2322,12 +2369,52 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         {loading && (
           <div className="rounded-lg border px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">Loading...</div>
         )}
-        {!loading && filtered.length === 0 && (
+        {!loading && filterTransactionType === "petrol" && filteredPetrol.length === 0 && (
+          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+            No petrol allotments match. Open Petrol to allot fuel.
+          </div>
+        )}
+        {!loading && filterTransactionType === "petrol" && filteredPetrol.map((row) => (
+          <Link
+            key={row.id}
+            href="/petrol"
+            className="w-full text-left rounded-lg border bg-[hsl(var(--card))] p-3 space-y-1.5 hover:bg-[hsl(var(--muted))]/15 block"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{row.personName}</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                  {row.vehicleName}
+                  {row.vehiclePlate ? ` · ${row.vehiclePlate}` : ""}
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className={`text-[10px] shrink-0 ${
+                  row.status === "settled"
+                    ? "border-emerald-500/40 text-emerald-700"
+                    : row.status === "pending_review"
+                      ? "border-sky-500/40 text-sky-700"
+                      : "border-amber-500/40 text-amber-700"
+                }`}
+              >
+                {row.status === "pending_review" ? "pending review" : row.status}
+              </Badge>
+            </div>
+            <p className="text-sm font-semibold text-[#1faca6]">{fmtMoney(row.amountPkr)}</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              Allotted {row.allottedAt.slice(0, 10)}
+              {row.allottedBy ? ` · ${row.allottedBy}` : ""}
+              {" · "}Petrol
+            </p>
+          </Link>
+        ))}
+        {!loading && filterTransactionType !== "petrol" && filtered.length === 0 && (
           <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
             {entries.length === 0 ? "No purchase entries yet. Tap \"New purchase\" to add one." : "No entries match your filters."}
           </div>
         )}
-        {filtered.map(entry => (
+        {filterTransactionType !== "petrol" && filtered.map(entry => (
           <div
             key={entry.id}
             role="button"
@@ -2409,12 +2496,55 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             {loading && (
               <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">Loading...</td></tr>
             )}
-            {!loading && filtered.length === 0 && (
+            {!loading && filterTransactionType === "petrol" && filteredPetrol.length === 0 && (
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
+                No petrol allotments match. Open Petrol to allot fuel.
+              </td></tr>
+            )}
+            {!loading && filterTransactionType === "petrol" && filteredPetrol.map((row) => (
+              <tr
+                key={row.id}
+                className="hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
+                onClick={() => { window.location.href = "/petrol" }}
+              >
+                <td className="px-2 py-2 font-medium text-[#1faca6]">PETROL</td>
+                <td className="px-2 py-2 whitespace-nowrap">{row.allottedAt.slice(0, 10)}</td>
+                <td className="px-2 py-2">
+                  <Badge variant="outline" className="text-[10px] w-fit border-amber-500/40 text-amber-700">
+                    Petrol / fuel
+                  </Badge>
+                </td>
+                <td className="px-2 py-2">{row.personName}</td>
+                <td className="px-2 py-2 text-[hsl(var(--muted-foreground))]">
+                  {row.vehicleName}{row.vehiclePlate ? ` · ${row.vehiclePlate}` : ""}
+                </td>
+                <td className="px-2 py-2 text-right font-medium">{fmtMoney(row.amountPkr)}</td>
+                <td className="px-2 py-2 text-right text-emerald-600">{fmtMoney(row.amountPkr)}</td>
+                <td className="px-2 py-2 text-right text-amber-600">{fmtMoney(0)}</td>
+                <td className="px-2 py-2">
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${
+                      row.status === "settled"
+                        ? "border-emerald-500/40 text-emerald-700"
+                        : row.status === "pending_review"
+                          ? "border-sky-500/40 text-sky-700"
+                          : "border-amber-500/40 text-amber-700"
+                    }`}
+                  >
+                    {row.status === "pending_review" ? "pending review" : row.status}
+                  </Badge>
+                </td>
+                <td className="px-2 py-2 text-[hsl(var(--muted-foreground))]">{row.allottedBy || "—"}</td>
+                <td className="px-2 py-2 text-[hsl(var(--muted-foreground))]">Open Petrol</td>
+              </tr>
+            ))}
+            {!loading && filterTransactionType !== "petrol" && filtered.length === 0 && (
               <tr><td colSpan={11} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
                 {entries.length === 0 ? "No purchase entries yet. Click \"New purchase\" to add one." : "No entries match your filters."}
               </td></tr>
             )}
-            {filtered.map(entry => (
+            {filterTransactionType !== "petrol" && filtered.map(entry => (
               <tr
                 key={entry.id}
                 className="hover:bg-[hsl(var(--muted))]/20 cursor-pointer"
