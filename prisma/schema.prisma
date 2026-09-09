@@ -1610,3 +1610,56 @@ model ErpWebsitePresence {
   @@index([lastSeenAt])
   @@map("erp_website_presence")
 }
+
+/// Company / staff vehicles used for petrol allotments.
+model ErpFuelVehicle {
+  id             String   @id @default(cuid())
+  name           String
+  plate          String   @default("")
+  /// Expected average: kilometres per litre.
+  avgKmPerLiter  Float    @default(0) @map("avg_km_per_liter")
+  active         Boolean  @default(true)
+  notes          String   @default("")
+  createdBy      String   @default("") @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  allotments ErpFuelAllotment[]
+
+  @@index([active])
+  @@map("erp_fuel_vehicles")
+}
+
+/// Admin allots fuel money to a person; person settles with KM + spending proofs.
+model ErpFuelAllotment {
+  id                 String    @id @default(cuid())
+  vehicleId          String    @map("vehicle_id")
+  vehicle            ErpFuelVehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  personStaffId      String?   @map("person_staff_id")
+  personName         String    @map("person_name")
+  personUserId       String?   @map("person_user_id")
+  amountPkr          Float     @default(0) @map("amount_pkr")
+  liters             Float?
+  allottedAt         DateTime  @default(now()) @map("allotted_at")
+  paymentProofUrls   Json      @default("[]") @map("payment_proof_urls")
+  notes              String    @default("")
+  /// allotted | settled
+  status             String    @default("allotted")
+  kmDriven           Float?    @map("km_driven")
+  odometerStart      Float?    @map("odometer_start")
+  odometerEnd        Float?    @map("odometer_end")
+  settlementNotes    String    @default("") @map("settlement_notes")
+  spendingProofUrls  Json      @default("[]") @map("spending_proof_urls")
+  settledAt          DateTime? @map("settled_at")
+  settledBy          String    @default("") @map("settled_by")
+  allottedBy         String    @default("") @map("allotted_by")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@index([personStaffId])
+  @@index([personUserId])
+  @@index([status])
+  @@index([allottedAt])
+  @@map("erp_fuel_allotments")
+}

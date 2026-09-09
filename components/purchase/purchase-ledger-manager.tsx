@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal, Receipt, Paperclip, Building2 } from "lucide-react"
+import { Plus, Trash2, Upload, X, FileText, Wallet, Pencil, Search, Download, RotateCcw, FileSpreadsheet, ChevronDown, ChevronUp, SlidersHorizontal, Receipt, Paperclip, Building2, Fuel } from "lucide-react"
 import { getSuppliers, type Supplier } from "@/lib/purchase"
 import {
   addPurchaseLedgerPayment,
@@ -66,6 +66,8 @@ import {
   downloadPurchaseLedgerReportPDF,
 } from "@/lib/purchase-ledger-export"
 import { purchaseScopeLabel } from "@/lib/purchase-scopes"
+import { PetrolFuelPanel } from "@/components/purchase/petrol-fuel-panel"
+import { listFuelAllotments } from "@/lib/fuel-petrol"
 
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
@@ -387,12 +389,14 @@ function fmtMoney(n: number) {
 
 function LedgerFilterSummary({
   stats,
+  petrol,
 }: {
   stats: {
     combined: PurchaseLedgerStats
     purchases: PurchaseLedgerStats
     rents: PurchaseLedgerStats
   }
+  petrol: { count: number; total: number; settled: number; open: number }
 }) {
   const row = (
     label: string,
@@ -448,8 +452,33 @@ function LedgerFilterSummary({
         "Rent entries from Add rents or lines starting with “Rent for …”",
         stats.rents,
       )}
+      <div className="rounded-md bg-[hsl(var(--muted))]/15 px-3 py-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-[hsl(var(--foreground))]">Petrol / fuel</p>
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              Fuel money allotted from Petrol (not a ledger row)
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
+            <span>
+              <strong className="text-[hsl(var(--foreground))]">{petrol.count}</strong> allotments
+            </span>
+            <span>
+              Allotted <strong className="text-[#1faca6]">{fmtMoney(petrol.total)}</strong>
+            </span>
+            <span>
+              Open <strong className="text-amber-600">{petrol.open}</strong>
+            </span>
+            <span>
+              Settled <strong className="text-emerald-600">{petrol.settled}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
       <p className="text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))] px-0.5">
-        Combined total = purchases + rents. Counts and amounts update with search and filters above.
+        Combined total = purchases + rents. Petrol is tracked separately and also counts in Finance → Money out.
+        Counts and amounts update with search and filters above (ledger) / live allotments (petrol).
       </p>
     </div>
   )
@@ -599,6 +628,8 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [exporting, setExporting] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [showRentForm, setShowRentForm] = useState(false)
+  const [showPetrol, setShowPetrol] = useState(false)
+  const [petrolStats, setPetrolStats] = useState({ count: 0, total: 0, settled: 0, open: 0 })
   const [rentRows, setRentRows] = useState<RentRow[]>([newRentRow()])
   const [rentTransactionDate, setRentTransactionDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [rentSaving, setRentSaving] = useState(false)
@@ -696,14 +727,21 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [ledgerRows, supplierRows, projectRows] = await Promise.all([
+      const [ledgerRows, supplierRows, projectRows, fuelRows] = await Promise.all([
         getPurchaseLedgerEntries(purchaseScopeId),
         getSuppliers(purchaseScopeId),
         getClientProjects(purchaseScopeId),
+        listFuelAllotments().catch(() => []),
       ])
       setEntries(ledgerRows)
       setSuppliers(supplierRows)
       setClientProjects(projectRows)
+      setPetrolStats({
+        count: fuelRows.length,
+        total: fuelRows.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0),
+        settled: fuelRows.filter((a) => a.status === "settled").length,
+        open: fuelRows.filter((a) => a.status !== "settled").length,
+      })
       setLoading(false)
     }
     void load()
@@ -1469,6 +1507,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           >
             <Download className="h-3.5 w-3.5" /> PDF
           </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowPetrol(true)}>
+            <Fuel className="h-3.5 w-3.5" /> Petrol
+          </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => void openRentForm()}>
             <Building2 className="h-3.5 w-3.5" /> Add rents
           </Button>
@@ -1564,7 +1605,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             </div>
           )}
 
-          <LedgerFilterSummary stats={filterStats} />
+          <LedgerFilterSummary stats={filterStats} petrol={petrolStats} />
         </div>
       </section>
 
@@ -2044,6 +2085,24 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           onDelete={() => void handleDelete(detailEntry.id)}
           onExportExcel={() => exportEntryExcel(detailEntry)}
           onExportPdf={() => void exportEntryPdf(detailEntry)}
+        />
+      )}
+
+      {showPetrol && (
+        <PetrolFuelPanel
+          onClose={() => {
+            setShowPetrol(false)
+            void listFuelAllotments()
+              .then((fuelRows) => {
+                setPetrolStats({
+                  count: fuelRows.length,
+                  total: fuelRows.reduce((s, a) => s + (Number(a.amountPkr) || 0), 0),
+                  settled: fuelRows.filter((a) => a.status === "settled").length,
+                  open: fuelRows.filter((a) => a.status !== "settled").length,
+                })
+              })
+              .catch(() => {})
+          }}
         />
       )}
 

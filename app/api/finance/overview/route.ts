@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     const payrollMonthFrom = payrollMonthKey(start)
     const payrollMonthTo = payrollMonthKey(end)
 
-    const [ordersRaw, pos, records, loanRecords, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, payrollSalarySlips] = await Promise.all([
+    const [ordersRaw, pos, records, loanRecords, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, payrollSalarySlips, fuelAllotments] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
@@ -115,6 +115,10 @@ export async function GET(req: NextRequest) {
           month: { gte: payrollMonthFrom, lte: payrollMonthTo },
         },
         select: { netSalary: true, month: true },
+      }),
+      prisma.erpFuelAllotment.findMany({
+        select: { amountPkr: true, allottedAt: true, status: true },
+        orderBy: { allottedAt: "desc" },
       }),
     ])
 
@@ -324,6 +328,13 @@ export async function GET(req: NextRequest) {
     })
     const purchaseLedgerPaidInPeriodTotal = purchaseLedgerPaidSplit.combined
 
+    let fuelPetrolInPeriod = 0
+    for (const a of fuelAllotments) {
+      const d = new Date(a.allottedAt)
+      if (!inRange(d, start, end)) continue
+      fuelPetrolInPeriod += Number(a.amountPkr) || 0
+    }
+
     const recordsInPeriod = records.filter(r => inRange(new Date(r.createdAt), start, end))
     const salariesFromRecords = recordsInPeriod
       .filter(r => r.category === "Salary")
@@ -449,6 +460,7 @@ export async function GET(req: NextRequest) {
         salaryAdvances: salaryAdvancesInPeriod,
         cashback: cashbackInPeriod,
         clientRefunds: clientRefundsInPeriod,
+        fuelPetrol: fuelPetrolInPeriod,
       },
     }
 
@@ -466,7 +478,8 @@ export async function GET(req: NextRequest) {
       breakdown.moneyOut.pettyCash +
       breakdown.moneyOut.importChargesCombined +
       breakdown.moneyOut.cashback +
-      breakdown.moneyOut.clientRefunds
+      breakdown.moneyOut.clientRefunds +
+      breakdown.moneyOut.fuelPetrol
     const netCashFlow = moneyIn - moneyOut
 
     // Last 6 months trend (default buckets: exclude imported)

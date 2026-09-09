@@ -45,6 +45,7 @@ type Breakdown = {
     salaryAdvances?: number
     cashback: number
     clientRefunds?: number
+    fuelPetrol?: number
   }
 }
 
@@ -68,6 +69,7 @@ type ToggleKey =
   | "importCharges"
   | "cashback"
   | "clientRefunds"
+  | "fuelPetrol"
 
 type ToggleDef = {
   key: ToggleKey
@@ -85,6 +87,7 @@ const TOGGLES: ToggleDef[] = [
   { key: "loansGiven", label: "Loans given", side: "out", defaultOn: true },
   { key: "salaries", label: "Salaries (payroll)", side: "out", defaultOn: true },
   { key: "purchaseLedger", label: "Purchase ledger (purchases + rents)", side: "out", defaultOn: true },
+  { key: "fuelPetrol", label: "Petrol / fuel", side: "out", defaultOn: true },
   { key: "pettyCash", label: "Petty cash", side: "out", defaultOn: true },
   { key: "importCharges", label: "Imported purchases (PSW + charges)", side: "out", defaultOn: true },
   { key: "cashback", label: "Cashback", side: "out", defaultOn: true },
@@ -125,6 +128,7 @@ function emptyBreakdown(): Breakdown {
       advances: 0,
       cashback: 0,
       clientRefunds: 0,
+      fuelPetrol: 0,
     },
   }
 }
@@ -133,6 +137,7 @@ function amountFor(b: Breakdown, key: ToggleKey): number {
   if (key === "loans") return b.moneyIn.loans
   if (key in b.moneyIn) return (b.moneyIn[key as keyof Breakdown["moneyIn"]] as number) || 0
   if (key === "purchaseLedger") return b.moneyOut.purchaseLedger
+  if (key === "fuelPetrol") return b.moneyOut.fuelPetrol ?? 0
   if (key === "importCharges") return b.moneyOut.importChargesCombined ?? 0
   if (key === "loansGiven") return b.moneyOut.loansGiven ?? 0
   return (b.moneyOut[key as keyof Breakdown["moneyOut"]] as number) || 0
@@ -161,6 +166,10 @@ function buildMoneyOutDisplayRows(
   }
   if (ledgerRents > 0.004) {
     rows.push({ label: "Rents (ledger)", amount: ledgerRents })
+  }
+  const fuelPetrol = b.fuelPetrol ?? 0
+  if (fuelPetrol > 0.004) {
+    rows.push({ label: "Petrol / fuel", amount: fuelPetrol })
   }
   if (b.pettyCash > 0.004) rows.push({ label: "Petty cash", amount: b.pettyCash })
 
