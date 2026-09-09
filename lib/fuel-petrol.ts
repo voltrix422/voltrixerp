@@ -121,11 +121,13 @@ export async function saveFuelVehicle(input: {
 export async function listFuelAllotments(params?: {
   mineForUserId?: string
   mineForName?: string
+  mineForStaffId?: string
   status?: string
 }): Promise<FuelAllotment[]> {
   const qs = new URLSearchParams({ resource: "allotments" })
   if (params?.mineForUserId) qs.set("userId", params.mineForUserId)
   if (params?.mineForName) qs.set("personName", params.mineForName)
+  if (params?.mineForStaffId) qs.set("staffId", params.mineForStaffId)
   if (params?.status) qs.set("status", params.status)
   const res = await fetch(`/api/db/fuel-petrol?${qs}`, { cache: "no-store" })
   if (!res.ok) throw new Error("Failed to load fuel allotments")

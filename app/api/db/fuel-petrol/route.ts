@@ -29,21 +29,36 @@ export async function GET(req: NextRequest) {
 
     const userId = searchParams.get("userId")?.trim() || ""
     const personName = searchParams.get("personName")?.trim() || ""
+    const staffId = searchParams.get("staffId")?.trim() || ""
     const status = searchParams.get("status")?.trim() || ""
+
+    const mineFilters: Prisma.ErpFuelAllotmentWhereInput[] = []
+    if (userId) {
+      mineFilters.push({ personUserId: userId })
+      const linkedStaff = await prisma.erpStaff.findMany({
+        where: { erpUserId: userId },
+        select: { id: true, name: true },
+      })
+      for (const s of linkedStaff) {
+        mineFilters.push({ personStaffId: s.id })
+        if (s.name?.trim()) {
+          mineFilters.push({
+            personName: { equals: s.name.trim(), mode: "insensitive" },
+          })
+        }
+      }
+    }
+    if (staffId) mineFilters.push({ personStaffId: staffId })
+    if (personName) {
+      mineFilters.push({
+        personName: { equals: personName, mode: "insensitive" },
+      })
+    }
 
     const rows = await prisma.erpFuelAllotment.findMany({
       where: {
         ...(status ? { status } : {}),
-        ...(userId || personName
-          ? {
-              OR: [
-                ...(userId ? [{ personUserId: userId }] : []),
-                ...(personName
-                  ? [{ personName: { equals: personName, mode: "insensitive" as const } }]
-                  : []),
-              ],
-            }
-          : {}),
+        ...(mineFilters.length ? { OR: mineFilters } : {}),
       },
       include: allotmentInclude,
       orderBy: { allottedAt: "desc" },
@@ -103,9 +118,17 @@ export async function POST(req: NextRequest) {
       const vehicleId = String(body.vehicleId ?? "").trim()
       const personName = String(body.personName ?? "").trim()
       const amountPkr = Math.max(0, Number(body.amountPkr) || 0)
+      const personStaffId = body.personStaffId ? String(body.personStaffId).trim() : ""
+      let personUserId = body.personUserId ? String(body.personUserId).trim() : ""
       if (!vehicleId) return NextResponse.json({ error: "Vehicle is required" }, { status: 400 })
       if (!personName) return NextResponse.json({ error: "Person is required" }, { status: 400 })
       if (amountPkr <= 0) return NextResponse.json({ error: "Amount must be greater than 0" }, { status: 400 })
+      if (!personUserId) {
+        return NextResponse.json(
+          { error: "ERP login is required so the person can see this allotment" },
+          { status: 400 },
+        )
+      }
 
       const vehicle = await prisma.erpFuelVehicle.findUnique({ where: { id: vehicleId } })
       if (!vehicle) return NextResponse.json({ error: "Vehicle not found" }, { status: 404 })
@@ -116,12 +139,20 @@ export async function POST(req: NextRequest) {
           ? null
           : Math.max(0, Number(litersRaw) || 0)
 
+      // Keep staff ↔ ERP login linked for future Mine views
+      if (personStaffId && personUserId) {
+        await prisma.erpStaff.updateMany({
+          where: { id: personStaffId },
+          data: { erpUserId: personUserId },
+        })
+      }
+
       const row = await prisma.erpFuelAllotment.create({
         data: {
           vehicleId,
-          personStaffId: body.personStaffId ? String(body.personStaffId).trim() : null,
+          personStaffId: personStaffId || null,
           personName,
-          personUserId: body.personUserId ? String(body.personUserId).trim() : null,
+          personUserId,
           amountPkr,
           liters,
           notes: String(body.notes ?? "").trim(),

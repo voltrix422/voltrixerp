@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
-import { roleHasAllModules } from "@/lib/auth"
+import { getUsers, roleHasAllModules, type User } from "@/lib/auth"
 import { getStaff, type Staff } from "@/lib/staff"
 import { uploadFiles } from "@/lib/upload"
 import {
@@ -132,8 +132,14 @@ function ProofGallery({
   )
 }
 
-function belongsToUser(row: FuelAllotment, userId?: string, userName?: string) {
+function belongsToUser(
+  row: FuelAllotment,
+  userId?: string,
+  userName?: string,
+  staffId?: string,
+) {
   if (row.personUserId && userId && row.personUserId === userId) return true
+  if (staffId && row.personStaffId && row.personStaffId === staffId) return true
   if (userName && row.personName.toLowerCase() === userName.toLowerCase()) return true
   return false
 }
@@ -150,6 +156,7 @@ export function PetrolFuelDashboard() {
   const [vehicles, setVehicles] = useState<FuelVehicle[]>([])
   const [allotments, setAllotments] = useState<FuelAllotment[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
+  const [erpUsers, setErpUsers] = useState<User[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetail, setMobileDetail] = useState(false)
 
@@ -167,6 +174,7 @@ export function PetrolFuelDashboard() {
   const [allotForm, setAllotForm] = useState({
     vehicleId: "",
     personStaffId: "",
+    personUserId: "",
     amountPkr: "",
     liters: "",
     notes: "",
@@ -180,23 +188,49 @@ export function PetrolFuelDashboard() {
     settlementNotes: "",
   })
   const [spendFiles, setSpendFiles] = useState<LocalFile[]>([])
+  const [myStaffId, setMyStaffId] = useState<string | undefined>(undefined)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const mine = !isAdmin || view === "mine"
-      const [v, a, s] = await Promise.all([
+      let staffIdForMine: string | undefined
+      if (mine && user?.id) {
+        try {
+          const res = await fetch(
+            `/api/hrm/staff/by-email?userId=${encodeURIComponent(user.id)}${
+              user.email ? `&email=${encodeURIComponent(user.email)}` : ""
+            }`,
+            { cache: "no-store" },
+          )
+          if (res.ok) {
+            const linked = await res.json()
+            if (linked?.id) staffIdForMine = String(linked.id)
+          }
+        } catch {
+          /* optional */
+        }
+        setMyStaffId(staffIdForMine)
+      }
+
+      const [v, a, s, users] = await Promise.all([
         listFuelVehicles(true),
         listFuelAllotments(
           mine
-            ? { mineForUserId: user?.id, mineForName: user?.name }
+            ? {
+                mineForUserId: user?.id,
+                mineForName: user?.name,
+                mineForStaffId: staffIdForMine,
+              }
             : undefined,
         ),
         getStaff().catch(() => [] as Staff[]),
+        isAdmin ? getUsers().catch(() => [] as User[]) : Promise.resolve([] as User[]),
       ])
       setVehicles(v)
       setAllotments(a)
       setStaff(s.filter((x) => String(x.status || "").toLowerCase() !== "inactive"))
+      setErpUsers(users)
       setSelectedId((prev) => {
         if (prev && a.some((row) => row.id === prev)) return prev
         return a[0]?.id ?? null
@@ -210,7 +244,7 @@ export function PetrolFuelDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [toast, user?.id, user?.name, view, isAdmin])
+  }, [toast, user?.id, user?.name, user?.email, view, isAdmin])
 
   useEffect(() => {
     void load()
@@ -294,8 +328,17 @@ export function PetrolFuelDashboard() {
     e.preventDefault()
     const person = staff.find((s) => s.id === allotForm.personStaffId)
     const personName = person?.name || ""
+    const personUserId = allotForm.personUserId.trim()
     if (!allotForm.vehicleId || !personName) {
       toast({ title: "Missing fields", message: "Select vehicle and person.", type: "error" })
+      return
+    }
+    if (!personUserId) {
+      toast({
+        title: "ERP login required",
+        message: "Pick the login account so this person can see the allotment in Petrol.",
+        type: "error",
+      })
       return
     }
     const amount = Number(allotForm.amountPkr) || 0
@@ -315,7 +358,7 @@ export function PetrolFuelDashboard() {
         vehicleId: allotForm.vehicleId,
         personStaffId: person?.id,
         personName,
-        personUserId: person?.erp_user_id || undefined,
+        personUserId,
         amountPkr: amount,
         liters: allotForm.liters ? Number(allotForm.liters) : undefined,
         notes: allotForm.notes.trim(),
@@ -326,7 +369,14 @@ export function PetrolFuelDashboard() {
       paymentFiles.forEach((f) => URL.revokeObjectURL(f.preview))
       setPaymentFiles([])
       setShowAllot(false)
-      setAllotForm({ vehicleId: "", personStaffId: "", amountPkr: "", liters: "", notes: "" })
+      setAllotForm({
+        vehicleId: "",
+        personStaffId: "",
+        personUserId: "",
+        amountPkr: "",
+        liters: "",
+        notes: "",
+      })
       await load()
       setSelectedId(created.id)
       setMobileDetail(true)
@@ -385,7 +435,7 @@ export function PetrolFuelDashboard() {
   const canSettle = (row: FuelAllotment) => {
     if (row.status === "settled") return false
     if (isAdmin) return true
-    return belongsToUser(row, user?.id, user?.name)
+    return belongsToUser(row, user?.id, user?.name, myStaffId)
   }
 
   function renderAllotmentCard(row: FuelAllotment) {
@@ -440,7 +490,7 @@ export function PetrolFuelDashboard() {
 
   function renderDetail(row: FuelAllotment) {
     const exp = expectedKm(row.avgKmPerLiter, row.liters)
-    const mine = belongsToUser(row, user?.id, user?.name)
+    const mine = belongsToUser(row, user?.id, user?.name, myStaffId)
     return (
       <div className="space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -920,10 +970,18 @@ export function PetrolFuelDashboard() {
               )}
             </div>
             <div>
-              <label className="text-[11px] font-medium">Person *</label>
+              <label className="text-[11px] font-medium">Person (HRM staff) *</label>
               <select
                 value={allotForm.personStaffId}
-                onChange={(e) => setAllotForm((f) => ({ ...f, personStaffId: e.target.value }))}
+                onChange={(e) => {
+                  const id = e.target.value
+                  const person = staff.find((s) => s.id === id)
+                  setAllotForm((f) => ({
+                    ...f,
+                    personStaffId: id,
+                    personUserId: person?.erp_user_id || f.personUserId || "",
+                  }))
+                }}
                 className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
                 required
               >
@@ -932,10 +990,30 @@ export function PetrolFuelDashboard() {
                   <option key={s.id} value={s.id}>
                     {s.name}
                     {s.department ? ` · ${s.department}` : ""}
-                    {!s.erp_user_id ? " · (no login link)" : ""}
+                    {!s.erp_user_id ? " · (pick ERP login below)" : ""}
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium">ERP login (who sees this) *</label>
+              <select
+                value={allotForm.personUserId}
+                onChange={(e) => setAllotForm((f) => ({ ...f, personUserId: e.target.value }))}
+                className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
+                required
+              >
+                <option value="">Select login account…</option>
+                {erpUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                    {u.email ? ` · ${u.email}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                Must match their Petrol login (e.g. Jahanzeb khan), not only the HRM name.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
