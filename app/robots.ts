@@ -17,6 +17,7 @@ export default function robots(): MetadataRoute.Robots {
           "/purchase",
           "/petrol",
           "/petty-cash",
+          "/todos",
           "/pos",
           "/pos-admin",
           "/tickets",

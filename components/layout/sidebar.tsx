@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Wallet, ChevronDown, Target, MessageSquare, Store, Fuel,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Wallet, ChevronDown, Target, MessageSquare, Store, Fuel, ClipboardList,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -38,6 +38,7 @@ const NAV_ORDER: Array<{
   { key: "messages", href: "/messages", label: "Messages", icon: MessageSquare, kind: "link" },
   { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Wallet, kind: "link" },
   { key: "petrol", href: "/petrol", label: "Petrol", icon: Fuel, kind: "link" },
+  { key: "todos", href: "/todos", label: "To-do", icon: ClipboardList, kind: "link" },
 ]
 
 const ADMIN_ONLY_NAV: Array<{ href: string; label: string; icon: any; module?: Module }> = [

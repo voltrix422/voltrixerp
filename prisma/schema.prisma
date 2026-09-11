@@ -1663,3 +1663,50 @@ model ErpFuelAllotment {
   @@index([allottedAt])
   @@map("erp_fuel_allotments")
 }
+
+/// Admin assigns daily / weekly / monthly todos; assignee updates with notes + attachments.
+model ErpTodo {
+  id              String    @id @default(cuid())
+  title           String
+  description     String    @default("") @db.Text
+  /// daily | weekly | monthly | once
+  cadence         String    @default("once")
+  dueAt           DateTime? @map("due_at")
+  assigneeUserId  String    @map("assignee_user_id")
+  assigneeName    String    @map("assignee_name")
+  /// open | in_progress | done
+  status          String    @default("open")
+  assignedBy      String    @default("") @map("assigned_by")
+  assignedById    String?   @map("assigned_by_id")
+  assignedAt      DateTime  @default(now()) @map("assigned_at")
+  completedAt     DateTime? @map("completed_at")
+  completedBy     String    @default("") @map("completed_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  updates ErpTodoUpdate[]
+
+  @@index([assigneeUserId])
+  @@index([status])
+  @@index([cadence])
+  @@index([dueAt])
+  @@index([assignedAt])
+  @@map("erp_todos")
+}
+
+model ErpTodoUpdate {
+  id              String   @id @default(cuid())
+  todoId          String   @map("todo_id")
+  todo            ErpTodo  @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  message         String   @default("") @db.Text
+  /// open | in_progress | done (status after this update)
+  status          String   @default("in_progress")
+  attachmentUrls  Json     @default("[]") @map("attachment_urls")
+  createdBy       String   @default("") @map("created_by")
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([todoId])
+  @@index([createdAt])
+  @@map("erp_todo_updates")
+}
