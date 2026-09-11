@@ -44,6 +44,33 @@ function statusClass(status: string) {
   return "bg-amber-500/15 text-amber-800"
 }
 
+function ymdLocal(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+/** Prefer due date; else assigned date — local calendar day. */
+function todoDayKey(todo: Todo) {
+  const raw = todo.dueAt || todo.assignedAt
+  if (!raw) return ""
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return ""
+  return ymdLocal(d)
+}
+
+function inDateRange(todo: Todo, from: string, to: string) {
+  if (!from && !to) return true
+  const key = todoDayKey(todo)
+  if (!key) return false
+  if (from && key < from) return false
+  if (to && key > to) return false
+  return true
+}
+
+type PeriodTab = "today" | "all" | "done"
+
 type LocalFile = { file: File; preview: string }
 
 function FileUploader({
@@ -112,6 +139,10 @@ export function TodosDashboard() {
   const isAdmin = roleHasAllModules(user?.role)
 
   const [view, setView] = useState<"mine" | "all">(isAdmin ? "all" : "mine")
+  const [period, setPeriod] = useState<PeriodTab>("today")
+  const [filterUserId, setFilterUserId] = useState<string>("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [todos, setTodos] = useState<Todo[]>([])
@@ -163,17 +194,65 @@ export function TodosDashboard() {
     void load()
   }, [load])
 
+  const todayKey = ymdLocal(new Date())
+
+  const filteredTodos = useMemo(() => {
+    return todos.filter((t) => {
+      if (filterUserId !== "all" && t.assigneeUserId !== filterUserId) return false
+
+      if (period === "done" && t.status !== "done") return false
+      if (period !== "done" && period === "today" && t.status === "done" && todoDayKey(t) !== todayKey) {
+        // hide older completed from Today unless date range includes them
+        if (!(dateFrom || dateTo)) return false
+      }
+
+      if (dateFrom || dateTo) {
+        return inDateRange(t, dateFrom, dateTo) && (period !== "done" || t.status === "done")
+      }
+
+      if (period === "today") {
+        const day = todoDayKey(t)
+        if (day === todayKey) return true
+        // overdue open / in-progress still on Today
+        if (t.status !== "done" && t.dueAt) {
+          const due = new Date(t.dueAt)
+          if (!Number.isNaN(due.getTime()) && ymdLocal(due) < todayKey) return true
+        }
+        return false
+      }
+
+      return true
+    })
+  }, [todos, filterUserId, period, dateFrom, dateTo, todayKey])
+
   const selected = useMemo(
-    () => todos.find((t) => t.id === selectedId) ?? null,
-    [todos, selectedId],
+    () =>
+      filteredTodos.find((t) => t.id === selectedId) ??
+      todos.find((t) => t.id === selectedId) ??
+      null,
+    [filteredTodos, todos, selectedId],
   )
 
+  const filterUserName = useMemo(() => {
+    if (filterUserId === "all") return null
+    return (
+      users.find((u) => u.id === filterUserId)?.name ||
+      todos.find((t) => t.assigneeUserId === filterUserId)?.assigneeName ||
+      null
+    )
+  }, [filterUserId, users, todos])
+
   const stats = useMemo(() => {
-    const open = todos.filter((t) => t.status === "open").length
-    const progress = todos.filter((t) => t.status === "in_progress").length
-    const done = todos.filter((t) => t.status === "done").length
-    return { count: todos.length, open, progress, done }
-  }, [todos])
+    const open = filteredTodos.filter((t) => t.status === "open").length
+    const progress = filteredTodos.filter((t) => t.status === "in_progress").length
+    const done = filteredTodos.filter((t) => t.status === "done").length
+    return { count: filteredTodos.length, open, progress, done }
+  }, [filteredTodos])
+
+  useEffect(() => {
+    if (selectedId && filteredTodos.some((t) => t.id === selectedId)) return
+    setSelectedId(filteredTodos[0]?.id ?? null)
+  }, [filteredTodos, selectedId])
 
   function addFiles(list: FileList | null, setter: Dispatch<SetStateAction<LocalFile[]>>) {
     if (!list?.length) return
@@ -322,6 +401,26 @@ export function TodosDashboard() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border overflow-hidden text-xs">
+          {(
+            [
+              { id: "today" as const, label: "Today" },
+              { id: "all" as const, label: "All" },
+              { id: "done" as const, label: "Done" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setPeriod(tab.id)}
+              className={`px-3 py-2 ${
+                period === tab.id ? "bg-[#1faca6] text-white" : "bg-[hsl(var(--card))]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         {isAdmin && (
           <div className="inline-flex rounded-lg border overflow-hidden text-xs">
             <button
@@ -329,16 +428,33 @@ export function TodosDashboard() {
               onClick={() => setView("all")}
               className={`px-3 py-2 ${view === "all" ? "bg-[hsl(var(--muted))]" : "bg-[hsl(var(--card))]"}`}
             >
-              All
+              Team
             </button>
             <button
               type="button"
-              onClick={() => setView("mine")}
+              onClick={() => {
+                setView("mine")
+                setFilterUserId("all")
+              }}
               className={`px-3 py-2 ${view === "mine" ? "bg-[hsl(var(--muted))]" : "bg-[hsl(var(--card))]"}`}
             >
               Mine
             </button>
           </div>
+        )}
+        {isAdmin && view === "all" && (
+          <select
+            value={filterUserId}
+            onChange={(e) => setFilterUserId(e.target.value)}
+            className="h-9 rounded-lg border bg-[hsl(var(--card))] px-2 text-xs min-w-[160px]"
+          >
+            <option value="all">All users</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
         )}
         {isAdmin && (
           <Button
@@ -351,23 +467,62 @@ export function TodosDashboard() {
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-[hsl(var(--card))] px-3 py-2.5">
+        <span className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">Date range</span>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="h-8 rounded-md border px-2 text-xs"
+        />
+        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="h-8 rounded-md border px-2 text-xs"
+        />
+        {(dateFrom || dateTo || filterUserId !== "all") && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 text-[10px]"
+            onClick={() => {
+              setDateFrom("")
+              setDateTo("")
+              setFilterUserId("all")
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-24 text-sm text-[hsl(var(--muted-foreground))]">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
         </div>
-      ) : todos.length === 0 ? (
+      ) : filteredTodos.length === 0 ? (
         <p className="text-sm text-center text-[hsl(var(--muted-foreground))] py-16">
-          {!isAdmin || view === "mine"
-            ? "No to-dos assigned to you yet."
-            : "No to-dos yet. Use Assign to-do to give work to a user."}
+          {period === "today"
+            ? filterUserName
+              ? `No to-dos for ${filterUserName} today.`
+              : "No to-dos for today."
+            : "No to-dos match these filters."}
         </p>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)] gap-4 min-h-[60vh]">
           <div className={`space-y-2 ${mobileDetail ? "hidden lg:block" : "block"}`}>
             <p className="text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
-              {!isAdmin || view === "mine" ? "Your to-dos — tap to open" : "All to-dos — tap to open"}
+              {filterUserName
+                ? `${filterUserName} · ${period === "today" ? "today" : period} — tap to open`
+                : period === "today"
+                  ? "Today’s to-dos — tap to open"
+                  : "To-dos — tap to open"}
+              {` · ${filteredTodos.length}`}
             </p>
-            {todos.map((row) => {
+            {filteredTodos.map((row) => {
               const active = selectedId === row.id
               return (
                 <button
