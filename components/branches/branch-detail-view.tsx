@@ -35,10 +35,13 @@ import {
   ArrowLeft,
   ArrowRightLeft,
   ArrowUpRight,
+  Eraser,
   FileDown,
   Loader2,
+  Package,
   Pencil,
   Trash2,
+  Undo2,
 } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
@@ -535,38 +538,47 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
               </div>
             )}
             <div className="flex flex-wrap items-center justify-end gap-1">
-              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] cursor-pointer" onClick={onEdit}>
-                <Pencil className="h-3 w-3 mr-1" />
-                Edit
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 w-7 p-0 cursor-pointer"
+                title="Edit"
+                aria-label="Edit"
+                onClick={onEdit}
+              >
+                <Pencil className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 px-2 text-[11px] cursor-pointer text-[#1faca6] border-[#1faca6]"
+                className="h-7 w-7 p-0 cursor-pointer text-[#1faca6] border-[#1faca6]"
+                title="Inventory PDF"
+                aria-label="Inventory PDF"
                 disabled={inventory.length === 0}
                 onClick={() => generateSingleBranchPdf(branch, inventory)}
               >
-                <FileDown className="h-3 w-3 mr-1" />
-                Inv. PDF
+                <Package className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 px-2 text-[11px] cursor-pointer text-[#1faca6] border-[#1faca6]"
+                className="h-7 w-7 p-0 cursor-pointer text-[#1faca6] border-[#1faca6]"
+                title="Transfer history PDF"
+                aria-label="Transfer history PDF"
                 disabled={groupedTransferHistory.length === 0}
                 onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
               >
-                <FileDown className="h-3 w-3 mr-1" />
-                Xfer PDF
+                <FileDown className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 px-2 text-[11px] cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
+                className="h-7 w-7 p-0 cursor-pointer text-red-600 border-red-300 hover:bg-red-50"
+                title="Delete branch"
+                aria-label="Delete branch"
                 onClick={onDelete}
               >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Delete
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
@@ -693,29 +705,48 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
           </div>
 
           {activeTab === "inventory" && !isMainWarehouse && (
-            <div className="flex flex-wrap gap-1.5 pb-1">
+            <div className="flex flex-wrap gap-1 pb-1">
               {inventory.length > 0 ? (
                 <>
-                  <Button size="sm" variant="outline" className="h-7 text-xs cursor-pointer" onClick={() => openBulkTransfer("transfer")}>
-                    Transfer
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-7 p-0 cursor-pointer"
+                    title="Transfer"
+                    aria-label="Transfer"
+                    onClick={() => openBulkTransfer("transfer")}
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-xs cursor-pointer text-orange-700"
+                    className="h-7 w-7 p-0 cursor-pointer text-orange-700"
+                    title="Return to main"
+                    aria-label="Return to main"
                     disabled={returningToMain}
                     onClick={handleReturnInventoryToMain}
                   >
-                    {returningToMain ? <Loader2 className="h-3 w-3 animate-spin" /> : "Return to main"}
+                    {returningToMain ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Undo2 className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-xs cursor-pointer text-red-600"
+                    className="h-7 w-7 p-0 cursor-pointer text-red-600"
+                    title="Delete all"
+                    aria-label="Delete all"
                     disabled={removingAll}
                     onClick={handleRemoveAllBranchInventory}
                   >
-                    {removingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete all"}
+                    {removingAll ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                 </>
               ) : null}
@@ -723,25 +754,32 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
           )}
 
           {activeTab === "history" && (
-            <div className="flex flex-wrap gap-1.5 pb-1">
+            <div className="flex flex-wrap gap-1 pb-1">
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs cursor-pointer"
+                className="h-7 w-7 p-0 cursor-pointer"
+                title="Download all transfer PDFs"
+                aria-label="Download all transfer PDFs"
                 disabled={groupedTransferHistory.length === 0}
                 onClick={() => downloadBranchTransferHistoryPDF(branch, groupedTransferHistory)}
               >
-                <FileDown className="h-3 w-3 mr-1" />
-                All PDF
+                <FileDown className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs cursor-pointer text-red-600"
+                className="h-7 w-7 p-0 cursor-pointer text-red-600"
+                title="Clear transfer history"
+                aria-label="Clear transfer history"
                 disabled={groupedTransferHistory.length === 0 || clearingHistory}
                 onClick={handleClearTransferHistory}
               >
-                {clearingHistory ? <Loader2 className="h-3 w-3 animate-spin" /> : "Clear"}
+                {clearingHistory ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Eraser className="h-3.5 w-3.5" />
+                )}
               </Button>
             </div>
           )}
@@ -789,7 +827,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                       <th className="px-3 py-2 font-medium text-right">Qty</th>
                       <th className="px-3 py-2 font-medium">Unit</th>
                       <th className="px-3 py-2 font-medium">Added</th>
-                      <th className="px-3 py-2 font-medium text-right w-[140px]">Actions</th>
+                      <th className="px-3 py-2 font-medium text-right w-[72px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -812,26 +850,27 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-6 px-2 text-[10px] cursor-pointer"
+                                  className="h-6 w-6 p-0 cursor-pointer"
+                                  title="Transfer"
+                                  aria-label="Transfer"
                                   onClick={() => openBulkTransfer("transfer", inv.id)}
                                 >
-                                  Transfer
+                                  <ArrowRightLeft className="h-3 w-3" />
                                 </Button>
                               )}
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-6 px-2 text-[10px] cursor-pointer text-red-600 border-red-200 hover:bg-red-50"
+                                className="h-6 w-6 p-0 cursor-pointer text-red-600 border-red-200 hover:bg-red-50"
+                                title="Delete"
+                                aria-label="Delete"
                                 disabled={deletingInvId === inv.id}
                                 onClick={() => handleRemoveInventoryItem(inv)}
                               >
                                 {deletingInvId === inv.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
-                                  <>
-                                    <Trash2 className="h-3 w-3 mr-0.5" />
-                                    Delete
-                                  </>
+                                  <Trash2 className="h-3 w-3" />
                                 )}
                               </Button>
                             </div>
@@ -940,18 +979,16 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-6 px-2 text-[10px] cursor-pointer text-[#1faca6] border-[#1faca6]"
+                              className="h-6 w-6 p-0 cursor-pointer text-[#1faca6] border-[#1faca6]"
                               disabled={downloadingTransferPdfId === entry.id}
                               title="Download PDF for this transfer only"
+                              aria-label="Download PDF"
                               onClick={() => void handleDownloadTransferPdf(entry)}
                             >
                               {downloadingTransferPdfId === entry.id ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
                               ) : (
-                                <>
-                                  <FileDown className="h-3 w-3 mr-0.5" />
-                                  PDF
-                                </>
+                                <FileDown className="h-3 w-3" />
                               )}
                             </Button>
                           </td>
