@@ -170,7 +170,9 @@ export async function markSerialUnitFaulty(params: {
 
   await prisma.erpInventoryHistory.create({
     data: {
-      itemDescription: unit.productName || unit.model || unit.serialNumber,
+      itemDescription: unit.model?.trim()
+        ? `${unit.productName || unit.model} · ${unit.model}`
+        : unit.productName || unit.serialNumber,
       transactionType: "out",
       quantity: 1,
       unit: "pcs",
@@ -204,7 +206,9 @@ export async function restoreSerialUnitFromFaulty(params: {
 
   await prisma.erpInventoryHistory.create({
     data: {
-      itemDescription: unit.productName || unit.model || unit.serialNumber,
+      itemDescription: unit.model?.trim()
+        ? `${unit.productName || unit.model} · ${unit.model}`
+        : unit.productName || unit.serialNumber,
       transactionType: "in",
       quantity: 1,
       unit: "pcs",
