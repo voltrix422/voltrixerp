@@ -582,125 +582,75 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
         )}
 
         {!isMainWarehouse && (
-          <div className="mb-3 rounded-lg border bg-[hsl(var(--card))] p-3 space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <label className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  Product filter (whole branch)
-                </span>
-                <select
-                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                  value={productFilter}
-                  onChange={(e) => setProductFilter(e.target.value)}
-                >
-                  <option value="">All products</option>
-                  {productOptions.map((opt) => (
-                    <option key={opt.key} value={opt.key}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          <div className="mb-3 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="h-7 min-w-[12rem] max-w-full flex-1 rounded border bg-transparent px-2 text-xs"
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+                aria-label="Product filter"
+              >
+                <option value="">All products</option>
+                {productOptions.map((opt) => (
+                  <option key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
               {activeTab === "history" && (
-                <label className="flex w-full sm:w-40 flex-col gap-1">
-                  <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                    Direction
-                  </span>
-                  <select
-                    className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                    value={directionFilter}
-                    onChange={(e) => setDirectionFilter(e.target.value as "all" | "in" | "out")}
-                  >
-                    <option value="all">In + Out</option>
-                    <option value="in">In only</option>
-                    <option value="out">Out only</option>
-                  </select>
-                </label>
+                <select
+                  className="h-7 w-[7.5rem] rounded border bg-transparent px-2 text-xs"
+                  value={directionFilter}
+                  onChange={(e) => setDirectionFilter(e.target.value as "all" | "in" | "out")}
+                  aria-label="Direction filter"
+                >
+                  <option value="all">In + Out</option>
+                  <option value="in">In only</option>
+                  <option value="out">Out only</option>
+                </select>
               )}
               {(productFilter || directionFilter !== "all") && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs cursor-pointer"
+                <button
+                  type="button"
+                  className="h-7 px-1.5 text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
                   onClick={() => {
                     setProductFilter("")
                     setDirectionFilter("all")
                   }}
                 >
-                  Clear filters
-                </Button>
+                  Clear
+                </button>
               )}
             </div>
 
-            {productTrail && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-[hsl(var(--foreground))]">
-                  Trail for <span className="text-[#1faca6]">{productTrail.label}</span>
-                </p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                  <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
-                    <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">On hand</p>
-                    <p className="text-sm font-semibold tabular-nums">{productTrail.onHand} pcs</p>
-                  </div>
-                  <div className="rounded-md border bg-emerald-50/80 px-2.5 py-2">
-                    <p className="text-[10px] uppercase text-emerald-700">Transfer in</p>
-                    <p className="text-sm font-semibold tabular-nums text-emerald-800">
-                      {productTrail.transferIn} pcs
-                    </p>
-                  </div>
-                  <div className="rounded-md border bg-orange-50/80 px-2.5 py-2">
-                    <p className="text-[10px] uppercase text-orange-700">Transfer out</p>
-                    <p className="text-sm font-semibold tabular-nums text-orange-800">
-                      {productTrail.transferOut} pcs
-                    </p>
-                  </div>
-                  <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
-                    <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Net transfer</p>
-                    <p className="text-sm font-semibold tabular-nums">{productTrail.transferNet} pcs</p>
-                  </div>
-                  <div className="rounded-md border bg-blue-50/80 px-2.5 py-2">
-                    <p className="text-[10px] uppercase text-blue-700">POS sold</p>
-                    <p className="text-sm font-semibold tabular-nums text-blue-800">
-                      {productTrail.posSold} pcs
-                    </p>
-                  </div>
-                  <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
-                    <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
-                      In − out − POS
-                    </p>
-                    <p className="text-sm font-semibold tabular-nums">{productTrail.expected} pcs</p>
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                      vs on hand {productTrail.onHand}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "history" && !productTrail && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div className="rounded-md border bg-emerald-50/80 px-2.5 py-2">
-                  <p className="text-[10px] uppercase text-emerald-700">In</p>
-                  <p className="text-sm font-semibold tabular-nums text-emerald-800">
-                    {transferTotals.inQty} pcs
-                  </p>
-                </div>
-                <div className="rounded-md border bg-orange-50/80 px-2.5 py-2">
-                  <p className="text-[10px] uppercase text-orange-700">Out</p>
-                  <p className="text-sm font-semibold tabular-nums text-orange-800">
-                    {transferTotals.outQty} pcs
-                  </p>
-                </div>
-                <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
-                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Net</p>
-                  <p className="text-sm font-semibold tabular-nums">{transferTotals.net} pcs</p>
-                </div>
-                <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
-                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Moves</p>
-                  <p className="text-sm font-semibold tabular-nums">{transferTotals.moves}</p>
-                </div>
-              </div>
-            )}
+            {productTrail ? (
+              <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))] leading-relaxed">
+                <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.label}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                On hand <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.onHand}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                In <span className="text-emerald-700 font-medium">{productTrail.transferIn}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                Out <span className="text-orange-700 font-medium">{productTrail.transferOut}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                Net <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.transferNet}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                POS <span className="text-blue-700 font-medium">{productTrail.posSold}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                Check <span className="text-[hsl(var(--foreground))] font-medium">{productTrail.expected}</span>
+                <span className="text-[hsl(var(--muted-foreground))]"> (vs {productTrail.onHand})</span>
+              </p>
+            ) : activeTab === "history" ? (
+              <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">
+                In <span className="text-emerald-700 font-medium">{transferTotals.inQty}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                Out <span className="text-orange-700 font-medium">{transferTotals.outQty}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                Net <span className="text-[hsl(var(--foreground))] font-medium">{transferTotals.net}</span>
+                <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                {transferTotals.moves} moves
+              </p>
+            ) : null}
           </div>
         )}
 
