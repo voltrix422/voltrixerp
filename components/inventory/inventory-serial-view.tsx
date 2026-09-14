@@ -30,11 +30,12 @@ import {
 } from "@/lib/faulty-inventory"
 import { InventoryModelGroup } from "@/components/inventory/inventory-model-group"
 import { InventoryQrScanPanel } from "@/components/inventory/inventory-qr-scan-panel"
+import { TrackProductModal, type TrackProductOption } from "@/components/inventory/track-product-modal"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { useDialog } from "@/components/ui/dialog-provider"
-import { Package, Search, X, QrCode, Loader2 } from "lucide-react"
+import { Package, Search, X, QrCode, Loader2, Route } from "lucide-react"
 
 type InventorySerialViewProps = {
   /** Renders after Export Excel / Scan QR (e.g. Send multiple on branch detail). */
@@ -64,6 +65,8 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
   const [adjustingManual, setAdjustingManual] = useState<{ id: string; mode: "stock" | "units" } | null>(null)
   const [markingFaultyId, setMarkingFaultyId] = useState<string | null>(null)
   const [movingToFaulty, setMovingToFaulty] = useState(false)
+  const [trackOpen, setTrackOpen] = useState(false)
+  const [trackModelKey, setTrackModelKey] = useState("")
 
   const loadUnits = useCallback(async () => {
     setLoading(true)
@@ -195,6 +198,18 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
     () => filteredGroups.filter((group) => group.units.length === 0),
     [filteredGroups],
   )
+
+  const trackProducts = useMemo((): TrackProductOption[] => {
+    return inventoryGroups
+      .map((g) => ({
+        modelKey: g.modelKey,
+        displayName: getDisplayName(g.modelKey) || g.displayName || g.modelKey,
+        startingQty: unifiedGroupTotal(g),
+        inStock: unifiedGroupInStock(g),
+        unit: g.stockOnly?.unit || "pcs",
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+  }, [inventoryGroups, modelLabels])
 
   function exportExcel() {
     setExportingExcel(true)
@@ -501,6 +516,18 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           />
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            className="h-9 sm:h-8 flex-1 sm:flex-none px-2.5 text-xs gap-1.5 cursor-pointer justify-center border"
+            onClick={() => {
+              setTrackModelKey("")
+              setTrackOpen(true)
+            }}
+            disabled={inventoryGroups.length === 0 || loading}
+          >
+            <Route className="h-3.5 w-3.5" />
+            Track product
+          </Button>
           <CrmExcelExportButton
             onExport={exportExcel}
             exporting={exportingExcel}
@@ -573,6 +600,13 @@ export function InventorySerialView({ toolbarEnd, onUnitsChanged, embedded }: In
           </div>
         </div>
       )}
+
+      <TrackProductModal
+        open={trackOpen}
+        onClose={() => setTrackOpen(false)}
+        products={trackProducts}
+        initialModelKey={trackModelKey}
+      />
     </div>
   )
 }

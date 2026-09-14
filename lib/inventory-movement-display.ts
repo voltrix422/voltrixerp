@@ -60,19 +60,76 @@ export type MovementProductCatalog = {
 const REFERENCE_LABELS: Record<string, string> = {
   po: "Purchase Order",
   order: "Client Order",
+  order_replace: "Order Replacement",
   manual_add: "Manual Entry",
   manual_add_units: "Manual Units Added",
   manual_add_stock: "Manual Stock Added",
   manual_subtract_stock: "Manual Stock Removed",
   manual_subtract_units: "Manual Units Removed",
+  manual_reconcile: "Stock Reconcile",
   branch: "Branch Transfer",
   pos_receive: "POS Receive",
   pos_sale: "POS Sale",
   pos_remove: "POS Product Removed",
+  branch_pos_order: "Branch POS Sale",
+  branch_pos_return: "Branch POS Return",
+  branch_pos_restore: "Branch POS Restore",
+  faulty_move: "Damaged / Faulty",
+  faulty_restore: "Restored from Faulty",
 }
 
 export function getReferenceTypeLabel(referenceType: string): string {
   return REFERENCE_LABELS[referenceType] || referenceType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+/** Human-readable event kind for Track product (returns, damage, transfers, etc.). */
+export function getTrackEventKind(m: Pick<InventoryMovementRow, "reference_type" | "notes" | "is_inbound" | "transaction_type">): string {
+  const notes = (m.notes || "").toLowerCase()
+  const ref = m.reference_type
+
+  if (ref === "faulty_move") return "Damaged / Faulty"
+  if (ref === "faulty_restore") return "Restored from damage"
+  if (
+    /stock restored|returned from order|order return|order deleted/i.test(notes) ||
+    ref === "branch_pos_return"
+  ) {
+    return "Return"
+  }
+  if (ref === "order_replace") return "Order replacement"
+  if (ref === "order") return m.is_inbound ? "Order return" : "Client order"
+  if (ref === "branch" || m.transaction_type === "assigned_to_branch" || m.transaction_type === "branch_transfer") {
+    return "Transfer"
+  }
+  if (ref === "pos_sale" || ref === "branch_pos_order") return "POS sale"
+  if (ref === "pos_receive") return "POS receive"
+  if (ref === "pos_remove") return "POS removed"
+  if (ref === "branch_pos_restore") return "POS restore"
+  if (ref.startsWith("manual_add")) return "Stock / units added"
+  if (ref.startsWith("manual_subtract")) return "Stock / units removed"
+  if (ref === "manual_reconcile") return "Reconcile"
+  if (ref === "po") return "Purchase receive"
+  return getReferenceTypeLabel(ref)
+}
+
+/** Where stock ended up / returned to for Track product. */
+export function getTrackPlaceLabel(m: InventoryMovementRow): string {
+  const notes = (m.notes || "").toLowerCase()
+  if (m.reference_type === "faulty_move") {
+    return "Faulty / Damaged inventory"
+  }
+  if (m.reference_type === "faulty_restore") {
+    return "Main warehouse (from faulty)"
+  }
+  if (/stock restored|returned from order|order return/i.test(notes)) {
+    return m.destination.includes("Main") ? m.destination : `Returned → ${m.destination}`
+  }
+  if (m.reference_type === "branch_pos_return") {
+    return `Returned to ${m.destination}`
+  }
+  if (m.client_name && m.reference_type === "order" && !m.is_inbound) {
+    return `Client: ${m.client_name}`
+  }
+  return `${m.source} → ${m.destination}`
 }
 
 export function isInboundMovement(tx: Pick<InventoryTransaction, "transaction_type">): boolean {
@@ -98,10 +155,29 @@ function resolveSourceDestination(
     return { source: `PO ${refNum}`, destination: "Main Warehouse" }
   }
   if (ref === "order") {
+    const notes = (tx.notes || "").toLowerCase()
+    if (/stock restored|returned from order|order return|order deleted/i.test(notes)) {
+      return {
+        source: clientName ? `Client: ${clientName}` : "Client order",
+        destination: "Main Warehouse (return)",
+      }
+    }
     return {
       source: "Main Warehouse",
       destination: clientName ? `Client: ${clientName}` : "Client",
     }
+  }
+  if (ref === "faulty_move") {
+    return { source: "Main Warehouse", destination: "Faulty / Damaged" }
+  }
+  if (ref === "faulty_restore") {
+    return { source: "Faulty / Damaged", destination: "Main Warehouse" }
+  }
+  if (ref === "branch_pos_order") {
+    return { source: tx.location_label || "Branch POS", destination: "POS Customer" }
+  }
+  if (ref === "branch_pos_return") {
+    return { source: "POS Customer", destination: tx.location_label || "Branch" }
   }
   if (ref.startsWith("manual_add")) {
     return { source: "Manual Entry", destination: "Main Warehouse" }
@@ -275,12 +351,25 @@ export function mainWarehouseDelta(m: InventoryMovementRow): number {
   const q = m.abs_quantity
   const fromMain = locationIsMainWarehouse(m.source)
   const toMain = locationIsMainWarehouse(m.destination)
+  const notes = (m.notes || "").toLowerCase()
 
   if (m.reference_type === "po" || m.reference_type.startsWith("manual_add")) {
     return q
   }
-  if (m.reference_type === "order") {
+  if (m.reference_type === "faulty_restore" || m.reference_type === "branch_pos_return" || m.reference_type === "branch_pos_restore") {
+    return q
+  }
+  if (m.reference_type === "faulty_move") {
     return -q
+  }
+  if (m.reference_type === "order") {
+    if (m.is_inbound || /stock restored|returned from order|order return|order deleted/i.test(notes)) {
+      return q
+    }
+    return -q
+  }
+  if (m.reference_type === "order_replace") {
+    return m.is_inbound ? q : -q
   }
   if (m.transaction_type === "assigned_to_branch") {
     return -q
@@ -290,8 +379,14 @@ export function mainWarehouseDelta(m: InventoryMovementRow): number {
     if (toMain && !fromMain) return q
     return 0
   }
-  if (m.reference_type.startsWith("manual_subtract_stock")) {
+  if (m.reference_type.startsWith("manual_subtract")) {
     return -q
+  }
+  if (m.reference_type === "pos_sale" || m.reference_type === "branch_pos_order" || m.reference_type === "pos_remove") {
+    return -q
+  }
+  if (m.reference_type === "pos_receive") {
+    return q
   }
   if (m.is_inbound) return q
   if (m.is_inbound === false) return -q

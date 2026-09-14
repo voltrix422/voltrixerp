@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
   const branchId = searchParams.get("branchId")
   /** Branch POS ledger: POS order/sale movements (out on deliver, in on delete restore) */
   const posOutbound = searchParams.get("posOutbound") === "1"
+  const limitRaw = Number(searchParams.get("limit") || 500)
+  const take = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 8000) : 500
 
   const where: Prisma.ErpInventoryHistoryWhereInput = {}
   if (item) where.itemDescription = item
@@ -74,7 +76,7 @@ export async function GET(req: NextRequest) {
   const records = await prisma.erpInventoryHistory.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    take: 500,
+    take,
   })
   return NextResponse.json(records)
 }

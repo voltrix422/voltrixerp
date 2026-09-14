@@ -16,6 +16,7 @@ export interface InventoryTransaction {
   reference_id: string
   reference_number: string
   notes?: string
+  location_label?: string
   created_at: string
   created_by: string
 }
@@ -32,6 +33,7 @@ export type InventoryHistoryFilters = {
   branchId?: string
   /** Only POS order/sale outbound movements for a branch */
   posOutbound?: boolean
+  limit?: number
 }
 
 type RawInventoryTransaction = Record<string, unknown>
@@ -55,6 +57,9 @@ function normalizeTransaction(row: RawInventoryTransaction): InventoryTransactio
     reference_id: String(row.reference_id ?? row.referenceId ?? ""),
     reference_number: String(row.reference_number ?? row.referenceNumber ?? ""),
     notes,
+    location_label: row.location_label != null || row.locationLabel != null
+      ? String(row.location_label ?? row.locationLabel ?? "")
+      : undefined,
     created_at: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
     created_by: String(row.created_by ?? row.createdBy ?? "System"),
   }
@@ -72,6 +77,7 @@ function buildHistoryQuery(filters?: InventoryHistoryFilters): string {
   if (filters?.locationLabel) params.set("locationLabel", filters.locationLabel)
   if (filters?.branchId) params.set("branchId", filters.branchId)
   if (filters?.posOutbound) params.set("posOutbound", "1")
+  if (filters?.limit) params.set("limit", String(filters.limit))
   const qs = params.toString()
   return qs ? `?${qs}` : ""
 }
