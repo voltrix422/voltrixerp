@@ -923,10 +923,18 @@ export function normalizeOrderPaymentTerms(order: Order): Order {
   }
 }
 
-export async function getOrders(options?: { statusGroup?: "pending" | "approved" }): Promise<Order[]> {
+export async function getOrders(options?: {
+  statusGroup?: "pending" | "approved"
+  branchId?: string
+  source?: string
+}): Promise<Order[]> {
   try {
-    const qs = options?.statusGroup ? `?statusGroup=${options.statusGroup}` : ""
-    const res = await fetch(`/api/db/orders${qs}`)
+    const params = new URLSearchParams()
+    if (options?.statusGroup) params.set("statusGroup", options.statusGroup)
+    if (options?.branchId) params.set("branchId", options.branchId)
+    if (options?.source) params.set("source", options.source)
+    const qs = params.toString()
+    const res = await fetch(`/api/db/orders${qs ? `?${qs}` : ""}`)
     if (!res.ok) return []
     const data = await res.json()
     return (data ?? []).map(rowToOrder)

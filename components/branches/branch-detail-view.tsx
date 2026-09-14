@@ -36,6 +36,7 @@ import { useAuth } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
 import { deleteInventorySerialUnitsByModel } from "@/lib/inventory-serial-units"
 import { InventorySerialView } from "@/components/inventory/inventory-serial-view"
+import { BranchPosSoldTab } from "@/components/branches/branch-pos-sold-tab"
 
 async function generateSingleBranchPdf(branch: Branch, inventoryRows: BranchInventory[]) {
   const [{ default: jsPDF }, autoTableModule] = await Promise.all([
@@ -94,7 +95,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   const [returningToMain, setReturningToMain] = useState(false)
   const [removingAll, setRemovingAll] = useState(false)
   const [deletingInvId, setDeletingInvId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"inventory" | "history">("inventory")
+  const [activeTab, setActiveTab] = useState<"inventory" | "history" | "pos">("inventory")
   const { toast } = useToast()
   const { confirm } = useDialog()
   const { user } = useAuth()
@@ -427,18 +428,28 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
 
         <div className="flex items-center justify-between gap-2 border-b">
           <div className="flex items-center gap-1">
-            {(["inventory", "history"] as const).map((tab) => (
+            {(
+              (isMainWarehouse
+                ? (["inventory", "history"] as const)
+                : (["inventory", "history", "pos"] as const)) as ReadonlyArray<
+                "inventory" | "history" | "pos"
+              >
+            ).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`relative px-3 py-2 text-xs font-medium capitalize cursor-pointer ${
+                className={`relative px-3 py-2 text-xs font-medium cursor-pointer ${
                   activeTab === tab
                     ? "text-[hsl(var(--foreground))]"
                     : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                 }`}
               >
-                {tab === "inventory" ? "Inventory" : "Transfer history"}
+                {tab === "inventory"
+                  ? "Inventory"
+                  : tab === "history"
+                    ? "Transfer history"
+                    : "POS sold"}
                 {tab === "history" && groupedTransferHistory.length > 0 && (
                   <span className="ml-1 text-[10px] text-[hsl(var(--muted-foreground))]">
                     ({groupedTransferHistory.length})
@@ -705,6 +716,10 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "pos" && !isMainWarehouse && (
+          <BranchPosSoldTab branchId={branch.id} branchName={branch.name} />
         )}
       </div>
 
