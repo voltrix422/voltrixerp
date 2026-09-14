@@ -226,44 +226,163 @@ export async function downloadGrandInventoryPDF(
     import("jspdf-autotable"),
   ])
   const autoTable = (autoTableModule as any).default || autoTableModule
-  const doc = new jsPDF("l", "mm", "a4")
 
-  doc.setFontSize(14)
-  doc.text("Grand Inventory Report — All Branches", 14, 14)
-  doc.setFontSize(10)
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 20)
-  doc.text(
-    `Products: ${summary.productCount} · Total qty: ${summary.totalQty.toLocaleString()} · Locations: ${summary.locationCount} · Branches: ${summary.branchCount}`,
-    14,
-    26,
-  )
+  const doc = new jsPDF("p", "mm", "a4")
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const margin = 10
+  const gap = 3
+  const colW = (pageW - margin * 2 - gap) / 2
+  const black: [number, number, number] = [0, 0, 0]
+  const muted: [number, number, number] = [90, 90, 90]
+  const cardPad = 2.5
+  const lineH = 3.6
 
-  autoTable(doc, {
-    startY: 32,
-    head: [["Product", "Model", "Total Available", "Unit", "Locations", "Available Where"]],
-    body: summary.products.map((p) => [
-      p.item,
-      p.model,
-      String(p.totalQty),
-      p.unit,
-      String(p.locationCount),
-      p.locationLabel,
-    ]),
-    styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
-    headStyles: { fillColor: [31, 172, 166] },
-    columnStyles: {
-      0: { cellWidth: 52 },
-      1: { cellWidth: 42 },
-      5: { cellWidth: 78 },
-    },
+  const drawLine = (x1: number, y1: number, x2: number, y2: number) => {
+    doc.setDrawColor(...black)
+    doc.setLineWidth(0.25)
+    doc.line(x1, y1, x2, y2)
+  }
+
+  const measureCardHeight = (item: string, locationCount: number) => {
+    const titleLines = doc.splitTextToSize(item, colW - cardPad * 2 - 22)
+    return cardPad + titleLines.length * 3.4 + 5.5 + locationCount * lineH + cardPad
+  }
+
+  // Header
+  let y = margin
+  doc.setTextColor(...black)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(13)
+  doc.text("Grand Inventory", margin, y + 4)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8)
+  doc.setTextColor(...muted)
+  doc.text(new Date().toLocaleString(), pageW - margin, y + 4, { align: "right" })
+  y += 7
+  drawLine(margin, y, pageW - margin, y)
+  y += 5
+
+  const chips: [string, string][] = [
+    ["Products", String(summary.productCount)],
+    ["Total qty", summary.totalQty.toLocaleString()],
+    ["Locations", String(summary.locationCount)],
+    ["Branches", String(summary.branchCount)],
+  ]
+  const chipW = (pageW - margin * 2 - gap * 3) / 4
+  chips.forEach(([label, value], i) => {
+    const x = margin + i * (chipW + gap)
+    doc.setDrawColor(...black)
+    doc.setLineWidth(0.3)
+    doc.rect(x, y, chipW, 10)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(6.5)
+    doc.setTextColor(...muted)
+    doc.text(label, x + 2, y + 3.5)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    doc.setTextColor(...black)
+    doc.text(value, x + 2, y + 8)
+  })
+  y += 14
+
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(9)
+  doc.setTextColor(...black)
+  doc.text("By product", margin, y)
+  y += 4
+
+  type CardPlan = {
+    product: GrandInventoryProductSummary
+    locations: GrandInventoryLocationRow[]
+    height: number
+  }
+
+  const plans: CardPlan[] = summary.products.map((product) => {
+    const locations = [...product.locations].sort((a, b) =>
+      a.branchName.localeCompare(b.branchName),
+    )
+    return {
+      product,
+      locations,
+      height: measureCardHeight(product.item, locations.length),
+    }
   })
 
-  const detailStartY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 32
-  doc.setFontSize(11)
-  doc.text("Detail by branch", 14, detailStartY + 10)
+  for (let i = 0; i < plans.length; i += 2) {
+    const left = plans[i]
+    const right = plans[i + 1]
+    const rowH = Math.max(left.height, right?.height ?? 0)
+
+    if (y + rowH > pageH - margin) {
+      doc.addPage()
+      y = margin
+    }
+
+    const drawCard = (plan: CardPlan, x: number) => {
+      const { product, locations, height } = plan
+      doc.setDrawColor(...black)
+      doc.setLineWidth(0.35)
+      doc.rect(x, y, colW, height)
+
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(8)
+      doc.setTextColor(...black)
+      const titleLines: string[] = doc.splitTextToSize(product.item, colW - cardPad * 2 - 22)
+      doc.text(titleLines, x + cardPad, y + cardPad + 2.8)
+
+      doc.setFontSize(9)
+      doc.text(product.totalQty.toLocaleString(), x + colW - cardPad, y + cardPad + 2.8, {
+        align: "right",
+      })
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(6)
+      doc.setTextColor(...muted)
+      doc.text(product.unit, x + colW - cardPad, y + cardPad + 5.8, { align: "right" })
+
+      let cy = y + cardPad + titleLines.length * 3.4 + 1.5
+      doc.text(product.model, x + cardPad, cy)
+      cy += 1.2
+      drawLine(x + cardPad, cy, x + colW - cardPad, cy)
+      cy += 3.2
+
+      doc.setFontSize(6.5)
+      for (const loc of locations) {
+        doc.setTextColor(...muted)
+        doc.setFont("helvetica", "normal")
+        const label = `${loc.branchName} (${loc.branchCode})`
+        const clipped = doc.splitTextToSize(label, colW - cardPad * 2 - 18)[0] as string
+        doc.text(clipped, x + cardPad, cy)
+        doc.setTextColor(...black)
+        doc.setFont("helvetica", "bold")
+        doc.text(`${loc.qty.toLocaleString()} ${loc.unit}`, x + colW - cardPad, cy, {
+          align: "right",
+        })
+        cy += lineH
+      }
+    }
+
+    drawCard(left, margin)
+    if (right) drawCard(right, margin + colW + gap)
+    y += rowH + gap
+  }
+
+  // Detail table — black stroke, no fill
+  if (y + 28 > pageH - margin) {
+    doc.addPage()
+    y = margin
+  } else {
+    y += 4
+  }
+
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(9)
+  doc.setTextColor(...black)
+  doc.text("Detail by branch", margin, y)
+  y += 3
 
   autoTable(doc, {
-    startY: detailStartY + 14,
+    startY: y,
     head: [["Branch", "Code", "Type", "Product", "Model", "Qty", "Unit", "Date"]],
     body: detailRows.map((r) => [
       r.branchName,
@@ -273,10 +392,42 @@ export async function downloadGrandInventoryPDF(
       r.model,
       String(r.qty),
       r.unit,
-      r.transferredAt,
+      r.transferredAt || "—",
     ]),
-    styles: { fontSize: 7, cellPadding: 1.5 },
-    headStyles: { fillColor: [31, 172, 166] },
+    theme: "grid",
+    styles: {
+      fontSize: 6.5,
+      cellPadding: 1.4,
+      textColor: black,
+      lineColor: black,
+      lineWidth: 0.2,
+      overflow: "linebreak",
+      valign: "top",
+      fillColor: [255, 255, 255],
+    },
+    headStyles: {
+      fontStyle: "bold",
+      fillColor: [255, 255, 255],
+      textColor: black,
+      lineColor: black,
+      lineWidth: 0.3,
+    },
+    alternateRowStyles: {
+      fillColor: [255, 255, 255],
+    },
+    columnStyles: {
+      0: { cellWidth: 28 },
+      1: { cellWidth: 14 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 42 },
+      4: { cellWidth: 38 },
+      5: { cellWidth: 12, halign: "right" },
+      6: { cellWidth: 10 },
+      7: { cellWidth: 18 },
+    },
+    margin: { left: margin, right: margin },
+    tableLineColor: black,
+    tableLineWidth: 0.25,
   })
 
   doc.save(`grand-inventory-${new Date().toISOString().slice(0, 10)}.pdf`)
