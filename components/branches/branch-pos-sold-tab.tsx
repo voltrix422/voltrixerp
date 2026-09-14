@@ -110,7 +110,7 @@ function buildSaleLines(orders: Order[]): SaleLine[] {
 
 export function BranchPosSoldTab({
   branchId,
-  branchName,
+  branchName: _branchName,
   productFilter: controlledProductFilter,
   onProductFilterChange,
   onPosSummary,
@@ -131,7 +131,6 @@ export function BranchPosSoldTab({
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
   const [localProductFilter, setLocalProductFilter] = useState("")
-  const [query, setQuery] = useState("")
 
   const productFilter =
     controlledProductFilter !== undefined ? controlledProductFilter : localProductFilter
@@ -188,18 +187,11 @@ export function BranchPosSoldTab({
   }, [allLines])
 
   const filtered = useMemo(() => {
-    const q = normalizeProductText(query)
     return allLines.filter((line) => {
       if (productFilter && line.productKey !== productFilter) return false
-      if (!q) return true
-      return (
-        normalizeProductText(line.productLabel).includes(q) ||
-        normalizeProductText(line.model).includes(q) ||
-        normalizeProductText(line.orderNumber).includes(q) ||
-        normalizeProductText(line.clientName).includes(q)
-      )
+      return true
     })
-  }, [allLines, productFilter, query])
+  }, [allLines, productFilter])
 
   const summary = useMemo(() => {
     const gross = filtered.reduce((s, l) => s + l.qty, 0)
@@ -226,72 +218,37 @@ export function BranchPosSoldTab({
   }
 
   return (
-    <div className="mt-3 space-y-3">
-      <div className="rounded-lg border bg-[hsl(var(--card))] p-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Branch POS units sold at {branchName}. Filter by product to see how many of that item went out.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              {!hideLocalProductFilter && (
-                <label className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                    Product
-                  </span>
-                  <select
-                    className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                    value={productFilter}
-                    onChange={(e) => setProductFilter(e.target.value)}
-                  >
-                    <option value="">All products</option>
-                    {productOptions.map((opt) => (
-                      <option key={opt.key} value={opt.key}>
-                        {opt.label} ({opt.qty} sold)
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  Search
-                </span>
-                <input
-                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                  placeholder="Order #, client, model…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
-            </div>
-          </div>
-        </div>
+    <div className="mt-3 space-y-2">
+      {!hideLocalProductFilter && (
+        <select
+          className="h-7 min-w-[12rem] max-w-full rounded border bg-transparent px-2 text-xs"
+          value={productFilter}
+          onChange={(e) => setProductFilter(e.target.value)}
+          aria-label="Product filter"
+        >
+          <option value="">All products</option>
+          {productOptions.map((opt) => (
+            <option key={opt.key} value={opt.key}>
+              {opt.label} ({opt.qty} sold)
+            </option>
+          ))}
+        </select>
+      )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="rounded-md border bg-[hsl(var(--muted))]/20 px-3 py-2">
-            <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Sold (net)</p>
-            <p className="text-sm font-semibold tabular-nums">{summary.net} pcs</p>
-          </div>
-          <div className="rounded-md border bg-[hsl(var(--muted))]/20 px-3 py-2">
-            <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Gross</p>
-            <p className="text-sm font-semibold tabular-nums">{summary.gross} pcs</p>
-          </div>
-          <div className="rounded-md border bg-[hsl(var(--muted))]/20 px-3 py-2">
-            <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Returned</p>
-            <p className="text-sm font-semibold tabular-nums">{summary.returned} pcs</p>
-          </div>
-          <div className="rounded-md border bg-[hsl(var(--muted))]/20 px-3 py-2">
-            <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Orders</p>
-            <p className="text-sm font-semibold tabular-nums">{summary.ordersTouched}</p>
-          </div>
-        </div>
-      </div>
+      <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">
+        Sold <span className="text-[hsl(var(--foreground))] font-medium">{summary.net}</span>
+        <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+        Gross <span className="text-[hsl(var(--foreground))] font-medium">{summary.gross}</span>
+        <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+        Returned <span className="text-orange-700 font-medium">{summary.returned}</span>
+        <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+        {summary.ordersTouched} orders
+      </p>
 
       <div className="rounded-lg border bg-[hsl(var(--card))] overflow-hidden">
         {filtered.length === 0 ? (
           <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-            No POS sales for this branch{productFilter || query ? " with the current filter" : " yet"}.
+            No POS sales for this branch{productFilter ? " with the current filter" : " yet"}.
           </p>
         ) : (
           <div className="overflow-x-auto max-h-[min(70vh,560px)] overflow-y-auto">
