@@ -382,7 +382,16 @@ export function mainWarehouseDelta(m: InventoryMovementRow): number {
   if (m.reference_type.startsWith("manual_subtract")) {
     return -q
   }
-  if (m.reference_type === "pos_sale" || m.reference_type === "branch_pos_order" || m.reference_type === "pos_remove") {
+  // Branch POS sells from branch stock — do not move Main WH unless the location is Main WH.
+  if (m.reference_type === "branch_pos_order") {
+    const loc = m.location_label || m.source || ""
+    return locationIsMainWarehouse(loc) ? -q : 0
+  }
+  if (m.reference_type === "branch_pos_return" || m.reference_type === "branch_pos_restore") {
+    const loc = m.location_label || m.destination || ""
+    return locationIsMainWarehouse(loc) ? q : 0
+  }
+  if (m.reference_type === "pos_sale" || m.reference_type === "pos_remove") {
     return -q
   }
   if (m.reference_type === "pos_receive") {

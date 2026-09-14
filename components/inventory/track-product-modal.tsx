@@ -45,8 +45,21 @@ type TrackProductModalProps = {
 }
 
 type OrderAgg = { orderNumber: string; client: string; qty: number; count: number }
-type PosAgg = { ref: string; qty: number; count: number }
+type PosAgg = { ref: string; branch: string; qty: number; count: number }
 type TransferAgg = { route: string; qty: number; count: number }
+
+function getPosBranchLabel(m: InventoryMovementRow): string {
+  const loc = String(m.location_label || "").trim()
+  if (loc && !/^pos$/i.test(loc)) return loc
+  const notes = m.notes || ""
+  const fromNotes =
+    notes.match(/Branch POS delivered[^·]*·\s*([^·]+)/i)?.[1]?.trim() ||
+    notes.match(/Branch POS\s*[·:]\s*([^·\n]+)/i)?.[1]?.trim()
+  if (fromNotes) return fromNotes.replace(/\s+POS$/i, "").trim()
+  const src = String(m.source || "").trim()
+  if (src && !/main warehouse/i.test(src) && !/^pos$/i.test(src)) return src
+  return "Branch POS"
+}
 
 function isMainWarehouseHolding(b: BranchProductLocation) {
   const t = normalizeProductText(b.branchType || "")
@@ -87,11 +100,12 @@ function rebuildProductTrailForBalance(params: {
   orderRows: Order[]
   filter: ProductFilter
   startingUnits: number
+  currentMainQty: number
   displayName: string
   modelKey: string
   unit: string
-}): { rows: InventoryMovementRow[]; opening: number; ending: number } {
-  const { movements, orderRows, filter, startingUnits, displayName, modelKey, unit } = params
+}): { rows: InventoryMovementRow[]; opening: number; ending: number; historyGap: number } {
+  const { movements, orderRows, filter, startingUnits, currentMainQty, displayName, modelKey, unit } = params
 
   const erpDelivered = orderRows.filter(
     (o) =>
@@ -162,7 +176,38 @@ function rebuildProductTrailForBalance(params: {
     return { ...m, balance_before: before, balance_after: after }
   })
 
-  return { rows, opening, ending: running }
+  // Align trail close to live Main WH; leftover is unreconciled history (label noise / missing moves).
+  const historyGap = currentMainQty - running
+  if (historyGap !== 0) {
+    const before = running
+    const after = currentMainQty
+    rows.push({
+      id: `synthetic-main-wh-gap-${modelKey}`,
+      item_description: displayName,
+      item_model_code: modelKey,
+      transaction_type: historyGap > 0 ? "in" : "out",
+      quantity: Math.abs(historyGap),
+      unit,
+      reference_type: "manual_reconcile",
+      reference_id: "",
+      reference_number: "BOOK-GAP",
+      notes: `Unreconciled history gap · trail was ${before}, live Main WH is ${currentMainQty}`,
+      created_at: new Date().toISOString(),
+      created_by: "System",
+      movement_label: historyGap > 0 ? "IN" : "OUT",
+      source: historyGap > 0 ? "History gap" : "Main Warehouse",
+      destination: historyGap > 0 ? "Main Warehouse" : "History gap",
+      client_name: "",
+      order_number: "",
+      is_inbound: historyGap > 0,
+      abs_quantity: Math.abs(historyGap),
+      balance_before: before,
+      balance_after: after,
+    })
+    running = after
+  }
+
+  return { rows, opening, ending: running, historyGap }
 }
 
 function Stat({ label, value, hint, unit }: { label: string; value: number | string; hint?: string; unit?: string }) {
@@ -253,6 +298,7 @@ export function TrackProductModal({
   const [showHistory, setShowHistory] = useState(false)
   const [mainWhOpening, setMainWhOpening] = useState<number | null>(null)
   const [mainWhTrailEnd, setMainWhTrailEnd] = useState<number | null>(null)
+  const [historyGap, setHistoryGap] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -266,6 +312,7 @@ export function TrackProductModal({
     setShowHistory(false)
     setMainWhOpening(null)
     setMainWhTrailEnd(null)
+    setHistoryGap(0)
   }, [open, initialModelKey])
 
   const filteredProducts = useMemo(() => {
@@ -335,6 +382,7 @@ export function TrackProductModal({
         (m) => m.model === modelKey || normalizeProductText(m.name) === normalizeProductText(displayName),
       )
       const startingUnits = Number(manual?.qty) || Number(product?.startingQty) || 0
+      const currentMainQty = Number(manual?.availableQty) || Number(product?.inStock) || 0
       const productFilter = buildTrackProductFilter(modelKey, displayName)
 
       const enriched = applyMovementCatalog(
@@ -361,12 +409,14 @@ export function TrackProductModal({
         orderRows,
         filter: productFilter,
         startingUnits,
+        currentMainQty,
         displayName,
         modelKey,
         unit: product?.unit || manual?.unit || "pcs",
       })
       setMainWhOpening(rebuilt.opening)
       setMainWhTrailEnd(rebuilt.ending)
+      setHistoryGap(rebuilt.historyGap)
       setRows(rebuilt.rows)
     } catch (e) {
       console.error(e)
@@ -442,11 +492,13 @@ export function TrackProductModal({
         transferMap.set(route, prev)
       } else if (kind === "POS sale") {
         pos += qty
-        const ref = m.reference_number || m.location_label || "POS"
-        const prev = posMap.get(ref) || { ref, qty: 0, count: 0 }
+        const ref = m.reference_number || m.order_number || "POS"
+        const branch = getPosBranchLabel(m)
+        const key = `${branch}||${ref}`
+        const prev = posMap.get(key) || { ref, branch, qty: 0, count: 0 }
         prev.qty += qty
         prev.count += 1
-        posMap.set(ref, prev)
+        posMap.set(key, prev)
       } else if (kind === "Return") {
         historyReturns += qty
       }
@@ -475,8 +527,9 @@ export function TrackProductModal({
       branchRows,
       mainWhOpening,
       mainWhTrailEnd,
+      historyGap,
     }
-  }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders, mainWhOpening, mainWhTrailEnd])
+  }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders, mainWhOpening, mainWhTrailEnd, historyGap])
 
   if (!open) return null
 
@@ -575,9 +628,9 @@ export function TrackProductModal({
                   compact
                   title="POS sales"
                   totalLabel={`${summary.pos} ${summary.unit}`}
-                  headers={["Ref", "Lines", "Qty"]}
+                  headers={["Branch", "Order", "Qty"]}
                   empty="No POS sales."
-                  rows={summary.posRows.map((p) => [p.ref, p.count, `${p.qty}`])}
+                  rows={summary.posRows.map((p) => [p.branch, p.ref, `${p.qty}`])}
                 />
                 <MiniTable
                   compact
@@ -635,8 +688,11 @@ export function TrackProductModal({
                   <div className="min-w-0">
                     <p className="text-[10px] font-medium">Main WH movement history</p>
                     <p className="text-[9px] text-[hsl(var(--muted-foreground))] truncate">
-                      Opens at starting units ({summary.starting}). One row per ERP order line; returns/replacements
-                      stay separate. Trail ends {summary.mainWhTrailEnd ?? "—"} · Main WH now {summary.mainNow}.
+                      Opens at {summary.starting}. Trail ends at live Main WH ({summary.mainNow})
+                      {summary.historyGap
+                        ? ` · history gap ${summary.historyGap > 0 ? "+" : ""}${summary.historyGap}`
+                        : ""}
+                      . Branch POS does not move Main WH.
                     </p>
                   </div>
                   <Button
@@ -679,9 +735,12 @@ export function TrackProductModal({
                               {summary.mainWhOpening ?? "—"}
                             </td>
                             <td className="px-1.5 py-0.5 text-[hsl(var(--muted-foreground))]" colSpan={4}>
-                              Opening = total recorded units ({summary.starting}). ERP outs use order-line qty once;
-                              returns &amp; replacements stay in Returns panel ({summary.erpReturned}+
-                              {summary.erpReplaced}).
+                              Opening = total recorded units ({summary.starting}). ERP outs use order-line qty once.
+                              Closing forced to live Main WH ({summary.mainNow})
+                              {summary.historyGap
+                                ? ` via book gap ${summary.historyGap > 0 ? "+" : ""}${summary.historyGap}`
+                                : ""}
+                              .
                             </td>
                           </tr>
                           {rows.map((m) => {
