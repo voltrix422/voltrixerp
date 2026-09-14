@@ -17,7 +17,6 @@ import {
 } from "@/lib/order-product-search"
 import {
   enrichMovements,
-  attachMainWarehouseBalances,
   applyMovementCatalog,
   buildMovementProductCatalog,
   formatMovementDate,
@@ -82,15 +81,101 @@ function productMatches(
   return false
 }
 
+function isLikelyDuplicateOrderLog(m: InventoryMovementRow): boolean {
+  const notes = (m.notes || "").toLowerCase()
+  return /serial units delivered|dispatch scan:/i.test(notes)
+}
+
+/** Drop SN/scan duplicate order logs and cap outs to real order-line qty (fixes 262→ opening). */
+function dedupeProductMovementsForBalance(
+  movements: InventoryMovementRow[],
+  orderRows: Order[],
+  filter: ProductFilter,
+): InventoryMovementRow[] {
+  const orderCap = new Map<string, number>()
+  for (const o of orderRows) {
+    if (isBranchPosOrderHiddenFromErp(o)) continue
+    if (o.status !== "delivered") continue
+    if (!orderMatchesProductFilter(o, filter)) continue
+    orderCap.set(o.orderNumber, matchingProductQty(o, filter))
+  }
+
+  const sorted = [...movements].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  )
+
+  const hasPlainDelivered = new Set<string>()
+  for (const m of sorted) {
+    if (m.reference_type !== "order" || m.is_inbound) continue
+    const notes = (m.notes || "").toLowerCase()
+    const key = m.order_number || m.reference_number
+    if (!key) continue
+    if (/delivered to|stock restored|partial return/i.test(notes) && !isLikelyDuplicateOrderLog(m)) {
+      hasPlainDelivered.add(key)
+    }
+  }
+
+  const withoutScanDupes = sorted.filter((m) => {
+    if (m.reference_type !== "order" || m.is_inbound) return true
+    const key = m.order_number || m.reference_number
+    if (key && hasPlainDelivered.has(key) && isLikelyDuplicateOrderLog(m)) return false
+    return true
+  })
+
+  const used = new Map<string, number>()
+  const result: InventoryMovementRow[] = []
+  for (const m of withoutScanDupes) {
+    if (m.reference_type !== "order" || m.is_inbound) {
+      result.push(m)
+      continue
+    }
+    const key = m.order_number || m.reference_number
+    if (!key || !orderCap.has(key)) {
+      result.push(m)
+      continue
+    }
+    const cap = orderCap.get(key) || 0
+    const already = used.get(key) || 0
+    const remaining = Math.max(0, cap - already)
+    if (remaining <= 0) continue
+    const take = Math.min(m.abs_quantity, remaining)
+    used.set(key, already + take)
+    if (take === m.abs_quantity) {
+      result.push(m)
+    } else {
+      result.push({ ...m, quantity: take, abs_quantity: take })
+    }
+  }
+  return result
+}
+
+function attachBalancesFromCurrentMain(
+  movements: InventoryMovementRow[],
+  currentMainQty: number,
+): InventoryMovementRow[] {
+  const sorted = [...movements].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  )
+  let totalDelta = 0
+  for (const m of sorted) totalDelta += mainWarehouseDelta(m)
+  let running = currentMainQty - totalDelta
+  return sorted.map((m) => {
+    const before = running
+    const after = before + mainWarehouseDelta(m)
+    running = after
+    return { ...m, balance_before: before, balance_after: after }
+  })
+}
+
 function Stat({ label, value, hint, unit }: { label: string; value: number | string; hint?: string; unit?: string }) {
   return (
-    <div className="border border-[hsl(var(--border))] px-2.5 py-1.5 min-w-[110px]">
-      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">{label}</p>
-      <p className="text-sm font-semibold tabular-nums mt-0.5">
+    <div className="border border-[hsl(var(--border))] px-2 py-1 min-w-[88px]">
+      <p className="text-[9px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] leading-tight">{label}</p>
+      <p className="text-xs font-semibold tabular-nums mt-0.5 leading-tight">
         {typeof value === "number" ? value.toLocaleString() : value}
-        {unit ? <span className="text-[10px] font-normal text-[hsl(var(--muted-foreground))] ml-1">{unit}</span> : null}
+        {unit ? <span className="text-[9px] font-normal text-[hsl(var(--muted-foreground))] ml-0.5">{unit}</span> : null}
       </p>
-      {hint ? <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">{hint}</p> : null}
+      {hint ? <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-tight line-clamp-1">{hint}</p> : null}
     </div>
   )
 }
@@ -101,47 +186,52 @@ function MiniTable({
   headers,
   rows,
   empty,
+  compact,
 }: {
   title: string
   totalLabel?: string
   headers: string[]
   rows: Array<Array<string | number>>
   empty: string
+  compact?: boolean
 }) {
   return (
-    <div className="border border-[hsl(var(--border))]">
-      <div className="px-2.5 py-1.5 border-b border-[hsl(var(--border))] flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium">{title}</span>
+    <div className="border border-[hsl(var(--border))] flex flex-col min-h-0 overflow-hidden">
+      <div className="px-2 py-1 border-b border-[hsl(var(--border))] flex items-center justify-between gap-2 shrink-0">
+        <span className="text-[10px] font-medium truncate">{title}</span>
         {totalLabel ? (
-          <span className="text-[11px] tabular-nums font-semibold shrink-0">{totalLabel}</span>
+          <span className="text-[10px] tabular-nums font-semibold shrink-0">{totalLabel}</span>
         ) : null}
       </div>
       {rows.length === 0 ? (
-        <p className="px-2.5 py-3 text-[11px] text-[hsl(var(--muted-foreground))]">{empty}</p>
+        <p className="px-2 py-2 text-[10px] text-[hsl(var(--muted-foreground))]">{empty}</p>
       ) : (
-        <table className="w-full text-[11px] border-collapse">
-          <thead>
-            <tr className="border-b border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-              {headers.map((h) => (
-                <th key={h} className="px-2 py-1.5 font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-b border-[hsl(var(--border))] last:border-b-0">
-                {r.map((cell, j) => (
-                  <td
-                    key={j}
-                    className={`px-2 py-1.5 ${j === r.length - 1 ? "text-right tabular-nums font-medium" : ""}`}
-                  >
-                    {cell}
-                  </td>
+        <div className={compact ? "overflow-auto max-h-[22vh]" : "overflow-auto min-h-0 flex-1"}>
+          <table className="w-full text-[10px] border-collapse">
+            <thead className="sticky top-0 bg-[hsl(var(--card))]">
+              <tr className="border-b border-[hsl(var(--border))] text-left text-[9px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                {headers.map((h) => (
+                  <th key={h} className="px-1.5 py-1 font-medium">{h}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className="border-b border-[hsl(var(--border))] last:border-b-0">
+                  {r.map((cell, j) => (
+                    <td
+                      key={j}
+                      className={`px-1.5 py-0.5 ${j === r.length - 1 ? "text-right tabular-nums font-medium whitespace-nowrap" : "truncate max-w-[140px]"}`}
+                      title={String(cell)}
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
@@ -162,6 +252,8 @@ export function TrackProductModal({
   const [faultyGroup, setFaultyGroup] = useState<FaultyInventoryGroup | null>(null)
   const [branchHoldings, setBranchHoldings] = useState<BranchProductLocation[]>([])
   const [error, setError] = useState("")
+  const [showHistory, setShowHistory] = useState(false)
+  const [mainWhOpening, setMainWhOpening] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -172,6 +264,8 @@ export function TrackProductModal({
     setFaultyGroup(null)
     setBranchHoldings([])
     setError("")
+    setShowHistory(false)
+    setMainWhOpening(null)
   }, [open, initialModelKey])
 
   const filteredProducts = useMemo(() => {
@@ -237,9 +331,14 @@ export function TrackProductModal({
         })),
       )
       const catalogKey = movementItemKey(modelKey, catalog)
+      const manual = manuals.find(
+        (m) => m.model === modelKey || normalizeProductText(m.name) === normalizeProductText(displayName),
+      )
+      const currentMain = Number(manual?.availableQty) || Number(product?.inStock) || 0
+      const productFilter = buildTrackProductFilter(modelKey, displayName)
 
       const enriched = applyMovementCatalog(
-        attachMainWarehouseBalances(enrichMovements(history, orderClientMap), catalog),
+        enrichMovements(history, orderClientMap),
         catalog,
       )
 
@@ -257,7 +356,10 @@ export function TrackProductModal({
         )
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-      setRows(matched)
+      const cleaned = dedupeProductMovementsForBalance(matched, orderRows, productFilter)
+      const balanced = attachBalancesFromCurrentMain(cleaned, currentMain)
+      setMainWhOpening(balanced[0]?.balance_before ?? currentMain)
+      setRows(balanced)
     } catch (e) {
       console.error(e)
       setError("Could not load product trail.")
@@ -363,311 +465,257 @@ export function TrackProductModal({
       posRows: [...posMap.values()].sort((a, b) => b.qty - a.qty),
       transferRows: [...transferMap.values()].sort((a, b) => b.qty - a.qty),
       branchRows,
+      mainWhOpening,
     }
-  }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders])
+  }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders, mainWhOpening])
 
   if (!open) return null
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 bg-black/50 p-1 sm:p-2" onClick={onClose}>
       <div
-        className="w-[min(98vw,1280px)] h-[min(96vh,900px)] border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col shadow-xl"
+        className="w-full h-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">Track product</p>
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-              Stock now, then ERP orders · branches · POS · returns · damage
-            </p>
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-[hsl(var(--border))] shrink-0">
+          <p className="text-sm font-semibold shrink-0">Track product</p>
+          <div className="relative w-40 shrink-0">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={productQuery}
+              onChange={(e) => setProductQuery(e.target.value)}
+              placeholder="Filter…"
+              className="w-full h-7 border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-7 pr-2 text-[11px] focus:outline-none"
+            />
           </div>
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="flex-1 min-w-[200px] h-7 border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-[11px] cursor-pointer"
+          >
+            <option value="">Select a product…</option>
+            {filteredProducts.map((p) => (
+              <option key={p.modelKey} value={p.modelKey}>
+                {p.displayName} · {p.inStock}/{p.startingQty} {p.unit}
+              </option>
+            ))}
+          </select>
           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose} aria-label="Close">
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="px-4 py-3 border-b border-[hsl(var(--border))] space-y-3 shrink-0">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative sm:w-56 shrink-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-              <input
-                value={productQuery}
-                onChange={(e) => setProductQuery(e.target.value)}
-                placeholder="Filter products…"
-                className="w-full h-8 border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
-              />
-            </div>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="flex-1 h-8 border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-            >
-              <option value="">Select a product…</option>
-              {filteredProducts.map((p) => (
-                <option key={p.modelKey} value={p.modelKey}>
-                  {p.displayName} ({p.modelKey}) · {p.inStock}/{p.startingQty} {p.unit}
-                </option>
-              ))}
-            </select>
+        {selected && summary && (
+          <div className="px-3 py-1.5 border-b border-[hsl(var(--border))] flex flex-wrap gap-1.5 shrink-0">
+            <Stat label="Starting units" value={summary.starting} unit={summary.unit} hint="Total recorded" />
+            <Stat
+              label="Main WH opening"
+              value={summary.mainWhOpening ?? "—"}
+              unit={summary.unit}
+              hint="Before first movement"
+            />
+            <Stat label="Main WH now" value={summary.mainNow} unit={summary.unit} />
+            <Stat label="Branches" value={summary.atBranches} unit={summary.unit} />
+            <Stat label="Faulty" value={summary.faultyNow} unit={summary.unit} />
+            <Stat
+              label="ERP net"
+              value={summary.erpOrdersNet}
+              unit={summary.unit}
+              hint={`${summary.erpOrdersLine}−${summary.erpReturned}−${summary.erpReplaced}`}
+            />
+            <Stat label="POS" value={summary.pos} unit={summary.unit} />
+            <Stat label="Transfers" value={summary.transfers} unit={summary.unit} />
+            <Stat label="Returns" value={summary.returns} unit={summary.unit} />
+            <Stat label="Main WH +/−" value={`+${summary.addedToWh}/−${summary.leftWh}`} />
           </div>
+        )}
 
-          {selected && summary && (
-            <div className="space-y-2">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">
-                  Stock now
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Stat label="Starting units" value={summary.starting} unit={summary.unit} hint="Total recorded for this model" />
-                  <Stat label="Main warehouse" value={summary.mainNow} unit={summary.unit} hint="Sellable at main WH" />
-                  <Stat label="At branches" value={summary.atBranches} unit={summary.unit} hint="On hand across branches" />
-                  <Stat label="Faulty / damaged" value={summary.faultyNow} unit={summary.unit} hint="Excluded from sellable stock" />
-                </div>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">
-                  Where it went
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Stat
-                    label="ERP delivered (net)"
-                    value={summary.erpOrdersNet}
-                    unit={summary.unit}
-                    hint={`${summary.erpOrdersLine} on lines − ${summary.erpReturned} returned − ${summary.erpReplaced} replaced`}
-                  />
-                  <Stat label="Transfers" value={summary.transfers} unit={summary.unit} hint="Branch transfer volume (history)" />
-                  <Stat label="POS sales" value={summary.pos} unit={summary.unit} hint="Sold via branch POS" />
-                  <Stat label="Returns" value={summary.returns} unit={summary.unit} hint="Returned into stock" />
-                  <Stat
-                    label="Main WH + / −"
-                    value={`+${summary.addedToWh} / −${summary.leftWh}`}
-                    hint="All adds and removes on main warehouse (history)"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-auto p-3 space-y-3">
+        <div className="min-h-0 flex-1 overflow-hidden p-2 flex flex-col gap-2">
           {!selectedModel ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-[hsl(var(--muted-foreground))]">
-              <Package className="h-8 w-8 opacity-30 mb-2" />
-              <p className="text-sm">Select a product to see its full trail</p>
+            <div className="flex flex-col items-center justify-center flex-1 text-[hsl(var(--muted-foreground))]">
+              <Package className="h-7 w-7 opacity-30 mb-2" />
+              <p className="text-xs">Select a product</p>
             </div>
           ) : loading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-xs text-[hsl(var(--muted-foreground))]">
+            <div className="flex items-center justify-center flex-1 gap-2 text-xs text-[hsl(var(--muted-foreground))]">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading trail…
+              Loading…
             </div>
           ) : error ? (
-            <p className="text-xs text-center py-16 text-red-600">{error}</p>
-          ) : (
+            <p className="text-xs text-center text-red-600 py-8">{error}</p>
+          ) : summary ? (
             <>
-              {summary && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <MiniTable
-                      title="ERP client orders (order lines)"
-                      totalLabel={`${summary.erpOrdersLine.toLocaleString()} ${summary.unit}`}
-                      headers={["Order", "Client", "Qty"]}
-                      empty="No ERP order lines for this product."
-                      rows={summary.orders.map((o) => [o.orderNumber, o.client, `${o.qty} ${summary.unit}`])}
-                    />
-                    <MiniTable
-                      title="At branches now"
-                      totalLabel={`${summary.atBranches.toLocaleString()} ${summary.unit}`}
-                      headers={["Branch", "Code", "On hand"]}
-                      empty="No branch stock for this product."
-                      rows={summary.branchRows.map((b) => [
-                        b.branchName,
-                        b.branchCode,
-                        `${b.quantity} ${b.unit || summary.unit}`,
-                      ])}
-                    />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 min-h-0 shrink-0">
+                <MiniTable
+                  compact
+                  title="ERP client orders"
+                  totalLabel={`${summary.erpOrdersLine} ${summary.unit}`}
+                  headers={["Order", "Client", "Qty"]}
+                  empty="No ERP orders."
+                  rows={summary.orders.map((o) => [o.orderNumber, o.client, `${o.qty}`])}
+                />
+                <MiniTable
+                  compact
+                  title="At branches now"
+                  totalLabel={`${summary.atBranches} ${summary.unit}`}
+                  headers={["Branch", "Code", "Qty"]}
+                  empty="No branch stock."
+                  rows={summary.branchRows.map((b) => [b.branchName, b.branchCode, `${b.quantity}`])}
+                />
+                <MiniTable
+                  compact
+                  title="POS sales"
+                  totalLabel={`${summary.pos} ${summary.unit}`}
+                  headers={["Ref", "Lines", "Qty"]}
+                  empty="No POS sales."
+                  rows={summary.posRows.map((p) => [p.ref, p.count, `${p.qty}`])}
+                />
+                <MiniTable
+                  compact
+                  title="Branch transfers"
+                  totalLabel={`${summary.transfers} ${summary.unit}`}
+                  headers={["Route", "Moves", "Qty"]}
+                  empty="No transfers."
+                  rows={summary.transferRows.map((t) => [t.route, t.count, `${t.qty}`])}
+                />
+                <MiniTable
+                  compact
+                  title="Returns & replacements"
+                  totalLabel={`${summary.erpReturned + summary.erpReplaced} ${summary.unit}`}
+                  headers={["Type", "Detail", "Qty"]}
+                  empty="None."
+                  rows={[
+                    ...summary.returnsList.map((r) => [
+                      "Return",
+                      `${r.orderNumber} · ${r.clientName}`,
+                      `${r.qty}`,
+                    ]),
+                    ...summary.replacementsList.map((r) => [
+                      "Replaced",
+                      `${r.orderNumber}${r.oldSerialNumber ? ` · ${r.oldSerialNumber}→${r.newSerialNumber || "—"}` : ""}`,
+                      `${r.qty}`,
+                    ]),
+                  ]}
+                />
+                <MiniTable
+                  compact
+                  title="Faulty / damaged"
+                  totalLabel={`${summary.faultyNow} ${summary.unit}`}
+                  headers={["Item", "Detail", "Qty"]}
+                  empty="None."
+                  rows={
+                    faultyGroup
+                      ? [
+                          ...(faultyGroup.serialUnits.length > 0
+                            ? faultyGroup.serialUnits.map((u) => [
+                                faultyGroup.displayName,
+                                `SN ${u.serialNumber}`,
+                                "1",
+                              ])
+                            : [[faultyGroup.displayName, "Qty stock", `${faultyGroup.faultyQty}`]]),
+                        ]
+                      : summary.faultyNow > 0
+                        ? [[selected?.displayName || "Product", "Faulty", `${summary.faultyNow}`]]
+                        : []
+                  }
+                />
+              </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <MiniTable
-                      title="POS sales"
-                      totalLabel={`${summary.pos.toLocaleString()} ${summary.unit}`}
-                      headers={["Reference", "Lines", "Qty"]}
-                      empty="No POS sales for this product."
-                      rows={summary.posRows.map((p) => [p.ref, p.count, `${p.qty} ${summary.unit}`])}
-                    />
-                    <MiniTable
-                      title="Branch transfers (history)"
-                      totalLabel={`${summary.transfers.toLocaleString()} ${summary.unit}`}
-                      headers={["Route", "Moves", "Qty"]}
-                      empty="No branch transfers for this product."
-                      rows={summary.transferRows.map((t) => [t.route, t.count, `${t.qty} ${summary.unit}`])}
-                    />
+              <div className="border border-[hsl(var(--border))] min-h-0 flex-1 flex flex-col overflow-hidden">
+                <div className="px-2 py-1 border-b border-[hsl(var(--border))] flex items-center justify-between shrink-0">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium">Main WH movement history (deduped)</p>
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] truncate">
+                      Opening {summary.mainWhOpening ?? "—"} → now {summary.mainNow} {summary.unit}. Duplicate order
+                      scans removed so balances match current stock.
+                    </p>
                   </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <MiniTable
-                      title="Returns & replacements"
-                      totalLabel={`${(summary.erpReturned + summary.erpReplaced).toLocaleString()} ${summary.unit}`}
-                      headers={["Type", "Order / detail", "Qty"]}
-                      empty="No returns or replacements for this product."
-                      rows={[
-                        ...summary.returnsList.map((r) => [
-                          "Return",
-                          `${r.orderNumber} · ${r.clientName}${r.returnedAt ? ` · ${new Date(r.returnedAt).toLocaleDateString()}` : ""}`,
-                          `${r.qty} ${r.unit || summary.unit}`,
-                        ]),
-                        ...summary.replacementsList.map((r) => [
-                          "Replaced",
-                          `${r.orderNumber} · ${r.clientName}${r.oldSerialNumber ? ` · ${r.oldSerialNumber} → ${r.newSerialNumber || "—"}` : ""}${r.disposition ? ` · ${r.disposition}` : ""}`,
-                          `${r.qty} ${r.unit || summary.unit}`,
-                        ]),
-                      ]}
-                    />
-                    <MiniTable
-                      title="Faulty / damaged now"
-                      totalLabel={`${summary.faultyNow.toLocaleString()} ${summary.unit}`}
-                      headers={["Item", "Detail", "Qty"]}
-                      empty="No faulty / damaged units for this product."
-                      rows={
-                        faultyGroup
-                          ? [
-                              ...(faultyGroup.serialUnits.length > 0
-                                ? faultyGroup.serialUnits.map((u) => [
-                                    faultyGroup.displayName,
-                                    `SN ${u.serialNumber}${u.scannedAt ? ` · ${new Date(u.scannedAt).toLocaleDateString()}` : ""}`,
-                                    `1 ${faultyGroup.unit}`,
-                                  ])
-                                : []),
-                              ...(faultyGroup.serialUnits.length === 0
-                                ? [[faultyGroup.displayName, "Qty-based faulty stock", `${faultyGroup.faultyQty} ${faultyGroup.unit}`]]
-                                : faultyGroup.faultyQty > faultyGroup.serialUnits.length
-                                  ? [[
-                                      faultyGroup.displayName,
-                                      "Additional qty (no SN)",
-                                      `${faultyGroup.faultyQty - faultyGroup.serialUnits.length} ${faultyGroup.unit}`,
-                                    ]]
-                                  : []),
-                            ]
-                          : summary.faultyNow > 0
-                            ? [[selected?.displayName || "Product", "On faulty stock", `${summary.faultyNow} ${summary.unit}`]]
-                            : []
-                      }
-                    />
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[10px] cursor-pointer shrink-0"
+                    onClick={() => setShowHistory((v) => !v)}
+                  >
+                    {showHistory ? "Hide" : "Show"} history
+                  </Button>
                 </div>
-              )}
-
-              <div className="border border-[hsl(var(--border))] overflow-x-auto">
-                <div className="px-2.5 py-1.5 border-b border-[hsl(var(--border))] text-[11px] font-medium">
-                  Full movement history
-                </div>
-                {rows.length === 0 ? (
-                  <p className="px-2.5 py-6 text-[11px] text-[hsl(var(--muted-foreground))] text-center">
-                    No movement history rows for this product.
-                  </p>
-                ) : (
-                  <table className="w-full text-xs border-collapse min-w-[900px]">
-                    <thead>
-                      <tr className="border-b border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                        <th className="px-2.5 py-2 font-medium whitespace-nowrap">Date</th>
-                        <th className="px-2.5 py-2 font-medium">Event</th>
-                        <th className="px-2.5 py-2 font-medium text-right">Qty</th>
-                        <th className="px-2.5 py-2 font-medium text-right whitespace-nowrap">Main WH</th>
-                        <th className="px-2.5 py-2 font-medium">Place / route</th>
-                        <th className="px-2.5 py-2 font-medium">Reference</th>
-                        <th className="px-2.5 py-2 font-medium">By</th>
-                        <th className="px-2.5 py-2 font-medium">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary && (
-                        <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/15">
-                          <td className="px-2.5 py-1.5 text-[hsl(var(--muted-foreground))]">—</td>
-                          <td className="px-2.5 py-1.5 font-medium">Starting units</td>
-                          <td className="px-2.5 py-1.5 text-right tabular-nums font-medium">
-                            {summary.starting.toLocaleString()} {summary.unit}
-                          </td>
-                          <td className="px-2.5 py-1.5 text-right text-[hsl(var(--muted-foreground))]">—</td>
-                          <td className="px-2.5 py-1.5 text-[hsl(var(--muted-foreground))]">Total recorded</td>
-                          <td className="px-2.5 py-1.5 font-mono text-[10px]">{selected?.modelKey}</td>
-                          <td className="px-2.5 py-1.5">—</td>
-                          <td className="px-2.5 py-1.5 text-[hsl(var(--muted-foreground))]">Opening total</td>
-                        </tr>
-                      )}
-                      {rows.map((m) => {
-                        const kind = getTrackEventKind(m)
-                        const place = getTrackPlaceLabel(m)
-                        const delta = mainWarehouseDelta(m)
-                        const isReturn = kind === "Return" || kind === "Order return"
-                        const isDamage = m.reference_type === "faulty_move" || kind.startsWith("Damaged")
-                        return (
-                          <tr key={m.id} className="border-b border-[hsl(var(--border))] last:border-b-0 align-top">
-                            <td className="px-2.5 py-1.5 whitespace-nowrap tabular-nums text-[hsl(var(--muted-foreground))]">
-                              {formatMovementDate(m.created_at)}
+                {showHistory && (
+                  <div className="overflow-auto min-h-0 flex-1">
+                    {rows.length === 0 ? (
+                      <p className="px-2 py-4 text-[10px] text-center text-[hsl(var(--muted-foreground))]">
+                        No movements.
+                      </p>
+                    ) : (
+                      <table className="w-full text-[10px] border-collapse min-w-[860px]">
+                        <thead className="sticky top-0 bg-[hsl(var(--card))]">
+                          <tr className="border-b border-[hsl(var(--border))] text-left text-[9px] uppercase text-[hsl(var(--muted-foreground))]">
+                            <th className="px-1.5 py-1 font-medium">Date</th>
+                            <th className="px-1.5 py-1 font-medium">Event</th>
+                            <th className="px-1.5 py-1 font-medium text-right">Qty</th>
+                            <th className="px-1.5 py-1 font-medium text-right">Main WH</th>
+                            <th className="px-1.5 py-1 font-medium">Route</th>
+                            <th className="px-1.5 py-1 font-medium">Ref</th>
+                            <th className="px-1.5 py-1 font-medium">By</th>
+                            <th className="px-1.5 py-1 font-medium">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/15">
+                            <td className="px-1.5 py-0.5 text-[hsl(var(--muted-foreground))]">—</td>
+                            <td className="px-1.5 py-0.5 font-medium">Main WH opening</td>
+                            <td className="px-1.5 py-0.5 text-right tabular-nums">
+                              {summary.mainWhOpening ?? "—"} {summary.unit}
                             </td>
-                            <td className="px-2.5 py-1.5">
-                              <span className="font-medium">{kind}</span>
-                              {isReturn && (
-                                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                                  Returned into stock
-                                </span>
-                              )}
-                              {isDamage && (
-                                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                                  Faulty / damaged inventory
-                                </span>
-                              )}
+                            <td className="px-1.5 py-0.5 text-right tabular-nums font-medium">
+                              {summary.mainWhOpening ?? "—"}
                             </td>
-                            <td className="px-2.5 py-1.5 text-right tabular-nums font-medium whitespace-nowrap">
-                              {delta > 0 ? "+" : delta < 0 ? "−" : ""}
-                              {Math.abs(delta || m.abs_quantity).toLocaleString()} {m.unit}
-                            </td>
-                            <td className="px-2.5 py-1.5 text-right tabular-nums whitespace-nowrap">
-                              {m.balance_before != null && m.balance_after != null ? (
-                                <>
-                                  <span className="text-[hsl(var(--muted-foreground))]">{m.balance_before}</span>
-                                  <span className="mx-1 text-[hsl(var(--muted-foreground))]">→</span>
-                                  <span className="font-medium">{m.balance_after}</span>
-                                </>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                            <td className="px-2.5 py-1.5 max-w-[220px]">
-                              <span className="break-words">{place}</span>
-                            </td>
-                            <td className="px-2.5 py-1.5 whitespace-nowrap">
-                              {m.order_number || m.reference_number || "—"}
-                              {m.client_name && (
-                                <span className="block text-[10px] text-[hsl(var(--muted-foreground))] truncate max-w-[140px]">
-                                  {m.client_name}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-2.5 py-1.5 text-[hsl(var(--muted-foreground))] whitespace-nowrap">
-                              {m.created_by || "—"}
-                            </td>
-                            <td className="px-2.5 py-1.5 max-w-[240px] text-[hsl(var(--muted-foreground))]">
-                              <span className="line-clamp-2 break-words">{m.notes || "—"}</span>
+                            <td className="px-1.5 py-0.5 text-[hsl(var(--muted-foreground))]" colSpan={4}>
+                              Reconstructed so trail ends at current Main WH ({summary.mainNow}). Total units recorded:{" "}
+                              {summary.starting}.
                             </td>
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                          {rows.map((m) => {
+                            const kind = getTrackEventKind(m)
+                            const place = getTrackPlaceLabel(m)
+                            const delta = mainWarehouseDelta(m)
+                            return (
+                              <tr key={m.id} className="border-b border-[hsl(var(--border))] last:border-b-0 align-top">
+                                <td className="px-1.5 py-0.5 whitespace-nowrap text-[hsl(var(--muted-foreground))]">
+                                  {formatMovementDate(m.created_at)}
+                                </td>
+                                <td className="px-1.5 py-0.5 font-medium">{kind}</td>
+                                <td className="px-1.5 py-0.5 text-right tabular-nums whitespace-nowrap">
+                                  {delta > 0 ? "+" : delta < 0 ? "−" : ""}
+                                  {Math.abs(delta || m.abs_quantity)} {m.unit}
+                                </td>
+                                <td className="px-1.5 py-0.5 text-right tabular-nums whitespace-nowrap">
+                                  {m.balance_before != null && m.balance_after != null
+                                    ? `${m.balance_before}→${m.balance_after}`
+                                    : "—"}
+                                </td>
+                                <td className="px-1.5 py-0.5 truncate max-w-[160px]" title={place}>
+                                  {place}
+                                </td>
+                                <td className="px-1.5 py-0.5 whitespace-nowrap">
+                                  {m.order_number || m.reference_number || "—"}
+                                </td>
+                                <td className="px-1.5 py-0.5 text-[hsl(var(--muted-foreground))] whitespace-nowrap">
+                                  {m.created_by || "—"}
+                                </td>
+                                <td className="px-1.5 py-0.5 text-[hsl(var(--muted-foreground))] max-w-[200px]">
+                                  <span className="line-clamp-1">{m.notes || "—"}</span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 )}
               </div>
             </>
-          )}
-        </div>
-
-        <div className="px-4 py-3 border-t border-[hsl(var(--border))] flex justify-end shrink-0">
-          <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onClose}>
-            Close
-          </Button>
+          ) : null}
         </div>
       </div>
     </div>
