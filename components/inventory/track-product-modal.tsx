@@ -97,18 +97,25 @@ function Stat({ label, value, hint, unit }: { label: string; value: number | str
 
 function MiniTable({
   title,
+  totalLabel,
   headers,
   rows,
   empty,
 }: {
   title: string
+  totalLabel?: string
   headers: string[]
   rows: Array<Array<string | number>>
   empty: string
 }) {
   return (
     <div className="border border-[hsl(var(--border))]">
-      <div className="px-2.5 py-1.5 border-b border-[hsl(var(--border))] text-[11px] font-medium">{title}</div>
+      <div className="px-2.5 py-1.5 border-b border-[hsl(var(--border))] flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium">{title}</span>
+        {totalLabel ? (
+          <span className="text-[11px] tabular-nums font-semibold shrink-0">{totalLabel}</span>
+        ) : null}
+      </div>
       {rows.length === 0 ? (
         <p className="px-2.5 py-3 text-[11px] text-[hsl(var(--muted-foreground))]">{empty}</p>
       ) : (
@@ -461,81 +468,95 @@ export function TrackProductModal({
           ) : (
             <>
               {summary && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <MiniTable
-                    title="ERP client orders (order lines)"
-                    headers={["Order", "Client", "Qty"]}
-                    empty="No ERP order lines for this product."
-                    rows={summary.orders.map((o) => [o.orderNumber, o.client, `${o.qty} ${summary.unit}`])}
-                  />
-                  <MiniTable
-                    title="Returns & replacements"
-                    headers={["Type", "Order / detail", "Qty"]}
-                    empty="No returns or replacements for this product."
-                    rows={[
-                      ...summary.returnsList.map((r) => [
-                        "Return",
-                        `${r.orderNumber} · ${r.clientName}${r.returnedAt ? ` · ${new Date(r.returnedAt).toLocaleDateString()}` : ""}`,
-                        `${r.qty} ${r.unit || summary.unit}`,
-                      ]),
-                      ...summary.replacementsList.map((r) => [
-                        "Replaced",
-                        `${r.orderNumber} · ${r.clientName}${r.oldSerialNumber ? ` · ${r.oldSerialNumber} → ${r.newSerialNumber || "—"}` : ""}${r.disposition ? ` · ${r.disposition}` : ""}`,
-                        `${r.qty} ${r.unit || summary.unit}`,
-                      ]),
-                    ]}
-                  />
-                  <MiniTable
-                    title="POS sales"
-                    headers={["Reference", "Lines", "Qty"]}
-                    empty="No POS sales for this product."
-                    rows={summary.posRows.map((p) => [p.ref, p.count, `${p.qty} ${summary.unit}`])}
-                  />
-                  <MiniTable
-                    title="Branch transfers (history)"
-                    headers={["Route", "Moves", "Qty"]}
-                    empty="No branch transfers for this product."
-                    rows={summary.transferRows.map((t) => [t.route, t.count, `${t.qty} ${summary.unit}`])}
-                  />
-                  <MiniTable
-                    title="At branches now"
-                    headers={["Branch", "Code", "On hand"]}
-                    empty="No branch stock for this product."
-                    rows={summary.branchRows.map((b) => [
-                      b.branchName,
-                      b.branchCode,
-                      `${b.quantity} ${b.unit || summary.unit}`,
-                    ])}
-                  />
-                  <MiniTable
-                    title="Faulty / damaged now"
-                    headers={["Item", "Detail", "Qty"]}
-                    empty="No faulty / damaged units for this product."
-                    rows={
-                      faultyGroup
-                        ? [
-                            ...(faultyGroup.serialUnits.length > 0
-                              ? faultyGroup.serialUnits.map((u) => [
-                                  faultyGroup.displayName,
-                                  `SN ${u.serialNumber}${u.scannedAt ? ` · ${new Date(u.scannedAt).toLocaleDateString()}` : ""}`,
-                                  `1 ${faultyGroup.unit}`,
-                                ])
-                              : []),
-                            ...(faultyGroup.serialUnits.length === 0
-                              ? [[faultyGroup.displayName, "Qty-based faulty stock", `${faultyGroup.faultyQty} ${faultyGroup.unit}`]]
-                              : faultyGroup.faultyQty > faultyGroup.serialUnits.length
-                                ? [[
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <MiniTable
+                      title="ERP client orders (order lines)"
+                      totalLabel={`${summary.erpOrdersLine.toLocaleString()} ${summary.unit}`}
+                      headers={["Order", "Client", "Qty"]}
+                      empty="No ERP order lines for this product."
+                      rows={summary.orders.map((o) => [o.orderNumber, o.client, `${o.qty} ${summary.unit}`])}
+                    />
+                    <MiniTable
+                      title="At branches now"
+                      totalLabel={`${summary.atBranches.toLocaleString()} ${summary.unit}`}
+                      headers={["Branch", "Code", "On hand"]}
+                      empty="No branch stock for this product."
+                      rows={summary.branchRows.map((b) => [
+                        b.branchName,
+                        b.branchCode,
+                        `${b.quantity} ${b.unit || summary.unit}`,
+                      ])}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <MiniTable
+                      title="POS sales"
+                      totalLabel={`${summary.pos.toLocaleString()} ${summary.unit}`}
+                      headers={["Reference", "Lines", "Qty"]}
+                      empty="No POS sales for this product."
+                      rows={summary.posRows.map((p) => [p.ref, p.count, `${p.qty} ${summary.unit}`])}
+                    />
+                    <MiniTable
+                      title="Branch transfers (history)"
+                      totalLabel={`${summary.transfers.toLocaleString()} ${summary.unit}`}
+                      headers={["Route", "Moves", "Qty"]}
+                      empty="No branch transfers for this product."
+                      rows={summary.transferRows.map((t) => [t.route, t.count, `${t.qty} ${summary.unit}`])}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <MiniTable
+                      title="Returns & replacements"
+                      totalLabel={`${(summary.erpReturned + summary.erpReplaced).toLocaleString()} ${summary.unit}`}
+                      headers={["Type", "Order / detail", "Qty"]}
+                      empty="No returns or replacements for this product."
+                      rows={[
+                        ...summary.returnsList.map((r) => [
+                          "Return",
+                          `${r.orderNumber} · ${r.clientName}${r.returnedAt ? ` · ${new Date(r.returnedAt).toLocaleDateString()}` : ""}`,
+                          `${r.qty} ${r.unit || summary.unit}`,
+                        ]),
+                        ...summary.replacementsList.map((r) => [
+                          "Replaced",
+                          `${r.orderNumber} · ${r.clientName}${r.oldSerialNumber ? ` · ${r.oldSerialNumber} → ${r.newSerialNumber || "—"}` : ""}${r.disposition ? ` · ${r.disposition}` : ""}`,
+                          `${r.qty} ${r.unit || summary.unit}`,
+                        ]),
+                      ]}
+                    />
+                    <MiniTable
+                      title="Faulty / damaged now"
+                      totalLabel={`${summary.faultyNow.toLocaleString()} ${summary.unit}`}
+                      headers={["Item", "Detail", "Qty"]}
+                      empty="No faulty / damaged units for this product."
+                      rows={
+                        faultyGroup
+                          ? [
+                              ...(faultyGroup.serialUnits.length > 0
+                                ? faultyGroup.serialUnits.map((u) => [
                                     faultyGroup.displayName,
-                                    "Additional qty (no SN)",
-                                    `${faultyGroup.faultyQty - faultyGroup.serialUnits.length} ${faultyGroup.unit}`,
-                                  ]]
+                                    `SN ${u.serialNumber}${u.scannedAt ? ` · ${new Date(u.scannedAt).toLocaleDateString()}` : ""}`,
+                                    `1 ${faultyGroup.unit}`,
+                                  ])
                                 : []),
-                          ]
-                        : summary.faultyNow > 0
-                          ? [[selected?.displayName || "Product", "On faulty stock", `${summary.faultyNow} ${summary.unit}`]]
-                          : []
-                    }
-                  />
+                              ...(faultyGroup.serialUnits.length === 0
+                                ? [[faultyGroup.displayName, "Qty-based faulty stock", `${faultyGroup.faultyQty} ${faultyGroup.unit}`]]
+                                : faultyGroup.faultyQty > faultyGroup.serialUnits.length
+                                  ? [[
+                                      faultyGroup.displayName,
+                                      "Additional qty (no SN)",
+                                      `${faultyGroup.faultyQty - faultyGroup.serialUnits.length} ${faultyGroup.unit}`,
+                                    ]]
+                                  : []),
+                            ]
+                          : summary.faultyNow > 0
+                            ? [[selected?.displayName || "Product", "On faulty stock", `${summary.faultyNow} ${summary.unit}`]]
+                            : []
+                      }
+                    />
+                  </div>
                 </div>
               )}
 
