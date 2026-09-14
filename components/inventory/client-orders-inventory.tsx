@@ -32,7 +32,7 @@ import {
 import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch-serial-picker"
 import { OrderItemReplacement } from "@/components/inventory/order-item-replacement"
 import {
-  computeDeliveredProductQty,
+  computeNetDeliveredProductQty,
   computeProductReturnReplaceSummary,
   hasProductFilter,
   matchingProductDescription,
@@ -157,14 +157,15 @@ export function ClientOrdersInventory() {
 
   const productSummary = useMemo(() => {
     if (!hasProductFilter(productFilter)) return null
-    const { qty, unit } = computeDeliveredProductQty(filteredOrders, productFilter)
+    const net = computeNetDeliveredProductQty(filteredOrders, productFilter)
     const movement = computeProductReturnReplaceSummary(filteredOrders, productFilter)
     return {
       label: selectedProductOption?.displayName || productSearch.trim() || "Product",
-      deliveredQty: qty,
-      unit,
-      returnedQty: movement.returnedQty,
-      replacedQty: movement.replacedQty,
+      deliveredQty: net.netQty,
+      lineQty: net.lineQty,
+      unit: net.unit,
+      returnedQty: net.returnedQty,
+      replacedQty: net.replacedQty,
       returns: movement.returns,
       replacements: movement.replacements,
     }
@@ -252,11 +253,19 @@ export function ClientOrdersInventory() {
               </div>
               <div className="flex flex-wrap items-end gap-6">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Delivered qty</p>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Delivered qty (net)
+                  </p>
                   <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
                     {productSummary.deliveredQty}{" "}
                     <span className="text-sm font-medium">{productSummary.unit}</span>
                   </p>
+                  {productSummary.lineQty !== productSummary.deliveredQty && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5 tabular-nums">
+                      {productSummary.lineQty} {productSummary.unit} on order lines −{" "}
+                      {productSummary.returnedQty} returned − {productSummary.replacedQty} replaced
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Returned</p>
