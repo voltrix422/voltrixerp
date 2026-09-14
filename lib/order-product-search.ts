@@ -51,7 +51,10 @@ export function productCanonicalKeyFromText(text: string): string {
   const n = normalizeProductText(text)
   if (!n) return "unknown"
   if (is156BatteryProductFamily(n)) return "product:15-6-kwh-battery"
-  if (n.startsWith("man-")) return n
+  // Use the model code token only — ignore trailing name/uuid text that used to split one SKU into many keys.
+  const manToken = n.match(/\b(man-[a-z0-9-]+)/)
+  if (manToken) return manToken[1]
+  if (n.startsWith("man-")) return n.split(/\s+/)[0]
   return n
 }
 

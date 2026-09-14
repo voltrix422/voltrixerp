@@ -10,8 +10,29 @@ export type BranchProductOption = {
   label: string
 }
 
+/** Prefer a single model/description field — never join several fields (that splits one SKU into many keys). */
 export function branchProductKey(...parts: Array<string | null | undefined>) {
-  return productCanonicalKeyFromText(parts.filter(Boolean).join(" "))
+  for (const part of parts) {
+    const trimmed = String(part || "").trim()
+    if (!trimmed) continue
+    const key = productCanonicalKeyFromText(trimmed)
+    if (key && key !== "unknown") return key
+  }
+  return "unknown"
+}
+
+/**
+ * Model codes are sometimes truncated in transfer notes (e.g. …-INVE vs …-INVERTER).
+ * Treat equal keys, or one as a prefix of the other (shared stem), as the same product.
+ */
+export function productKeysMatch(a: string, b: string): boolean {
+  if (!a || !b || a === "unknown" || b === "unknown") return false
+  if (a === b) return true
+  const minStem = 16
+  if (a.length >= minStem && b.length >= minStem && (a.startsWith(b) || b.startsWith(a))) {
+    return true
+  }
+  return false
 }
 
 export function inventoryProductKey(inv: BranchInventory) {
@@ -19,21 +40,31 @@ export function inventoryProductKey(inv: BranchInventory) {
     inv.model,
     inv.productDescription,
     inv.itemName,
-    inv.inventoryId?.startsWith("wh:") ? inv.inventoryId.slice(3) : inv.inventoryId,
+    inv.inventoryId?.startsWith("wh:")
+      ? inv.inventoryId.slice(3)
+      : inv.inventoryId?.startsWith("man:")
+        ? inv.inventoryId.slice(4)
+        : inv.inventoryId?.startsWith("MAN-")
+          ? inv.inventoryId
+          : undefined,
   )
 }
 
+function productFilterKey(productKey: string) {
+  return Boolean(productKey && productKey !== "unknown")
+}
+
 export function inventoryMatchesProduct(inv: BranchInventory, productKey: string) {
-  if (!productKey) return true
-  return inventoryProductKey(inv) === productKey
+  if (!productFilterKey(productKey)) return true
+  return productKeysMatch(inventoryProductKey(inv), productKey)
 }
 
 export function transferLineMatchesProduct(
   productDescription: string,
   productKey: string,
 ) {
-  if (!productKey) return true
-  return branchProductKey(productDescription) === productKey
+  if (!productFilterKey(productKey)) return true
+  return productKeysMatch(branchProductKey(productDescription), productKey)
 }
 
 /** Qty of a specific product inside a transfer row (batch-aware). */
@@ -41,7 +72,7 @@ export function transferEntryProductQty(
   entry: TransferHistoryDisplayEntry,
   productKey: string,
 ): number {
-  if (!productKey) return Number(entry.quantity) || 0
+  if (!productFilterKey(productKey)) return Number(entry.quantity) || 0
   if (entry.lineItems.length > 0) {
     return entry.lineItems
       .filter((line) => transferLineMatchesProduct(line.productDescription, productKey))
@@ -56,8 +87,33 @@ export function transferEntryTouchesProduct(
   entry: TransferHistoryDisplayEntry,
   productKey: string,
 ) {
-  if (!productKey) return true
+  if (!productFilterKey(productKey)) return true
   return transferEntryProductQty(entry, productKey) > 0
+}
+
+function preferLabel(current: string | undefined, next: string) {
+  const a = (current || "").trim()
+  const b = next.trim()
+  if (!a) return b
+  if (!b) return a
+  // Prefer the longer label (usually the untruncated model / full name).
+  return b.length > a.length ? b : a
+}
+
+function mergeIntoKeyMap(map: Map<string, string>, key: string, label: string) {
+  if (!key || key === "unknown") return
+  for (const existing of map.keys()) {
+    if (!productKeysMatch(existing, key)) continue
+    const keepKey = key.length > existing.length ? key : existing
+    const dropKey = keepKey === key ? existing : key
+    const mergedLabel = preferLabel(map.get(existing), label)
+    if (dropKey !== keepKey) {
+      map.delete(dropKey)
+    }
+    map.set(keepKey, preferLabel(map.get(keepKey), mergedLabel))
+    return
+  }
+  map.set(key, preferLabel(undefined, label))
 }
 
 export function collectBranchProductOptions(params: {
@@ -69,13 +125,12 @@ export function collectBranchProductOptions(params: {
 
   for (const inv of params.inventory) {
     const key = inventoryProductKey(inv)
-    if (!key || key === "unknown") continue
     const label =
       inv.model?.trim() ||
       inv.productDescription?.trim() ||
       inv.itemName?.trim() ||
       key
-    if (!map.has(key)) map.set(key, label)
+    mergeIntoKeyMap(map, key, label)
   }
 
   for (const entry of params.transfers) {
@@ -85,14 +140,12 @@ export function collectBranchProductOptions(params: {
         : [{ productDescription: entry.productDescription, quantity: entry.quantity, unit: entry.unit }]
     for (const line of lines) {
       const key = branchProductKey(line.productDescription)
-      if (!key || key === "unknown") continue
-      if (!map.has(key)) map.set(key, line.productDescription.trim() || key)
+      mergeIntoKeyMap(map, key, line.productDescription.trim() || key)
     }
   }
 
   for (const pos of params.posLabels || []) {
-    if (!pos.key || pos.key === "unknown") continue
-    if (!map.has(pos.key)) map.set(pos.key, pos.label)
+    mergeIntoKeyMap(map, pos.key, pos.label)
   }
 
   return [...map.entries()]
@@ -101,7 +154,7 @@ export function collectBranchProductOptions(params: {
 }
 
 export function inventoryOnHandForProduct(inventory: BranchInventory[], productKey: string) {
-  if (!productKey) {
+  if (!productFilterKey(productKey)) {
     return inventory.reduce((sum, inv) => sum + (Number(inv.quantity) || 0), 0)
   }
   return inventory

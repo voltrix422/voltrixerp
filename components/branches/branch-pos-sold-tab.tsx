@@ -2,10 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { getOrders, resolveOrderItemModel, type Order } from "@/lib/orders"
-import {
-  normalizeProductText,
-  productCanonicalKeyFromText,
-} from "@/lib/order-product-search"
+import { normalizeProductText } from "@/lib/order-product-search"
+import { branchProductKey } from "@/lib/branch-product-trail"
 import { Loader2 } from "lucide-react"
 
 type SaleLine = {
@@ -59,7 +57,7 @@ function buildSaleLines(orders: Order[]): SaleLine[] {
 
       const model = resolveOrderItemModel(item) || item.model || ""
       const label = productLabel(order, item)
-      const productKey = productCanonicalKeyFromText(`${model} ${item.description}`)
+      const productKey = branchProductKey(model, item.description)
       lines.push({
         key: `${order.id}:${item.id}`,
         orderId: order.id,
@@ -83,7 +81,7 @@ function buildSaleLines(orders: Order[]): SaleLine[] {
       if ((order.items || []).some((it) => it.id === ret.orderItemId)) continue
       const model = ret.model || ""
       const desc = ret.description || model || "Returned item"
-      const productKey = productCanonicalKeyFromText(`${model} ${desc}`)
+      const productKey = branchProductKey(model, desc)
       const qty = Number(ret.qty) || 0
       if (qty <= 0) continue
       lines.push({

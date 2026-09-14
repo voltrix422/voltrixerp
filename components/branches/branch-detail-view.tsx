@@ -26,7 +26,7 @@ import {
   transferLineMatchesProduct,
 } from "@/lib/branch-product-trail"
 import { getOrders, resolveOrderItemModel } from "@/lib/orders"
-import { productCanonicalKeyFromText } from "@/lib/order-product-search"
+import { branchProductKey } from "@/lib/branch-product-trail"
 import { BulkBranchTransferModal, type BulkTransferProduct } from "@/components/branches/bulk-branch-transfer-modal"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -154,7 +154,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
           const net = Math.max(0, gross - returnedQty)
           if (net <= 0 && returnedQty <= 0) continue
           const model = resolveOrderItemModel(item) || item.model || ""
-          const key = productCanonicalKeyFromText(`${model} ${item.description}`)
+          const key = branchProductKey(model, item.description)
           map[key] = (map[key] || 0) + net
           if (!labels.has(key)) labels.set(key, model || item.description || key)
         }
