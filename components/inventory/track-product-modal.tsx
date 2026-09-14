@@ -2,11 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { getInventoryHistory } from "@/lib/inventory-history"
-import { getOrders } from "@/lib/orders"
+import { getOrders, type Order } from "@/lib/orders"
 import { getManualInventoryItems, type ManualInventoryItem } from "@/lib/manual-inventory"
 import { getFaultyInventory, type FaultyInventoryGroup } from "@/lib/faulty-inventory"
 import { searchProductAcrossBranches, type BranchProductLocation } from "@/lib/branches"
 import { normalizeProductText } from "@/lib/order-product-search"
+import {
+  computeNetDeliveredProductQty,
+  computeProductReturnReplaceSummary,
+  matchingProductQty,
+  orderMatchesProductFilter,
+  type ProductFilter,
+} from "@/lib/order-product-search"
 import {
   enrichMovements,
   attachMainWarehouseBalances,
@@ -40,6 +47,21 @@ type TrackProductModalProps = {
 type OrderAgg = { orderNumber: string; client: string; qty: number; count: number }
 type PosAgg = { ref: string; qty: number; count: number }
 type TransferAgg = { route: string; qty: number; count: number }
+
+function isMainWarehouseHolding(b: BranchProductLocation) {
+  const t = normalizeProductText(b.branchType || "")
+  const n = normalizeProductText(b.branchName || "")
+  const c = normalizeProductText(b.branchCode || "")
+  return t.includes("main_warehouse") || t.includes("main warehouse") || n.includes("main warehouse") || c === "br001"
+}
+
+function buildTrackProductFilter(modelKey: string, displayName: string): ProductFilter {
+  return {
+    modelKey,
+    matchTerms: [modelKey, displayName].filter(Boolean),
+    query: displayName || modelKey,
+  }
+}
 
 function productMatches(
   text: string,
@@ -127,6 +149,7 @@ export function TrackProductModal({
   const [productQuery, setProductQuery] = useState("")
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<InventoryMovementRow[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [manualItems, setManualItems] = useState<ManualInventoryItem[]>([])
   const [faultyGroup, setFaultyGroup] = useState<FaultyInventoryGroup | null>(null)
   const [branchHoldings, setBranchHoldings] = useState<BranchProductLocation[]>([])
@@ -137,6 +160,7 @@ export function TrackProductModal({
     setSelectedModel(initialModelKey || "")
     setProductQuery("")
     setRows([])
+    setOrders([])
     setFaultyGroup(null)
     setBranchHoldings([])
     setError("")
@@ -170,7 +194,7 @@ export function TrackProductModal({
       const product = products.find((p) => p.modelKey === modelKey)
       const displayName = product?.displayName || modelKey
 
-      const [history, orders, manuals, faultyData, branches] = await Promise.all([
+      const [history, orderRows, manuals, faultyData, branches] = await Promise.all([
         getInventoryHistory({ limit: 5000 }),
         getOrders().catch(() => []),
         getManualInventoryItems().catch(() => []),
@@ -178,7 +202,10 @@ export function TrackProductModal({
         searchProductAcrossBranches([modelKey, displayName]).catch(() => []),
       ])
       setManualItems(manuals)
-      setBranchHoldings(branches.filter((b) => (Number(b.quantity) || 0) > 0))
+      setOrders(orderRows)
+      setBranchHoldings(
+        branches.filter((b) => (Number(b.quantity) || 0) > 0 && !isMainWarehouseHolding(b)),
+      )
 
       const fg =
         faultyData.groups.find(
@@ -190,7 +217,7 @@ export function TrackProductModal({
       setFaultyGroup(fg)
 
       const orderClientMap = new Map<string, string>()
-      for (const order of orders) {
+      for (const order of orderRows) {
         if (order.id && order.clientName) orderClientMap.set(order.id, order.clientName)
       }
 
@@ -248,17 +275,29 @@ export function TrackProductModal({
       Number(manual?.faultyQty) || 0,
       Number(faultyGroup?.faultyQty) || 0,
     )
-    const atBranches = branchHoldings.reduce((s, b) => s + (Number(b.quantity) || 0), 0)
+    const branchRows = branchHoldings.filter((b) => !isMainWarehouseHolding(b))
+    const atBranches = branchRows.reduce((s, b) => s + (Number(b.quantity) || 0), 0)
 
-    let erpOrders = 0
+    const productFilter = buildTrackProductFilter(selected.modelKey, selected.displayName)
+    const net = computeNetDeliveredProductQty(orders, productFilter)
+    const movement = computeProductReturnReplaceSummary(orders, productFilter)
+
+    const orderAggs: OrderAgg[] = orders
+      .filter((o) => o.status === "delivered" && orderMatchesProductFilter(o, productFilter))
+      .map((o) => ({
+        orderNumber: o.orderNumber,
+        client: o.clientName || "—",
+        qty: matchingProductQty(o, productFilter),
+        count: 1,
+      }))
+      .filter((o) => o.qty > 0)
+      .sort((a, b) => b.qty - a.qty)
+
     let transfers = 0
     let pos = 0
-    let returns = 0
-    let damageMoves = 0
+    let historyReturns = 0
     let addedToWh = 0
     let leftWh = 0
-
-    const orderMap = new Map<string, OrderAgg>()
     const posMap = new Map<string, PosAgg>()
     const transferMap = new Map<string, TransferAgg>()
 
@@ -270,20 +309,12 @@ export function TrackProductModal({
       const kind = getTrackEventKind(m)
       const qty = m.abs_quantity
 
-      if (kind === "Client order") {
-        erpOrders += qty
-        const key = m.order_number || m.reference_number || m.reference_id || m.id
-        const prev = orderMap.get(key) || {
-          orderNumber: m.order_number || m.reference_number || "—",
-          client: m.client_name || "—",
-          qty: 0,
-          count: 0,
-        }
-        prev.qty += qty
-        prev.count += 1
-        if (m.client_name) prev.client = m.client_name
-        orderMap.set(key, prev)
-      } else if (kind === "Transfer") {
+      // Skip client-order history for ERP totals — those are double-logged (line + SN scans).
+      if (kind === "Client order" || kind === "Order return" || kind === "Order replacement") {
+        continue
+      }
+
+      if (kind === "Transfer") {
         transfers += qty
         const route = getTrackPlaceLabel(m)
         const prev = transferMap.get(route) || { route, qty: 0, count: 0 }
@@ -297,10 +328,8 @@ export function TrackProductModal({
         prev.qty += qty
         prev.count += 1
         posMap.set(ref, prev)
-      } else if (kind === "Return" || kind === "Order return") {
-        returns += qty
-      } else if (m.reference_type === "faulty_move" || kind.startsWith("Damaged")) {
-        damageMoves += qty
+      } else if (kind === "Return") {
+        historyReturns += qty
       }
     }
 
@@ -309,19 +338,24 @@ export function TrackProductModal({
       mainNow,
       faultyNow,
       atBranches,
-      erpOrders,
+      erpOrdersNet: net.netQty,
+      erpOrdersLine: net.lineQty,
+      erpReturned: net.returnedQty,
+      erpReplaced: net.replacedQty,
       transfers,
       pos,
-      returns,
-      damageMoves,
+      returns: Math.max(net.returnedQty, historyReturns),
       addedToWh,
       leftWh,
-      unit: selected.unit,
-      orders: [...orderMap.values()].sort((a, b) => b.qty - a.qty),
+      unit: selected.unit || net.unit,
+      orders: orderAggs,
+      returnsList: movement.returns,
+      replacementsList: movement.replacements,
       posRows: [...posMap.values()].sort((a, b) => b.qty - a.qty),
       transferRows: [...transferMap.values()].sort((a, b) => b.qty - a.qty),
+      branchRows,
     }
-  }, [selected, manualItems, rows, faultyGroup, branchHoldings])
+  }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders])
 
   if (!open) return null
 
@@ -386,17 +420,22 @@ export function TrackProductModal({
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1">
-                  Where it went (from history)
+                  Where it went
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Stat label="ERP orders" value={summary.erpOrders} unit={summary.unit} hint="Dispatched on client orders" />
-                  <Stat label="Transfers" value={summary.transfers} unit={summary.unit} hint="Moved between branches" />
-                  <Stat label="POS sales" value={summary.pos} unit={summary.unit} hint="Sold via POS" />
+                  <Stat
+                    label="ERP delivered (net)"
+                    value={summary.erpOrdersNet}
+                    unit={summary.unit}
+                    hint={`${summary.erpOrdersLine} on lines − ${summary.erpReturned} returned − ${summary.erpReplaced} replaced`}
+                  />
+                  <Stat label="Transfers" value={summary.transfers} unit={summary.unit} hint="Branch transfer volume (history)" />
+                  <Stat label="POS sales" value={summary.pos} unit={summary.unit} hint="Sold via branch POS" />
                   <Stat label="Returns" value={summary.returns} unit={summary.unit} hint="Returned into stock" />
                   <Stat
                     label="Main WH + / −"
                     value={`+${summary.addedToWh} / −${summary.leftWh}`}
-                    hint="All adds and removes on main warehouse"
+                    hint="All adds and removes on main warehouse (history)"
                   />
                 </div>
               </div>
@@ -422,10 +461,27 @@ export function TrackProductModal({
               {summary && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <MiniTable
-                    title="ERP client orders"
+                    title="ERP client orders (order lines)"
                     headers={["Order", "Client", "Qty"]}
-                    empty="No ERP order dispatches for this product."
+                    empty="No ERP order lines for this product."
                     rows={summary.orders.map((o) => [o.orderNumber, o.client, `${o.qty} ${summary.unit}`])}
+                  />
+                  <MiniTable
+                    title="Returns & replacements"
+                    headers={["Type", "Order / detail", "Qty"]}
+                    empty="No returns or replacements for this product."
+                    rows={[
+                      ...summary.returnsList.map((r) => [
+                        "Return",
+                        `${r.orderNumber} · ${r.clientName}${r.returnedAt ? ` · ${new Date(r.returnedAt).toLocaleDateString()}` : ""}`,
+                        `${r.qty} ${r.unit || summary.unit}`,
+                      ]),
+                      ...summary.replacementsList.map((r) => [
+                        "Replaced",
+                        `${r.orderNumber} · ${r.clientName}${r.oldSerialNumber ? ` · ${r.oldSerialNumber} → ${r.newSerialNumber || "—"}` : ""}${r.disposition ? ` · ${r.disposition}` : ""}`,
+                        `${r.qty} ${r.unit || summary.unit}`,
+                      ]),
+                    ]}
                   />
                   <MiniTable
                     title="POS sales"
@@ -443,7 +499,7 @@ export function TrackProductModal({
                     title="At branches now"
                     headers={["Branch", "Code", "On hand"]}
                     empty="No branch stock for this product."
-                    rows={branchHoldings.map((b) => [
+                    rows={summary.branchRows.map((b) => [
                       b.branchName,
                       b.branchCode,
                       `${b.quantity} ${b.unit || summary.unit}`,
