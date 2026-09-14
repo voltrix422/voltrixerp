@@ -6,7 +6,6 @@ import {
   deleteBranch,
   generateBranchCode,
   getBranchInventory,
-  resetBranchInventory,
   searchProductAcrossBranches,
   type Branch,
   type BranchProductLocation,
@@ -14,15 +13,14 @@ import {
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Store, Copy } from "lucide-react"
+import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Copy } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
 import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
 import { summarizeBranchProductResults } from "@/lib/branch-product-search"
-import { getBranchPosAccounts, setupBranchPos } from "@/lib/pos"
+import { getBranchPosAccounts } from "@/lib/pos"
 import { branchPosEmail, branchPosPassword } from "@/lib/branch-pos"
-import { isErpAdmin } from "@/lib/auth"
 import {
   downloadGrandInventoryExcel,
   downloadGrandInventoryPDF,
@@ -50,32 +48,29 @@ function PosLoginCredentials({
   onCopy: (text: string, label: string) => void
 }) {
   return (
-    <div className="min-w-0 text-[10px] leading-snug" onClick={(e) => e.stopPropagation()}>
+    <div className="min-w-0 text-[10px] leading-snug font-mono" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-1 min-w-0">
-        <p className="font-mono truncate flex-1" title={email}>{email}</p>
+        <p className="truncate flex-1" title={email}>{email}</p>
         <button
           type="button"
           onClick={() => onCopy(email, "Login ID copied")}
-          className="shrink-0 p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
+          className="shrink-0 p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
           title="Copy login ID"
         >
           <Copy className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex items-center gap-1 min-w-0 mt-0.5">
-        <p className="font-mono text-[hsl(var(--muted-foreground))] truncate flex-1" title={password}>{password}</p>
+      <div className="flex items-center gap-1 min-w-0 mt-0.5 text-[hsl(var(--muted-foreground))]">
+        <p className="truncate flex-1" title={password}>{password}</p>
         <button
           type="button"
           onClick={() => onCopy(password, "Password copied")}
-          className="shrink-0 p-0.5 rounded text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
+          className="shrink-0 p-0.5 hover:text-[hsl(var(--foreground))] cursor-pointer"
           title="Copy password"
         >
           <Copy className="h-3 w-3" />
         </button>
       </div>
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-        Login at <span className="text-[#1faca6]">/pos/login</span>
-      </p>
     </div>
   )
 }
@@ -96,43 +91,26 @@ function GrandInventoryByProductList({
   }
 
   return (
-    <div className={`overflow-y-auto rounded-md border divide-y ${className}`}>
+    <div className={`overflow-y-auto border border-[hsl(var(--border))] divide-y divide-[hsl(var(--border))] ${className}`}>
       {products.map((product) => (
-        <div key={`${product.model}-${product.item}`} className="px-3 py-3 bg-[hsl(var(--background))]">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{product.item}</p>
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                Model: <span className="font-mono text-[hsl(var(--foreground))]">{product.model}</span>
-              </p>
+        <div key={`${product.model}-${product.item}`} className="px-3 py-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm text-[hsl(var(--foreground))]">{product.item}</p>
+              <p className="text-[10px] font-mono text-[hsl(var(--muted-foreground))] mt-0.5">{product.model}</p>
             </div>
-            <div className="text-right shrink-0 rounded-md border border-[#1faca6]/30 bg-[#1faca6]/[0.06] px-3 py-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                Total available
-              </p>
-              <p className="text-lg font-bold text-[#1faca6] tabular-nums leading-tight">
-                {product.totalQty.toLocaleString()} {product.unit}
-              </p>
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
-              Available where
+            <p className="text-sm tabular-nums shrink-0">
+              <span className="font-medium">{product.totalQty.toLocaleString()}</span>{" "}
+              <span className="text-[hsl(var(--muted-foreground))]">{product.unit}</span>
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {product.locations.map((loc) => (
-                <span
-                  key={`${product.model}-${loc.branchCode}`}
-                  className="inline-flex items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-2 py-1 text-[11px] leading-snug"
-                >
-                  <span className="font-medium text-[hsl(var(--foreground))]">{loc.branchName}</span>
-                  <span className="mx-1 text-[hsl(var(--muted-foreground))]">({loc.branchCode})</span>
-                  <span className="font-semibold text-[#1faca6] tabular-nums">
-                    {loc.qty.toLocaleString()} {loc.unit}
-                  </span>
-                </span>
-              ))}
-            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+            {product.locations.map((loc) => (
+              <span key={`${product.model}-${loc.branchCode}`} className="tabular-nums">
+                {loc.branchName} ({loc.branchCode}){" "}
+                <span className="text-[hsl(var(--foreground))]">{loc.qty.toLocaleString()} {loc.unit}</span>
+              </span>
+            ))}
           </div>
         </div>
       ))}
@@ -294,7 +272,6 @@ export function BranchesTab() {
   const [exportingGrandExcel, setExportingGrandExcel] = useState(false)
   const [grandLoading, setGrandLoading] = useState(false)
   const [grandSummary, setGrandSummary] = useState<GrandInventorySummary | null>(null)
-  const [resettingAll, setResettingAll] = useState(false)
   const [exportRows, setExportRows] = useState<GrandInventoryDetailRow[]>([])
   const [search, setSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
@@ -309,7 +286,6 @@ export function BranchesTab() {
     password: string
     loginUrl: string
   }>>([])
-  const [settingUpPos, setSettingUpPos] = useState(false)
   const { confirm } = useDialog()
   const { toast } = useToast()
   const { user } = useAuth()
@@ -453,40 +429,6 @@ export function BranchesTab() {
     }
   }
 
-  async function handleResetAllBranches() {
-    const ok = await confirm({
-      type: "confirm",
-      title: "Reset all branch transfers",
-      message:
-        "Return all transferred inventory to the main warehouse and clear transfer history for every branch? This cannot be undone.",
-      confirmLabel: "Reset everything",
-    })
-    if (!ok) return
-    setResettingAll(true)
-    try {
-      await resetBranchInventory({ all: true })
-      if (viewBranch) {
-        setViewBranch(null)
-      }
-      toast({
-        type: "success",
-        title: "Reset complete",
-        message: "All stock is back in the main warehouse and transfer history has been cleared.",
-        duration: 4000,
-      })
-      void refreshGrandInventory()
-    } catch {
-      toast({
-        type: "error",
-        title: "Reset failed",
-        message: "Could not reset branch inventory and transfer history.",
-        duration: 4000,
-      })
-    } finally {
-      setResettingAll(false)
-    }
-  }
-
   async function handleDelete(id: string) {
     const ok = await confirm({
       type: "confirm",
@@ -549,12 +491,7 @@ export function BranchesTab() {
     }
   }
 
-  useEffect(() => {
-    if (loading || branches.length === 0) return
-    void refreshGrandInventory()
-  }, [loading, branches.length])
-
-  async function handleOpenExportPreview() {
+  async function handleOpenGrandInventory() {
     setExportLoading(true)
     try {
       await refreshGrandInventory()
@@ -597,22 +534,6 @@ export function BranchesTab() {
       toast({ type: "success", title: label })
     } catch {
       toast({ type: "error", title: "Copy failed", message: "Could not copy to clipboard." })
-    }
-  }
-
-  async function handleSetupBranchPos(branchId?: string) {
-    setSettingUpPos(true)
-    try {
-      const result = await setupBranchPos(branchId)
-      if (!result.ok) {
-        toast({ type: "error", title: "Could not set up branch POS" })
-        return
-      }
-      const accounts = await getBranchPosAccounts()
-      setPosAccounts(accounts)
-      toast({ type: "success", title: branchId ? "Branch POS login ready" : "All branch POS logins ready" })
-    } finally {
-      setSettingUpPos(false)
     }
   }
 
@@ -685,32 +606,16 @@ export function BranchesTab() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 px-2.5 text-xs cursor-pointer border text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
-                onClick={handleResetAllBranches}
-                disabled={resettingAll}
-              >
-                {resettingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
-                Reset transfers
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
                 className="h-8 px-2.5 text-xs cursor-pointer border"
-                onClick={handleOpenExportPreview}
+                onClick={() => void handleOpenGrandInventory()}
                 disabled={exportLoading || grandLoading}
               >
-                {exportLoading || grandLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
+                {exportLoading || grandLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5 mr-1" />
+                )}
                 Grand inventory
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-2.5 text-xs cursor-pointer border"
-                onClick={() => void handleSetupBranchPos()}
-                disabled={settingUpPos || !isErpAdmin(user?.role)}
-              >
-                {settingUpPos ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Store className="h-3.5 w-3.5 mr-1" />}
-                Setup branch POS
               </Button>
               <Button
                 size="sm"
@@ -802,63 +707,6 @@ export function BranchesTab() {
             )}
           </div>
 
-          {!isProductFiltered && (
-            <div className="rounded-lg border bg-[hsl(var(--background))] px-4 py-3 shrink-0">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold">Grand inventory — by product</p>
-                  <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                    Total available now, then where stock is held at each branch
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs cursor-pointer"
-                  onClick={() => void handleOpenExportPreview()}
-                  disabled={exportLoading || grandLoading}
-                >
-                  {exportLoading || grandLoading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                  ) : (
-                    <FileDown className="h-3.5 w-3.5 mr-1" />
-                  )}
-                  Export PDF / Excel
-                </Button>
-              </div>
-              {grandLoading ? (
-                <div className="flex items-center gap-2 py-3 text-xs text-[hsl(var(--muted-foreground))]">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading inventory totals…
-                </div>
-              ) : grandSummary ? (
-                <>
-                  <div className="flex flex-wrap items-end gap-x-6 gap-y-2 mt-3">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Products</p>
-                      <p className="text-xl font-bold tabular-nums">{grandSummary.productCount}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total available</p>
-                      <p className="text-xl font-bold text-[#1faca6] tabular-nums">{grandSummary.totalQty.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations</p>
-                      <p className="text-xl font-bold tabular-nums">{grandSummary.locationCount}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Branches</p>
-                      <p className="text-xl font-bold tabular-nums">{grandSummary.branchCount}</p>
-                    </div>
-                  </div>
-                  {grandSummary.products.length > 0 && (
-                    <GrandInventoryByProductList products={grandSummary.products} />
-                  )}
-                </>
-              ) : null}
-            </div>
-          )}
-
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] px-0.5 -mt-1">
             {isProductFiltered
               ? "Shows where this product is held across branches and warehouses"
@@ -940,133 +788,118 @@ export function BranchesTab() {
           {filteredBranches.length > 0 && (
             <>
               {/* Mobile list */}
-              <div className="sm:hidden rounded-lg border divide-y overflow-hidden">
+              <div className="sm:hidden border border-[hsl(var(--border))] divide-y divide-[hsl(var(--border))]">
                 {filteredBranches.map((b) => {
                   const pos = posForBranch(b.id)
                   const email = pos?.email || branchPosEmail(b.code)
                   const password = pos?.password || branchPosPassword(b.code)
                   return (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => {
-                      setViewBranch(b)
-                      setEditId(null)
-                    }}
-                    className="w-full text-left px-3 py-3 hover:bg-[hsl(var(--muted))]/30 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{b.name}</p>
-                        <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] mt-0.5">{b.code}</p>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          <span className="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                            {formatBranchType(b.type)}
-                          </span>
-                          <span
-                            className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] capitalize ${
-                              b.status === "active"
-                                ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
-                                : "text-[hsl(var(--muted-foreground))]"
-                            }`}
-                          >
-                            {b.status}
-                          </span>
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => {
+                        setViewBranch(b)
+                        setEditId(null)
+                      }}
+                      className="w-full text-left px-3 py-2.5 hover:bg-[hsl(var(--muted))]/15 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm truncate">{b.name}</p>
+                          <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] mt-0.5">
+                            {b.code} · {formatBranchType(b.type)} · {b.status}
+                          </p>
+                          {b.manager && (
+                            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">{b.manager}</p>
+                          )}
+                          <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
+                            <PosLoginCredentials email={email} password={password} onCopy={copyPosCredential} />
+                          </div>
                         </div>
-                        {b.manager && (
-                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1.5">{b.manager}</p>
-                        )}
-                        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                          <PosLoginCredentials email={email} password={password} onCopy={copyPosCredential} />
-                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-0.5" />
                       </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-0.5" />
-                    </div>
-                  </button>
+                    </button>
                   )
                 })}
               </div>
 
               {/* Desktop table */}
-              <div className="hidden sm:block rounded-lg border overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1.1fr)_72px_minmax(0,0.8fr)_minmax(0,0.7fr)_64px_minmax(0,1.3fr)_88px] gap-2 px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  <span>Name</span>
-                  <span>Code</span>
-                  <span>Type</span>
-                  <span>Manager</span>
-                  <span>Status</span>
-                  <span>POS login</span>
-                  <span className="text-right">Actions</span>
-                </div>
-                <div className="divide-y max-h-[calc(100vh-14rem)] overflow-y-auto">
-                  {filteredBranches.map((b) => {
-                    const pos = posForBranch(b.id)
-                    const email = pos?.email || branchPosEmail(b.code)
-                    const password = pos?.password || branchPosPassword(b.code)
-                    return (
-                    <div
-                      key={b.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setViewBranch(b)
-                        setEditId(null)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault()
-                          setViewBranch(b)
-                          setEditId(null)
-                        }
-                      }}
-                      className="group grid grid-cols-[minmax(0,1.1fr)_72px_minmax(0,0.8fr)_minmax(0,0.7fr)_64px_minmax(0,1.3fr)_88px] gap-2 px-3 py-2.5 items-center hover:bg-[hsl(var(--muted))]/25 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-sm font-medium truncate">{b.name}</span>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] opacity-0 group-hover:opacity-100" />
-                      </div>
-                      <span className="font-mono text-[11px] text-[hsl(var(--muted-foreground))]">{b.code}</span>
-                      <span className="inline-flex w-fit items-center rounded border px-1.5 py-0.5 text-[10px] text-[hsl(var(--muted-foreground))] truncate max-w-full">
-                        {formatBranchType(b.type)}
-                      </span>
-                      <span className="text-xs text-[hsl(var(--muted-foreground))] truncate">{b.manager || "—"}</span>
-                      <span
-                        className={`inline-flex w-fit items-center rounded border px-1.5 py-0.5 text-[10px] capitalize ${
-                          b.status === "active"
-                            ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
-                            : "text-[hsl(var(--muted-foreground))]"
-                        }`}
-                      >
-                        {b.status}
-                      </span>
-                      <PosLoginCredentials email={email} password={password} onCopy={copyPosCredential} />
-                      <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
-                          title="Export inventory PDF"
-                          onClick={async () => {
-                            const inv = await getBranchInventory(b.id)
-                            generateSingleBranchPdf(b, inv)
+              <div className="hidden sm:block overflow-x-auto border border-[hsl(var(--border))]">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                      <th className="px-3 py-2 font-medium">Name</th>
+                      <th className="px-3 py-2 font-medium">Code</th>
+                      <th className="px-3 py-2 font-medium">Type</th>
+                      <th className="px-3 py-2 font-medium">Manager</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
+                      <th className="px-3 py-2 font-medium">POS login</th>
+                      <th className="px-3 py-2 font-medium text-right w-[72px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredBranches.map((b) => {
+                      const pos = posForBranch(b.id)
+                      const email = pos?.email || branchPosEmail(b.code)
+                      const password = pos?.password || branchPosPassword(b.code)
+                      return (
+                        <tr
+                          key={b.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setViewBranch(b)
+                            setEditId(null)
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              setViewBranch(b)
+                              setEditId(null)
+                            }
+                          }}
+                          className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))]/10 cursor-pointer"
                         >
-                          <FileDown className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-red-600"
-                          title="Delete branch"
-                          onClick={() => handleDelete(b.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                    )
-                  })}
-                </div>
+                          <td className="px-3 py-2 text-sm truncate max-w-[180px]">{b.name}</td>
+                          <td className="px-3 py-2 font-mono text-[hsl(var(--muted-foreground))]">{b.code}</td>
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">{formatBranchType(b.type)}</td>
+                          <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] truncate max-w-[120px]">
+                            {b.manager || "—"}
+                          </td>
+                          <td className="px-3 py-2 capitalize text-[hsl(var(--muted-foreground))]">{b.status}</td>
+                          <td className="px-3 py-2">
+                            <PosLoginCredentials email={email} password={password} onCopy={copyPosCredential} />
+                          </td>
+                          <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                                title="Export inventory PDF"
+                                onClick={async () => {
+                                  const inv = await getBranchInventory(b.id)
+                                  generateSingleBranchPdf(b, inv)
+                                }}
+                              >
+                                <FileDown className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[hsl(var(--muted-foreground))] hover:text-red-600"
+                                title="Delete branch"
+                                onClick={() => handleDelete(b.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </>
           )}
@@ -1112,63 +945,74 @@ export function BranchesTab() {
       )}
 
       {exportPreviewOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setExportPreviewOpen(false)}>
-          <div className="w-full max-w-6xl rounded-lg border bg-[hsl(var(--card))] overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
-              <div>
-                <p className="text-sm font-semibold">Grand inventory export</p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6"
+          onClick={() => setExportPreviewOpen(false)}
+        >
+          <div
+            className="w-full max-w-6xl h-[min(92vh,900px)] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Grand inventory — by product</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                  Total available now, then where stock is held at each branch
+                </p>
                 {grandSummary && (
-                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                    {grandSummary.productCount} products · {grandSummary.totalQty.toLocaleString()} total qty · {grandSummary.locationCount} locations · {grandSummary.branchCount} branches
+                  <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))] mt-1.5">
+                    Products <span className="text-[hsl(var(--foreground))] font-medium">{grandSummary.productCount}</span>
+                    <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                    Total available{" "}
+                    <span className="text-[hsl(var(--foreground))] font-medium">
+                      {grandSummary.totalQty.toLocaleString()}
+                    </span>
+                    <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                    Locations{" "}
+                    <span className="text-[hsl(var(--foreground))] font-medium">{grandSummary.locationCount}</span>
+                    <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                    Branches{" "}
+                    <span className="text-[hsl(var(--foreground))] font-medium">{grandSummary.branchCount}</span>
                   </p>
                 )}
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExportPreviewOpen(false)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                title="Close"
+                aria-label="Close"
+                onClick={() => setExportPreviewOpen(false)}
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-5 overflow-y-auto min-h-0 space-y-4">
-              {exportRows.length === 0 ? (
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">No inventory rows found for warehouses/stores.</p>
+
+            <div className="p-4 overflow-y-auto min-h-0 flex-1">
+              {grandLoading ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-xs text-[hsl(var(--muted-foreground))]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading inventory totals…
+                </div>
+              ) : exportRows.length === 0 ? (
+                <p className="text-xs text-[hsl(var(--muted-foreground))] text-center py-16">
+                  No inventory rows found for warehouses/stores.
+                </p>
               ) : (
-                <>
-                  <div>
-                    <p className="text-xs font-semibold mb-2">By product — total available and where held</p>
-                    <GrandInventoryByProductList products={grandSummary?.products ?? []} className="max-h-[40vh]" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold mb-2">By branch — detail rows</p>
-                    <div className="max-h-[32vh] overflow-auto rounded-md border">
-                      <table className="w-full text-xs">
-                        <thead className="bg-[hsl(var(--muted))]/40 sticky top-0">
-                          <tr>
-                            {["Branch", "Code", "Type", "Product", "Model", "Qty", "Unit", "Date"].map(h => (
-                              <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {exportRows.map((row, index) => (
-                            <tr key={`${row.branchCode}-${row.model}-${index}`} className="border-t">
-                              <td className="px-3 py-2">{row.branchName}</td>
-                              <td className="px-3 py-2">{row.branchCode}</td>
-                              <td className="px-3 py-2">{row.branchType.replace(/_/g, " ")}</td>
-                              <td className="px-3 py-2">{row.item}</td>
-                              <td className="px-3 py-2 font-mono">{row.model}</td>
-                              <td className="px-3 py-2 tabular-nums">{row.qty}</td>
-                              <td className="px-3 py-2">{row.unit}</td>
-                              <td className="px-3 py-2">{row.transferredAt}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
+                <GrandInventoryByProductList
+                  products={grandSummary?.products ?? []}
+                  className="max-h-none h-full"
+                />
               )}
             </div>
-            <div className="px-5 py-3 border-t flex justify-end gap-2 bg-[hsl(var(--muted))]/20 shrink-0">
-              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setExportPreviewOpen(false)}>
+
+            <div className="px-4 py-3 border-t border-[hsl(var(--border))] flex flex-wrap justify-end gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs cursor-pointer"
+                onClick={() => setExportPreviewOpen(false)}
+              >
                 Close
               </Button>
               <CrmExcelExportButton
@@ -1179,11 +1023,16 @@ export function BranchesTab() {
               />
               <Button
                 size="sm"
-                className="h-8 text-xs cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+                variant="outline"
+                className="h-8 text-xs cursor-pointer"
                 onClick={() => void handleExportGrandPdf()}
                 disabled={exportRows.length === 0 || exportingGrandPdf}
               >
-                {exportingGrandPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
+                {exportingGrandPdf ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5 mr-1" />
+                )}
                 Export PDF
               </Button>
             </div>
