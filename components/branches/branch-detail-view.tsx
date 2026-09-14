@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   getBranchInventory,
   getBranchTransferHistory,
@@ -17,6 +17,16 @@ import {
   groupTransferHistoryForDisplay,
   type TransferHistoryDisplayEntry,
 } from "@/lib/branch-transfer-history-display"
+import {
+  collectBranchProductOptions,
+  inventoryMatchesProduct,
+  inventoryOnHandForProduct,
+  transferEntryProductQty,
+  transferEntryTouchesProduct,
+  transferLineMatchesProduct,
+} from "@/lib/branch-product-trail"
+import { getOrders, resolveOrderItemModel } from "@/lib/orders"
+import { productCanonicalKeyFromText } from "@/lib/order-product-search"
 import { BulkBranchTransferModal, type BulkTransferProduct } from "@/components/branches/bulk-branch-transfer-modal"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -96,11 +106,22 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
   const [removingAll, setRemovingAll] = useState(false)
   const [deletingInvId, setDeletingInvId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"inventory" | "history" | "pos">("inventory")
+  const [productFilter, setProductFilter] = useState("")
+  const [directionFilter, setDirectionFilter] = useState<"all" | "in" | "out">("all")
+  const [posNetByKey, setPosNetByKey] = useState<Record<string, number>>({})
+  const [posProductOptions, setPosProductOptions] = useState<Array<{ key: string; label: string }>>([])
   const { toast } = useToast()
   const { confirm } = useDialog()
   const { user } = useAuth()
   const isSuperAdmin = isErpAdmin(user?.role)
   const isMainWarehouse = branch.type === "main_warehouse"
+
+  useEffect(() => {
+    setProductFilter("")
+    setDirectionFilter("all")
+    setPosNetByKey({})
+    setPosProductOptions([])
+  }, [branch.id])
 
   useEffect(() => {
     setLoadingInventory(true)
@@ -110,6 +131,51 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
     })
     loadTransferHistory()
   }, [branch.id])
+
+  const loadPosSummary = useCallback(async () => {
+    if (isMainWarehouse) {
+      setPosNetByKey({})
+      setPosProductOptions([])
+      return
+    }
+    try {
+      const orders = await getOrders({ branchId: branch.id, source: "branch_pos" })
+      const map: Record<string, number> = {}
+      const labels = new Map<string, string>()
+      for (const order of orders) {
+        if (String(order.source || "").toLowerCase() !== "branch_pos") continue
+        for (const item of order.items || []) {
+          const qty = Number(item.qty) || 0
+          const returnedQty = (order.returnLines || [])
+            .filter((r) => r.orderItemId === item.id)
+            .reduce((s, r) => s + (Number(r.qty) || 0), 0)
+          const gross =
+            order.returnMerchandiseApplied && returnedQty > 0 ? qty + returnedQty : qty
+          const net = Math.max(0, gross - returnedQty)
+          if (net <= 0 && returnedQty <= 0) continue
+          const model = resolveOrderItemModel(item) || item.model || ""
+          const key = productCanonicalKeyFromText(`${model} ${item.description}`)
+          map[key] = (map[key] || 0) + net
+          if (!labels.has(key)) labels.set(key, model || item.description || key)
+        }
+        for (const ret of order.returnLines || []) {
+          if ((order.items || []).some((it) => it.id === ret.orderItemId)) continue
+          // Fully removed returned lines already counted as sold then returned → net 0; skip
+        }
+      }
+      setPosNetByKey(map)
+      setPosProductOptions(
+        [...labels.entries()].map(([key, label]) => ({ key, label })),
+      )
+    } catch {
+      setPosNetByKey({})
+      setPosProductOptions([])
+    }
+  }, [branch.id, isMainWarehouse])
+
+  useEffect(() => {
+    void loadPosSummary()
+  }, [loadPosSummary])
 
   async function loadTransferHistory() {
     setLoadingTransferHistory(true)
@@ -322,6 +388,95 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
     [transferHistory],
   )
 
+  function transferDirection(entry: TransferHistoryDisplayEntry): "in" | "out" | "other" {
+    const isOutgoing =
+      entry.fromBranchId === branch.id ||
+      (!entry.fromBranchId &&
+        (entry.fromBranchCode === branch.code || entry.fromBranchName === branch.name))
+    if (isOutgoing) return "out"
+    const isIncoming =
+      entry.toBranchId === branch.id ||
+      entry.toBranchCode === branch.code ||
+      entry.toBranchName === branch.name
+    if (isIncoming) return "in"
+    return "other"
+  }
+
+  const productOptions = useMemo(
+    () =>
+      collectBranchProductOptions({
+        inventory,
+        transfers: groupedTransferHistory,
+        posLabels: posProductOptions,
+      }),
+    [inventory, groupedTransferHistory, posProductOptions],
+  )
+
+  const filteredInventory = useMemo(() => {
+    if (!productFilter) return inventory
+    return inventory.filter((inv) => inventoryMatchesProduct(inv, productFilter))
+  }, [inventory, productFilter])
+
+  const filteredTransferRows = useMemo(() => {
+    return groupedTransferHistory
+      .map((entry) => {
+        const dir = transferDirection(entry)
+        const productQty = transferEntryProductQty(entry, productFilter)
+        return { entry, dir, productQty }
+      })
+      .filter(({ entry, dir, productQty }) => {
+        if (productFilter && !transferEntryTouchesProduct(entry, productFilter)) return false
+        if (directionFilter === "in" && dir !== "in") return false
+        if (directionFilter === "out" && dir !== "out") return false
+        if (productFilter && productQty <= 0) return false
+        return true
+      })
+  }, [groupedTransferHistory, productFilter, directionFilter, branch.id, branch.code, branch.name])
+
+  /** In/out for selected product (or all), ignoring direction filter — used by summary cards. */
+  const productTransferTotals = useMemo(() => {
+    let inQty = 0
+    let outQty = 0
+    let moves = 0
+    for (const entry of groupedTransferHistory) {
+      const qty = transferEntryProductQty(entry, productFilter)
+      if (productFilter && qty <= 0) continue
+      const dir = transferDirection(entry)
+      if (dir === "in") inQty += qty
+      else if (dir === "out") outQty += qty
+      else continue
+      moves += 1
+    }
+    return { inQty, outQty, net: inQty - outQty, moves }
+  }, [groupedTransferHistory, productFilter, branch.id, branch.code, branch.name])
+
+  const transferTotals = useMemo(() => {
+    let inQty = 0
+    let outQty = 0
+    for (const row of filteredTransferRows) {
+      if (row.dir === "in") inQty += row.productQty
+      if (row.dir === "out") outQty += row.productQty
+    }
+    return { inQty, outQty, net: inQty - outQty, moves: filteredTransferRows.length }
+  }, [filteredTransferRows])
+
+  const productTrail = useMemo(() => {
+    if (!productFilter) return null
+    const onHand = inventoryOnHandForProduct(inventory, productFilter)
+    const posSold = posNetByKey[productFilter] || 0
+    const label =
+      productOptions.find((o) => o.key === productFilter)?.label || productFilter
+    return {
+      label,
+      onHand,
+      transferIn: productTransferTotals.inQty,
+      transferOut: productTransferTotals.outQty,
+      transferNet: productTransferTotals.net,
+      posSold,
+      expected: productTransferTotals.net - posSold,
+    }
+  }, [productFilter, inventory, posNetByKey, productOptions, productTransferTotals])
+
   async function handleDownloadTransferPdf(entry: TransferHistoryDisplayEntry) {
     setDownloadingTransferPdfId(entry.id)
     try {
@@ -426,6 +581,129 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
           </p>
         )}
 
+        {!isMainWarehouse && (
+          <div className="mb-3 rounded-lg border bg-[hsl(var(--card))] p-3 space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                  Product filter (whole branch)
+                </span>
+                <select
+                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
+                  value={productFilter}
+                  onChange={(e) => setProductFilter(e.target.value)}
+                >
+                  <option value="">All products</option>
+                  {productOptions.map((opt) => (
+                    <option key={opt.key} value={opt.key}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {activeTab === "history" && (
+                <label className="flex w-full sm:w-40 flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Direction
+                  </span>
+                  <select
+                    className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
+                    value={directionFilter}
+                    onChange={(e) => setDirectionFilter(e.target.value as "all" | "in" | "out")}
+                  >
+                    <option value="all">In + Out</option>
+                    <option value="in">In only</option>
+                    <option value="out">Out only</option>
+                  </select>
+                </label>
+              )}
+              {(productFilter || directionFilter !== "all") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs cursor-pointer"
+                  onClick={() => {
+                    setProductFilter("")
+                    setDirectionFilter("all")
+                  }}
+                >
+                  Clear filters
+                </Button>
+              )}
+            </div>
+
+            {productTrail && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-[hsl(var(--foreground))]">
+                  Trail for <span className="text-[#1faca6]">{productTrail.label}</span>
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
+                    <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">On hand</p>
+                    <p className="text-sm font-semibold tabular-nums">{productTrail.onHand} pcs</p>
+                  </div>
+                  <div className="rounded-md border bg-emerald-50/80 px-2.5 py-2">
+                    <p className="text-[10px] uppercase text-emerald-700">Transfer in</p>
+                    <p className="text-sm font-semibold tabular-nums text-emerald-800">
+                      {productTrail.transferIn} pcs
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-orange-50/80 px-2.5 py-2">
+                    <p className="text-[10px] uppercase text-orange-700">Transfer out</p>
+                    <p className="text-sm font-semibold tabular-nums text-orange-800">
+                      {productTrail.transferOut} pcs
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
+                    <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Net transfer</p>
+                    <p className="text-sm font-semibold tabular-nums">{productTrail.transferNet} pcs</p>
+                  </div>
+                  <div className="rounded-md border bg-blue-50/80 px-2.5 py-2">
+                    <p className="text-[10px] uppercase text-blue-700">POS sold</p>
+                    <p className="text-sm font-semibold tabular-nums text-blue-800">
+                      {productTrail.posSold} pcs
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
+                    <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
+                      In − out − POS
+                    </p>
+                    <p className="text-sm font-semibold tabular-nums">{productTrail.expected} pcs</p>
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                      vs on hand {productTrail.onHand}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "history" && !productTrail && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-md border bg-emerald-50/80 px-2.5 py-2">
+                  <p className="text-[10px] uppercase text-emerald-700">In</p>
+                  <p className="text-sm font-semibold tabular-nums text-emerald-800">
+                    {transferTotals.inQty} pcs
+                  </p>
+                </div>
+                <div className="rounded-md border bg-orange-50/80 px-2.5 py-2">
+                  <p className="text-[10px] uppercase text-orange-700">Out</p>
+                  <p className="text-sm font-semibold tabular-nums text-orange-800">
+                    {transferTotals.outQty} pcs
+                  </p>
+                </div>
+                <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
+                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Net</p>
+                  <p className="text-sm font-semibold tabular-nums">{transferTotals.net} pcs</p>
+                </div>
+                <div className="rounded-md border bg-[hsl(var(--muted))]/15 px-2.5 py-2">
+                  <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Moves</p>
+                  <p className="text-sm font-semibold tabular-nums">{transferTotals.moves}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2 border-b">
           <div className="flex items-center gap-1">
             {(
@@ -452,7 +730,11 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                     : "POS sold"}
                 {tab === "history" && groupedTransferHistory.length > 0 && (
                   <span className="ml-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-                    ({groupedTransferHistory.length})
+                    (
+                    {productFilter || directionFilter !== "all"
+                      ? `${filteredTransferRows.length}/${groupedTransferHistory.length}`
+                      : groupedTransferHistory.length}
+                    )
                   </span>
                 )}
                 {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6]" />}
@@ -541,9 +823,11 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
               </div>
-            ) : inventory.length === 0 ? (
+            ) : filteredInventory.length === 0 ? (
               <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                No inventory at this branch yet.
+                {productFilter
+                  ? "No on-hand stock for this product at this branch."
+                  : "No inventory at this branch yet."}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -559,7 +843,7 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                     </tr>
                   </thead>
                   <tbody>
-                    {inventory.map((inv) => (
+                    {filteredInventory.map((inv) => (
                         <tr key={inv.id} className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/10">
                           <td className="px-3 py-2 font-medium max-w-[200px] truncate">
                             {inv.itemName || inv.productDescription || "—"}
@@ -621,6 +905,10 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
               <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
                 No inventory transfers recorded for this branch yet.
               </p>
+            ) : filteredTransferRows.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                No transfers match the current product / direction filter.
+              </p>
             ) : (
               <div className="overflow-x-auto max-h-[min(70vh,560px)] overflow-y-auto">
                 <table className="w-full text-xs">
@@ -636,33 +924,41 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                     </tr>
                   </thead>
                   <tbody>
-                    {groupedTransferHistory.map((entry) => {
-                      const isOutgoing =
-                        entry.fromBranchId === branch.id ||
-                        (!entry.fromBranchId &&
-                          (entry.fromBranchCode === branch.code ||
-                            entry.fromBranchName === branch.name))
-                      const isIncoming =
-                        entry.toBranchId === branch.id ||
-                        (!isOutgoing &&
-                          (entry.toBranchCode === branch.code || entry.toBranchName === branch.name))
-                      const route = isOutgoing
-                        ? `→ ${entry.toBranchName} (${entry.toBranchCode})`
-                        : isIncoming
-                          ? `← ${entry.fromBranchName} (${entry.fromBranchCode})`
-                          : `${entry.fromBranchCode} → ${entry.toBranchCode}`
-                      const productCell =
-                        entry.isBatch && entry.lineItems.length > 0
+                    {filteredTransferRows.map(({ entry, dir, productQty }) => {
+                      const route =
+                        dir === "out"
+                          ? `→ ${entry.toBranchName} (${entry.toBranchCode})`
+                          : dir === "in"
+                            ? `← ${entry.fromBranchName} (${entry.fromBranchCode})`
+                            : `${entry.fromBranchCode} → ${entry.toBranchCode}`
+                      const matchingLines =
+                        productFilter && entry.lineItems.length > 0
+                          ? entry.lineItems.filter((l) =>
+                              transferLineMatchesProduct(l.productDescription, productFilter),
+                            )
+                          : entry.lineItems
+                      const productCell = productFilter
+                        ? matchingLines.length > 0
+                          ? matchingLines
+                              .map((l) => `${l.quantity} ${l.unit} × ${l.productDescription}`)
+                              .join("; ")
+                          : entry.productDescription
+                        : entry.isBatch && entry.lineItems.length > 0
                           ? entry.lineItems
                               .map((l) => `${l.quantity} ${l.unit} × ${l.productDescription}`)
                               .join("; ")
                           : entry.productDescription
+                      const displayQty = productFilter ? productQty : entry.quantity
+                      const displayUnit =
+                        productFilter && matchingLines.length === 1
+                          ? matchingLines[0].unit
+                          : entry.unit
                       return (
                         <tr key={entry.id} className="border-b last:border-0 hover:bg-[hsl(var(--muted))]/10 align-top">
                           <td className="px-3 py-2">
-                            {isOutgoing ? (
+                            {dir === "out" ? (
                               <ArrowUpRight className="h-3.5 w-3.5 text-orange-500" />
-                            ) : isIncoming ? (
+                            ) : dir === "in" ? (
                               <ArrowDownLeft className="h-3.5 w-3.5 text-green-600" />
                             ) : (
                               <ArrowRightLeft className="h-3.5 w-3.5" />
@@ -673,12 +969,13 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                             {entry.isBatch && (
                               <Badge variant="info" className="mt-1 text-[9px] px-1 py-0">
                                 Batch
+                                {productFilter ? ` · ${displayQty} of this product` : ""}
                               </Badge>
                             )}
                           </td>
                           <td className="px-3 py-2 text-[hsl(var(--muted-foreground))] whitespace-nowrap">{route}</td>
                           <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                            {entry.quantity} {entry.unit}
+                            {displayQty} {displayUnit}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap text-[hsl(var(--muted-foreground))]">
                             {new Date(entry.transferredAt).toLocaleString(undefined, {
@@ -719,7 +1016,13 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
         )}
 
         {activeTab === "pos" && !isMainWarehouse && (
-          <BranchPosSoldTab branchId={branch.id} branchName={branch.name} />
+          <BranchPosSoldTab
+            branchId={branch.id}
+            branchName={branch.name}
+            productFilter={productFilter}
+            onProductFilterChange={setProductFilter}
+            hideLocalProductFilter
+          />
         )}
       </div>
 

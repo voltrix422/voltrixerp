@@ -111,14 +111,38 @@ function buildSaleLines(orders: Order[]): SaleLine[] {
 export function BranchPosSoldTab({
   branchId,
   branchName,
+  productFilter: controlledProductFilter,
+  onProductFilterChange,
+  onPosSummary,
+  hideLocalProductFilter = false,
 }: {
   branchId: string
   branchName: string
+  /** When set from parent branch filter, syncs with this tab. */
+  productFilter?: string
+  onProductFilterChange?: (key: string) => void
+  onPosSummary?: (summary: {
+    options: Array<{ key: string; label: string; qty: number }>
+    netByKey: Record<string, number>
+    filteredNet: number
+  }) => void
+  hideLocalProductFilter?: boolean
 }) {
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
-  const [productFilter, setProductFilter] = useState("")
+  const [localProductFilter, setLocalProductFilter] = useState("")
   const [query, setQuery] = useState("")
+
+  const productFilter =
+    controlledProductFilter !== undefined ? controlledProductFilter : localProductFilter
+
+  function setProductFilter(key: string) {
+    if (controlledProductFilter !== undefined) {
+      onProductFilterChange?.(key)
+    } else {
+      setLocalProductFilter(key)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -155,6 +179,14 @@ export function BranchPosSoldTab({
     return [...map.values()].sort((a, b) => a.label.localeCompare(b.label))
   }, [allLines])
 
+  const netByKey = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const line of allLines) {
+      map[line.productKey] = (map[line.productKey] || 0) + line.netQty
+    }
+    return map
+  }, [allLines])
+
   const filtered = useMemo(() => {
     const q = normalizeProductText(query)
     return allLines.filter((line) => {
@@ -177,6 +209,14 @@ export function BranchPosSoldTab({
     return { gross, returned, net, ordersTouched, lines: filtered.length }
   }, [filtered])
 
+  useEffect(() => {
+    onPosSummary?.({
+      options: productOptions,
+      netByKey,
+      filteredNet: summary.net,
+    })
+  }, [onPosSummary, productOptions, netByKey, summary.net])
+
   if (loading) {
     return (
       <div className="mt-3 flex justify-center py-10">
@@ -194,23 +234,25 @@ export function BranchPosSoldTab({
               Branch POS units sold at {branchName}. Filter by product to see how many of that item went out.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <label className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                  Product
-                </span>
-                <select
-                  className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
-                  value={productFilter}
-                  onChange={(e) => setProductFilter(e.target.value)}
-                >
-                  <option value="">All products</option>
-                  {productOptions.map((opt) => (
-                    <option key={opt.key} value={opt.key}>
-                      {opt.label} ({opt.qty} sold)
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {!hideLocalProductFilter && (
+                <label className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Product
+                  </span>
+                  <select
+                    className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs"
+                    value={productFilter}
+                    onChange={(e) => setProductFilter(e.target.value)}
+                  >
+                    <option value="">All products</option>
+                    {productOptions.map((opt) => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.label} ({opt.qty} sold)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                   Search
