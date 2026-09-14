@@ -33,11 +33,12 @@ import { OrderDispatchSerialPicker } from "@/components/inventory/order-dispatch
 import { OrderItemReplacement } from "@/components/inventory/order-item-replacement"
 import {
   computeDeliveredProductQty,
+  computeProductReturnReplaceSummary,
   hasProductFilter,
   matchingProductDescription,
   matchingProductQtyLabel,
   matchingProductValue,
-  orderMatchesProductFilter,
+  orderTouchesProductFilter,
   type ProductFilter,
 } from "@/lib/order-product-search"
 import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
@@ -143,7 +144,7 @@ export function ClientOrdersInventory() {
         order.clientName.toLowerCase().includes(searchLower) ||
         (order.dispatcher || "").toLowerCase().includes(searchLower)
 
-      const matchesProduct = orderMatchesProductFilter(order, productFilter)
+      const matchesProduct = orderTouchesProductFilter(order, productFilter)
 
       const orderDate = order.deliveryDate ? new Date(order.deliveryDate) : new Date()
       const matchesDateRange =
@@ -157,10 +158,15 @@ export function ClientOrdersInventory() {
   const productSummary = useMemo(() => {
     if (!hasProductFilter(productFilter)) return null
     const { qty, unit } = computeDeliveredProductQty(filteredOrders, productFilter)
+    const movement = computeProductReturnReplaceSummary(filteredOrders, productFilter)
     return {
       label: selectedProductOption?.displayName || productSearch.trim() || "Product",
       deliveredQty: qty,
       unit,
+      returnedQty: movement.returnedQty,
+      replacedQty: movement.replacedQty,
+      returns: movement.returns,
+      replacements: movement.replacements,
     }
   }, [filteredOrders, productFilter, selectedProductOption, productSearch])
 
@@ -233,7 +239,7 @@ export function ClientOrdersInventory() {
           </div>
 
           {productSummary && (
-            <div className="rounded-md border bg-[hsl(var(--background))] p-3 space-y-2">
+            <div className="rounded-md border bg-[hsl(var(--background))] p-3 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold">{productSummary.label}</p>
                 <button
@@ -244,14 +250,115 @@ export function ClientOrdersInventory() {
                   Clear product
                 </button>
               </div>
-              <div className="flex flex-wrap items-end gap-4">
+              <div className="flex flex-wrap items-end gap-6">
                 <div>
                   <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Delivered qty</p>
                   <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
-                    {productSummary.deliveredQty} <span className="text-sm font-medium">{productSummary.unit}</span>
+                    {productSummary.deliveredQty}{" "}
+                    <span className="text-sm font-medium">{productSummary.unit}</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Returned</p>
+                  <p className="text-xl font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                    {productSummary.returnedQty}{" "}
+                    <span className="text-sm font-medium">{productSummary.unit}</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Replaced</p>
+                  <p className="text-xl font-semibold tabular-nums text-rose-700 dark:text-rose-400">
+                    {productSummary.replacedQty}{" "}
+                    <span className="text-sm font-medium">{productSummary.unit}</span>
                   </p>
                 </div>
               </div>
+
+              {productSummary.returns.length > 0 && (
+                <div className="space-y-1.5 pt-1 border-t">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Returns
+                  </p>
+                  <ul className="space-y-1">
+                    {productSummary.returns.map((row, idx) => (
+                      <li
+                        key={`${row.orderNumber}-ret-${idx}`}
+                        className="text-xs text-[hsl(var(--foreground))]"
+                      >
+                        <span className="font-semibold text-[#1faca6]">{row.orderNumber}</span>
+                        {" · "}
+                        {row.clientName}
+                        {" · "}
+                        <span className="tabular-nums font-medium">
+                          {row.qty} {row.unit}
+                        </span>
+                        {row.returnedAt ? (
+                          <span className="text-[hsl(var(--muted-foreground))]">
+                            {" · "}
+                            {new Date(row.returnedAt).toLocaleDateString()}
+                          </span>
+                        ) : null}
+                        {row.returnedBy ? (
+                          <span className="text-[hsl(var(--muted-foreground))]">
+                            {" · by "}
+                            {row.returnedBy}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {productSummary.replacements.length > 0 && (
+                <div className="space-y-1.5 pt-1 border-t">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                    Replacements
+                  </p>
+                  <ul className="space-y-1">
+                    {productSummary.replacements.map((row, idx) => (
+                      <li
+                        key={`${row.orderNumber}-repl-${idx}`}
+                        className="text-xs text-[hsl(var(--foreground))]"
+                      >
+                        <span className="font-semibold text-[#1faca6]">{row.orderNumber}</span>
+                        {" · "}
+                        {row.clientName}
+                        {" · "}
+                        <span className="tabular-nums font-medium">
+                          {row.qty} {row.unit}
+                        </span>
+                        {row.oldSerialNumber || row.newSerialNumber ? (
+                          <span className="text-[hsl(var(--muted-foreground))]">
+                            {" · "}
+                            {row.oldSerialNumber || "—"}
+                            {" → "}
+                            {row.newSerialNumber || "—"}
+                          </span>
+                        ) : null}
+                        {row.disposition ? (
+                          <span className="text-[hsl(var(--muted-foreground))]">
+                            {" · "}
+                            {row.disposition}
+                          </span>
+                        ) : null}
+                        {row.reason ? (
+                          <span className="text-[hsl(var(--muted-foreground))]">
+                            {" · "}
+                            {row.reason}
+                          </span>
+                        ) : null}
+                        {row.replacedAt ? (
+                          <span className="text-[hsl(var(--muted-foreground))]">
+                            {" · "}
+                            {new Date(row.replacedAt).toLocaleDateString()}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -355,6 +462,18 @@ export function ClientOrdersInventory() {
                         {hasOutstandingCredit(order) && (
                           <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
                         )}
+                        {isProductFiltered &&
+                          (productSummary?.returns || []).some(
+                            (r) => r.orderNumber === order.orderNumber,
+                          ) && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">Returned</Badge>
+                          )}
+                        {isProductFiltered &&
+                          (productSummary?.replacements || []).some(
+                            (r) => r.orderNumber === order.orderNumber,
+                          ) && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">Replaced</Badge>
+                          )}
                       </div>
                       <p className="text-sm font-medium truncate mt-0.5">{order.clientName}</p>
                     </div>
@@ -362,7 +481,17 @@ export function ClientOrdersInventory() {
                   </div>
                   {isProductFiltered && (
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))] line-clamp-2">
-                      {matchingProductDescription(order, productFilter)}
+                      {matchingProductDescription(order, productFilter) !== "—"
+                        ? matchingProductDescription(order, productFilter)
+                        : productSummary?.returns
+                            .filter((r) => r.orderNumber === order.orderNumber)
+                            .map((r) => `Returned ${r.qty} ${r.unit}`)
+                            .join(", ") ||
+                          productSummary?.replacements
+                            .filter((r) => r.orderNumber === order.orderNumber)
+                            .map((r) => `Replaced ${r.qty} ${r.unit}`)
+                            .join(", ") ||
+                          "—"}
                     </p>
                   )}
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
@@ -372,7 +501,19 @@ export function ClientOrdersInventory() {
                       </p>
                       <p className="font-medium">
                         {isProductFiltered
-                          ? matchingProductQtyLabel(order, productFilter)
+                          ? matchingProductQtyLabel(order, productFilter) !== "—"
+                            ? matchingProductQtyLabel(order, productFilter)
+                            : (() => {
+                                const ret = (productSummary?.returns || [])
+                                  .filter((r) => r.orderNumber === order.orderNumber)
+                                  .reduce((s, r) => s + r.qty, 0)
+                                const repl = (productSummary?.replacements || [])
+                                  .filter((r) => r.orderNumber === order.orderNumber)
+                                  .reduce((s, r) => s + r.qty, 0)
+                                if (ret > 0) return `0 pcs (returned ${ret})`
+                                if (repl > 0) return `replaced ${repl}`
+                                return "—"
+                              })()
                           : formatCrmItemsQtyLabel(order.items)}
                       </p>
                     </div>
@@ -417,6 +558,41 @@ export function ClientOrdersInventory() {
                 </thead>
                 <tbody className="divide-y">
                   {filteredOrders.map((order) => {
+                    const productDesc = isProductFiltered
+                      ? matchingProductDescription(order, productFilter)
+                      : ""
+                    const productQtyLabel = isProductFiltered
+                      ? matchingProductQtyLabel(order, productFilter)
+                      : ""
+                    const orderReturns = isProductFiltered
+                      ? (productSummary?.returns || []).filter(
+                          (r) => r.orderNumber === order.orderNumber,
+                        )
+                      : []
+                    const orderReplacements = isProductFiltered
+                      ? (productSummary?.replacements || []).filter(
+                          (r) => r.orderNumber === order.orderNumber,
+                        )
+                      : []
+                    const returnQty = orderReturns.reduce((s, r) => s + r.qty, 0)
+                    const replaceQty = orderReplacements.reduce((s, r) => s + r.qty, 0)
+                    const displayProduct =
+                      productDesc !== "—" && productDesc
+                        ? productDesc
+                        : returnQty > 0
+                          ? orderReturns[0]?.description || "Returned"
+                          : replaceQty > 0
+                            ? orderReplacements[0]?.description || "Replaced"
+                            : "—"
+                    const displayQty =
+                      productQtyLabel !== "—" && productQtyLabel
+                        ? productQtyLabel
+                        : returnQty > 0
+                          ? `0 pcs (returned ${returnQty})`
+                          : replaceQty > 0
+                            ? `replaced ${replaceQty}`
+                            : "—"
+
                     return (
                       <tr
                         key={order.id}
@@ -429,17 +605,23 @@ export function ClientOrdersInventory() {
                             {hasOutstandingCredit(order) && (
                               <Badge variant="warning" className="text-[9px] px-1 py-0">Credit</Badge>
                             )}
+                            {returnQty > 0 && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0">Returned</Badge>
+                            )}
+                            {replaceQty > 0 && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0">Replaced</Badge>
+                            )}
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-xs font-medium">{order.clientName}</td>
                         {isProductFiltered && (
                           <td className="px-4 py-2.5 text-xs max-w-[200px]">
-                            <span className="line-clamp-2">{matchingProductDescription(order, productFilter)}</span>
+                            <span className="line-clamp-2">{displayProduct}</span>
                           </td>
                         )}
                         <td className="px-4 py-2.5 text-xs">
                           {isProductFiltered
-                            ? matchingProductQtyLabel(order, productFilter)
+                            ? displayQty
                             : formatCrmItemsQtyLabel(order.items)}
                         </td>
                         <td className="px-4 py-2.5 text-xs font-semibold whitespace-nowrap tabular-nums">

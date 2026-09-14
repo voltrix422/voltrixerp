@@ -241,3 +241,168 @@ export function computeDeliveredProductQty(
   }
   return { qty, unit }
 }
+
+/** Build a synthetic line item from return/replacement snapshots (or live order item). */
+function snapshotAsOrderItem(
+  order: Order,
+  orderItemId: string,
+  snapshot?: { description?: string; model?: string; unit?: string },
+): OrderItem | null {
+  const live = (order.items || []).find((item) => String(item.id) === String(orderItemId))
+  if (live) return live
+
+  const description = String(snapshot?.description || "").trim()
+  const model = String(snapshot?.model || "").trim()
+  if (!description && !model) return null
+
+  return {
+    id: orderItemId || "snapshot",
+    description: description || model,
+    model,
+    qty: 0,
+    unit: snapshot?.unit || "pcs",
+    unitPrice: 0,
+    isCustom: false,
+  }
+}
+
+export function returnLineMatchesProductFilter(
+  order: Order,
+  line: NonNullable<Order["returnLines"]>[number],
+  filter: ProductFilter,
+): boolean {
+  if (!hasProductFilter(filter)) return false
+  const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+  if (qty <= 0) return false
+  const item = snapshotAsOrderItem(order, String(line.orderItemId || ""), line)
+  return item ? orderItemMatchesProductFilter(item, filter) : false
+}
+
+export function replacementLineMatchesProductFilter(
+  order: Order,
+  line: NonNullable<Order["replacementLines"]>[number],
+  filter: ProductFilter,
+): boolean {
+  if (!hasProductFilter(filter)) return false
+  const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+  if (qty <= 0) return false
+  const item = snapshotAsOrderItem(order, String(line.orderItemId || ""), line)
+  return item ? orderItemMatchesProductFilter(item, filter) : false
+}
+
+/** True if order currently has the product, or returned/replaced it. */
+export function orderTouchesProductFilter(order: Order, filter: ProductFilter): boolean {
+  if (!hasProductFilter(filter)) return true
+  if (orderMatchesProductFilter(order, filter)) return true
+  if ((order.returnLines || []).some((line) => returnLineMatchesProductFilter(order, line, filter))) {
+    return true
+  }
+  if (
+    (order.replacementLines || []).some((line) =>
+      replacementLineMatchesProductFilter(order, line, filter),
+    )
+  ) {
+    return true
+  }
+  return false
+}
+
+export type ProductReturnEvent = {
+  orderNumber: string
+  clientName: string
+  qty: number
+  unit: string
+  returnedAt: string
+  returnedBy: string
+  description: string
+}
+
+export type ProductReplaceEvent = {
+  orderNumber: string
+  clientName: string
+  qty: number
+  unit: string
+  replacedAt: string
+  replacedBy: string
+  reason: string
+  disposition: string
+  oldSerialNumber: string
+  newSerialNumber: string
+  description: string
+}
+
+export type ProductReturnReplaceSummary = {
+  returnedQty: number
+  replacedQty: number
+  unit: string
+  returns: ProductReturnEvent[]
+  replacements: ProductReplaceEvent[]
+}
+
+/** Returns / replacements for a product across orders (includes fully returned lines). */
+export function computeProductReturnReplaceSummary(
+  orders: Order[],
+  filter: ProductFilter,
+): ProductReturnReplaceSummary {
+  const empty: ProductReturnReplaceSummary = {
+    returnedQty: 0,
+    replacedQty: 0,
+    unit: "pcs",
+    returns: [],
+    replacements: [],
+  }
+  if (!hasProductFilter(filter)) return empty
+
+  let returnedQty = 0
+  let replacedQty = 0
+  let unit = "pcs"
+  const returns: ProductReturnEvent[] = []
+  const replacements: ProductReplaceEvent[] = []
+
+  for (const order of orders) {
+    for (const line of order.returnLines || []) {
+      if (!returnLineMatchesProductFilter(order, line, filter)) continue
+      const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+      const lineUnit = line.unit || "pcs"
+      unit = lineUnit
+      returnedQty += qty
+      const item = snapshotAsOrderItem(order, String(line.orderItemId || ""), line)
+      returns.push({
+        orderNumber: order.orderNumber,
+        clientName: order.clientName,
+        qty,
+        unit: lineUnit,
+        returnedAt: line.returnedAt || order.returnedAt || "",
+        returnedBy: line.returnedBy || order.returnedBy || "",
+        description: item?.description || line.description || line.model || "Product",
+      })
+    }
+
+    for (const line of order.replacementLines || []) {
+      if (!replacementLineMatchesProductFilter(order, line, filter)) continue
+      const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+      const lineUnit = line.unit || "pcs"
+      unit = lineUnit
+      replacedQty += qty
+      const item = snapshotAsOrderItem(order, String(line.orderItemId || ""), line)
+      replacements.push({
+        orderNumber: order.orderNumber,
+        clientName: order.clientName,
+        qty,
+        unit: lineUnit,
+        replacedAt: line.replacedAt || "",
+        replacedBy: line.replacedBy || "",
+        reason: line.reason || "",
+        disposition: line.disposition || "",
+        oldSerialNumber: line.oldSerialNumber || "",
+        newSerialNumber: line.newSerialNumber || "",
+        description: item?.description || line.description || line.model || "Product",
+      })
+    }
+  }
+
+  returns.sort((a, b) => String(b.returnedAt).localeCompare(String(a.returnedAt)))
+  replacements.sort((a, b) => String(b.replacedAt).localeCompare(String(a.replacedAt)))
+
+  return { returnedQty, replacedQty, unit, returns, replacements }
+}
