@@ -81,90 +81,88 @@ function productMatches(
   return false
 }
 
-function isLikelyDuplicateOrderLog(m: InventoryMovementRow): boolean {
-  const notes = (m.notes || "").toLowerCase()
-  return /serial units delivered|dispatch scan:/i.test(notes)
-}
+/** Rebuild trail: drop duplicate order outs, use one row per ERP order line qty, start Main WH at starting units. */
+function rebuildProductTrailForBalance(params: {
+  movements: InventoryMovementRow[]
+  orderRows: Order[]
+  filter: ProductFilter
+  startingUnits: number
+  displayName: string
+  modelKey: string
+  unit: string
+}): { rows: InventoryMovementRow[]; opening: number; ending: number } {
+  const { movements, orderRows, filter, startingUnits, displayName, modelKey, unit } = params
 
-/** Drop SN/scan duplicate order logs and cap outs to real order-line qty (fixes 262→ opening). */
-function dedupeProductMovementsForBalance(
-  movements: InventoryMovementRow[],
-  orderRows: Order[],
-  filter: ProductFilter,
-): InventoryMovementRow[] {
-  const orderCap = new Map<string, number>()
-  for (const o of orderRows) {
-    if (isBranchPosOrderHiddenFromErp(o)) continue
-    if (o.status !== "delivered") continue
-    if (!orderMatchesProductFilter(o, filter)) continue
-    orderCap.set(o.orderNumber, matchingProductQty(o, filter))
-  }
-
-  const sorted = [...movements].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  const erpDelivered = orderRows.filter(
+    (o) =>
+      !isBranchPosOrderHiddenFromErp(o) &&
+      o.status === "delivered" &&
+      orderMatchesProductFilter(o, filter) &&
+      matchingProductQty(o, filter) > 0,
   )
 
-  const hasPlainDelivered = new Set<string>()
-  for (const m of sorted) {
-    if (m.reference_type !== "order" || m.is_inbound) continue
-    const notes = (m.notes || "").toLowerCase()
-    const key = m.order_number || m.reference_number
-    if (!key) continue
-    if (/delivered to|stock restored|partial return/i.test(notes) && !isLikelyDuplicateOrderLog(m)) {
-      hasPlainDelivered.add(key)
+  // Keep transfers / POS / manual / faulty / returns / replacements — drop raw outbound ERP order spam
+  const kept = movements.filter((m) => {
+    if (m.reference_type === "order" && !m.is_inbound) {
+      const on = m.order_number || m.reference_number
+      const order = orderRows.find((o) => o.orderNumber === on)
+      // Branch POS may be logged as order — keep those; ERP outs are replaced by synthetics
+      if (order && isBranchPosOrderHiddenFromErp(order)) return true
+      return false
     }
-  }
-
-  const withoutScanDupes = sorted.filter((m) => {
-    if (m.reference_type !== "order" || m.is_inbound) return true
-    const key = m.order_number || m.reference_number
-    if (key && hasPlainDelivered.has(key) && isLikelyDuplicateOrderLog(m)) return false
     return true
   })
 
-  const used = new Map<string, number>()
-  const result: InventoryMovementRow[] = []
-  for (const m of withoutScanDupes) {
-    if (m.reference_type !== "order" || m.is_inbound) {
-      result.push(m)
-      continue
+  const synthetics: InventoryMovementRow[] = erpDelivered.map((o) => {
+    const qty = matchingProductQty(o, filter)
+    const firstHist = movements.find(
+      (m) =>
+        m.reference_type === "order" &&
+        !m.is_inbound &&
+        (m.order_number === o.orderNumber || m.reference_number === o.orderNumber),
+    )
+    const at =
+      firstHist?.created_at ||
+      o.deliveryDate ||
+      o.createdAt ||
+      new Date().toISOString()
+    return {
+      id: `synthetic-order-${o.id || o.orderNumber}`,
+      item_description: displayName,
+      item_model_code: modelKey,
+      transaction_type: "out",
+      quantity: qty,
+      unit,
+      reference_type: "order",
+      reference_id: o.id,
+      reference_number: o.orderNumber,
+      notes: `Order line qty · ${o.clientName || ""}`.trim(),
+      created_at: String(at),
+      created_by: firstHist?.created_by || "System",
+      movement_label: "OUT",
+      source: "Main Warehouse",
+      destination: o.clientName ? `Client: ${o.clientName}` : "Client",
+      client_name: o.clientName || "",
+      order_number: o.orderNumber,
+      is_inbound: false,
+      abs_quantity: qty,
     }
-    const key = m.order_number || m.reference_number
-    if (!key || !orderCap.has(key)) {
-      result.push(m)
-      continue
-    }
-    const cap = orderCap.get(key) || 0
-    const already = used.get(key) || 0
-    const remaining = Math.max(0, cap - already)
-    if (remaining <= 0) continue
-    const take = Math.min(m.abs_quantity, remaining)
-    used.set(key, already + take)
-    if (take === m.abs_quantity) {
-      result.push(m)
-    } else {
-      result.push({ ...m, quantity: take, abs_quantity: take })
-    }
-  }
-  return result
-}
+  })
 
-function attachBalancesFromCurrentMain(
-  movements: InventoryMovementRow[],
-  currentMainQty: number,
-): InventoryMovementRow[] {
-  const sorted = [...movements].sort(
+  const merged = [...kept, ...synthetics].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   )
-  let totalDelta = 0
-  for (const m of sorted) totalDelta += mainWarehouseDelta(m)
-  let running = currentMainQty - totalDelta
-  return sorted.map((m) => {
+
+  const opening = startingUnits
+  let running = opening
+  const rows = merged.map((m) => {
     const before = running
     const after = before + mainWarehouseDelta(m)
     running = after
     return { ...m, balance_before: before, balance_after: after }
   })
+
+  return { rows, opening, ending: running }
 }
 
 function Stat({ label, value, hint, unit }: { label: string; value: number | string; hint?: string; unit?: string }) {
@@ -254,6 +252,7 @@ export function TrackProductModal({
   const [error, setError] = useState("")
   const [showHistory, setShowHistory] = useState(false)
   const [mainWhOpening, setMainWhOpening] = useState<number | null>(null)
+  const [mainWhTrailEnd, setMainWhTrailEnd] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -266,6 +265,7 @@ export function TrackProductModal({
     setError("")
     setShowHistory(false)
     setMainWhOpening(null)
+    setMainWhTrailEnd(null)
   }, [open, initialModelKey])
 
   const filteredProducts = useMemo(() => {
@@ -334,7 +334,7 @@ export function TrackProductModal({
       const manual = manuals.find(
         (m) => m.model === modelKey || normalizeProductText(m.name) === normalizeProductText(displayName),
       )
-      const currentMain = Number(manual?.availableQty) || Number(product?.inStock) || 0
+      const startingUnits = Number(manual?.qty) || Number(product?.startingQty) || 0
       const productFilter = buildTrackProductFilter(modelKey, displayName)
 
       const enriched = applyMovementCatalog(
@@ -356,10 +356,18 @@ export function TrackProductModal({
         )
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-      const cleaned = dedupeProductMovementsForBalance(matched, orderRows, productFilter)
-      const balanced = attachBalancesFromCurrentMain(cleaned, currentMain)
-      setMainWhOpening(balanced[0]?.balance_before ?? currentMain)
-      setRows(balanced)
+      const rebuilt = rebuildProductTrailForBalance({
+        movements: matched,
+        orderRows,
+        filter: productFilter,
+        startingUnits,
+        displayName,
+        modelKey,
+        unit: product?.unit || manual?.unit || "pcs",
+      })
+      setMainWhOpening(rebuilt.opening)
+      setMainWhTrailEnd(rebuilt.ending)
+      setRows(rebuilt.rows)
     } catch (e) {
       console.error(e)
       setError("Could not load product trail.")
@@ -466,8 +474,9 @@ export function TrackProductModal({
       transferRows: [...transferMap.values()].sort((a, b) => b.qty - a.qty),
       branchRows,
       mainWhOpening,
+      mainWhTrailEnd,
     }
-  }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders, mainWhOpening])
+  }, [selected, manualItems, rows, faultyGroup, branchHoldings, orders, mainWhOpening, mainWhTrailEnd])
 
   if (!open) return null
 
@@ -549,7 +558,7 @@ export function TrackProductModal({
                 <MiniTable
                   compact
                   title="ERP client orders"
-                  totalLabel={`${summary.erpOrdersLine} ${summary.unit}`}
+                  totalLabel={`${summary.erpOrdersNet} net · ${summary.erpOrdersLine}−${summary.erpReturned + summary.erpReplaced}`}
                   headers={["Order", "Client", "Qty"]}
                   empty="No ERP orders."
                   rows={summary.orders.map((o) => [o.orderNumber, o.client, `${o.qty}`])}
@@ -624,10 +633,10 @@ export function TrackProductModal({
               <div className="border border-[hsl(var(--border))] min-h-0 flex-1 flex flex-col overflow-hidden">
                 <div className="px-2 py-1 border-b border-[hsl(var(--border))] flex items-center justify-between shrink-0">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-medium">Main WH movement history (deduped)</p>
+                    <p className="text-[10px] font-medium">Main WH movement history</p>
                     <p className="text-[9px] text-[hsl(var(--muted-foreground))] truncate">
-                      Opening {summary.mainWhOpening ?? "—"} → now {summary.mainNow} {summary.unit}. Duplicate order
-                      scans removed so balances match current stock.
+                      Opens at starting units ({summary.starting}). One row per ERP order line; returns/replacements
+                      stay separate. Trail ends {summary.mainWhTrailEnd ?? "—"} · Main WH now {summary.mainNow}.
                     </p>
                   </div>
                   <Button
@@ -670,8 +679,9 @@ export function TrackProductModal({
                               {summary.mainWhOpening ?? "—"}
                             </td>
                             <td className="px-1.5 py-0.5 text-[hsl(var(--muted-foreground))]" colSpan={4}>
-                              Reconstructed so trail ends at current Main WH ({summary.mainNow}). Total units recorded:{" "}
-                              {summary.starting}.
+                              Opening = total recorded units ({summary.starting}). ERP outs use order-line qty once;
+                              returns &amp; replacements stay in Returns panel ({summary.erpReturned}+
+                              {summary.erpReplaced}).
                             </td>
                           </tr>
                           {rows.map((m) => {
