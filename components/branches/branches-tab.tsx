@@ -12,8 +12,7 @@ import {
 } from "@/lib/branches"
 import { BranchDetailView } from "@/components/branches/branch-detail-view"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, Shield, Search, Package, Copy } from "lucide-react"
+import { Plus, Trash2, X, Loader2, FileDown, Building2, ChevronRight, ChevronDown, Search, Package, Copy, SlidersHorizontal } from "lucide-react"
 import { useDialog } from "@/components/ui/dialog-provider"
 import { useToast } from "@/components/ui/toast"
 import { useAuth } from "@/components/auth-provider"
@@ -274,12 +273,14 @@ export function BranchesTab() {
   const [grandSummary, setGrandSummary] = useState<GrandInventorySummary | null>(null)
   const [exportRows, setExportRows] = useState<GrandInventoryDetailRow[]>([])
   const [search, setSearch] = useState("")
+  const [filterOpen, setFilterOpen] = useState(false)
   const [productSearch, setProductSearch] = useState("")
   const [selectedProductId, setSelectedProductId] = useState("")
   const [inventoryProducts, setInventoryProducts] = useState<InventoryProductOption[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [productResults, setProductResults] = useState<BranchProductLocation[]>([])
   const [productSearchLoading, setProductSearchLoading] = useState(false)
+  const [productLookupOpen, setProductLookupOpen] = useState(false)
   const [posAccounts, setPosAccounts] = useState<Array<{
     branchId: string
     email: string
@@ -333,16 +334,28 @@ export function BranchesTab() {
     setSelectedProductId("")
     setProductSearch("")
     setProductResults([])
+    setProductLookupOpen(false)
   }
 
   function handleProductDropdownChange(value: string) {
     setSelectedProductId(value)
     setProductSearch("")
+    if (value) {
+      setFilterOpen(true)
+      setProductLookupOpen(true)
+    } else {
+      setProductResults([])
+      setProductLookupOpen(false)
+    }
   }
 
   function handleProductSearchChange(value: string) {
     setProductSearch(value)
-    if (value.trim()) setSelectedProductId("")
+    if (value.trim()) {
+      setSelectedProductId("")
+      setFilterOpen(true)
+      if (value.trim().length >= 2) setProductLookupOpen(true)
+    }
   }
 
   useEffect(() => {
@@ -578,31 +591,23 @@ export function BranchesTab() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 shrink-0">
-            <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
-              <Building2 className="h-3.5 w-3.5 text-[#1faca6]" />
-              <span className="font-semibold text-[hsl(var(--foreground))]">Branches & warehouses</span>
-              <span className="text-[hsl(var(--border))]">·</span>
-              <span className="tabular-nums">
-                <span className="font-semibold text-[hsl(var(--foreground))]">{branches.length}</span> locations
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-2.5 text-xs cursor-pointer border"
+              onClick={() => setFilterOpen((o) => !o)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 mr-1" />
+              Filter
+              <ChevronDown className={`h-3.5 w-3.5 ml-1 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
+            </Button>
+            {(search.trim() || isProductFiltered) && (
+              <span className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
+                {isProductFiltered ? "Product filter on" : "Branch filter on"}
               </span>
-            </div>
-            <div className="relative flex-1 min-w-[140px] max-w-[200px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search branch…"
-                className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
-              />
-            </div>
+            )}
             <div className="flex flex-wrap items-center gap-1.5 ml-auto">
-              <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs cursor-pointer border" asChild>
-                <Link href="/warranty-center">
-                  <Shield className="h-3.5 w-3.5 mr-1" />
-                  Warranty
-                </Link>
-              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -633,144 +638,96 @@ export function BranchesTab() {
             </div>
           </div>
 
-          <div className="rounded-lg border bg-[hsl(var(--muted))]/10 p-3 space-y-3 shrink-0">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative sm:w-72 shrink-0">
-                <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1faca6] pointer-events-none" />
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => handleProductDropdownChange(e.target.value)}
-                  disabled={loadingProducts}
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-10 pr-8 text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50 cursor-pointer"
+          {filterOpen && (
+            <div className="border border-[hsl(var(--border))] px-3 py-3 space-y-3 shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span className="font-medium text-[hsl(var(--foreground))]">Branches & warehouses</span>
+                  <span className="text-[hsl(var(--border))]">·</span>
+                  <span className="tabular-nums">
+                    <span className="font-medium text-[hsl(var(--foreground))]">{branches.length}</span> locations
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen(false)}
+                  className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
                 >
-                  <option value="">
-                    {loadingProducts ? "Loading inventory…" : "All products"}
-                  </option>
-                  {filteredInventoryProducts.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.displayName} ({product.inStock} in stock)
-                    </option>
-                  ))}
-                </select>
+                  Close filter
+                </button>
               </div>
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+
+              <div className="relative max-w-sm">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                 <input
-                  value={productSearch}
-                  onChange={(e) => handleProductSearchChange(e.target.value)}
-                  placeholder="Or type product / model to search across branches…"
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]/50"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search branch…"
+                  className="w-full h-8 border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
                 />
               </div>
-            </div>
 
-            {isProductFiltered && productSummary && !productSearchLoading && (
-              <div className="rounded-md border bg-[hsl(var(--background))] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <p className="text-sm font-semibold">
-                    {selectedProductOption?.displayName || productSearch.trim()}
-                  </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative sm:w-72 shrink-0">
+                  <Package className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] pointer-events-none" />
+                  <select
+                    value={selectedProductId}
+                    onChange={(e) => handleProductDropdownChange(e.target.value)}
+                    disabled={loadingProducts}
+                    className="w-full h-8 border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-8 pr-8 text-xs appearance-none focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
+                  >
+                    <option value="">
+                      {loadingProducts ? "Loading inventory…" : "All products"}
+                    </option>
+                    {filteredInventoryProducts.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.displayName} ({product.inStock} in stock)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+                  <input
+                    value={productSearch}
+                    onChange={(e) => handleProductSearchChange(e.target.value)}
+                    placeholder="Or type product / model to search across branches…"
+                    className="w-full h-8 border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                  />
+                </div>
+              </div>
+
+              {isProductFiltered && (
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="text-[hsl(var(--muted-foreground))]">
+                    Looking up:{" "}
+                    <span className="text-[hsl(var(--foreground))]">
+                      {selectedProductOption?.displayName || productSearch.trim()}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setProductLookupOpen(true)}
+                    className="underline text-[hsl(var(--foreground))] cursor-pointer"
+                  >
+                    Open results
+                  </button>
                   <button
                     type="button"
                     onClick={clearProductFilter}
-                    className="text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                    className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
                   >
-                    Clear product
+                    Clear
                   </button>
-                </div>
-                <div className="flex flex-wrap items-end gap-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Total available</p>
-                    <p className="text-2xl font-bold text-[#1faca6] tabular-nums">
-                      {productSummary.totalQty}{" "}
-                      <span className="text-sm font-medium">{productSummary.unit}</span>
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">At branches</p>
-                    <p className="text-lg font-semibold tabular-nums">
-                      {productSummary.branchQty} {productSummary.unit}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Main warehouse</p>
-                    <p className="text-lg font-semibold tabular-nums">
-                      {productSummary.mainWarehouseQty} {productSummary.unit}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Locations</p>
-                    <p className="text-lg font-semibold tabular-nums">{productSummary.locationCount}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <p className="text-[10px] text-[hsl(var(--muted-foreground))] px-0.5 -mt-1">
-            {isProductFiltered
-              ? "Shows where this product is held across branches and warehouses"
-              : "Click a row to open inventory"}
-          </p>
-
-          {isProductFiltered && (
-            <div className="rounded-lg border overflow-hidden shrink-0">
-              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-[hsl(var(--muted))]/10">
-                <p className="text-xs font-semibold">
-                  Available where
-                </p>
-                <span className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
-                  {productSearchLoading ? "Searching…" : `${productResults.length} location${productResults.length === 1 ? "" : "s"}`}
-                </span>
-              </div>
-              {productSearchLoading ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-xs text-[hsl(var(--muted-foreground))]">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Searching branches…
-                </div>
-              ) : productResults.length === 0 ? (
-                <div className="px-4 py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
-                  No branches have this product in stock.
-                </div>
-              ) : (
-                <div className="max-h-56 overflow-y-auto divide-y">
-                  {productResults.map((row) => (
-                    <button
-                      key={`${row.branchId}-${row.model}-${row.quantity}`}
-                      type="button"
-                      onClick={() => {
-                        const branch = branches.find((b) => b.id === row.branchId)
-                        if (branch) {
-                          setViewBranch(branch)
-                          setEditId(null)
-                        }
-                      }}
-                      className="w-full text-left px-3 py-2.5 hover:bg-[hsl(var(--muted))]/20 transition-colors"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{row.itemName}</p>
-                          <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] truncate mt-0.5">
-                            {row.model}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-[#1faca6] tabular-nums">
-                            {row.quantity} {row.unit}
-                          </p>
-                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {row.branchName} ({row.branchCode})
-                            {row.branchType === "main_warehouse" && " · Main warehouse"}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
                 </div>
               )}
             </div>
           )}
 
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))] px-0.5 -mt-1">
+            Click a row to open inventory
+          </p>
           {branches.length === 0 && !adding && (
             <div className="flex flex-col items-center justify-center py-14 text-center gap-2 rounded-lg border border-dashed">
               <Building2 className="h-8 w-8 text-[hsl(var(--muted-foreground))] opacity-30" />
@@ -904,6 +861,129 @@ export function BranchesTab() {
             </>
           )}
         </>
+      )}
+
+      {/* Product lookup across branches */}
+      {productLookupOpen && isProductFiltered && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6"
+          onClick={() => setProductLookupOpen(false)}
+        >
+          <div
+            className="w-full max-w-4xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {selectedProductOption?.displayName || productResults[0]?.itemName || productSearch.trim()}
+                </p>
+                <p className="text-[11px] font-mono text-[hsl(var(--muted-foreground))] mt-0.5 truncate">
+                  {selectedProductOption?.modelKey || productResults[0]?.model || "—"}
+                </p>
+                {productSummary && !productSearchLoading && (
+                  <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))] mt-1.5">
+                    Total{" "}
+                    <span className="text-[hsl(var(--foreground))] font-medium">
+                      {productSummary.totalQty.toLocaleString()} {productSummary.unit}
+                    </span>
+                    <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                    Branches{" "}
+                    <span className="text-[hsl(var(--foreground))] font-medium">
+                      {productSummary.branchQty.toLocaleString()}
+                    </span>
+                    <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                    Main WH{" "}
+                    <span className="text-[hsl(var(--foreground))] font-medium">
+                      {productSummary.mainWarehouseQty.toLocaleString()}
+                    </span>
+                    <span className="mx-1.5 text-[hsl(var(--border))]">·</span>
+                    <span className="text-[hsl(var(--foreground))] font-medium">
+                      {productSummary.locationCount}
+                    </span>{" "}
+                    locations
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={clearProductFilter}
+                >
+                  Clear
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Close"
+                  aria-label="Close"
+                  onClick={() => setProductLookupOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-3">
+              {productSearchLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-xs text-[hsl(var(--muted-foreground))]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Searching branches…
+                </div>
+              ) : productResults.length === 0 ? (
+                <p className="text-xs text-[hsl(var(--muted-foreground))] text-center py-10">
+                  No branches have this product in stock.
+                </p>
+              ) : (
+                <div className="border border-[hsl(var(--border))] overflow-hidden">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                        <th className="px-3 py-1.5 font-medium">Branch</th>
+                        <th className="px-3 py-1.5 font-medium">Code</th>
+                        <th className="px-3 py-1.5 font-medium">Type</th>
+                        <th className="px-3 py-1.5 font-medium text-right">Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productResults.map((row) => (
+                        <tr
+                          key={`${row.branchId}-${row.model}-${row.quantity}`}
+                          className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))]/15 cursor-pointer"
+                          onClick={() => {
+                            const branch = branches.find((b) => b.id === row.branchId)
+                            if (branch) {
+                              setProductLookupOpen(false)
+                              setViewBranch(branch)
+                              setEditId(null)
+                            }
+                          }}
+                        >
+                          <td className="px-3 py-1.5">{row.branchName}</td>
+                          <td className="px-3 py-1.5 font-mono text-[hsl(var(--muted-foreground))]">{row.branchCode}</td>
+                          <td className="px-3 py-1.5 text-[hsl(var(--muted-foreground))]">
+                            {row.branchType === "main_warehouse"
+                              ? "Main warehouse"
+                              : formatBranchType(row.branchType as Branch["type"])}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums font-medium">
+                            {row.quantity.toLocaleString()} {row.unit}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2">
+                Click a location to open that branch inventory
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add modal */}
