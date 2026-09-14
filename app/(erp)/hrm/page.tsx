@@ -8,26 +8,22 @@ import { HrmKpiApprovals } from "@/components/hrm/hrm-kpi-approvals"
 import { HrmDailyReportsAdmin } from "@/components/hrm/hrm-daily-reports-admin"
 import { MyKpiPortal } from "@/components/hrm/my-kpi-portal"
 import { useAuth } from "@/components/auth-provider"
-import { isErpAdmin } from "@/lib/auth"
 import { Users, LayoutTemplate, CheckSquare, FileText, Target } from "lucide-react"
 
 type HrmTab = "staff" | "performance" | "approvals" | "daily-reports" | "my-kpis"
 
-const ADMIN_TABS: { id: HrmTab; label: string; icon: typeof Users }[] = [
+const HRM_TABS: { id: HrmTab; label: string; icon: typeof Users }[] = [
   { id: "daily-reports", label: "Daily Reports", icon: FileText },
   { id: "staff", label: "Staff", icon: Users },
   { id: "performance", label: "Templates", icon: LayoutTemplate },
   { id: "approvals", label: "KPI Approvals", icon: CheckSquare },
+  { id: "my-kpis", label: "My KPIs", icon: Target },
 ]
 
 export default function HrmPage() {
   const { user } = useAuth()
-  const isAdmin = isErpAdmin(user?.role)
-  const [tab, setTab] = useState<HrmTab>(isAdmin ? "daily-reports" : "my-kpis")
-
-  const tabs = isAdmin
-    ? [...ADMIN_TABS, { id: "my-kpis" as const, label: "My KPIs", icon: Target }]
-    : [{ id: "my-kpis" as const, label: "My KPIs", icon: Target }]
+  // Anyone with the HRM module (ModuleGuard) gets full HRM — not only admin role.
+  const [tab, setTab] = useState<HrmTab>("daily-reports")
 
   return (
     <ModuleGuard module="hrm">
@@ -36,7 +32,7 @@ export default function HrmPage() {
       <div className="flex-1 overflow-auto">
         <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-4">
           <nav className="flex items-center gap-1 p-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30 overflow-x-auto">
-            {tabs.map(({ id, label, icon: Icon }) => {
+            {HRM_TABS.map(({ id, label, icon: Icon }) => {
               const active = tab === id
               return (
                 <button
@@ -56,14 +52,14 @@ export default function HrmPage() {
             })}
           </nav>
 
-          {tab === "staff" && isAdmin && <HrmManager />}
-          {tab === "performance" && isAdmin && (
+          {tab === "staff" && <HrmManager />}
+          {tab === "performance" && (
             <HrmKpiAdmin createdBy={user?.name ?? "Admin"} />
           )}
-          {tab === "approvals" && isAdmin && (
+          {tab === "approvals" && (
             <HrmKpiApprovals reviewedBy={user?.name ?? "Admin"} />
           )}
-          {tab === "daily-reports" && isAdmin && (
+          {tab === "daily-reports" && (
             <HrmDailyReportsAdmin reviewedBy={user?.name ?? "Admin"} />
           )}
           {tab === "my-kpis" && <MyKpiPortal />}
