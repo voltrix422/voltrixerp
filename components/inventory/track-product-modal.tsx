@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { getInventoryHistory } from "@/lib/inventory-history"
 import { getOrders, type Order } from "@/lib/orders"
+import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { getManualInventoryItems, type ManualInventoryItem } from "@/lib/manual-inventory"
 import { getFaultyInventory, type FaultyInventoryGroup } from "@/lib/faulty-inventory"
 import { searchProductAcrossBranches, type BranchProductLocation } from "@/lib/branches"
@@ -278,11 +279,12 @@ export function TrackProductModal({
     const branchRows = branchHoldings.filter((b) => !isMainWarehouseHolding(b))
     const atBranches = branchRows.reduce((s, b) => s + (Number(b.quantity) || 0), 0)
 
+    const erpOrders = orders.filter((o) => !isBranchPosOrderHiddenFromErp(o))
     const productFilter = buildTrackProductFilter(selected.modelKey, selected.displayName)
-    const net = computeNetDeliveredProductQty(orders, productFilter)
-    const movement = computeProductReturnReplaceSummary(orders, productFilter)
+    const net = computeNetDeliveredProductQty(erpOrders, productFilter)
+    const movement = computeProductReturnReplaceSummary(erpOrders, productFilter)
 
-    const orderAggs: OrderAgg[] = orders
+    const orderAggs: OrderAgg[] = erpOrders
       .filter((o) => o.status === "delivered" && orderMatchesProductFilter(o, productFilter))
       .map((o) => ({
         orderNumber: o.orderNumber,
