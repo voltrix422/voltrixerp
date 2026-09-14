@@ -474,7 +474,7 @@ export function TrackProductModal({
                                 : []),
                           ]
                         : summary.faultyNow > 0
-                          ? [[selected.displayName, "On faulty stock", `${summary.faultyNow} ${summary.unit}`]]
+                          ? [[selected?.displayName || "Product", "On faulty stock", `${summary.faultyNow} ${summary.unit}`]]
                           : []
                     }
                   />
