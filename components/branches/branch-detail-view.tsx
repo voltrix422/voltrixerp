@@ -272,7 +272,8 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
       const result = await batchBranchInventoryTransfer({
         mode: bulkTransferMode,
         toBranchId: payload.toBranchId,
-        fromBranchId: isMainWarehouse ? branch.id : undefined,
+        // Always set source branch id so outbound bulk transfers appear in that branch's history
+        fromBranchId: branch.id,
         fromBranchName: branch.name,
         fromBranchCode: branch.code,
         destinationBranchCode: destination?.code,
@@ -625,8 +626,15 @@ export function BranchDetailView({ branch, branches, onBack, onEdit, onDelete }:
                   </thead>
                   <tbody>
                     {groupedTransferHistory.map((entry) => {
-                      const isOutgoing = entry.fromBranchId === branch.id
-                      const isIncoming = entry.toBranchId === branch.id
+                      const isOutgoing =
+                        entry.fromBranchId === branch.id ||
+                        (!entry.fromBranchId &&
+                          (entry.fromBranchCode === branch.code ||
+                            entry.fromBranchName === branch.name))
+                      const isIncoming =
+                        entry.toBranchId === branch.id ||
+                        (!isOutgoing &&
+                          (entry.toBranchCode === branch.code || entry.toBranchName === branch.name))
                       const route = isOutgoing
                         ? `→ ${entry.toBranchName} (${entry.toBranchCode})`
                         : isIncoming

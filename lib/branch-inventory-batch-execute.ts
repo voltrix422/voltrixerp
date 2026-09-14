@@ -47,7 +47,9 @@ export async function executeBatchBranchInventoryTransfer(body: BatchTransferReq
     error?: string
     inventoryId?: string
     fromBranchInventoryId?: string
+    sourceBranchId?: string
   }> = []
+  let inferredFromBranchId: string | null = fromBranchId || null
 
   const destinationBranch = await prisma.erpBranch.findUnique({
     where: { id: toBranchId },
@@ -94,6 +96,14 @@ export async function executeBatchBranchInventoryTransfer(body: BatchTransferReq
         ) {
           throw new Error("Invalid transfer line")
         }
+        // Capture source branch before the line may delete the inventory row.
+        if (!inferredFromBranchId) {
+          const sourceRow = await prisma.erpBranchInventory.findUnique({
+            where: { id: transferLine.fromBranchInventoryId },
+            select: { branchId: true },
+          })
+          if (sourceRow?.branchId) inferredFromBranchId = sourceRow.branchId
+        }
         const result = await executeTransferLine({
           toBranchId,
           transferredBy: actor,
@@ -110,6 +120,7 @@ export async function executeBatchBranchInventoryTransfer(body: BatchTransferReq
         results.push({
           ok: true,
           fromBranchInventoryId: transferLine.fromBranchInventoryId,
+          sourceBranchId: inferredFromBranchId || undefined,
           ...result,
         })
       } else {
@@ -128,11 +139,20 @@ export async function executeBatchBranchInventoryTransfer(body: BatchTransferReq
   let transferBatchId: string | null = null
 
   if (isMultiLineBatch && successfulLines.length > 0) {
-    const sourceBranch = fromBranchId
-      ? await prisma.erpBranch.findUnique({ where: { id: fromBranchId } })
+    let resolvedFromBranchId = inferredFromBranchId
+    if (!resolvedFromBranchId && fromBranchCode) {
+      const byCode = await prisma.erpBranch.findFirst({
+        where: { code: fromBranchCode },
+        select: { id: true },
+      })
+      resolvedFromBranchId = byCode?.id ?? null
+    }
+
+    const sourceBranch = resolvedFromBranchId
+      ? await prisma.erpBranch.findUnique({ where: { id: resolvedFromBranchId } })
       : null
     transferBatchId = await saveCombinedBatchTransferRecord({
-      fromBranchId: fromBranchId || null,
+      fromBranchId: resolvedFromBranchId,
       fromBranchName: sourceBranch?.name || fromBranchName || "Main warehouse",
       fromBranchCode: sourceBranch?.code || fromBranchCode || "MAIN",
       toBranchId: destinationBranch.id,

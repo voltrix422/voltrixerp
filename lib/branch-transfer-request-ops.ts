@@ -182,14 +182,28 @@ export async function listBranchTransferRequests(options?: {
   const status = options?.status || "pending"
   const branchId = options?.branchId
 
+  let branchFilter: Array<Record<string, string>> | undefined
+  if (branchId) {
+    const branch = await prisma.erpBranch.findUnique({
+      where: { id: branchId },
+      select: { code: true, name: true },
+    })
+    branchFilter = [
+      { fromBranchId: branchId },
+      { toBranchId: branchId },
+      ...(branch?.code
+        ? [{ fromBranchCode: branch.code }, { toBranchCode: branch.code }]
+        : []),
+      ...(branch?.name
+        ? [{ fromBranchName: branch.name }, { toBranchName: branch.name }]
+        : []),
+    ]
+  }
+
   const rows = await prisma.erpBranchTransferRequest.findMany({
     where: {
       status,
-      ...(branchId
-        ? {
-            OR: [{ fromBranchId: branchId }, { toBranchId: branchId }],
-          }
-        : {}),
+      ...(branchFilter ? { OR: branchFilter } : {}),
     },
     orderBy: { requestedAt: "desc" },
     take: 100,

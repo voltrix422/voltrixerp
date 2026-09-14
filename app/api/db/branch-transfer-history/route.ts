@@ -9,9 +9,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing branchId" }, { status: 400 })
   }
 
+  const branch = await prisma.erpBranch.findUnique({
+    where: { id: branchId },
+    select: { id: true, code: true, name: true },
+  })
+  if (!branch) {
+    return NextResponse.json({ error: "Branch not found" }, { status: 404 })
+  }
+
+  // Match by id OR code/name so legacy bulk returns (fromBranchId null) still appear.
   const transfers = await prisma.erpBranchInventoryTransfer.findMany({
     where: {
-      OR: [{ fromBranchId: branchId }, { toBranchId: branchId }],
+      OR: [
+        { fromBranchId: branchId },
+        { toBranchId: branchId },
+        ...(branch.code
+          ? [{ fromBranchCode: branch.code }, { toBranchCode: branch.code }]
+          : []),
+        ...(branch.name
+          ? [{ fromBranchName: branch.name }, { toBranchName: branch.name }]
+          : []),
+      ],
     },
     orderBy: { transferredAt: "desc" },
   })

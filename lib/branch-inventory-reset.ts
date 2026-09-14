@@ -48,9 +48,23 @@ export async function clearBranchTransferHistory(branchId?: string) {
     return { deleted: result.count }
   }
 
+  const branch = await prisma.erpBranch.findUnique({
+    where: { id: branchId },
+    select: { id: true, code: true, name: true },
+  })
+
   const result = await prisma.erpBranchInventoryTransfer.deleteMany({
     where: {
-      OR: [{ fromBranchId: branchId }, { toBranchId: branchId }],
+      OR: [
+        { fromBranchId: branchId },
+        { toBranchId: branchId },
+        ...(branch?.code
+          ? [{ fromBranchCode: branch.code }, { toBranchCode: branch.code }]
+          : []),
+        ...(branch?.name
+          ? [{ fromBranchName: branch.name }, { toBranchName: branch.name }]
+          : []),
+      ],
     },
   })
   return { deleted: result.count }
