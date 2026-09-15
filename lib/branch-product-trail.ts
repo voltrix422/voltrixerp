@@ -23,13 +23,17 @@ export function branchProductKey(...parts: Array<string | null | undefined>) {
 
 /**
  * Model codes are sometimes truncated in transfer notes (e.g. …-INVE vs …-INVERTER).
- * Treat equal keys, or one as a prefix of the other (shared stem), as the same product.
+ * Treat equal keys, or a truncated suffix (no extra `-segment`), as the same product.
+ * Do not merge MAN-…-B with MAN-…-B-1.
  */
 export function productKeysMatch(a: string, b: string): boolean {
   if (!a || !b || a === "unknown" || b === "unknown") return false
   if (a === b) return true
   const minStem = 16
   if (a.length >= minStem && b.length >= minStem && (a.startsWith(b) || b.startsWith(a))) {
+    const [longer, shorter] = a.length >= b.length ? [a, b] : [b, a]
+    const rest = longer.slice(shorter.length)
+    if (rest.startsWith("-") || rest.startsWith("_")) return false
     return true
   }
   return false
