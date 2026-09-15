@@ -7,11 +7,12 @@ import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { getManualInventoryItems, type ManualInventoryItem } from "@/lib/manual-inventory"
 import { getFaultyInventory, type FaultyInventoryGroup } from "@/lib/faulty-inventory"
 import { searchProductAcrossBranches, type BranchProductLocation } from "@/lib/branches"
-import { normalizeProductText } from "@/lib/order-product-search"
 import {
+  areDistinctManSkus,
   computeNetDeliveredProductQty,
   computeProductReturnReplaceSummary,
   matchingProductQty,
+  normalizeProductText,
   orderMatchesProductFilter,
   type ProductFilter,
 } from "@/lib/order-product-search"
@@ -83,13 +84,17 @@ function productMatches(
   catalogKey: string,
   catalog: ReturnType<typeof buildMovementProductCatalog>,
 ) {
+  if (!text?.trim()) return false
+  // MAN-…-B must not pick up MAN-…-B-1 (substring of the model code).
+  if (areDistinctManSkus(text, modelKey)) return false
   const key = movementItemKey(text, catalog)
   if (key === catalogKey) return true
   const n = normalizeProductText(text)
   const model = normalizeProductText(modelKey)
   const name = normalizeProductText(displayName)
   if (!n) return false
-  if (model && (n === model || n.includes(model) || model.includes(n))) return true
+  if (model && n === model) return true
+  if (model && (n.includes(model) || model.includes(n)) && !areDistinctManSkus(n, model)) return true
   if (name && (n === name || n.includes(name) || name.includes(n))) return true
   return false
 }

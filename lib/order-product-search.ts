@@ -84,12 +84,20 @@ function canonicalProductMatch(item: OrderItem, filter: ProductFilter): boolean 
   return itemKeys.some((ik) => fKeys.some((fk) => ik === fk))
 }
 
+/** Distinct MAN- SKUs that share a prefix must not match (B vs B-1). */
+export function areDistinctManSkus(a: string, b: string): boolean {
+  const ka = productCanonicalKeyFromText(a)
+  const kb = productCanonicalKeyFromText(b)
+  return ka.startsWith("man-") && kb.startsWith("man-") && ka !== kb
+}
+
 function valuesMatchTerm(values: string[], term: string): boolean {
   const normalizedTerm = normalizeProductText(term)
   if (!normalizedTerm) return false
 
   for (const value of values) {
     if (!value) continue
+    if (areDistinctManSkus(value, normalizedTerm)) continue
     if (value === normalizedTerm) return true
     if (value.includes(normalizedTerm) || normalizedTerm.includes(value)) return true
   }
