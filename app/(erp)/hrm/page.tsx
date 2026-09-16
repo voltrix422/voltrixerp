@@ -6,24 +6,20 @@ import { HrmManager } from "@/components/hrm/hrm-manager"
 import { HrmKpiAdmin } from "@/components/hrm/hrm-kpi-admin"
 import { HrmKpiApprovals } from "@/components/hrm/hrm-kpi-approvals"
 import { HrmDailyReportsAdmin } from "@/components/hrm/hrm-daily-reports-admin"
-import { MyKpiPortal } from "@/components/hrm/my-kpi-portal"
 import { useAuth } from "@/components/auth-provider"
-import { Users, LayoutTemplate, CheckSquare, FileText, Target } from "lucide-react"
 
-type HrmTab = "staff" | "performance" | "approvals" | "daily-reports" | "my-kpis"
+type HrmTab = "staff" | "performance" | "approvals" | "daily-reports"
 
-const HRM_TABS: { id: HrmTab; label: string; icon: typeof Users }[] = [
-  { id: "daily-reports", label: "Daily Reports", icon: FileText },
-  { id: "staff", label: "Staff", icon: Users },
-  { id: "performance", label: "Templates", icon: LayoutTemplate },
-  { id: "approvals", label: "KPI Approvals", icon: CheckSquare },
-  { id: "my-kpis", label: "My KPIs", icon: Target },
+const HRM_TABS: { id: HrmTab; label: string }[] = [
+  { id: "staff", label: "Staff" },
+  { id: "daily-reports", label: "Daily Reports" },
+  { id: "performance", label: "Templates" },
+  { id: "approvals", label: "KPI Approvals" },
 ]
 
 export default function HrmPage() {
   const { user } = useAuth()
-  // Anyone with the HRM module (ModuleGuard) gets full HRM — not only admin role.
-  const [tab, setTab] = useState<HrmTab>("daily-reports")
+  const [tab, setTab] = useState<HrmTab>("staff")
 
   return (
     <ModuleGuard module="hrm">
@@ -31,21 +27,20 @@ export default function HrmPage() {
 
       <div className="flex-1 overflow-auto">
         <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-4">
-          <nav className="flex items-center gap-1 p-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30 overflow-x-auto">
-            {HRM_TABS.map(({ id, label, icon: Icon }) => {
+          <nav className="flex items-center gap-0 border-b border-[hsl(var(--border))] overflow-x-auto">
+            {HRM_TABS.map(({ id, label }) => {
               const active = tab === id
               return (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setTab(id)}
-                  className={`inline-flex items-center gap-1.5 shrink-0 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  className={`shrink-0 px-3 py-2 text-xs font-medium border-b-2 -mb-px cursor-pointer ${
                     active
-                      ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm border border-[hsl(var(--border))]"
-                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--card))]/60"
+                      ? "border-[hsl(var(--foreground))] text-[hsl(var(--foreground))]"
+                      : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5" />
                   {label}
                 </button>
               )
@@ -62,7 +57,6 @@ export default function HrmPage() {
           {tab === "daily-reports" && (
             <HrmDailyReportsAdmin reviewedBy={user?.name ?? "Admin"} />
           )}
-          {tab === "my-kpis" && <MyKpiPortal />}
         </div>
       </div>
     </ModuleGuard>

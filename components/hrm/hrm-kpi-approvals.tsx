@@ -72,17 +72,12 @@ export function HrmKpiApprovals({ reviewedBy }: { reviewedBy: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold">Pending KPI approvals</h2>
-        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-          Review and approve submitted KPI updates.
-        </p>
-      </div>
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold">KPI Approvals</h2>
 
       {pending.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          No submissions waiting for approval.
+        <div className="border border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+          No submissions waiting.
         </div>
       ) : (
         <div className="space-y-4">

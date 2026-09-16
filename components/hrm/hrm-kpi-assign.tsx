@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Link2, Loader2, Plus } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import {
@@ -148,14 +148,8 @@ export function HrmKpiAssign({ assignedBy }: { assignedBy: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-[hsl(var(--border))] p-4 space-y-4 mt-6">
-      <div className="flex items-center gap-2">
-        <Link2 className="h-4 w-4 text-[#1faca6]" />
-        <h3 className="text-sm font-semibold">Assign KPI</h3>
-      </div>
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        Assign templates to people from <span className="font-medium">HRM → Staff</span> only — not Manage Users.
-      </p>
+    <div className="border border-[hsl(var(--border))] p-3 space-y-3 mt-4">
+      <h3 className="text-sm font-semibold">Assign KPI</h3>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>

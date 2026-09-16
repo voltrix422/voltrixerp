@@ -121,20 +121,14 @@ export function HrmKpiAdmin({ createdBy }: { createdBy: string }) {
   const totalWeight = templates.filter(t => t.active).reduce((s, t) => s + t.defaultWeight, 0)
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">KPI Templates</h2>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-            Keep total active weight near 100%.
-            <span className="font-semibold ml-1">{totalWeight}%</span>
-            {totalWeight > 0 && totalWeight !== 100 && (
-              <span className="text-amber-600 ml-1">target: 100%</span>
-            )}
-          </p>
-        </div>
-        <Button size="sm" className="gap-1.5 h-8" onClick={openNew}>
-          <Plus className="h-3.5 w-3.5" /> New KPI
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">
+          Templates
+          <span className="ml-2 text-[11px] font-normal text-[hsl(var(--muted-foreground))]">{totalWeight}% weight</span>
+        </h2>
+        <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px] gap-1" onClick={openNew}>
+          <Plus className="h-3 w-3" /> New KPI
         </Button>
       </div>
 
@@ -143,7 +137,7 @@ export function HrmKpiAdmin({ createdBy }: { createdBy: string }) {
           <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
         </div>
       ) : templates.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+        <div className="border border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
           No templates yet.
         </div>
       ) : (

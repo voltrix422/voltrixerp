@@ -77,14 +77,8 @@ export function HrmDailyReportsAdmin({ reviewedBy }: { reviewedBy: string }) {
   }, {})
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold">Daily reports</h2>
-        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-          Review daily KPI logs from every login user (KPI Dashboard / My KPIs). Staff submit from{" "}
-          <span className="font-medium text-[hsl(var(--foreground))]">Daily reporting</span>; you approve here.
-        </p>
-      </div>
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold">Daily Reports</h2>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
@@ -125,8 +119,8 @@ export function HrmDailyReportsAdmin({ reviewedBy }: { reviewedBy: string }) {
           <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
         </div>
       ) : reports.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          No daily reports for this date.
+        <div className="border border-[hsl(var(--border))] p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+          No reports for this date.
         </div>
       ) : (
         <div className="space-y-4">
