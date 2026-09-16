@@ -8,7 +8,6 @@ import {
   parseSerialOrderRef,
 } from "@/lib/parse-serial-order-ref"
 import { InventoryModelPricePanel } from "@/components/inventory/inventory-model-price-panel"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { StockOnlyMeta } from "@/lib/unified-inventory-groups"
 import { ChevronDown, ChevronRight, Loader2, Minus, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
@@ -163,7 +162,7 @@ export function InventoryModelGroup({
             onChange={(e) => onEditingNameChange(e.target.value)}
             placeholder="Friendly name"
             autoFocus
-            className="h-9 min-w-[140px] flex-1 max-w-sm rounded-lg border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
+            className="h-7 min-w-[140px] flex-1 max-w-sm border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
             onKeyDown={(e) => {
               if (e.key === "Enter") onSaveName()
               if (e.key === "Escape") onCancelEdit()
@@ -192,7 +191,7 @@ export function InventoryModelGroup({
               </button>
               <button
                 type="button"
-                className="flex-1 min-w-0 text-left rounded-md py-0.5 pr-1 hover:bg-[#1faca6]/5"
+                className="flex-1 min-w-0 text-left py-0.5 pr-1"
                 onClick={openPricePanel}
                 title="Click for prices"
               >
@@ -201,14 +200,12 @@ export function InventoryModelGroup({
                     {title}
                   </span>
                   {isManualModel && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                      Manual
-                    </Badge>
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">Manual</span>
                   )}
                   {hasSerials && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 border-[#1faca6]/40 text-[#1faca6]">
+                    <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">
                       {modelUnits.length} SN
-                    </Badge>
+                    </span>
                   )}
                 </div>
                 <p className="mt-1 text-[11px] font-mono text-[hsl(var(--muted-foreground))] break-all leading-relaxed">
@@ -221,7 +218,7 @@ export function InventoryModelGroup({
                       {inStock}/{count}
                     </span>
                   </span>
-                  <span className="text-sm font-semibold tabular-nums text-[#1faca6]">
+                  <span className="text-sm font-medium tabular-nums">
                     {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}
                   </span>
                 </div>
@@ -232,7 +229,7 @@ export function InventoryModelGroup({
                 <>
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 disabled:opacity-50"
+                    className="flex h-8 w-8 items-center justify-center text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                     onClick={(e) => {
                       e.stopPropagation()
                       openAdjust("stock")
@@ -248,7 +245,7 @@ export function InventoryModelGroup({
                   </button>
                   <button
                     type="button"
-                    className="flex h-8 min-w-8 items-center justify-center rounded-md px-1 text-orange-600 hover:bg-orange-500/10 disabled:opacity-50"
+                    className="flex h-8 min-w-8 items-center justify-center px-1 text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                     onClick={(e) => {
                       e.stopPropagation()
                       openAdjust("units")
@@ -267,7 +264,7 @@ export function InventoryModelGroup({
               {canMoveQtyToFaulty ? (
                 <button
                   type="button"
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                  className="flex h-8 w-8 items-center justify-center text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                   onClick={(e) => {
                     e.stopPropagation()
                     setFaultyQty("1")
@@ -285,7 +282,7 @@ export function InventoryModelGroup({
               ) : null}
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:text-[#1faca6] hover:bg-[hsl(var(--muted))]/20"
+                className="flex h-8 w-8 items-center justify-center text-[hsl(var(--muted-foreground))]"
                 onClick={onStartEdit}
                 title="Edit name"
               >
@@ -319,21 +316,19 @@ export function InventoryModelGroup({
             </button>
             <button
               type="button"
-              className="col-span-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px] gap-3 items-center min-w-0 text-left cursor-pointer rounded-md -my-1 py-1 hover:bg-[#1faca6]/5"
+              className="col-span-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_88px] gap-3 items-center min-w-0 text-left cursor-pointer -my-1 py-1"
               onClick={openPricePanel}
               title="Click for prices"
             >
               <span className="min-w-0 text-sm font-medium truncate flex items-center gap-1.5">
                 {title}
                 {isManualModel && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                    Manual
-                  </Badge>
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">Manual</span>
                 )}
                 {hasSerials && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 border-[#1faca6]/40 text-[#1faca6]">
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">
                     {modelUnits.length} SN
-                  </Badge>
+                  </span>
                 )}
               </span>
               <span className="min-w-0 text-xs font-mono text-[hsl(var(--muted-foreground))] truncate">
@@ -342,12 +337,12 @@ export function InventoryModelGroup({
               <span className="text-xs text-[hsl(var(--muted-foreground))] tabular-nums text-right">
                 {inStock}/{count}
                 {outCount > 0 && (
-                  <span className="block text-[10px] font-normal text-amber-700 dark:text-amber-400">
+                  <span className="block text-[10px] font-normal text-[hsl(var(--muted-foreground))]">
                     {outCount} out
                   </span>
                 )}
               </span>
-              <span className="text-sm font-semibold text-[#1faca6] tabular-nums text-right">
+              <span className="text-xs font-medium tabular-nums text-right">
                 {count} {count === 1 ? unitLabel.replace(/s$/, "") : unitLabel}
               </span>
             </button>
@@ -356,7 +351,7 @@ export function InventoryModelGroup({
                 <>
                   <button
                     type="button"
-                    className="p-1 rounded-md text-amber-600 hover:bg-amber-500/10 disabled:opacity-50"
+                    className="p-1 text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                     onClick={(e) => {
                       e.stopPropagation()
                       openAdjust("stock")
@@ -372,7 +367,7 @@ export function InventoryModelGroup({
                   </button>
                   <button
                     type="button"
-                    className="p-1 rounded-md text-orange-600 hover:bg-orange-500/10 disabled:opacity-50"
+                    className="p-1 text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                     onClick={(e) => {
                       e.stopPropagation()
                       openAdjust("units")
@@ -391,7 +386,7 @@ export function InventoryModelGroup({
               {canMoveQtyToFaulty ? (
                 <button
                   type="button"
-                  className="p-1 rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                  className="p-1 text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                   onClick={(e) => {
                     e.stopPropagation()
                     setFaultyQty("1")
@@ -405,7 +400,7 @@ export function InventoryModelGroup({
               ) : null}
               <button
                 type="button"
-                className="p-1 shrink-0 text-[hsl(var(--muted-foreground))] hover:text-[#1faca6]"
+                className="p-1 shrink-0 text-[hsl(var(--muted-foreground))]"
                 onClick={onStartEdit}
                 title="Edit name"
               >
@@ -440,8 +435,8 @@ export function InventoryModelGroup({
               </p>
               {isManualStock ? (
                 <p>
-                  Use <span className="font-medium text-amber-600">−</span> to subtract from stock only, or{" "}
-                  <span className="font-medium text-orange-600">U−</span> to subtract from total units.
+                  Use <span className="font-medium">−</span> to subtract from stock only, or{" "}
+                  <span className="font-medium">U−</span> to subtract from total units.
                 </p>
               ) : (
                 <p>Scan QR codes at dispatch or use Scan QR above to register serial numbers.</p>
@@ -461,7 +456,7 @@ export function InventoryModelGroup({
                         {unit.status === "in_stock" && onMarkSerialFaulty ? (
                           <button
                             type="button"
-                            className="p-1.5 rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                            className="p-1.5 text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                             disabled={markingFaultyId === unit.id}
                             onClick={() => void onMarkSerialFaulty(unit)}
                             title="Mark faulty/damaged"
@@ -545,7 +540,7 @@ export function InventoryModelGroup({
                         {unit.status === "in_stock" && onMarkSerialFaulty ? (
                           <button
                             type="button"
-                            className="p-1.5 rounded-md text-amber-700 hover:bg-amber-500/10 disabled:opacity-50"
+                            className="p-1.5 text-[hsl(var(--muted-foreground))] disabled:opacity-50"
                             disabled={markingFaultyId === unit.id}
                             onClick={() => void onMarkSerialFaulty(unit)}
                             title="Mark faulty/damaged"
@@ -635,7 +630,7 @@ export function InventoryModelGroup({
               <Button
                 type="button"
                 size="sm"
-                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                className="h-8 text-xs"
                 disabled={isAdjusting}
                 onClick={() => void confirmAdjust()}
               >
@@ -689,7 +684,7 @@ export function InventoryModelGroup({
               <Button
                 type="button"
                 size="sm"
-                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                className="h-8 text-xs"
                 disabled={movingToFaulty}
                 onClick={() => void confirmFaultyMove()}
               >

@@ -11,7 +11,7 @@ import {
 import { getSession } from "@/lib/auth"
 import { useToast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Loader2, RotateCcw, Search } from "lucide-react"
+import { Loader2, Search } from "lucide-react"
 
 function formatDate(iso?: string) {
   if (!iso) return "—"
@@ -129,101 +129,98 @@ export function FaultyInventoryTab() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-        <div>
-          <p className="text-sm font-semibold flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            Faulty / damaged stock
-          </p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-            These quantities are excluded from main sellable inventory.
-          </p>
-        </div>
-        <div className="text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-400">
-          {totalQty} faulty {totalQty === 1 ? "unit" : "units"}
-        </div>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+          Faulty / damaged · excluded from sellable stock ·{" "}
+          <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{totalQty}</span>{" "}
+          {totalQty === 1 ? "unit" : "units"}
+        </p>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search model, name, or serial..."
-          className="w-full h-10 rounded-lg border bg-[hsl(var(--background))] pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40"
+          className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-[hsl(var(--muted-foreground))]">
-          No faulty or damaged items recorded yet.
-        </div>
+        <p className="text-xs text-[hsl(var(--muted-foreground))] py-8">No faulty or damaged items recorded yet.</p>
       ) : (
-        <div className="rounded-xl border overflow-hidden divide-y divide-[hsl(var(--border))]">
-          {filtered.map((group) => (
-            <div key={group.modelKey} className="bg-[hsl(var(--background))]">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between px-4 py-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm truncate">{group.displayName}</p>
-                  <p className="text-xs font-mono text-[hsl(var(--muted-foreground))] truncate">{group.modelKey}</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-sm font-bold tabular-nums text-amber-700 dark:text-amber-400">
-                    {group.faultyQty} {group.unit}
-                  </span>
-                  {(group.manualId || group.stockId) && group.serialUnits.length === 0 ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs"
-                      disabled={Boolean(restoringId)}
-                      onClick={() => setRestoreDialog({ group, qty: String(group.faultyQty) })}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                      Restore
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-
-              {group.serialUnits.length > 0 ? (
-                <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--muted))]/5">
-                  {group.serialUnits.map((unit) => (
-                    <div
-                      key={unit.id}
-                      className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-[hsl(var(--border))]/60 last:border-b-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-mono text-xs break-all">{unit.serialNumber}</p>
-                        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                          Marked {formatDate(unit.scannedAt)}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs shrink-0"
-                        disabled={restoringId === unit.id}
-                        onClick={() => void handleRestoreSerial(unit.id, unit.serialNumber)}
-                      >
-                        {restoringId === unit.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <>
-                            <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                            Restore
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ))}
+        <div className="overflow-x-auto border border-[hsl(var(--border))]">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                <th className="h-8 px-2 font-medium">Item</th>
+                <th className="h-8 px-2 font-medium">Model</th>
+                <th className="h-8 px-2 font-medium text-right">Qty</th>
+                <th className="h-8 px-2 font-medium">Serial / marked</th>
+                <th className="h-8 px-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((group) => (
+                group.serialUnits.length > 0 ? (
+                  group.serialUnits.map((unit, idx) => (
+                    <tr key={unit.id} className="border-b border-[hsl(var(--border))] last:border-0">
+                      {idx === 0 ? (
+                        <td className="px-2 py-1.5 align-top" rowSpan={group.serialUnits.length}>
+                          {group.displayName}
+                        </td>
+                      ) : null}
+                      {idx === 0 ? (
+                        <td className="px-2 py-1.5 align-top font-mono text-[11px] text-[hsl(var(--muted-foreground))]" rowSpan={group.serialUnits.length}>
+                          {group.modelKey}
+                        </td>
+                      ) : null}
+                      {idx === 0 ? (
+                        <td className="px-2 py-1.5 align-top text-right tabular-nums" rowSpan={group.serialUnits.length}>
+                          {group.faultyQty} {group.unit}
+                        </td>
+                      ) : null}
+                      <td className="px-2 py-1.5">
+                        <span className="font-mono">{unit.serialNumber}</span>
+                        <span className="text-[hsl(var(--muted-foreground))]"> · {formatDate(unit.scannedAt)}</span>
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        <button
+                          type="button"
+                          className="h-7 px-2 text-[11px] border border-[hsl(var(--border))] cursor-pointer disabled:opacity-50"
+                          disabled={restoringId === unit.id}
+                          onClick={() => void handleRestoreSerial(unit.id, unit.serialNumber)}
+                        >
+                          {restoringId === unit.id ? "…" : "Restore"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr key={group.modelKey} className="border-b border-[hsl(var(--border))] last:border-0">
+                    <td className="px-2 py-1.5">{group.displayName}</td>
+                    <td className="px-2 py-1.5 font-mono text-[11px] text-[hsl(var(--muted-foreground))]">{group.modelKey}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{group.faultyQty} {group.unit}</td>
+                    <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">—</td>
+                    <td className="px-2 py-1.5 text-right">
+                      {(group.manualId || group.stockId) ? (
+                        <button
+                          type="button"
+                          className="h-7 px-2 text-[11px] border border-[hsl(var(--border))] cursor-pointer disabled:opacity-50"
+                          disabled={Boolean(restoringId)}
+                          onClick={() => setRestoreDialog({ group, qty: String(group.faultyQty) })}
+                        >
+                          Restore
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                )
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -233,13 +230,13 @@ export function FaultyInventoryTab() {
           onClick={() => setRestoreDialog(null)}
         >
           <div
-            className="w-full max-w-sm rounded-lg border bg-[hsl(var(--background))] p-4 shadow-lg"
+            className="w-full max-w-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm font-semibold">Restore to main inventory</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{restoreDialog.group.displayName}</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-3 mb-2">
-              Faulty qty: <span className="font-semibold text-[hsl(var(--foreground))]">{restoreDialog.group.faultyQty}</span>{" "}
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">{restoreDialog.group.displayName}</p>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-3 mb-2">
+              Faulty qty: <span className="font-medium text-[hsl(var(--foreground))]">{restoreDialog.group.faultyQty}</span>{" "}
               {restoreDialog.group.unit}
             </p>
             <input
@@ -248,14 +245,14 @@ export function FaultyInventoryTab() {
               max={restoreDialog.group.faultyQty}
               value={restoreDialog.qty}
               onChange={(e) => setRestoreDialog({ ...restoreDialog, qty: e.target.value })}
-              className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 mb-4"
+              className="w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none mb-3"
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setRestoreDialog(null)}>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setRestoreDialog(null)}>
                 Cancel
               </Button>
-              <Button type="button" size="sm" className="h-8 text-xs" disabled={Boolean(restoringId)} onClick={() => void confirmQtyRestore()}>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" disabled={Boolean(restoringId)} onClick={() => void confirmQtyRestore()}>
                 Restore
               </Button>
             </div>

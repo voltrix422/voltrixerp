@@ -32,7 +32,7 @@ import {
 } from "@/lib/parse-serial-order-ref"
 
 const fieldClass =
-  "w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+  "w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
 
 export function ManualInventoryTab() {
   const { toast } = useToast()
@@ -56,6 +56,7 @@ export function ManualInventoryTab() {
   const [restockNotes, setRestockNotes] = useState("")
   const [restocking, setRestocking] = useState(false)
   const [showSubtract, setShowSubtract] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
   const [subtractItem, setSubtractItem] = useState<ManualInventoryItem | null>(null)
   const [subtractMode, setSubtractMode] = useState<"stock" | "units">("stock")
   const [subtractQty, setSubtractQty] = useState("")
@@ -256,37 +257,55 @@ export function ManualInventoryTab() {
 
   return (
     <div className="flex flex-col gap-3 min-h-0 h-[calc(100vh-11rem)]">
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 shrink-0">
-        <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">
-          <span className="tabular-nums">
-            <span className="font-semibold text-[hsl(var(--foreground))]">{itemCount}</span> items
-          </span>
-          <span className="text-[hsl(var(--border))]">·</span>
-          <span className="tabular-nums">
-            <span className="font-semibold text-[hsl(var(--foreground))]">{totalQty}</span> total qty
-          </span>
-          <span className="text-[hsl(var(--border))]">·</span>
-          <span className="tabular-nums">
-            <span className="font-semibold text-[#1faca6]">{availableTotal}</span> available
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+          <span>Items <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{itemCount}</span></span>
+          <span>Total <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{totalQty}</span></span>
+          <span>Available <span className="tabular-nums font-medium text-[hsl(var(--foreground))]">{availableTotal}</span></span>
         </div>
-        <div className="relative flex-1 min-w-[160px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search item, model…"
-            className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
-          />
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            className="h-7 px-2.5 text-[11px] gap-1"
+            onClick={() => setShowAdd(true)}
+          >
+            <PackagePlus className="h-3 w-3" />
+            Add item
+          </Button>
+          <button
+            type="button"
+            className="h-7 px-2 text-[11px] border border-[hsl(var(--border))] inline-flex items-center gap-1 cursor-pointer"
+            onClick={() => setShowFilters((o) => !o)}
+          >
+            Filter
+            <ChevronDown className={`h-3 w-3 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+          </button>
+          {search.trim() ? <span className="text-[11px] text-[hsl(var(--muted-foreground))]">on</span> : null}
         </div>
-        <Button
-          className="h-8 px-2.5 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 shrink-0 cursor-pointer"
-          onClick={() => setShowAdd(true)}
-        >
-          <PackagePlus className="h-3.5 w-3.5" />
-          Add item
-        </Button>
       </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap gap-2 items-center border border-[hsl(var(--border))] px-2 py-2">
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search item, model…"
+              className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
+            />
+          </div>
+          {search.trim() ? (
+            <button
+              type="button"
+              className="h-7 px-2 text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] cursor-pointer"
+              onClick={() => setSearch("")}
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center text-[hsl(var(--muted-foreground))]">
@@ -299,7 +318,8 @@ export function ManualInventoryTab() {
           <p className="text-sm font-medium text-[hsl(var(--foreground))]">No manual items yet</p>
           <p className="text-xs mt-1">Add your first item with name and quantity.</p>
           <Button
-            className="mt-4 h-8 px-3 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white gap-1.5 cursor-pointer"
+            variant="outline"
+            className="mt-4 h-7 px-3 text-[11px] gap-1"
             onClick={() => setShowAdd(true)}
           >
             <PackagePlus className="h-3.5 w-3.5" />
@@ -311,7 +331,7 @@ export function ManualInventoryTab() {
           No items match &ldquo;{search.trim()}&rdquo;
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-hidden rounded-lg border">
+        <div className="flex-1 min-h-0 overflow-hidden border border-[hsl(var(--border))]">
           <div className="h-full overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10 bg-[hsl(var(--background))] border-b">
@@ -331,7 +351,6 @@ export function ManualInventoryTab() {
                   const serials = item.serialUnits ?? []
                   const expanded = expandedItems[item.id] === true
                   const hasSerials = serials.length > 0
-                  const lowStock = item.availableQty > 0 && item.availableQty < item.qty * 0.2
                   return (
                     <Fragment key={item.id}>
                       <tr className="border-b last:border-b-0 hover:bg-[hsl(var(--muted))]/10">
@@ -368,15 +387,7 @@ export function ManualInventoryTab() {
                           {item.qty} {item.unit}
                         </td>
                         <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap">
-                          <span
-                            className={
-                              item.availableQty <= 0
-                                ? "text-[hsl(var(--muted-foreground))]"
-                                : lowStock
-                                  ? "font-semibold text-amber-600"
-                                  : "font-semibold text-[#1faca6]"
-                            }
-                          >
+                          <span className="tabular-nums">
                             {item.availableQty} {item.unit}
                           </span>
                         </td>
@@ -396,7 +407,7 @@ export function ManualInventoryTab() {
                           <div className="flex items-center justify-end gap-0.5">
                             <button
                               type="button"
-                              className="p-1.5 rounded-md text-[#1faca6] hover:bg-[#1faca6]/10 cursor-pointer"
+                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer"
                               onClick={() => openAddQty(item, "units")}
                               title="Add to total units"
                             >
@@ -404,7 +415,7 @@ export function ManualInventoryTab() {
                             </button>
                             <button
                               type="button"
-                              className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-500/10 cursor-pointer disabled:opacity-40"
+                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer disabled:opacity-40"
                               onClick={() => openAddQty(item, "stock")}
                               disabled={item.availableQty >= item.qty}
                               title="Add to available stock"
@@ -413,7 +424,7 @@ export function ManualInventoryTab() {
                             </button>
                             <button
                               type="button"
-                              className="p-1.5 rounded-md text-amber-600 hover:bg-amber-500/10 cursor-pointer disabled:opacity-40"
+                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer disabled:opacity-40"
                               onClick={() => openSubtract(item, "stock")}
                               disabled={item.availableQty <= 0}
                               title="Subtract from stock"
@@ -422,7 +433,7 @@ export function ManualInventoryTab() {
                             </button>
                             <button
                               type="button"
-                              className="p-1.5 rounded-md text-orange-600 hover:bg-orange-500/10 cursor-pointer disabled:opacity-40"
+                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer disabled:opacity-40"
                               onClick={() => openSubtract(item, "units")}
                               disabled={item.qty <= 0}
                               title="Subtract from units"
@@ -431,7 +442,7 @@ export function ManualInventoryTab() {
                             </button>
                             <button
                               type="button"
-                              className="p-1.5 rounded-md text-red-600 hover:bg-red-500/10 cursor-pointer"
+                              className="p-1.5 text-[hsl(var(--muted-foreground))] cursor-pointer"
                               onClick={() => void handleDelete(item)}
                               title="Delete item"
                             >
@@ -546,7 +557,7 @@ export function ManualInventoryTab() {
             <div className="space-y-1.5">
               <label className="text-xs font-medium">Serial numbers (optional)</label>
               <textarea
-                className="w-full min-h-[72px] rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#1faca6]/40"
+                className="w-full min-h-[72px] border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-xs font-mono focus:outline-none resize-none"
                 placeholder="One SN per line — or leave empty"
                 value={serialText}
                 onChange={(e) => setSerialText(e.target.value)}
@@ -554,7 +565,8 @@ export function ManualInventoryTab() {
             </div>
             <Button
               type="submit"
-              className="w-full h-9 text-sm cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+              variant="outline"
+              className="w-full h-7 text-[11px]"
               disabled={saving}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Save item"}
@@ -612,7 +624,8 @@ export function ManualInventoryTab() {
             </div>
             <Button
               type="submit"
-              className="w-full h-9 text-sm cursor-pointer bg-[#1faca6] hover:bg-[#17857f] text-white"
+              variant="outline"
+              className="w-full h-7 text-[11px]"
               disabled={restocking}
             >
               {restocking ? (
@@ -681,7 +694,8 @@ export function ManualInventoryTab() {
             </div>
             <Button
               type="submit"
-              className="w-full h-9 text-sm cursor-pointer bg-amber-600 hover:bg-amber-700 text-white"
+              variant="outline"
+              className="w-full h-7 text-[11px]"
               disabled={subtracting}
             >
               {subtracting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Subtract"}
