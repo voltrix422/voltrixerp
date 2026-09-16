@@ -1,6 +1,5 @@
-"use client"
+﻿"use client"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   computeStaffCompensation,
@@ -31,13 +30,13 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-        checked ? "bg-[#1a9f9a]" : "bg-[hsl(var(--muted))]"
+      className={`relative inline-flex h-6 w-10 shrink-0 cursor-pointer border border-[hsl(var(--border))] ${
+        checked ? "bg-[hsl(var(--foreground))]" : "bg-transparent"
       }`}
     >
       <span
-        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow transition ${
-          checked ? "translate-x-5" : "translate-x-0"
+        className={`pointer-events-none inline-block h-5 w-5 translate-y-px bg-[hsl(var(--card))] border border-[hsl(var(--border))] transition ${
+          checked ? "translate-x-[18px]" : "translate-x-px"
         }`}
       />
     </button>
@@ -45,7 +44,8 @@ function Toggle({
 }
 
 const inputClass =
-  "w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+  "w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))] focus:outline-none"
+const labelClass = "text-[11px] text-[hsl(var(--muted-foreground))]"
 
 export function StaffEditModal({
   editing,
@@ -190,7 +190,7 @@ export function StaffEditModal({
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
 }) {
-  const [tab, setTab] = useState<FormTab>("compensation")
+  const [tab, setTab] = useState<FormTab>("profile")
   const breakdown = useMemo(
     () =>
       computeStaffCompensation({
@@ -222,134 +222,133 @@ export function StaffEditModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-6xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[94vh]"
+        className="w-full max-w-6xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[hsl(var(--border))] shrink-0 bg-gradient-to-r from-[#0f766e]/8 to-transparent">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
           <div className="min-w-0">
-            <p className="text-lg font-semibold text-[hsl(var(--foreground))]">
-              {editing ? "Edit Staff Member" : "New Staff Member"}
-            </p>
-            <p className="text-sm text-[hsl(var(--muted-foreground))] truncate">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold truncate">
+                {editing ? "Edit Staff" : "New Staff"}
+              </p>
+              <span className="text-[11px] capitalize text-[hsl(var(--muted-foreground))]">{status}</span>
+            </div>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">
               {(name || "Employee").trim()}
-              {role ? ` · ${role}` : ""}
-              {department ? ` · ${department}` : ""}
-              {` · ${employmentType || "Permanent"}`}
+              {role ? ` Â· ${role}` : ""}
+              {department ? ` Â· ${department}` : ""}
+              {` Â· ${employmentType || "Permanent"}`}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {status === "active" ? (
-              <Badge variant="success" className="text-[10px]">active</Badge>
-            ) : (
-              <Badge variant="destructive" className="text-[10px]">inactive</Badge>
-            )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-[hsl(var(--muted-foreground))]"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
-        <div className="px-6 pt-3 border-b border-[hsl(var(--border))] shrink-0 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {TABS.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTab(item.id)}
-                className={`px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
-                  tab === item.id
-                    ? "border-[#1a9f9a] text-[#0f766e] bg-[#1a9f9a]/5"
-                    : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <nav className="flex items-center gap-0 border-b border-[hsl(var(--border))] shrink-0 overflow-x-auto px-2">
+          {TABS.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={`shrink-0 px-3 py-2 text-xs font-medium border-b-2 -mb-px cursor-pointer ${
+                tab === item.id
+                  ? "border-[hsl(var(--foreground))] text-[hsl(var(--foreground))]"
+                  : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
 
         <form onSubmit={onSubmit} className="flex flex-col min-h-0 flex-1">
-          <div className="overflow-y-auto p-6 space-y-5 flex-1">
+          <div className="overflow-y-auto p-4 space-y-4 flex-1">
             {tab === "profile" && (
               <>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div
                     onClick={() => fileRef.current?.click()}
-                    className="h-20 w-20 rounded-full border-2 border-dashed border-[hsl(var(--border))] flex items-center justify-center cursor-pointer hover:border-[#1a9f9a] overflow-hidden shrink-0 transition-colors bg-[hsl(var(--muted))]/10"
+                    className="h-14 w-14 border border-dashed border-[hsl(var(--border))] flex items-center justify-center cursor-pointer overflow-hidden shrink-0"
                   >
                     {photoPreview ? (
                       <img src={photoPreview} alt="photo" className="h-full w-full object-cover" />
                     ) : (
-                      <Upload className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />
+                      <Upload className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
                     )}
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">Photo</p>
-                    <p className="text-sm text-[hsl(var(--muted-foreground))]">Click circle to upload</p>
+                    <p className="text-xs font-medium">Photo</p>
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Click to upload</p>
                   </div>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="space-y-2 sm:col-span-2 lg:col-span-3">
-                    <label className="text-sm font-medium">Full Name *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                    <label className={labelClass}>Full Name *</label>
                     <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Ahmed Khan" className={inputClass} />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Job Title *</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Job Title *</label>
                     <input value={role} onChange={e => setRole(e.target.value)} required placeholder="e.g. Sales" className={inputClass} />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Department</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Department</label>
                     <select value={department} onChange={e => setDepartment(e.target.value)} className={inputClass}>
                       {departments.map(d => (
                         <option key={d} value={d}>{d}</option>
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Employment Type</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Employment Type</label>
                     <select value={employmentType} onChange={e => setEmploymentType(e.target.value)} className={inputClass}>
                       {employmentTypes.map(t => (
                         <option key={t}>{t}</option>
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Email</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Email</label>
                     <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="email@company.com" className={inputClass} />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Phone</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Phone</label>
                     <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+92 300 0000000" className={inputClass} />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Status</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Status</label>
                     <select value={status} onChange={e => setStatus(e.target.value as "active" | "inactive")} className={inputClass}>
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Join Date</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Join Date</label>
                     <input value={joinDate} onChange={e => setJoinDate(e.target.value)} type="date" className={inputClass} />
                   </div>
-                  <div className="space-y-2 sm:col-span-2 lg:col-span-3">
-                    <label className="text-sm font-medium">Address</label>
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                    <label className={labelClass}>Address</label>
                     <input value={address} onChange={e => setAddress(e.target.value)} placeholder="City, Country" className={inputClass} />
                   </div>
-                  <div className="space-y-2 sm:col-span-2 lg:col-span-3">
-                    <label className="text-sm font-medium">Notes</label>
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                    <label className={labelClass}>Notes</label>
                     <textarea
                       value={notes}
                       onChange={e => setNotes(e.target.value)}
                       rows={2}
                       placeholder="Any additional info..."
-                      className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] resize-none"
+                      className="w-full border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-xs focus:outline-none resize-none"
                     />
                   </div>
                 </div>
@@ -358,30 +357,27 @@ export function StaffEditModal({
 
             {tab === "compensation" && (
               <>
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 flex flex-wrap items-end justify-between gap-3">
+                <div className="flex items-baseline justify-between gap-3 border border-[hsl(var(--border))] px-3 py-2">
                   <div>
-                    <p className="text-sm font-semibold text-emerald-900">Salary after all taxes, deductions & allowances</p>
-                    <p className="text-xs text-emerald-800/80 mt-1">
-                      Basic + medical + custom allowances − tax − EOBI − custom deductions
-                    </p>
-                    <p className="text-[11px] text-emerald-800 mt-1">
-                      Gross {money(breakdown.grossPay)} · Deductions {money(breakdown.totalDeductions)}
+                    <p className="text-xs font-medium">Net payable</p>
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      Gross {money(breakdown.grossPay)} Â· Deductions {money(breakdown.totalDeductions)}
                     </p>
                   </div>
-                  <p className="text-3xl font-bold tabular-nums text-emerald-900">{money(breakdown.netPayable)}</p>
+                  <p className="text-sm font-semibold tabular-nums">{money(breakdown.netPayable)}</p>
                 </div>
 
-                <div className="rounded-xl border border-[hsl(var(--border))] overflow-hidden">
-                  <div className="px-4 py-3 bg-[hsl(var(--muted))]/20 border-b border-[hsl(var(--border))]">
-                    <p className="text-sm font-semibold">Employee Compensation</p>
+                <div className="border border-[hsl(var(--border))] overflow-hidden">
+                  <div className="px-3 py-2 border-b border-[hsl(var(--border))]">
+                    <p className="text-xs font-semibold">Compensation</p>
                     <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                      Edit amounts below — toggles control what is included in net payable
+                      Toggles control what is included in net payable
                     </p>
                   </div>
-                  <div className="overflow-x-auto px-4 py-2">
-                    <table className="w-full text-sm min-w-[900px]">
+                  <div className="overflow-x-auto px-3 py-1">
+                    <table className="w-full text-xs min-w-[900px]">
                       <thead>
-                        <tr className="text-left text-[11px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                        <tr className="text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
                           <th className="py-2 pr-2 font-medium">Employee</th>
                           <th className="py-2 pr-2 font-medium">Role</th>
                           <th className="py-2 pr-2 font-medium">Employment Type</th>
@@ -395,30 +391,30 @@ export function StaffEditModal({
                       </thead>
                       <tbody>
                         <tr className="align-top">
-                          <td className="py-3 pr-2 font-medium">{name || "—"}</td>
-                          <td className="py-3 pr-2">{role || "—"}</td>
-                          <td className="py-3 pr-2">{employmentType}</td>
-                          <td className="py-3 pr-2 text-right tabular-nums">{money(breakdown.contractSalary)}</td>
-                          <td className="py-3 pr-2 text-right">
+                          <td className="py-2 pr-2 font-medium">{name || "â€”"}</td>
+                          <td className="py-2 pr-2">{role || "â€”"}</td>
+                          <td className="py-2 pr-2">{employmentType}</td>
+                          <td className="py-2 pr-2 text-right tabular-nums">{money(breakdown.contractSalary)}</td>
+                          <td className="py-2 pr-2 text-right">
                             <div className="flex flex-col items-end gap-1">
                               <span className="tabular-nums">{money(breakdown.medicalAllowance)}</span>
                               <Toggle checked={medicalEnabled} onChange={() => setMedicalEnabled(v => !v)} />
                             </div>
                           </td>
-                          <td className="py-3 pr-2 text-right tabular-nums">{money(breakdown.basicSalary)}</td>
-                          <td className="py-3 pr-2 text-right">
+                          <td className="py-2 pr-2 text-right tabular-nums">{money(breakdown.basicSalary)}</td>
+                          <td className="py-2 pr-2 text-right">
                             <div className="flex flex-col items-end gap-1">
                               <span className="tabular-nums">{money(breakdown.taxAmount)}</span>
                               <Toggle checked={taxEnabled} onChange={() => setTaxEnabled(v => !v)} />
                             </div>
                           </td>
-                          <td className="py-3 pr-2 text-right">
+                          <td className="py-2 pr-2 text-right">
                             <div className="flex flex-col items-end gap-1">
                               <span className="tabular-nums">{money(breakdown.eobiAmount)}</span>
                               <Toggle checked={eobiEnabled} onChange={() => setEobiEnabled(v => !v)} />
                             </div>
                           </td>
-                          <td className="py-3 text-right tabular-nums font-semibold text-[#0f766e]">
+                          <td className="py-2 text-right tabular-nums font-semibold">
                             {money(breakdown.netPayable)}
                           </td>
                         </tr>
@@ -427,20 +423,20 @@ export function StaffEditModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-[hsl(var(--border))] p-4 space-y-3">
-                    <p className="text-sm font-semibold">Pay build-up</p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div className="border border-[hsl(var(--border))] p-3 space-y-3">
+                    <p className="text-xs font-semibold">Pay build-up</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-xs text-[hsl(var(--muted-foreground))]">Contract Salary</label>
+                        <label className={labelClass}>Contract Salary</label>
                         <input value={salary} onChange={e => setSalary(e.target.value)} type="number" min="0" placeholder="0" className={inputClass} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-[hsl(var(--muted-foreground))]">Basic Salary</label>
+                        <label className={labelClass}>Basic Salary</label>
                         <input value={basicSalary} onChange={e => setBasicSalary(e.target.value)} type="number" min="0" placeholder="0 = use contract" className={inputClass} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-[hsl(var(--muted-foreground))]">Currency</label>
+                        <label className={labelClass}>Currency</label>
                         <select value={currency} onChange={e => setCurrency(e.target.value)} className={inputClass}>
                           {currencies.map(c => (
                             <option key={c}>{c}</option>
@@ -449,7 +445,7 @@ export function StaffEditModal({
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs text-[hsl(var(--muted-foreground))]">Medical Allowance</label>
+                          <label className={labelClass}>Medical Allowance</label>
                           <Toggle checked={medicalEnabled} onChange={() => setMedicalEnabled(v => !v)} />
                         </div>
                         <input value={medicalAllowance} onChange={e => setMedicalAllowance(e.target.value)} type="number" min="0" placeholder="0" className={inputClass} />
@@ -457,8 +453,8 @@ export function StaffEditModal({
                     </div>
                     <div className="pt-2 border-t border-[hsl(var(--border))] space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Custom allowances</p>
-                        <Button type="button" size="sm" variant="outline" className="h-8" onClick={onAddAllowance}>
+                        <p className="text-xs font-medium">Custom allowances</p>
+                        <Button type="button" size="sm" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={onAddAllowance}>
                           + Add
                         </Button>
                       </div>
@@ -472,7 +468,7 @@ export function StaffEditModal({
                               )
                             }
                             placeholder="Label"
-                            className="h-9 rounded-lg border border-[hsl(var(--border))] px-3 text-sm"
+                            className={inputClass}
                           />
                           <input
                             type="number"
@@ -485,7 +481,7 @@ export function StaffEditModal({
                                 ),
                               )
                             }
-                            className="h-9 rounded-lg border border-[hsl(var(--border))] px-3 text-sm"
+                            className={inputClass}
                           />
                           <Toggle
                             checked={line.enabled}
@@ -497,33 +493,33 @@ export function StaffEditModal({
                           />
                           <button
                             type="button"
-                            className="text-xs text-rose-600"
+                            className="text-[11px] text-[hsl(var(--muted-foreground))] cursor-pointer"
                             onClick={() => setCustomAllowances(prev => prev.filter((_, i) => i !== idx))}
                           >
                             Remove
                           </button>
                         </div>
                       ))}
-                      <div className="flex justify-between text-sm pt-1">
+                      <div className="flex justify-between text-xs pt-1">
                         <span className="text-[hsl(var(--muted-foreground))]">Gross (after allowances)</span>
-                        <span className="font-semibold text-emerald-700 tabular-nums">{money(breakdown.grossPay)}</span>
+                        <span className="font-medium tabular-nums">{money(breakdown.grossPay)}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-[hsl(var(--border))] p-4 space-y-3">
-                    <p className="text-sm font-semibold">Deductions</p>
+                  <div className="border border-[hsl(var(--border))] p-3 space-y-3">
+                    <p className="text-xs font-semibold">Deductions</p>
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs text-[hsl(var(--muted-foreground))]">Tax deduction</label>
+                          <label className={labelClass}>Tax deduction</label>
                           <Toggle checked={taxEnabled} onChange={() => setTaxEnabled(v => !v)} />
                         </div>
                         <input value={taxAmount} onChange={e => setTaxAmount(e.target.value)} type="number" min="0" placeholder="0" className={inputClass} />
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs text-[hsl(var(--muted-foreground))]">EOBI deduction</label>
+                          <label className={labelClass}>EOBI deduction</label>
                           <Toggle checked={eobiEnabled} onChange={() => setEobiEnabled(v => !v)} />
                         </div>
                         <input value={eobiAmount} onChange={e => setEobiAmount(e.target.value)} type="number" min="0" placeholder="0" className={inputClass} />
@@ -531,8 +527,8 @@ export function StaffEditModal({
                     </div>
                     <div className="pt-2 border-t border-[hsl(var(--border))] space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Custom deductions</p>
-                        <Button type="button" size="sm" variant="outline" className="h-8" onClick={onAddDeduction}>
+                        <p className="text-xs font-medium">Custom deductions</p>
+                        <Button type="button" size="sm" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={onAddDeduction}>
                           + Add
                         </Button>
                       </div>
@@ -546,7 +542,7 @@ export function StaffEditModal({
                               )
                             }
                             placeholder="Label"
-                            className="h-9 rounded-lg border border-[hsl(var(--border))] px-3 text-sm"
+                            className={inputClass}
                           />
                           <input
                             type="number"
@@ -559,7 +555,7 @@ export function StaffEditModal({
                                 ),
                               )
                             }
-                            className="h-9 rounded-lg border border-[hsl(var(--border))] px-3 text-sm"
+                            className={inputClass}
                           />
                           <Toggle
                             checked={line.enabled}
@@ -571,16 +567,16 @@ export function StaffEditModal({
                           />
                           <button
                             type="button"
-                            className="text-xs text-rose-600"
+                            className="text-[11px] text-[hsl(var(--muted-foreground))] cursor-pointer"
                             onClick={() => setCustomDeductions(prev => prev.filter((_, i) => i !== idx))}
                           >
                             Remove
                           </button>
                         </div>
                       ))}
-                      <div className="flex justify-between text-sm pt-1">
+                      <div className="flex justify-between text-xs pt-1">
                         <span className="text-[hsl(var(--muted-foreground))]">Total deductions</span>
-                        <span className="font-semibold text-rose-600 tabular-nums">− {money(breakdown.totalDeductions)}</span>
+                        <span className="font-medium tabular-nums">âˆ’ {money(breakdown.totalDeductions)}</span>
                       </div>
                     </div>
                   </div>
@@ -590,54 +586,54 @@ export function StaffEditModal({
 
             {tab === "details" && (
               <>
-                <div className="rounded-xl border border-[hsl(var(--border))] p-4 space-y-4">
-                  <p className="text-sm font-semibold">Bank Details</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Bank Name</label>
+                <div className="border border-[hsl(var(--border))] p-3 space-y-3">
+                  <p className="text-xs font-semibold">Bank Details</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className={labelClass}>Bank Name</label>
                       <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. Meezan Bank" className={inputClass} />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Account Number</label>
+                    <div className="space-y-1">
+                      <label className={labelClass}>Account Number</label>
                       <input value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} placeholder="e.g. 1234567890" className={inputClass} />
                     </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <label className="text-sm font-medium">Account Title</label>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className={labelClass}>Account Title</label>
                       <input value={bankAccountTitle} onChange={e => setBankAccountTitle(e.target.value)} placeholder="e.g. Muhammad Ahmed Khan" className={inputClass} />
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[hsl(var(--border))] p-4 space-y-3">
-                  <label className="text-sm font-semibold">Documents</label>
+                <div className="border border-[hsl(var(--border))] p-3 space-y-2">
+                  <label className="text-xs font-semibold">Documents</label>
                   <input ref={docFileRef} type="file" className="hidden" onChange={onDocFileChange} />
                   {existingDocuments.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] uppercase tracking-wide font-medium">Existing Documents</p>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-wide">Existing</p>
                       {existingDocuments.map((doc, i) => (
-                        <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] px-4 py-3">
-                          <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
-                          <span className="flex-1 min-w-0 text-sm truncate">{doc.name}</span>
-                          <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">{(doc.size / 1024).toFixed(0)}KB</span>
-                          <button type="button" onClick={() => onRemoveExistingDoc(i)} className="text-red-400 hover:text-red-600 shrink-0">
-                            <X className="h-4 w-4" />
+                        <div key={i} className="flex items-center gap-2 border border-[hsl(var(--border))] px-2 py-1.5">
+                          <FileText className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
+                          <span className="flex-1 min-w-0 text-xs truncate">{doc.name}</span>
+                          <span className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">{(doc.size / 1024).toFixed(0)}KB</span>
+                          <button type="button" onClick={() => onRemoveExistingDoc(i)} className="text-[hsl(var(--muted-foreground))] shrink-0 cursor-pointer">
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ))}
                     </div>
                   )}
                   {documents.map((doc, i) => (
-                    <div key={i} className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] px-4 py-3">
-                      <FileText className="h-4 w-4 text-[#1a9f9a] shrink-0" />
+                    <div key={i} className="flex items-center gap-2 border border-[hsl(var(--border))] px-2 py-1.5">
+                      <FileText className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
                       <input
                         value={doc.name}
                         onChange={e => updateDocName(i, e.target.value)}
                         placeholder="Document name"
-                        className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
+                        className="flex-1 min-w-0 bg-transparent text-xs focus:outline-none"
                       />
-                      <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0">{(doc.file.size / 1024).toFixed(0)}KB</span>
-                      <button type="button" onClick={() => removeDoc(i)} className="text-red-400 hover:text-red-600 shrink-0">
-                        <X className="h-4 w-4" />
+                      <span className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">{(doc.file.size / 1024).toFixed(0)}KB</span>
+                      <button type="button" onClick={() => removeDoc(i)} className="text-[hsl(var(--muted-foreground))] shrink-0 cursor-pointer">
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}
@@ -648,27 +644,29 @@ export function StaffEditModal({
                       placeholder="Enter document name..."
                       className={inputClass}
                     />
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={onPendingUpload}
                       disabled={!newDocName.trim()}
-                      className="h-10 px-4 rounded-lg bg-[#1a9f9a] text-white text-sm font-medium hover:bg-[#158a85] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shrink-0"
+                      className="h-7 px-2.5 text-[11px] gap-1 shrink-0"
                     >
-                      <Upload className="h-4 w-4" /> Upload
-                    </button>
+                      <Upload className="h-3 w-3" /> Upload
+                    </Button>
                   </div>
                 </div>
               </>
             )}
           </div>
 
-          <div className="flex gap-3 px-6 py-4 border-t border-[hsl(var(--border))] shrink-0 bg-[hsl(var(--card))]">
-            <Button type="button" variant="outline" className="h-10 px-6" onClick={onClose}>
+          <div className="flex gap-2 px-4 py-3 border-t border-[hsl(var(--border))] shrink-0">
+            <Button type="button" variant="outline" className="h-7 px-3 text-[11px]" onClick={onClose}>
               Cancel
             </Button>
             <div className="flex-1" />
             {tab !== "profile" && (
-              <Button type="button" variant="outline" className="h-10" onClick={() => setTab(tab === "details" ? "compensation" : "profile")}>
+              <Button type="button" variant="outline" className="h-7 px-3 text-[11px]" onClick={() => setTab(tab === "details" ? "compensation" : "profile")}>
                 Back
               </Button>
             )}
@@ -676,14 +674,14 @@ export function StaffEditModal({
               <Button
                 type="button"
                 variant="outline"
-                className="h-10"
+                className="h-7 px-3 text-[11px]"
                 onClick={() => setTab(tab === "profile" ? "compensation" : "details")}
               >
                 Next
               </Button>
             )}
-            <Button type="submit" className="h-10 px-8 bg-[#1a9f9a] hover:bg-[#158a85] text-white" disabled={saving}>
-              {saving ? "Saving..." : editing ? "Update Staff" : "Save Staff"}
+            <Button type="submit" variant="outline" className="h-7 px-3 text-[11px]" disabled={saving}>
+              {saving ? "Saving..." : editing ? "Update" : "Save"}
             </Button>
           </div>
         </form>

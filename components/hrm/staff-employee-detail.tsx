@@ -199,7 +199,7 @@ export function StaffEmployeeDetail({
               <span className="text-[11px] capitalize text-[hsl(var(--muted-foreground))]">{member.status}</span>
             </div>
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">
-              {member.role} Â· {member.department} Â· {member.employment_type || "Permanent"}
+              {member.role} · {member.department} · {member.employment_type || "Permanent"}
             </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -248,15 +248,15 @@ export function StaffEmployeeDetail({
                   ["Employment Type", member.employment_type || "Permanent"],
                   ["Status", member.status],
                   ["Net Payable", money(currency, breakdown.netPayable)],
-                  ["Email", member.email || "â€”"],
-                  ["Phone", member.phone || "â€”"],
-                  ["Address", member.address || "â€”"],
-                  ["Join Date", member.join_date ? new Date(member.join_date).toLocaleDateString() : "â€”"],
+                  ["Email", member.email || "—"],
+                  ["Phone", member.phone || "—"],
+                  ["Address", member.address || "—"],
+                  ["Join Date", member.join_date ? new Date(member.join_date).toLocaleDateString() : "—"],
                   ...(member.bank_name || member.bank_account_number
                     ? [
-                        ["Bank", member.bank_name || "â€”"],
-                        ["Account", member.bank_account_number || "â€”"],
-                        ["Account title", member.bank_account_title || "â€”"],
+                        ["Bank", member.bank_name || "—"],
+                        ["Account", member.bank_account_number || "—"],
+                        ["Account title", member.bank_account_title || "—"],
                       ]
                     : []),
                   ...(member.notes ? [["Notes", member.notes]] : []),
@@ -437,7 +437,7 @@ export function StaffEmployeeDetail({
                 <span className="text-[hsl(var(--muted-foreground))]">Net payable </span>
                 <span className="tabular-nums font-medium">{money(currency, breakdown.netPayable)}</span>
                 <span className="text-[hsl(var(--muted-foreground))]">
-                  {" "}Â· Gross {money(currency, breakdown.grossPay)} Â· Deductions {money(currency, breakdown.totalDeductions)}
+                  {" "}· Gross {money(currency, breakdown.grossPay)} · Deductions {money(currency, breakdown.totalDeductions)}
                 </span>
               </div>
             </>

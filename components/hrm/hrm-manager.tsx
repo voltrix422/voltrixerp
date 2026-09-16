@@ -1314,14 +1314,7 @@ export function HrmManager() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Staff</h2>
-          <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-            {staff.length > 0
-              ? `${activeCount} active · ${staff.length - activeCount} inactive · ${filtered.length} shown`
-              : "Profiles and payroll"}
-          </p>
-        </div>
+        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Staff</h2>
         <div className="flex flex-wrap items-center gap-1.5">
           {staff.length > 0 && (
             <>
@@ -1380,21 +1373,16 @@ export function HrmManager() {
             </button>
             {activeStaff.length > 0 ? ` · of ${activeStaff.length} active` : ""}
           </span>
-          <input
-            type="month"
-            value={payrollMonth}
-            onChange={(e) => {
-              setPayrollMonth(e.target.value)
-              setFilterPay("All")
-            }}
-            className="ml-auto h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
-          />
-        </div>
-      )}
-
-      {staff.length > 0 && (
-        <div className="border border-[hsl(var(--border))]">
-          <div className="flex items-center gap-2 px-2 py-1.5">
+          <div className="ml-auto flex items-center gap-1.5">
+            <input
+              type="month"
+              value={payrollMonth}
+              onChange={(e) => {
+                setPayrollMonth(e.target.value)
+                setFilterPay("All")
+              }}
+              className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
+            />
             <button
               type="button"
               className="h-7 px-2 text-[11px] border border-[hsl(var(--border))] inline-flex items-center gap-1 cursor-pointer"
@@ -1404,57 +1392,58 @@ export function HrmManager() {
               <ChevronDown className={`h-3 w-3 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
             </button>
             {(search || filterDept !== "All" || filterStatus !== "All" || filterPay !== "All") && (
-              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Filter on</span>
+              <span className="text-[11px] text-[hsl(var(--muted-foreground))]">on</span>
             )}
           </div>
-          {filterOpen && (
-            <div className="flex flex-wrap gap-2 items-center px-2 pb-2 border-t border-[hsl(var(--border))] pt-2">
-              <div className="relative flex-1 min-w-[180px] max-w-sm">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search name, role, email..."
-                  className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
-                />
-              </div>
-              <select
-                value={filterDept}
-                onChange={e => setFilterDept(e.target.value)}
-                className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
-              >
-                <option value="All">All departments</option>
-                {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-              </select>
-              <select
-                value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}
-                className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
-              >
-                <option value="All">All status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-              <select
-                value={filterPay}
-                onChange={e => setFilterPay(e.target.value as "All" | "paid" | "unpaid")}
-                className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
-                title={`Pay status for ${monthLabel(payrollMonth)}`}
-              >
-                <option value="All">All pay ({monthLabel(payrollMonth)})</option>
-                <option value="paid">Paid ({monthPaidCount})</option>
-                <option value="unpaid">Unpaid ({monthUnpaidCount})</option>
-              </select>
-              {(search || filterDept !== "All" || filterStatus !== "All" || filterPay !== "All") && (
-                <button
-                  type="button"
-                  onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All"); setFilterPay("All") }}
-                  className="h-7 px-2 text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
+        </div>
+      )}
+
+      {staff.length > 0 && filterOpen && (
+        <div className="flex flex-wrap gap-2 items-center border border-[hsl(var(--border))] px-2 py-2">
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search name, role, email..."
+              className="w-full h-7 border border-[hsl(var(--border))] bg-transparent pl-7 pr-2 text-[11px] focus:outline-none"
+            />
+          </div>
+          <select
+            value={filterDept}
+            onChange={e => setFilterDept(e.target.value)}
+            className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
+          >
+            <option value="All">All departments</option>
+            {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+          </select>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
+          >
+            <option value="All">All status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select
+            value={filterPay}
+            onChange={e => setFilterPay(e.target.value as "All" | "paid" | "unpaid")}
+            className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-[11px] focus:outline-none"
+            title={`Pay status for ${monthLabel(payrollMonth)}`}
+          >
+            <option value="All">All pay ({monthLabel(payrollMonth)})</option>
+            <option value="paid">Paid ({monthPaidCount})</option>
+            <option value="unpaid">Unpaid ({monthUnpaidCount})</option>
+          </select>
+          {(search || filterDept !== "All" || filterStatus !== "All" || filterPay !== "All") && (
+            <button
+              type="button"
+              onClick={() => { setSearch(""); setFilterDept("All"); setFilterStatus("All"); setFilterPay("All") }}
+              className="h-7 px-2 text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] cursor-pointer"
+            >
+              Clear
+            </button>
           )}
         </div>
       )}
