@@ -11,7 +11,7 @@ import {
   type Order,
 } from "@/lib/orders"
 import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
-import { Search } from "lucide-react"
+import { Search, ChevronDown } from "lucide-react"
 
 function formatPkr(amount: number) {
   return `PKR ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
@@ -28,6 +28,7 @@ export function OrderReturnsInventory() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     getOrders()
@@ -40,6 +41,28 @@ export function OrderReturnsInventory() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return
+    setOpenIds((prev) => {
+      const next = { ...prev }
+      for (const o of orders) {
+        const hit =
+          o.orderNumber?.toLowerCase().includes(q) ||
+          o.clientName?.toLowerCase().includes(q) ||
+          o.returnReason?.toLowerCase().includes(q) ||
+          o.items.some((item) => {
+            const returnedQty = getItemReturnedQty(o, item.id)
+            if (returnedQty <= 0) return false
+            const model = resolveOrderItemModel(item)?.toLowerCase() || ""
+            return model.includes(q) || (item.description || "").toLowerCase().includes(q)
+          })
+        if (hit) next[o.id] = true
+      }
+      return next
+    })
+  }, [search, orders])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -95,13 +118,19 @@ export function OrderReturnsInventory() {
           {orders.length === 0 ? "No order returns yet." : "No returns match your search."}
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="border border-[hsl(var(--border))]">
           {filtered.map((order) => {
             const lines = order.items.filter((item) => !item.isCustom && getItemReturnedQty(order, item.id) > 0)
+            const open = openIds[order.id] === true
             return (
-              <div key={order.id} className="border border-[hsl(var(--border))]">
-                <div className="flex flex-wrap items-baseline justify-between gap-2 px-2 py-1.5 border-b border-[hsl(var(--border))]">
-                  <p className="text-xs">
+              <div key={order.id} className="border-b border-[hsl(var(--border))] last:border-b-0">
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-left cursor-pointer"
+                  onClick={() => setOpenIds((prev) => ({ ...prev, [order.id]: !prev[order.id] }))}
+                >
+                  <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${open ? "" : "-rotate-90"}`} />
+                  <span className="flex-1 min-w-0 text-xs">
                     {order.orderNumber}
                     <span className="text-[hsl(var(--muted-foreground))]">
                       {" · "}
@@ -110,51 +139,55 @@ export function OrderReturnsInventory() {
                       {" · "}
                       {order.clientName}
                     </span>
-                  </p>
-                  <p className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">
+                  </span>
+                  <span className="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))] shrink-0">
                     Refunded {formatPkr(getOrderReturnAmount(order))}
-                  </p>
-                </div>
-                <p className="px-2 py-1 text-[11px] text-[hsl(var(--muted-foreground))]">
-                  {order.returnedAt
-                    ? `Returned ${new Date(order.returnedAt).toLocaleDateString()}`
-                    : "Returned"}
-                  {order.returnedBy ? ` · ${order.returnedBy}` : ""}
-                  {order.inventoryReturnedAt ? " · Full stock restored" : " · Partial stock restored"}
-                  {order.returnReason ? ` · ${order.returnReason}` : ""}
-                </p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-t border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                        <th className="px-2 py-1.5 font-medium">Model</th>
-                        <th className="px-2 py-1.5 font-medium">Description</th>
-                        <th className="px-2 py-1.5 font-medium text-right">Returned</th>
-                        <th className="px-2 py-1.5 font-medium text-right">Ordered</th>
-                        <th className="px-2 py-1.5 font-medium">Unit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lines.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-2 py-2 text-[hsl(var(--muted-foreground))]">
-                            No inventory lines on this return (custom items only)
-                          </td>
-                        </tr>
-                      ) : (
-                        lines.map((item) => (
-                          <tr key={item.id} className="border-t border-[hsl(var(--border))]">
-                            <td className="px-2 py-1.5 whitespace-nowrap">{resolveOrderItemModel(item) || "—"}</td>
-                            <td className="px-2 py-1.5">{item.description || "—"}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{getItemReturnedQty(order, item.id)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums text-[hsl(var(--muted-foreground))]">{item.qty}</td>
-                            <td className="px-2 py-1.5">{item.unit || "pcs"}</td>
+                  </span>
+                </button>
+                {open && (
+                  <div className="border-t border-[hsl(var(--border))]">
+                    <p className="px-2 py-1.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+                      {order.returnedAt
+                        ? `Returned ${new Date(order.returnedAt).toLocaleDateString()}`
+                        : "Returned"}
+                      {order.returnedBy ? ` · ${order.returnedBy}` : ""}
+                      {order.inventoryReturnedAt ? " · Full stock restored" : " · Partial stock restored"}
+                      {order.returnReason ? ` · ${order.returnReason}` : ""}
+                    </p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-t border-[hsl(var(--border))] text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                            <th className="px-2 py-1.5 font-medium">Model</th>
+                            <th className="px-2 py-1.5 font-medium">Description</th>
+                            <th className="px-2 py-1.5 font-medium text-right">Returned</th>
+                            <th className="px-2 py-1.5 font-medium text-right">Ordered</th>
+                            <th className="px-2 py-1.5 font-medium">Unit</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {lines.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-2 py-2 text-[hsl(var(--muted-foreground))]">
+                                No inventory lines on this return (custom items only)
+                              </td>
+                            </tr>
+                          ) : (
+                            lines.map((item) => (
+                              <tr key={item.id} className="border-t border-[hsl(var(--border))]">
+                                <td className="px-2 py-1.5 whitespace-nowrap">{resolveOrderItemModel(item) || "—"}</td>
+                                <td className="px-2 py-1.5">{item.description || "—"}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{getItemReturnedQty(order, item.id)}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums text-[hsl(var(--muted-foreground))]">{item.qty}</td>
+                                <td className="px-2 py-1.5">{item.unit || "pcs"}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
