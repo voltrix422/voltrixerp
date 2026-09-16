@@ -34,7 +34,7 @@ export type StaffDetailMember = {
   status: "active" | "inactive"
   notes: string
   photo_url: string
-  documents: { name: string; data: string; type: string; size: number }[]
+  documents: { name: string; data?: string; url?: string; type: string; size: number }[]
   points: number
   warnings: { level: 0 | 1 | 2 | 3; message: string; date: string; pointsAtWarning: number }[]
   last_reset?: string
@@ -584,7 +584,7 @@ export function StaffEmployeeDetail({
                     {member.documents.map((doc, i) => (
                       <tr key={i} className="border-b border-[hsl(var(--border))] last:border-b-0">
                         <td className="px-2 py-1.5">
-                          <a href={doc.data} download={doc.name} className="hover:underline">
+                          <a href={doc.url || doc.data} target="_blank" rel="noreferrer" download={doc.name} className="hover:underline">
                             {doc.name}
                           </a>
                         </td>

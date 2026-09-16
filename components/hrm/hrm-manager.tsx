@@ -27,6 +27,13 @@ import {
 } from "@/lib/hrm-salary-calc"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadStaffExcel } from "@/lib/hrm-excel-export"
+import {
+  dataUrlToFile,
+  isStoredUrl,
+  staffDocHref,
+  storedDocPayload,
+  uploadStaffFile,
+} from "@/lib/hrm-staff-files"
 
 const STORAGE_KEY = "erp_hrm_staff"
 const DB_NAME = "erp_hrm_db"
@@ -35,7 +42,8 @@ const DOCS_STORE = "documents"
 
 interface StaffDocument {
   name: string
-  data: string // base64
+  data: string
+  url?: string
   type: string
   size: number
 }
@@ -176,6 +184,85 @@ async function loadPhoto(staffId: string): Promise<string> {
     console.error("Error loading photo:", error)
     return ""
   }
+}
+
+async function persistStaffMedia(staffId: string, docs: StaffDocument[], photoUrl: string) {
+  const payload = {
+    id: staffId,
+    documents: storedDocPayload(docs),
+    photo_url: isStoredUrl(photoUrl) ? photoUrl : "",
+  }
+  const res = await fetch("/api/hrm/staff", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || "Failed to save documents")
+  }
+}
+
+async function migrateLocalStaffMedia(member: any): Promise<{ documents: StaffDocument[]; photo_url: string }> {
+  const serverDocs: StaffDocument[] = Array.isArray(member.documents) ? member.documents : []
+  const serverPhoto = isStoredUrl(member.photo_url) ? member.photo_url : ""
+  const localDocs = await loadDocuments(member.id)
+  const localPhoto = await loadPhoto(member.id)
+
+  let docs: StaffDocument[] = serverDocs.map((d) => {
+    const href = staffDocHref(d)
+    return { ...d, url: d.url || (isStoredUrl(href) ? href : ""), data: href }
+  })
+  let photo_url = serverPhoto
+  let changed = false
+
+  for (const local of localDocs) {
+    const href = staffDocHref(local)
+    const hasSameNameOnServer = docs.some((d) => d.name === local.name && isStoredUrl(staffDocHref(d)))
+    if (hasSameNameOnServer) continue
+    if (isStoredUrl(href)) {
+      if (!docs.some((d) => staffDocHref(d) === href)) {
+        docs.push({ ...local, url: href, data: href })
+        changed = true
+      }
+      continue
+    }
+    if (!local.data?.startsWith("data:")) continue
+    try {
+      const file = dataUrlToFile(local.data, local.name || "document", local.type)
+      const url = await uploadStaffFile(file, "staff-docs")
+      docs.push({ name: local.name || file.name, url, data: url, type: local.type || file.type, size: local.size || file.size })
+      changed = true
+    } catch (err) {
+      console.error("Could not upload local document", local.name, err)
+      docs.push(local)
+    }
+  }
+
+  if (!photo_url && localPhoto?.startsWith("data:")) {
+    const file = dataUrlToFile(localPhoto, "photo.jpg", "image/jpeg")
+    photo_url = await uploadStaffFile(file, "staff-photos")
+    changed = true
+  } else if (!photo_url && isStoredUrl(localPhoto)) {
+    photo_url = localPhoto
+    changed = true
+  }
+
+  if (changed) {
+    try {
+      await persistStaffMedia(member.id, docs, photo_url)
+      await saveDocuments(member.id, docs)
+      if (photo_url) await savePhoto(member.id, photo_url)
+    } catch (err) {
+      console.error("Could not copy local HRM files to server:", err)
+    }
+  }
+
+  if (!photo_url) photo_url = serverPhoto || (isStoredUrl(localPhoto) || localPhoto?.startsWith("data:") ? localPhoto : "")
+  if (docs.length === 0 && localDocs.length) {
+    docs = localDocs
+  }
+  return { documents: docs, photo_url: photo_url || "" }
 }
 
 async function deleteDocuments(staffId: string) {
@@ -695,13 +782,22 @@ export function HrmManager() {
       try {
         const res = await fetch('/api/hrm/staff')
         const staffData = await res.json()
-        // Load documents and photos from IndexedDB for each staff member
         const staffWithDocs = await Promise.all(
-          staffData.map(async (s: any) => ({
-            ...s,
-            documents: await loadDocuments(s.id),
-            photo_url: await loadPhoto(s.id)
-          }))
+          staffData.map(async (s: any) => {
+            try {
+              const media = await migrateLocalStaffMedia(s)
+              return { ...s, ...media }
+            } catch (err) {
+              console.error("HRM document load failed for", s?.name, err)
+              const localDocs = await loadDocuments(s.id)
+              const localPhoto = await loadPhoto(s.id)
+              return {
+                ...s,
+                documents: (Array.isArray(s.documents) && s.documents.length ? s.documents : localDocs),
+                photo_url: s.photo_url || localPhoto || "",
+              }
+            }
+          })
         )
         setStaff(staffWithDocs)
         await fetchAllSalarySlips()
@@ -806,51 +902,46 @@ export function HrmManager() {
     setSaving(true)
 
     try {
-      let photo_url = photoPreview
-      if (photoFile) {
-        photo_url = await new Promise<string>(resolve => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.readAsDataURL(photoFile)
+      const existingDocs: StaffDocument[] = []
+      for (const d of editingMember?.documents || []) {
+        const href = staffDocHref(d)
+        if (isStoredUrl(href)) {
+          existingDocs.push({ ...d, url: href, data: href })
+          continue
+        }
+        if (d.data?.startsWith("data:")) {
+          const file = dataUrlToFile(d.data, d.name || "document", d.type)
+          const url = await uploadStaffFile(file, "staff-docs")
+          existingDocs.push({ name: d.name || file.name, url, data: url, type: d.type || file.type, size: d.size || file.size })
+          continue
+        }
+        existingDocs.push(d)
+      }
+
+      const uploadedDocs: StaffDocument[] = []
+      for (const { file, name: docName } of documents) {
+        const url = await uploadStaffFile(file, "staff-docs")
+        uploadedDocs.push({
+          name: docName || file.name,
+          url,
+          data: url,
+          type: file.type,
+          size: file.size,
         })
       }
+      const allDocs = [...existingDocs, ...uploadedDocs]
 
-      const memberId = editingMember?.id || `staff_${Date.now()}`
-      
-      // encode new documents
-      const encodedDocs: StaffDocument[] = await Promise.all(
-        documents.map(({ file, name: docName }) =>
-          new Promise<StaffDocument>(resolve => {
-            const reader = new FileReader()
-            reader.onload = () => resolve({
-              name: docName || file.name,
-              data: reader.result as string,
-              type: file.type,
-              size: file.size,
-            })
-            reader.readAsDataURL(file)
-          })
-        )
-      )
-
-      // Merge existing and new documents
-      const allDocs = [...(editingMember?.documents || []), ...encodedDocs]
-      
-      // Try to save to IndexedDB, fallback to in-memory only
-      try {
-        if (photo_url) {
-          await savePhoto(memberId, photo_url)
-        }
-        if (allDocs.length > 0) {
-          await saveDocuments(memberId, allDocs)
-        }
-      } catch (dbError) {
-        console.warn("IndexedDB not available, using memory storage only:", dbError)
+      let photo_url = isStoredUrl(photoPreview)
+        ? photoPreview
+        : (isStoredUrl(editingMember?.photo_url) ? editingMember!.photo_url : "")
+      if (photoFile) {
+        photo_url = await uploadStaffFile(photoFile, "staff-photos")
+      } else if (photoPreview?.startsWith("data:")) {
+        photo_url = await uploadStaffFile(dataUrlToFile(photoPreview, "photo.jpg", "image/jpeg"), "staff-photos")
       }
 
-      // Save staff metadata to database
       const staffData = {
-        id: memberId,
+        id: editingMember?.id,
         name, role, department, email, phone, address,
         salary: parseFloat(salary) || 0,
         employment_type: employmentType,
@@ -879,6 +970,8 @@ export function HrmManager() {
         bank_account_title: bankAccountTitle,
         createdBy: editingMember?.created_by || user?.name || "Unknown",
         createdAt: editingMember?.created_at || new Date().toISOString(),
+        photo_url,
+        documents: storedDocPayload(allDocs),
       }
       const res = await fetch('/api/hrm/staff', {
         method: editingMember ? 'PUT' : 'POST',
@@ -886,17 +979,29 @@ export function HrmManager() {
         body: JSON.stringify(staffData)
       })
       const savedMember = await res.json()
+      if (!res.ok) {
+        throw new Error(savedMember?.details || savedMember?.error || "Failed to save staff member")
+      }
 
-      // Update state with full data including documents and photo
+      const memberId = savedMember.id || editingMember?.id
+      try {
+        if (photo_url) await savePhoto(memberId, photo_url)
+        await saveDocuments(memberId, allDocs)
+      } catch (dbError) {
+        console.warn("IndexedDB not available, files are already on the server:", dbError)
+      }
+
+      const nextMember = { ...savedMember, documents: allDocs, photo_url: photo_url || savedMember.photo_url || "" }
       const updated = editingMember
-        ? staff.map(s => s.id === memberId ? { ...savedMember, documents: allDocs, photo_url: photoPreview || "" } : s)
-        : [{ ...savedMember, documents: allDocs, photo_url: photoPreview || "" }, ...staff]
+        ? staff.map(s => s.id === memberId ? nextMember : s)
+        : [nextMember, ...staff]
 
       setStaff(updated)
+      if (viewMember?.id === memberId) setViewMember(nextMember)
       resetForm()
     } catch (error) {
       console.error("Error saving staff:", error)
-      alert("Failed to save staff member. Please try again.")
+      alert(error instanceof Error ? error.message : "Failed to save staff member. Please try again.")
     } finally {
       setSaving(false)
     }

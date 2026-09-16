@@ -128,6 +128,13 @@ function mapToDB(data: Record<string, any>) {
   const erpUserId = data.erpUserId ?? data.erp_user_id
   if (erpUserId !== undefined) mapped.erpUserId = erpUserId || null
 
+  const photoUrl = data.photoUrl ?? data.photo_url
+  if (photoUrl !== undefined) mapped.photoUrl = typeof photoUrl === "string" ? photoUrl : ""
+
+  if (data.documents !== undefined) {
+    mapped.documents = Array.isArray(data.documents) ? data.documents : []
+  }
+
   return mapped
 }
 
@@ -165,5 +172,13 @@ function mapToFrontend(s: any) {
     bank_account_number: s.bankAccountNumber ?? '',
     bank_account_title: s.bankAccountTitle ?? '',
     erp_user_id: s.erpUserId ?? null,
+    photo_url: s.photoUrl ?? '',
+    documents: (Array.isArray(s.documents) ? s.documents : []).map((d: any) => ({
+      name: d?.name || "Document",
+      url: d?.url || "",
+      data: d?.url || d?.data || "",
+      type: d?.type || "",
+      size: Number(d?.size) || 0,
+    })),
   }
 }

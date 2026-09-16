@@ -9,12 +9,42 @@ async function ensureDir(dir: string) {
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
+  "image/jpg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
   "image/avif": "avif",
   "application/pdf": "pdf",
   "text/plain": "txt",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+}
+
+const EXT_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  avif: "image/avif",
+  pdf: "application/pdf",
+  txt: "text/plain",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+function fileMime(file: File) {
+  if (file.type && MIME_TO_EXT[file.type]) return file.type
+  const ext = (file.name.split(".").pop() || "").toLowerCase()
+  return EXT_TO_MIME[ext] || file.type || ""
 }
 
 export async function POST(request: NextRequest) {
@@ -35,9 +65,10 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       if (!file || typeof file.arrayBuffer !== "function") continue
-      if (!file.type || !MIME_TO_EXT[file.type]) {
+      const mime = fileMime(file)
+      if (!mime || !MIME_TO_EXT[mime]) {
         return NextResponse.json(
-          { error: `Unsupported file type: ${file.type || "unknown"}. Use JPG, PNG, WEBP, GIF, AVIF, PDF, or TXT.` },
+          { error: `Unsupported file type: ${file.type || file.name || "unknown"}. Use image, PDF, Word, Excel, PowerPoint, or TXT.` },
           { status: 400 }
         )
       }
@@ -47,7 +78,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "One of the uploaded files is empty or corrupted." }, { status: 400 })
       }
       const buffer = Buffer.from(bytes)
-      const ext = MIME_TO_EXT[file.type]
+      const ext = MIME_TO_EXT[mime]
       const filename = `${Date.now()}-${crypto.randomUUID()}.${ext}`
       await fs.writeFile(path.join(uploadDir, filename), buffer)
       urls.push(`/uploads/${safeFolder}/${filename}`)

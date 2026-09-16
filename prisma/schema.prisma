@@ -457,6 +457,8 @@ model ErpStaff {
   bankAccountNumber String?  @default("") @map("bank_account_number")
   bankAccountTitle  String?  @default("") @map("bank_account_title")
   erpUserId         String?  @map("erp_user_id")
+  photoUrl          String   @default("") @map("photo_url")
+  documents         Json     @default("[]")
 
   staffKpis      HrmStaffKpi[]
   kpiSettlements HrmKpiSettlement[]
