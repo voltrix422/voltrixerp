@@ -31,25 +31,23 @@ export default function InventoryPage() {
 
   return (
     <ModuleGuard module="inventory">
-      <Topbar title="Inventory" description="Manage stock and dispatch client orders" />
+      <Topbar title="Inventory" />
       <div className="flex-1 overflow-auto">
         <div className="p-3 sm:p-6 max-w-7xl">
-          <div className="flex items-center gap-0.5 sm:gap-1 border-b border-[hsl(var(--border))] mb-4 sm:mb-5 overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
+          <div className="flex items-center gap-0 border-b border-[hsl(var(--border))] mb-4 overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
             {tabs.map(({ id, label, shortLabel }) => (
               <button
                 key={id}
+                type="button"
                 onClick={() => setTab(id)}
-                className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium transition-colors relative cursor-pointer ${
+                className={`shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium border-b-2 -mb-px cursor-pointer ${
                   tab === id
-                    ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                    ? "border-[hsl(var(--foreground))] text-[hsl(var(--foreground))]"
+                    : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                 }`}
               >
                 <span className="sm:hidden">{shortLabel}</span>
                 <span className="hidden sm:inline">{label}</span>
-                {tab === id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1faca6] rounded-full" />
-                )}
               </button>
             ))}
           </div>
