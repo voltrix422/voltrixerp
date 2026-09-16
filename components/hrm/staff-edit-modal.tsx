@@ -307,7 +307,7 @@ export function StaffEditModal({
                     <label className="text-sm font-medium">Department</label>
                     <select value={department} onChange={e => setDepartment(e.target.value)} className={inputClass}>
                       {departments.map(d => (
-                        <option key={d}>{d}</option>
+                        <option key={d} value={d}>{d}</option>
                       ))}
                     </select>
                   </div>

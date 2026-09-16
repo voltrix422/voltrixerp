@@ -11,8 +11,8 @@ const STAFF_SELECT = {
 } as const
 
 /**
- * Ensure an ERP login user has an HRM staff profile for daily KPIs / My KPIs.
- * Links existing staff by erpUserId or email, or auto-creates a minimal profile.
+ * Find an existing HRM staff row for an ERP login (by user id or email).
+ * Does not create staff — HRM Staff is only people added in HRM.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -47,36 +47,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...linked, linked: true, existing: true, created: false })
   }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const roleLabel =
-    user.role === "superadmin" || user.role === "admin"
-      ? "Admin"
-      : user.role === "sales_agent"
-        ? "Sales Agent"
-        : user.role === "sales_manager"
-          ? "Sales Manager"
-          : "Staff"
-
-  const created = await prisma.erpStaff.create({
-    data: {
-      name: user.name || user.email,
-      email: user.email,
-      role: roleLabel,
-      department: user.jobTitle || user.location || "General",
-      phone: "",
-      address: "",
-      salary: Number(user.baseSalary) || 0,
-      basicSalary: Number(user.baseSalary) || 0,
-      currency: "PKR",
-      joinDate: today,
-      status: "Active",
-      notes: "Auto-created for daily KPI reporting from login account",
-      createdBy: "system",
-      erpUserId: userId,
-      employmentType: "Permanent",
-    },
-    select: STAFF_SELECT,
-  })
-
-  return NextResponse.json({ ...created, linked: true, existing: false, created: true })
+  return NextResponse.json(
+    { error: "No HRM staff profile. Add this person in HRM Staff first." },
+    { status: 404 },
+  )
 }

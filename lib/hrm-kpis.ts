@@ -238,7 +238,7 @@ export async function linkStaffToUser(staffId: string, erpUserId: string | null)
   if (!res.ok) throw new Error("Failed to link user to profile")
 }
 
-/** Ensure ERP login user has a staff profile (link or auto-create for daily KPIs). */
+/** Find existing HRM staff for an ERP user. Does not create a staff row. */
 export async function linkOrFindStaffForUser(userId: string): Promise<{
   id: string
   name: string

@@ -8,7 +8,6 @@ import {
   fetchSettlements,
   fetchStaffKpis,
   fetchStaffProfile,
-  linkOrFindStaffForUser,
 } from "@/lib/hrm-kpis"
 import { StaffKpiSection } from "@/components/hrm/staff-kpi-section"
 import { DailyReportSection } from "@/components/hrm/daily-report-section"
@@ -35,18 +34,7 @@ export function MyKpiPortal() {
     ;(async () => {
       try {
         setErrorMsg("")
-        let resolved = await fetchStaffProfile({ email: user?.email, userId: user?.id })
-        if (!resolved && user?.id) {
-          const ensured = await linkOrFindStaffForUser(user.id)
-          resolved = {
-            id: ensured.id,
-            name: ensured.name,
-            email: ensured.email,
-            role: ensured.role,
-            department: ensured.department,
-            erpUserId: ensured.erpUserId,
-          }
-        }
+        const resolved = await fetchStaffProfile({ email: user?.email, userId: user?.id })
         if (cancelled) return
         setStaff(resolved)
         setNotFound(!resolved)
@@ -119,7 +107,7 @@ export function MyKpiPortal() {
         <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Could not open KPI profile</p>
         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
           {errorMsg ||
-            `Unable to link ${user?.email || "this account"} for daily KPI reporting. Try again or ask an admin.`}
+            `No HRM staff record for ${user?.email || "this account"}. Add this person in HRM → Staff first (ERP login users are not staff automatically).`}
         </p>
       </div>
     )

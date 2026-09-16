@@ -1,28 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
-const AUTO_CREATED_NOTES = "Auto-created from User Accounts for KPI assignment"
+const AUTO_CREATED_NOTES = [
+  "Auto-created from User Accounts for KPI assignment",
+  "Auto-created for daily KPI reporting from login account",
+]
 
 export async function GET() {
-  // Remove leftover auto-created rows (Manage Users used to spill into Staff).
+  // Remove leftover auto-created rows (Manage Users / My KPIs used to spill into Staff).
   await prisma.erpStaff.deleteMany({
     where: {
       OR: [
-        { notes: AUTO_CREATED_NOTES },
-        { createdBy: "system", notes: { contains: "Auto-created from User Accounts" } },
+        { notes: { in: AUTO_CREATED_NOTES } },
+        { createdBy: "system", notes: { contains: "Auto-created" } },
+        {
+          createdBy: "system",
+          department: { in: ["field_sales_officer", "rsm", "sales_manager"] },
+        },
       ],
     },
   })
 
   const staff = await prisma.erpStaff.findMany({
-    where: {
-      NOT: {
-        OR: [
-          { notes: AUTO_CREATED_NOTES },
-          { createdBy: "system", notes: { contains: "Auto-created from User Accounts" } },
-        ],
-      },
-    },
     orderBy: { createdAt: "desc" },
   })
   return NextResponse.json(staff.map(mapToFrontend))
