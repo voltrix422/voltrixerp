@@ -1163,150 +1163,68 @@ export function HrmManager() {
   }
 
   function downloadIdCard(member: StaffMember) {
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Vertical ID card dimensions (standard vertical: 54mm x 85.6mm ~ 638x1012 pixels at 300dpi)
     canvas.width = 638
     canvas.height = 1012
+    const inset = 18
+    const stroke = 3
 
-    // Gradient background
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-    gradient.addColorStop(0, '#1a1a2e')
-    gradient.addColorStop(0.5, '#16213e')
-    gradient.addColorStop(1, '#0f3460')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    // Decorative pattern
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)'
-    for (let i = 0; i < canvas.width; i += 40) {
-      ctx.fillRect(i, 0, 2, canvas.height)
-    }
-
-    // Company logo
-    const logoImg = new Image()
-    logoImg.crossOrigin = 'anonymous'
-    
-    const drawCard = () => {
-      // Draw logo if loaded, otherwise use text
-      if (logoImg.complete && logoImg.naturalWidth > 0) {
-        const logoSize = 100
-        const logoX = (canvas.width - logoSize) / 2
-        ctx.drawImage(logoImg, logoX, 30, logoSize, logoSize)
-      } else {
-        // Fallback logo
-        ctx.fillStyle = '#e94560'
-        ctx.beginPath()
-        ctx.arc(canvas.width / 2, 80, 50, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = '#ffffff'
-        ctx.font = 'bold 48px Arial'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('V', canvas.width / 2, 85)
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'alphabetic'
-      }
-
-      // Company name
-      ctx.fillStyle = '#ffffff'
-      ctx.font = 'bold 22px Arial'
-      ctx.textAlign = 'center'
-      ctx.fillText('VOLTRIX', canvas.width / 2, 150)
-      ctx.textAlign = 'left'
-
-      // Circular staff photo (avatar)
-      const photoCenterX = canvas.width / 2
-      const photoCenterY = 320
-      const photoRadius = 100
-      
-      // Photo background circle
-      ctx.fillStyle = '#2a2a4a'
-      ctx.beginPath()
-      ctx.arc(photoCenterX, photoCenterY, photoRadius + 10, 0, Math.PI * 2)
-      ctx.fill()
-
-      const drawStaffPhoto = () => {
-        if (member.photo_url) {
-          const img = new Image()
-          img.crossOrigin = 'anonymous'
-          img.onload = () => {
-            ctx.save()
-            ctx.beginPath()
-            ctx.arc(photoCenterX, photoCenterY, photoRadius, 0, Math.PI * 2)
-            ctx.closePath()
-            ctx.clip()
-            ctx.drawImage(img, photoCenterX - photoRadius, photoCenterY - photoRadius, photoRadius * 2, photoRadius * 2)
-            ctx.restore()
-            finishCard()
-          }
-          img.onerror = () => {
-            drawPlaceholderAvatar()
-            finishCard()
-          }
-          img.src = member.photo_url
+    const wrapName = (text: string, maxWidth: number) => {
+      const words = text.trim().split(/\s+/).filter(Boolean)
+      const lines: string[] = []
+      let current = ""
+      for (const word of words) {
+        const next = current ? `${current} ${word}` : word
+        if (ctx.measureText(next).width > maxWidth && current) {
+          lines.push(current)
+          current = word
         } else {
-          drawPlaceholderAvatar()
-          finishCard()
+          current = next
         }
       }
-
-      const drawPlaceholderAvatar = () => {
-        ctx.fillStyle = '#3a3a5a'
-        ctx.beginPath()
-        ctx.arc(photoCenterX, photoCenterY, photoRadius, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = '#e94560'
-        ctx.font = 'bold 50px Arial'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(), photoCenterX, photoCenterY)
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'alphabetic'
-      }
-
-      const finishCard = () => {
-        // Employee name (first letter capital)
-        const capitalizedName = member.name.charAt(0).toUpperCase() + member.name.slice(1).toLowerCase()
-        ctx.fillStyle = '#ffffff'
-        ctx.font = 'bold 32px Arial'
-        ctx.textAlign = 'center'
-        ctx.fillText(capitalizedName, canvas.width / 2, photoCenterY + photoRadius + 60)
-
-        // Role (first letter capital)
-        const capitalizedRole = member.role.charAt(0).toUpperCase() + member.role.slice(1).toLowerCase()
-        ctx.fillStyle = '#e94560'
-        ctx.font = '20px Arial'
-        ctx.fillText(capitalizedRole, canvas.width / 2, photoCenterY + photoRadius + 95)
-
-        // Department (simple text)
-        ctx.fillStyle = '#a0a0a0'
-        ctx.font = '16px Arial'
-        ctx.fillText(member.department, canvas.width / 2, photoCenterY + photoRadius + 125)
-
-        // Employee ID (small, one line)
-        const infoY = photoCenterY + photoRadius + 160
-        ctx.fillStyle = '#ffffff'
-        ctx.font = 'bold 18px Arial'
-        ctx.textAlign = 'center'
-        ctx.fillText('ID: #' + String(member.id).padStart(6, '0'), canvas.width / 2, infoY)
-        ctx.textAlign = 'left'
-
-        // Download
-        const link = document.createElement('a')
-        link.download = `${member.name.replace(/\s+/g, '_')}_ID_Card.png`
-        link.href = canvas.toDataURL('image/png')
-        link.click()
-      }
-
-      drawStaffPhoto()
+      if (current) lines.push(current)
+      return lines.length ? lines : [text]
     }
 
-    logoImg.onload = drawCard
-    logoImg.onerror = drawCard
-    logoImg.src = '/logo.png'
+    const drawCard = (logo: HTMLImageElement | null) => {
+      ctx.fillStyle = "#ffffff"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.strokeStyle = "#111111"
+      ctx.lineWidth = stroke
+      ctx.strokeRect(inset, inset, canvas.width - inset * 2, canvas.height - inset * 2)
+
+      const logoSize = 220
+      const logoX = (canvas.width - logoSize) / 2
+      const logoY = 240
+      if (logo && logo.naturalWidth > 0) {
+        ctx.drawImage(logo, logoX, logoY, logoSize, logoSize)
+      }
+
+      ctx.fillStyle = "#111111"
+      ctx.font = "600 34px Arial"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "top"
+      const lines = wrapName(member.name || "Employee", canvas.width - 100)
+      let y = logoY + logoSize + 64
+      for (const line of lines) {
+        ctx.fillText(line, canvas.width / 2, y)
+        y += 44
+      }
+
+      const link = document.createElement("a")
+      link.download = `${member.name.replace(/\s+/g, "_")}_ID_Card.png`
+      link.href = canvas.toDataURL("image/png")
+      link.click()
+    }
+
+    const logoImg = new Image()
+    logoImg.crossOrigin = "anonymous"
+    logoImg.onload = () => drawCard(logoImg)
+    logoImg.onerror = () => drawCard(null)
+    logoImg.src = "/logo.png"
   }
 
   const slipFigures = showSalarySlip && viewMember ? resolveSalarySlipFigures(viewMember) : null
@@ -1811,43 +1729,24 @@ export function HrmManager() {
         </div>
       )}
 
-      {/* Salary Slip Success Modal */}
       {showSalarySlipSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowSalarySlipSuccess(false)}>
-          <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                  <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Salary Slip Generated Successfully!</h3>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">PDF downloaded and saved to system</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3" onClick={() => setShowSalarySlipSuccess(false)}>
+          <div className="w-full max-w-md border border-[hsl(var(--border))] bg-[hsl(var(--card))]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(var(--border))]">
+              <div>
+                <p className="text-sm font-semibold">Salary slip generated</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">PDF downloaded and saved</p>
               </div>
-              
-              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[hsl(var(--muted-foreground))]">Status:</span>
-                  <span className="font-semibold text-green-600">Completed</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[hsl(var(--muted-foreground))]">Format:</span>
-                  <span className="font-semibold text-[hsl(var(--foreground))]">PDF Document</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[hsl(var(--muted-foreground))]">Saved:</span>
-                  <span className="font-semibold text-[hsl(var(--foreground))]">Yes</span>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 pt-2">
-                <Button 
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-                  onClick={() => setShowSalarySlipSuccess(false)}
-                >
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-[hsl(var(--muted-foreground))]" onClick={() => setShowSalarySlipSuccess(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-4 space-y-2 text-xs">
+              <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Status</span><span>Completed</span></div>
+              <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Format</span><span>PDF</span></div>
+              <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Saved</span><span>Yes</span></div>
+              <div className="pt-2">
+                <Button variant="outline" className="h-7 px-3 text-[11px] w-full" onClick={() => setShowSalarySlipSuccess(false)}>
                   Done
                 </Button>
               </div>
@@ -1856,152 +1755,104 @@ export function HrmManager() {
         </div>
       )}
 
-      {/* Salary History Modal */}
       {showSalaryHistory && viewMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowSalaryHistory(false)}>
-          <div className="w-full max-w-3xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Salary Slip History</h3>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">{viewMember.name} - {viewMember.role}</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3" onClick={() => setShowSalaryHistory(false)}>
+          <div className="w-full max-w-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
+              <div>
+                <p className="text-sm font-semibold">Salary Slip History</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{viewMember.name} · {viewMember.role}</p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={() => setShowSalaryHistory(false)}><X className="h-5 w-5" /></Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-[hsl(var(--muted-foreground))]" onClick={() => setShowSalaryHistory(false)}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            
-            <div className="overflow-y-auto p-6">
+            <div className="overflow-y-auto p-4">
               {uniqueStaffSalarySlips.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="h-16 w-16 rounded-full bg-[hsl(var(--muted))]/10 flex items-center justify-center mx-auto mb-4">
-                    <FileText className="h-8 w-8 text-[hsl(var(--muted-foreground))]" />
-                  </div>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">No salary slips found for {viewMember.name}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Generate a salary slip to see it here</p>
-                </div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] py-6">No salary slips for {viewMember.name}.</p>
               ) : (
-                <div className="space-y-4">
-                  {uniqueStaffSalarySlips.map((slip: any) => (
-                    <div key={slip.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                              <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-[hsl(var(--foreground))]">
-                                {new Date(slip.month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                              </h4>
-                              <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                                Generated: {new Date(slip.generatedDate).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="text-[hsl(var(--muted-foreground))]">Base Salary:</span>
-                              <span className="ml-2 font-medium">{slip.currency} {slip.baseSalary.toLocaleString()}</span>
-                            </div>
-                            <div>
-                              <span className="text-[hsl(var(--muted-foreground))]">Net Salary:</span>
-                              <span className="ml-2 font-semibold text-green-600">{slip.currency} {slip.netSalary.toLocaleString()}</span>
-                            </div>
-                          </div>
-                          
-                          {slip.adjustments && slip.adjustments.length > 0 && (
-                            <div className="text-xs">
-                              <span className="text-[hsl(var(--muted-foreground))]">Adjustments: </span>
-                              {slip.adjustments.map((adj: any, index: number) => (
-                                <span key={index} className="ml-1">
-                                  {adj.type === 'add' ? '+' : '-'}{slip.currency} {adj.amount}
-                                  {index < slip.adjustments.length - 1 && ', '}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex flex-col gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-2"
-                            onClick={() => {
-                              generateSalarySlipPDF(slip, viewMember.name)
-                            }}
+                <table className="w-full text-xs border-collapse border border-[hsl(var(--border))]">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                      <th className="px-2 py-1.5 font-medium">Month</th>
+                      <th className="px-2 py-1.5 font-medium">Generated</th>
+                      <th className="px-2 py-1.5 font-medium text-right">Base</th>
+                      <th className="px-2 py-1.5 font-medium text-right">Net</th>
+                      <th className="px-2 py-1.5 font-medium" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uniqueStaffSalarySlips.map((slip: any) => (
+                      <tr key={slip.id} className="border-b border-[hsl(var(--border))] last:border-0">
+                        <td className="px-2 py-1.5">
+                          {new Date(slip.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                        </td>
+                        <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">
+                          {new Date(slip.generatedDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{slip.currency} {Number(slip.baseSalary || 0).toLocaleString()}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums font-medium">{slip.currency} {Number(slip.netSalary || 0).toLocaleString()}</td>
+                        <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            className="text-[11px] underline cursor-pointer mr-2"
+                            onClick={() => generateSalarySlipPDF(slip, viewMember.name)}
                           >
-                            <Download className="h-4 w-4" /> Download
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            Download
+                          </button>
+                          <button
+                            type="button"
+                            className="text-[11px] text-[hsl(var(--muted-foreground))] underline cursor-pointer disabled:opacity-50"
                             disabled={deletingSlipId === slip.id}
                             onClick={() => handleDeleteSalarySlip(slip)}
                           >
-                            <Trash2 className="h-4 w-4" />
                             {deletingSlipId === slip.id ? "Deleting…" : "Delete"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Salary Slip Generation Modal */}
       {showSalarySlip && viewMember && slipFigures && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={resetSalarySlipModal}>
-          <div className="w-full max-w-2xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(var(--border))] shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Generate Salary Slip</h3>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))]">{viewMember.name} - {viewMember.role}</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3" onClick={resetSalarySlipModal}>
+          <div className="w-full max-w-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
+              <div>
+                <p className="text-sm font-semibold">Generate Salary Slip</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{viewMember.name} · {viewMember.role}</p>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" onClick={resetSalarySlipModal}><X className="h-5 w-5" /></Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-[hsl(var(--muted-foreground))]" onClick={resetSalarySlipModal}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
             
-            <div className="overflow-y-auto p-6 space-y-6">
-              {/* Month Selection */}
+            <div className="overflow-y-auto p-4 space-y-4">
               <div>
-                <label className="text-sm font-medium text-[hsl(var(--foreground))] mb-2 block">Select Month</label>
+                <label className="text-[11px] text-[hsl(var(--muted-foreground))] mb-1 block">Select Month</label>
                 <input
                   type="month"
                   value={selectedMonth}
                   onChange={(e) => handleSalaryMonthChange(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                  className="w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                 />
               </div>
 
-              {/* Pay period */}
-              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-[hsl(var(--foreground))]">Pay Period</h4>
-                <div className="flex gap-2">
+              <div className="border border-[hsl(var(--border))] p-3 space-y-2">
+                <p className="text-xs font-semibold">Pay Period</p>
+                <div className="flex gap-1.5">
                   <button
                     type="button"
                     onClick={() => setPayPeriodMode("full_month")}
-                    className={`flex-1 h-9 rounded-lg text-sm font-medium border transition-colors ${
+                    className={`flex-1 h-7 text-[11px] border cursor-pointer ${
                       payPeriodMode === "full_month"
-                        ? "border-[#1a9f9a] bg-[#1a9f9a]/10 text-[#1a9f9a]"
-                        : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20"
+                        ? "border-[hsl(var(--foreground))]"
+                        : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]"
                     }`}
                   >
                     Full month
@@ -2013,10 +1864,10 @@ export function HrmManager() {
                       setPeriodFrom(periodStartForMember(viewMember, selectedMonth))
                       setPeriodTo(monthDateBounds(selectedMonth).to)
                     }}
-                    className={`flex-1 h-9 rounded-lg text-sm font-medium border transition-colors ${
+                    className={`flex-1 h-7 text-[11px] border cursor-pointer ${
                       payPeriodMode === "custom_range"
-                        ? "border-[#1a9f9a] bg-[#1a9f9a]/10 text-[#1a9f9a]"
-                        : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/20"
+                        ? "border-[hsl(var(--foreground))]"
+                        : "border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]"
                     }`}
                   >
                     Custom date range
@@ -2025,21 +1876,21 @@ export function HrmManager() {
                 {payPeriodMode === "custom_range" && (
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">From</label>
+                      <label className="text-[11px] text-[hsl(var(--muted-foreground))] mb-1 block">From</label>
                       <input
                         type="date"
                         value={periodFrom}
                         onChange={(e) => setPeriodFrom(e.target.value)}
-                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm"
+                        className="w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">To</label>
+                      <label className="text-[11px] text-[hsl(var(--muted-foreground))] mb-1 block">To</label>
                       <input
                         type="date"
                         value={periodTo}
                         onChange={(e) => setPeriodTo(e.target.value)}
-                        className="w-full h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm"
+                        className="w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                       />
                     </div>
                     {slipFigures.proRate && slipFigures.proRate.daysWorked > 0 && (
@@ -2048,7 +1899,7 @@ export function HrmManager() {
                       </p>
                     )}
                     {viewMember.join_date && periodFrom === viewMember.join_date.slice(0, 10) && (
-                      <p className="col-span-2 text-xs text-amber-700">
+                      <p className="col-span-2 text-[11px] text-[hsl(var(--muted-foreground))]">
                         Start date set from join date ({new Date(viewMember.join_date).toLocaleDateString()}).
                       </p>
                     )}
@@ -2056,33 +1907,32 @@ export function HrmManager() {
                 )}
               </div>
 
-              {/* Base Salary */}
-              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-                <h4 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Base Salary</h4>
-                <div className="space-y-2">
+              <div className="border border-[hsl(var(--border))] p-3">
+                <p className="text-xs font-semibold mb-2">Base Salary</p>
+                <div className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-[hsl(var(--muted-foreground))]">Contract monthly salary</span>
-                    <span className="text-sm font-medium text-[hsl(var(--foreground))]">{viewMember.currency} {viewMember.salary.toLocaleString()}</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">Contract monthly salary</span>
+                    <span className="tabular-nums">{viewMember.currency} {viewMember.salary.toLocaleString()}</span>
                   </div>
                   {payPeriodMode === "custom_range" && (
-                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Payable for selected period</span>
-                      <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[hsl(var(--border))]">
+                      <span className="text-[hsl(var(--muted-foreground))]">Payable for selected period</span>
+                      <span className="tabular-nums font-medium">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
                     </div>
                   )}
                   {payPeriodMode === "full_month" && (
-                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Full month payable</span>
-                      <span className="text-lg font-semibold text-[hsl(var(--foreground))]">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[hsl(var(--border))]">
+                      <span className="text-[hsl(var(--muted-foreground))]">Full month payable</span>
+                      <span className="tabular-nums font-medium">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
                     </div>
                   )}
                   {effectiveStaffMedicalAmount({
                     medicalAllowance: viewMember.medical_allowance,
                     medicalEnabled: viewMember.medical_enabled,
                   }) > 0 ? (
-                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Medical (applied)</span>
-                      <span className="text-sm font-semibold text-emerald-700">
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[hsl(var(--border))]">
+                      <span className="text-[hsl(var(--muted-foreground))]">Medical (applied)</span>
+                      <span className="tabular-nums">
                         + {viewMember.currency}{" "}
                         {effectiveStaffMedicalAmount({
                           medicalAllowance: viewMember.medical_allowance,
@@ -2095,9 +1945,9 @@ export function HrmManager() {
                     taxAmount: viewMember.tax_amount,
                     taxEnabled: viewMember.tax_enabled,
                   }) > 0 ? (
-                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Tax (applied)</span>
-                      <span className="text-sm font-semibold text-rose-600">
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[hsl(var(--border))]">
+                      <span className="text-[hsl(var(--muted-foreground))]">Tax (applied)</span>
+                      <span className="tabular-nums">
                         − {viewMember.currency}{" "}
                         {effectiveStaffTaxAmount({
                           taxAmount: viewMember.tax_amount,
@@ -2106,9 +1956,9 @@ export function HrmManager() {
                       </span>
                     </div>
                   ) : (Number(viewMember.tax_amount) || 0) > 0 ? (
-                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">Tax</span>
-                      <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[hsl(var(--border))]">
+                      <span className="text-[hsl(var(--muted-foreground))]">Tax</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">
                         Off ({viewMember.currency} {Number(viewMember.tax_amount).toLocaleString()} not deducted)
                       </span>
                     </div>
@@ -2117,9 +1967,9 @@ export function HrmManager() {
                     eobiAmount: viewMember.eobi_amount,
                     eobiEnabled: viewMember.eobi_enabled,
                   }) > 0 ? (
-                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">EOBI (applied)</span>
-                      <span className="text-sm font-semibold text-rose-600">
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[hsl(var(--border))]">
+                      <span className="text-[hsl(var(--muted-foreground))]">EOBI (applied)</span>
+                      <span className="tabular-nums">
                         − {viewMember.currency}{" "}
                         {effectiveStaffEobiAmount({
                           eobiAmount: viewMember.eobi_amount,
@@ -2128,9 +1978,9 @@ export function HrmManager() {
                       </span>
                     </div>
                   ) : (Number(viewMember.eobi_amount) || 0) > 0 ? (
-                    <div className="flex items-center justify-between pt-2 border-t border-[hsl(var(--border))]">
-                      <span className="text-sm text-[hsl(var(--muted-foreground))]">EOBI</span>
-                      <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[hsl(var(--border))]">
+                      <span className="text-[hsl(var(--muted-foreground))]">EOBI</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">
                         Off ({viewMember.currency} {Number(viewMember.eobi_amount).toLocaleString()} not deducted)
                       </span>
                     </div>
@@ -2138,40 +1988,34 @@ export function HrmManager() {
                 </div>
               </div>
 
-              {/* Advance recovery */}
               {slipFigures.outstandingAdvance > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4">
-                  <label className="flex items-start gap-3 cursor-pointer">
+                <label className="flex items-start gap-2 border border-[hsl(var(--border))] p-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={deductAdvance}
                       onChange={(e) => setDeductAdvance(e.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                      className="mt-0.5"
                     />
                     <div>
-                      <p className="text-sm font-semibold text-amber-900">Deduct outstanding salary advance</p>
-                      <p className="text-sm text-amber-800 mt-0.5">
+                      <p className="text-xs font-medium">Deduct outstanding salary advance</p>
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
                         {viewMember.currency} {slipFigures.outstandingAdvance.toLocaleString()} will be recovered from this salary.
                       </p>
                     </div>
-                  </label>
-                </div>
+                </label>
               )}
 
-              {/* Adjustments */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-[hsl(var(--foreground))]">Adjustments</h4>
-                  <span className="text-xs text-[hsl(var(--muted-foreground))]">Add bonuses or deductions</span>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold">Adjustments</p>
+                  <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Bonuses or deductions</span>
                 </div>
-                
-                {/* Add Adjustment Form */}
-                <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/10 p-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="border border-[hsl(var(--border))] p-2 space-y-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <select
                       value={newAdjustment.type}
                       onChange={(e) => setNewAdjustment(prev => ({ ...prev, type: e.target.value as 'add' | 'deduct' }))}
-                      className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                      className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                     >
                       <option value="add">+ Add</option>
                       <option value="deduct">- Deduct</option>
@@ -2181,19 +2025,20 @@ export function HrmManager() {
                       placeholder="Amount"
                       value={newAdjustment.amount}
                       onChange={(e) => setNewAdjustment(prev => ({ ...prev, amount: e.target.value }))}
-                      className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                      className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                     />
                     <input
                       type="text"
                       placeholder="Label (e.g., Overtime)"
                       value={newAdjustment.label}
                       onChange={(e) => setNewAdjustment(prev => ({ ...prev, label: e.target.value }))}
-                      className="h-10 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[#1a9f9a] focus:border-transparent"
+                      className="h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                     />
                   </div>
                   <Button
                     size="sm"
-                    className="w-full"
+                    variant="outline"
+                    className="h-7 px-2.5 text-[11px] w-full"
                     onClick={() => {
                       if (newAdjustment.amount && newAdjustment.label) {
                         setSalaryAdjustments(prev => [...prev, {
@@ -2210,68 +2055,60 @@ export function HrmManager() {
                     Add Adjustment
                   </Button>
                 </div>
-
-                {/* Adjustments List */}
                 {salaryAdjustments.length > 0 && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-2 space-y-1">
                     {salaryAdjustments.map(adj => (
-                      <div key={adj.id} className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-                        <div className="flex items-center gap-3">
-                          <span className={`text-sm font-semibold ${adj.type === 'add' ? 'text-green-600' : 'text-red-600'}`}>
+                      <div key={adj.id} className="flex items-center justify-between border border-[hsl(var(--border))] px-2 py-1.5 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="tabular-nums">
                             {adj.type === 'add' ? '+' : '-'} {viewMember.currency} {parseFloat(adj.amount).toLocaleString()}
                           </span>
-                          <span className="text-sm text-[hsl(var(--muted-foreground))]">{adj.label}</span>
+                          <span className="text-[hsl(var(--muted-foreground))]">{adj.label}</span>
                         </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 text-red-400 hover:text-red-600"
+                        <button
+                          type="button"
+                          className="text-[hsl(var(--muted-foreground))] cursor-pointer"
                           onClick={() => setSalaryAdjustments(prev => prev.filter(a => a.id !== adj.id))}
                         >
                           <X className="h-3 w-3" />
-                        </Button>
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Summary */}
-              <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-                <h4 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-3">Salary Summary</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
+              <div className="border border-[hsl(var(--border))] p-3 space-y-1.5 text-xs">
+                <p className="font-semibold">Salary Summary</p>
+                  <div className="flex items-center justify-between">
                     <span className="text-[hsl(var(--muted-foreground))]">
                       {payPeriodMode === "custom_range" ? "Pro-rated base salary" : "Base salary"}
                     </span>
-                    <span className="font-medium">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
+                    <span className="tabular-nums">{viewMember.currency} {slipFigures.effectiveBase.toLocaleString()}</span>
                   </div>
                   {slipFigures.effectiveAdjustments.map(adj => (
-                    <div key={adj.id} className="flex items-center justify-between text-sm">
+                    <div key={adj.id} className="flex items-center justify-between">
                       <span className="text-[hsl(var(--muted-foreground))]">{adj.label}</span>
-                      <span className={`font-medium ${adj.type === 'add' ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className="tabular-nums">
                         {adj.type === 'add' ? '+' : '-'} {viewMember.currency} {parseFloat(adj.amount).toLocaleString()}
                       </span>
                     </div>
                   ))}
-                  <div className="pt-2 border-t border-[hsl(var(--border))]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-[hsl(var(--foreground))]">Net Salary</span>
-                      <span className="text-lg font-bold text-[hsl(var(--foreground))]">
+                  <div className="pt-1.5 border-t border-[hsl(var(--border))] flex items-center justify-between">
+                      <span className="font-medium">Net Salary</span>
+                      <span className="tabular-nums font-medium">
                         {viewMember.currency} {slipFigures.netSalary.toLocaleString()}
                       </span>
-                    </div>
                   </div>
-                </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1" onClick={resetSalarySlipModal}>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="h-7 px-3 text-[11px] flex-1" onClick={resetSalarySlipModal}>
                   Cancel
                 </Button>
                 <Button 
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                  variant="outline"
+                  className="h-7 px-3 text-[11px] flex-1"
                   onClick={async () => {
                     if (payPeriodMode === "custom_range") {
                       if (!periodFrom || !periodTo) {

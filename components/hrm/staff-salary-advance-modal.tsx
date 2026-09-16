@@ -10,7 +10,7 @@ import {
   sumOutstandingAdvances,
   type SalaryAdvance,
 } from "@/lib/hrm-salary-advances"
-import { Wallet, X, Upload, Trash2 } from "lucide-react"
+import { X, Upload, Trash2 } from "lucide-react"
 
 type StaffLike = {
   id: string
@@ -138,40 +138,37 @@ export function StaffSalaryAdvanceModal({ staff, givenBy, onClose, onUpdate }: P
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl border bg-[hsl(var(--card))] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-amber-600" />
-            <div>
-              <p className="text-lg font-bold">Salary Advance</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">{staff.name} · {staff.role}</p>
-            </div>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(var(--border))] shrink-0">
+          <div>
+            <p className="text-sm font-semibold">Salary Advance</p>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{staff.name} · {staff.role}</p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-[hsl(var(--muted-foreground))]" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="overflow-y-auto p-6 space-y-5">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-4">
-            <p className="text-xs text-amber-800 dark:text-amber-200">Outstanding advance balance</p>
-            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 mt-1">
+        <div className="overflow-y-auto p-4 space-y-4">
+          <div className="border border-[hsl(var(--border))] px-3 py-2">
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Outstanding advance balance</p>
+            <p className="text-sm font-semibold tabular-nums mt-0.5">
               {currency} {outstanding.toLocaleString()}
             </p>
-            <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-1">
-              This will be deducted automatically when you run payroll for this employee.
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
+              Deducted automatically when you run payroll for this employee.
             </p>
           </div>
 
-          <div className="space-y-3">
-            <p className="text-sm font-semibold">Give new advance</p>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold">Give new advance</p>
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-xs font-medium">Amount ({currency}) *</label>
+                <label className="text-[11px] text-[hsl(var(--muted-foreground))]">Amount ({currency}) *</label>
                 <input
                   type="number"
                   min="1"
@@ -179,104 +176,96 @@ export function StaffSalaryAdvanceModal({ staff, givenBy, onClose, onUpdate }: P
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="e.g. 10000"
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm"
+                  className="w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium">Reason *</label>
+                <label className="text-[11px] text-[hsl(var(--muted-foreground))]">Reason *</label>
                 <input
                   type="text"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="e.g. Emergency advance"
-                  className="w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm"
+                  className="w-full h-7 border border-[hsl(var(--border))] bg-transparent px-2 text-xs focus:outline-none"
                 />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium">Notes</label>
+              <label className="text-[11px] text-[hsl(var(--muted-foreground))]">Notes</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                className="w-full rounded-md border bg-[hsl(var(--background))] px-3 py-2 text-sm resize-none"
+                className="w-full border border-[hsl(var(--border))] bg-transparent px-2 py-1.5 text-xs resize-none focus:outline-none"
                 placeholder="Optional details"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium">Payment proof (optional)</label>
+              <label className="text-[11px] text-[hsl(var(--muted-foreground))]">Payment proof (optional)</label>
               <input
                 type="file"
                 accept="image/*,.pdf"
                 onChange={(e) => setProofFile(e.target.files?.[0] || null)}
-                className="w-full text-xs"
+                className="w-full text-[11px]"
               />
             </div>
             <Button
-              className="w-full bg-amber-600 hover:bg-amber-700"
+              variant="outline"
+              className="h-7 px-3 text-[11px] w-full gap-1"
               onClick={handleSubmit}
               disabled={saving || uploading}
             >
-              <Upload className="h-4 w-4 mr-2" />
+              <Upload className="h-3 w-3" />
               {saving || uploading ? "Saving..." : "Record Advance"}
             </Button>
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-semibold">Advance history</p>
+            <p className="text-xs font-semibold">Advance history</p>
             {loading ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Loading...</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Loading...</p>
             ) : advances.length === 0 ? (
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">No advances recorded yet.</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">No advances recorded yet.</p>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-1 max-h-48 overflow-y-auto">
                 {advances.map((advance) => (
-                  <div key={advance.id} className="rounded-lg border p-3 text-xs">
+                  <div key={advance.id} className="border border-[hsl(var(--border))] px-2 py-1.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold">{advance.reason}</p>
+                        <p className="font-medium">{advance.reason}</p>
                         <p className="text-[hsl(var(--muted-foreground))] mt-0.5">
                           {currency} {advance.amount.toLocaleString()} · {new Date(advance.givenAt).toLocaleString()}
                         </p>
                         <p className="text-[hsl(var(--muted-foreground))]">By {advance.givenBy}</p>
                         {advance.recoveredInMonth && (
-                          <p className="text-emerald-600 mt-1">Recovered in {advance.recoveredInMonth}</p>
+                          <p className="text-[hsl(var(--muted-foreground))] mt-1">Recovered in {advance.recoveredInMonth}</p>
                         )}
                       </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          advance.status === "outstanding"
-                            ? "bg-amber-100 text-amber-800"
-                            : advance.status === "recovered"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
+                      <span className="shrink-0 text-[10px] capitalize text-[hsl(var(--muted-foreground))]">
                         {advance.status}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-2">
-                      <div className="flex gap-2">
+                    <div className="flex items-center justify-between gap-2 mt-1.5">
+                      <div>
                         {advance.proofUrl && (
                           <a
                             href={advance.proofUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[#1faca6] hover:underline"
+                            className="underline"
                           >
                             View proof
                           </a>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      <button
+                        type="button"
+                        className="text-[11px] text-[hsl(var(--muted-foreground))] underline cursor-pointer inline-flex items-center gap-1"
                         onClick={() => handleDelete(advance)}
                       >
-                        <Trash2 className="h-3 w-3 mr-1" />
+                        <Trash2 className="h-3 w-3" />
                         Delete
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 ))}
