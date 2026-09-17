@@ -44,43 +44,101 @@ import {
   summarizeLoans,
 } from "@/lib/finance-loans"
 
+const PK_OFFSET = "+05:00"
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0")
+}
+
+function pkTodayParts(d = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d)
+  const num = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find(p => p.type === type)?.value || 0)
+  return { y: num("year"), m: num("month"), d: num("day") }
+}
+
+function pkDayStart(y: number, m: number, d: number) {
+  return new Date(`${y}-${pad2(m)}-${pad2(d)}T00:00:00${PK_OFFSET}`)
+}
+
+function pkDayEnd(y: number, m: number, d: number) {
+  return new Date(`${y}-${pad2(m)}-${pad2(d)}T23:59:59.999${PK_OFFSET}`)
+}
+
+function parseIsoDay(iso: string | null | undefined): { y: number; m: number; d: number } | null {
+  if (!iso || !DATE_ONLY.test(iso)) return null
+  const [y, m, d] = iso.split("-").map(Number)
+  if (!y || !m || !d) return null
+  return { y, m, d }
+}
+
 function periodRange(period: string, fromStr?: string | null, toStr?: string | null) {
+  const pretty = (iso: string) => {
+    const [y, m, d] = iso.split("-")
+    return y && m && d ? `${d}/${m}/${y}` : iso
+  }
   if (fromStr || toStr) {
-    const start = fromStr ? new Date(`${fromStr}T00:00:00`) : new Date(2000, 0, 1)
-    const end = toStr ? new Date(`${toStr}T23:59:59.999`) : new Date()
-    const pretty = (iso: string) => {
-      const [y, m, d] = iso.split("-")
-      return y && m && d ? `${d}/${m}/${y}` : iso
-    }
+    const from = parseIsoDay(fromStr) || { y: 2000, m: 1, d: 1 }
+    const to = parseIsoDay(toStr) || pkTodayParts()
+    const start = pkDayStart(from.y, from.m, from.d)
+    const end = pkDayEnd(to.y, to.m, to.d)
+    const fromIso = fromStr && DATE_ONLY.test(fromStr) ? fromStr : `${from.y}-${pad2(from.m)}-${pad2(from.d)}`
+    const toIso = toStr && DATE_ONLY.test(toStr) ? toStr : `${to.y}-${pad2(to.m)}-${pad2(to.d)}`
     const label =
       fromStr && toStr
-        ? `${pretty(fromStr)} – ${pretty(toStr)}`
+        ? `${pretty(fromIso)} – ${pretty(toIso)}`
         : fromStr
-          ? `From ${pretty(fromStr)}`
-          : `Until ${pretty(toStr ?? "")}`
+          ? `From ${pretty(fromIso)}`
+          : `Until ${pretty(toIso)}`
     return { start, end, label }
   }
-  const now = new Date()
+  const { y, m, d } = pkTodayParts()
   if (period === "last_month") {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
-    return { start, end, label: "Last month" }
+    const prev = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 }
+    const lastDay = new Date(Date.UTC(prev.y, prev.m, 0)).getUTCDate()
+    return {
+      start: pkDayStart(prev.y, prev.m, 1),
+      end: pkDayEnd(prev.y, prev.m, lastDay),
+      label: "Last month",
+    }
   }
   if (period === "year") {
-    const start = new Date(now.getFullYear(), 0, 1)
-    return { start, end: now, label: "This year" }
+    return { start: pkDayStart(y, 1, 1), end: pkDayEnd(y, m, d), label: "This year" }
   }
-  const start = new Date(now.getFullYear(), now.getMonth(), 1)
-  return { start, end: now, label: "This month" }
+  return { start: pkDayStart(y, m, 1), end: pkDayEnd(y, m, d), label: "This month" }
 }
 
 function inRange(d: Date, start: Date, end: Date) {
   return d >= start && d <= end
 }
 
-/** YYYY-MM for payroll month filtering (matches HRM Make Salaries). */
-function payrollMonthKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+function salaryCashDate(slip: { paidAt?: Date | null; generatedDate: Date }) {
+  return slip.paidAt || slip.generatedDate
+}
+
+function pkShiftedMonth(y: number, m: number, delta: number) {
+  let mm = m + delta
+  let yy = y
+  while (mm <= 0) {
+    mm += 12
+    yy -= 1
+  }
+  while (mm > 12) {
+    mm -= 12
+    yy += 1
+  }
+  return { y: yy, m: mm }
+}
+
+function pkMonthBounds(y: number, m: number) {
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return { start: pkDayStart(y, m, 1), end: pkDayEnd(y, m, lastDay) }
 }
 
 export async function GET(req: NextRequest) {
@@ -90,8 +148,6 @@ export async function GET(req: NextRequest) {
     const from = url.searchParams.get("from")
     const to = url.searchParams.get("to")
     const { start, end, label: periodLabel } = periodRange(period, from, to)
-    const payrollMonthFrom = payrollMonthKey(start)
-    const payrollMonthTo = payrollMonthKey(end)
 
     const [ordersRaw, pos, records, loanRecords, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, payrollSalarySlips, fuelAllotments] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
@@ -129,11 +185,8 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       }),
       prisma.erpSalarySlip.findMany({
-        where: {
-          status: "finalized",
-          month: { gte: payrollMonthFrom, lte: payrollMonthTo },
-        },
-        select: { netSalary: true, month: true },
+        where: { status: "finalized" },
+        select: { netSalary: true, month: true, paidAt: true, generatedDate: true },
       }),
       prisma.erpFuelAllotment.findMany({
         select: { amountPkr: true, allottedAt: true, status: true },
@@ -358,7 +411,10 @@ export async function GET(req: NextRequest) {
     const salariesFromRecords = recordsInPeriod
       .filter(r => r.category === "Salary")
       .reduce((s, r) => s + r.amount, 0)
-    const salariesFromSlips = payrollSalarySlips.reduce((s, slip) => s + (Number(slip.netSalary) || 0), 0)
+    const salariesFromSlips = payrollSalarySlips.reduce((s, slip) => {
+      if (!inRange(salaryCashDate(slip), start, end)) return s
+      return s + (Number(slip.netSalary) || 0)
+    }, 0)
     const salariesInPeriod = salariesFromRecords + salariesFromSlips
     const expensesInPeriod = recordsInPeriod
       .filter(r => ["Expense", "Payment", "Tax", "Other"].includes(r.category))
@@ -503,10 +559,15 @@ export async function GET(req: NextRequest) {
 
     // Last 6 months trend (default buckets: exclude imported)
     const monthlyTrend: { month: string; moneyIn: number; moneyOut: number }[] = []
+    const endPk = pkTodayParts(end)
     for (let i = 5; i >= 0; i--) {
-      const mStart = new Date(end.getFullYear(), end.getMonth() - i, 1)
-      const mEnd = new Date(end.getFullYear(), end.getMonth() - i + 1, 0, 23, 59, 59)
-      const monthLabel = mStart.toLocaleDateString(undefined, { month: "short", year: "2-digit" })
+      const bucket = pkShiftedMonth(endPk.y, endPk.m, -i)
+      const { start: mStart, end: mEnd } = pkMonthBounds(bucket.y, bucket.m)
+      const monthLabel = mStart.toLocaleDateString("en-GB", {
+        month: "short",
+        year: "2-digit",
+        timeZone: "Asia/Karachi",
+      })
 
       let mi = 0
       let mo = 0
@@ -554,10 +615,8 @@ export async function GET(req: NextRequest) {
         if (r.category === "Loan" || r.category === "Loan Recovery") mi += r.amount
         else if (r.category === "Loan Given" || r.category === "Loan Repayment") mo += r.amount
       }
-      const trendMonthFrom = payrollMonthKey(mStart)
-      const trendMonthTo = payrollMonthKey(mEnd)
       for (const slip of payrollSalarySlips) {
-        if (slip.month >= trendMonthFrom && slip.month <= trendMonthTo) {
+        if (inRange(salaryCashDate(slip), mStart, mEnd)) {
           mo += Number(slip.netSalary) || 0
         }
       }
@@ -594,9 +653,13 @@ export async function GET(req: NextRequest) {
     }
 
     const activities: FinanceOverviewActivity[] = []
+    const pushActivity = (a: FinanceOverviewActivity) => {
+      if (!inRange(new Date(a.date), start, end)) return
+      activities.push(a)
+    }
 
-    for (const r of records.slice(0, 20)) {
-      activities.push({
+    for (const r of records) {
+      pushActivity({
         id: `rec-${r.id}`,
         date: r.createdAt.toISOString(),
         label: r.title,
@@ -605,8 +668,8 @@ export async function GET(req: NextRequest) {
         source: "record",
       })
     }
-    for (const sale of posSales.slice(0, 15)) {
-      activities.push({
+    for (const sale of posSales) {
+      pushActivity({
         id: `pos-${sale.id}`,
         date: sale.createdAt.toISOString(),
         label: `POS — ${sale.receiptNumber}${sale.customerName ? ` · ${sale.customerName}` : ""}`,
@@ -615,13 +678,13 @@ export async function GET(req: NextRequest) {
         source: "pos",
       })
     }
-    for (const row of orders.slice(0, 40)) {
+    for (const row of orders) {
       const payments = parseOrderPayments(row.payments)
       const orderStatus = row.status as Order["status"]
       for (const p of payments) {
         const amount = approvedBalancePaymentAmount(p, orderStatus)
         if (amount <= 0) continue
-        activities.push({
+        pushActivity({
           id: `pay-${p.id}`,
           date: p.date || row.createdAt.toISOString(),
           label: `Client — ${row.orderNumber} (${row.clientName})`,
@@ -634,7 +697,7 @@ export async function GET(req: NextRequest) {
       for (const cb of cashbackPayments) {
         const amount = Number(cb.amount) || 0
         if (amount <= 0) continue
-        activities.push({
+        pushActivity({
           id: `cb-${cb.id}`,
           date: cb.date || row.createdAt.toISOString(),
           label: `Cashback — ${row.orderNumber} (${row.clientName})${cb.source === "other" ? " · bonus" : ""}`,
@@ -649,7 +712,7 @@ export async function GET(req: NextRequest) {
       for (const rp of returnPayments) {
         const amount = Number(rp.amount) || 0
         if (amount <= 0) continue
-        activities.push({
+        pushActivity({
           id: `ret-${rp.id || row.id}`,
           date: rp.date || rp.createdAt || row.createdAt.toISOString(),
           label: `Return refund — ${row.orderNumber} (${row.clientName})`,
@@ -659,8 +722,8 @@ export async function GET(req: NextRequest) {
         })
       }
     }
-    for (const r of pettyReceipts.slice(0, 10)) {
-      activities.push({
+    for (const r of pettyReceipts) {
+      pushActivity({
         id: `pc-${r.id}`,
         date: (r.submittedAt ?? new Date()).toISOString(),
         label: `Petty cash — ${r.description}`,
@@ -671,6 +734,7 @@ export async function GET(req: NextRequest) {
     }
 
     activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    activities.splice(40)
 
     const crmOrderRows = orders
       .filter(row =>

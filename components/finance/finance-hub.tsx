@@ -468,12 +468,17 @@ export function FinanceHub({
   embedded: _embedded,
   dateFrom = "",
   dateTo = "",
+  period: periodProp,
+  onPeriodChange,
 }: {
   embedded?: boolean
   dateFrom?: string
   dateTo?: string
+  period?: string
+  onPeriodChange?: (id: string) => void
 }) {
-  const [period, setPeriod] = useState("month")
+  const [periodLocal, setPeriodLocal] = useState("month")
+  const period = periodProp ?? periodLocal
   const [loading, setLoading] = useState(true)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [error, setError] = useState("")
@@ -642,7 +647,7 @@ export function FinanceHub({
   }
 
   return (
-    <div className="space-y-3 max-w-5xl">
+    <div className={`space-y-3 max-w-5xl ${loading ? "opacity-60" : ""}`}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/15">
@@ -650,7 +655,7 @@ export function FinanceHub({
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setPeriod(p.id)}
+                onClick={() => (onPeriodChange ? onPeriodChange(p.id) : setPeriodLocal(p.id))}
                 className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
                   period === p.id && !dateFrom && !dateTo
                     ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"

@@ -61,6 +61,12 @@ export default function FinancePage() {
     setClientCreditFilter("all")
   }
 
+  function selectPeriod(id: string) {
+    setDateFrom("")
+    setDateTo("")
+    setReportPeriod(id)
+  }
+
   const tabs: { id: Tab; label: string; shortLabel: string }[] = [
     { id: "overview", label: "Overview", shortLabel: "Overview" },
     { id: "client", label: "Client Orders", shortLabel: "Orders" },
@@ -148,7 +154,15 @@ export default function FinancePage() {
             )}
           </div>
 
-          {activeTab === "overview" && <FinanceHub embedded dateFrom={dateFrom} dateTo={dateTo} />}
+          {activeTab === "overview" && (
+            <FinanceHub
+              embedded
+              period={reportPeriod}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onPeriodChange={selectPeriod}
+            />
+          )}
 
           {activeTab === "reports" && (
             <div className="space-y-4">
@@ -161,11 +175,7 @@ export default function FinancePage() {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => {
-                      setDateFrom("")
-                      setDateTo("")
-                      setReportPeriod(p.id)
-                    }}
+                    onClick={() => selectPeriod(p.id)}
                     className={`flex-1 sm:flex-none px-2 sm:px-3 py-2 sm:py-1.5 text-[11px] sm:text-xs font-medium rounded-md cursor-pointer text-center ${
                       reportPeriod === p.id && !dateFrom && !dateTo ? "bg-[#1faca6] text-white" : ""
                     }`}

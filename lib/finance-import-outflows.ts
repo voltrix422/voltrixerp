@@ -128,14 +128,13 @@ export function isImportOtherCharge(c: ImportCharge): boolean {
 }
 
 /**
- * Sum PSW + Charges for every import shipment that has amounts.
- * Includes the full Imported Purchases list (not period-truncated) so Finance
- * matches Purchase → Imported Purchases. start/end kept for API compatibility.
+ * Sum PSW + Charges for import shipments whose GD date (else created date)
+ * falls in [start, end]. Un-dated rows are skipped so Finance follows the filter.
  */
 export function importChargesSplitInPeriod(
   shipments: ImportShipmentMoneyOutRow[],
-  _start: Date,
-  _end: Date,
+  start: Date,
+  end: Date,
 ): ImportChargesSplit {
   let pswPkr = 0
   let chargesPkr = 0
@@ -144,6 +143,8 @@ export function importChargesSplitInPeriod(
   for (const sh of shipments) {
     const createdDate = parseDate(sh.createdAt)
     const gdDate = parseDate(String(sh.gdDate || "").trim() || null)
+    const when = gdDate || createdDate
+    if (!when || when < start || when > end) continue
     const fx = Number(sh.fxRate) || 0
     const charges = effectiveImportCharges(sh)
     let shPsw = 0
