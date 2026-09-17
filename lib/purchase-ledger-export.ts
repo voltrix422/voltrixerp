@@ -266,93 +266,64 @@ export async function downloadPurchaseLedgerReportPDF(
   entries: PurchaseLedgerEntry[],
   meta?: PurchaseLedgerExportMeta,
 ) {
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-    import("jspdf"),
-    import("jspdf-autotable"),
-  ])
-
-  const landscape = entries.length > 4
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: landscape ? "landscape" : "portrait" }) as JsDoc
-  const pageW = doc.internal.pageSize.getWidth()
-  const pageH = doc.internal.pageSize.getHeight()
-  const mL = MARGIN
-
+  const { downloadPlainReportPdf, pkr } = await import("@/lib/plain-report-pdf")
   const totalAmount = entries.reduce((s, e) => s + e.totalAmount, 0)
   const totalPaid = entries.reduce((s, e) => s + e.amountPaid, 0)
   const totalDue = entries.reduce((s, e) => s + e.amountDue, 0)
 
-  const metaLines = [
-    meta?.exportedBy ? `Exported by ${meta.exportedBy}` : "",
-    meta?.filterSummary ? `Filters: ${meta.filterSummary}` : "Filters: All entries",
-    `Generated ${new Date().toLocaleString("en-PK")}`,
-  ].filter(Boolean)
-
-  let y = await drawBrandHeader(doc, "Purchase Ledger Report", metaLines, "SUMMARY")
-
-  y = drawPaymentSummary(doc, totalAmount, totalPaid, totalDue, y)
-  y += 2
-
-  doc.setFillColor(248, 250, 250)
-  doc.roundedRect(mL, y, pageW - mL * 2, 10, 1.5, 1.5, "F")
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(9)
-  doc.setTextColor(60, 60, 60)
-  doc.text(`${entries.length} ${entries.length === 1 ? "entry" : "entries"} in this report`, mL + 4, y + 6.5)
-  y += 14
-
-  y = drawSectionTitle(doc, "Ledger entries", y)
-
-  autoTable(doc, {
-    startY: y,
-    head: [["Ledger #", "Date", "Type", "Project / Supplier", "Supplier(s)", "Total", "Paid", "Due", "Due date"]],
-    body: entries.length > 0
-      ? entries.map(e => [
-        e.ledgerNumber,
-        e.transactionDate,
-        formatLinkModeLabel(e.linkMode),
-        formatLedgerProject(e),
-        formatLedgerSuppliers(e),
-        fmtMoney(e.totalAmount),
-        fmtMoney(e.amountPaid),
-        fmtMoney(e.amountDue),
-        e.dueDate || "—",
-      ])
-      : [["—", "No entries match the selected filters", "", "", "", "", "", "", ""]],
-    theme: "striped",
-    styles: {
-      fontSize: 8,
-      cellPadding: 3,
-      lineColor: [230, 235, 235],
-      lineWidth: 0.2,
-      textColor: [40, 40, 40],
-    },
-    headStyles: {
-      fillColor: TEAL,
-      textColor: 255,
-      fontStyle: "bold",
-      halign: "left",
-    },
-    columnStyles: {
-      5: { halign: "right", fontStyle: "bold" },
-      6: { halign: "right", textColor: [16, 140, 90] },
-      7: { halign: "right", textColor: [200, 120, 20] },
-      0: { fontStyle: "bold", textColor: TEAL },
-    },
-    alternateRowStyles: { fillColor: [252, 253, 253] },
-    margin: { left: mL, right: mL },
-    didDrawPage: () => {
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.2)
-      doc.line(mL, pageH - 12, pageW - mL, pageH - 12)
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(7)
-      doc.setTextColor(120, 120, 120)
-      doc.text("Voltrix Batteries Pvt. Ltd. — Purchase Ledger Report", mL, pageH - 7)
-    },
+  await downloadPlainReportPdf({
+    title: "Purchase ledger report",
+    subtitle: meta?.filterSummary && meta.filterSummary !== "All entries" ? meta.filterSummary : "All entries",
+    meta: [
+      meta?.exportedBy ? `Exported by ${meta.exportedBy}` : "",
+      `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`,
+      `Generated ${new Date().toLocaleString("en-PK")}`,
+    ].filter(Boolean),
+    filename: `purchase-ledger-report-${new Date().toISOString().slice(0, 10)}.pdf`,
+    landscape: true,
+    tables: [
+      {
+        title: "Totals",
+        columns: [
+          { header: "Item" },
+          { header: "Amount", align: "right" },
+        ],
+        rows: [
+          ["Total", pkr(totalAmount)],
+          ["Paid", pkr(totalPaid)],
+          ["Due", pkr(totalDue)],
+        ],
+      },
+      {
+        title: "Entries",
+        columns: [
+          { header: "Ledger #" },
+          { header: "Date" },
+          { header: "Type" },
+          { header: "Project / Supplier" },
+          { header: "Supplier(s)" },
+          { header: "Total", align: "right" },
+          { header: "Paid", align: "right" },
+          { header: "Due", align: "right" },
+          { header: "Due date" },
+        ],
+        rows: entries.map((e) => [
+          e.ledgerNumber,
+          e.transactionDate,
+          formatLinkModeLabel(e.linkMode),
+          formatLedgerProject(e),
+          formatLedgerSuppliers(e),
+          pkr(e.totalAmount),
+          pkr(e.amountPaid),
+          pkr(e.amountDue),
+          e.dueDate || "—",
+        ]),
+        foot: entries.length
+          ? ["", "", "", "", `${entries.length} rows`, pkr(totalAmount), pkr(totalPaid), pkr(totalDue), ""]
+          : undefined,
+      },
+    ],
   })
-
-  drawFooter(doc)
-  doc.save(`purchase-ledger-report-${new Date().toISOString().slice(0, 10)}.pdf`)
 }
 
 export async function downloadPurchaseLedgerEntryPDF(entry: PurchaseLedgerEntry) {

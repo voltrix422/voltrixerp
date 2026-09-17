@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins } from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 import {
   type MoneyOutDetailLine,
@@ -171,7 +172,13 @@ function buildMoneyOutDisplayRows(
   if (fuelPetrol > 0.004) {
     rows.push({ label: "Petrol / fuel", amount: fuelPetrol })
   }
-  if (b.pettyCash > 0.004) rows.push({ label: "Petty cash", amount: b.pettyCash })
+  if (b.pettyCash > 0.004) {
+    rows.push({
+      label: "Petty cash (approved)",
+      amount: b.pettyCash,
+      details: details?.pettyCash,
+    })
+  }
 
   const importPsw = b.importPsw ?? 0
   const importCharges = b.importCharges ?? 0
@@ -457,9 +464,18 @@ function MoneyOutDetailsModal({
   )
 }
 
-export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
+export function FinanceHub({
+  embedded: _embedded,
+  dateFrom = "",
+  dateTo = "",
+}: {
+  embedded?: boolean
+  dateFrom?: string
+  dateTo?: string
+}) {
   const [period, setPeriod] = useState("month")
   const [loading, setLoading] = useState(true)
+  const [pdfBusy, setPdfBusy] = useState(false)
   const [error, setError] = useState("")
   const [periodLabel, setPeriodLabel] = useState("This month")
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -479,7 +495,14 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     setLoading(true)
     setError("")
     try {
-      const res = await fetch(`/api/finance/overview?period=${period}`)
+      const params = new URLSearchParams()
+      if (dateFrom || dateTo) {
+        if (dateFrom) params.set("from", dateFrom)
+        if (dateTo) params.set("to", dateTo)
+      } else {
+        params.set("period", period)
+      }
+      const res = await fetch(`/api/finance/overview?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to load")
       setPeriodLabel(data.periodLabel || "This month")
@@ -492,7 +515,7 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     } finally {
       setLoading(false)
     }
-  }, [period])
+  }, [period, dateFrom, dateTo])
 
   useEffect(() => {
     load()
@@ -551,6 +574,27 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     setEnabled(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  async function downloadPdf() {
+    setPdfBusy(true)
+    try {
+      const params = new URLSearchParams()
+      if (dateFrom || dateTo) {
+        if (dateFrom) params.set("from", dateFrom)
+        if (dateTo) params.set("to", dateTo)
+      } else {
+        params.set("period", period)
+      }
+      const res = await fetch(`/api/finance/overview?${params.toString()}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Could not load report")
+      await downloadFinanceOverviewPdf(data, { dateFrom, dateTo })
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
   const setSide = (side: "in" | "out", on: boolean) => {
     setEnabled(prev => {
       const next = { ...prev }
@@ -601,23 +645,33 @@ export function FinanceHub({ embedded: _embedded }: { embedded?: boolean }) {
     <div className="space-y-3 max-w-5xl">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/15">
-          {PERIODS.map(p => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setPeriod(p.id)}
-              className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
-                period === p.id
-                  ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
-                  : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+          <div className="flex rounded-md border p-0.5 bg-[hsl(var(--muted))]/15">
+            {PERIODS.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPeriod(p.id)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
+                  period === p.id && !dateFrom && !dateTo
+                    ? "bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 gap-1 text-[11px]"
+            onClick={() => void downloadPdf()}
+            disabled={pdfBusy}
+          >
+            {pdfBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            PDF
+          </Button>
           <Link
             href="/finance?tab=reports"
             className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] inline-flex items-center gap-0.5"

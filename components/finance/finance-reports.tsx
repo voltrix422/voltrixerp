@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Loader2, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
 
 type OverviewData = {
   periodLabel: string
@@ -18,17 +19,33 @@ function fmt(n: number) {
   return `PKR ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
-export function FinanceReports({ period }: { period: string }) {
+export function FinanceReports({
+  period,
+  dateFrom = "",
+  dateTo = "",
+}: {
+  period: string
+  dateFrom?: string
+  dateTo?: string
+}) {
   const [loading, setLoading] = useState(true)
+  const [pdfBusy, setPdfBusy] = useState(false)
   const [data, setData] = useState<OverviewData | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`/api/finance/overview?period=${period}`)
+    const params = new URLSearchParams()
+    if (dateFrom || dateTo) {
+      if (dateFrom) params.set("from", dateFrom)
+      if (dateTo) params.set("to", dateTo)
+    } else {
+      params.set("period", period)
+    }
+    const res = await fetch(`/api/finance/overview?${params.toString()}`)
     const json = await res.json()
     if (res.ok) setData(json)
     setLoading(false)
-  }, [period])
+  }, [period, dateFrom, dateTo])
 
   useEffect(() => { load() }, [load])
 
@@ -54,6 +71,16 @@ export function FinanceReports({ period }: { period: string }) {
     URL.revokeObjectURL(url)
   }
 
+  async function exportPdf() {
+    if (!data) return
+    setPdfBusy(true)
+    try {
+      await downloadFinanceOverviewPdf(data, { dateFrom, dateTo })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -68,7 +95,11 @@ export function FinanceReports({ period }: { period: string }) {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <div className="flex justify-stretch sm:justify-end">
+      <div className="flex justify-stretch sm:justify-end gap-2">
+        <Button size="sm" variant="outline" className="w-full sm:w-auto h-9 sm:h-8" onClick={() => void exportPdf()} disabled={pdfBusy}>
+          {pdfBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+          Download PDF
+        </Button>
         <Button size="sm" variant="outline" className="w-full sm:w-auto h-9 sm:h-8" onClick={exportCsv}>
           <Download className="h-3.5 w-3.5 mr-1" />
           Export activity CSV

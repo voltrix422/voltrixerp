@@ -10,8 +10,7 @@ import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-fina
 import { FinanceManager } from "@/components/finance/finance-manager"
 import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
 import { FinancePayroll } from "@/components/finance/finance-payroll"
-import { Button } from "@/components/ui/button"
-import { SlidersHorizontal, Search, Calendar } from "lucide-react"
+import { Search, Calendar } from "lucide-react"
 
 type Tab = "overview" | "manage" | "client" | "purchase" | "payroll" | "reports"
 type PayrollSection = "staff" | "sales"
@@ -21,7 +20,6 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview")
   const [manageSection, setManageSection] = useState<ManageSection>("finance")
   const [reportPeriod, setReportPeriod] = useState("month")
-  const [showFilters, setShowFilters] = useState(false)
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -96,69 +94,61 @@ export default function FinancePage() {
                 </button>
               ))}
             </div>
-            {activeTab !== "overview" && activeTab !== "reports" && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 w-8 p-0 shrink-0 cursor-pointer"
-                onClick={() => setShowFilters(v => !v)}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            )}
+            </div>
           </div>
 
-          {showFilters && activeTab !== "overview" && activeTab !== "reports" && (
-            <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center mb-4">
+          <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center mb-4">
+            {activeTab !== "overview" && activeTab !== "reports" && (
               <div className="relative w-full sm:flex-1 sm:min-w-[160px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search..."
-                  className="w-full h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-sm sm:text-xs focus:outline-none focus:ring-1 focus:ring-[#1faca6]"
+                  className="w-full h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-sm sm:text-xs focus:outline-none"
                 />
               </div>
-              <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={e => setDateFrom(e.target.value)}
-                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
-                />
-                <span className="text-[10px] text-[hsl(var(--muted-foreground))]">—</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={e => setDateTo(e.target.value)}
-                  className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
-                />
-              </div>
-              {activeTab === "client" && (
-                <select
-                  value={clientCreditFilter}
-                  onChange={e => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
-                  className="h-9 sm:h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs sm:min-w-[10rem] cursor-pointer"
-                  aria-label="Credit filter"
-                >
-                  <option value="all">All orders</option>
-                  <option value="outstanding">Outstanding credit</option>
-                  <option value="on_credit">On credit (any)</option>
-                </select>
-              )}
-              {hasFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="h-9 sm:h-8 w-full sm:w-auto px-3 text-xs border rounded-md cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
+            )}
+            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              <Calendar className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+              />
+              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
+              />
             </div>
-          )}
+            {activeTab === "client" && (
+              <select
+                value={clientCreditFilter}
+                onChange={e => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
+                className="h-9 sm:h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs sm:min-w-[10rem] cursor-pointer"
+                aria-label="Credit filter"
+              >
+                <option value="all">All orders</option>
+                <option value="outstanding">Outstanding credit</option>
+                <option value="on_credit">On credit (any)</option>
+              </select>
+            )}
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="h-9 sm:h-8 w-full sm:w-auto px-3 text-xs border rounded-md cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
 
-          {activeTab === "overview" && <FinanceHub embedded />}
+          {activeTab === "overview" && <FinanceHub embedded dateFrom={dateFrom} dateTo={dateTo} />}
 
           {activeTab === "reports" && (
             <div className="space-y-4">
@@ -171,16 +161,20 @@ export default function FinancePage() {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => setReportPeriod(p.id)}
+                    onClick={() => {
+                      setDateFrom("")
+                      setDateTo("")
+                      setReportPeriod(p.id)
+                    }}
                     className={`flex-1 sm:flex-none px-2 sm:px-3 py-2 sm:py-1.5 text-[11px] sm:text-xs font-medium rounded-md cursor-pointer text-center ${
-                      reportPeriod === p.id ? "bg-[#1faca6] text-white" : ""
+                      reportPeriod === p.id && !dateFrom && !dateTo ? "bg-[#1faca6] text-white" : ""
                     }`}
                   >
                     {p.label}
                   </button>
                 ))}
               </div>
-              <FinanceReports period={reportPeriod} />
+              <FinanceReports period={reportPeriod} dateFrom={dateFrom} dateTo={dateTo} />
             </div>
           )}
 

@@ -241,6 +241,43 @@ export function buildImportCombinedDetails(
     }))
 }
 
+export function buildPettyCashApprovedDetails(
+  receipts: Array<{
+    id: string
+    employeeName: string
+    description: string
+    category?: string
+    amount: number
+    status: string
+    submittedAt: Date | string
+    reviewedAt?: Date | string | null
+  }>,
+  start: Date,
+  end: Date,
+): MoneyOutDetailLine[] {
+  const lines: MoneyOutDetailLine[] = []
+  for (const r of receipts) {
+    if (r.status !== "approved") continue
+    const amount = Number(r.amount) || 0
+    if (amount <= 0) continue
+    const raw = r.reviewedAt ?? r.submittedAt
+    if (!raw) continue
+    const d = new Date(raw)
+    if (!inRange(d, start, end)) continue
+    const desc = String(r.description || "").trim()
+    const cat = String(r.category || "").trim()
+    lines.push({
+      id: `pc-${r.id}`,
+      label: r.employeeName || "Petty cash",
+      sublabel: [cat, desc].filter(Boolean).join(" · ") || undefined,
+      amount,
+      date: fmtDate(typeof raw === "string" ? raw : raw.toISOString()),
+      href: "/finance?tab=manage&section=petty-cash",
+    })
+  }
+  return lines.sort((a, b) => b.amount - a.amount)
+}
+
 export type MoneyOutDetailsPayload = {
   clientRefunds: MoneyOutDetailLine[]
   cashback: MoneyOutDetailLine[]
@@ -248,6 +285,7 @@ export type MoneyOutDetailsPayload = {
   importCharges?: MoneyOutDetailLine[]
   importChargesCombined?: MoneyOutDetailLine[]
   loansGiven?: MoneyOutDetailLine[]
+  pettyCash?: MoneyOutDetailLine[]
 }
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
@@ -261,4 +299,6 @@ export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload>
   "Imported purchases · charges": "importCharges",
   "Imported purchases · total (PSW + charges)": "importChargesCombined",
   "Loans given": "loansGiven",
+  "Petty cash": "pettyCash",
+  "Petty cash (approved)": "pettyCash",
 }

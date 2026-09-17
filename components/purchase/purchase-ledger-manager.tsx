@@ -632,7 +632,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [filterDueFrom, setFilterDueFrom] = useState("")
   const [filterDueTo, setFilterDueTo] = useState("")
   const [exporting, setExporting] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(true)
   const [showRentForm, setShowRentForm] = useState(false)
   const [petrolStats, setPetrolStats] = useState({
     count: 0,
@@ -1493,7 +1493,6 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   }
 
   async function exportFilteredPdf() {
-    if (filtered.length === 0) return
     setExporting(true)
     try {
       await downloadPurchaseLedgerReportPDF(filtered, {
@@ -1533,6 +1532,22 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))] shrink-0">From</span>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={e => setFilterDateFrom(e.target.value)}
+              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs w-[8.5rem]"
+            />
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={e => setFilterDateTo(e.target.value)}
+              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs w-[8.5rem]"
+            />
+          </div>
           <Button
             type="button"
             size="sm"
@@ -1548,7 +1563,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             size="sm"
             variant="outline"
             className="h-8 text-xs cursor-pointer"
-            disabled={filtered.length === 0 || exporting}
+            disabled={exporting}
             onClick={() => void exportFilteredPdf()}
           >
             <Download className="h-3.5 w-3.5" /> PDF
@@ -1645,6 +1660,26 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
                   <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-[10px] cursor-pointer shrink-0"
+                    disabled={exporting}
+                    onClick={() => void exportFilteredPdf()}
+                  >
+                    <Download className="h-3 w-3" /> PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-[10px] cursor-pointer shrink-0"
+                    disabled={filtered.length === 0 || exporting}
+                    onClick={() => void exportFilteredExcel()}
+                  >
+                    <FileSpreadsheet className="h-3 w-3" /> Excel
+                  </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] shrink-0">Due</span>

@@ -35,6 +35,7 @@ import {
   buildImportChargeStepDetails,
   buildImportCombinedDetails,
   buildImportPswDetails,
+  buildPettyCashApprovedDetails,
 } from "@/lib/finance-money-out-details"
 import { importChargesSplitInPeriod } from "@/lib/finance-import-outflows"
 import {
@@ -43,7 +44,22 @@ import {
   summarizeLoans,
 } from "@/lib/finance-loans"
 
-function periodRange(period: string) {
+function periodRange(period: string, fromStr?: string | null, toStr?: string | null) {
+  if (fromStr || toStr) {
+    const start = fromStr ? new Date(`${fromStr}T00:00:00`) : new Date(2000, 0, 1)
+    const end = toStr ? new Date(`${toStr}T23:59:59.999`) : new Date()
+    const pretty = (iso: string) => {
+      const [y, m, d] = iso.split("-")
+      return y && m && d ? `${d}/${m}/${y}` : iso
+    }
+    const label =
+      fromStr && toStr
+        ? `${pretty(fromStr)} – ${pretty(toStr)}`
+        : fromStr
+          ? `From ${pretty(fromStr)}`
+          : `Until ${pretty(toStr)}`
+    return { start, end, label }
+  }
   const now = new Date()
   if (period === "last_month") {
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -69,8 +85,11 @@ function payrollMonthKey(d: Date) {
 
 export async function GET(req: NextRequest) {
   try {
-    const period = new URL(req.url).searchParams.get("period") || "month"
-    const { start, end, label: periodLabel } = periodRange(period)
+    const url = new URL(req.url)
+    const period = url.searchParams.get("period") || "month"
+    const from = url.searchParams.get("from")
+    const to = url.searchParams.get("to")
+    const { start, end, label: periodLabel } = periodRange(period, from, to)
     const payrollMonthFrom = payrollMonthKey(start)
     const payrollMonthTo = payrollMonthKey(end)
 
@@ -680,6 +699,7 @@ export async function GET(req: NextRequest) {
       importCharges: buildImportChargeStepDetails(importChargesSplit.shipments),
       importChargesCombined: buildImportCombinedDetails(importChargesSplit.shipments),
       loansGiven: buildLoanOutDetails(loanRecords, start, end),
+      pettyCash: buildPettyCashApprovedDetails(pettyReceipts, start, end),
     }
 
     return NextResponse.json({
