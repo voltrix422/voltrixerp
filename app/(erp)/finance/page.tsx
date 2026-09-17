@@ -15,6 +15,7 @@ import { Search, Calendar } from "lucide-react"
 type Tab = "overview" | "manage" | "client" | "purchase" | "payroll" | "reports"
 type PayrollSection = "staff" | "sales"
 type ManageSection = "finance" | "petty-cash"
+
 export default function FinancePage() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>("overview")
@@ -76,7 +77,7 @@ export default function FinancePage() {
         <div className="p-3 sm:p-4 md:p-6 max-w-6xl">
           <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] mb-4 -mx-3 px-3 sm:mx-0 sm:px-0">
             <div className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0">
-              {tabs.map(tab => (
+              {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -94,7 +95,6 @@ export default function FinancePage() {
                 </button>
               ))}
             </div>
-            </div>
           </div>
 
           <div className="rounded-lg border bg-[hsl(var(--card))] p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center mb-4">
@@ -103,7 +103,7 @@ export default function FinancePage() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
                 <input
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search..."
                   className="w-full h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-3 text-sm sm:text-xs focus:outline-none"
                 />
@@ -114,21 +114,21 @@ export default function FinancePage() {
               <input
                 type="date"
                 value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
+                onChange={(e) => setDateFrom(e.target.value)}
                 className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
               />
               <span className="text-[10px] text-[hsl(var(--muted-foreground))]">to</span>
               <input
                 type="date"
                 value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
+                onChange={(e) => setDateTo(e.target.value)}
                 className="h-9 sm:h-8 rounded-md border bg-[hsl(var(--background))] px-2 text-xs flex-1 min-w-0 sm:w-32"
               />
             </div>
             {activeTab === "client" && (
               <select
                 value={clientCreditFilter}
-                onChange={e => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
+                onChange={(e) => setClientCreditFilter(e.target.value as ClientOrdersCreditFilter)}
                 className="h-9 sm:h-8 w-full sm:w-auto rounded-md border bg-[hsl(var(--background))] px-2 text-xs sm:min-w-[10rem] cursor-pointer"
                 aria-label="Credit filter"
               >
@@ -157,7 +157,7 @@ export default function FinancePage() {
                   { id: "month", label: "This month" },
                   { id: "last_month", label: "Last month" },
                   { id: "year", label: "This year" },
-                ].map(p => (
+                ].map((p) => (
                   <button
                     key={p.id}
                     type="button"
@@ -184,7 +184,7 @@ export default function FinancePage() {
                 {[
                   { id: "finance" as const, label: "Finance Records" },
                   { id: "petty-cash" as const, label: "Petty Cash" },
-                ].map(section => (
+                ].map((section) => (
                   <button
                     key={section.id}
                     onClick={() => setManageSection(section.id)}
