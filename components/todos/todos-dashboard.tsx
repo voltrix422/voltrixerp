@@ -24,7 +24,10 @@ import {
   cadenceLabel,
   createTodo,
   deleteTodo,
+  formatReminderTime,
+  isRecurringCadence,
   listTodos,
+  setTodoReminder,
   statusLabel,
   type Todo,
   type TodoCadence,
@@ -157,8 +160,10 @@ export function TodosDashboard() {
     description: "",
     cadence: "daily" as TodoCadence,
     dueAt: "",
+    reminderTime: "09:00",
     assigneeUserId: "",
   })
+  const [reminderDraft, setReminderDraft] = useState("")
 
   const [updateForm, setUpdateForm] = useState({
     message: "",
@@ -212,6 +217,13 @@ export function TodosDashboard() {
       }
 
       if (period === "today") {
+        if (isRecurringCadence(t.cadence)) {
+          if (t.status === "done") {
+            const doneKey = t.completedAt ? ymdLocal(new Date(t.completedAt)) : todoDayKey(t)
+            return doneKey === todayKey
+          }
+          return true
+        }
         const day = todoDayKey(t)
         if (day === todayKey) return true
         // overdue open / in-progress still on Today
@@ -300,6 +312,10 @@ export function TodosDashboard() {
     setSelectedId(filteredTodos[0]?.id ?? null)
   }, [teamMode, peopleGroups, selectedPersonId, filteredTodos, selectedId])
 
+  useEffect(() => {
+    setReminderDraft(selected?.reminderTime || "")
+  }, [selected?.id, selected?.reminderTime])
+
   function openPerson(userId: string) {
     const person = peopleGroups.find((p) => p.userId === userId)
     setSelectedPersonId(userId)
@@ -360,6 +376,7 @@ export function TodosDashboard() {
         description: form.description.trim(),
         cadence: form.cadence,
         dueAt: form.dueAt || null,
+        reminderTime: form.cadence === "once" ? "" : form.reminderTime,
         assigneeUserId: assignee.id,
         assigneeName: assignee.name,
         assignedBy: user?.name || "",
@@ -367,7 +384,7 @@ export function TodosDashboard() {
       })
       toast({ title: "To-do assigned", message: `Sent to ${assignee.name}`, type: "success" })
       setShowCreate(false)
-      setForm({ title: "", description: "", cadence: "daily", dueAt: "", assigneeUserId: "" })
+      setForm({ title: "", description: "", cadence: "daily", dueAt: "", reminderTime: "09:00", assigneeUserId: "" })
       await load()
       setSelectedPersonId(assignee.id)
       setSelectedId(created.id)
@@ -428,6 +445,59 @@ export function TodosDashboard() {
     return Boolean(user?.id && row.assigneeUserId === user.id)
   }
 
+  async function saveReminder(todo: Todo) {
+    if (!isRecurringCadence(todo.cadence)) return
+    setSaving(true)
+    try {
+      await setTodoReminder(todo.id, reminderDraft)
+      toast({ title: "Reminder saved", message: formatReminderTime(reminderDraft) || "Reminder cleared", type: "success" })
+      await load()
+    } catch (err) {
+      toast({
+        title: "Could not save reminder",
+        message: err instanceof Error ? err.message : "Try again",
+        type: "error",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function cadenceLine(row: Todo) {
+    const reminder = formatReminderTime(row.reminderTime)
+    return `${cadenceLabel(row.cadence)}${reminder ? ` · reminder ${reminder}` : ""}${row.dueAt ? ` · due ${fmtWhen(row.dueAt)}` : ""}`
+  }
+
+  function renderReminder(todo: Todo) {
+    if (!isRecurringCadence(todo.cadence) || !canUpdate(todo)) return null
+    return (
+      <div className="rounded-xl border px-3 py-2.5 space-y-1.5">
+        <p className="text-[11px] font-medium">Reminder time (Pakistan)</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="time"
+            value={reminderDraft}
+            onChange={(e) => setReminderDraft(e.target.value)}
+            className="h-9 rounded-md border px-3 text-sm"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 text-xs"
+            disabled={saving}
+            onClick={() => void saveReminder(todo)}
+          >
+            Save reminder
+          </Button>
+        </div>
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          ERP notifies the assignee at this time each {todo.cadence === "daily" ? "day" : todo.cadence === "weekly" ? "week" : "month"} until the task is marked done.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -438,8 +508,8 @@ export function TodosDashboard() {
           </div>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
             {isAdmin
-              ? "Assign tasks to people. Open a person to see all their to-dos for the selected day/range."
-              : "Your assigned tasks. Update progress and attach supporting files."}
+              ? "Assign one-time or recurring tasks. Recurring work reopens automatically and notifies the employee at the reminder time."
+              : "Your assigned tasks. Recurring work reminds you at the time set on the task."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px]">
@@ -637,8 +707,7 @@ export function TodosDashboard() {
                             </span>
                           </div>
                           <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {cadenceLabel(row.cadence)}
-                            {row.dueAt ? ` · due ${fmtWhen(row.dueAt)}` : ""}
+                            {cadenceLine(row)}
                           </p>
                         </div>
                         <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--muted-foreground))] mt-1" />
@@ -713,8 +782,7 @@ export function TodosDashboard() {
                             </span>
                           </div>
                           <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                            {cadenceLabel(row.cadence)}
-                            {row.dueAt ? ` · due ${fmtWhen(row.dueAt)}` : ""}
+                            {cadenceLine(row)}
                             {" · "}assigned {fmtWhen(row.assignedAt)}
                             {row.assignedBy ? ` · ${row.assignedBy}` : ""}
                           </p>
@@ -748,6 +816,8 @@ export function TodosDashboard() {
                                 <Trash2 className="h-3.5 w-3.5" /> Delete
                               </Button>
                             </div>
+
+                            {renderReminder(selected)}
 
                             {canUpdate(selected) && selected.status !== "done" && (
                               <form onSubmit={submitUpdate} className="space-y-3">
@@ -875,8 +945,7 @@ export function TodosDashboard() {
                       </span>
                     </div>
                     <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-                      For <strong>{selected.assigneeName}</strong> · {cadenceLabel(selected.cadence)}
-                      {selected.dueAt ? ` · due ${fmtWhen(selected.dueAt)}` : ""}
+                      For <strong>{selected.assigneeName}</strong> · {cadenceLine(selected)}
                     </p>
                     <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                       Assigned {fmtWhen(selected.assignedAt)}
@@ -914,6 +983,8 @@ export function TodosDashboard() {
                     </Button>
                   )}
                 </div>
+
+                {renderReminder(selected)}
 
                 {canUpdate(selected) && selected.status !== "done" && (
                   <form
@@ -1039,6 +1110,9 @@ export function TodosDashboard() {
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm font-semibold">Assign to-do</p>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))] -mt-1">
+              Use Daily / Weekly / Monthly for recurring work. Set a reminder time so the employee is notified in ERP.
+            </p>
             <div>
               <label className="text-[11px] font-medium">Title *</label>
               <input
@@ -1061,7 +1135,7 @@ export function TodosDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[11px] font-medium">Cadence *</label>
+                <label className="text-[11px] font-medium">Repeat *</label>
                 <select
                   value={form.cadence}
                   onChange={(e) =>
@@ -1086,6 +1160,21 @@ export function TodosDashboard() {
                 />
               </div>
             </div>
+            {form.cadence !== "once" && (
+              <div>
+                <label className="text-[11px] font-medium">Reminder time *</label>
+                <input
+                  type="time"
+                  value={form.reminderTime}
+                  onChange={(e) => setForm((f) => ({ ...f, reminderTime: e.target.value }))}
+                  className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
+                  required
+                />
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                  Pakistan time. The assignee gets a notification at this time each {form.cadence === "daily" ? "day" : form.cadence === "weekly" ? "week" : "month"}.
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-[11px] font-medium">Assign to *</label>
               <select
@@ -1109,7 +1198,7 @@ export function TodosDashboard() {
                 disabled={saving}
                 className="h-9 bg-[#1faca6] hover:bg-[#17857f] text-white"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Assign"}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : form.cadence === "once" ? "Assign" : "Assign recurring"}
               </Button>
               <Button type="button" variant="outline" className="h-9" onClick={() => setShowCreate(false)}>
                 Cancel

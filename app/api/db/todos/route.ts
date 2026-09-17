@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import type { Prisma } from "@prisma/client"
 import { notifyUser } from "@/lib/notifications-server"
+import { parseReminderHm, reminderAlreadyDueToday } from "@/lib/todo-reminders"
 
 function parseUrls(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -67,6 +68,8 @@ export async function POST(req: NextRequest) {
           ? null
           : new Date(String(dueRaw))
 
+      const reminderTime = cadence === "once" ? "" : parseReminderHm(body.reminderTime)
+
       const row = await prisma.erpTodo.create({
         data: {
           title,
@@ -77,6 +80,8 @@ export async function POST(req: NextRequest) {
           assigneeName,
           assignedBy: String(body.assignedBy ?? "").trim(),
           assignedById: body.assignedById ? String(body.assignedById).trim() : null,
+          reminderTime,
+          lastRemindedAt: reminderTime && reminderAlreadyDueToday(reminderTime) ? new Date() : null,
           status: "open",
         },
         include: todoInclude,
@@ -84,8 +89,10 @@ export async function POST(req: NextRequest) {
 
       try {
         await notifyUser(assigneeUserId, {
-          title: "New to-do assigned",
-          message: `${row.title} (${cadence})`,
+          title: cadence === "once" ? "New to-do assigned" : "Recurring to-do assigned",
+          message: reminderTime
+            ? `${row.title} (${cadence}) · reminder ${reminderTime}`
+            : `${row.title} (${cadence})`,
           type: "info",
           link: "/todos",
         })
@@ -153,6 +160,23 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      return NextResponse.json(row)
+    }
+
+    if (action === "set_reminder") {
+      const id = String(body.id ?? "").trim()
+      if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 })
+      const existing = await prisma.erpTodo.findUnique({ where: { id } })
+      if (!existing) return NextResponse.json({ error: "Todo not found" }, { status: 404 })
+      if (existing.cadence === "once") {
+        return NextResponse.json({ error: "Reminders are for recurring tasks" }, { status: 400 })
+      }
+      const reminderTime = parseReminderHm(body.reminderTime)
+      const row = await prisma.erpTodo.update({
+        where: { id },
+        data: { reminderTime },
+        include: todoInclude,
+      })
       return NextResponse.json(row)
     }
 

@@ -52,6 +52,7 @@ export function NotificationBell() {
       fetchNotifications(user.id),
       fetchUnreadCount(user.id),
     ])
+    void fetch("/api/db/todos/remind", { method: "POST" }).catch(() => {})
     const incoming = list.filter((n) => !n.read && !seenIdsRef.current.has(n.id))
     if (!primedRef.current) {
       primedRef.current = true

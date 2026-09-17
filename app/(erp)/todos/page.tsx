@@ -13,7 +13,7 @@ export default function TodosPage() {
     <>
       <Topbar
         title="To-do"
-        description="Daily, weekly & monthly tasks · updates with attachments"
+        description="Recurring daily / weekly / monthly tasks with reminder notifications"
       />
       <div className="flex-1 overflow-auto">
         <div className="p-4 sm:p-6 max-w-7xl">

@@ -26,6 +26,8 @@ export type Todo = {
   assignedAt: string
   completedAt: string | null
   completedBy: string
+  reminderTime: string
+  lastRemindedAt: string | null
   createdAt: string
   updatedAt: string
   updates: TodoUpdate[]
@@ -67,6 +69,8 @@ function mapTodo(row: Record<string, unknown>): Todo {
     assignedAt: String(row.assignedAt || ""),
     completedAt: row.completedAt ? String(row.completedAt) : null,
     completedBy: String(row.completedBy || ""),
+    reminderTime: String(row.reminderTime || ""),
+    lastRemindedAt: row.lastRemindedAt ? String(row.lastRemindedAt) : null,
     createdAt: String(row.createdAt || ""),
     updatedAt: String(row.updatedAt || ""),
     updates,
@@ -91,6 +95,7 @@ export async function createTodo(input: {
   description?: string
   cadence: TodoCadence
   dueAt?: string | null
+  reminderTime?: string
   assigneeUserId: string
   assigneeName: string
   assignedBy?: string
@@ -134,12 +139,37 @@ export async function deleteTodo(id: string): Promise<void> {
   if (!res.ok) throw new Error(data.error || "Failed to delete todo")
 }
 
+export async function setTodoReminder(id: string, reminderTime: string): Promise<Todo> {
+  const res = await fetch("/api/db/todos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "set_reminder", id, reminderTime }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Failed to save reminder")
+  return mapTodo(data)
+}
+
 export const TODO_CADENCE_OPTIONS: { value: TodoCadence; label: string }[] = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
+  { value: "daily", label: "Daily (recurring)" },
+  { value: "weekly", label: "Weekly (recurring)" },
+  { value: "monthly", label: "Monthly (recurring)" },
   { value: "once", label: "One-time" },
 ]
+
+export function isRecurringCadence(c: string) {
+  return c === "daily" || c === "weekly" || c === "monthly"
+}
+
+export function formatReminderTime(hhmm: string) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim())
+  if (!m) return ""
+  const hour = Number(m[1])
+  const minute = m[2]
+  const ampm = hour >= 12 ? "PM" : "AM"
+  const h12 = hour % 12 || 12
+  return `${h12}:${minute} ${ampm}`
+}
 
 export function cadenceLabel(c: string) {
   return TODO_CADENCE_OPTIONS.find((o) => o.value === c)?.label || c
