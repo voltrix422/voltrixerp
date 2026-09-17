@@ -57,7 +57,7 @@ function periodRange(period: string, fromStr?: string | null, toStr?: string | n
         ? `${pretty(fromStr)} – ${pretty(toStr)}`
         : fromStr
           ? `From ${pretty(fromStr)}`
-          : `Until ${pretty(toStr)}`
+          : `Until ${pretty(toStr ?? "")}`
     return { start, end, label }
   }
   const now = new Date()
