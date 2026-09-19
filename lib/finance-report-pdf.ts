@@ -214,26 +214,13 @@ export async function downloadFinanceOverviewPdf(
 
   const inRows = moneyRows(s.breakdown?.moneyIn, MONEY_IN_LABELS, moneyIn)
   const outRows = moneyRows(s.breakdown?.moneyOut, MONEY_OUT_LABELS, moneyOut)
+  const methodTotal = methods.reduce((n, r) => n + r.amount, 0)
 
-  const tables: PlainTable[] = [
-    {
-      title: "Summary",
-      columns: [
-        { header: "Figure", width: 90 },
-        { header: "Amount", align: "right", width: 96 },
-      ],
-      rows: [
-        ["Money in", pkr(moneyIn)],
-        ["Money out", pkr(moneyOut)],
-        [net >= 0 ? "Net surplus" : "Net deficit", pkr(net)],
-      ],
-    },
-  ]
+  const tables: PlainTable[] = []
 
   if (inRows.length) {
     tables.push({
       title: "Money in",
-      newPage: true,
       columns: [
         { header: "Source", width: 120 },
         { header: "Amount", align: "right", width: 44 },
@@ -255,6 +242,68 @@ export async function downloadFinanceOverviewPdf(
       ],
       rows: outRows,
       foot: ["Total", pkr(moneyOut), "100%"],
+    })
+  }
+
+  if (orders.length) {
+    tables.push({
+      title: "CRM client orders",
+      newPage: true,
+      columns: [
+        { header: "Date", width: 22, minWidth: 22 },
+        { header: "Order no.", width: 24 },
+        { header: "Client", width: 28 },
+        { header: "Items", width: 48, small: true },
+        { header: "Payment", width: 36, small: true },
+        { header: "Total", align: "right", width: 28 },
+      ],
+      rows: orders.map((r) => [
+        shortDate(r.date),
+        r.orderNumber,
+        r.clientName,
+        compactItems(r.items),
+        payLabel(r.total, r.paidTotal ?? r.receivedInPeriod),
+        pkr(r.total),
+      ]),
+      foot: ["", "", "", "", `${orders.length}`, pkr(orderTotal)],
+    })
+  }
+
+  if (methods.length) {
+    tables.push({
+      title: "CRM payments by method",
+      newPage: true,
+      columns: [
+        { header: "Method", width: 100 },
+        { header: "Amount", align: "right", width: 46 },
+        { header: "%", align: "right", width: 40 },
+      ],
+      rows: methods.map((r) => [prettyMethod(r.method), pkr(r.amount), pct(r.amount, methodTotal)]),
+      foot: ["Total", pkr(methodTotal), "100%"],
+    })
+  }
+
+  if (posSales.length) {
+    tables.push({
+      title: "POS sales",
+      newPage: true,
+      columns: [
+        { header: "Date", width: 22, minWidth: 22 },
+        { header: "Sale no.", width: 24 },
+        { header: "Customer", width: 28 },
+        { header: "Items", width: 48, small: true },
+        { header: "Payment", width: 36, small: true },
+        { header: "Amount", align: "right", width: 28 },
+      ],
+      rows: posSales.map((r) => [
+        shortDate(r.date),
+        r.number,
+        r.customer,
+        compactItems(r.items),
+        payLabel(r.total, r.paidTotal ?? r.total, r.method),
+        pkr(r.total),
+      ]),
+      foot: ["", "", "", "", `${posSales.length}`, pkr(posTotal)],
     })
   }
 
@@ -335,69 +384,6 @@ export async function downloadFinanceOverviewPdf(
 
   tables.push(...purchaseOrderTables("Local purchase orders", localPurchases))
   tables.push(...purchaseOrderTables("Imported purchase orders", importedPurchases))
-
-  if (posSales.length) {
-    tables.push({
-      title: "POS sales",
-      newPage: true,
-      columns: [
-        { header: "Date", width: 22, minWidth: 22 },
-        { header: "Sale no.", width: 24 },
-        { header: "Customer", width: 28 },
-        { header: "Items", width: 48, small: true },
-        { header: "Payment", width: 36, small: true },
-        { header: "Amount", align: "right", width: 28 },
-      ],
-      rows: posSales.map((r) => [
-        shortDate(r.date),
-        r.number,
-        r.customer,
-        compactItems(r.items),
-        payLabel(r.total, r.paidTotal ?? r.total, r.method),
-        pkr(r.total),
-      ]),
-      foot: ["", "", "", "", `${posSales.length}`, pkr(posTotal)],
-    })
-  }
-
-  if (orders.length) {
-    tables.push({
-      title: "Client orders",
-      newPage: true,
-      columns: [
-        { header: "Date", width: 22, minWidth: 22 },
-        { header: "Order no.", width: 24 },
-        { header: "Client", width: 28 },
-        { header: "Items", width: 48, small: true },
-        { header: "Payment", width: 36, small: true },
-        { header: "Total", align: "right", width: 28 },
-      ],
-      rows: orders.map((r) => [
-        shortDate(r.date),
-        r.orderNumber,
-        r.clientName,
-        compactItems(r.items),
-        payLabel(r.total, r.paidTotal ?? r.receivedInPeriod),
-        pkr(r.total),
-      ]),
-      foot: ["", "", "", "", `${orders.length}`, pkr(orderTotal)],
-    })
-  }
-
-  if (methods.length) {
-    const methodTotal = methods.reduce((n, r) => n + r.amount, 0)
-    tables.push({
-      title: "Client orders — payments by method",
-      newPage: true,
-      columns: [
-        { header: "Method", width: 100 },
-        { header: "Amount", align: "right", width: 46 },
-        { header: "%", align: "right", width: 40 },
-      ],
-      rows: methods.map((r) => [prettyMethod(r.method), pkr(r.amount), pct(r.amount, methodTotal)]),
-      foot: ["Total", pkr(methodTotal), "100%"],
-    })
-  }
 
   const generated = new Date().toLocaleString("en-PK", {
     timeZone: "Asia/Karachi",
