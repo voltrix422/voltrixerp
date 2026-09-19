@@ -3,6 +3,7 @@ export type PlainCol = {
   align?: "left" | "right" | "center"
   width?: number
   minWidth?: number
+  small?: boolean
 }
 
 export type PlainTable = {
@@ -269,6 +270,7 @@ export async function downloadPlainReportPdf(opts: {
             halign: c.align || "left",
             cellWidth: colWidths[i],
             overflow: "linebreak",
+            fontSize: c.small ? 7.5 : 9,
           },
         ]),
       ),
