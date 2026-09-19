@@ -105,13 +105,12 @@ export async function downloadInventoryMovementsPDF(opts: InventoryMovementsPdfO
     grouped.set(kind, list)
   }
   const extraKinds = [...grouped.keys()].filter((k) => !kinds.includes(k)).sort()
-  const typeRows = [...kinds, ...extraKinds]
-    .map((kind) => {
-      const rows = grouped.get(kind) || []
-      if (!rows.length) return null
-      return [kind, String(rows.length), String(pcs(rows)), String(qtySum(rows))]
-    })
-    .filter((row): row is (string | number)[] => Boolean(row))
+  const typeRows: (string | number)[][] = []
+  for (const kind of [...kinds, ...extraKinds]) {
+    const rows = grouped.get(kind) || []
+    if (!rows.length) continue
+    typeRows.push([kind, String(rows.length), String(pcs(rows)), String(qtySum(rows))])
+  }
 
   const orders = ofKind(movements, "Order")
   const returns = ofKind(movements, "Return")
