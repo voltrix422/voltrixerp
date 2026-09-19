@@ -2,9 +2,10 @@ import type {
   FinanceExpenseByPerson,
   FinanceExpenseLine,
   FinanceOrderRow,
+  FinancePdfItem,
   FinancePosRow,
 } from "@/lib/finance-report-details"
-import { dateRangeLabel, downloadPlainReportPdf, pkr, type PlainTable } from "@/lib/plain-report-pdf"
+import { dateRangeLabel, downloadPlainReportPdf, pct, pkr, type PlainTable } from "@/lib/plain-report-pdf"
 
 type OverviewLike = {
   periodLabel?: string
@@ -24,38 +25,69 @@ type OverviewLike = {
   recentActivity?: { date: string; label: string; amount: number; category: string; source: string }[]
 }
 
-function moneyRows(obj: Record<string, number | undefined> | undefined): [string, string][] {
+const MONEY_IN_LABELS: Record<string, string> = {
+  clientPayments: "Client payments (CRM orders)",
+  posSales: "POS sales (counter + branch)",
+  incomeRecords: "Income records",
+  loans: "Loans in (received + recovered)",
+  loansReceived: "Loans received from people",
+  loanRecoveries: "Loan amounts returned to us",
+}
+
+const MONEY_OUT_LABELS: Record<string, string> = {
+  expenses: "Expenses (records)",
+  loansGiven: "Loans given / repaid by us",
+  salaries: "Salaries (payroll)",
+  localPurchases: "Local purchase orders",
+  purchaseLedger: "Purchase ledger",
+  purchaseLedgerPurchases: "Purchases (ledger)",
+  purchaseLedgerRents: "Rents (ledger)",
+  importedPurchases: "Imported purchase orders",
+  importShipments: "Import shipment payments",
+  importPsw: "Import PSW / customs duties",
+  importCharges: "Import landing charges",
+  importChargesCombined: "Import PSW + charges",
+  pettyCash: "Petty cash (approved receipts)",
+  advances: "Advances",
+  supplierAdvances: "Supplier advances",
+  salaryAdvances: "Salary advances",
+  cashback: "Cashback paid to clients",
+  clientRefunds: "Client refunds (returns)",
+  fuelPetrol: "Petrol / fuel",
+}
+
+function moneyRows(
+  obj: Record<string, number | undefined> | undefined,
+  labels: Record<string, string>,
+  total: number,
+): (string | number)[][] {
   if (!obj) return []
-  const labels: Record<string, string> = {
-    clientPayments: "Client payments",
-    posSales: "POS sales",
-    incomeRecords: "Income records",
-    loans: "Loans (in)",
-    loansReceived: "Loans received",
-    loanRecoveries: "Returned to us",
-    expenses: "Expenses",
-    loansGiven: "Loans given",
-    salaries: "Salaries",
-    localPurchases: "Local purchases",
-    purchaseLedger: "Purchase ledger",
-    purchaseLedgerPurchases: "Purchases (ledger)",
-    purchaseLedgerRents: "Rents (ledger)",
-    importedPurchases: "Imported purchases",
-    importShipments: "Import shipments",
-    importPsw: "Import PSW",
-    importCharges: "Import charges",
-    importChargesCombined: "Import charges combined",
-    pettyCash: "Petty cash (approved)",
-    advances: "Advances",
-    supplierAdvances: "Supplier advances",
-    salaryAdvances: "Salary advances",
-    cashback: "Cashback",
-    clientRefunds: "Client refunds",
-    fuelPetrol: "Petrol / fuel",
-  }
   return Object.entries(obj)
-    .filter(([, n]) => typeof n === "number" && Math.abs(n) > 0.004)
-    .map(([k, n]) => [labels[k] || k, pkr(n as number)])
+    .filter(([, n]) => typeof n === "number" && Math.abs(n as number) > 0.004)
+    .map(([k, n]) => [labels[k] || k, pkr(n as number), pct(n as number, total)])
+}
+
+function prettyStatus(value: string) {
+  return String(value || "—")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function prettyMethod(value: string) {
+  const v = String(value || "—").trim()
+  if (!v) return "—"
+  return v.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function productBlock(item: FinancePdfItem) {
+  const lines = [item.description || "Item"]
+  if (item.model) lines.push(`Model: ${item.model}`)
+  if (item.inventory) lines.push(`Stock: ${item.inventory}`)
+  return lines.join("\n")
+}
+
+function qtyBlock(item: FinancePdfItem) {
+  return `${item.qty} ${item.unit || "pcs"}`
 }
 
 export async function downloadFinanceOverviewPdf(
@@ -63,175 +95,243 @@ export async function downloadFinanceOverviewPdf(
   opts?: { dateFrom?: string; dateTo?: string },
 ) {
   const s = data.summary || {}
-  const inRows = moneyRows(s.breakdown?.moneyIn)
-  const outRows = moneyRows(s.breakdown?.moneyOut)
+  const moneyIn = Number(s.moneyIn) || 0
+  const moneyOut = Number(s.moneyOut) || 0
+  const net = Number(s.netCashFlow) || moneyIn - moneyOut
   const range =
     opts?.dateFrom || opts?.dateTo
       ? dateRangeLabel(opts.dateFrom || "", opts.dateTo || "")
       : data.periodLabel || "Selected period"
 
+  const expenses = data.expenseLines || []
+  const byPerson = data.expensesByPerson || []
+  const byCategory = data.expensesByCategory || []
+  const posSales = data.posSales || []
+  const orders = data.orders || []
+  const methods = data.paymentMethods || []
+  const outstanding = data.topOutstandingClients || []
+
+  const expenseTotal = expenses.reduce((sum, r) => sum + r.amount, 0)
+  const posTotal = posSales.reduce((sum, r) => sum + r.total, 0)
+  const posItemCount = posSales.reduce((sum, r) => sum + r.items.length, 0)
+  const orderTotal = orders.reduce((sum, r) => sum + r.total, 0)
+  const orderReceived = orders.reduce((sum, r) => sum + r.receivedInPeriod, 0)
+  const orderItemCount = orders.reduce((sum, r) => sum + r.items.length, 0)
+  const outstandingTotal = outstanding.reduce((sum, r) => sum + r.remaining, 0)
+
+  const inRows = moneyRows(s.breakdown?.moneyIn, MONEY_IN_LABELS, moneyIn)
+  const outRows = moneyRows(s.breakdown?.moneyOut, MONEY_OUT_LABELS, moneyOut)
+
   const tables: PlainTable[] = [
     {
-      title: "Summary",
+      title: "Cash snapshot",
+      note: "Totals for the selected period only. Outstanding and all-time balances are listed later and are not part of net cash.",
       columns: [
-        { header: "Item" },
-        { header: "Amount", align: "right" },
+        { header: "Figure", width: 95 },
+        { header: "What it means", width: 110 },
+        { header: "Amount", align: "right", width: 68 },
       ],
       rows: [
-        ["Money in", pkr(Number(s.moneyIn) || 0)],
-        ["Money out", pkr(Number(s.moneyOut) || 0)],
-        ["Net cash flow", pkr(Number(s.netCashFlow) || 0)],
+        ["Money in", "Cash received in this period (clients, POS, loans, income)", pkr(moneyIn)],
+        ["Money out", "Cash leaving in this period (expenses, payroll, imports, refunds)", pkr(moneyOut)],
+        [
+          net >= 0 ? "Net surplus" : "Net deficit",
+          net >= 0 ? "Money in minus money out" : "Money out is higher than money in",
+          pkr(net),
+        ],
+      ],
+    },
+    {
+      title: "What this report contains",
+      note: "Use the sections below for the full working. Empty sections are omitted.",
+      columns: [
+        { header: "Section", width: 70 },
+        { header: "Count", align: "right", width: 28 },
+        { header: "Amount / note", width: 175 },
+      ],
+      rows: [
+        ["Expenses", String(expenses.length), `${pkr(expenseTotal)}  ·  ${byPerson.length} people`],
+        ["POS sales", String(posSales.length), `${pkr(posTotal)}  ·  ${posItemCount} products`],
+        ["Orders", String(orders.length), `${pkr(orderReceived)} received of ${pkr(orderTotal)}  ·  ${orderItemCount} items`],
+        ["Outstanding clients", String(outstanding.length), pkr(outstandingTotal)],
       ],
     },
   ]
 
   if (inRows.length) {
     tables.push({
-      title: "Money in",
+      title: "Money in — by source",
+      note: "Each line is already included in Money in above. Share is that line as a percent of money in.",
       columns: [
-        { header: "Source" },
-        { header: "Amount", align: "right" },
+        { header: "Source", width: 160 },
+        { header: "Amount", align: "right", width: 65 },
+        { header: "Share", align: "right", width: 48 },
       ],
       rows: inRows,
+      foot: ["Total money in", pkr(moneyIn), "100%"],
     })
   }
+
   if (outRows.length) {
     tables.push({
-      title: "Money out",
+      title: "Money out — by source",
+      note: "Each line is already included in Money out above. Share is that line as a percent of money out.",
       columns: [
-        { header: "Source" },
-        { header: "Amount", align: "right" },
+        { header: "Source", width: 160 },
+        { header: "Amount", align: "right", width: 65 },
+        { header: "Share", align: "right", width: 48 },
       ],
       rows: outRows,
+      foot: ["Total money out", pkr(moneyOut), "100%"],
     })
   }
-  if (data.expensesByPerson?.length) {
-    const total = data.expensesByPerson.reduce((s, r) => s + r.amount, 0)
+
+  if (byPerson.length) {
     tables.push({
-      title: "Expenses by person",
+      title: "Expenses — who entered them",
+      note: "Grouped by the ERP user who recorded the expense. Receipt person, if different, is on the next table.",
       columns: [
-        { header: "Who" },
-        { header: "Count", align: "right" },
-        { header: "Amount", align: "right" },
+        { header: "Entered by", width: 110 },
+        { header: "Entries", align: "right", width: 32 },
+        { header: "Amount", align: "right", width: 65 },
+        { header: "Share", align: "right", width: 66 },
       ],
-      rows: data.expensesByPerson.map((r) => [r.name, String(r.count), pkr(r.amount)]),
-      foot: ["Total", String(data.expensesByPerson.reduce((s, r) => s + r.count, 0)), pkr(total)],
+      rows: byPerson.map((r) => [r.name, String(r.count), pkr(r.amount), pct(r.amount, expenseTotal)]),
+      foot: ["All people", String(byPerson.reduce((n, r) => n + r.count, 0)), pkr(expenseTotal), "100%"],
     })
   }
-  if (data.expenseLines?.length) {
-    const total = data.expenseLines.reduce((s, r) => s + r.amount, 0)
+
+  if (byCategory.length) {
+    const catTotal = byCategory.reduce((n, r) => n + r.amount, 0)
     tables.push({
-      title: "All expenses",
+      title: "Expenses — by category",
+      note: "Same expense records, grouped by category.",
       columns: [
-        { header: "Date" },
-        { header: "Who" },
-        { header: "Title" },
-        { header: "Category" },
-        { header: "Amount", align: "right" },
+        { header: "Category", width: 142 },
+        { header: "Amount", align: "right", width: 65 },
+        { header: "Share", align: "right", width: 66 },
       ],
-      rows: data.expenseLines.map((r) => [
+      rows: byCategory.map((r) => [r.category, pkr(r.amount), pct(r.amount, catTotal)]),
+      foot: ["All categories", pkr(catTotal), "100%"],
+    })
+  }
+
+  if (expenses.length) {
+    tables.push({
+      title: "All expense entries",
+      note: "Every expense, payment, tax, or other cash-out record in the date range.",
+      newPage: true,
+      columns: [
+        { header: "Date", width: 24 },
+        { header: "Entered by", width: 38 },
+        { header: "Receipt from", width: 36 },
+        { header: "Description", width: 95 },
+        { header: "Category", width: 28 },
+        { header: "Amount", align: "right", width: 52 },
+      ],
+      rows: expenses.map((r) => [
         r.date,
-        r.receiptPerson ? `${r.createdBy} (receipt ${r.receiptPerson})` : r.createdBy,
+        r.createdBy || "—",
+        r.receiptPerson || "—",
         r.title,
         r.category,
         pkr(r.amount),
       ]),
-      foot: ["", "", "Total", "", pkr(total)],
-    })
-  } else if (data.expensesByCategory?.length) {
-    tables.push({
-      title: "Expenses by category",
-      columns: [
-        { header: "Category" },
-        { header: "Amount", align: "right" },
-      ],
-      rows: data.expensesByCategory.map((r) => [r.category, pkr(r.amount)]),
+      foot: ["", "", "", `Total · ${expenses.length} entries`, "", pkr(expenseTotal)],
     })
   }
 
-  if (data.posSales?.length) {
-    const total = data.posSales.reduce((s, r) => s + r.total, 0)
+  if (posSales.length) {
     tables.push({
       title: "POS sales",
+      note: "Counter receipts and branch POS orders created in this period. Product lines follow.",
+      newPage: true,
       columns: [
-        { header: "Date" },
-        { header: "Receipt / order" },
-        { header: "Type" },
-        { header: "Customer" },
-        { header: "Cashier" },
-        { header: "Method" },
-        { header: "Amount", align: "right" },
+        { header: "Date", width: 24 },
+        { header: "Sale no.", width: 36 },
+        { header: "Type", width: 28 },
+        { header: "Customer", width: 42 },
+        { header: "Cashier", width: 36 },
+        { header: "Pay", width: 22 },
+        { header: "Products", width: 33 },
+        { header: "Amount", align: "right", width: 52 },
       ],
-      rows: data.posSales.map((r) => [
+      rows: posSales.map((r) => [
         r.date,
         r.number,
         r.kind,
         r.customer,
         r.cashier,
-        r.method,
+        prettyMethod(r.method),
+        String(r.items.length),
         pkr(r.total),
       ]),
-      foot: ["", "", "", "", "", "Total", pkr(total)],
+      foot: ["", "", "", "", "", "", String(posItemCount), pkr(posTotal)],
     })
-    const posItems = data.posSales.flatMap((r) =>
+
+    const posItems = posSales.flatMap((r) =>
       r.items.map((item) => [
+        r.date,
         r.number,
-        item.description,
-        item.model || item.inventory,
-        `${item.qty} ${item.unit}`,
+        r.customer,
+        productBlock(item),
+        qtyBlock(item),
         pkr(item.unitPrice),
         pkr(item.lineTotal),
       ]),
     )
     if (posItems.length) {
       tables.push({
-        title: "POS sale items",
+        title: "POS products sold",
+        note: "Each inventory / POS line sold on the receipts above.",
         columns: [
-          { header: "Receipt / order" },
-          { header: "Product" },
-          { header: "Inventory" },
-          { header: "Qty" },
-          { header: "Unit price", align: "right" },
-          { header: "Line total", align: "right" },
+          { header: "Date", width: 24 },
+          { header: "Sale no.", width: 34 },
+          { header: "Customer", width: 40 },
+          { header: "Product / stock", width: 88 },
+          { header: "Qty", width: 22 },
+          { header: "Unit price", align: "right", width: 32 },
+          { header: "Line total", align: "right", width: 33 },
         ],
         rows: posItems,
       })
     }
   }
 
-  if (data.orders?.length) {
-    const total = data.orders.reduce((s, r) => s + r.total, 0)
-    const received = data.orders.reduce((s, r) => s + r.receivedInPeriod, 0)
+  if (orders.length) {
     tables.push({
-      title: "Orders",
+      title: "Client orders",
+      note: "CRM orders created or paid in this period. Received is cash taken inside the date range, not the full order unless it was paid here.",
+      newPage: true,
       columns: [
-        { header: "Date" },
-        { header: "Order" },
-        { header: "Client" },
-        { header: "Status" },
-        { header: "By" },
-        { header: "Order total", align: "right" },
-        { header: "Received in range", align: "right" },
+        { header: "Date", width: 24 },
+        { header: "Order no.", width: 32 },
+        { header: "Client", width: 48 },
+        { header: "Status", width: 28 },
+        { header: "Created by", width: 32 },
+        { header: "Items", width: 18 },
+        { header: "Order total", align: "right", width: 42 },
+        { header: "Received here", align: "right", width: 49 },
       ],
-      rows: data.orders.map((r) => [
+      rows: orders.map((r) => [
         r.date,
         r.orderNumber,
         r.clientName,
-        r.status,
+        prettyStatus(r.status),
         r.createdBy,
+        String(r.items.length),
         pkr(r.total),
         pkr(r.receivedInPeriod),
       ]),
-      foot: ["", "", "", "", "Total", pkr(total), pkr(received)],
+      foot: ["", "", "", "", "", String(orderItemCount), pkr(orderTotal), pkr(orderReceived)],
     })
-    const orderItems = data.orders.flatMap((r) =>
+
+    const orderItems = orders.flatMap((r) =>
       r.items.map((item) => [
         r.orderNumber,
         r.clientName,
-        item.description,
-        item.model,
-        item.inventory,
-        `${item.qty} ${item.unit}`,
+        productBlock(item),
+        qtyBlock(item),
         pkr(item.unitPrice),
         pkr(item.lineTotal),
       ]),
@@ -239,65 +339,65 @@ export async function downloadFinanceOverviewPdf(
     if (orderItems.length) {
       tables.push({
         title: "Order inventory items",
+        note: "Product, model, and stock reference for every line on the orders above.",
         columns: [
-          { header: "Order" },
-          { header: "Client" },
-          { header: "Product" },
-          { header: "Model" },
-          { header: "Inventory" },
-          { header: "Qty" },
-          { header: "Unit price", align: "right" },
-          { header: "Line total", align: "right" },
+          { header: "Order no.", width: 32 },
+          { header: "Client", width: 44 },
+          { header: "Product / model / stock", width: 102 },
+          { header: "Qty", width: 22 },
+          { header: "Unit price", align: "right", width: 36 },
+          { header: "Line total", align: "right", width: 37 },
         ],
         rows: orderItems,
       })
     }
   }
-  if (data.paymentMethods?.length) {
+
+  if (methods.length) {
+    const methodTotal = methods.reduce((n, r) => n + r.amount, 0)
     tables.push({
       title: "Client payments by method",
+      note: "Approved CRM payments received in this period, split by how the client paid.",
       columns: [
-        { header: "Method" },
-        { header: "Amount", align: "right" },
+        { header: "Payment method", width: 142 },
+        { header: "Amount", align: "right", width: 65 },
+        { header: "Share", align: "right", width: 66 },
       ],
-      rows: data.paymentMethods.map((r) => [r.method, pkr(r.amount)]),
+      rows: methods.map((r) => [prettyMethod(r.method), pkr(r.amount), pct(r.amount, methodTotal)]),
+      foot: ["All methods", pkr(methodTotal), "100%"],
     })
   }
-  if (data.topOutstandingClients?.length) {
+
+  if (outstanding.length) {
     tables.push({
-      title: "Outstanding clients",
+      title: "Outstanding client balances",
+      note: "Open credit still due. This is a current balance, not limited to the date range.",
       columns: [
-        { header: "Client" },
-        { header: "Order" },
-        { header: "Remaining", align: "right" },
+        { header: "Client", width: 90 },
+        { header: "Order no.", width: 50 },
+        { header: "Still due", align: "right", width: 133 },
       ],
-      rows: data.topOutstandingClients.map((r) => [r.name, r.orderNumber, pkr(r.remaining)]),
+      rows: outstanding.map((r) => [r.name, r.orderNumber, pkr(r.remaining)]),
+      foot: [`${outstanding.length} orders`, "", pkr(outstandingTotal)],
     })
   }
-  if (data.recentActivity?.length) {
-    tables.push({
-      title: "Activity",
-      columns: [
-        { header: "Date" },
-        { header: "Description" },
-        { header: "Type" },
-        { header: "Source" },
-        { header: "Amount", align: "right" },
-      ],
-      rows: data.recentActivity.map((a) => [
-        new Date(a.date).toLocaleDateString("en-GB"),
-        a.label,
-        a.category,
-        a.source,
-        pkr(a.amount),
-      ]),
-    })
-  }
+
+  const generated = new Date().toLocaleString("en-PK", {
+    timeZone: "Asia/Karachi",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 
   await downloadPlainReportPdf({
     title: "Finance report",
     subtitle: range,
-    meta: [`Generated ${new Date().toLocaleString("en-PK")}`],
+    meta: [
+      `Currency  PKR     ·     Generated  ${generated}  (Pakistan time)`,
+      `Money in  ${pkr(moneyIn)}     ·     Money out  ${pkr(moneyOut)}     ·     Net  ${pkr(net)}`,
+    ],
     filename: `finance-report-${new Date().toISOString().slice(0, 10)}.pdf`,
     tables,
     landscape: true,
