@@ -18,7 +18,7 @@ import { InventoryMovementRowCard, InventoryMovementTableRow } from "@/component
 import { downloadInventoryMovementsExcel } from "@/lib/inventory-excel-export"
 import { downloadInventoryMovementsPDF } from "@/lib/generate-inventory-movements-pdf"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
-import { Badge } from "@/components/ui/badge"
+import { getSession } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import {
@@ -33,10 +33,12 @@ import {
 } from "lucide-react"
 
 const DATE_PRESETS: { id: DateRangePreset; label: string }[] = [
+  { id: "today", label: "Today" },
   { id: "last_3_days", label: "Last 3 days" },
-  { id: "last_week", label: "Last week" },
+  { id: "last_7", label: "Last 7 days" },
+  { id: "last_15", label: "Last 15 days" },
+  { id: "last_30", label: "Last 30 days" },
   { id: "this_month", label: "This month" },
-  { id: "custom", label: "Custom range" },
 ]
 
 function formatPeriodLabel(from: string, to: string): string {
@@ -52,17 +54,24 @@ export function InventoryMovementOverview() {
   const [movements, setMovements] = useState<InventoryMovementRow[]>([])
   const [search, setSearch] = useState("")
   const [filterType, setFilterType] = useState<"all" | "in" | "out">("all")
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("last_week")
-  const [customFrom, setCustomFrom] = useState("")
-  const [customTo, setCustomTo] = useState("")
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("today")
+  const [customFrom, setCustomFrom] = useState(() => getDateRangeForPreset("today").from)
+  const [customTo, setCustomTo] = useState(() => getDateRangeForPreset("today").to)
   const [exportingExcel, setExportingExcel] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const dateRange = useMemo(
-    () => getDateRangeForPreset(datePreset, customFrom, customTo),
-    [datePreset, customFrom, customTo],
+    () => ({ from: customFrom, to: customTo }),
+    [customFrom, customTo],
   )
+
+  function applyDatePreset(preset: DateRangePreset) {
+    const range = getDateRangeForPreset(preset)
+    setDatePreset(preset)
+    setCustomFrom(range.from)
+    setCustomTo(range.to)
+  }
 
   const periodLabel = formatPeriodLabel(dateRange.from, dateRange.to)
 
@@ -171,19 +180,24 @@ export function InventoryMovementOverview() {
     }
   }
 
-  function handleExportPdf() {
-    if (filtered.length === 0) return
+  async function handleExportPdf() {
+    if (filtered.length === 0 || exportingPdf) return
     setExportingPdf(true)
     try {
-      downloadInventoryMovementsPDF({
+      await downloadInventoryMovementsPDF({
         movements: filtered,
         dateLabel: periodLabel,
+        dateFrom: dateRange.from,
+        dateTo: dateRange.to,
+        exportedBy: getSession()?.name,
       })
       toast({
-        title: "PDF generated",
-        message: `${filtered.length} movement(s) included in the report.`,
+        title: "Downloaded",
+        message: `${filtered.length} movement(s) saved as PDF.`,
         type: "success",
       })
+    } catch {
+      toast({ title: "Error", message: "Could not generate PDF.", type: "error" })
     } finally {
       setExportingPdf(false)
     }
@@ -193,9 +207,9 @@ export function InventoryMovementOverview() {
     <div className="space-y-5">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
-          <h3 className="text-lg font-bold">Inventory Movement Overview</h3>
+          <h3 className="text-lg font-bold">Inventory report</h3>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 max-w-2xl">
-            Full audit trail of stock movements — where items came from, where they went, linked orders and clients.
+            Daily or date-range report — what came in, what went out, to which order and client.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -210,10 +224,10 @@ export function InventoryMovementOverview() {
             variant="outline"
             className="h-8 text-xs gap-1.5 cursor-pointer"
             disabled={filtered.length === 0 || exportingPdf}
-            onClick={handleExportPdf}
+            onClick={() => void handleExportPdf()}
           >
             <FileDown className="h-3.5 w-3.5" />
-            {exportingPdf ? "Generating…" : "Export PDF"}
+            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
           </Button>
         </div>
       </div>
@@ -229,7 +243,7 @@ export function InventoryMovementOverview() {
             <button
               key={id}
               type="button"
-              onClick={() => setDatePreset(id)}
+              onClick={() => applyDatePreset(id)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer ${
                 datePreset === id
                   ? "bg-[#1faca6] text-white border-[#1faca6]"
@@ -240,23 +254,38 @@ export function InventoryMovementOverview() {
             </button>
           ))}
         </div>
-        {datePreset === "custom" && (
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <input
-              type="date"
-              value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-            />
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">to</span>
-            <input
-              type="date"
-              value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
-            />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <input
+            type="date"
+            value={customFrom}
+            onChange={(e) => {
+              setCustomFrom(e.target.value)
+              setDatePreset("custom")
+            }}
+            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
+          />
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">to</span>
+          <input
+            type="date"
+            value={customTo}
+            onChange={(e) => {
+              setCustomTo(e.target.value)
+              setDatePreset("custom")
+            }}
+            className="h-8 rounded-md border bg-[hsl(var(--background))] px-3 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] cursor-pointer"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5 cursor-pointer"
+            disabled={filtered.length === 0 || exportingPdf}
+            onClick={() => void handleExportPdf()}
+          >
+            <FileDown className="h-3.5 w-3.5" />
+            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
+          </Button>
+        </div>
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
           Showing: <span className="font-medium text-[hsl(var(--foreground))]">{periodLabel}</span>
         </p>

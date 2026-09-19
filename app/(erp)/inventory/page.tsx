@@ -10,7 +10,7 @@ import { BranchesTab } from "@/components/branches/branches-tab"
 import { InventoryMovementOverview } from "@/components/inventory/inventory-movement-overview"
 import { FaultyInventoryTab } from "@/components/inventory/faulty-inventory-tab"
 
-const HISTORY_TAB_ENABLED = false
+const HISTORY_TAB_ENABLED = true
 
 type InventoryTab = "orders" | "inventory" | "manual" | "faulty" | "returns" | "branches" | "history"
 
@@ -25,7 +25,7 @@ export default function InventoryPage() {
     { id: "returns", label: "Order returns", shortLabel: "Returns" },
     { id: "branches", label: "Branches", shortLabel: "Branches" },
     ...(HISTORY_TAB_ENABLED
-      ? [{ id: "history" as const, label: "History", shortLabel: "History" }]
+      ? [{ id: "history" as const, label: "Report", shortLabel: "Report" }]
       : []),
   ]
 

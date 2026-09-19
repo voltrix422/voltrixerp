@@ -232,7 +232,10 @@ export function enrichMovement(
     source,
     destination,
     client_name: clientName,
-    order_number: tx.reference_type === "order" ? tx.reference_number : "",
+    order_number:
+      tx.reference_type === "order" || /^ORD-/i.test(tx.reference_number || "")
+        ? tx.reference_number
+        : "",
     is_inbound: inbound,
     abs_quantity: Math.abs(tx.quantity),
   }
@@ -444,7 +447,40 @@ export function attachMainWarehouseBalances(
   })
 }
 
-export type DateRangePreset = "last_3_days" | "last_week" | "this_month" | "custom"
+export type DateRangePreset = "today" | "last_3_days" | "last_7" | "last_15" | "last_30" | "this_month" | "custom"
+
+export type ProductMovementSummary = {
+  name: string
+  model?: string
+  qtyIn: number
+  qtyOut: number
+  net: number
+  orders: string[]
+  clients: string[]
+}
+
+export function summarizeMovementsByProduct(movements: InventoryMovementRow[]): ProductMovementSummary[] {
+  const byKey = new Map<string, ProductMovementSummary>()
+  for (const m of movements) {
+    const key = `${m.item_model_code || ""}::${m.item_description}`
+    const row = byKey.get(key) || {
+      name: m.item_description,
+      model: m.item_model_code,
+      qtyIn: 0,
+      qtyOut: 0,
+      net: 0,
+      orders: [],
+      clients: [],
+    }
+    if (m.is_inbound) row.qtyIn += m.abs_quantity
+    else row.qtyOut += m.abs_quantity
+    row.net = row.qtyIn - row.qtyOut
+    if (m.order_number && !row.orders.includes(m.order_number)) row.orders.push(m.order_number)
+    if (m.client_name && !row.clients.includes(m.client_name)) row.clients.push(m.client_name)
+    byKey.set(key, row)
+  }
+  return [...byKey.values()].sort((a, b) => b.qtyOut + b.qtyIn - (a.qtyOut + a.qtyIn))
+}
 
 export function getDateRangeForPreset(
   preset: DateRangePreset,
@@ -462,12 +498,21 @@ export function getDateRangeForPreset(
   }
 
   const fromDate = new Date(now)
+  if (preset === "today") {
+    return { from: to, to }
+  }
   if (preset === "last_3_days") {
-    fromDate.setDate(fromDate.getDate() - 3)
-  } else if (preset === "last_week") {
-    fromDate.setDate(fromDate.getDate() - 7)
+    fromDate.setDate(fromDate.getDate() - 2)
+  } else if (preset === "last_7") {
+    fromDate.setDate(fromDate.getDate() - 6)
+  } else if (preset === "last_15") {
+    fromDate.setDate(fromDate.getDate() - 14)
+  } else if (preset === "last_30") {
+    fromDate.setDate(fromDate.getDate() - 29)
   } else if (preset === "this_month") {
     fromDate.setDate(1)
+  } else {
+    fromDate.setDate(fromDate.getDate() - 6)
   }
 
   return {
