@@ -23,10 +23,11 @@ import { useToast } from "@/components/ui/toast"
 import { Plus, Search, X, Trash2, ShoppingCart, FileText, Download, Eye, DollarSign, Edit, Loader2, RotateCcw, Gift, ChevronDown, Shield, PlayCircle } from "lucide-react"
 import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
-import { ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
+import { ClientExcludePicker, ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
 import {
   findLedgerClient,
   listLedgerClients,
+  orderBelongsToAnyClient,
   orderBelongsToClient,
 } from "@/lib/client-order-ledger"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
@@ -361,6 +362,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [orderSummaryOpen, setOrderSummaryOpen] = useState(false)
   const [ledgerClientId, setLedgerClientId] = useState("")
   const [referrerFilter, setReferrerFilter] = useState("")
+  const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
 
   async function handleListDownloadPdf(order: Order, e?: { stopPropagation: () => void }) {
     e?.stopPropagation()
@@ -403,6 +405,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
   const ledgerOptions = listLedgerClients(clients, orders)
   const ledgerClient = findLedgerClient(ledgerOptions, ledgerClientId)
+  const excludedClients = excludedClientIds
+    .map((id) => findLedgerClient(ledgerOptions, id))
+    .filter((c): c is NonNullable<typeof c> => Boolean(c))
 
   const filtered = orders.filter(o => {
     const q = search.toLowerCase()
@@ -416,7 +421,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
     const matchesPayment = orderMatchesPaymentFilter(o, paymentFilter)
     const matchesDateRange = orderMatchesDateRange(o.createdAt, fromDate, toDate)
-    const matchesClient = !ledgerClient || orderBelongsToClient(o, ledgerClient)
+    const matchesClient = ledgerClient
+      ? orderBelongsToClient(o, ledgerClient)
+      : excludedClients.length === 0 || !orderBelongsToAnyClient(o, excludedClients)
     const matchesReferrer =
       !referrerFilter ||
       (o.referrerName || "").trim().toLowerCase() === referrerFilter.toLowerCase()
@@ -433,7 +440,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   ).sort((a, b) => a.localeCompare(b))
 
   const hasActiveFilters = Boolean(
-    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all" || ledgerClientId || referrerFilter,
+    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all" || ledgerClientId || referrerFilter || excludedClientIds.length > 0,
   )
 
   function applyDatePreset(preset: DatePreset) {
@@ -459,6 +466,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     setDatePreset("")
     setLedgerClientId("")
     setReferrerFilter("")
+    setExcludedClientIds([])
   }
 
   function selectLedgerClient(id: string) {
@@ -471,6 +479,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     setPaymentFilter("all")
     setDatePreset("")
     setReferrerFilter("")
+    setExcludedClientIds([])
   }
 
   function exportListExcel() {
@@ -603,6 +612,16 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               ))}
             </div>
           </div>
+
+          <ClientExcludePicker
+            clients={clients}
+            orders={orders}
+            excludedIds={excludedClientIds}
+            onChange={(ids) => {
+              setExcludedClientIds(ids)
+              if (ids.length) setLedgerClientId("")
+            }}
+          />
 
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">

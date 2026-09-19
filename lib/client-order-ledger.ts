@@ -130,6 +130,13 @@ export function findLedgerClient(clients: LedgerClientRef[], id: string): Ledger
   return clients.find((c) => c.id === id) || null
 }
 
+export function orderBelongsToAnyClient(
+  order: Order,
+  clients: Pick<LedgerClientRef, "id" | "name">[],
+): boolean {
+  return clients.some((client) => orderBelongsToClient(order, client))
+}
+
 export function orderBelongsToClient(order: Order, client: Pick<LedgerClientRef, "id" | "name">): boolean {
   if (isNameLedgerClientId(client.id)) {
     return (order.clientName || "").trim().toLowerCase() === client.name.trim().toLowerCase()

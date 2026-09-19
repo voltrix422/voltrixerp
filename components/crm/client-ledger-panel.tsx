@@ -116,6 +116,121 @@ export function ClientLedgerPicker({
   )
 }
 
+export function ClientExcludePicker({
+  clients,
+  orders,
+  excludedIds,
+  onChange,
+}: {
+  clients: Client[]
+  orders: Order[]
+  excludedIds: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const options = useMemo(() => listLedgerClients(clients, orders), [clients, orders])
+  const excluded = excludedIds
+    .map((id) => findLedgerClient(options, id))
+    .filter((c): c is LedgerClientRef => Boolean(c))
+  const q = search.trim().toLowerCase()
+  const matches = options.filter((c) => {
+    if (excludedIds.includes(c.id)) return false
+    if (!q) return true
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.company.toLowerCase().includes(q) ||
+      c.phone.toLowerCase().includes(q) ||
+      c.ntn.toLowerCase().includes(q)
+    )
+  })
+
+  function add(id: string) {
+    if (!id || excludedIds.includes(id)) return
+    onChange([...excludedIds, id])
+    setSearch("")
+    setOpen(false)
+  }
+
+  function remove(id: string) {
+    onChange(excludedIds.filter((item) => item !== id))
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+        Except clients
+      </p>
+      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+        Export every order except the clients you add here.
+      </p>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2.5 text-xs text-left flex items-center justify-between gap-2 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+        >
+          <span className="truncate text-[hsl(var(--muted-foreground))]">
+            {excluded.length ? `${excluded.length} client${excluded.length === 1 ? "" : "s"} excluded` : "Add a client to exclude..."}
+          </span>
+          <svg className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+            <div className="absolute z-20 w-full mt-1 max-h-64 overflow-auto rounded-md border bg-[hsl(var(--background))] shadow-lg">
+              <div className="p-2 border-b sticky top-0 bg-[hsl(var(--background))]">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, company, phone..."
+                  autoFocus
+                  className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none"
+                />
+              </div>
+              {matches.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-[hsl(var(--muted-foreground))]">No clients match.</p>
+              ) : (
+                matches.slice(0, 80).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/40 border-t"
+                    onClick={() => add(c.id)}
+                  >
+                    <span className="font-medium">{c.name}</span>
+                    {c.company && (
+                      <span className="text-[hsl(var(--muted-foreground))] ml-1.5">({c.company})</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
+      {excluded.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {excluded.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => remove(c.id)}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-[#1faca6] bg-[#1faca6] px-2 text-xs font-medium text-white cursor-pointer"
+              title={`Include ${c.name} again`}
+            >
+              Except {c.name}
+              <X className="h-3 w-3" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ClientLedgerSummary({
   client,
   orders,
