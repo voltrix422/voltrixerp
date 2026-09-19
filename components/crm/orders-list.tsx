@@ -354,6 +354,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [datePreset, setDatePreset] = useState<DatePreset>("")
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<Order | null>(null)
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null)
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
   const [moneyReceivedOpen, setMoneyReceivedOpen] = useState(false)
@@ -470,6 +471,31 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       toast({ title: "Error", message: "Could not export orders.", type: "error" })
     } finally {
       setExportingExcel(false)
+    }
+  }
+
+  async function exportListPdf() {
+    if (exportingPdf) return
+    setExportingPdf(true)
+    try {
+      const { downloadCrmOrdersReportPdf } = await import("@/lib/crm-orders-report-pdf")
+      await downloadCrmOrdersReportPdf(filtered, {
+        dateFrom: fromDate,
+        dateTo: toDate,
+        exportedBy: currentUser,
+        salesAgentUserIds: salesAgentUserIds ?? undefined,
+        clientName: ledgerClient?.name,
+        includeOutstanding: includeOutstandingInTotal,
+      })
+      toast({
+        title: "Downloaded",
+        message: `${filtered.length} ERP order(s) saved as PDF.`,
+        type: "success",
+      })
+    } catch {
+      toast({ title: "Error", message: "Could not generate PDF.", type: "error" })
+    } finally {
+      setExportingPdf(false)
     }
   }
 
@@ -617,6 +643,17 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                 Clear
               </Button>
             )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+              disabled={loading || filtered.length === 0 || exportingPdf}
+              onClick={() => void exportListPdf()}
+            >
+              {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {exportingPdf ? "Preparing PDF…" : "Download PDF"}
+            </Button>
           </div>
         </div>
       )}
@@ -632,8 +669,19 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           <CrmExcelExportButton
             onExport={exportListExcel}
             exporting={exportingExcel}
-            disabled={loading || filtered.length === 0}
+            disabled={loading || filtered.length === 0 || exportingPdf}
           />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+            disabled={loading || filtered.length === 0 || exportingPdf}
+            onClick={() => void exportListPdf()}
+          >
+            {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {exportingPdf ? "Preparing PDF…" : "Download PDF"}
+          </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
             {showFilters ? "Hide Filters" : "Filters"}
           </Button>
