@@ -53,6 +53,9 @@ fi
 echo "==> npm install --omit=dev"
 npm install --omit=dev
 
+echo "==> Ensure Web Push VAPID keys"
+node scripts/ensure-vapid-keys.mjs || echo "WARN: could not generate VAPID keys"
+
 echo "==> prisma generate + migrate deploy"
 npx prisma generate
 npx prisma migrate deploy

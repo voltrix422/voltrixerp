@@ -8,6 +8,7 @@ import {
   requestDesktopNotificationPermission,
   unlockNotificationAudio,
 } from "@/lib/notification-alerts"
+import { subscribeUserToPush } from "@/lib/push-client"
 
 const DISMISS_KEY = "voltrix-desktop-alerts-dismissed"
 
@@ -31,6 +32,9 @@ export function NotificationAlertSetup() {
     if (permission === "default" && !dismissed) {
       setShowBanner(true)
     }
+    if (permission === "granted" && user?.id) {
+      void subscribeUserToPush(user.id)
+    }
 
     return () => {
       document.removeEventListener("pointerdown", unlock)
@@ -43,6 +47,7 @@ export function NotificationAlertSetup() {
   async function enableAlerts() {
     unlockNotificationAudio()
     await requestDesktopNotificationPermission()
+    if (user?.id) await subscribeUserToPush(user.id)
     setShowBanner(false)
   }
 
@@ -63,16 +68,16 @@ export function NotificationAlertSetup() {
             <BellRing className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold">Hear new notifications</p>
+            <p className="text-sm font-semibold">Turn on phone notifications</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Allow alerts so a sound and desktop popup still appear when this tab is open in the background.
+              Allow so new ERP alerts show on your phone lock screen, even when the site is closed.
             </p>
             <button
               type="button"
               onClick={() => void enableAlerts()}
               className="mt-2 h-8 rounded-md bg-[#1a9f9a] px-3 text-xs font-medium text-white hover:bg-[#158a85]"
             >
-              Enable alerts
+              Enable phone alerts
             </button>
           </div>
         </div>

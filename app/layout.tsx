@@ -8,6 +8,7 @@ import { DialogProvider } from "@/components/ui/dialog-provider"
 import { ToastProvider } from "@/components/ui/toast"
 import { DBConnectionCheck } from "@/components/db-connection-check"
 import { WebsiteAnalyticsBeacon } from "@/components/landing/website-analytics-beacon"
+import { PwaProvider } from "@/components/pwa/pwa-provider"
 import { SiteJsonLd } from "@/components/landing/site-json-ld"
 import {
   SITE_DESCRIPTION,
@@ -77,6 +78,17 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "Voltrix",
+    statusBarStyle: "default",
+  },
+}
+
+export const viewport = {
+  themeColor: "#1a9f9a",
+  width: "device-width",
+  initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -90,6 +102,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ToastProvider>
               <AuthProvider>
                 <DBConnectionCheck />
+                <PwaProvider />
                 {children}
               </AuthProvider>
             </ToastProvider>

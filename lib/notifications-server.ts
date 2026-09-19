@@ -88,6 +88,16 @@ export async function notifyUser(userId: string, input: CreateNotificationInput)
   })
 
   void sendEmailsForUser(userId, input)
+  void import("@/lib/web-push-server")
+    .then(({ sendPushToUser }) =>
+      sendPushToUser(userId, {
+        title: input.title,
+        message: input.message,
+        link: input.link,
+        tag: `erp-${notification.id}`,
+      }),
+    )
+    .catch(() => {})
   return notification
 }
 

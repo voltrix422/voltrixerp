@@ -63,7 +63,8 @@
     "tailwindcss": "^4",
     "tesseract.js": "^5.1.1",
     "three": "^0.183.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",

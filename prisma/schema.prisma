@@ -46,6 +46,20 @@ model ErpNotification {
   @@map("erp_notifications")
 }
 
+model ErpPushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String   @default("") @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("erp_push_subscriptions")
+}
+
 model ErpSalesAgentCompensationHistory {
   id                String   @id @default(cuid())
   userId            String   @map("user_id")
