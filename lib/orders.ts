@@ -160,6 +160,8 @@ export interface Order {
   total: number
   status: OrderStatus
   notes: string
+  /** Internal only — who referred this order. Not shown on invoices. */
+  referrerName?: string
   createdAt: string
   createdBy: string
   ownerUserId?: string
@@ -854,6 +856,7 @@ export function rowToOrder(r: Record<string, unknown>): Order {
     total: (r.total as number) ?? 0,
     status: r.status as OrderStatus,
     notes: r.notes as string,
+    referrerName: String(r.referrerName ?? "").trim() || undefined,
     createdAt: r.createdAt as string,
     createdBy: r.createdBy as string,
     ownerUserId: (r.ownerUserId as string) ?? undefined,

@@ -360,6 +360,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [moneyReceivedOpen, setMoneyReceivedOpen] = useState(false)
   const [orderSummaryOpen, setOrderSummaryOpen] = useState(false)
   const [ledgerClientId, setLedgerClientId] = useState("")
+  const [referrerFilter, setReferrerFilter] = useState("")
 
   async function handleListDownloadPdf(order: Order, e?: { stopPropagation: () => void }) {
     e?.stopPropagation()
@@ -409,18 +410,30 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
       !search ||
       (o.orderNumber?.toLowerCase() || "").includes(q) ||
       (o.clientName?.toLowerCase() || "").includes(q) ||
-      (o.warrantyHolderName?.toLowerCase() || "").includes(q)
+      (o.warrantyHolderName?.toLowerCase() || "").includes(q) ||
+      (o.referrerName?.toLowerCase() || "").includes(q)
 
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
     const matchesPayment = orderMatchesPaymentFilter(o, paymentFilter)
     const matchesDateRange = orderMatchesDateRange(o.createdAt, fromDate, toDate)
     const matchesClient = !ledgerClient || orderBelongsToClient(o, ledgerClient)
+    const matchesReferrer =
+      !referrerFilter ||
+      (o.referrerName || "").trim().toLowerCase() === referrerFilter.toLowerCase()
 
-    return matchesSearch && matchesStatus && matchesPayment && matchesDateRange && matchesClient
+    return matchesSearch && matchesStatus && matchesPayment && matchesDateRange && matchesClient && matchesReferrer
   })
 
+  const referrerOptions = Array.from(
+    new Set(
+      orders
+        .map((o) => (o.referrerName || "").trim())
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b))
+
   const hasActiveFilters = Boolean(
-    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all" || ledgerClientId,
+    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all" || ledgerClientId || referrerFilter,
   )
 
   function applyDatePreset(preset: DatePreset) {
@@ -445,6 +458,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     setPaymentFilter("all")
     setDatePreset("")
     setLedgerClientId("")
+    setReferrerFilter("")
   }
 
   function selectLedgerClient(id: string) {
@@ -456,6 +470,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     setStatusFilter("all")
     setPaymentFilter("all")
     setDatePreset("")
+    setReferrerFilter("")
   }
 
   function exportListExcel() {
@@ -591,6 +606,44 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
+              Referrer
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setReferrerFilter("")}
+                className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                  !referrerFilter
+                    ? "bg-[#1faca6] text-white border-[#1faca6]"
+                    : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                }`}
+              >
+                All
+              </button>
+              {referrerOptions.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setReferrerFilter(name)}
+                  className={`h-7 px-2.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                    referrerFilter === name
+                      ? "bg-[#1faca6] text-white border-[#1faca6]"
+                      : "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]/40"
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+              {referrerOptions.length === 0 && (
+                <span className="h-7 px-2.5 text-xs text-[hsl(var(--muted-foreground))] inline-flex items-center">
+                  No referrers yet
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))] mb-1.5">
               Date range
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -630,11 +683,23 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               }}
               className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
             />
+            <select
+              value={referrerFilter}
+              onChange={(e) => setReferrerFilter(e.target.value)}
+              className="h-8 px-2.5 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] min-w-[10rem]"
+            >
+              <option value="">All referrers</option>
+              {referrerOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
             <div className="relative flex-1 min-w-[12rem]">
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search orders..."
+                placeholder="Search orders, client, or referrer..."
                 className="w-full h-8 px-3 rounded border bg-[hsl(var(--background))] text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
               />
             </div>
@@ -924,6 +989,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                       {order.warrantyHolderName?.trim() && (
                         <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {order.warrantyHolderName}</p>
                       )}
+                      {order.referrerName?.trim() && (
+                        <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">Referrer: {order.referrerName}</p>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>
@@ -1075,6 +1143,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
   const [deliveryAddress, setDeliveryAddress] = useState(existing?.deliveryAddress ?? "")
   const [deliveryDate, setDeliveryDate] = useState(existing?.deliveryDate ?? "")
   const [notes, setNotes] = useState(existing?.notes ?? "")
+  const [referrerName, setReferrerName] = useState(existing?.referrerName ?? "")
   const [saving, setSaving] = useState(false)
   const [warehouseProducts, setWarehouseProducts] = useState<CrmWarehouseProduct[]>([])
   const [showInventory, setShowInventory] = useState(false)
@@ -1240,6 +1309,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           discountValue: discountAmount,
           total,
           notes: notes.trim(),
+          referrerName: referrerName.trim(),
           deliveryAddress: deliveryAddress.trim(),
           deliveryDate: deliveryDate || "",
         }
@@ -1267,6 +1337,7 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           total,
           status: initialOrderStatus(workspace),
           notes: notes.trim(),
+          referrerName: referrerName.trim(),
           createdAt: new Date().toISOString(),
           createdBy: currentUser,
           ownerUserId: resolveOwnerUserId(workspace?.ownerUserId, currentUserId),
@@ -1381,11 +1452,23 @@ export function OrderForm({ currentUser, currentUserId, workspace, clients, exis
           {/* Additional Information */}
           <div className="pt-4 border-t">
             <p className="text-sm font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wide mb-3">Additional Information</p>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Notes</label>
-              <input value={notes} onChange={e => setNotes(e.target.value)}
-                placeholder="Add any special instructions or notes"
-                className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Referrer name</label>
+                <input
+                  value={referrerName}
+                  onChange={e => setReferrerName(e.target.value)}
+                  placeholder="Who referred this order"
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                />
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Internal only. Not printed on invoices.</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Notes</label>
+                <input value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="Add any special instructions or notes"
+                  className="w-full h-10 rounded-md border bg-[hsl(var(--background))] px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+              </div>
             </div>
           </div>
 
@@ -2124,6 +2207,14 @@ function OrderDetail({
             <div className="border-b pb-4">
               <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Delivery address</p>
               <p className="text-sm whitespace-pre-wrap">{detailOrder.deliveryAddress}</p>
+            </div>
+          )}
+
+          {detailOrder.referrerName?.trim() && (
+            <div className="border-b pb-4">
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] mb-2">Referrer</p>
+              <p className="text-sm">{detailOrder.referrerName}</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">Internal only — not on the invoice.</p>
             </div>
           )}
 

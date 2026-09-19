@@ -53,6 +53,9 @@ export function CrmOrdersListCards({
                 {order.warrantyHolderName?.trim() && (
                   <p className="text-[11px] text-[#1a9f9a] truncate">Warranty: {order.warrantyHolderName}</p>
                 )}
+                {order.referrerName?.trim() && (
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">Referrer: {order.referrerName}</p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
                 <OrderStatusBadge status={order.status} />

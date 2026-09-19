@@ -241,6 +241,8 @@ model ErpOrder {
   total            Float    @default(0)
   status           String
   notes            String   @default("")
+  /** Internal only — who referred this CRM order. Never printed on invoices. */
+  referrerName     String   @default("") @map("referrer_name")
   createdAt        DateTime @default(now()) @map("created_at")
   createdBy        String   @map("created_by")
   deliveryAddress  String   @default("") @map("delivery_address")
