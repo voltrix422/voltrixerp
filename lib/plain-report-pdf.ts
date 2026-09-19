@@ -38,6 +38,30 @@ export function pct(part: number, total: number) {
   return `${((part / total) * 100).toLocaleString("en-PK", { maximumFractionDigits: 1 })}%`
 }
 
+async function loadLogoBase64(): Promise<string> {
+  try {
+    const res = await fetch("/logo.png")
+    if (!res.ok) return ""
+    const blob = await res.blob()
+    return await new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(String(reader.result || ""))
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return ""
+  }
+}
+
+function drawLogo(doc: JsDoc, logo: string, x: number, y: number, size: number) {
+  if (!logo) return
+  try {
+    doc.addImage(logo, "PNG", x, y, size, size)
+  } catch {
+    /* keep text-only header if the image cannot be embedded */
+  }
+}
+
 function drawRunningHeader(
   doc: JsDoc,
   pageW: number,
@@ -45,22 +69,25 @@ function drawRunningHeader(
   company: string,
   title: string,
   period: string,
+  logo: string,
 ) {
   const ink: [number, number, number] = [20, 20, 20]
   const line: [number, number, number] = [40, 40, 40]
+  const logoSize = logo ? 8 : 0
+  if (logo) drawLogo(doc, logo, m, 6.5, logoSize)
   doc.setTextColor(...ink)
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(10)
-  doc.text(company, m, 10)
+  doc.setFontSize(9)
+  doc.text(company, m + (logo ? logoSize + 3 : 0), 10)
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.text(title, pageW - m, 10, { align: "right" })
   doc.setDrawColor(...line)
   doc.setLineWidth(0.35)
-  doc.line(m, 12.2, pageW - m, 12.2)
+  doc.line(m, 16, pageW - m, 16)
   if (period) {
     doc.setFontSize(7.5)
-    doc.text(period, m, 16)
+    doc.text(period, m, 19.5)
   }
 }
 
@@ -83,6 +110,7 @@ export async function downloadPlainReportPdf(opts: {
     orientation: opts.landscape ? "landscape" : "portrait",
   }) as JsDoc
 
+  const logo = await loadLogoBase64()
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
   const m = 12
@@ -90,16 +118,19 @@ export async function downloadPlainReportPdf(opts: {
   const muted: [number, number, number] = [70, 70, 70]
   const line: [number, number, number] = [40, 40, 40]
   const period = opts.subtitle || ""
+  const logoSize = logo ? 16 : 0
+  const textX = m + (logo ? logoSize + 4 : 0)
 
-  let y = 11
+  if (logo) drawLogo(doc, logo, m, 8, logoSize)
+  let y = logo ? 13 : 11
   doc.setTextColor(...ink)
   doc.setFont("helvetica", "bold")
   doc.setFontSize(11)
-  doc.text("VOLTRIX BATTERIES PVT. LTD.", m, y)
+  doc.text("VOLTRIX BATTERIES PVT. LTD.", textX, y)
   doc.setFont("helvetica", "normal")
   doc.setFontSize(9)
   doc.text(opts.title, pageW - m, y, { align: "right" })
-  y += 4
+  y = logo ? 26 : 15
   doc.setDrawColor(...line)
   doc.setLineWidth(0.4)
   doc.line(m, y, pageW - m, y)
@@ -125,16 +156,16 @@ export async function downloadPlainReportPdf(opts: {
   const startTable = (needed: number) => {
     if (y > pageH - needed) {
       doc.addPage()
-      drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period)
-      y = period ? 20 : 16
+      drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
+      y = period ? 24 : 20
     }
   }
 
   for (const table of opts.tables) {
     if (table.newPage && y > 28) {
       doc.addPage()
-      drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period)
-      y = period ? 20 : 16
+      drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
+      y = period ? 24 : 20
     }
 
     startTable(table.note ? 36 : 30)
@@ -209,7 +240,7 @@ export async function downloadPlainReportPdf(opts: {
           },
         ]),
       ),
-      margin: { left: m, right: m, top: period ? 20 : 16 },
+      margin: { left: m, right: m, top: period ? 24 : 20 },
       tableLineColor: line,
       tableLineWidth: 0.16,
       didDrawPage: () => {
@@ -227,7 +258,7 @@ export async function downloadPlainReportPdf(opts: {
     const pw = doc.internal.pageSize.getWidth()
     const ph = doc.internal.pageSize.getHeight()
     if (i > 1) {
-      drawRunningHeader(doc, pw, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period)
+      drawRunningHeader(doc, pw, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
     }
     doc.setDrawColor(...line)
     doc.setLineWidth(0.25)

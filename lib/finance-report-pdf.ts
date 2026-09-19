@@ -3,7 +3,9 @@ import type {
   FinanceExpenseLine,
   FinanceOrderRow,
   FinancePdfItem,
+  FinancePettyCashLine,
   FinancePosRow,
+  FinancePurchaseRow,
 } from "@/lib/finance-report-details"
 import { dateRangeLabel, downloadPlainReportPdf, pct, pkr, type PlainTable } from "@/lib/plain-report-pdf"
 
@@ -20,9 +22,12 @@ type OverviewLike = {
   expenseLines?: FinanceExpenseLine[]
   posSales?: FinancePosRow[]
   orders?: FinanceOrderRow[]
+  pettyCashLines?: FinancePettyCashLine[]
+  pettyCashByPerson?: FinanceExpenseByPerson[]
+  localPurchases?: FinancePurchaseRow[]
+  importedPurchases?: FinancePurchaseRow[]
   paymentMethods?: { method: string; amount: number }[]
   topOutstandingClients?: { name: string; orderNumber: string; remaining: number }[]
-  recentActivity?: { date: string; label: string; amount: number; category: string; source: string }[]
 }
 
 const MONEY_IN_LABELS: Record<string, string> = {
@@ -35,7 +40,7 @@ const MONEY_IN_LABELS: Record<string, string> = {
 }
 
 const MONEY_OUT_LABELS: Record<string, string> = {
-  expenses: "Expenses (records)",
+  expenses: "Expenses (finance records)",
   loansGiven: "Loans given / repaid by us",
   salaries: "Salaries (payroll)",
   localPurchases: "Local purchase orders",
@@ -86,8 +91,64 @@ function productBlock(item: FinancePdfItem) {
   return lines.join("\n")
 }
 
-function qtyBlock(item: FinancePdfItem) {
+function qtyBlock(item: { qty: number; unit?: string }) {
   return `${item.qty} ${item.unit || "pcs"}`
+}
+
+function purchaseTables(title: string, note: string, rows: FinancePurchaseRow[]): PlainTable[] {
+  if (!rows.length) return []
+  const paid = rows.reduce((s, r) => s + r.paidInPeriod, 0)
+  const itemCount = rows.reduce((s, r) => s + r.items.length, 0)
+  const tables: PlainTable[] = [
+    {
+      title,
+      note,
+      newPage: true,
+      columns: [
+        { header: "Date", width: 22 },
+        { header: "PO no.", width: 28 },
+        { header: "Supplier", width: 42 },
+        { header: "Status", width: 28 },
+        { header: "By", width: 26 },
+        { header: "Paid in range", align: "right", width: 40 },
+      ],
+      rows: rows.map((r) => [
+        r.date,
+        r.poNumber,
+        r.supplier,
+        prettyStatus(r.status),
+        r.createdBy,
+        pkr(r.paidInPeriod),
+      ]),
+      foot: ["", "", "", "", `${rows.length} POs`, pkr(paid)],
+    },
+  ]
+  const items = rows.flatMap((r) =>
+    r.items.map((item) => [
+      r.poNumber,
+      r.supplier,
+      item.description,
+      qtyBlock(item),
+      item.unitPrice > 0 ? pkr(item.unitPrice) : "—",
+      item.lineTotal > 0 ? pkr(item.lineTotal) : "—",
+    ]),
+  )
+  if (items.length) {
+    tables.push({
+      title: `${title} — items`,
+      note: `${itemCount} product lines on the purchase orders above.`,
+      columns: [
+        { header: "PO no.", width: 28 },
+        { header: "Supplier", width: 36 },
+        { header: "Product", width: 58 },
+        { header: "Qty", width: 20 },
+        { header: "Unit price", align: "right", width: 22 },
+        { header: "Line total", align: "right", width: 22 },
+      ],
+      rows: items,
+    })
+  }
+  return tables
 }
 
 export async function downloadFinanceOverviewPdf(
@@ -108,10 +169,17 @@ export async function downloadFinanceOverviewPdf(
   const byCategory = data.expensesByCategory || []
   const posSales = data.posSales || []
   const orders = data.orders || []
+  const pettyLines = data.pettyCashLines || []
+  const pettyByPerson = data.pettyCashByPerson || []
+  const localPurchases = data.localPurchases || []
+  const importedPurchases = data.importedPurchases || []
   const methods = data.paymentMethods || []
   const outstanding = data.topOutstandingClients || []
 
   const expenseTotal = expenses.reduce((sum, r) => sum + r.amount, 0)
+  const pettyTotal = pettyLines.reduce((sum, r) => sum + r.amount, 0)
+  const localPaid = localPurchases.reduce((sum, r) => sum + r.paidInPeriod, 0)
+  const importedPaid = importedPurchases.reduce((sum, r) => sum + r.paidInPeriod, 0)
   const posTotal = posSales.reduce((sum, r) => sum + r.total, 0)
   const posItemCount = posSales.reduce((sum, r) => sum + r.items.length, 0)
   const orderTotal = orders.reduce((sum, r) => sum + r.total, 0)
@@ -125,15 +193,15 @@ export async function downloadFinanceOverviewPdf(
   const tables: PlainTable[] = [
     {
       title: "Cash snapshot",
-      note: "Totals for the selected period only. Outstanding and all-time balances are listed later and are not part of net cash.",
+      note: "Totals for the selected period only. Outstanding balances later are not part of net cash.",
       columns: [
-        { header: "Figure", width: 95 },
-        { header: "What it means", width: 110 },
-        { header: "Amount", align: "right", width: 68 },
+        { header: "Figure", width: 42 },
+        { header: "What it means", width: 100 },
+        { header: "Amount", align: "right", width: 44 },
       ],
       rows: [
-        ["Money in", "Cash received in this period (clients, POS, loans, income)", pkr(moneyIn)],
-        ["Money out", "Cash leaving in this period (expenses, payroll, imports, refunds)", pkr(moneyOut)],
+        ["Money in", "Cash received (clients, POS, loans, income)", pkr(moneyIn)],
+        ["Money out", "Cash leaving (expenses, petty cash, purchases, payroll)", pkr(moneyOut)],
         [
           net >= 0 ? "Net surplus" : "Net deficit",
           net >= 0 ? "Money in minus money out" : "Money out is higher than money in",
@@ -143,16 +211,46 @@ export async function downloadFinanceOverviewPdf(
     },
     {
       title: "What this report contains",
-      note: "Use the sections below for the full working. Empty sections are omitted.",
+      note:
+        expenseTotal <= 0 && pettyTotal + localPaid + importedPaid > 0
+          ? "Finance-record expenses are 0 in this range. Day-to-day spend is under Petty cash and Purchases."
+          : "Each section below is limited to the selected date range unless noted.",
       columns: [
-        { header: "Section", width: 70 },
-        { header: "Count", align: "right", width: 28 },
-        { header: "Amount / note", width: 175 },
+        { header: "Section", width: 52 },
+        { header: "Count", align: "right", width: 22 },
+        { header: "Amount / note", width: 112 },
       ],
       rows: [
-        ["Expenses", String(expenses.length), `${pkr(expenseTotal)}  ·  ${byPerson.length} people`],
+        [
+          "Finance expenses",
+          String(expenses.length),
+          expenseTotal > 0
+            ? `${pkr(expenseTotal)}  ·  ${byPerson.length} people`
+            : "None recorded in this range",
+        ],
+        [
+          "Petty cash (approved)",
+          String(pettyLines.length),
+          pettyTotal > 0
+            ? `${pkr(pettyTotal)}  ·  ${pettyByPerson.length} people`
+            : "None approved in this range",
+        ],
+        [
+          "Local purchases",
+          String(localPurchases.length),
+          localPurchases.length ? `${pkr(localPaid)} paid in range` : "None in this range",
+        ],
+        [
+          "Imported purchases",
+          String(importedPurchases.length),
+          importedPurchases.length ? `${pkr(importedPaid)} paid in range` : "None in this range",
+        ],
         ["POS sales", String(posSales.length), `${pkr(posTotal)}  ·  ${posItemCount} products`],
-        ["Orders", String(orders.length), `${pkr(orderReceived)} received of ${pkr(orderTotal)}  ·  ${orderItemCount} items`],
+        [
+          "Orders",
+          String(orders.length),
+          `${pkr(orderReceived)} received of ${pkr(orderTotal)}  ·  ${orderItemCount} items`,
+        ],
         ["Outstanding clients", String(outstanding.length), pkr(outstandingTotal)],
       ],
     },
@@ -161,11 +259,11 @@ export async function downloadFinanceOverviewPdf(
   if (inRows.length) {
     tables.push({
       title: "Money in — by source",
-      note: "Each line is already included in Money in above. Share is that line as a percent of money in.",
+      note: "Share is that line as a percent of money in.",
       columns: [
-        { header: "Source", width: 160 },
-        { header: "Amount", align: "right", width: 65 },
-        { header: "Share", align: "right", width: 48 },
+        { header: "Source", width: 110 },
+        { header: "Amount", align: "right", width: 42 },
+        { header: "Share", align: "right", width: 34 },
       ],
       rows: inRows,
       foot: ["Total money in", pkr(moneyIn), "100%"],
@@ -175,11 +273,11 @@ export async function downloadFinanceOverviewPdf(
   if (outRows.length) {
     tables.push({
       title: "Money out — by source",
-      note: "Each line is already included in Money out above. Share is that line as a percent of money out.",
+      note: "Share is that line as a percent of money out.",
       columns: [
-        { header: "Source", width: 160 },
-        { header: "Amount", align: "right", width: 65 },
-        { header: "Share", align: "right", width: 48 },
+        { header: "Source", width: 110 },
+        { header: "Amount", align: "right", width: 42 },
+        { header: "Share", align: "right", width: 34 },
       ],
       rows: outRows,
       foot: ["Total money out", pkr(moneyOut), "100%"],
@@ -188,73 +286,116 @@ export async function downloadFinanceOverviewPdf(
 
   if (byPerson.length) {
     tables.push({
-      title: "Expenses — who entered them",
-      note: "Grouped by the ERP user who recorded the expense. Receipt person, if different, is on the next table.",
+      title: "Finance expenses — who entered them",
+      note: "ERP users who saved an Expense, Payment, Tax, Salary, or Other record.",
       columns: [
-        { header: "Entered by", width: 110 },
-        { header: "Entries", align: "right", width: 32 },
-        { header: "Amount", align: "right", width: 65 },
-        { header: "Share", align: "right", width: 66 },
+        { header: "Entered by", width: 70 },
+        { header: "Entries", align: "right", width: 24 },
+        { header: "Amount", align: "right", width: 46 },
+        { header: "Share", align: "right", width: 46 },
       ],
       rows: byPerson.map((r) => [r.name, String(r.count), pkr(r.amount), pct(r.amount, expenseTotal)]),
       foot: ["All people", String(byPerson.reduce((n, r) => n + r.count, 0)), pkr(expenseTotal), "100%"],
     })
   }
 
-  if (byCategory.length) {
+  if (byCategory.length && expenses.length) {
     const catTotal = byCategory.reduce((n, r) => n + r.amount, 0)
     tables.push({
-      title: "Expenses — by category",
-      note: "Same expense records, grouped by category.",
+      title: "Finance expenses — by category",
       columns: [
-        { header: "Category", width: 142 },
-        { header: "Amount", align: "right", width: 65 },
-        { header: "Share", align: "right", width: 66 },
+        { header: "Category", width: 100 },
+        { header: "Amount", align: "right", width: 46 },
+        { header: "Share", align: "right", width: 40 },
       ],
       rows: byCategory.map((r) => [r.category, pkr(r.amount), pct(r.amount, catTotal)]),
       foot: ["All categories", pkr(catTotal), "100%"],
     })
   }
 
-  if (expenses.length) {
+  tables.push({
+    title: "All finance expense entries",
+    note:
+      expenses.length > 0
+        ? "Expense, Payment, Tax, Salary, and Other records in this date range."
+        : "No finance records in this range. See Petty cash (approved) and Purchases for cash that left.",
+    newPage: expenses.length > 8,
+    columns: [
+      { header: "Date", width: 22 },
+      { header: "Entered by", width: 32 },
+      { header: "Receipt from", width: 30 },
+      { header: "Description", width: 52 },
+      { header: "Type", width: 20 },
+      { header: "Amount", align: "right", width: 30 },
+    ],
+    rows: expenses.map((r) => [
+      r.date,
+      r.createdBy || "—",
+      r.receiptPerson || "—",
+      r.title,
+      r.category,
+      pkr(r.amount),
+    ]),
+    foot: expenses.length ? ["", "", "", `Total · ${expenses.length}`, "", pkr(expenseTotal)] : undefined,
+  })
+
+  if (pettyByPerson.length) {
     tables.push({
-      title: "All expense entries",
-      note: "Every expense, payment, tax, or other cash-out record in the date range.",
+      title: "Petty cash — who spent (approved)",
+      note: "Approved receipts only. Pending receipts are not included.",
       newPage: true,
       columns: [
-        { header: "Date", width: 24 },
-        { header: "Entered by", width: 38 },
-        { header: "Receipt from", width: 36 },
-        { header: "Description", width: 95 },
-        { header: "Category", width: 28 },
-        { header: "Amount", align: "right", width: 52 },
+        { header: "Employee", width: 70 },
+        { header: "Receipts", align: "right", width: 24 },
+        { header: "Amount", align: "right", width: 46 },
+        { header: "Share", align: "right", width: 46 },
       ],
-      rows: expenses.map((r) => [
-        r.date,
-        r.createdBy || "—",
-        r.receiptPerson || "—",
-        r.title,
-        r.category,
-        pkr(r.amount),
-      ]),
-      foot: ["", "", "", `Total · ${expenses.length} entries`, "", pkr(expenseTotal)],
+      rows: pettyByPerson.map((r) => [r.name, String(r.count), pkr(r.amount), pct(r.amount, pettyTotal)]),
+      foot: ["All people", String(pettyLines.length), pkr(pettyTotal), "100%"],
     })
   }
+
+  tables.push({
+    title: "All approved petty cash",
+    note:
+      pettyLines.length > 0
+        ? "Each approved receipt in the date range (approval date, else submitted date)."
+        : "No approved petty cash receipts in this date range.",
+    columns: [
+      { header: "Date", width: 22 },
+      { header: "Employee", width: 40 },
+      { header: "Category", width: 28 },
+      { header: "Description", width: 60 },
+      { header: "Amount", align: "right", width: 36 },
+    ],
+    rows: pettyLines.map((r) => [r.date, r.employee, r.category, r.description, pkr(r.amount)]),
+    foot: pettyLines.length ? ["", "", "", `Total · ${pettyLines.length}`, pkr(pettyTotal)] : undefined,
+  })
+
+  tables.push(...purchaseTables(
+    "Local purchases",
+    "Local purchase orders created or paid in this date range. Paid in range is cash that left.",
+    localPurchases,
+  ))
+  tables.push(...purchaseTables(
+    "Imported purchases",
+    "Imported purchase orders created or paid in this date range, with product lines.",
+    importedPurchases,
+  ))
 
   if (posSales.length) {
     tables.push({
       title: "POS sales",
-      note: "Counter receipts and branch POS orders created in this period. Product lines follow.",
+      note: "Counter receipts and branch POS orders created in this period.",
       newPage: true,
       columns: [
-        { header: "Date", width: 24 },
-        { header: "Sale no.", width: 36 },
-        { header: "Type", width: 28 },
-        { header: "Customer", width: 42 },
-        { header: "Cashier", width: 36 },
-        { header: "Pay", width: 22 },
-        { header: "Products", width: 33 },
-        { header: "Amount", align: "right", width: 52 },
+        { header: "Date", width: 22 },
+        { header: "Sale no.", width: 30 },
+        { header: "Type", width: 24 },
+        { header: "Customer", width: 34 },
+        { header: "Cashier", width: 28 },
+        { header: "Pay", width: 18 },
+        { header: "Amount", align: "right", width: 30 },
       ],
       rows: posSales.map((r) => [
         r.date,
@@ -263,15 +404,13 @@ export async function downloadFinanceOverviewPdf(
         r.customer,
         r.cashier,
         prettyMethod(r.method),
-        String(r.items.length),
         pkr(r.total),
       ]),
-      foot: ["", "", "", "", "", "", String(posItemCount), pkr(posTotal)],
+      foot: ["", "", "", "", "", String(posSales.length), pkr(posTotal)],
     })
 
     const posItems = posSales.flatMap((r) =>
       r.items.map((item) => [
-        r.date,
         r.number,
         r.customer,
         productBlock(item),
@@ -283,15 +422,13 @@ export async function downloadFinanceOverviewPdf(
     if (posItems.length) {
       tables.push({
         title: "POS products sold",
-        note: "Each inventory / POS line sold on the receipts above.",
         columns: [
-          { header: "Date", width: 24 },
-          { header: "Sale no.", width: 34 },
-          { header: "Customer", width: 40 },
-          { header: "Product / stock", width: 88 },
-          { header: "Qty", width: 22 },
-          { header: "Unit price", align: "right", width: 32 },
-          { header: "Line total", align: "right", width: 33 },
+          { header: "Sale no.", width: 28 },
+          { header: "Customer", width: 32 },
+          { header: "Product / stock", width: 62 },
+          { header: "Qty", width: 18 },
+          { header: "Unit price", align: "right", width: 22 },
+          { header: "Line total", align: "right", width: 24 },
         ],
         rows: posItems,
       })
@@ -301,17 +438,16 @@ export async function downloadFinanceOverviewPdf(
   if (orders.length) {
     tables.push({
       title: "Client orders",
-      note: "CRM orders created or paid in this period. Received is cash taken inside the date range, not the full order unless it was paid here.",
+      note: "Received is cash taken inside the date range, not always the full order total.",
       newPage: true,
       columns: [
-        { header: "Date", width: 24 },
-        { header: "Order no.", width: 32 },
-        { header: "Client", width: 48 },
-        { header: "Status", width: 28 },
-        { header: "Created by", width: 32 },
-        { header: "Items", width: 18 },
-        { header: "Order total", align: "right", width: 42 },
-        { header: "Received here", align: "right", width: 49 },
+        { header: "Date", width: 22 },
+        { header: "Order no.", width: 28 },
+        { header: "Client", width: 40 },
+        { header: "Status", width: 24 },
+        { header: "By", width: 24 },
+        { header: "Total", align: "right", width: 24 },
+        { header: "Received", align: "right", width: 24 },
       ],
       rows: orders.map((r) => [
         r.date,
@@ -319,11 +455,10 @@ export async function downloadFinanceOverviewPdf(
         r.clientName,
         prettyStatus(r.status),
         r.createdBy,
-        String(r.items.length),
         pkr(r.total),
         pkr(r.receivedInPeriod),
       ]),
-      foot: ["", "", "", "", "", String(orderItemCount), pkr(orderTotal), pkr(orderReceived)],
+      foot: ["", "", "", "", String(orderItemCount), pkr(orderTotal), pkr(orderReceived)],
     })
 
     const orderItems = orders.flatMap((r) =>
@@ -339,14 +474,13 @@ export async function downloadFinanceOverviewPdf(
     if (orderItems.length) {
       tables.push({
         title: "Order inventory items",
-        note: "Product, model, and stock reference for every line on the orders above.",
         columns: [
-          { header: "Order no.", width: 32 },
-          { header: "Client", width: 44 },
-          { header: "Product / model / stock", width: 102 },
-          { header: "Qty", width: 22 },
-          { header: "Unit price", align: "right", width: 36 },
-          { header: "Line total", align: "right", width: 37 },
+          { header: "Order no.", width: 28 },
+          { header: "Client", width: 32 },
+          { header: "Product / model / stock", width: 62 },
+          { header: "Qty", width: 18 },
+          { header: "Unit price", align: "right", width: 22 },
+          { header: "Line total", align: "right", width: 24 },
         ],
         rows: orderItems,
       })
@@ -357,11 +491,10 @@ export async function downloadFinanceOverviewPdf(
     const methodTotal = methods.reduce((n, r) => n + r.amount, 0)
     tables.push({
       title: "Client payments by method",
-      note: "Approved CRM payments received in this period, split by how the client paid.",
       columns: [
-        { header: "Payment method", width: 142 },
-        { header: "Amount", align: "right", width: 65 },
-        { header: "Share", align: "right", width: 66 },
+        { header: "Payment method", width: 100 },
+        { header: "Amount", align: "right", width: 46 },
+        { header: "Share", align: "right", width: 40 },
       ],
       rows: methods.map((r) => [prettyMethod(r.method), pkr(r.amount), pct(r.amount, methodTotal)]),
       foot: ["All methods", pkr(methodTotal), "100%"],
@@ -371,11 +504,11 @@ export async function downloadFinanceOverviewPdf(
   if (outstanding.length) {
     tables.push({
       title: "Outstanding client balances",
-      note: "Open credit still due. This is a current balance, not limited to the date range.",
+      note: "Current credit still due — not limited to the date range.",
       columns: [
-        { header: "Client", width: 90 },
-        { header: "Order no.", width: 50 },
-        { header: "Still due", align: "right", width: 133 },
+        { header: "Client", width: 80 },
+        { header: "Order no.", width: 46 },
+        { header: "Still due", align: "right", width: 60 },
       ],
       rows: outstanding.map((r) => [r.name, r.orderNumber, pkr(r.remaining)]),
       foot: [`${outstanding.length} orders`, "", pkr(outstandingTotal)],
@@ -400,6 +533,5 @@ export async function downloadFinanceOverviewPdf(
     ],
     filename: `finance-report-${new Date().toISOString().slice(0, 10)}.pdf`,
     tables,
-    landscape: true,
   })
 }

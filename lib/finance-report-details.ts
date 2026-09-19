@@ -55,7 +55,7 @@ export type FinanceOrderRow = {
   items: FinancePdfItem[]
 }
 
-const EXPENSE_CATEGORIES = new Set(["Expense", "Payment", "Tax", "Other"])
+const EXPENSE_CATEGORIES = new Set(["Expense", "Payment", "Tax", "Other", "Salary"])
 
 function inRange(d: Date, start: Date, end: Date) {
   return d >= start && d <= end
@@ -341,4 +341,356 @@ export function buildOrderReport(
     items: itemDetailLines(row.items),
   }))
   return { rows, details }
+}
+
+export type FinancePettyCashLine = {
+  id: string
+  date: string
+  employee: string
+  description: string
+  category: string
+  amount: number
+}
+
+export type FinancePurchaseItem = {
+  description: string
+  qty: number
+  unit: string
+  unitPrice: number
+  lineTotal: number
+}
+
+export type FinancePurchaseRow = {
+  id: string
+  date: string
+  poNumber: string
+  kind: "Local" | "Imported"
+  supplier: string
+  status: string
+  createdBy: string
+  paidInPeriod: number
+  items: FinancePurchaseItem[]
+}
+
+export function buildPettyCashReport(
+  receipts: Array<{
+    id: string
+    employeeName?: string | null
+    description?: string | null
+    category?: string | null
+    amount: number
+    status: string
+    submittedAt: Date | string
+    reviewedAt?: Date | string | null
+  }>,
+  start: Date,
+  end: Date,
+): {
+  lines: FinancePettyCashLine[]
+  byPerson: FinanceExpenseByPerson[]
+  total: number
+} {
+  const lines: FinancePettyCashLine[] = []
+  for (const r of receipts) {
+    if (String(r.status || "").toLowerCase() !== "approved") continue
+    const amount = num(r.amount)
+    if (amount <= 0) continue
+    const raw = r.reviewedAt ?? r.submittedAt
+    if (!raw) continue
+    if (!inRange(new Date(raw), start, end)) continue
+    lines.push({
+      id: r.id,
+      date: fmtDay(raw),
+      employee: String(r.employeeName || "").trim() || "—",
+      description: String(r.description || "").trim() || "Petty cash",
+      category: String(r.category || "").trim() || "Approved",
+      amount,
+    })
+  }
+  lines.sort((a, b) => b.amount - a.amount)
+  const byMap = new Map<string, FinanceExpenseByPerson>()
+  for (const line of lines) {
+    const row = byMap.get(line.employee) || { name: line.employee, count: 0, amount: 0 }
+    row.count += 1
+    row.amount += line.amount
+    byMap.set(line.employee, row)
+  }
+  return {
+    lines,
+    byPerson: [...byMap.values()].sort((a, b) => b.amount - a.amount),
+    total: lines.reduce((s, l) => s + l.amount, 0),
+  }
+}
+
+function mapPurchaseItems(po: { type?: string | null; items?: unknown; importedItems?: unknown }): FinancePurchaseItem[] {
+  const imported = Array.isArray(po.importedItems) ? po.importedItems : []
+  if (String(po.type || "").toLowerCase() === "imported" && imported.length) {
+    return imported.map((raw) => {
+      const item = raw as { description?: string; qty?: number; unit?: string; unitPrice?: number }
+      const qty = num(item.qty)
+      const unitPrice = num(item.unitPrice)
+      return {
+        description: String(item.description || "").trim() || "Item",
+        qty,
+        unit: String(item.unit || "pcs").trim() || "pcs",
+        unitPrice,
+        lineTotal: qty * unitPrice,
+      }
+    })
+  }
+  const items = Array.isArray(po.items) ? po.items : []
+  return items.map((raw) => {
+    const item = raw as { description?: string; qty?: number; unit?: string; unitPrice?: number }
+    const qty = num(item.qty)
+    const unitPrice = num(item.unitPrice)
+    return {
+      description: String(item.description || "").trim() || "Item",
+      qty,
+      unit: String(item.unit || "pcs").trim() || "pcs",
+      unitPrice,
+      lineTotal: qty * unitPrice,
+    }
+  })
+}
+
+export function buildPurchaseReport(
+  purchaseOrders: Array<{
+    id: string
+    poNumber?: string | null
+    type?: string | null
+    supplierNames?: unknown
+    importedSupplierName?: string | null
+    items?: unknown
+    importedItems?: unknown
+    payments?: unknown
+    status?: string | null
+    createdBy?: string | null
+    createdAt: Date | string
+    paymentAmount?: number | null
+    paymentDate?: string | null
+  }>,
+  start: Date,
+  end: Date,
+): { local: FinancePurchaseRow[]; imported: FinancePurchaseRow[] } {
+  const local: FinancePurchaseRow[] = []
+  const imported: FinancePurchaseRow[] = []
+
+  for (const po of purchaseOrders) {
+    const payments = Array.isArray(po.payments) ? po.payments : []
+    let paidInPeriod = 0
+    for (const raw of payments) {
+      const p = raw as { amount?: number; date?: string }
+      const amount = num(p.amount)
+      if (amount <= 0) continue
+      const d = new Date(p.date || po.createdAt)
+      if (inRange(d, start, end)) paidInPeriod += amount
+    }
+    if (paidInPeriod <= 0 && po.paymentAmount && po.paymentDate) {
+      const d = new Date(po.paymentDate)
+      if (inRange(d, start, end)) paidInPeriod += num(po.paymentAmount)
+    }
+    const createdInPeriod = inRange(new Date(po.createdAt), start, end)
+    if (paidInPeriod <= 0.004 && !createdInPeriod) continue
+
+    const names = Array.isArray(po.supplierNames)
+      ? po.supplierNames.map((n) => String(n || "").trim()).filter(Boolean)
+      : []
+    const supplier =
+      names.join(", ") || String(po.importedSupplierName || "").trim() || "—"
+    const kind: "Local" | "Imported" =
+      String(po.type || "local").toLowerCase() === "imported" ? "Imported" : "Local"
+    const row: FinancePurchaseRow = {
+      id: po.id,
+      date: fmtDay(po.createdAt),
+      poNumber: String(po.poNumber || po.id.slice(0, 8)),
+      kind,
+      supplier,
+      status: String(po.status || "—"),
+      createdBy: String(po.createdBy || "").trim() || "—",
+      paidInPeriod,
+      items: mapPurchaseItems(po),
+    }
+    if (kind === "Imported") imported.push(row)
+    else local.push(row)
+  }
+
+  local.sort((a, b) => b.paidInPeriod - a.paidInPeriod)
+  imported.sort((a, b) => b.paidInPeriod - a.paidInPeriod)
+  return { local, imported }
+}
+
+export type FinancePettyCashLine = {
+  id: string
+  date: string
+  employee: string
+  description: string
+  category: string
+  amount: number
+}
+
+export type FinancePurchaseItem = {
+  description: string
+  qty: number
+  unit: string
+  unitPrice: number
+  lineTotal: number
+}
+
+export type FinancePurchaseRow = {
+  id: string
+  date: string
+  poNumber: string
+  kind: "Local" | "Imported"
+  supplier: string
+  status: string
+  createdBy: string
+  paidInPeriod: number
+  items: FinancePurchaseItem[]
+}
+
+export function buildPettyCashReport(
+  receipts: Array<{
+    id: string
+    employeeName?: string | null
+    description?: string | null
+    category?: string | null
+    amount: number
+    status: string
+    submittedAt: Date | string
+    reviewedAt?: Date | string | null
+  }>,
+  start: Date,
+  end: Date,
+): {
+  lines: FinancePettyCashLine[]
+  byPerson: FinanceExpenseByPerson[]
+  total: number
+} {
+  const lines: FinancePettyCashLine[] = []
+  for (const r of receipts) {
+    if (String(r.status || "").toLowerCase() !== "approved") continue
+    const amount = num(r.amount)
+    if (amount <= 0) continue
+    const raw = r.reviewedAt ?? r.submittedAt
+    if (!raw) continue
+    if (!inRange(new Date(raw), start, end)) continue
+    lines.push({
+      id: r.id,
+      date: fmtDay(raw),
+      employee: String(r.employeeName || "").trim() || "—",
+      description: String(r.description || "").trim() || "Petty cash",
+      category: String(r.category || "").trim() || "Approved",
+      amount,
+    })
+  }
+  lines.sort((a, b) => b.amount - a.amount)
+  const byMap = new Map<string, FinanceExpenseByPerson>()
+  for (const line of lines) {
+    const row = byMap.get(line.employee) || { name: line.employee, count: 0, amount: 0 }
+    row.count += 1
+    row.amount += line.amount
+    byMap.set(line.employee, row)
+  }
+  return {
+    lines,
+    byPerson: [...byMap.values()].sort((a, b) => b.amount - a.amount),
+    total: lines.reduce((s, l) => s + l.amount, 0),
+  }
+}
+
+function mapPurchaseItems(po: { type?: string | null; items?: unknown; importedItems?: unknown }): FinancePurchaseItem[] {
+  const imported = Array.isArray(po.importedItems) ? po.importedItems : []
+  if (String(po.type || "").toLowerCase() === "imported" && imported.length) {
+    return imported.map((raw) => {
+      const item = raw as { description?: string; qty?: number; unit?: string; unitPrice?: number }
+      const qty = num(item.qty)
+      const unitPrice = num(item.unitPrice)
+      return {
+        description: String(item.description || "").trim() || "Item",
+        qty,
+        unit: String(item.unit || "pcs").trim() || "pcs",
+        unitPrice,
+        lineTotal: qty * unitPrice,
+      }
+    })
+  }
+  const items = Array.isArray(po.items) ? po.items : []
+  return items.map((raw) => {
+    const item = raw as { description?: string; qty?: number; unit?: string; unitPrice?: number }
+    const qty = num(item.qty)
+    const unitPrice = num(item.unitPrice)
+    return {
+      description: String(item.description || "").trim() || "Item",
+      qty,
+      unit: String(item.unit || "pcs").trim() || "pcs",
+      unitPrice,
+      lineTotal: qty * unitPrice,
+    }
+  })
+}
+
+export function buildPurchaseReport(
+  purchaseOrders: Array<{
+    id: string
+    poNumber?: string | null
+    type?: string | null
+    supplierNames?: unknown
+    importedSupplierName?: string | null
+    items?: unknown
+    importedItems?: unknown
+    payments?: unknown
+    status?: string | null
+    createdBy?: string | null
+    createdAt: Date | string
+    paymentAmount?: number | null
+    paymentDate?: string | null
+  }>,
+  start: Date,
+  end: Date,
+): { local: FinancePurchaseRow[]; imported: FinancePurchaseRow[] } {
+  const local: FinancePurchaseRow[] = []
+  const imported: FinancePurchaseRow[] = []
+
+  for (const po of purchaseOrders) {
+    const payments = Array.isArray(po.payments) ? po.payments : []
+    let paidInPeriod = 0
+    for (const raw of payments) {
+      const p = raw as { amount?: number; date?: string }
+      const amount = num(p.amount)
+      if (amount <= 0) continue
+      const d = new Date(p.date || po.createdAt)
+      if (inRange(d, start, end)) paidInPeriod += amount
+    }
+    if (paidInPeriod <= 0 && po.paymentAmount && po.paymentDate) {
+      const d = new Date(po.paymentDate)
+      if (inRange(d, start, end)) paidInPeriod += num(po.paymentAmount)
+    }
+    const createdInPeriod = inRange(new Date(po.createdAt), start, end)
+    if (paidInPeriod <= 0.004 && !createdInPeriod) continue
+
+    const names = Array.isArray(po.supplierNames)
+      ? po.supplierNames.map((n) => String(n || "").trim()).filter(Boolean)
+      : []
+    const supplier =
+      names.join(", ") || String(po.importedSupplierName || "").trim() || "—"
+    const kind: "Local" | "Imported" =
+      String(po.type || "local").toLowerCase() === "imported" ? "Imported" : "Local"
+    const row: FinancePurchaseRow = {
+      id: po.id,
+      date: fmtDay(po.createdAt),
+      poNumber: String(po.poNumber || po.id.slice(0, 8)),
+      kind,
+      supplier,
+      status: String(po.status || "—"),
+      createdBy: String(po.createdBy || "").trim() || "—",
+      paidInPeriod,
+      items: mapPurchaseItems(po),
+    }
+    if (kind === "Imported") imported.push(row)
+    else local.push(row)
+  }
+
+  local.sort((a, b) => b.paidInPeriod - a.paidInPeriod)
+  imported.sort((a, b) => b.paidInPeriod - a.paidInPeriod)
+  return { local, imported }
 }

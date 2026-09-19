@@ -46,7 +46,9 @@ import {
 import {
   buildExpenseReport,
   buildOrderReport,
+  buildPettyCashReport,
   buildPosSalesReport,
+  buildPurchaseReport,
 } from "@/lib/finance-report-details"
 
 const PK_OFFSET = "+05:00"
@@ -441,6 +443,8 @@ export async function GET(req: NextRequest) {
     const posTransactionsInPeriod = posSalesReport.rows.length
     const expenseReport = buildExpenseReport(records, start, end)
     const orderReport = buildOrderReport(orders, start, end)
+    const pettyCashReport = buildPettyCashReport(pettyReceipts, start, end)
+    const purchaseReport = buildPurchaseReport(pos, start, end)
 
     // Supplier advances are already reflected in local purchase ledger payments — exclude from money-out.
     // Salary advances are recovered inside payroll, so exclude them from finance money-out totals.
@@ -832,6 +836,10 @@ export async function GET(req: NextRequest) {
       expensesByPerson: expenseReport.byPerson,
       posSales: posSalesReport.rows,
       orders: orderReport.rows,
+      pettyCashLines: pettyCashReport.lines,
+      pettyCashByPerson: pettyCashReport.byPerson,
+      localPurchases: purchaseReport.local,
+      importedPurchases: purchaseReport.imported,
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
