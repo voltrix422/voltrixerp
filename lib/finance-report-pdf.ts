@@ -1,6 +1,5 @@
 import type {
   FinanceExpenseByPerson,
-  FinanceExpenseLine,
   FinanceLedgerLine,
   FinanceOrderRow,
   FinancePdfItem,
@@ -18,9 +17,6 @@ type OverviewLike = {
       moneyOut?: Record<string, number | undefined>
     }
   }
-  expensesByCategory?: { category: string; amount: number }[]
-  expensesByPerson?: FinanceExpenseByPerson[]
-  expenseLines?: FinanceExpenseLine[]
   posSales?: FinancePosRow[]
   orders?: FinanceOrderRow[]
   pettyCashLines?: FinancePettyCashLine[]
@@ -168,9 +164,6 @@ export async function downloadFinanceOverviewPdf(
       ? dateRangeLabel(opts.dateFrom || "", opts.dateTo || "")
       : data.periodLabel || "Selected period"
 
-  const expenses = data.expenseLines || []
-  const byPerson = data.expensesByPerson || []
-  const byCategory = data.expensesByCategory || []
   const posSales = data.posSales || []
   const orders = data.orders || []
   const pettyLines = data.pettyCashLines || []
@@ -182,7 +175,6 @@ export async function downloadFinanceOverviewPdf(
   const methods = data.paymentMethods || []
   const outstanding = data.topOutstandingClients || []
 
-  const expenseTotal = expenses.reduce((sum, r) => sum + r.amount, 0)
   const pettyTotal = pettyLines.reduce((sum, r) => sum + r.amount, 0)
   const localPaid = localPurchases.reduce((sum, r) => sum + r.paidInPeriod, 0)
   const importedPaid = importedPurchases.reduce((sum, r) => sum + r.paidInPeriod, 0)
@@ -222,10 +214,7 @@ export async function downloadFinanceOverviewPdf(
     },
     {
       title: "What this report contains",
-      note:
-        expenseTotal <= 0 && ledgerTotal + pettyTotal + localPaid + importedPaid > 0
-          ? "Office bills (KFC, utilities, milk, fuel) are Purchase Ledger entries, not Finance-tab records. They are listed below."
-          : "Each section below is limited to the selected date range unless noted.",
+      note: "Each section below is limited to the selected date range unless noted.",
       columns: [
         { header: "Section", width: 52 },
         { header: "Count", align: "right", width: 22 },
@@ -238,13 +227,6 @@ export async function downloadFinanceOverviewPdf(
           ledgerLines.length
             ? `${pkr(ledgerTotal)} total  ·  ${pkr(ledgerPaid)} paid  ·  ${pkr(ledgerDue)} due`
             : "None in this range",
-        ],
-        [
-          "Finance records",
-          String(expenses.length),
-          expenseTotal > 0
-            ? `${pkr(expenseTotal)}  ·  ${byPerson.length} people`
-            : "None on the Finance records tab",
         ],
         [
           "Petty cash (approved)",
@@ -374,61 +356,6 @@ export async function downloadFinanceOverviewPdf(
       rows: ledgerItems,
     })
   }
-
-  if (byPerson.length) {
-    tables.push({
-      title: "Finance expenses — who entered them",
-      note: "ERP users who saved an Expense, Payment, Tax, Salary, or Other record.",
-      columns: [
-        { header: "Entered by", width: 70 },
-        { header: "Entries", align: "right", width: 24 },
-        { header: "Amount", align: "right", width: 46 },
-        { header: "Share", align: "right", width: 46 },
-      ],
-      rows: byPerson.map((r) => [r.name, String(r.count), pkr(r.amount), pct(r.amount, expenseTotal)]),
-      foot: ["All people", String(byPerson.reduce((n, r) => n + r.count, 0)), pkr(expenseTotal), "100%"],
-    })
-  }
-
-  if (byCategory.length && expenses.length) {
-    const catTotal = byCategory.reduce((n, r) => n + r.amount, 0)
-    tables.push({
-      title: "Finance expenses — by category",
-      columns: [
-        { header: "Category", width: 100 },
-        { header: "Amount", align: "right", width: 46 },
-        { header: "Share", align: "right", width: 40 },
-      ],
-      rows: byCategory.map((r) => [r.category, pkr(r.amount), pct(r.amount, catTotal)]),
-      foot: ["All categories", pkr(catTotal), "100%"],
-    })
-  }
-
-  tables.push({
-    title: "Finance records tab",
-    note:
-      expenses.length > 0
-        ? "Expense, Payment, Tax, Salary, and Other records saved on the Finance records tab."
-        : "No Finance-tab records. Office bills are on Purchase ledger above (not this tab).",
-    newPage: expenses.length > 8,
-    columns: [
-      { header: "Date", width: 22 },
-      { header: "Entered by", width: 32 },
-      { header: "Receipt from", width: 30 },
-      { header: "Description", width: 52 },
-      { header: "Type", width: 20 },
-      { header: "Amount", align: "right", width: 30 },
-    ],
-    rows: expenses.map((r) => [
-      r.date,
-      r.createdBy || "—",
-      r.receiptPerson || "—",
-      r.title,
-      r.category,
-      pkr(r.amount),
-    ]),
-    foot: expenses.length ? ["", "", "", `Total · ${expenses.length}`, "", pkr(expenseTotal)] : undefined,
-  })
 
   if (pettyByPerson.length) {
     tables.push({
