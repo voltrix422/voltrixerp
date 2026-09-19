@@ -70,16 +70,17 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png?v=20260919-hq", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png?v=20260919-hq", sizes: "32x32", type: "image/png" },
+      { url: "/android-chrome-192x192.png?v=20260919-hq", sizes: "192x192", type: "image/png" },
     ],
     shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    apple: "/apple-touch-icon.png?v=20260919-hq",
   },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Voltrix",
+    title: "Voltrix ERP",
     statusBarStyle: "default",
   },
 }

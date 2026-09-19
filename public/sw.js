@@ -1,7 +1,14 @@
-/* Voltrix PWA service worker — install + lock-screen notifications */
+/* Voltrix PWA service worker — lock-screen notifications + in-app updates */
+const APP_SW_VERSION = "2026-09-19-app-icon-update"
+
 self.addEventListener("install", (event) => {
-  self.skipWaiting()
   event.waitUntil(Promise.resolve())
+})
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener("activate", (event) => {
@@ -20,8 +27,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Voltrix ERP"
   const options = {
     body: data.message || data.body || "New ERP notification",
-    icon: origin + "/android-chrome-192x192.png",
-    badge: origin + "/favicon-32x32.png",
+    icon: origin + "/android-chrome-192x192.png?v=" + APP_SW_VERSION,
+    badge: origin + "/favicon-32x32.png?v=" + APP_SW_VERSION,
     tag: data.tag || ("voltrix-" + Date.now()),
     data: { url: data.link || data.url || "/dashboard" },
     vibrate: [160, 80, 160],
