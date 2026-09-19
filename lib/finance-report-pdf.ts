@@ -1,6 +1,7 @@
 import type {
   FinanceExpenseByPerson,
   FinanceExpenseLine,
+  FinanceLedgerLine,
   FinanceOrderRow,
   FinancePdfItem,
   FinancePettyCashLine,
@@ -26,6 +27,9 @@ type OverviewLike = {
   pettyCashByPerson?: FinanceExpenseByPerson[]
   localPurchases?: FinancePurchaseRow[]
   importedPurchases?: FinancePurchaseRow[]
+  ledgerLines?: FinanceLedgerLine[]
+  ledgerByPerson?: FinanceExpenseByPerson[]
+  ledgerTotals?: { count: number; purchases: number; rents: number; total: number; paid: number; due: number }
   paymentMethods?: { method: string; amount: number }[]
   topOutstandingClients?: { name: string; orderNumber: string; remaining: number }[]
 }
@@ -173,6 +177,8 @@ export async function downloadFinanceOverviewPdf(
   const pettyByPerson = data.pettyCashByPerson || []
   const localPurchases = data.localPurchases || []
   const importedPurchases = data.importedPurchases || []
+  const ledgerLines = data.ledgerLines || []
+  const ledgerByPerson = data.ledgerByPerson || []
   const methods = data.paymentMethods || []
   const outstanding = data.topOutstandingClients || []
 
@@ -180,6 +186,11 @@ export async function downloadFinanceOverviewPdf(
   const pettyTotal = pettyLines.reduce((sum, r) => sum + r.amount, 0)
   const localPaid = localPurchases.reduce((sum, r) => sum + r.paidInPeriod, 0)
   const importedPaid = importedPurchases.reduce((sum, r) => sum + r.paidInPeriod, 0)
+  const ledgerTotal = data.ledgerTotals?.total ?? ledgerLines.reduce((sum, r) => sum + r.total, 0)
+  const ledgerPaid = data.ledgerTotals?.paid ?? ledgerLines.reduce((sum, r) => sum + r.paid, 0)
+  const ledgerDue = data.ledgerTotals?.due ?? ledgerLines.reduce((sum, r) => sum + r.due, 0)
+  const ledgerPurchases = ledgerLines.filter((r) => r.kind === "Purchase").length
+  const ledgerRents = ledgerLines.filter((r) => r.kind === "Rent").length
   const posTotal = posSales.reduce((sum, r) => sum + r.total, 0)
   const posItemCount = posSales.reduce((sum, r) => sum + r.items.length, 0)
   const orderTotal = orders.reduce((sum, r) => sum + r.total, 0)
@@ -212,8 +223,8 @@ export async function downloadFinanceOverviewPdf(
     {
       title: "What this report contains",
       note:
-        expenseTotal <= 0 && pettyTotal + localPaid + importedPaid > 0
-          ? "Finance-record expenses are 0 in this range. Day-to-day spend is under Petty cash and Purchases."
+        expenseTotal <= 0 && ledgerTotal + pettyTotal + localPaid + importedPaid > 0
+          ? "Office bills (KFC, utilities, milk, fuel) are Purchase Ledger entries, not Finance-tab records. They are listed below."
           : "Each section below is limited to the selected date range unless noted.",
       columns: [
         { header: "Section", width: 52 },
@@ -222,11 +233,18 @@ export async function downloadFinanceOverviewPdf(
       ],
       rows: [
         [
-          "Finance expenses",
+          "Purchase ledger (Main Office)",
+          String(ledgerLines.length),
+          ledgerLines.length
+            ? `${pkr(ledgerTotal)} total  ·  ${pkr(ledgerPaid)} paid  ·  ${pkr(ledgerDue)} due`
+            : "None in this range",
+        ],
+        [
+          "Finance records",
           String(expenses.length),
           expenseTotal > 0
             ? `${pkr(expenseTotal)}  ·  ${byPerson.length} people`
-            : "None recorded in this range",
+            : "None on the Finance records tab",
         ],
         [
           "Petty cash (approved)",
@@ -236,12 +254,12 @@ export async function downloadFinanceOverviewPdf(
             : "None approved in this range",
         ],
         [
-          "Local purchases",
+          "Local purchase orders",
           String(localPurchases.length),
           localPurchases.length ? `${pkr(localPaid)} paid in range` : "None in this range",
         ],
         [
-          "Imported purchases",
+          "Imported purchase orders",
           String(importedPurchases.length),
           importedPurchases.length ? `${pkr(importedPaid)} paid in range` : "None in this range",
         ],
@@ -284,6 +302,79 @@ export async function downloadFinanceOverviewPdf(
     })
   }
 
+  if (ledgerByPerson.length) {
+    tables.push({
+      title: "Purchase ledger — who entered them",
+      note: "Main Office (P1) ledger entries in this date range: bills, office spend, rents.",
+      newPage: true,
+      columns: [
+        { header: "Entered by", width: 70 },
+        { header: "Entries", align: "right", width: 24 },
+        { header: "Paid / amount", align: "right", width: 46 },
+        { header: "Share", align: "right", width: 46 },
+      ],
+      rows: ledgerByPerson.map((r) => [r.name, String(r.count), pkr(r.amount), pct(r.amount, ledgerPaid || ledgerTotal)]),
+      foot: ["All people", String(ledgerLines.length), pkr(ledgerPaid || ledgerTotal), "100%"],
+    })
+  }
+
+  tables.push({
+    title: "Purchase ledger — Main Office",
+    note: ledgerLines.length
+      ? `${ledgerPurchases} purchases · ${ledgerRents} rents · same list as Purchase → Filters & summary.`
+      : "No Main Office ledger entries in this date range.",
+    newPage: !ledgerByPerson.length,
+    columns: [
+      { header: "Date", width: 20 },
+      { header: "Ledger", width: 22 },
+      { header: "By", width: 22 },
+      { header: "Supplier", width: 30 },
+      { header: "Items", width: 36 },
+      { header: "Total", align: "right", width: 20 },
+      { header: "Paid", align: "right", width: 18 },
+      { header: "Due", align: "right", width: 18 },
+    ],
+    rows: ledgerLines.map((r) => [
+      r.date,
+      r.ledgerNumber,
+      r.createdBy,
+      r.supplier,
+      r.itemsLabel,
+      pkr(r.total),
+      pkr(r.paid),
+      pkr(r.due),
+    ]),
+    foot: ledgerLines.length
+      ? ["", "", "", "", `${ledgerLines.length} entries`, pkr(ledgerTotal), pkr(ledgerPaid), pkr(ledgerDue)]
+      : undefined,
+  })
+
+  const ledgerItems = ledgerLines.flatMap((r) =>
+    r.itemLines.map((item) => [
+      r.ledgerNumber,
+      r.supplier,
+      item.description,
+      item.qty ? String(item.qty) : "—",
+      item.unitPrice > 0 ? pkr(item.unitPrice) : "—",
+      item.lineTotal > 0 ? pkr(item.lineTotal) : "—",
+    ]),
+  )
+  if (ledgerItems.length) {
+    tables.push({
+      title: "Purchase ledger — items",
+      note: "Product / bill lines on the ledger entries above.",
+      columns: [
+        { header: "Ledger", width: 24 },
+        { header: "Supplier", width: 36 },
+        { header: "Item", width: 62 },
+        { header: "Qty", width: 16 },
+        { header: "Unit price", align: "right", width: 24 },
+        { header: "Line total", align: "right", width: 24 },
+      ],
+      rows: ledgerItems,
+    })
+  }
+
   if (byPerson.length) {
     tables.push({
       title: "Finance expenses — who entered them",
@@ -314,11 +405,11 @@ export async function downloadFinanceOverviewPdf(
   }
 
   tables.push({
-    title: "All finance expense entries",
+    title: "Finance records tab",
     note:
       expenses.length > 0
-        ? "Expense, Payment, Tax, Salary, and Other records in this date range."
-        : "No finance records in this range. See Petty cash (approved) and Purchases for cash that left.",
+        ? "Expense, Payment, Tax, Salary, and Other records saved on the Finance records tab."
+        : "No Finance-tab records. Office bills are on Purchase ledger above (not this tab).",
     newPage: expenses.length > 8,
     columns: [
       { header: "Date", width: 22 },

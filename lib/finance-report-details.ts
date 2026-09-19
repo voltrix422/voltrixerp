@@ -1,4 +1,5 @@
 ﻿import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
+import { isRentLedgerDbRow } from "@/lib/purchase-ledger"
 import type { MoneyOutDetailLine } from "@/lib/finance-money-out-details"
 import { approvedBalancePaymentAmount, parseOrderPayments } from "@/lib/finance-overview"
 import { isCrmErpOrderForPaymentStats } from "@/lib/order-payment-stats"
@@ -517,4 +518,184 @@ export function buildPurchaseReport(
   local.sort((a, b) => b.paidInPeriod - a.paidInPeriod)
   imported.sort((a, b) => b.paidInPeriod - a.paidInPeriod)
   return { local, imported }
+}
+
+export type FinanceLedgerItem = {
+  description: string
+  qty: number
+  unitPrice: number
+  lineTotal: number
+}
+
+export type FinanceLedgerLine = {
+  id: string
+  date: string
+  ledgerNumber: string
+  createdBy: string
+  supplier: string
+  project: string
+  itemsLabel: string
+  kind: "Purchase" | "Rent"
+  total: number
+  paid: number
+  due: number
+  itemLines: FinanceLedgerItem[]
+}
+
+function ledgerDayInRange(iso: string | null | undefined, fallback: Date | string, start: Date, end: Date) {
+  const raw = String(iso || "").trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return inRange(new Date(`${raw}T12:00:00+05:00`), start, end)
+  }
+  return inRange(new Date(fallback), start, end)
+}
+
+function asArray(value: unknown): unknown[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  try {
+    const parsed = JSON.parse(String(value))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function flattenLedgerItems(row: {
+  productName?: string | null
+  items?: unknown
+  supplierGroups?: unknown
+  quantity?: number
+  unitPrice?: number
+  totalAmount?: number
+}): FinanceLedgerItem[] {
+  const groups = asArray(row.supplierGroups)
+  const fromGroups: FinanceLedgerItem[] = []
+  for (const g of groups) {
+    const items = asArray((g as { items?: unknown }).items)
+    for (const raw of items) {
+      const item = raw as { productName?: string; quantity?: number; unitPrice?: number; lineTotal?: number }
+      const qty = num(item.quantity)
+      const unitPrice = num(item.unitPrice)
+      const lineTotal = num(item.lineTotal) || qty * unitPrice
+      fromGroups.push({
+        description: String(item.productName || "").trim() || "Item",
+        qty,
+        unitPrice,
+        lineTotal,
+      })
+    }
+  }
+  if (fromGroups.length) return fromGroups
+  const items = asArray(row.items)
+  const fromItems = items.map((raw) => {
+    const item = raw as { productName?: string; quantity?: number; unitPrice?: number; lineTotal?: number }
+    const qty = num(item.quantity)
+    const unitPrice = num(item.unitPrice)
+    return {
+      description: String(item.productName || "").trim() || "Item",
+      qty,
+      unitPrice,
+      lineTotal: num(item.lineTotal) || qty * unitPrice,
+    }
+  })
+  if (fromItems.length) return fromItems
+  const name = String(row.productName || "").trim()
+  if (!name) return []
+  return [{
+    description: name,
+    qty: num(row.quantity) || 1,
+    unitPrice: num(row.unitPrice),
+    lineTotal: num(row.totalAmount),
+  }]
+}
+
+function ledgerSupplier(row: { supplierName?: string | null; supplierGroups?: unknown }) {
+  const names = asArray(row.supplierGroups)
+    .map((g) => String((g as { supplierName?: string }).supplierName || "").trim())
+    .filter(Boolean)
+  return names.join(", ") || String(row.supplierName || "").trim() || "—"
+}
+
+export function buildLedgerReport(
+  entries: Array<{
+    id: string
+    ledgerNumber?: string | null
+    transactionDate?: string | null
+    createdAt: Date | string
+    createdBy?: string | null
+    supplierName?: string | null
+    projectName?: string | null
+    productName?: string | null
+    purchaseScopeId?: string | null
+    transactionType?: string | null
+    items?: unknown
+    supplierGroups?: unknown
+    payments?: unknown
+    quantity?: number | null
+    unitPrice?: number | null
+    totalAmount?: number | null
+    amountPaid?: number | null
+    amountDue?: number | null
+  }>,
+  start: Date,
+  end: Date,
+): {
+  lines: FinanceLedgerLine[]
+  purchases: FinanceLedgerLine[]
+  rents: FinanceLedgerLine[]
+  byPerson: FinanceExpenseByPerson[]
+  total: number
+  paid: number
+  due: number
+} {
+  const lines: FinanceLedgerLine[] = []
+  for (const row of entries) {
+    const scope = String(row.purchaseScopeId || "P1").trim().toUpperCase()
+    if (scope && scope !== "P1") continue
+    const dateHit = ledgerDayInRange(row.transactionDate, row.createdAt, start, end)
+    const payments = asArray(row.payments)
+    const paidInRange = payments.some((raw) => {
+      const p = raw as { date?: string; createdAt?: string }
+      return ledgerDayInRange(p.date || p.createdAt, row.createdAt, start, end)
+    })
+    if (!dateHit && !paidInRange) continue
+    const itemLines = flattenLedgerItems(row)
+    const itemsLabel = itemLines.length
+      ? itemLines.length === 1
+        ? itemLines[0].description
+        : `${itemLines[0].description} +${itemLines.length - 1} more`
+      : String(row.productName || "—")
+    lines.push({
+      id: row.id,
+      date: String(row.transactionDate || "").trim() || fmtDay(row.createdAt),
+      ledgerNumber: String(row.ledgerNumber || "—"),
+      createdBy: String(row.createdBy || "").trim() || "—",
+      supplier: ledgerSupplier(row),
+      project: String(row.projectName || "").trim() || "—",
+      itemsLabel,
+      kind: isRentLedgerDbRow(row) ? "Rent" : "Purchase",
+      total: num(row.totalAmount),
+      paid: num(row.amountPaid),
+      due: num(row.amountDue),
+      itemLines,
+    })
+  }
+  lines.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  const byMap = new Map<string, FinanceExpenseByPerson>()
+  for (const line of lines) {
+    const row = byMap.get(line.createdBy) || { name: line.createdBy, count: 0, amount: 0 }
+    row.count += 1
+    row.amount += line.paid || line.total
+    byMap.set(line.createdBy, row)
+  }
+  return {
+    lines,
+    purchases: lines.filter((l) => l.kind === "Purchase"),
+    rents: lines.filter((l) => l.kind === "Rent"),
+    byPerson: [...byMap.values()].sort((a, b) => b.amount - a.amount),
+    total: lines.reduce((s, l) => s + l.total, 0),
+    paid: lines.reduce((s, l) => s + l.paid, 0),
+    due: lines.reduce((s, l) => s + l.due, 0),
+  }
 }

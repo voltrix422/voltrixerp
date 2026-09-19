@@ -45,6 +45,7 @@ import {
 } from "@/lib/finance-loans"
 import {
   buildExpenseReport,
+  buildLedgerReport,
   buildOrderReport,
   buildPettyCashReport,
   buildPosSalesReport,
@@ -180,14 +181,24 @@ export async function GET(req: NextRequest) {
       }),
       prisma.erpPurchaseLedger.findMany({
         select: {
-          payments: true,
+          id: true,
+          ledgerNumber: true,
+          transactionDate: true,
           createdAt: true,
-          amountPaid: true,
+          createdBy: true,
+          supplierName: true,
+          projectName: true,
+          productName: true,
           purchaseScopeId: true,
           transactionType: true,
           items: true,
           supplierGroups: true,
-          productName: true,
+          payments: true,
+          quantity: true,
+          unitPrice: true,
+          totalAmount: true,
+          amountPaid: true,
+          amountDue: true,
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -445,6 +456,7 @@ export async function GET(req: NextRequest) {
     const orderReport = buildOrderReport(orders, start, end)
     const pettyCashReport = buildPettyCashReport(pettyReceipts, start, end)
     const purchaseReport = buildPurchaseReport(pos, start, end)
+    const ledgerReport = buildLedgerReport(purchaseLedger, start, end)
 
     // Supplier advances are already reflected in local purchase ledger payments — exclude from money-out.
     // Salary advances are recovered inside payroll, so exclude them from finance money-out totals.
@@ -840,6 +852,16 @@ export async function GET(req: NextRequest) {
       pettyCashByPerson: pettyCashReport.byPerson,
       localPurchases: purchaseReport.local,
       importedPurchases: purchaseReport.imported,
+      ledgerLines: ledgerReport.lines,
+      ledgerByPerson: ledgerReport.byPerson,
+      ledgerTotals: {
+        count: ledgerReport.lines.length,
+        purchases: ledgerReport.purchases.length,
+        rents: ledgerReport.rents.length,
+        total: ledgerReport.total,
+        paid: ledgerReport.paid,
+        due: ledgerReport.due,
+      },
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
