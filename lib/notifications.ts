@@ -39,3 +39,29 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
     body: JSON.stringify({ userId, all: true }),
   })
 }
+
+export async function sendTestNotification(userId: string): Promise<{
+  ok: boolean
+  message: string
+  phones?: number
+}> {
+  const res = await fetch("/api/notifications/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  })
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean
+    error?: string
+    message?: string
+    phones?: number
+  }
+  if (!res.ok) {
+    return { ok: false, message: data.error || "Could not send test notification." }
+  }
+  return {
+    ok: true,
+    message: data.message || "Test notification sent.",
+    phones: data.phones,
+  }
+}

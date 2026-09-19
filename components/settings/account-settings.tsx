@@ -4,6 +4,7 @@ import { useAuth } from "@/components/auth-provider"
 import { saveUser } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { NotificationEmailsEditor } from "@/components/settings/notification-emails-editor"
+import { sendTestNotification } from "@/lib/notifications"
 import { Eye, EyeOff, Check, User, Lock, AlertCircle, Bell } from "lucide-react"
 
 const inputCls = "w-full h-9 rounded-md border bg-[hsl(var(--background))] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6] transition-colors"
@@ -37,6 +38,7 @@ export function AccountSettings() {
   const [notifDone, setNotifDone] = useState(false)
   const [notifError, setNotifError] = useState("")
   const [testingEmail, setTestingEmail] = useState(false)
+  const [testingPush, setTestingPush] = useState(false)
   const [testResult, setTestResult] = useState("")
   const [smtpStatus, setSmtpStatus] = useState<{
     configured: boolean
@@ -155,6 +157,19 @@ export function AccountSettings() {
       setTestResult("Could not send test email.")
     }
     setTestingEmail(false)
+  }
+
+  async function handleTestPush() {
+    if (!user?.id) return
+    setTestingPush(true)
+    setTestResult("")
+    try {
+      const result = await sendTestNotification(user.id)
+      setTestResult(result.message)
+    } catch {
+      setTestResult("Could not send test phone notification.")
+    }
+    setTestingPush(false)
   }
 
   const notifDirty =
@@ -288,6 +303,16 @@ export function AccountSettings() {
               onClick={handleTestEmail}
             >
               {testingEmail ? "Sending..." : "Send test email"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs cursor-pointer"
+              disabled={testingPush}
+              onClick={() => void handleTestPush()}
+            >
+              {testingPush ? "Sending..." : "Send test phone alert"}
             </Button>
             {notifDone && (
               <span className="flex items-center gap-1.5 text-xs text-emerald-600">

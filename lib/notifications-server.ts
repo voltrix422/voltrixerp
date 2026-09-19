@@ -76,7 +76,16 @@ async function sendEmailsForUser(userId: string, input: CreateNotificationInput)
   })
 }
 
-export async function notifyUser(userId: string, input: CreateNotificationInput) {
+type NotifyOptions = {
+  skipEmail?: boolean
+  awaitPush?: boolean
+}
+
+export async function notifyUser(
+  userId: string,
+  input: CreateNotificationInput,
+  options?: NotifyOptions,
+) {
   const notification = await prisma.erpNotification.create({
     data: {
       userId,
@@ -87,8 +96,8 @@ export async function notifyUser(userId: string, input: CreateNotificationInput)
     },
   })
 
-  void sendEmailsForUser(userId, input)
-  void import("@/lib/web-push-server")
+  if (!options?.skipEmail) void sendEmailsForUser(userId, input)
+  const push = import("@/lib/web-push-server")
     .then(({ sendPushToUser }) =>
       sendPushToUser(userId, {
         title: input.title,
@@ -98,17 +107,59 @@ export async function notifyUser(userId: string, input: CreateNotificationInput)
       }),
     )
     .catch(() => {})
+  if (options?.awaitPush) await push
+  else void push
   return notification
 }
 
-export async function notifyUsers(userIds: string[], input: CreateNotificationInput) {
+export async function notifyUsers(
+  userIds: string[],
+  input: CreateNotificationInput,
+  options?: NotifyOptions,
+) {
   const unique = [...new Set(userIds.filter(Boolean))]
   if (!unique.length) return []
 
   const notifications = await Promise.all(
-    unique.map(userId => notifyUser(userId, input)),
+    unique.map(userId => notifyUser(userId, input, options)),
   )
   return notifications
+}
+
+export async function sendTestAppNotification(fromUserId: string) {
+  const from = await prisma.erpUser.findUnique({
+    where: { id: fromUserId },
+    select: { id: true, name: true, email: true },
+  })
+  if (!from) return { ok: false as const, error: "User not found" }
+
+  const admins = await prisma.erpUser.findMany({
+    where: { role: { in: ["superadmin", "admin"] } },
+    select: { id: true },
+  })
+  const recipientIds = [...new Set([from.id, ...admins.map(u => u.id)].filter(Boolean))]
+
+  await notifyUsers(
+    recipientIds,
+    {
+      title: "Test notification",
+      message: `${from.name} sent a test alert. If you see this on your phone, real-time app notifications are working.`,
+      type: "info",
+      link: "/dashboard",
+    },
+    { skipEmail: true, awaitPush: true },
+  )
+
+  const phones = await prisma.erpPushSubscription.count({
+    where: { userId: { in: recipientIds } },
+  })
+
+  return {
+    ok: true as const,
+    recipients: recipientIds.length,
+    phones,
+    senderName: from.name,
+  }
 }
 
 export async function notifyUsersByModule(module: ErpModule, input: CreateNotificationInput) {

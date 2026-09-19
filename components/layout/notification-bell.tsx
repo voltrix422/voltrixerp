@@ -8,6 +8,7 @@ import {
   fetchUnreadCount,
   markAllNotificationsRead,
   markNotificationRead,
+  sendTestNotification,
   type AppNotification,
 } from "@/lib/notifications"
 import {
@@ -35,6 +36,37 @@ function timeAgo(iso: string) {
   return `${days}d ago`
 }
 
+export function TestNotificationButton() {
+  const { user } = useAuth()
+  const [testing, setTesting] = useState(false)
+  const [done, setDone] = useState(false)
+
+  if (!user?.id) return null
+
+  async function handleClick() {
+    if (!user?.id || testing) return
+    setTesting(true)
+    setDone(false)
+    const result = await sendTestNotification(user.id)
+    setDone(result.ok)
+    setTesting(false)
+    window.setTimeout(() => setDone(false), 4000)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void handleClick()}
+      disabled={testing}
+      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#1a9f9a]/40 bg-[#1a9f9a]/10 px-2.5 text-[11px] font-semibold text-[#0d6b67] hover:bg-[#1a9f9a]/20 disabled:opacity-60 shrink-0"
+      title="Send a live test alert to admins and this phone"
+    >
+      <Bell className="h-3.5 w-3.5" />
+      <span>{testing ? "Sending..." : done ? "Sent" : "Test alert"}</span>
+    </button>
+  )
+}
+
 export function NotificationBell() {
   const { user } = useAuth()
   const router = useRouter()
@@ -42,6 +74,8 @@ export function NotificationBell() {
   const [items, setItems] = useState<AppNotification[]>([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testMessage, setTestMessage] = useState("")
   const ref = useRef<HTMLDivElement>(null)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const primedRef = useRef(false)
@@ -140,6 +174,16 @@ export function NotificationBell() {
     setUnread(0)
   }
 
+  async function handleTest() {
+    if (!user?.id || testing) return
+    setTesting(true)
+    setTestMessage("")
+    const result = await sendTestNotification(user.id)
+    setTestMessage(result.message)
+    if (result.ok) void refresh()
+    setTesting(false)
+  }
+
   if (!user) return null
 
   return (
@@ -208,6 +252,20 @@ export function NotificationBell() {
                 </div>
               </button>
             ))}
+          </div>
+
+          <div className="border-t px-3 py-2.5">
+            <button
+              type="button"
+              onClick={() => void handleTest()}
+              disabled={testing}
+              className="inline-flex h-8 w-full items-center justify-center rounded-md bg-[#1a9f9a] px-3 text-[11px] font-semibold text-white hover:bg-[#158a85] disabled:opacity-60"
+            >
+              {testing ? "Sending test..." : "Send test notification"}
+            </button>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))]">
+              {testMessage || "Sends a live alert to admins and this account. Installed phones get it on the lock screen."}
+            </p>
           </div>
         </div>
       )}
