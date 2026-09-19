@@ -22,7 +22,7 @@ const TABLE_FONT = "times"
 const INK: [number, number, number] = [18, 18, 18]
 const MUTED: [number, number, number] = [72, 72, 72]
 const RULE: [number, number, number] = [32, 32, 32]
-const MONEY_HEADER = /^(amount|total|paid|due|received|unit)$/i
+const MONEY_HEADER = /^(amount|total|paid|due|received|credit|unit)$/i
 
 function columnMinWidth(col: PlainCol): number {
   if (col.minWidth && col.minWidth > 0) return col.minWidth
@@ -125,15 +125,15 @@ function drawRunningHeader(
   }
 }
 
-function drawSectionTitle(doc: JsDoc, title: string, x: number, y: number, pageW: number, m: number) {
+function drawSectionTitle(doc: JsDoc, title: string, x: number, y: number, pageW: number, m: number, compact = false) {
   doc.setFont(TITLE_FONT, "bold")
-  doc.setFontSize(14)
+  doc.setFontSize(compact ? 10 : 14)
   doc.setTextColor(...INK)
   doc.text(title, x, y)
   doc.setDrawColor(...RULE)
   doc.setLineWidth(0.45)
-  doc.line(x, y + 2.2, pageW - m, y + 2.2)
-  return y + 8
+  doc.line(x, y + 1.8, pageW - m, y + 1.8)
+  return y + (compact ? 5.5 : 8)
 }
 
 export async function downloadPlainReportPdf(opts: {
@@ -144,6 +144,7 @@ export async function downloadPlainReportPdf(opts: {
   tables: PlainTable[]
   landscape?: boolean
   pagePerTable?: boolean
+  compact?: boolean
 }) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
@@ -163,39 +164,43 @@ export async function downloadPlainReportPdf(opts: {
   const period = opts.subtitle || ""
   const logoSize = logo ? 18 : 0
   const textX = m + (logo ? logoSize + 5 : 0)
-  const headerBottom = period ? 24 : 20
+  const compact = Boolean(opts.compact)
+  const headerBottom = period ? (compact ? 22 : 24) : 20
   const pagePerTable = Boolean(opts.pagePerTable)
+  const bodySize = compact ? 8 : 9
+  const smallSize = compact ? 6.8 : 7.5
+  const pad = compact ? { top: 1.1, bottom: 1.1, left: 1.2, right: 1.2 } : { top: 2.1, bottom: 2.1, left: 1.8, right: 1.8 }
 
-  if (logo) drawLogo(doc, logo, m, 10, logoSize)
-  let y = logo ? 16 : 14
+  if (logo) drawLogo(doc, logo, m, compact ? 8 : 10, compact ? 14 : logoSize)
+  let y = logo ? (compact ? 13 : 16) : 14
   doc.setTextColor(...INK)
   doc.setFont(TITLE_FONT, "bold")
-  doc.setFontSize(12)
+  doc.setFontSize(compact ? 11 : 12)
   doc.text("VOLTRIX BATTERIES PVT. LTD.", textX, y)
-  y += 7
-  doc.setFontSize(18)
+  y += compact ? 5.5 : 7
+  doc.setFontSize(compact ? 14 : 18)
   doc.text(opts.title.toUpperCase(), textX, y)
-  y = Math.max(y, logo ? 30 : y) + 3
+  y = Math.max(y, logo ? (compact ? 24 : 30) : y) + (compact ? 2 : 3)
   doc.setDrawColor(...RULE)
   doc.setLineWidth(0.55)
   doc.line(m, y, pageW - m, y)
-  y += 7
+  y += compact ? 5 : 7
 
   if (opts.subtitle) {
     doc.setFont(TITLE_FONT, "bold")
-    doc.setFontSize(11)
+    doc.setFontSize(compact ? 9 : 11)
     doc.text(`Period  ${opts.subtitle}`, m, y)
-    y += 5.5
+    y += compact ? 4.2 : 5.5
   }
 
   for (const lineText of opts.meta || []) {
     doc.setFont(TITLE_FONT, "normal")
-    doc.setFontSize(10)
+    doc.setFontSize(compact ? 8 : 10)
     doc.setTextColor(...INK)
     doc.text(lineText, m, y)
-    y += 4.4
+    y += compact ? 3.4 : 4.4
   }
-  y += 4
+  y += compact ? 2.5 : 4
 
   const startTable = (needed: number) => {
     if (y > pageH - needed) {
@@ -215,7 +220,7 @@ export async function downloadPlainReportPdf(opts: {
     startTable(34)
 
     if (table.title) {
-      y = drawSectionTitle(doc, table.title, m, y, pageW, m)
+      y = drawSectionTitle(doc, table.title, m, y, pageW, m, compact)
     }
 
     const body =
@@ -236,20 +241,20 @@ export async function downloadPlainReportPdf(opts: {
       tableWidth: usable,
       styles: {
         font: TABLE_FONT,
-        fontSize: 9,
-        cellPadding: { top: 2.1, bottom: 2.1, left: 1.8, right: 1.8 },
+        fontSize: bodySize,
+        cellPadding: pad,
         textColor: INK,
         fillColor: [255, 255, 255],
         lineColor: RULE,
         lineWidth: 0.2,
         overflow: "linebreak",
         valign: "middle",
-        minCellHeight: 7,
+        minCellHeight: compact ? 5 : 7,
       },
       headStyles: {
         font: TABLE_FONT,
         fontStyle: "bold",
-        fontSize: 9,
+        fontSize: compact ? 7.5 : 9,
         fillColor: [255, 255, 255],
         textColor: INK,
         lineWidth: 0.3,
@@ -258,7 +263,7 @@ export async function downloadPlainReportPdf(opts: {
       footStyles: {
         font: TABLE_FONT,
         fontStyle: "bold",
-        fontSize: 9,
+        fontSize: compact ? 7.5 : 9,
         fillColor: [255, 255, 255],
         textColor: INK,
         lineWidth: 0.3,
@@ -271,11 +276,11 @@ export async function downloadPlainReportPdf(opts: {
             halign: c.align || "left",
             cellWidth: colWidths[i],
             overflow: "linebreak",
-            fontSize: c.small ? 7.5 : 9,
+            fontSize: c.small ? smallSize : bodySize,
           },
         ]),
       ),
-      margin: { left: m, right: m, top: headerBottom + (sectionTitle ? 12 : 4) },
+      margin: { left: m, right: m, top: headerBottom + (sectionTitle ? (compact ? 8 : 12) : 4) },
       showHead: "everyPage",
       tableLineColor: RULE,
       tableLineWidth: 0.2,
@@ -284,12 +289,12 @@ export async function downloadPlainReportPdf(opts: {
         if (pageNo > 1) {
           drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
           if (sectionTitle && hook.pageNumber > 1) {
-            drawSectionTitle(doc, sectionTitle, m, headerBottom + 4, pageW, m)
+            drawSectionTitle(doc, sectionTitle, m, headerBottom + 4, pageW, m, compact)
           }
         }
       },
     })
-    y = (doc.lastAutoTable?.finalY || y) + 10
+    y = (doc.lastAutoTable?.finalY || y) + (compact ? 5 : 10)
     tableIndex += 1
   }
 
