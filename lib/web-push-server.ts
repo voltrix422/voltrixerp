@@ -28,8 +28,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   const rows = await prisma.erpPushSubscription.findMany({ where: { userId } })
   if (!rows.length) return
 
-  const mod = await import("web-push")
-  const webpush = (mod.default || mod) as typeof import("web-push")
+  const webpush = (await import("web-push")).default
   const mailto = subject.startsWith("mailto:") || subject.startsWith("http") ? subject : `mailto:${subject}`
   webpush.setVapidDetails(mailto, publicKey, privateKey)
 
