@@ -15,6 +15,11 @@ export type PlainTable = {
 
 type JsDoc = import("jspdf").jsPDF & { lastAutoTable?: { finalY: number } }
 
+const FONT = "times"
+const INK: [number, number, number] = [18, 18, 18]
+const MUTED: [number, number, number] = [72, 72, 72]
+const RULE: [number, number, number] = [32, 32, 32]
+
 function fmtDateLabel(iso: string) {
   if (!iso) return ""
   const [y, m, d] = iso.split("-")
@@ -71,24 +76,35 @@ function drawRunningHeader(
   period: string,
   logo: string,
 ) {
-  const ink: [number, number, number] = [20, 20, 20]
-  const line: [number, number, number] = [40, 40, 40]
   const logoSize = logo ? 8 : 0
   if (logo) drawLogo(doc, logo, m, 6.5, logoSize)
-  doc.setTextColor(...ink)
-  doc.setFont("helvetica", "bold")
+  doc.setTextColor(...INK)
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(10)
+  doc.text(company, m + (logo ? logoSize + 3 : 0), 10.5)
+  doc.setFont(FONT, "normal")
   doc.setFontSize(9)
-  doc.text(company, m + (logo ? logoSize + 3 : 0), 10)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.text(title, pageW - m, 10, { align: "right" })
-  doc.setDrawColor(...line)
-  doc.setLineWidth(0.35)
-  doc.line(m, 16, pageW - m, 16)
+  doc.text(title, pageW - m, 10.5, { align: "right" })
+  doc.setDrawColor(...RULE)
+  doc.setLineWidth(0.4)
+  doc.line(m, 16.5, pageW - m, 16.5)
   if (period) {
-    doc.setFontSize(7.5)
-    doc.text(period, m, 19.5)
+    doc.setFontSize(8)
+    doc.setTextColor(...MUTED)
+    doc.text(period, m, 20.5)
+    doc.setTextColor(...INK)
   }
+}
+
+function drawSectionTitle(doc: JsDoc, title: string, x: number, y: number, pageW: number, m: number) {
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(14)
+  doc.setTextColor(...INK)
+  doc.text(title, x, y)
+  doc.setDrawColor(...RULE)
+  doc.setLineWidth(0.45)
+  doc.line(x, y + 2.2, pageW - m, y + 2.2)
+  return y + 8
 }
 
 export async function downloadPlainReportPdf(opts: {
@@ -98,6 +114,7 @@ export async function downloadPlainReportPdf(opts: {
   filename: string
   tables: PlainTable[]
   landscape?: boolean
+  pagePerTable?: boolean
 }) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
@@ -113,84 +130,69 @@ export async function downloadPlainReportPdf(opts: {
   const logo = await loadLogoBase64()
   const pageW = doc.internal.pageSize.getWidth()
   const pageH = doc.internal.pageSize.getHeight()
-  const m = 12
-  const ink: [number, number, number] = [20, 20, 20]
-  const muted: [number, number, number] = [70, 70, 70]
-  const line: [number, number, number] = [40, 40, 40]
+  const m = 14
   const period = opts.subtitle || ""
-  const logoSize = logo ? 16 : 0
-  const textX = m + (logo ? logoSize + 4 : 0)
+  const logoSize = logo ? 18 : 0
+  const textX = m + (logo ? logoSize + 5 : 0)
+  const headerBottom = period ? 24 : 20
+  const pagePerTable = Boolean(opts.pagePerTable)
 
-  if (logo) drawLogo(doc, logo, m, 8, logoSize)
-  let y = logo ? 13 : 11
-  doc.setTextColor(...ink)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
+  if (logo) drawLogo(doc, logo, m, 10, logoSize)
+  let y = logo ? 16 : 14
+  doc.setTextColor(...INK)
+  doc.setFont(FONT, "bold")
+  doc.setFontSize(12)
   doc.text("VOLTRIX BATTERIES PVT. LTD.", textX, y)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  doc.text(opts.title, pageW - m, y, { align: "right" })
-  y = logo ? 26 : 15
-  doc.setDrawColor(...line)
-  doc.setLineWidth(0.4)
+  y += 7
+  doc.setFontSize(18)
+  doc.text(opts.title.toUpperCase(), textX, y)
+  y = Math.max(y, logo ? 30 : y) + 3
+  doc.setDrawColor(...RULE)
+  doc.setLineWidth(0.55)
   doc.line(m, y, pageW - m, y)
-  y += 5.5
+  y += 7
 
   if (opts.subtitle) {
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(10)
+    doc.setFont(FONT, "bold")
+    doc.setFontSize(11)
     doc.text(`Period  ${opts.subtitle}`, m, y)
-    y += 4.5
+    y += 5.5
   }
 
   for (const lineText of opts.meta || []) {
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(8)
-    doc.setTextColor(...muted)
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(10)
+    doc.setTextColor(...INK)
     doc.text(lineText, m, y)
-    y += 3.6
+    y += 4.4
   }
-  doc.setTextColor(...ink)
-  y += 2
+  y += 4
 
   const startTable = (needed: number) => {
     if (y > pageH - needed) {
       doc.addPage()
-      drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
-      y = period ? 24 : 20
+      y = headerBottom + 4
     }
   }
 
+  let tableIndex = 0
   for (const table of opts.tables) {
-    if (table.newPage && y > 28) {
+    const forceNewPage = table.newPage || (pagePerTable && tableIndex > 0)
+    if (forceNewPage && y > 36) {
       doc.addPage()
-      drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
-      y = period ? 24 : 20
+      y = headerBottom + 4
     }
 
-    startTable(table.note ? 36 : 30)
+    startTable(34)
 
     if (table.title) {
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(9.5)
-      doc.setTextColor(...ink)
-      doc.text(table.title, m, y)
-      y += 4
-    }
-    if (table.note) {
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(7.5)
-      doc.setTextColor(...muted)
-      const noteLines = doc.splitTextToSize(table.note, pageW - m * 2)
-      doc.text(noteLines, m, y)
-      y += noteLines.length * 3.3 + 1
-      doc.setTextColor(...ink)
+      y = drawSectionTitle(doc, table.title, m, y, pageW, m)
     }
 
     const body =
       table.rows.length > 0
         ? table.rows.map((r) => r.map((c) => String(c ?? "")))
-        : [table.columns.map((_, i) => (i === 0 ? "No rows in this date range." : ""))]
+        : [table.columns.map((_, i) => (i === 0 ? "—" : ""))]
 
     const usable = pageW - m * 2
     const given = table.columns.map((c) => c.width || 0)
@@ -198,37 +200,41 @@ export async function downloadPlainReportPdf(opts: {
     const autoCount = given.filter((n) => n <= 0).length
     const leftover = Math.max(usable - givenSum, autoCount * 18)
     const autoW = autoCount ? leftover / autoCount : 0
+    const sectionTitle = table.title || ""
 
     autoTable(doc, {
       startY: y,
       head: [table.columns.map((c) => c.header)],
       body,
       foot: table.foot ? [table.foot.map((c) => String(c ?? ""))] : undefined,
-      theme: "grid",
+      theme: "plain",
       styles: {
-        font: "helvetica",
-        fontSize: 8,
-        cellPadding: { top: 1.7, bottom: 1.7, left: 1.8, right: 1.8 },
-        textColor: ink,
+        font: FONT,
+        fontSize: 9,
+        cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 },
+        textColor: INK,
         fillColor: [255, 255, 255],
-        lineColor: line,
-        lineWidth: 0.16,
+        lineColor: RULE,
+        lineWidth: 0.12,
         overflow: "linebreak",
-        valign: "top",
+        valign: "middle",
       },
       headStyles: {
+        font: FONT,
         fontStyle: "bold",
-        fontSize: 7.5,
-        fillColor: [245, 245, 245],
-        textColor: ink,
-        lineWidth: 0.22,
+        fontSize: 9,
+        fillColor: [255, 255, 255],
+        textColor: INK,
+        lineWidth: 0.28,
         valign: "middle",
       },
       footStyles: {
+        font: FONT,
         fontStyle: "bold",
-        fillColor: [245, 245, 245],
-        textColor: ink,
-        lineWidth: 0.22,
+        fontSize: 9,
+        fillColor: [255, 255, 255],
+        textColor: INK,
+        lineWidth: 0.28,
       },
       alternateRowStyles: { fillColor: [255, 255, 255] },
       columnStyles: Object.fromEntries(
@@ -240,16 +246,22 @@ export async function downloadPlainReportPdf(opts: {
           },
         ]),
       ),
-      margin: { left: m, right: m, top: period ? 24 : 20 },
-      tableLineColor: line,
-      tableLineWidth: 0.16,
-      didDrawPage: () => {
-        if (doc.getCurrentPageInfo().pageNumber > 1 && !table.title) {
-          // running header already drawn when we add pages ourselves
+      margin: { left: m, right: m, top: headerBottom + (sectionTitle ? 12 : 4) },
+      showHead: "everyPage",
+      tableLineColor: RULE,
+      tableLineWidth: 0.12,
+      didDrawPage: (hook) => {
+        const pageNo = doc.getCurrentPageInfo().pageNumber
+        if (pageNo > 1) {
+          drawRunningHeader(doc, pageW, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
+          if (sectionTitle && hook.pageNumber > 1) {
+            drawSectionTitle(doc, sectionTitle, m, headerBottom + 4, pageW, m)
+          }
         }
       },
     })
-    y = (doc.lastAutoTable?.finalY || y) + 8
+    y = (doc.lastAutoTable?.finalY || y) + 10
+    tableIndex += 1
   }
 
   const pages = doc.getNumberOfPages()
@@ -257,17 +269,14 @@ export async function downloadPlainReportPdf(opts: {
     doc.setPage(i)
     const pw = doc.internal.pageSize.getWidth()
     const ph = doc.internal.pageSize.getHeight()
-    if (i > 1) {
-      drawRunningHeader(doc, pw, m, "VOLTRIX BATTERIES PVT. LTD.", opts.title, period, logo)
-    }
-    doc.setDrawColor(...line)
-    doc.setLineWidth(0.25)
-    doc.line(m, ph - 9, pw - m, ph - 9)
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(7)
-    doc.setTextColor(...ink)
-    doc.text("Voltrix Batteries Pvt. Ltd.  ·  Confidential finance report", m, ph - 5.5)
-    doc.text(`Page ${i} of ${pages}`, pw - m, ph - 5.5, { align: "right" })
+    doc.setDrawColor(...RULE)
+    doc.setLineWidth(0.3)
+    doc.line(m, ph - 10, pw - m, ph - 10)
+    doc.setFont(FONT, "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(...MUTED)
+    doc.text("Voltrix Batteries Pvt. Ltd.", m, ph - 6)
+    doc.text(`Page ${i} of ${pages}`, pw - m, ph - 6, { align: "right" })
   }
 
   doc.save(opts.filename)
