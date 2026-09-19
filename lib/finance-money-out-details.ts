@@ -286,10 +286,12 @@ export type MoneyOutDetailsPayload = {
   importChargesCombined?: MoneyOutDetailLine[]
   loansGiven?: MoneyOutDetailLine[]
   pettyCash?: MoneyOutDetailLine[]
+  expenses?: MoneyOutDetailLine[]
 }
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
 export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload> = {
+  Expenses: "expenses",
   "Client refunds": "clientRefunds",
   "Client refunds (returns)": "clientRefunds",
   Cashback: "cashback",

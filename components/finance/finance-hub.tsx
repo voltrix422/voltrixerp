@@ -149,7 +149,13 @@ function buildMoneyOutDisplayRows(
   details?: MoneyOutDetailsPayload | null,
 ) {
   const rows: { label: string; amount: number; details?: MoneyOutDetailLine[] }[] = []
-  if (b.expenses > 0.004) rows.push({ label: "Expenses", amount: b.expenses })
+  if (b.expenses > 0.004) {
+    rows.push({
+      label: "Expenses",
+      amount: b.expenses,
+      details: details?.expenses,
+    })
+  }
   const loansGiven = b.loansGiven ?? 0
   if (loansGiven > 0.004) {
     rows.push({
@@ -488,6 +494,10 @@ export function FinanceHub({
   const [includeOutstanding, setIncludeOutstanding] = useState(false)
   const [enabled, setEnabled] = useState<Record<ToggleKey, boolean>>(defaultEnabled)
   const [moneyOutDetails, setMoneyOutDetails] = useState<MoneyOutDetailsPayload | null>(null)
+  const [moneyInDetails, setMoneyInDetails] = useState<{
+    posSales?: MoneyOutDetailLine[]
+    clientOrders?: MoneyOutDetailLine[]
+  } | null>(null)
   const [loans, setLoans] = useState<LoanSnapshot | null>(null)
   const [togglesOpen, setTogglesOpen] = useState(false)
   const [detailsModal, setDetailsModal] = useState<{
@@ -514,6 +524,7 @@ export function FinanceHub({
       setSummary(data.summary)
       setOrderPayments(data.orderPayments ?? null)
       setMoneyOutDetails(data.moneyOutDetails ?? null)
+      setMoneyInDetails(data.moneyInDetails ?? null)
       setLoans(data.summary?.loans ?? null)
     } catch (e) {
       setError((e as Error).message)
@@ -557,17 +568,29 @@ export function FinanceHub({
     [breakdown.moneyOut, moneyOutDetails],
   )
   const moneyInDisplayRows = useMemo(() => {
-    const rows: { label: string; amount: number }[] = []
+    const rows: { label: string; amount: number; details?: MoneyOutDetailLine[] }[] = []
     const mi = breakdown.moneyIn
-    if (mi.clientPayments > 0.004) rows.push({ label: "Client payments", amount: mi.clientPayments })
-    if (mi.posSales > 0.004) rows.push({ label: "POS sales", amount: mi.posSales })
+    if (mi.clientPayments > 0.004) {
+      rows.push({
+        label: "Client payments",
+        amount: mi.clientPayments,
+        details: moneyInDetails?.clientOrders,
+      })
+    }
+    if (mi.posSales > 0.004) {
+      rows.push({
+        label: "POS sales",
+        amount: mi.posSales,
+        details: moneyInDetails?.posSales,
+      })
+    }
     if (mi.incomeRecords > 0.004) rows.push({ label: "Income records", amount: mi.incomeRecords })
     const received = mi.loansReceived ?? (mi.loans - (mi.loanRecoveries ?? 0))
     const recovered = mi.loanRecoveries ?? 0
     if (received > 0.004) rows.push({ label: "Loans received", amount: received })
     if (recovered > 0.004) rows.push({ label: "Returned to us", amount: recovered })
     return rows
-  }, [breakdown.moneyIn])
+  }, [breakdown.moneyIn, moneyInDetails])
 
   const moneyIn = inLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
   const moneyOut = outLines.filter(l => l.on).reduce((s, l) => s + l.amount, 0)
@@ -780,8 +803,13 @@ export function FinanceHub({
               <div>
                 <p className="text-[10px] font-medium text-[hsl(var(--muted-foreground))] mb-1">Money in breakdown</p>
                 <BreakdownTable
-                  rows={moneyInDisplayRows.map(r => ({ label: r.label, value: fmt(r.amount) }))}
+                  rows={moneyInDisplayRows.map(r => ({
+                    label: r.label,
+                    value: fmt(r.amount),
+                    details: r.details,
+                  }))}
                   total={fmt(moneyInAll)}
+                  onOpenDetails={setDetailsModal}
                 />
               </div>
             )}

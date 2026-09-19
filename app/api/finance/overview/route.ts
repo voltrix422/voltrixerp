@@ -43,6 +43,11 @@ import {
   isLoanCategory,
   summarizeLoans,
 } from "@/lib/finance-loans"
+import {
+  buildExpenseReport,
+  buildOrderReport,
+  buildPosSalesReport,
+} from "@/lib/finance-report-details"
 
 const PK_OFFSET = "+05:00"
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
@@ -152,14 +157,14 @@ export async function GET(req: NextRequest) {
     const [ordersRaw, pos, records, loanRecords, pettyAllocations, pettyReceipts, posSales, pettyPending, advanceAccounts, salaryAdvances, importShipments, purchaseLedger, payrollSalarySlips, fuelAllotments] = await Promise.all([
       prisma.erpOrder.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPurchaseOrder.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
+      prisma.erpFinanceRecord.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpFinanceRecord.findMany({
         where: { category: { in: ["Loan", "Loan Given", "Loan Repayment", "Loan Recovery"] } },
         orderBy: { createdAt: "desc" },
       }),
       prisma.erpPettyCashAllocation.findMany({ where: { status: "active" } }),
       prisma.erpPettyCashReceipt.findMany({ where: { status: "approved" } }),
-      prisma.erpPosSale.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
+      prisma.erpPosSale.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.erpPettyCashReceipt.count({ where: { status: "pending" } }),
       prisma.erpAdvanceAccount.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.hrmSalaryAdvance.findMany({
@@ -431,15 +436,11 @@ export async function GET(req: NextRequest) {
       expensesByCategory[r.category] = (expensesByCategory[r.category] || 0) + r.amount
     }
 
-    let posSalesInPeriod = 0
-    let posTransactionsInPeriod = 0
-    for (const sale of posSales) {
-      const d = new Date(sale.createdAt)
-      if (inRange(d, start, end)) {
-        posSalesInPeriod += sale.total
-        posTransactionsInPeriod++
-      }
-    }
+    const posSalesReport = buildPosSalesReport(posSales, orders, start, end)
+    const posSalesInPeriod = posSalesReport.total
+    const posTransactionsInPeriod = posSalesReport.rows.length
+    const expenseReport = buildExpenseReport(records, start, end)
+    const orderReport = buildOrderReport(orders, start, end)
 
     // Supplier advances are already reflected in local purchase ledger payments — exclude from money-out.
     // Salary advances are recovered inside payroll, so exclude them from finance money-out totals.
@@ -597,10 +598,7 @@ export async function GET(req: NextRequest) {
           if (inRange(d, mStart, mEnd)) mo += amount
         }
       }
-      for (const sale of posSales) {
-        const d = new Date(sale.createdAt)
-        if (inRange(d, mStart, mEnd)) mi += sale.total
-      }
+      mi += buildPosSalesReport(posSales, orders, mStart, mEnd).total
       for (const r of records) {
         const d = new Date(r.createdAt)
         if (!inRange(d, mStart, mEnd)) continue
@@ -764,6 +762,11 @@ export async function GET(req: NextRequest) {
       importChargesCombined: buildImportCombinedDetails(importChargesSplit.shipments),
       loansGiven: buildLoanOutDetails(loanRecords, start, end),
       pettyCash: buildPettyCashApprovedDetails(pettyReceipts, start, end),
+      expenses: expenseReport.details,
+    }
+    const moneyInDetails = {
+      posSales: posSalesReport.details,
+      clientOrders: orderReport.details,
     }
 
     return NextResponse.json({
@@ -824,6 +827,11 @@ export async function GET(req: NextRequest) {
         reconciliation: orderPaymentsReconciliation,
       },
       moneyOutDetails,
+      moneyInDetails,
+      expenseLines: expenseReport.lines,
+      expensesByPerson: expenseReport.byPerson,
+      posSales: posSalesReport.rows,
+      orders: orderReport.rows,
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

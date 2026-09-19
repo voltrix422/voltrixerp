@@ -1,3 +1,9 @@
+import type {
+  FinanceExpenseByPerson,
+  FinanceExpenseLine,
+  FinanceOrderRow,
+  FinancePosRow,
+} from "@/lib/finance-report-details"
 import { dateRangeLabel, downloadPlainReportPdf, pkr, type PlainTable } from "@/lib/plain-report-pdf"
 
 type OverviewLike = {
@@ -9,6 +15,10 @@ type OverviewLike = {
     }
   }
   expensesByCategory?: { category: string; amount: number }[]
+  expensesByPerson?: FinanceExpenseByPerson[]
+  expenseLines?: FinanceExpenseLine[]
+  posSales?: FinancePosRow[]
+  orders?: FinanceOrderRow[]
   paymentMethods?: { method: string; amount: number }[]
   topOutstandingClients?: { name: string; orderNumber: string; remaining: number }[]
   recentActivity?: { date: string; label: string; amount: number; category: string; source: string }[]
@@ -95,7 +105,40 @@ export async function downloadFinanceOverviewPdf(
       rows: outRows,
     })
   }
-  if (data.expensesByCategory?.length) {
+  if (data.expensesByPerson?.length) {
+    const total = data.expensesByPerson.reduce((s, r) => s + r.amount, 0)
+    tables.push({
+      title: "Expenses by person",
+      columns: [
+        { header: "Who" },
+        { header: "Count", align: "right" },
+        { header: "Amount", align: "right" },
+      ],
+      rows: data.expensesByPerson.map((r) => [r.name, String(r.count), pkr(r.amount)]),
+      foot: ["Total", String(data.expensesByPerson.reduce((s, r) => s + r.count, 0)), pkr(total)],
+    })
+  }
+  if (data.expenseLines?.length) {
+    const total = data.expenseLines.reduce((s, r) => s + r.amount, 0)
+    tables.push({
+      title: "All expenses",
+      columns: [
+        { header: "Date" },
+        { header: "Who" },
+        { header: "Title" },
+        { header: "Category" },
+        { header: "Amount", align: "right" },
+      ],
+      rows: data.expenseLines.map((r) => [
+        r.date,
+        r.receiptPerson ? `${r.createdBy} (receipt ${r.receiptPerson})` : r.createdBy,
+        r.title,
+        r.category,
+        pkr(r.amount),
+      ]),
+      foot: ["", "", "Total", "", pkr(total)],
+    })
+  } else if (data.expensesByCategory?.length) {
     tables.push({
       title: "Expenses by category",
       columns: [
@@ -104,6 +147,111 @@ export async function downloadFinanceOverviewPdf(
       ],
       rows: data.expensesByCategory.map((r) => [r.category, pkr(r.amount)]),
     })
+  }
+
+  if (data.posSales?.length) {
+    const total = data.posSales.reduce((s, r) => s + r.total, 0)
+    tables.push({
+      title: "POS sales",
+      columns: [
+        { header: "Date" },
+        { header: "Receipt / order" },
+        { header: "Type" },
+        { header: "Customer" },
+        { header: "Cashier" },
+        { header: "Method" },
+        { header: "Amount", align: "right" },
+      ],
+      rows: data.posSales.map((r) => [
+        r.date,
+        r.number,
+        r.kind,
+        r.customer,
+        r.cashier,
+        r.method,
+        pkr(r.total),
+      ]),
+      foot: ["", "", "", "", "", "Total", pkr(total)],
+    })
+    const posItems = data.posSales.flatMap((r) =>
+      r.items.map((item) => [
+        r.number,
+        item.description,
+        item.model || item.inventory,
+        `${item.qty} ${item.unit}`,
+        pkr(item.unitPrice),
+        pkr(item.lineTotal),
+      ]),
+    )
+    if (posItems.length) {
+      tables.push({
+        title: "POS sale items",
+        columns: [
+          { header: "Receipt / order" },
+          { header: "Product" },
+          { header: "Inventory" },
+          { header: "Qty" },
+          { header: "Unit price", align: "right" },
+          { header: "Line total", align: "right" },
+        ],
+        rows: posItems,
+      })
+    }
+  }
+
+  if (data.orders?.length) {
+    const total = data.orders.reduce((s, r) => s + r.total, 0)
+    const received = data.orders.reduce((s, r) => s + r.receivedInPeriod, 0)
+    tables.push({
+      title: "Orders",
+      columns: [
+        { header: "Date" },
+        { header: "Order" },
+        { header: "Client" },
+        { header: "Status" },
+        { header: "By" },
+        { header: "Order total", align: "right" },
+        { header: "Received in range", align: "right" },
+      ],
+      rows: data.orders.map((r) => [
+        r.date,
+        r.orderNumber,
+        r.clientName,
+        r.status,
+        r.createdBy,
+        pkr(r.total),
+        pkr(r.receivedInPeriod),
+      ]),
+      foot: ["", "", "", "", "Total", pkr(total), pkr(received)],
+    })
+    const orderItems = data.orders.flatMap((r) =>
+      r.items.map((item) => [
+        r.orderNumber,
+        r.clientName,
+        item.description,
+        item.model,
+        item.inventory,
+        `${item.qty} ${item.unit}`,
+        pkr(item.unitPrice),
+        pkr(item.lineTotal),
+      ]),
+    )
+    if (orderItems.length) {
+      tables.push({
+        title: "Order inventory items",
+        columns: [
+          { header: "Order" },
+          { header: "Client" },
+          { header: "Product" },
+          { header: "Model" },
+          { header: "Inventory" },
+          { header: "Qty" },
+          { header: "Unit price", align: "right" },
+          { header: "Line total", align: "right" },
+        ],
+        rows: orderItems,
+      })
+    }
   }
   if (data.paymentMethods?.length) {
     tables.push({
@@ -152,5 +300,6 @@ export async function downloadFinanceOverviewPdf(
     meta: [`Generated ${new Date().toLocaleString("en-PK")}`],
     filename: `finance-report-${new Date().toISOString().slice(0, 10)}.pdf`,
     tables,
+    landscape: true,
   })
 }
