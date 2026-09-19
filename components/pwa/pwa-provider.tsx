@@ -4,8 +4,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { Download, Share, X } from "lucide-react"
 import { isIosDevice, isStandaloneApp, registerVoltrixServiceWorker } from "@/lib/push-client"
 
-const DISMISS_KEY = "voltrix-erp-install-dismissed"
-
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>
@@ -24,6 +22,13 @@ const PwaContext = createContext<PwaContextValue>({
   iosHelp: false,
   install: async () => {},
 })
+
+let dismissedThisLoad = false
+
+function isLaptopOrDesktop() {
+  if (typeof window === "undefined") return true
+  return window.matchMedia("(min-width: 768px)").matches && !isIosDevice()
+}
 
 export function useErpInstall() {
   return useContext(PwaContext)
@@ -55,28 +60,24 @@ export function PwaProvider({ children }: { children?: ReactNode }) {
     const onPrompt = (event: Event) => {
       event.preventDefault()
       setDeferred(event as BeforeInstallPromptEvent)
-      setShow(true)
+      if (!dismissedThisLoad && !isLaptopOrDesktop()) setShow(true)
     }
-    window.addEventListener("beforeinstallprompt", onPrompt)
-    window.addEventListener("appinstalled", () => {
+    const onInstalled = () => {
       setInstalled(true)
       setShow(false)
-    })
-
-    try {
-      if (localStorage.getItem(DISMISS_KEY) === "1") return
-    } catch {
-      // ignore
     }
+    window.addEventListener("beforeinstallprompt", onPrompt)
+    window.addEventListener("appinstalled", onInstalled)
 
     const timer = window.setTimeout(() => {
-      if (isStandaloneApp()) return
+      if (dismissedThisLoad || isStandaloneApp() || isLaptopOrDesktop()) return
       setShow(true)
       if (isIosDevice()) setIosHelp(true)
     }, 800)
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onPrompt)
+      window.removeEventListener("appinstalled", onInstalled)
       window.clearTimeout(timer)
     }
   }, [])
@@ -99,11 +100,7 @@ export function PwaProvider({ children }: { children?: ReactNode }) {
   }, [deferred])
 
   function dismiss() {
-    try {
-      localStorage.setItem(DISMISS_KEY, "1")
-    } catch {
-      // ignore
-    }
+    dismissedThisLoad = true
     setShow(false)
   }
 
