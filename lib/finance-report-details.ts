@@ -1,7 +1,7 @@
 ﻿import { isBranchPosOrderHiddenFromErp } from "@/lib/branch-pos"
 import { isRentLedgerDbRow } from "@/lib/purchase-ledger"
 import type { MoneyOutDetailLine } from "@/lib/finance-money-out-details"
-import { approvedBalancePaymentAmount, parseOrderPayments } from "@/lib/finance-overview"
+import { approvedBalancePaymentAmount, orderPaidTotal, parseOrderPayments } from "@/lib/finance-overview"
 import { isCrmErpOrderForPaymentStats } from "@/lib/order-payment-stats"
 import type { Order, OrderItem } from "@/lib/orders"
 import type { PosCartItem } from "@/lib/pos"
@@ -41,6 +41,7 @@ export type FinancePosRow = {
   method: string
   kind: string
   total: number
+  paidTotal: number
   items: FinancePdfItem[]
 }
 
@@ -52,6 +53,7 @@ export type FinanceOrderRow = {
   status: string
   createdBy: string
   total: number
+  paidTotal: number
   receivedInPeriod: number
   items: FinancePdfItem[]
 }
@@ -223,6 +225,7 @@ export function buildPosSalesReport(
     notes?: string | null
     branchId?: string | null
     items: unknown
+    payments?: unknown
   }>,
   start: Date,
   end: Date,
@@ -243,6 +246,7 @@ export function buildPosSalesReport(
       method: String(sale.paymentMethod || "cash"),
       kind: "POS receipt",
       total,
+      paidTotal: total,
       items,
     })
   }
@@ -263,6 +267,10 @@ export function buildPosSalesReport(
       method: "POS",
       kind: "Branch POS",
       total,
+      paidTotal: orderPaidTotal({
+        payments: parseOrderPayments(order.payments),
+        status: order.status as Order["status"],
+      }),
       items: mapOrderItems(order.items),
     })
   }

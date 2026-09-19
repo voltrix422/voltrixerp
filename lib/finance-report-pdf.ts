@@ -27,7 +27,6 @@ type OverviewLike = {
   ledgerByPerson?: FinanceExpenseByPerson[]
   ledgerTotals?: { count: number; purchases: number; rents: number; total: number; paid: number; due: number }
   paymentMethods?: { method: string; amount: number }[]
-  topOutstandingClients?: { name: string; orderNumber: string; remaining: number }[]
 }
 
 const MONEY_IN_LABELS: Record<string, string> = {
@@ -96,14 +95,28 @@ function prettyMethod(value: string) {
   return v.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function productBlock(item: FinancePdfItem) {
-  const lines = [item.description || "Item"]
-  if (item.model) lines.push(item.model)
-  return lines.join("\n")
-}
-
 function qtyBlock(item: { qty: number; unit?: string }) {
   return `${item.qty} ${item.unit || "pcs"}`
+}
+
+function compactItems(items: FinancePdfItem[]) {
+  if (!items.length) return "—"
+  return items
+    .map((item) => {
+      const name = item.description || item.model || "Item"
+      const qty = item.qty > 0 ? `${item.qty}× ` : ""
+      return `${qty}${name}`
+    })
+    .join("\n")
+}
+
+function payLabel(total: number, paid: number, method?: string) {
+  const due = Math.max(0, total - paid)
+  const methodBit = method ? ` · ${prettyMethod(method)}` : ""
+  if (total <= 0.004 && paid <= 0.004) return "—"
+  if (paid <= 0.004) return `Credit · unpaid${methodBit}`
+  if (due <= 0.5) return `Paid in full${methodBit}`
+  return `Part paid ${pkr(paid)} · due ${pkr(due)}${methodBit}`
 }
 
 function purchaseOrderTables(title: string, rows: FinancePurchaseRow[]): PlainTable[] {
@@ -182,7 +195,6 @@ export async function downloadFinanceOverviewPdf(
   const ledgerLines = data.ledgerLines || []
   const ledgerByPerson = data.ledgerByPerson || []
   const methods = data.paymentMethods || []
-  const outstanding = data.topOutstandingClients || []
 
   const pettyTotal = pettyLines.reduce((sum, r) => sum + r.amount, 0)
   const ledgerTotal = data.ledgerTotals?.total ?? ledgerLines.reduce((sum, r) => sum + r.total, 0)
@@ -190,8 +202,6 @@ export async function downloadFinanceOverviewPdf(
   const ledgerDue = data.ledgerTotals?.due ?? ledgerLines.reduce((sum, r) => sum + r.due, 0)
   const posTotal = posSales.reduce((sum, r) => sum + r.total, 0)
   const orderTotal = orders.reduce((sum, r) => sum + r.total, 0)
-  const orderReceived = orders.reduce((sum, r) => sum + r.receivedInPeriod, 0)
-  const outstandingTotal = outstanding.reduce((sum, r) => sum + r.remaining, 0)
 
   const inRows = moneyRows(s.breakdown?.moneyIn, MONEY_IN_LABELS, moneyIn)
   const outRows = moneyRows(s.breakdown?.moneyOut, MONEY_OUT_LABELS, moneyOut)
@@ -347,51 +357,23 @@ export async function downloadFinanceOverviewPdf(
       title: "POS sales",
       newPage: true,
       columns: [
-        { header: "Date", width: 22 },
-        { header: "Sale no.", width: 28 },
-        { header: "Type", width: 24 },
-        { header: "Customer", width: 36 },
-        { header: "Cashier", width: 28 },
-        { header: "Pay", width: 16 },
-        { header: "Amount", align: "right", width: 32 },
+        { header: "Date", width: 18 },
+        { header: "Sale no.", width: 24 },
+        { header: "Customer", width: 28 },
+        { header: "Items", width: 48, small: true },
+        { header: "Payment", width: 36, small: true },
+        { header: "Amount", align: "right", width: 28 },
       ],
       rows: posSales.map((r) => [
         r.date,
         r.number,
-        r.kind,
         r.customer,
-        r.cashier,
-        prettyMethod(r.method),
+        compactItems(r.items),
+        payLabel(r.total, r.paidTotal ?? r.total, r.method),
         pkr(r.total),
       ]),
-      foot: ["", "", "", "", "", `${posSales.length}`, pkr(posTotal)],
+      foot: ["", "", "", "", `${posSales.length}`, pkr(posTotal)],
     })
-
-    const posItems = posSales.flatMap((r) =>
-      r.items.map((item) => [
-        r.number,
-        r.customer,
-        productBlock(item),
-        qtyBlock(item),
-        pkr(item.unitPrice),
-        pkr(item.lineTotal),
-      ]),
-    )
-    if (posItems.length) {
-      tables.push({
-        title: "POS products",
-        newPage: true,
-        columns: [
-          { header: "Sale no.", width: 26 },
-          { header: "Customer", width: 34 },
-          { header: "Product", width: 62 },
-          { header: "Qty", width: 18 },
-          { header: "Unit", align: "right", width: 22 },
-          { header: "Total", align: "right", width: 24 },
-        ],
-        rows: posItems,
-      })
-    }
   }
 
   if (orders.length) {
@@ -399,51 +381,23 @@ export async function downloadFinanceOverviewPdf(
       title: "Client orders",
       newPage: true,
       columns: [
-        { header: "Date", width: 22 },
-        { header: "Order no.", width: 26 },
-        { header: "Client", width: 42 },
-        { header: "Status", width: 24 },
-        { header: "By", width: 24 },
-        { header: "Total", align: "right", width: 24 },
-        { header: "Received", align: "right", width: 24 },
+        { header: "Date", width: 18 },
+        { header: "Order no.", width: 24 },
+        { header: "Client", width: 28 },
+        { header: "Items", width: 48, small: true },
+        { header: "Payment", width: 36, small: true },
+        { header: "Total", align: "right", width: 28 },
       ],
       rows: orders.map((r) => [
         r.date,
         r.orderNumber,
         r.clientName,
-        prettyStatus(r.status),
-        r.createdBy,
+        compactItems(r.items),
+        payLabel(r.total, r.paidTotal ?? r.receivedInPeriod),
         pkr(r.total),
-        pkr(r.receivedInPeriod),
       ]),
-      foot: ["", "", "", "", `${orders.length}`, pkr(orderTotal), pkr(orderReceived)],
+      foot: ["", "", "", "", `${orders.length}`, pkr(orderTotal)],
     })
-
-    const orderItems = orders.flatMap((r) =>
-      r.items.map((item) => [
-        r.orderNumber,
-        r.clientName,
-        productBlock(item),
-        qtyBlock(item),
-        pkr(item.unitPrice),
-        pkr(item.lineTotal),
-      ]),
-    )
-    if (orderItems.length) {
-      tables.push({
-        title: "Order items",
-        newPage: true,
-        columns: [
-          { header: "Order no.", width: 26 },
-          { header: "Client", width: 34 },
-          { header: "Product", width: 62 },
-          { header: "Qty", width: 18 },
-          { header: "Unit", align: "right", width: 22 },
-          { header: "Total", align: "right", width: 24 },
-        ],
-        rows: orderItems,
-      })
-    }
   }
 
   if (methods.length) {
@@ -458,20 +412,6 @@ export async function downloadFinanceOverviewPdf(
       ],
       rows: methods.map((r) => [prettyMethod(r.method), pkr(r.amount), pct(r.amount, methodTotal)]),
       foot: ["Total", pkr(methodTotal), "100%"],
-    })
-  }
-
-  if (outstanding.length) {
-    tables.push({
-      title: "Outstanding balances",
-      newPage: true,
-      columns: [
-        { header: "Client", width: 86 },
-        { header: "Order no.", width: 46 },
-        { header: "Due", align: "right", width: 54 },
-      ],
-      rows: outstanding.map((r) => [r.name, r.orderNumber, pkr(r.remaining)]),
-      foot: [`${outstanding.length}`, "", pkr(outstandingTotal)],
     })
   }
 
