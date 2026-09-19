@@ -8,7 +8,6 @@ import { DialogProvider } from "@/components/ui/dialog-provider"
 import { ToastProvider } from "@/components/ui/toast"
 import { DBConnectionCheck } from "@/components/db-connection-check"
 import { WebsiteAnalyticsBeacon } from "@/components/landing/website-analytics-beacon"
-import { PwaProvider } from "@/components/pwa/pwa-provider"
 import { SiteJsonLd } from "@/components/landing/site-json-ld"
 import {
   SITE_DESCRIPTION,
@@ -102,7 +101,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ToastProvider>
               <AuthProvider>
                 <DBConnectionCheck />
-                <PwaProvider />
                 {children}
               </AuthProvider>
             </ToastProvider>

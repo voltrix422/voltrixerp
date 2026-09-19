@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { DBStatusIndicator } from "@/components/db-status-indicator"
 import { ActiveUsersCounter } from "@/components/ui/active-users-counter"
 import { NotificationBell } from "@/components/layout/notification-bell"
+import { InstallErpButton } from "@/components/pwa/pwa-provider"
 import { MessagesIcon } from "@/components/layout/messages-icon"
 import { useAuth } from "@/components/auth-provider"
 import { useState, useRef, useEffect } from "react"
@@ -51,6 +52,7 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
         <DBStatusIndicator />
         <ThemeToggle />
         <Separator orientation="vertical" className="h-5 mx-1" />
+        <InstallErpButton />
         <MessagesIcon />
         <NotificationBell />
 

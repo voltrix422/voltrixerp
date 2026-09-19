@@ -8,6 +8,7 @@ import { isErpAdmin } from "@/lib/auth"
 import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap, Store } from "lucide-react"
 import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
+import { PwaProvider } from "@/components/pwa/pwa-provider"
 
 const modules = [
   { icon: BarChart3, label: "Dashboard"   },
@@ -63,6 +64,7 @@ export default function LoginPage() {
   }
 
   return (
+    <PwaProvider>
     <div className="min-h-screen flex bg-white">
 
       {/* Left — branding panel */}
@@ -182,5 +184,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </PwaProvider>
   )
 }
