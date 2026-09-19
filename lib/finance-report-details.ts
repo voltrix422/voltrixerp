@@ -565,9 +565,9 @@ function flattenLedgerItems(row: {
   productName?: string | null
   items?: unknown
   supplierGroups?: unknown
-  quantity?: number
-  unitPrice?: number
-  totalAmount?: number
+  quantity?: number | null
+  unitPrice?: number | null
+  totalAmount?: number | null
 }): FinanceLedgerItem[] {
   const groups = asArray(row.supplierGroups)
   const fromGroups: FinanceLedgerItem[] = []
