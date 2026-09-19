@@ -27,6 +27,7 @@ const MONEY_HEADER = /^(amount|total|paid|due|received|unit)$/i
 function columnMinWidth(col: PlainCol): number {
   if (col.minWidth && col.minWidth > 0) return col.minWidth
   if (col.header === "%") return 14
+  if (col.header === "Date") return 22
   if (col.align === "right" && MONEY_HEADER.test(col.header)) return 36
   if (col.align === "right") return 16
   return 14

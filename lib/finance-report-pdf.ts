@@ -99,6 +99,15 @@ function qtyBlock(item: { qty: number; unit?: string }) {
   return `${item.qty} ${item.unit || "pcs"}`
 }
 
+function shortDate(value: string) {
+  const raw = String(value || "").trim()
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1].slice(2)}`
+  const gb = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (gb) return `${gb[1]}/${gb[2]}/${gb[3].slice(2)}`
+  return raw
+}
+
 function compactItems(items: FinancePdfItem[]) {
   if (!items.length) return "—"
   return items
@@ -250,17 +259,18 @@ export async function downloadFinanceOverviewPdf(
   }
 
   if (ledgerByPerson.length) {
+    const paidEntries = ledgerByPerson.reduce((n, r) => n + r.count, 0)
     tables.push({
-      title: "Purchase ledger — entered by",
+      title: "Purchase ledger — paid by",
       newPage: true,
       columns: [
         { header: "Entered by", width: 80 },
-        { header: "Entries", align: "right", width: 28 },
+        { header: "Paid entries", align: "right", width: 28 },
         { header: "Paid", align: "right", width: 40 },
         { header: "%", align: "right", width: 38 },
       ],
-      rows: ledgerByPerson.map((r) => [r.name, String(r.count), pkr(r.amount), pct(r.amount, ledgerPaid || ledgerTotal)]),
-      foot: ["Total", String(ledgerLines.length), pkr(ledgerPaid || ledgerTotal), "100%"],
+      rows: ledgerByPerson.map((r) => [r.name, String(r.count), pkr(r.amount), pct(r.amount, ledgerPaid)]),
+      foot: ["Total", String(paidEntries), pkr(ledgerPaid), "100%"],
     })
   }
 
@@ -269,17 +279,17 @@ export async function downloadFinanceOverviewPdf(
       title: "Purchase ledger — Main Office bills",
       newPage: true,
       columns: [
-        { header: "Date", width: 22 },
+        { header: "Date", width: 22, minWidth: 22 },
         { header: "Ledger", width: 22 },
         { header: "By", width: 24 },
         { header: "Supplier", width: 32 },
-        { header: "Items", width: 34 },
-        { header: "Total", align: "right", width: 18 },
-        { header: "Paid", align: "right", width: 17 },
-        { header: "Due", align: "right", width: 17 },
+        { header: "Items", width: 34, small: true },
+        { header: "Total", align: "right", width: 28 },
+        { header: "Paid", align: "right", width: 28 },
+        { header: "Due", align: "right", width: 26 },
       ],
       rows: ledgerLines.map((r) => [
-        r.date,
+        shortDate(r.date),
         r.ledgerNumber,
         r.createdBy,
         r.supplier,
@@ -290,32 +300,6 @@ export async function downloadFinanceOverviewPdf(
       ]),
       foot: ["", "", "", "", `${ledgerLines.length}`, pkr(ledgerTotal), pkr(ledgerPaid), pkr(ledgerDue)],
     })
-
-    const ledgerItems = ledgerLines.flatMap((r) =>
-      r.itemLines.map((item) => [
-        r.ledgerNumber,
-        r.supplier,
-        item.description,
-        item.qty ? String(item.qty) : "—",
-        item.unitPrice > 0 ? pkr(item.unitPrice) : "—",
-        item.lineTotal > 0 ? pkr(item.lineTotal) : "—",
-      ]),
-    )
-    if (ledgerItems.length) {
-      tables.push({
-        title: "Purchase ledger — bill items",
-        newPage: true,
-        columns: [
-          { header: "Ledger", width: 24 },
-          { header: "Supplier", width: 36 },
-          { header: "Item", width: 62 },
-          { header: "Qty", width: 16 },
-          { header: "Unit", align: "right", width: 24 },
-          { header: "Total", align: "right", width: 24 },
-        ],
-        rows: ledgerItems,
-      })
-    }
   }
 
   if (pettyByPerson.length) {
@@ -344,7 +328,7 @@ export async function downloadFinanceOverviewPdf(
         { header: "Description", width: 60 },
         { header: "Amount", align: "right", width: 36 },
       ],
-      rows: pettyLines.map((r) => [r.date, r.employee, r.category, r.description, pkr(r.amount)]),
+      rows: pettyLines.map((r) => [shortDate(r.date), r.employee, r.category, r.description, pkr(r.amount)]),
       foot: ["", "", "", `${pettyLines.length}`, pkr(pettyTotal)],
     })
   }
@@ -357,7 +341,7 @@ export async function downloadFinanceOverviewPdf(
       title: "POS sales",
       newPage: true,
       columns: [
-        { header: "Date", width: 18 },
+        { header: "Date", width: 22, minWidth: 22 },
         { header: "Sale no.", width: 24 },
         { header: "Customer", width: 28 },
         { header: "Items", width: 48, small: true },
@@ -365,7 +349,7 @@ export async function downloadFinanceOverviewPdf(
         { header: "Amount", align: "right", width: 28 },
       ],
       rows: posSales.map((r) => [
-        r.date,
+        shortDate(r.date),
         r.number,
         r.customer,
         compactItems(r.items),
@@ -381,7 +365,7 @@ export async function downloadFinanceOverviewPdf(
       title: "Client orders",
       newPage: true,
       columns: [
-        { header: "Date", width: 18 },
+        { header: "Date", width: 22, minWidth: 22 },
         { header: "Order no.", width: 24 },
         { header: "Client", width: 28 },
         { header: "Items", width: 48, small: true },
@@ -389,7 +373,7 @@ export async function downloadFinanceOverviewPdf(
         { header: "Total", align: "right", width: 28 },
       ],
       rows: orders.map((r) => [
-        r.date,
+        shortDate(r.date),
         r.orderNumber,
         r.clientName,
         compactItems(r.items),
@@ -403,7 +387,7 @@ export async function downloadFinanceOverviewPdf(
   if (methods.length) {
     const methodTotal = methods.reduce((n, r) => n + r.amount, 0)
     tables.push({
-      title: "Payments by method",
+      title: "Client orders — payments by method",
       newPage: true,
       columns: [
         { header: "Method", width: 100 },

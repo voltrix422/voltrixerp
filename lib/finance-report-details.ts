@@ -696,9 +696,10 @@ export function buildLedgerReport(
   lines.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
   const byMap = new Map<string, FinanceExpenseByPerson>()
   for (const line of lines) {
+    if (line.paid <= 0.004) continue
     const row = byMap.get(line.createdBy) || { name: line.createdBy, count: 0, amount: 0 }
     row.count += 1
-    row.amount += line.paid || line.total
+    row.amount += line.paid
     byMap.set(line.createdBy, row)
   }
   return {
