@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     phones: result.phones,
     message:
       result.phones > 0
-        ? `Test sent. ${result.phones} installed phone${result.phones === 1 ? "" : "s"} will get a lock-screen alert now.`
-        : "Test sent in the ERP bell. Install the app and tap Enable phone alerts so phones receive it too.",
+        ? `Test sent. ${result.phones} phone${result.phones === 1 ? "" : "s"} should get a lock-screen alert now, even if the app is closed.`
+        : "Alert saved in the ERP bell, but this phone is not subscribed yet. Allow notifications when asked, then tap Test alert again.",
   })
 }

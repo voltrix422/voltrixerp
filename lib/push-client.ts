@@ -16,46 +16,103 @@ export function isStandaloneApp() {
 
 export function isIosDevice() {
   if (typeof navigator === "undefined") return false
-  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+}
+
+export type PushSubscribeResult = {
+  ok: boolean
+  message: string
 }
 
 export async function registerVoltrixServiceWorker() {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null
   try {
-    return await navigator.serviceWorker.register("/sw.js", { scope: "/" })
+    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" })
+    await registration.update().catch(() => {})
+    return (await navigator.serviceWorker.ready.catch(() => null)) || registration
   } catch {
     return null
   }
 }
 
-export async function subscribeUserToPush(userId: string) {
-  if (!userId || typeof window === "undefined") return false
-  if (!("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined") {
-    return false
+export async function requestPushPermission() {
+  if (typeof window === "undefined" || typeof Notification === "undefined") return "unsupported"
+  if (Notification.permission === "granted") return "granted"
+  if (Notification.permission === "denied") return "denied"
+  try {
+    return await Notification.requestPermission()
+  } catch {
+    return Notification.permission
+  }
+}
+
+export async function subscribeUserToPush(userId: string): Promise<PushSubscribeResult> {
+  if (!userId || typeof window === "undefined") {
+    return { ok: false, message: "Sign in first." }
+  }
+  if (!("serviceWorker" in navigator) || typeof Notification === "undefined") {
+    return { ok: false, message: "This phone browser cannot show app notifications." }
+  }
+  if (!("PushManager" in window)) {
+    if (isIosDevice() && !isStandaloneApp()) {
+      return { ok: false, message: "Open the installed Voltrix ERP app, then tap Test alert." }
+    }
+    return { ok: false, message: "Push notifications are not supported on this phone." }
   }
 
-  const permission =
-    Notification.permission === "granted"
-      ? "granted"
-      : await Notification.requestPermission()
-  if (permission !== "granted") return false
+  const permission = await requestPushPermission()
+  if (permission !== "granted") {
+    return {
+      ok: false,
+      message:
+        permission === "denied"
+          ? "Notifications are blocked. Allow them for Voltrix ERP in phone settings, then try again."
+          : "Allow notifications when the phone asks, then tap Test alert again.",
+    }
+  }
 
-  const registration = (await navigator.serviceWorker.ready.catch(() => null)) || (await registerVoltrixServiceWorker())
-  if (!registration) return false
+  const registration = await registerVoltrixServiceWorker()
+  if (!registration?.pushManager) {
+    return { ok: false, message: "Could not start the notification service. Close and reopen the ERP app." }
+  }
 
   const vapidRes = await fetch("/api/push/vapid")
   const vapid = (await vapidRes.json().catch(() => ({}))) as { publicKey?: string }
-  if (!vapid.publicKey) return false
+  if (!vapid.publicKey) {
+    return { ok: false, message: "Phone notification keys are missing on the server." }
+  }
 
+  const applicationServerKey = urlBase64ToUint8Array(vapid.publicKey)
   let subscription = await registration.pushManager.getSubscription()
-  if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapid.publicKey),
-    })
+  try {
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      })
+    }
+  } catch {
+    try {
+      await subscription?.unsubscribe()
+    } catch {
+      // ignore
+    }
+    try {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      })
+    } catch {
+      return { ok: false, message: "This phone refused the notification subscription. Open the installed ERP app and allow alerts." }
+    }
   }
 
   const json = subscription.toJSON()
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    return { ok: false, message: "The phone did not return a valid notification subscription." }
+  }
+
   const res = await fetch("/api/push/subscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -66,5 +123,6 @@ export async function subscribeUserToPush(userId: string) {
       userAgent: navigator.userAgent,
     }),
   })
-  return res.ok
+  if (!res.ok) return { ok: false, message: "Could not save this phone for lock-screen alerts." }
+  return { ok: true, message: "This phone will get lock-screen alerts even when the app is closed." }
 }

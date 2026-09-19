@@ -11,6 +11,7 @@ import {
   sendTestNotification,
   type AppNotification,
 } from "@/lib/notifications"
+import { subscribeUserToPush } from "@/lib/push-client"
 import {
   announceIncomingAlerts,
   requestDesktopNotificationPermission,
@@ -47,8 +48,15 @@ export function TestNotificationButton() {
     if (!user?.id || testing) return
     setTesting(true)
     setDone(false)
+    const ready = await subscribeUserToPush(user.id)
+    if (!ready.ok) {
+      window.alert(ready.message)
+      setTesting(false)
+      return
+    }
     const result = await sendTestNotification(user.id)
     setDone(result.ok)
+    if (!result.ok) window.alert(result.message)
     setTesting(false)
     window.setTimeout(() => setDone(false), 4000)
   }
@@ -178,6 +186,12 @@ export function NotificationBell() {
     if (!user?.id || testing) return
     setTesting(true)
     setTestMessage("")
+    const ready = await subscribeUserToPush(user.id)
+    if (!ready.ok) {
+      setTestMessage(ready.message)
+      setTesting(false)
+      return
+    }
     const result = await sendTestNotification(user.id)
     setTestMessage(result.message)
     if (result.ok) void refresh()

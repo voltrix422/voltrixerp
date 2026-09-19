@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
-import { isErpAdmin } from "@/lib/auth"
+import { clearRememberedLogin, getRememberedLogin, homePathForUser, saveRememberedLogin } from "@/lib/auth"
+import { requestPushPermission, subscribeUserToPush } from "@/lib/push-client"
 import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap, Store } from "lucide-react"
 import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
@@ -26,41 +27,52 @@ export default function LoginPage() {
   const [showPw, setShowPw]   = useState(false)
   const [error, setError]     = useState("")
   const [loading, setLoading] = useState(false)
+  const [staySignedIn, setStaySignedIn] = useState(true)
+  const autoTried = useRef(false)
+
+  useEffect(() => {
+    const remembered = getRememberedLogin()
+    if (remembered) {
+      setEmail(remembered.email)
+      setPassword(remembered.password)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      router.replace(homePathForUser(user))
+      return
+    }
+    const timer = window.setTimeout(() => {
+      if (autoTried.current || user) return
+      const remembered = getRememberedLogin()
+      if (!remembered) return
+      autoTried.current = true
+      void completeLogin(remembered.email, remembered.password)
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [user, router])
+
+  async function completeLogin(nextEmail: string, nextPassword: string) {
+    setError("")
+    setLoading(true)
+    await requestPushPermission()
+    const loggedInUser = await login(nextEmail.trim(), nextPassword)
+    if (!loggedInUser) {
+      setLoading(false)
+      setError("Invalid email or password.")
+      return
+    }
+    if (staySignedIn) saveRememberedLogin(nextEmail.trim(), nextPassword)
+    else clearRememberedLogin()
+    await subscribeUserToPush(loggedInUser.id)
+    router.replace(homePathForUser(loggedInUser))
+    setLoading(false)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError("")
-    setLoading(true)
-    await new Promise(r => setTimeout(r, 300))
-    const loggedInUser = await login(email.trim(), password)
-    setLoading(false)
-    if (!loggedInUser) { setError("Invalid email or password."); return }
-
-    console.log("Logged in user:", loggedInUser)
-    console.log("User role:", loggedInUser.role)
-    console.log("User modules:", loggedInUser.modules)
-
-    // Redirect based on user role and modules
-    if (isErpAdmin(loggedInUser.role)) {
-      console.log("Redirecting to /dashboard (admin)")
-      router.replace("/dashboard")
-    } else if (loggedInUser.role === "sales_agent" || loggedInUser.role === "sales_manager") {
-      router.replace("/crm/sales-agents")
-    } else if (
-      loggedInUser.modules?.length === 1 &&
-      loggedInUser.modules[0] === "pos"
-    ) {
-      router.replace("/pos")
-    } else if (loggedInUser.modules && loggedInUser.modules.length > 0) {
-      // Redirect to first assigned module
-      const targetModule = loggedInUser.modules[0]
-      console.log("Redirecting to /" + targetModule)
-      router.replace(`/${targetModule}`)
-    } else {
-      // Fallback to dashboard if no modules assigned
-      console.log("Redirecting to /dashboard (no modules)")
-      router.replace("/dashboard")
-    }
+    await completeLogin(email, password)
   }
 
   return (
@@ -121,7 +133,7 @@ export default function LoginPage() {
               <input
                 id="email"
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -153,6 +165,16 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-neutral-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={staySignedIn}
+                onChange={e => setStaySignedIn(e.target.checked)}
+                className="h-3.5 w-3.5 accent-[#1a9f9a]"
+              />
+              Stay signed in on this phone
+            </label>
 
             {error && (
               <p className="text-xs text-red-500">{error}</p>

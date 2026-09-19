@@ -1,7 +1,7 @@
 "use client"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { type User, getSession, setSession, clearSession, getUsers, login as authLogin, canWriteErp, isViewOnlyUser } from "@/lib/auth"
+import { type User, getSession, setSession, clearSession, clearRememberedLogin, getUsers, login as authLogin, canWriteErp, isViewOnlyUser } from "@/lib/auth"
 
 interface AuthContextType {
   user: User | null
@@ -71,20 +71,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const publicPage = !pathname || isPublicPath(pathname)
 
   useEffect(() => {
-    // Restore session from localStorage, then verify against Supabase
     const session = getSession()
     if (session) {
-      getUsers()
-        .then(users => {
-          const fresh = users.find(u => u.id === session.id) ?? session
-          setUser(fresh)
-          setSession(fresh)
-          setChecked(true)
-        })
-        .catch(() => setChecked(true))
-    } else {
-      setChecked(true)
+      setUser(session)
+      setSession(session)
     }
+    setChecked(true)
+    if (!session) return
+    getUsers()
+      .then(users => {
+        const fresh = users.find(u => u.id === session.id) ?? session
+        setUser(fresh)
+        setSession(fresh)
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -118,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback((redirectTo = "/login") => {
     clearSession()
+    clearRememberedLogin()
     setUser(null)
     router.replace(redirectTo)
   }, [router])

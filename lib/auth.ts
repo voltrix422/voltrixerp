@@ -129,6 +129,7 @@ export function modulesForRole(role: UserRole, selected: Module[]): Module[] {
 }
 
 const SESSION_KEY = "erp_session"
+const REMEMBER_KEY = "voltrix-remembered-login"
 
 export function getSession(): User | null {
   if (typeof window === "undefined") return null
@@ -140,8 +141,40 @@ export function setSession(user: User) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(user))
 }
 
+export function saveRememberedLogin(email: string, password: string) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email: email.trim(), password }))
+}
+
+export function getRememberedLogin(): { email: string; password: string } | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { email?: string; password?: string }
+    if (!parsed.email || !parsed.password) return null
+    return { email: parsed.email, password: parsed.password }
+  } catch {
+    return null
+  }
+}
+
+export function clearRememberedLogin() {
+  if (typeof window === "undefined") return
+  localStorage.removeItem(REMEMBER_KEY)
+}
+
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
+}
+
+export function homePathForUser(user: { role?: string; modules?: string[] } | null | undefined) {
+  if (!user) return "/dashboard"
+  if (isErpAdmin(user.role)) return "/dashboard"
+  if (user.role === "sales_agent" || user.role === "sales_manager") return "/crm/sales-agents"
+  if (user.modules?.length === 1 && user.modules[0] === "pos") return "/pos"
+  if (user.modules && user.modules.length > 0) return `/${user.modules[0]}`
+  return "/dashboard"
 }
 
 function mapRow(row: Record<string, unknown>): User {

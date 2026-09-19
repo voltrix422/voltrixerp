@@ -3,7 +3,7 @@
   "name": "Voltrix ERP",
   "short_name": "Voltrix ERP",
   "description": "Voltrix ERP on your phone — orders, inventory, and lock-screen alerts.",
-  "start_url": "/login",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
