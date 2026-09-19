@@ -2,6 +2,7 @@ export type PlainCol = {
   header: string
   align?: "left" | "right" | "center"
   width?: number
+  minWidth?: number
 }
 
 export type PlainTable = {
@@ -16,23 +17,32 @@ export type PlainTable = {
 type JsDoc = import("jspdf").jsPDF & { lastAutoTable?: { finalY: number } }
 
 const TITLE_FONT = "times"
-const TABLE_FONT = "helvetica"
+const TABLE_FONT = "times"
 const INK: [number, number, number] = [18, 18, 18]
 const MUTED: [number, number, number] = [72, 72, 72]
 const RULE: [number, number, number] = [32, 32, 32]
+const MONEY_HEADER = /^(amount|total|paid|due|received|unit)$/i
+
+function columnMinWidth(col: PlainCol): number {
+  if (col.minWidth && col.minWidth > 0) return col.minWidth
+  if (col.header === "%") return 14
+  if (col.align === "right" && MONEY_HEADER.test(col.header)) return 36
+  if (col.align === "right") return 16
+  return 14
+}
 
 function fitColumnWidths(columns: PlainCol[], usable: number): number[] {
-  const raw = columns.map((c) => (c.width && c.width > 0 ? c.width : 0))
-  const autoCount = raw.filter((w) => w <= 0).length
-  const givenSum = raw.reduce((s, w) => s + w, 0)
-  const widths = raw.map((w) => {
-    if (w > 0 && autoCount === 0) return w
-    if (w > 0) return w
-    return Math.max((usable - givenSum) / Math.max(autoCount, 1), 16)
-  })
-  const sum = widths.reduce((s, w) => s + w, 0) || 1
-  const scaled = widths.map((w) => (w / sum) * usable)
-  const rounded = scaled.map((w) => Math.round(w * 10) / 10)
+  const mins = columns.map(columnMinWidth)
+  const preferred = columns.map((c, i) => Math.max(c.width && c.width > 0 ? c.width : mins[i], mins[i]))
+  const minSum = mins.reduce((s, w) => s + w, 0)
+  if (minSum >= usable) {
+    return mins.map((w) => (w / minSum) * usable)
+  }
+  const extra = usable - minSum
+  const flex = preferred.map((p, i) => Math.max(p - mins[i], 0))
+  const flexSum = flex.reduce((s, w) => s + w, 0)
+  const widths = mins.map((m, i) => m + (flexSum > 0 ? extra * (flex[i] / flexSum) : extra / columns.length))
+  const rounded = widths.map((w) => Math.round(w * 10) / 10)
   rounded[rounded.length - 1] += usable - rounded.reduce((s, w) => s + w, 0)
   return rounded
 }
@@ -224,8 +234,8 @@ export async function downloadPlainReportPdf(opts: {
       tableWidth: usable,
       styles: {
         font: TABLE_FONT,
-        fontSize: 8.5,
-        cellPadding: { top: 2, bottom: 2, left: 2, right: 2 },
+        fontSize: 9,
+        cellPadding: { top: 2.1, bottom: 2.1, left: 1.8, right: 1.8 },
         textColor: INK,
         fillColor: [255, 255, 255],
         lineColor: RULE,
@@ -237,7 +247,7 @@ export async function downloadPlainReportPdf(opts: {
       headStyles: {
         font: TABLE_FONT,
         fontStyle: "bold",
-        fontSize: 8.5,
+        fontSize: 9,
         fillColor: [255, 255, 255],
         textColor: INK,
         lineWidth: 0.3,
@@ -246,7 +256,7 @@ export async function downloadPlainReportPdf(opts: {
       footStyles: {
         font: TABLE_FONT,
         fontStyle: "bold",
-        fontSize: 8.5,
+        fontSize: 9,
         fillColor: [255, 255, 255],
         textColor: INK,
         lineWidth: 0.3,
@@ -258,7 +268,7 @@ export async function downloadPlainReportPdf(opts: {
           {
             halign: c.align || "left",
             cellWidth: colWidths[i],
-            overflow: c.align === "right" ? "ellipsize" : "linebreak",
+            overflow: "linebreak",
           },
         ]),
       ),
