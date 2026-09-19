@@ -334,8 +334,12 @@ export function buildOrderReport(
       orderNumber: order.orderNumber,
       clientName: order.clientName,
       status: order.status,
-      createdBy: String(order.createdBy || "").trim() || "â€”",
+      createdBy: String(order.createdBy || "").trim() || "—",
       total: num(order.total),
+      paidTotal: orderPaidTotal({
+        payments,
+        status: order.status as Order["status"],
+      }),
       receivedInPeriod,
       items: mapOrderItems(order.items),
     })
