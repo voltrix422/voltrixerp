@@ -15,10 +15,27 @@ export type PlainTable = {
 
 type JsDoc = import("jspdf").jsPDF & { lastAutoTable?: { finalY: number } }
 
-const FONT = "times"
+const TITLE_FONT = "times"
+const TABLE_FONT = "helvetica"
 const INK: [number, number, number] = [18, 18, 18]
 const MUTED: [number, number, number] = [72, 72, 72]
 const RULE: [number, number, number] = [32, 32, 32]
+
+function fitColumnWidths(columns: PlainCol[], usable: number): number[] {
+  const raw = columns.map((c) => (c.width && c.width > 0 ? c.width : 0))
+  const autoCount = raw.filter((w) => w <= 0).length
+  const givenSum = raw.reduce((s, w) => s + w, 0)
+  const widths = raw.map((w) => {
+    if (w > 0 && autoCount === 0) return w
+    if (w > 0) return w
+    return Math.max((usable - givenSum) / Math.max(autoCount, 1), 16)
+  })
+  const sum = widths.reduce((s, w) => s + w, 0) || 1
+  const scaled = widths.map((w) => (w / sum) * usable)
+  const rounded = scaled.map((w) => Math.round(w * 10) / 10)
+  rounded[rounded.length - 1] += usable - rounded.reduce((s, w) => s + w, 0)
+  return rounded
+}
 
 function fmtDateLabel(iso: string) {
   if (!iso) return ""
@@ -35,7 +52,7 @@ export function dateRangeLabel(from: string, to: string) {
 }
 
 export function pkr(n: number) {
-  return `PKR ${Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
+  return `PKR\u00A0${Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
 }
 
 export function pct(part: number, total: number) {
@@ -79,10 +96,10 @@ function drawRunningHeader(
   const logoSize = logo ? 8 : 0
   if (logo) drawLogo(doc, logo, m, 6.5, logoSize)
   doc.setTextColor(...INK)
-  doc.setFont(FONT, "bold")
+  doc.setFont(TITLE_FONT, "bold")
   doc.setFontSize(10)
   doc.text(company, m + (logo ? logoSize + 3 : 0), 10.5)
-  doc.setFont(FONT, "normal")
+  doc.setFont(TITLE_FONT, "normal")
   doc.setFontSize(9)
   doc.text(title, pageW - m, 10.5, { align: "right" })
   doc.setDrawColor(...RULE)
@@ -97,7 +114,7 @@ function drawRunningHeader(
 }
 
 function drawSectionTitle(doc: JsDoc, title: string, x: number, y: number, pageW: number, m: number) {
-  doc.setFont(FONT, "bold")
+  doc.setFont(TITLE_FONT, "bold")
   doc.setFontSize(14)
   doc.setTextColor(...INK)
   doc.text(title, x, y)
@@ -140,7 +157,7 @@ export async function downloadPlainReportPdf(opts: {
   if (logo) drawLogo(doc, logo, m, 10, logoSize)
   let y = logo ? 16 : 14
   doc.setTextColor(...INK)
-  doc.setFont(FONT, "bold")
+  doc.setFont(TITLE_FONT, "bold")
   doc.setFontSize(12)
   doc.text("VOLTRIX BATTERIES PVT. LTD.", textX, y)
   y += 7
@@ -153,14 +170,14 @@ export async function downloadPlainReportPdf(opts: {
   y += 7
 
   if (opts.subtitle) {
-    doc.setFont(FONT, "bold")
+    doc.setFont(TITLE_FONT, "bold")
     doc.setFontSize(11)
     doc.text(`Period  ${opts.subtitle}`, m, y)
     y += 5.5
   }
 
   for (const lineText of opts.meta || []) {
-    doc.setFont(FONT, "normal")
+    doc.setFont(TITLE_FONT, "normal")
     doc.setFontSize(10)
     doc.setTextColor(...INK)
     doc.text(lineText, m, y)
@@ -195,11 +212,7 @@ export async function downloadPlainReportPdf(opts: {
         : [table.columns.map((_, i) => (i === 0 ? "—" : ""))]
 
     const usable = pageW - m * 2
-    const given = table.columns.map((c) => c.width || 0)
-    const givenSum = given.reduce((s, n) => s + n, 0)
-    const autoCount = given.filter((n) => n <= 0).length
-    const leftover = Math.max(usable - givenSum, autoCount * 18)
-    const autoW = autoCount ? leftover / autoCount : 0
+    const colWidths = fitColumnWidths(table.columns, usable)
     const sectionTitle = table.title || ""
 
     autoTable(doc, {
@@ -207,34 +220,36 @@ export async function downloadPlainReportPdf(opts: {
       head: [table.columns.map((c) => c.header)],
       body,
       foot: table.foot ? [table.foot.map((c) => String(c ?? ""))] : undefined,
-      theme: "plain",
+      theme: "grid",
+      tableWidth: usable,
       styles: {
-        font: FONT,
-        fontSize: 9,
-        cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 },
+        font: TABLE_FONT,
+        fontSize: 8.5,
+        cellPadding: { top: 2, bottom: 2, left: 2, right: 2 },
         textColor: INK,
         fillColor: [255, 255, 255],
         lineColor: RULE,
-        lineWidth: 0.12,
+        lineWidth: 0.2,
         overflow: "linebreak",
         valign: "middle",
+        minCellHeight: 7,
       },
       headStyles: {
-        font: FONT,
+        font: TABLE_FONT,
         fontStyle: "bold",
-        fontSize: 9,
+        fontSize: 8.5,
         fillColor: [255, 255, 255],
         textColor: INK,
-        lineWidth: 0.28,
+        lineWidth: 0.3,
         valign: "middle",
       },
       footStyles: {
-        font: FONT,
+        font: TABLE_FONT,
         fontStyle: "bold",
-        fontSize: 9,
+        fontSize: 8.5,
         fillColor: [255, 255, 255],
         textColor: INK,
-        lineWidth: 0.28,
+        lineWidth: 0.3,
       },
       alternateRowStyles: { fillColor: [255, 255, 255] },
       columnStyles: Object.fromEntries(
@@ -242,14 +257,15 @@ export async function downloadPlainReportPdf(opts: {
           i,
           {
             halign: c.align || "left",
-            cellWidth: c.width && c.width > 0 ? c.width : autoW,
+            cellWidth: colWidths[i],
+            overflow: c.align === "right" ? "ellipsize" : "linebreak",
           },
         ]),
       ),
       margin: { left: m, right: m, top: headerBottom + (sectionTitle ? 12 : 4) },
       showHead: "everyPage",
       tableLineColor: RULE,
-      tableLineWidth: 0.12,
+      tableLineWidth: 0.2,
       didDrawPage: (hook) => {
         const pageNo = doc.getCurrentPageInfo().pageNumber
         if (pageNo > 1) {
@@ -272,7 +288,7 @@ export async function downloadPlainReportPdf(opts: {
     doc.setDrawColor(...RULE)
     doc.setLineWidth(0.3)
     doc.line(m, ph - 10, pw - m, ph - 10)
-    doc.setFont(FONT, "normal")
+    doc.setFont(TITLE_FONT, "normal")
     doc.setFontSize(8)
     doc.setTextColor(...MUTED)
     doc.text("Voltrix Batteries Pvt. Ltd.", m, ph - 6)
