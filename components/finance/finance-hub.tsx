@@ -169,10 +169,18 @@ function buildMoneyOutDisplayRows(
   const ledgerPurchases = b.purchaseLedgerPurchases ?? b.purchaseLedger
   const ledgerRents = b.purchaseLedgerRents ?? 0
   if (ledgerPurchases > 0.004) {
-    rows.push({ label: "Purchases (ledger)", amount: ledgerPurchases })
+    rows.push({
+      label: "Purchases (ledger)",
+      amount: ledgerPurchases,
+      details: details?.purchaseLedgerPurchases,
+    })
   }
   if (ledgerRents > 0.004) {
-    rows.push({ label: "Rents (ledger)", amount: ledgerRents })
+    rows.push({
+      label: "Rents (ledger)",
+      amount: ledgerRents,
+      details: details?.purchaseLedgerRents,
+    })
   }
   const fuelPetrol = b.fuelPetrol ?? 0
   if (fuelPetrol > 0.004) {

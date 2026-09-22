@@ -1,5 +1,7 @@
 import { parseOrderCashbackPayments } from "@/lib/finance-overview"
 import { isCrmErpOrderForPaymentStats } from "@/lib/order-payment-stats"
+import { parseLedgerPaymentDay } from "@/lib/finance-purchase-outflows"
+import { isRentLedgerDbRow } from "@/lib/purchase-ledger"
 
 export type MoneyOutDetailLine = {
   id: string
@@ -12,6 +14,8 @@ export type MoneyOutDetailLine = {
   /** Deep link to open the related record (e.g. imported purchase) */
   href?: string
 }
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
 
 function inRange(d: Date, start: Date, end: Date) {
   return d >= start && d <= end
@@ -278,6 +282,57 @@ export function buildPettyCashApprovedDetails(
   return lines.sort((a, b) => b.amount - a.amount)
 }
 
+export function buildPurchaseLedgerPaymentDetails(
+  entries: Array<{
+    id: string
+    ledgerNumber?: string | null
+    payments?: unknown
+    createdAt: Date | string
+    amountPaid?: number | null
+    purchaseScopeId?: string | null
+    transactionType?: string | null
+    items?: unknown
+    supplierGroups?: unknown
+    productName?: string | null
+    supplierName?: string | null
+  }>,
+  start: Date,
+  end: Date,
+  kind: "purchase" | "rent",
+): MoneyOutDetailLine[] {
+  const lines: MoneyOutDetailLine[] = []
+  for (const row of entries) {
+    const scope = String(row.purchaseScopeId || "P1").trim().toUpperCase()
+    if (scope && scope !== "P1") continue
+    const isRent = isRentLedgerDbRow(row)
+    if (kind === "rent" ? !isRent : isRent) continue
+    const fallback = row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt)
+    const payments = Array.isArray(row.payments) ? row.payments : []
+    const supplier = String(row.supplierName || "").trim()
+    const product = String(row.productName || "").trim()
+    payments.forEach((raw, i) => {
+      if (!raw || typeof raw !== "object") return
+      const p = raw as { amount?: number; date?: string; paymentDate?: string; notes?: string; supplierName?: string }
+      const amount = Number(p.amount) || 0
+      if (amount <= 0) return
+      const d = parseLedgerPaymentDay(p.date || p.paymentDate, fallback)
+      if (!inRange(d, start, end)) return
+      const dateIso = String(p.date || p.paymentDate || "").trim() || fallback.toISOString()
+      const note = String(p.notes || "").trim()
+      const paySupplier = String(p.supplierName || "").trim()
+      lines.push({
+        id: `${row.id}-${i}`,
+        label: String(row.ledgerNumber || "Ledger").trim() || "Ledger",
+        sublabel: [paySupplier || supplier, product, note].filter(Boolean).join(" · ") || undefined,
+        amount,
+        date: fmtDate(DATE_ONLY.test(dateIso) ? `${dateIso}T12:00:00+05:00` : dateIso),
+        href: "/purchase",
+      })
+    })
+  }
+  return lines.sort((a, b) => b.amount - a.amount)
+}
+
 export type MoneyOutDetailsPayload = {
   clientRefunds: MoneyOutDetailLine[]
   cashback: MoneyOutDetailLine[]
@@ -287,6 +342,8 @@ export type MoneyOutDetailsPayload = {
   loansGiven?: MoneyOutDetailLine[]
   pettyCash?: MoneyOutDetailLine[]
   expenses?: MoneyOutDetailLine[]
+  purchaseLedgerPurchases?: MoneyOutDetailLine[]
+  purchaseLedgerRents?: MoneyOutDetailLine[]
 }
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
@@ -303,4 +360,6 @@ export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload>
   "Loans given": "loansGiven",
   "Petty cash": "pettyCash",
   "Petty cash (approved)": "pettyCash",
+  "Purchases (ledger)": "purchaseLedgerPurchases",
+  "Rents (ledger)": "purchaseLedgerRents",
 }

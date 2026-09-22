@@ -1,5 +1,15 @@
 import { isRentLedgerDbRow } from "@/lib/purchase-ledger"
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
+/** Parse a ledger payment day in Asia/Karachi so Finance period filters match the picked date. */
+export function parseLedgerPaymentDay(raw: unknown, fallback: Date): Date {
+  const s = String(raw || "").trim()
+  if (DATE_ONLY.test(s)) return new Date(`${s}T12:00:00+05:00`)
+  const d = new Date(s || fallback)
+  return Number.isNaN(d.getTime()) ? fallback : d
+}
+
 /** Sum payment rows by payment date within a finance overview period. */
 export function sumJsonPaymentsInPeriod(
   payments: unknown,
@@ -14,7 +24,7 @@ export function sumJsonPaymentsInPeriod(
     const p = raw as { amount?: number; date?: string; paymentDate?: string }
     const amount = Number(p.amount) || 0
     if (amount <= 0) continue
-    const d = new Date(p.date || p.paymentDate || fallback)
+    const d = parseLedgerPaymentDay(p.date || p.paymentDate, fallback)
     if (d >= start && d <= end) sum += amount
   }
   return sum

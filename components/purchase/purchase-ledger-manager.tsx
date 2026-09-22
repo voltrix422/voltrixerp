@@ -72,6 +72,10 @@ import { listFuelAllotments, type FuelAllotment } from "@/lib/fuel-petrol"
 const inputCls =
   "w-full h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1faca6]/40 focus:border-[#1faca6]"
 
+function todayPkIso() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" })
+}
+
 const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
   <div className="space-y-1 min-w-0">
     <label className="text-[11px] font-medium text-[hsl(var(--foreground))]">{label}</label>
@@ -649,6 +653,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [payEntry, setPayEntry] = useState<PurchaseLedgerEntry | null>(null)
   const [paySupplierGroupId, setPaySupplierGroupId] = useState("")
   const [payAmount, setPayAmount] = useState("")
+  const [payDate, setPayDate] = useState(todayPkIso)
   const [payNotes, setPayNotes] = useState("")
   const [payProofFile, setPayProofFile] = useState<File | null>(null)
   const [payProofPreview, setPayProofPreview] = useState("")
@@ -1300,6 +1305,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
     const defaultGroup = projectGroups.find(group => resolveGroupAmountDue(group) > 0) ?? projectGroups[0]
     setPaySupplierGroupId(defaultGroup?.id ?? "")
     setPayAmount(String(defaultGroup ? resolveGroupAmountDue(defaultGroup) : (entry.amountDue || 0)))
+    setPayDate(todayPkIso())
     setPayNotes("")
     setPayProofFile(null)
     setPayProofPreview("")
@@ -1332,7 +1338,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
       }
       const updated = await addPurchaseLedgerPayment(payEntry.id, {
         amount,
-        date: new Date().toISOString().slice(0, 10),
+        date: payDate || todayPkIso(),
         proofUrl,
         proofName,
         notes: payNotes || (selectedGroup?.supplierName ? `Payment · ${selectedGroup.supplierName}` : ""),
@@ -2372,6 +2378,9 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
               )}
               <Field label="Payment amount">
                 <input type="number" min="0" step="any" required value={payAmount} onChange={e => setPayAmount(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Payment date" hint="This date is what Finance → Money out uses for Purchases (ledger)">
+                <input type="date" required value={payDate} onChange={e => setPayDate(e.target.value)} className={inputCls} />
               </Field>
               <Field label="Note">
                 <input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="e.g. Second installment" className={inputCls} />

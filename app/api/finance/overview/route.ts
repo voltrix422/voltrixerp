@@ -36,6 +36,7 @@ import {
   buildImportCombinedDetails,
   buildImportPswDetails,
   buildPettyCashApprovedDetails,
+  buildPurchaseLedgerPaymentDetails,
 } from "@/lib/finance-money-out-details"
 import { importChargesSplitInPeriod } from "@/lib/finance-import-outflows"
 import {
@@ -779,6 +780,8 @@ export async function GET(req: NextRequest) {
       loansGiven: buildLoanOutDetails(loanRecords, start, end),
       pettyCash: buildPettyCashApprovedDetails(pettyReceipts, start, end),
       expenses: expenseReport.details,
+      purchaseLedgerPurchases: buildPurchaseLedgerPaymentDetails(purchaseLedger, start, end, "purchase"),
+      purchaseLedgerRents: buildPurchaseLedgerPaymentDetails(purchaseLedger, start, end, "rent"),
     }
     const moneyInDetails = {
       posSales: posSalesReport.details,

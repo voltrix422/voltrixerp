@@ -277,6 +277,16 @@ function isUniqueConstraintError(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && (error as { code?: string }).code === "P2002")
 }
 
+function normalizeLedgerPaymentDate(raw: unknown): string {
+  const s = String(raw || "").trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const d = new Date(s)
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" })
+  }
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" })
+}
+
 export async function POST(req: NextRequest) {
   try {
     return await handlePost(req)
@@ -331,7 +341,7 @@ async function handlePost(req: NextRequest) {
     payments.push({
       id: payment.id || Date.now().toString(),
       amount: paymentAmount,
-      date: payment.date || new Date().toISOString().slice(0, 10),
+      date: normalizeLedgerPaymentDate(payment.date),
       proofUrl: payment.proofUrl || "",
       proofName: payment.proofName || "",
       notes: payment.notes || "",
