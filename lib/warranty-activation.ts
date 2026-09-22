@@ -78,7 +78,7 @@ export async function applyCurrentReplacementSpan<
     })
   }
 
-  return updated as T
+  return { ...w, warrantyEndDate: updated.warrantyEndDate }
 }
 
 export function isWarrantyPendingActivation(notes: string | null | undefined): boolean {
