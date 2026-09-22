@@ -8,9 +8,13 @@ import {
   resolveWarrantyHolderName,
 } from "@/lib/warranty-order-resolver"
 import { warrantyHolderNamesMatch } from "@/lib/warranty-holder-name"
+import {
+  DEFAULT_WARRANTY_YEARS,
+  warrantyYearsForProduct,
+} from "@/lib/warranty-policy"
 
-/** 5+5 year replacement: first 5 years full replacement, next 5 years continued replacement. */
-export const WARRANTY_YEARS = 10
+/** Default 5+5 (10 years). Specific SKUs in warranty-policy.ts stay at 5 years. */
+export const WARRANTY_YEARS = DEFAULT_WARRANTY_YEARS
 export const WARRANTY_POLICY_LABEL = "5+5 Year Replacement"
 
 export async function generatePublicWarrantyNumber(): Promise<string> {
@@ -44,7 +48,7 @@ function spanYears(start: Date, end: Date) {
   return (end.getTime() - start.getTime()) / MS_PER_YEAR
 }
 
-/** Upgrade legacy 5-year cards to the current 5+5 (10-year) replacement span. */
+/** Align stored end dates with this product's policy (5 years or 5+5). */
 export async function applyCurrentReplacementSpan<
   T extends {
     id: string
@@ -52,12 +56,17 @@ export async function applyCurrentReplacementSpan<
     warrantyEndDate: Date
     serialNumber?: string | null
     warrantyId?: string | null
+    productName?: string
   },
 >(w: T): Promise<T> {
-  const years = spanYears(w.warrantyStartDate, w.warrantyEndDate)
-  if (years < 4.8 || years >= 9.5) return w
+  const targetYears = warrantyYearsForProduct(w.productName, w.serialNumber)
+  const currentYears = spanYears(w.warrantyStartDate, w.warrantyEndDate)
+  const isFiveish = currentYears >= 4.8 && currentYears < 6.2
+  const isTenish = currentYears >= 9.5 && currentYears < 10.6
+  if (!isFiveish && !isTenish) return w
+  if (Math.abs(currentYears - targetYears) < 0.2) return w
 
-  const warrantyEndDate = addYears(w.warrantyStartDate, WARRANTY_YEARS)
+  const warrantyEndDate = addYears(w.warrantyStartDate, targetYears)
   const updated = await prisma.erpWarranty.update({
     where: { id: w.id },
     data: { warrantyEndDate },
@@ -195,12 +204,19 @@ export async function activateWarrantyBySerial(
   }
 
   const now = new Date()
-  const warrantyEnd = addYears(now, WARRANTY_YEARS)
 
   let warranty =
     (unit?.warrantyId
       ? await prisma.erpWarranty.findFirst({ where: { warrantyId: unit.warrantyId } })
       : null) || (await findWarrantyBySerial(serialNumber))
+
+  const productHint =
+    options?.productName?.trim() ||
+    warranty?.productName ||
+    unit?.model ||
+    unit?.productName ||
+    serialNumber
+  const warrantyEnd = addYears(now, warrantyYearsForProduct(productHint, serialNumber))
 
   const alreadyActive = Boolean(warranty?.activatedAt && isWarrantyActivated(warranty))
 
@@ -262,7 +278,7 @@ export async function activateWarrantyBySerial(
         productName,
         soldDate: now,
         warrantyStartDate: now,
-        warrantyEndDate: warrantyEnd,
+        warrantyEndDate: addYears(now, warrantyYearsForProduct(productName, serialNumber)),
         activatedAt: now,
         customerName: customerPatch.customerName || null,
         customerPhone: customerPatch.customerPhone || null,
@@ -403,7 +419,10 @@ export async function resetWarrantyToPending(warrantyRowId: string) {
     : "Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty."
 
   const soldDate = warranty.soldDate || new Date()
-  const placeholderEnd = addYears(soldDate, WARRANTY_YEARS)
+  const placeholderEnd = addYears(
+    soldDate,
+    warrantyYearsForProduct(warranty.productName, warranty.serialNumber),
+  )
 
   const updated = await prisma.erpWarranty.update({
     where: { id: warranty.id },

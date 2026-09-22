@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db"
 import { parseDecimalField } from "@/lib/format-inventory-price"
 import { ensureInventoryStockForModel } from "@/lib/ensure-model-stock-link"
 import { deleteModelInventoryCompletely } from "@/lib/delete-model-inventory-server"
-import { addYears, WARRANTY_YEARS } from "@/lib/warranty-activation"
+import { addYears } from "@/lib/warranty-activation"
+import { warrantyYearsForProduct } from "@/lib/warranty-policy"
 
 
 export async function GET(req: NextRequest) {
@@ -55,7 +56,10 @@ export async function POST(req: NextRequest) {
 
   const now = new Date()
   const warrantyStartDate = now
-  const warrantyEndDate = addYears(now, WARRANTY_YEARS)
+  const warrantyEndDate = addYears(
+    now,
+    warrantyYearsForProduct(model || productName || assignedName, normalizedSerial),
+  )
   let warrantyId: string | null = null
 
   if (createWarranty) {

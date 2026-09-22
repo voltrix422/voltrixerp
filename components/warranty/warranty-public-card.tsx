@@ -2,7 +2,7 @@
 
 import { forwardRef } from "react"
 import { Shield, CheckCircle, AlertCircle } from "lucide-react"
-import { VOLTRIX_COMPREHENSIVE_WARRANTY } from "@/lib/warranty-comprehensive-terms"
+import { warrantyDocumentForProduct } from "@/lib/warranty-policy"
 
 export type PublicWarrantyCardData = {
   warrantyId?: string | null
@@ -85,6 +85,7 @@ export const WarrantyPublicCardView = forwardRef<
   ref,
 ) {
   const remaining = calculateRemainingWarranty(warranty.warrantyEndDate)
+  const terms = warrantyDocumentForProduct(warranty.productName, warranty.serialNumber)
   const invoiceIsPdf = warranty.invoiceDocumentUrl?.toLowerCase().endsWith(".pdf")
 
   const hasCustomer =
@@ -114,7 +115,7 @@ export const WarrantyPublicCardView = forwardRef<
                 {warranty.productName}
               </h2>
               <p className="text-[10px] font-semibold text-white/90 mt-0.5">
-                {VOLTRIX_COMPREHENSIVE_WARRANTY.policyLabel} Warranty
+                {terms.policyLabel} Warranty
               </p>
             </div>
           </div>
@@ -176,15 +177,15 @@ export const WarrantyPublicCardView = forwardRef<
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5 space-y-1.5">
           <div className="border-b border-gray-200 pb-1.5">
             <p className="text-[10px] font-bold text-gray-900 leading-tight">
-              {VOLTRIX_COMPREHENSIVE_WARRANTY.company}
+              {terms.company}
             </p>
             <p className="text-[9px] font-semibold text-[#1a9f9a] mt-0.5 leading-tight">
-              {VOLTRIX_COMPREHENSIVE_WARRANTY.policyLabel} · {VOLTRIX_COMPREHENSIVE_WARRANTY.documentTitle}
+              {terms.policyLabel} · {terms.documentTitle}
             </p>
           </div>
 
           <div className="space-y-1.5">
-            {VOLTRIX_COMPREHENSIVE_WARRANTY.sections.map((section) => (
+            {terms.sections.map((section) => (
               <div key={section.title}>
                 <p className="text-[8px] font-bold text-gray-800 leading-tight">{section.title}</p>
                 {section.paragraphs?.map((p) => (
@@ -210,11 +211,11 @@ export const WarrantyPublicCardView = forwardRef<
 
           <div className="pt-1.5 border-t border-gray-200 text-center space-y-0.5">
             <p className="text-[8px] font-bold text-gray-800">
-              {VOLTRIX_COMPREHENSIVE_WARRANTY.footer.company}
+              {terms.footer.company}
             </p>
-            <p className="text-[7px] text-gray-500">{VOLTRIX_COMPREHENSIVE_WARRANTY.footer.location}</p>
+            <p className="text-[7px] text-gray-500">{terms.footer.location}</p>
             <p className="text-[7px] text-[#1a9f9a] font-medium">
-              Website: {VOLTRIX_COMPREHENSIVE_WARRANTY.footer.website}
+              Website: {terms.footer.website}
             </p>
           </div>
         </div>

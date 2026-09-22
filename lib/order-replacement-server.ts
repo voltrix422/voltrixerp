@@ -15,7 +15,8 @@ import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-s
 import type { OrderReplacementDisposition, OrderReplacementLine } from "@/lib/orders"
 import { resolveOrderItemModel } from "@/lib/orders"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
-import { addYears, WARRANTY_YEARS } from "@/lib/warranty-activation"
+import { addYears } from "@/lib/warranty-activation"
+import { warrantyYearsForProduct } from "@/lib/warranty-policy"
 
 export type ReplaceOrderItemInput = {
   orderId: string
@@ -115,7 +116,10 @@ async function ensureWarrantyForReplacementSerial(params: {
   const sn = params.serialNumber.trim()
   if (!sn) return
   const soldDate = new Date()
-  const placeholderEnd = addYears(soldDate, WARRANTY_YEARS)
+  const placeholderEnd = addYears(
+    soldDate,
+    warrantyYearsForProduct(params.model || params.productName, sn),
+  )
   const dispatchNote = `Replacement on order ${params.orderNumber}. Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty.`
   const holderName = (params.warrantyHolderName || "").trim() || null
 

@@ -1,7 +1,7 @@
 "use client"
 
 import jsPDF from "jspdf"
-import { VOLTRIX_COMPREHENSIVE_WARRANTY } from "@/lib/warranty-comprehensive-terms"
+import { warrantyDocumentForProduct } from "@/lib/warranty-policy"
 import type { PublicWarrantyCardData } from "@/components/warranty/warranty-public-card"
 
 function formatCardDate(dateStr: string): string {
@@ -52,6 +52,7 @@ function ensureSpace(doc: jsPDF, y: number, needed: number, margin: number): num
 }
 
 export async function generateWarrantyCardPDF(warranty: PublicWarrantyCardData): Promise<Blob> {
+  const terms = warrantyDocumentForProduct(warranty.productName, warranty.serialNumber)
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const pageW = 210
   const pageH = doc.internal.pageSize.getHeight()
@@ -82,7 +83,7 @@ export async function generateWarrantyCardPDF(warranty: PublicWarrantyCardData):
   doc.text("Official Digital Warranty Card", textX, 22)
   doc.setFont("helvetica", "bold")
   doc.setFontSize(10)
-  doc.text(`${VOLTRIX_COMPREHENSIVE_WARRANTY.policyLabel} Warranty`, textX, 29)
+  doc.text(`${terms.policyLabel} Warranty`, textX, 29)
   doc.setFont("helvetica", "normal")
   doc.setFontSize(11)
   doc.text(warranty.productName || "Voltrix Product", textX, 36)
@@ -163,7 +164,7 @@ export async function generateWarrantyCardPDF(warranty: PublicWarrantyCardData):
   doc.setFont("helvetica", "bold")
   doc.setFontSize(7.8)
   doc.text(
-    `${VOLTRIX_COMPREHENSIVE_WARRANTY.policyLabel.toUpperCase()}  ·  ${VOLTRIX_COMPREHENSIVE_WARRANTY.policySummary}`,
+    `${terms.policyLabel.toUpperCase()}  ·  ${terms.policySummary}`,
     margin + 3,
     y + 6.4,
   )
@@ -172,10 +173,10 @@ export async function generateWarrantyCardPDF(warranty: PublicWarrantyCardData):
   doc.setFont("helvetica", "bold")
   doc.setFontSize(12)
   doc.setTextColor(INK.r, INK.g, INK.b)
-  doc.text(VOLTRIX_COMPREHENSIVE_WARRANTY.documentTitle, margin, y)
+  doc.text(terms.documentTitle, margin, y)
   y += 7
 
-  for (const section of VOLTRIX_COMPREHENSIVE_WARRANTY.sections) {
+  for (const section of terms.sections) {
     const paragraphs = section.paragraphs ?? []
     const bullets = section.bullets ?? []
     const body = [...paragraphs, ...bullets]
@@ -226,7 +227,7 @@ export async function generateWarrantyCardPDF(warranty: PublicWarrantyCardData):
     doc.setFont("helvetica", "normal")
     doc.setFontSize(7.5)
     doc.text(
-      `${VOLTRIX_COMPREHENSIVE_WARRANTY.footer.company}  ·  ${VOLTRIX_COMPREHENSIVE_WARRANTY.footer.location}  ·  ${VOLTRIX_COMPREHENSIVE_WARRANTY.footer.website}`,
+      `${terms.footer.company}  ·  ${terms.footer.location}  ·  ${terms.footer.website}`,
       margin,
       pageH - 5,
     )
