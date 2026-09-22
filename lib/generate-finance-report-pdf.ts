@@ -441,17 +441,17 @@ export async function downloadFinanceReportPDF(
     y = sectionTitle(doc, "Purchase ledger", y)
     autoTable(doc, {
       ...tableOpts(y),
-      head: [["Ledger #", "Date", "Supplier", "Product / note", "Total", "Paid", "Due"]],
-      body: (data.purchaseLedger || []).map((r) => [
+      head: [["Ledger #", "Date", "Supplier", "Product / note", "Paid"]],
+      body: (data.purchaseLedger || [])
+        .filter((r) => (Number(r.amountPaid) || 0) > 0.004)
+        .map((r) => [
         r.ledgerNumber,
         r.date,
         safeText(r.supplierName, 18),
         safeText(r.productName, 22),
-        fmt(r.totalAmount),
         fmt(r.amountPaid),
-        fmt(r.amountDue),
       ]),
-      columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } },
+      columnStyles: { 4: { halign: "right" } },
     })
     y = afterTable(doc)
   }

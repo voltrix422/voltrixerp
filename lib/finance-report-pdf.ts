@@ -206,9 +206,8 @@ export async function downloadFinanceOverviewPdf(
   const methods = data.paymentMethods || []
 
   const pettyTotal = pettyLines.reduce((sum, r) => sum + r.amount, 0)
-  const ledgerTotal = data.ledgerTotals?.total ?? ledgerLines.reduce((sum, r) => sum + r.total, 0)
-  const ledgerPaid = data.ledgerTotals?.paid ?? ledgerLines.reduce((sum, r) => sum + r.paid, 0)
-  const ledgerDue = data.ledgerTotals?.due ?? ledgerLines.reduce((sum, r) => sum + r.due, 0)
+  const paidLedgerLines = ledgerLines.filter((r) => r.paid > 0.004)
+  const ledgerPaid = data.ledgerTotals?.paid ?? paidLedgerLines.reduce((sum, r) => sum + r.paid, 0)
   const posTotal = posSales.reduce((sum, r) => sum + r.total, 0)
   const orderTotal = orders.reduce((sum, r) => sum + r.total, 0)
 
@@ -323,7 +322,7 @@ export async function downloadFinanceOverviewPdf(
     })
   }
 
-  if (ledgerLines.length) {
+  if (paidLedgerLines.length) {
     tables.push({
       title: "Purchase ledger — Main Office bills",
       newPage: true,
@@ -332,22 +331,18 @@ export async function downloadFinanceOverviewPdf(
         { header: "Ledger", width: 22 },
         { header: "By", width: 24 },
         { header: "Supplier", width: 32 },
-        { header: "Items", width: 34, small: true },
-        { header: "Total", align: "right", width: 28 },
-        { header: "Paid", align: "right", width: 28 },
-        { header: "Due", align: "right", width: 26 },
+        { header: "Items", width: 46, small: true },
+        { header: "Paid", align: "right", width: 32 },
       ],
-      rows: ledgerLines.map((r) => [
+      rows: paidLedgerLines.map((r) => [
         shortDate(r.date),
         r.ledgerNumber,
         r.createdBy,
         r.supplier,
         r.itemsLabel,
-        pkr(r.total),
         pkr(r.paid),
-        pkr(r.due),
       ]),
-      foot: ["", "", "", "", `${ledgerLines.length}`, pkr(ledgerTotal), pkr(ledgerPaid), pkr(ledgerDue)],
+      foot: ["", "", "", "", `${paidLedgerLines.length}`, pkr(ledgerPaid)],
     })
   }
 
