@@ -665,50 +665,58 @@ export function buildLedgerReport(
   for (const row of entries) {
     const scope = String(row.purchaseScopeId || "P1").trim().toUpperCase()
     if (scope && scope !== "P1") continue
-    const dateHit = ledgerDayInRange(row.transactionDate, row.createdAt, start, end)
     const payments = asArray(row.payments)
-    const paidInRange = payments.some((raw) => {
-      const p = raw as { date?: string; createdAt?: string }
-      return ledgerDayInRange(p.date || p.createdAt, row.createdAt, start, end)
-    })
-    if (!dateHit && !paidInRange) continue
     const itemLines = flattenLedgerItems(row)
     const itemsLabel = itemLines.length
       ? itemLines.length === 1
         ? itemLines[0].description
         : `${itemLines[0].description} +${itemLines.length - 1} more`
       : String(row.productName || "—")
-    lines.push({
-      id: row.id,
-      date: String(row.transactionDate || "").trim() || fmtDay(row.createdAt),
-      ledgerNumber: String(row.ledgerNumber || "—"),
-      createdBy: String(row.createdBy || "").trim() || "—",
-      supplier: ledgerSupplier(row),
-      project: String(row.projectName || "").trim() || "—",
-      itemsLabel,
-      kind: isRentLedgerDbRow(row) ? "Rent" : "Purchase",
-      total: num(row.totalAmount),
-      paid: num(row.amountPaid),
-      due: num(row.amountDue),
-      itemLines,
+    const kind = isRentLedgerDbRow(row) ? "Rent" : "Purchase"
+    const supplier = ledgerSupplier(row)
+    const project = String(row.projectName || "").trim() || "—"
+    const ledgerNumber = String(row.ledgerNumber || "—")
+    payments.forEach((raw, index) => {
+      if (!raw || typeof raw !== "object") return
+      const p = raw as { amount?: number; date?: string; createdAt?: string; createdBy?: string }
+      const amount = num(p.amount)
+      if (amount <= 0) return
+      const payDate = String(p.date || "").trim()
+      if (!payDate) return
+      if (!ledgerDayInRange(payDate, row.createdAt, start, end)) return
+      lines.push({
+        id: `${row.id}-${index}`,
+        date: payDate,
+        ledgerNumber,
+        createdBy: String(p.createdBy || row.createdBy || "").trim() || "—",
+        supplier,
+        project,
+        itemsLabel,
+        kind,
+        total: amount,
+        paid: amount,
+        due: 0,
+        itemLines,
+      })
     })
   }
   lines.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
   const byMap = new Map<string, FinanceExpenseByPerson>()
   for (const line of lines) {
     if (line.paid <= 0.004) continue
-    const row = byMap.get(line.createdBy) || { name: line.createdBy, count: 0, amount: 0 }
-    row.count += 1
-    row.amount += line.paid
-    byMap.set(line.createdBy, row)
+    const person = byMap.get(line.createdBy) || { name: line.createdBy, count: 0, amount: 0 }
+    person.count += 1
+    person.amount += line.paid
+    byMap.set(line.createdBy, person)
   }
+  const paid = lines.reduce((s, l) => s + l.paid, 0)
   return {
     lines,
     purchases: lines.filter((l) => l.kind === "Purchase"),
     rents: lines.filter((l) => l.kind === "Rent"),
     byPerson: [...byMap.values()].sort((a, b) => b.amount - a.amount),
-    total: lines.reduce((s, l) => s + l.total, 0),
-    paid: lines.reduce((s, l) => s + l.paid, 0),
-    due: lines.reduce((s, l) => s + l.due, 0),
+    total: paid,
+    paid,
+    due: 0,
   }
 }
