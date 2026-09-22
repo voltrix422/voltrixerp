@@ -2,10 +2,90 @@
 import { useState, useEffect } from "react"
 import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
+import { INVESTOR_ROI_PERIODS, normalizeInvestorRoiPeriod, type InvestorRoiPeriod } from "@/lib/investor-payout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Copy } from "lucide-react"
 import { NotificationEmailsEditor } from "@/components/settings/notification-emails-editor"
+
+function InvestorTermsFields({
+  investment,
+  roiPercent,
+  period,
+  editing,
+  onChange,
+}: {
+  investment: number
+  roiPercent: number
+  period: InvestorRoiPeriod
+  editing: boolean
+  onChange: (next: { investorInvestment: number; investorRoiPercent: number; investorRoiPeriod: InvestorRoiPeriod }) => void
+}) {
+  return (
+    <div className="rounded-md border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-2 space-y-1.5">
+      <p className="text-[10px] font-semibold text-[#1a9f9a]">Investor returns (their dashboard only)</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Investment (PKR)</span>
+          <input
+            type="number"
+            min={0}
+            disabled={!editing}
+            value={investment || ""}
+            onChange={(e) =>
+              onChange({
+                investorInvestment: Number(e.target.value) || 0,
+                investorRoiPercent: roiPercent,
+                investorRoiPeriod: period,
+              })
+            }
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
+          />
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">ROI % (annual)</span>
+          <input
+            type="number"
+            min={0}
+            step="0.1"
+            disabled={!editing}
+            value={roiPercent || ""}
+            onChange={(e) =>
+              onChange({
+                investorInvestment: investment,
+                investorRoiPercent: Number(e.target.value) || 0,
+                investorRoiPeriod: period,
+              })
+            }
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
+          />
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Period</span>
+          <select
+            disabled={!editing}
+            value={period}
+            onChange={(e) =>
+              onChange({
+                investorInvestment: investment,
+                investorRoiPercent: roiPercent,
+                investorRoiPeriod: normalizeInvestorRoiPeriod(e.target.value),
+              })
+            }
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
+          >
+            {INVESTOR_ROI_PERIODS.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+        They receive investment × ROI% × period (3 months = 1/4 of annual, 6 months = 1/2). Sales in CRM 2 stay the same for all investors.
+      </p>
+    </div>
+  )
+}
 
 function PurchaseScopePicker({
   scopes,
@@ -172,11 +252,15 @@ function UserRow({
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </select>
-          {isInvestorUser(draft.role) && (
-            <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-              Investors sign in at Investor login. They only see company progress and CRM 2 (read only).
-            </p>
-          )}
+        {isInvestorUser(draft.role) && (
+          <InvestorTermsFields
+            investment={draft.investorInvestment || 0}
+            roiPercent={draft.investorRoiPercent || 0}
+            period={normalizeInvestorRoiPeriod(draft.investorRoiPeriod)}
+            editing={editing}
+            onChange={(next) => setDraft((d) => ({ ...d, ...next }))}
+          />
+        )}
           {isViewOnlyUser(draft.role) && !isInvestorUser(draft.role) && (
             <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
               View only users can open the selected pages and browse data, but cannot create, edit, or delete records.
@@ -241,6 +325,9 @@ function AddUserForm({
   const [selectedScopes, setSelectedScopes] = useState<string[]>(["P1"])
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true)
   const [showPw, setShowPw] = useState(false)
+  const [investorInvestment, setInvestorInvestment] = useState(0)
+  const [investorRoiPercent, setInvestorRoiPercent] = useState(0)
+  const [investorRoiPeriod, setInvestorRoiPeriod] = useState<InvestorRoiPeriod>("annual")
 
   function toggleModule(m: Module) {
     setModules(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
@@ -258,6 +345,9 @@ function AddUserForm({
       notificationEmails,
       emailNotificationsEnabled,
       purchaseScopes: normalizePurchaseScopes(selectedScopes),
+      investorInvestment: isInvestorUser(role) ? investorInvestment : 0,
+      investorRoiPercent: isInvestorUser(role) ? investorRoiPercent : 0,
+      investorRoiPeriod: isInvestorUser(role) ? investorRoiPeriod : "annual",
     })
   }
 
@@ -298,9 +388,22 @@ function AddUserForm({
           ))}
         </select>
         {isInvestorUser(role) && (
-          <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-            Give them this email and password. They cannot open the staff ERP — only the investor dashboard and CRM 2.
-          </p>
+          <>
+            <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+              Give them this email and password. They cannot open the staff ERP — only the investor dashboard and CRM 2.
+            </p>
+            <InvestorTermsFields
+              investment={investorInvestment}
+              roiPercent={investorRoiPercent}
+              period={investorRoiPeriod}
+              editing
+              onChange={(next) => {
+                setInvestorInvestment(next.investorInvestment)
+                setInvestorRoiPercent(next.investorRoiPercent)
+                setInvestorRoiPeriod(next.investorRoiPeriod)
+              }}
+            />
+          </>
         )}
         {isViewOnlyUser(role) && !isInvestorUser(role) && (
           <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">

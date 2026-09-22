@@ -1,3 +1,8 @@
+import {
+  normalizeInvestorRoiPeriod,
+  type InvestorRoiPeriod,
+} from "@/lib/investor-payout"
+
 export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos" | "pos_admin" | "users" | "dispatch_no_scan"
 
 export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager" | "view_only" | "investor"
@@ -18,6 +23,9 @@ export interface User {
   notificationEmails?: string[]
   emailNotificationsEnabled?: boolean
   purchaseScopes?: string[]
+  investorInvestment?: number
+  investorRoiPercent?: number
+  investorRoiPeriod?: InvestorRoiPeriod
 }
 
 export const DEFAULT_PURCHASE_SCOPE = "P1"
@@ -231,6 +239,9 @@ function mapRow(row: Record<string, unknown>): User {
     notificationEmails,
     emailNotificationsEnabled: row.emailNotificationsEnabled !== false,
     purchaseScopes,
+    investorInvestment: Number(row.investorInvestment) || 0,
+    investorRoiPercent: Number(row.investorRoiPercent) || 0,
+    investorRoiPeriod: normalizeInvestorRoiPeriod(row.investorRoiPeriod),
   }
 }
 

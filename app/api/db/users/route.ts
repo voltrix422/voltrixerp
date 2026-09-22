@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { ensureDefaultInvestorUser } from "@/lib/ensure-investor-user"
+import { normalizeInvestorRoiPeriod } from "@/lib/investor-payout"
 
 export async function GET() {
   await ensureDefaultInvestorUser()
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest) {
       emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
       branchId: body.branchId ?? null,
       purchaseScopes: body.purchaseScopes ?? [],
+      investorInvestment: Number(body.investorInvestment) || 0,
+      investorRoiPercent: Number(body.investorRoiPercent) || 0,
+      investorRoiPeriod: normalizeInvestorRoiPeriod(body.investorRoiPeriod),
     },
     create: {
       id: body.id,
@@ -47,6 +51,9 @@ export async function POST(req: NextRequest) {
       emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
       branchId: body.branchId ?? null,
       purchaseScopes: body.purchaseScopes ?? [],
+      investorInvestment: Number(body.investorInvestment) || 0,
+      investorRoiPercent: Number(body.investorRoiPercent) || 0,
+      investorRoiPeriod: normalizeInvestorRoiPeriod(body.investorRoiPeriod),
     },
   })
   return NextResponse.json(user)

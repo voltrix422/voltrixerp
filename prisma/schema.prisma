@@ -23,6 +23,9 @@ model ErpUser {
   emailNotificationsEnabled Boolean  @default(true) @map("email_notifications_enabled")
   branchId                  String?  @map("branch_id")
   purchaseScopes            Json     @default("[]") @map("purchase_scopes")
+  investorInvestment        Float    @default(0) @map("investor_investment")
+  investorRoiPercent        Float    @default(0) @map("investor_roi_percent")
+  investorRoiPeriod         String   @default("annual") @map("investor_roi_period")
   createdAt                 DateTime @default(now()) @map("created_at")
 
   @@index([role])

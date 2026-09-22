@@ -40,6 +40,9 @@ function mapRow(row: Record<string, unknown>): any {
     jobTitle: row.jobTitle ?? "",
     baseSalary: row.baseSalary ?? 0,
     commissionPercent: row.commissionPercent ?? 0,
+    investorInvestment: Number(row.investorInvestment) || 0,
+    investorRoiPercent: Number(row.investorRoiPercent) || 0,
+    investorRoiPeriod: row.investorRoiPeriod || "annual",
   }
 }
 

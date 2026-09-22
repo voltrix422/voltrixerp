@@ -68,7 +68,7 @@ export default function InvestorLoginPage() {
             portal
           </h1>
           <p className="text-white/80 text-sm max-w-sm leading-relaxed">
-            Follow company progress and review CRM 2 — the same customer records, in a separate investor workspace.
+            Follow company progress and review CRM 2 sales. Your return is your investment × ROI for the period Voltrix sets.
           </p>
         </div>
         <p className="text-xs text-white/50">© 2026 Voltrix</p>
@@ -95,7 +95,7 @@ export default function InvestorLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="investor@voltrix.com"
+                placeholder="asif@voltrix.com"
                 className="w-full h-10 rounded-lg border border-neutral-300 bg-transparent px-3 text-sm outline-none focus:border-[#1a9f9a] transition-colors placeholder:text-neutral-300"
               />
             </div>
