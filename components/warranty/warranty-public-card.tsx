@@ -113,6 +113,9 @@ export const WarrantyPublicCardView = forwardRef<
               <h2 className="text-base font-bold capitalize leading-tight truncate">
                 {warranty.productName}
               </h2>
+              <p className="text-[10px] font-semibold text-white/90 mt-0.5">
+                {VOLTRIX_COMPREHENSIVE_WARRANTY.policyLabel} Warranty
+              </p>
             </div>
           </div>
           <StatusPill remaining={remaining} />
@@ -176,7 +179,7 @@ export const WarrantyPublicCardView = forwardRef<
               {VOLTRIX_COMPREHENSIVE_WARRANTY.company}
             </p>
             <p className="text-[9px] font-semibold text-[#1a9f9a] mt-0.5 leading-tight">
-              {VOLTRIX_COMPREHENSIVE_WARRANTY.documentTitle}
+              {VOLTRIX_COMPREHENSIVE_WARRANTY.policyLabel} · {VOLTRIX_COMPREHENSIVE_WARRANTY.documentTitle}
             </p>
           </div>
 

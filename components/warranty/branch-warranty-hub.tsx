@@ -136,7 +136,7 @@ export function BranchWarrantyHub() {
           <h2 className="text-base font-bold">Branch warranty</h2>
         </div>
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Scan the product QR after dispatch to <strong>start</strong> the 5-year warranty. Customers can then check status at voltrixbatteries.com/warranty.
+          Scan the product QR after dispatch to <strong>start</strong> the 5+5 year replacement warranty. Customers can then check status at voltrixbatteries.com/warranty.
         </p>
       </div>
 

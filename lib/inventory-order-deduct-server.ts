@@ -6,6 +6,7 @@ import {
   restoreManualInventoryByModel,
 } from "@/lib/manual-inventory-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
+import { addYears, WARRANTY_YEARS } from "@/lib/warranty-activation"
 
 export type OrderDeductLine = {
   id?: string
@@ -229,11 +230,6 @@ async function findInStockSerials(keys: string[], qty: number) {
   return null
 }
 
-function addYears(date: Date, years: number) {
-  const next = new Date(date)
-  next.setFullYear(next.getFullYear() + years)
-  return next
-}
 
 export async function ensureWarrantyForDispatchBySerial(
   serialNumber: string,
@@ -247,7 +243,7 @@ export async function ensureWarrantyForDispatchBySerial(
   const soldDate = order.inventoryDeductedAt
     ? new Date(order.inventoryDeductedAt)
     : new Date()
-  const placeholderEnd = addYears(soldDate, 5)
+  const placeholderEnd = addYears(soldDate, WARRANTY_YEARS)
   const dispatchNote = `Dispatched on order ${order.orderNumber}. Pending: scan QR at branch or voltrixbatteries.com/warranty to start warranty.`
   const holderName = (order.warrantyHolderName || "").trim() || null
 

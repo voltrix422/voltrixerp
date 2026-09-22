@@ -9,7 +9,9 @@ import {
 } from "@/lib/warranty-order-resolver"
 import { warrantyHolderNamesMatch } from "@/lib/warranty-holder-name"
 
-const WARRANTY_YEARS = 5
+/** 5+5 year replacement: first 5 years full replacement, next 5 years continued replacement. */
+export const WARRANTY_YEARS = 10
+export const WARRANTY_POLICY_LABEL = "5+5 Year Replacement"
 
 export async function generatePublicWarrantyNumber(): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
@@ -34,6 +36,49 @@ export function addYears(date: Date, years: number) {
   const next = new Date(date)
   next.setFullYear(next.getFullYear() + years)
   return next
+}
+
+const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25
+
+function spanYears(start: Date, end: Date) {
+  return (end.getTime() - start.getTime()) / MS_PER_YEAR
+}
+
+/** Upgrade legacy 5-year cards to the current 5+5 (10-year) replacement span. */
+export async function applyCurrentReplacementSpan<
+  T extends {
+    id: string
+    warrantyStartDate: Date
+    warrantyEndDate: Date
+    serialNumber?: string | null
+    warrantyId?: string | null
+  },
+>(w: T): Promise<T> {
+  const years = spanYears(w.warrantyStartDate, w.warrantyEndDate)
+  if (years < 4.8 || years >= 9.5) return w
+
+  const warrantyEndDate = addYears(w.warrantyStartDate, WARRANTY_YEARS)
+  const updated = await prisma.erpWarranty.update({
+    where: { id: w.id },
+    data: { warrantyEndDate },
+  })
+
+  const unit = w.serialNumber
+    ? await prisma.erpInventorySerialUnit.findFirst({
+        where: { serialNumber: { equals: w.serialNumber, mode: "insensitive" } },
+      })
+    : w.warrantyId
+      ? await prisma.erpInventorySerialUnit.findFirst({ where: { warrantyId: w.warrantyId } })
+      : null
+
+  if (unit) {
+    await prisma.erpInventorySerialUnit.update({
+      where: { id: unit.id },
+      data: { warrantyEndDate },
+    })
+  }
+
+  return updated as T
 }
 
 export function isWarrantyPendingActivation(notes: string | null | undefined): boolean {
@@ -249,6 +294,7 @@ export async function activateWarrantyBySerial(
         },
       })
     }
+    warranty = await applyCurrentReplacementSpan(warranty)
     return {
       ok: true,
       alreadyActive: true,
@@ -471,6 +517,8 @@ export async function lookupWarrantyForPublic(idOrSerial: string) {
   }
 
   if (!warranty) return null
+
+  warranty = await applyCurrentReplacementSpan(warranty)
 
   if (isWarrantyActivated(warranty) && !warranty.warrantyId?.trim()) {
     warranty = await prisma.erpWarranty.update({

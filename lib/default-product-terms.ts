@@ -1,10 +1,10 @@
 import { composeProductTermsContent } from "@/lib/parse-product-terms"
 
-export const DEFAULT_PRODUCT_TERMS_NAME = "5 Year Warranty"
+export const DEFAULT_PRODUCT_TERMS_NAME = "5+5 Year Replacement Warranty"
 
 /** Shared default terms for every product unless overridden in admin. */
 export const DEFAULT_PRODUCT_TERMS_FIELDS = {
-  title: "5 YEAR WARRANTY",
+  title: "5+5 YEAR REPLACEMENT WARRANTY",
   subtitle: "",
   intro:
     "Voltrix Batteries Pvt. Ltd. provides advanced lithium-based energy storage solutions for residential and commercial use. Known for innovation and reliability, Voltrix offers high-performance, durable products designed to meet modern energy needs efficiently.",

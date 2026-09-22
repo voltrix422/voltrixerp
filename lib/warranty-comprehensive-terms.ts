@@ -7,25 +7,27 @@ export type WarrantyTermsSection = {
 export const VOLTRIX_COMPREHENSIVE_WARRANTY = {
   company: "Voltrix Batteries Pvt. Ltd.",
   documentTitle: "Comprehensive Warranty Terms & Conditions",
+  policyLabel: "5+5 Year Replacement",
+  policySummary: "First 5 years full replacement · Next 5 years continued replacement",
   sections: [
     {
       title: "1. Warranty Coverage",
       paragraphs: [
-        "Voltrix Batteries Pvt. Ltd. warrants that its products are free from manufacturing defects in material and workmanship under normal operating conditions during the applicable warranty period.",
+        "Voltrix Batteries Pvt. Ltd. warrants that its products are free from manufacturing defects in material and workmanship under normal operating conditions during the applicable 5+5 year replacement warranty period (10 years from the warranty start date).",
         "This warranty applies only to genuine Voltrix products purchased through authorized dealers, distributors, or official sales channels.",
       ],
     },
     {
       title: "2. Warranty Start Date",
       paragraphs: [
-        "The warranty period shall start from: the original date of purchase mentioned on the customer invoice, and the warranty activation/start date mentioned on the digital warranty card. Both dates must match for the warranty claim to be considered valid.",
+        "The 10-year (5+5) replacement warranty period shall start from: the original date of purchase mentioned on the customer invoice, and the warranty activation/start date mentioned on the digital warranty card. Both dates must match for the warranty claim to be considered valid.",
         "Failure to provide matching purchase and warranty registration records may result in rejection of the warranty claim.",
       ],
     },
     {
       title: "3. Product Warranty Categories",
       bullets: [
-        "Residential / Solar Batteries — limited replacement warranty for manufacturing defects, internal battery malfunction, and BMS malfunction caused by factory defects.",
+        "Residential / Solar Batteries — 5+5 year replacement warranty (first 5 years full replacement, following 5 years continued replacement) for manufacturing defects, internal battery malfunction, and BMS malfunction caused by factory defects.",
         "Solar Inverters — limited replacement warranty for manufacturing defects and PCB or internal component malfunction under normal usage.",
         "EV Battery Packs — warranty per specified years or kilometer limitation on product/invoice, whichever comes first.",
       ],
@@ -33,8 +35,8 @@ export const VOLTRIX_COMPREHENSIVE_WARRANTY = {
     {
       title: "4. Replacement Warranty Policy",
       paragraphs: [
-        "Voltrix products are covered under a replacement warranty policy. The product will first be inspected and tested at the designated Voltrix Warranty Claim Lab or authorized service center.",
-        "If the issue is a manufacturing defect or internal malfunction, Voltrix may repair the product. If it cannot be technically resolved, the product may be replaced with an equivalent unit.",
+        "Voltrix products are covered under a 5+5 year replacement warranty policy, for a total of 10 years from the warranty start date. During the first 5 years, an approved manufacturing defect entitles the customer to full product replacement (or repair if that fully resolves the defect). During the following 5 years, approved manufacturing defects remain covered under continued replacement or repair of the defective unit.",
+        "The product will first be inspected and tested at the designated Voltrix Warranty Claim Lab or authorized service center. If the issue is a manufacturing defect or internal malfunction, Voltrix may repair the product. If it cannot be technically resolved, the product may be replaced with an equivalent unit.",
         "Replacement does not mean immediate exchange at dealer location. All warranty claims are subject to technical inspection and approval by Voltrix Batteries Pvt. Ltd.",
       ],
     },

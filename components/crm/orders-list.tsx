@@ -2838,7 +2838,7 @@ function OrderDetail({
       <ConfirmDialog
         isOpen={showStartWarrantiesConfirm}
         title="Start all warranties?"
-        message={`Start the 5-year warranty today for all scanned units on ${detailOrder.orderNumber}? Warranty name will be ${savedWarrantyName || "—"}. Already-started units are skipped. This cannot be undone without a warranty reset.`}
+        message={`Start the 5+5 year replacement warranty today for all scanned units on ${detailOrder.orderNumber}? Warranty name will be ${savedWarrantyName || "—"}. Already-started units are skipped. This cannot be undone without a warranty reset.`}
         confirmText={startingWarranties ? "Starting…" : "Start all warranties"}
         cancelText="Cancel"
         variant="warning"

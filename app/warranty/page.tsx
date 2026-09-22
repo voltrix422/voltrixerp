@@ -9,7 +9,6 @@ import {
   PlayCircle,
   ArrowLeft,
 } from "lucide-react"
-import { toPng } from "html-to-image"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { WarrantyQrScanner } from "@/components/warranty/warranty-qr-scanner"
@@ -22,6 +21,7 @@ import {
   type WarrantyStartFormData,
 } from "@/components/warranty/warranty-start-wizard"
 import { useSearchParams } from "next/navigation"
+import { downloadWarrantyCardPDF } from "@/lib/generate-warranty-card-pdf"
 
 type Flow = null | "start" | "check"
 
@@ -63,7 +63,7 @@ function WarrantyLookupContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [info, setInfo] = useState("")
-  const cardRef = useRef<HTMLDivElement>(null)
+  const [downloading, setDownloading] = useState(false)
   const prefilled = useRef(false)
 
   useEffect(() => {
@@ -178,15 +178,14 @@ function WarrantyLookupContent() {
   }
 
   async function handleDownload() {
-    if (!cardRef.current) return
+    if (!warranty) return
+    setDownloading(true)
     try {
-      const dataUrl = await toPng(cardRef.current, { quality: 1, pixelRatio: 2 })
-      const link = document.createElement("a")
-      link.download = `warranty-${warranty?.warrantyId || warranty?.invoiceNumber || warranty?.serialNumber || "card"}.png`
-      link.href = dataUrl
-      link.click()
+      await downloadWarrantyCardPDF(toCardData(warranty))
     } catch (err) {
-      console.error("Failed to download:", err)
+      console.error("Failed to download warranty PDF:", err)
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -200,7 +199,7 @@ function WarrantyLookupContent() {
         <>
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Warranty</h1>
-            <p className="text-sm text-gray-500 mt-1">5-year coverage</p>
+            <p className="text-sm text-gray-500 mt-1">5+5 year replacement warranty</p>
           </div>
 
           <div className="flex flex-col items-center mb-8">
@@ -349,14 +348,15 @@ function WarrantyLookupContent() {
           {justActivated && flow === "start" && warranty.warrantyId && (
             <p className="text-center text-sm font-mono font-bold text-[#1a9f9a]">{warranty.warrantyId}</p>
           )}
-          <WarrantyPublicCardView ref={cardRef} warranty={toCardData(warranty)} />
+          <WarrantyPublicCardView warranty={toCardData(warranty)} />
           <button
             type="button"
             onClick={() => void handleDownload()}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] shadow-sm transition-colors"
+            disabled={downloading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a9f9a] text-white text-sm font-semibold hover:bg-[#158a85] shadow-sm transition-colors disabled:opacity-60"
           >
             <Download className="h-4 w-4" />
-            Download card
+            {downloading ? "Preparing PDF…" : "Download PDF"}
           </button>
         </div>
       )}
