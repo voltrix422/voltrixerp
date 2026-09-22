@@ -125,7 +125,7 @@ function UserRow({
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 pt-0.5">
-          <Badge variant={roleHasAllModules(u.role) ? "default" : isViewOnlyUser(u.role) ? "outline" : "secondary"} className="text-[10px]">
+          <Badge variant={roleHasAllModules(u.role) ? "default" : isInvestorUser(u.role) ? "default" : isViewOnlyUser(u.role) ? "outline" : "secondary"} className={`text-[10px] ${isInvestorUser(u.role) ? "bg-[#1a9f9a] hover:bg-[#1a9f9a]" : ""}`}>
             {ROLE_LABELS[u.role] ?? u.role}
           </Badge>
           {editing ? (
@@ -196,7 +196,9 @@ function UserRow({
         {roleHasAllModules(draft.role) ? (
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages</span>
         ) : isInvestorUser(draft.role) ? (
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Investor portal — Dashboard and CRM 2</span>
+          <span className="text-[10px] text-[#1a9f9a]">
+            Login: {draft.email} + password at /investor/login
+          </span>
         ) : ALL_MODULES.map(m => {
           const has = draft.modules.includes(m)
           return (
@@ -223,16 +225,18 @@ function AddUserForm({
   onAdd,
   onCancel,
   purchaseScopes,
+  initialRole = "user",
 }: {
   onAdd: (u: User) => void
   onCancel: () => void
   purchaseScopes: PurchaseScope[]
+  initialRole?: UserRole
 }) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState<UserRole>("user")
-  const [modules, setModules] = useState<Module[]>([])
+  const [role, setRole] = useState<UserRole>(initialRole)
+  const [modules, setModules] = useState<Module[]>(() => modulesForRole(initialRole, []))
   const [notificationEmails, setNotificationEmails] = useState<string[]>([])
   const [selectedScopes, setSelectedScopes] = useState<string[]>(["P1"])
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true)
@@ -259,10 +263,15 @@ function AddUserForm({
 
   return (
     <form onSubmit={submit} className="border rounded-lg p-3 space-y-2 bg-[hsl(var(--muted))]/30 text-xs">
-      <p className="font-semibold text-xs">New User</p>
+      <p className="font-semibold text-xs">{isInvestorUser(role) ? "New investor" : "New User"}</p>
+      {isInvestorUser(role) && (
+        <p className="text-[10px] text-[#1a9f9a]">
+          They sign in at /investor/login with this email and password. Each investor gets their own login.
+        </p>
+      )}
       <input required placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
         className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
-      <input required type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
+      <input required type="email" placeholder={isInvestorUser(role) ? "Investor login email" : "Email"} value={email} onChange={e => setEmail(e.target.value)}
         className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]" />
       <div className="relative">
         <input required type={showPw ? "text" : "password"} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
@@ -290,7 +299,7 @@ function AddUserForm({
         </select>
         {isInvestorUser(role) && (
           <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-            This account signs in at Investor login and can only view company progress and CRM 2.
+            Give them this email and password. They cannot open the staff ERP — only the investor dashboard and CRM 2.
           </p>
         )}
         {isViewOnlyUser(role) && !isInvestorUser(role) && (
@@ -317,7 +326,9 @@ function AddUserForm({
       {roleHasAllModules(role) ? (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages — full access to every module</p>
       ) : isInvestorUser(role) ? (
-        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Investor portal — Dashboard and CRM 2 only</p>
+        <p className="text-[10px] text-[#1a9f9a]">
+          Investor portal login: /investor/login
+        </p>
       ) : (
       <div className="flex flex-wrap gap-1">
         {ALL_MODULES.map(m => {
@@ -335,7 +346,9 @@ function AddUserForm({
       </div>
       )}
       <div className="flex gap-2 pt-1">
-        <Button type="submit" size="sm" className="h-7 text-xs flex-1 cursor-pointer">Create</Button>
+        <Button type="submit" size="sm" className="h-7 text-xs flex-1 cursor-pointer">
+          {isInvestorUser(role) ? "Create investor login" : "Create"}
+        </Button>
         <Button type="button" variant="outline" size="sm" className="h-7 text-xs cursor-pointer" onClick={onCancel}>Cancel</Button>
       </div>
     </form>
@@ -345,7 +358,7 @@ function AddUserForm({
 export function UsersManager() {
   const [users, setUsers] = useState<User[]>([])
   const [purchaseScopes, setPurchaseScopes] = useState<PurchaseScope[]>([])
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState<"user" | "investor" | false>(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -380,16 +393,34 @@ export function UsersManager() {
           <div>
             <h2 className="text-base font-semibold">User Accounts</h2>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Credentials, page access, purchase ledgers, and notification emails
+              Staff ERP users, plus investors who sign in at /investor/login with the email and password you set
             </p>
           </div>
-          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setAdding(v => !v)}>
-            <Plus className="h-3.5 w-3.5" /> Add user
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs cursor-pointer"
+              onClick={() => setAdding(v => v === "investor" ? false : "investor")}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add investor
+            </Button>
+            <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={() => setAdding(v => v === "user" ? false : "user")}>
+              <Plus className="h-3.5 w-3.5" /> Add user
+            </Button>
+          </div>
         </div>
         <div className="space-y-3">
           {loading && <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">Loading...</p>}
-          {adding && <AddUserForm onAdd={handleAdd} onCancel={() => setAdding(false)} purchaseScopes={purchaseScopes} />}
+          {adding && (
+            <AddUserForm
+              key={adding}
+              initialRole={adding === "investor" ? "investor" : "user"}
+              onAdd={handleAdd}
+              onCancel={() => setAdding(false)}
+              purchaseScopes={purchaseScopes}
+            />
+          )}
           {!loading && users.map(u => (
             <UserRow key={u.id} u={u} onSave={handleSave} onDelete={handleDelete} purchaseScopes={purchaseScopes} />
           ))}
