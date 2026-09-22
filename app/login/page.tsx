@@ -6,7 +6,7 @@ import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
 import { clearRememberedLogin, getRememberedLogin, homePathForUser, saveRememberedLogin } from "@/lib/auth"
 import { requestPushPermission, subscribeUserToPush } from "@/lib/push-client"
-import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap, Store } from "lucide-react"
+import { Eye, EyeOff, Loader2, BarChart3, Package, Users2, Globe, Zap, Store, Landmark } from "lucide-react"
 import Link from "next/link"
 import RotatingText from "@/components/landing/rotating-text"
 import { PwaProvider } from "@/components/pwa/pwa-provider"
@@ -192,6 +192,13 @@ export default function LoginPage() {
           </form>
 
           <div className="text-center space-y-3">
+            <Link
+              href="/investor/login"
+              className="flex items-center justify-center gap-2 w-full h-10 rounded-lg border border-[#1a9f9a] text-sm font-medium text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-colors"
+            >
+              <Landmark className="h-4 w-4" />
+              Sign in as investor
+            </Link>
             <Link
               href="/pos/login"
               className="flex items-center justify-center gap-2 w-full h-10 rounded-lg border border-[#1a9f9a] text-sm font-medium text-[#1a9f9a] hover:bg-[#1a9f9a]/5 transition-colors"

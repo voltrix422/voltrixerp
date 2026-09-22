@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { ensureDefaultInvestorUser } from "@/lib/ensure-investor-user"
 
 function mapRow(row: Record<string, unknown>): any {
   let modules: string[] = []
@@ -43,6 +44,7 @@ function mapRow(row: Record<string, unknown>): any {
 }
 
 export async function POST(req: NextRequest) {
+  await ensureDefaultInvestorUser()
   const { email, password } = await req.json()
   const user = await prisma.erpUser.findFirst({
     where: {

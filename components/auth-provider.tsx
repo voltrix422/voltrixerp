@@ -1,7 +1,7 @@
 "use client"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { type User, getSession, setSession, clearSession, clearRememberedLogin, getUsers, login as authLogin, canWriteErp, isViewOnlyUser } from "@/lib/auth"
+import { type User, getSession, setSession, clearSession, clearRememberedLogin, getUsers, login as authLogin, canWriteErp, isViewOnlyUser, isInvestorUser, homePathForUser } from "@/lib/auth"
 
 interface AuthContextType {
   user: User | null
@@ -56,9 +56,14 @@ const PUBLIC_PATH_PREFIXES = [
 ]
 
 function isPublicPath(pathname: string): boolean {
-  if (pathname === "/login" || pathname === "/pos/login" || pathname === "/") return true
+  if (pathname === "/login" || pathname === "/pos/login" || pathname === "/investor/login" || pathname === "/") return true
   if (pathname.startsWith("/pos")) return pathname === "/pos/login"
   return PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))
+}
+
+function isInvestorPortalPath(pathname: string): boolean {
+  if (pathname === "/investor/login") return false
+  return pathname === "/investor" || pathname.startsWith("/investor/")
 }
 
 export { isPublicPath }
@@ -95,13 +100,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session)
         return
       }
+      if (session && pathname?.startsWith("/investor") && pathname !== "/investor/login") {
+        setUser(session)
+        return
+      }
     }
     if (!user && pathname && !isPublicPath(pathname)) {
-      // Store the intended destination before redirecting to login
       if (typeof window !== "undefined") {
         sessionStorage.setItem("redirectAfterLogin", pathname)
       }
-      router.replace(pathname.startsWith("/pos") ? "/pos/login" : "/login")
+      if (pathname.startsWith("/pos")) {
+        router.replace("/pos/login")
+      } else if (isInvestorPortalPath(pathname)) {
+        router.replace("/investor/login")
+      } else {
+        router.replace("/login")
+      }
+      return
+    }
+
+    if (user && pathname) {
+      const investor = isInvestorUser(user.role)
+      if (investor && pathname === "/investor/login") {
+        router.replace("/investor")
+        return
+      }
+      if (investor && !isPublicPath(pathname) && !isInvestorPortalPath(pathname)) {
+        router.replace("/investor")
+        return
+      }
+      if (!investor && isInvestorPortalPath(pathname)) {
+        router.replace(homePathForUser(user))
+      }
     }
   }, [user, checked, pathname, router])
 

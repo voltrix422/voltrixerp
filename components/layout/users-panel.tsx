@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
+import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -172,7 +172,12 @@ function UserRow({
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </select>
-          {isViewOnlyUser(draft.role) && (
+          {isInvestorUser(draft.role) && (
+            <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+              Investors sign in at Investor login. They only see company progress and CRM 2 (read only).
+            </p>
+          )}
+          {isViewOnlyUser(draft.role) && !isInvestorUser(draft.role) && (
             <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
               View only users can open the selected pages and browse data, but cannot create, edit, or delete records.
             </p>
@@ -190,6 +195,8 @@ function UserRow({
       <div className="flex flex-wrap gap-1">
         {roleHasAllModules(draft.role) ? (
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages</span>
+        ) : isInvestorUser(draft.role) ? (
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Investor portal — Dashboard and CRM 2</span>
         ) : ALL_MODULES.map(m => {
           const has = draft.modules.includes(m)
           return (
@@ -273,6 +280,7 @@ function AddUserForm({
             setRole(next)
             if (roleHasAllModules(next)) setModules([...ALL_MODULES])
             else if (next === "sales_agent") setModules(["crm"])
+            else if (next === "investor") setModules(["dashboard", "crm"])
           }}
           className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
         >
@@ -280,7 +288,12 @@ function AddUserForm({
             <option key={r} value={r}>{ROLE_LABELS[r]}</option>
           ))}
         </select>
-        {isViewOnlyUser(role) && (
+        {isInvestorUser(role) && (
+          <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+            This account signs in at Investor login and can only view company progress and CRM 2.
+          </p>
+        )}
+        {isViewOnlyUser(role) && !isInvestorUser(role) && (
           <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
             Assign the pages this user can view. They will not be able to change anything in the ERP.
           </p>
@@ -303,6 +316,8 @@ function AddUserForm({
       )}
       {roleHasAllModules(role) ? (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages — full access to every module</p>
+      ) : isInvestorUser(role) ? (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Investor portal — Dashboard and CRM 2 only</p>
       ) : (
       <div className="flex flex-wrap gap-1">
         {ALL_MODULES.map(m => {

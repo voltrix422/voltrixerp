@@ -1,6 +1,6 @@
 export type Module = "dashboard" | "purchase" | "finance" | "crm" | "inventory" | "dispatches" | "website" | "docs" | "hrm" | "branches" | "tickets" | "warranty" | "pos" | "pos_admin" | "users" | "dispatch_no_scan"
 
-export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager" | "view_only"
+export type UserRole = "superadmin" | "admin" | "user" | "sales_agent" | "sales_manager" | "view_only" | "investor"
 
 export interface User {
   id: string
@@ -40,6 +40,7 @@ function normalizeRole(rawRole: unknown): UserRole {
   if (value === "salesagent" || value === "sales_agent") return "sales_agent"
   if (value === "salesmanager" || value === "sales_manager") return "sales_manager"
   if (value === "viewonly" || value === "view_only") return "view_only"
+  if (value === "investor") return "investor"
   if (value === "admin") return "admin"
   return "user"
 }
@@ -66,7 +67,7 @@ export const MODULE_LABELS: Record<Module, string> = {
 }
 
 /** Roles that superadmin can assign when creating/editing users. */
-export const ASSIGNABLE_ROLES: UserRole[] = ["user", "admin", "sales_agent", "view_only"]
+export const ASSIGNABLE_ROLES: UserRole[] = ["user", "admin", "sales_agent", "view_only", "investor"]
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   superadmin: "Super Admin",
@@ -75,10 +76,16 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   sales_agent: "Sales Agent",
   sales_manager: "Sales Manager",
   view_only: "View Only",
+  investor: "Investor",
+}
+
+export function isInvestorUser(role: UserRole | string | undefined | null) {
+  return normalizeRole(role) === "investor"
 }
 
 export function isViewOnlyUser(role: UserRole | string | undefined | null) {
-  return role === "view_only"
+  const normalized = normalizeRole(role)
+  return normalized === "view_only" || normalized === "investor"
 }
 
 export function canWriteErp(user?: { role?: string } | null) {
@@ -116,6 +123,7 @@ export function hasModuleAccess(
   module: Module,
 ): boolean {
   if (!user) return false
+  if (isInvestorUser(user.role)) return module === "dashboard" || module === "crm"
   if (module === "users") {
     return isSuperadmin(user.role) || (user.modules?.includes("users") ?? false)
   }
@@ -124,6 +132,7 @@ export function hasModuleAccess(
 
 export function modulesForRole(role: UserRole, selected: Module[]): Module[] {
   if (roleHasAllModules(role)) return [...ALL_MODULES]
+  if (role === "investor") return ["dashboard", "crm"]
   if (role === "sales_agent" && selected.length === 0) return ["crm"]
   return selected
 }
@@ -170,6 +179,7 @@ export function clearSession() {
 
 export function homePathForUser(user: { role?: string; modules?: string[] } | null | undefined) {
   if (!user) return "/dashboard"
+  if (isInvestorUser(user.role)) return "/investor"
   if (isErpAdmin(user.role)) return "/dashboard"
   if (user.role === "sales_agent" || user.role === "sales_manager") return "/crm/sales-agents"
   if (user.modules?.length === 1 && user.modules[0] === "pos") return "/pos"

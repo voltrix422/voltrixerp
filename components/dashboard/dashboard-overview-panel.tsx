@@ -28,7 +28,7 @@ import {
 } from "@/components/dashboard/dashboard-ui"
 import { useDashboardOverview } from "@/components/dashboard/use-dashboard-data"
 
-export function DashboardOverviewPanel() {
+export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | "investor" }) {
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
   const { data, loading } = useDashboardOverview(rangeDays, true)
   const [showMoney, setShowMoney] = useState(true)
@@ -59,16 +59,17 @@ export function DashboardOverviewPanel() {
   const formatCurrency = (value: number) =>
     `Rs. ${value.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`
 
+  const crmHref = variant === "investor" ? "/investor/crm" : "/crm"
   const stripItems = [
-    { label: "Staff", value: stats?.staff ?? 0, href: "/hrm" },
-    { label: "Clients", value: stats?.clients ?? 0, href: "/crm" },
-    { label: "Products", value: stats?.products ?? 0, href: "/website" },
-    { label: "Quotations", value: stats?.quotations ?? 0, href: "/crm" },
-    { label: "Orders", value: stats?.orders ?? 0, href: "/crm" },
-    { label: "Inventory", value: stats?.inventoryItems ?? 0, href: "/inventory" },
-    { label: "Expenses", value: formatCurrency(stats?.financeTotal ?? 0), href: "/finance", isMoney: true },
-    { label: "PO value", value: formatCurrency(stats?.totalPOValue ?? 0), href: "/purchase", isMoney: true },
-    { label: "Delivered", value: formatCurrency(stats?.deliveredValue ?? 0), href: "/crm", isMoney: true },
+    { label: "Staff", value: stats?.staff ?? 0, href: variant === "investor" ? undefined : "/hrm" },
+    { label: "Clients", value: stats?.clients ?? 0, href: crmHref },
+    { label: "Products", value: stats?.products ?? 0, href: variant === "investor" ? undefined : "/website" },
+    { label: "Quotations", value: stats?.quotations ?? 0, href: crmHref },
+    { label: "Orders", value: stats?.orders ?? 0, href: crmHref },
+    { label: "Inventory", value: stats?.inventoryItems ?? 0, href: variant === "investor" ? undefined : "/inventory" },
+    { label: "Expenses", value: formatCurrency(stats?.financeTotal ?? 0), href: variant === "investor" ? undefined : "/finance", isMoney: true },
+    { label: "PO value", value: formatCurrency(stats?.totalPOValue ?? 0), href: variant === "investor" ? undefined : "/purchase", isMoney: true },
+    { label: "Delivered", value: formatCurrency(stats?.deliveredValue ?? 0), href: crmHref, isMoney: true },
   ]
 
   const chartPalette = ["#93c5fd", "#86efac", "#fde68a", "#c4b5fd", "#fbcfe8", "#99f6e4", "#bfdbfe"]

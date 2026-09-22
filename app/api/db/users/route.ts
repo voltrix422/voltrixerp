@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { ensureDefaultInvestorUser } from "@/lib/ensure-investor-user"
 
 export async function GET() {
+  await ensureDefaultInvestorUser()
   const users = await prisma.erpUser.findMany({ orderBy: { id: "asc" } })
   return NextResponse.json(users)
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+  if (String(body.role || "").toLowerCase() === "investor") {
+    body.modules = ["dashboard", "crm"]
+  }
   const user = await prisma.erpUser.upsert({
     where: { id: body.id ?? "__new__" },
     update: {

@@ -23,7 +23,7 @@ export function canManageAllSalesAgents(user?: User | null) {
 }
 
 export function canAccessCrmMain(user?: User | null) {
-  return !!user && user.role !== "sales_agent"
+  return !!user && user.role !== "sales_agent" && user.role !== "investor"
 }
 
 export function crmWorkspaceForUser(user?: User | null): CrmWorkspaceScope | undefined {
