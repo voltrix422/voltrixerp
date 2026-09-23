@@ -21,7 +21,7 @@ export type FbrInvoiceItemPayload = {
   fixedNotifiedValueOrRetailPrice: number
   salesTaxApplicable: number
   salesTaxWithheldAtSource: number
-  extraTax: number
+  extraTax: number | string
   furtherTax: number
   sroScheduleNo: string
   fedPayable: number
@@ -74,6 +74,13 @@ function digitsOnly(value: string): string {
 function isRegisteredNtn(ntn: string): boolean {
   const digits = digitsOnly(ntn)
   return digits.length === 7 || digits.length === 13
+}
+
+/** FBR accepts buyer NTN (7) or CNIC (13) only. STRN like F670066 is seller-side, not a buyer NTN. */
+function usableBuyerRegistration(raw: string | undefined | null): string {
+  const digits = digitsOnly(String(raw || ""))
+  if (digits.length === 13 || digits.length === 7) return digits
+  return ""
 }
 
 function provinceFromCity(city: string, fallback: string): string {
@@ -192,7 +199,7 @@ export function buildFbrSaleInvoicePayload(
       fixedNotifiedValueOrRetailPrice: 0,
       salesTaxApplicable: st,
       salesTaxWithheldAtSource: 0,
-      extraTax: 0,
+      extraTax: "",
       furtherTax: 0,
       sroScheduleNo: "",
       fedPayable: 0,
@@ -202,8 +209,8 @@ export function buildFbrSaleInvoicePayload(
     }
   })
 
-  const buyerNtn = String(buyer?.ntn || "").trim()
-  const registered = isRegisteredNtn(buyerNtn)
+  const buyerNtn = usableBuyerRegistration(buyer?.ntn)
+  const registered = buyerNtn.length > 0
   const buyerName =
     String(buyer?.company || "").trim() ||
     String(buyer?.name || "").trim() ||
@@ -233,7 +240,10 @@ export function buildFbrSaleInvoicePayload(
   }
 
   if (registered) {
-    payload.buyerNTNCNIC = digitsOnly(buyerNtn)
+    payload.buyerNTNCNIC = buyerNtn
+  } else {
+    // Sandbox / walk-in POS: FBR still wants a 13-digit placeholder, not a blank.
+    payload.buyerNTNCNIC = "0000000000000"
   }
 
   if (config.env === "sandbox") {
