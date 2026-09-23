@@ -145,10 +145,9 @@ export async function POST(req: NextRequest) {
   }
 
   const branchId = (o.branchId as string | undefined)?.trim() || existing?.branchId || null
-  const source =
-    (o.source as string | undefined)?.trim() ||
-    existing?.source ||
-    null
+  // Never let a CRM/ERP edit flip an order into Branch POS (or the reverse).
+  const source = existing?.source
+    ?? ((o.source as string | undefined)?.trim() || null)
 
   const needsBranchPosDeduct =
     isBranchPosOrderSource(source) &&
@@ -478,7 +477,8 @@ export async function POST(req: NextRequest) {
     }
 
     // New Branch POS orders only — never rewrite totals; FBR failure does not fail the save.
-    if (!existing && isBranchPosOrderSource(responseRecord.source)) {
+    // CRM / ERP / website sales never post to FBR.
+    if (!existing && isBranchPosOrderSource(responseRecord.source) && responseRecord.branchId) {
       try {
         await postBranchPosOrderToFbr(responseRecord.id)
         const withFbr = await prisma.erpOrder.findUnique({ where: { id: responseRecord.id } })

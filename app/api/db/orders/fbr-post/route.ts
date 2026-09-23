@@ -22,10 +22,11 @@ export async function POST(req: NextRequest) {
     }
     const existingFbr = existing as unknown as {
       source: string | null
+      branchId?: string | null
       fbrStatus?: string
       fbrInvoiceNumber?: string
     }
-    if (!isBranchPosOrderSource(existingFbr.source)) {
+    if (!isBranchPosOrderSource(existingFbr.source) || !String(existingFbr.branchId || "").trim()) {
       return NextResponse.json(
         { error: "FBR posting is only enabled for Branch POS orders." },
         { status: 400 },

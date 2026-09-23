@@ -24,6 +24,7 @@ type FbrOrderRow = {
   otherCost: number
   shipping: number
   source: string | null
+  branchId: string | null
   fbrStatus: string
   fbrInvoiceNumber: string
   fbrQr: string
@@ -51,6 +52,7 @@ function toFbrOrderRow(row: unknown): FbrOrderRow | null {
     otherCost: Number(r.otherCost) || 0,
     shipping: Number(r.shipping) || 0,
     source: (r.source as string | null) ?? null,
+    branchId: (r.branchId as string | null) ?? null,
     fbrStatus: String(r.fbrStatus ?? ""),
     fbrInvoiceNumber: String(r.fbrInvoiceNumber ?? ""),
     fbrQr: String(r.fbrQr ?? ""),
@@ -91,7 +93,7 @@ async function saveFbrFields(
 export async function postBranchPosOrderToFbr(orderId: string): Promise<FbrOrderRow | null> {
   const order = toFbrOrderRow(await prisma.erpOrder.findUnique({ where: { id: orderId } }))
   if (!order) return null
-  if (!isBranchPosOrderSource(order.source)) {
+  if (!isBranchPosOrderSource(order.source) || !String(order.branchId || "").trim()) {
     throw new Error("FBR posting is only enabled for Branch POS orders.")
   }
   if (normalizeFbrStatus(order.fbrStatus) === "sent" && order.fbrInvoiceNumber) {
