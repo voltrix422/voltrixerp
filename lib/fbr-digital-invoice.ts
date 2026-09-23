@@ -61,10 +61,47 @@ function roundMoney(value: number) {
 
 function invoiceDateFrom(createdAt: string | Date | undefined): string {
   const date = createdAt ? new Date(createdAt) : new Date()
-  if (Number.isNaN(date.getTime())) {
-    return new Date().toISOString().slice(0, 10)
-  }
-  return date.toISOString().slice(0, 10)
+  const safe = Number.isNaN(date.getTime()) ? new Date() : date
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(safe)
+  const year = parts.find((part) => part.type === "year")?.value
+  const month = parts.find((part) => part.type === "month")?.value
+  const day = parts.find((part) => part.type === "day")?.value
+  if (year && month && day) return `${year}-${month}-${day}`
+  return safe.toISOString().slice(0, 10)
+}
+
+/** FBR province list (GET /pdi/v1/provinces). Any other spelling is rejected. */
+const FBR_PROVINCES = [
+  "BALOCHISTAN",
+  "AZAD JAMMU AND KASHMIR",
+  "CAPITAL TERRITORY",
+  "KHYBER PAKHTUNKHWA",
+  "PUNJAB",
+  "SINDH",
+  "GILGIT BALTISTAN",
+] as const
+
+export function normalizeFbrProvince(raw: string | undefined | null): string {
+  const key = String(raw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+  if (!key) return "PUNJAB"
+  if (FBR_PROVINCES.includes(key as (typeof FBR_PROVINCES)[number])) return key
+  if (/ISLAMABAD|ICT|CAPITAL/.test(key)) return "CAPITAL TERRITORY"
+  if (/PUNJAB/.test(key)) return "PUNJAB"
+  if (/SINDH/.test(key)) return "SINDH"
+  if (/KHYBER|KPK|NWFP|PESHAWAR/.test(key)) return "KHYBER PAKHTUNKHWA"
+  if (/BALOCH/.test(key)) return "BALOCHISTAN"
+  if (/GILGIT/.test(key)) return "GILGIT BALTISTAN"
+  if (/AZAD|AJK|KASHMIR/.test(key)) return "AZAD JAMMU AND KASHMIR"
+  return "PUNJAB"
 }
 
 function digitsOnly(value: string): string {
@@ -91,15 +128,15 @@ function provinceFromCity(city: string, fallback: string): string {
       key,
     )
   ) {
-    return "Punjab"
+    return "PUNJAB"
   }
-  if (/karachi|hyderabad|sukkur|larkana|nawabshah/.test(key)) return "Sindh"
-  if (/peshawar|mardan|abbottabad|swat|kohat|nowshera/.test(key)) return "Khyber Pakhtunkhwa"
-  if (/quetta|gwadar|turbat/.test(key)) return "Balochistan"
-  if (/islamabad|ict/.test(key)) return "Islamabad Capital Territory"
-  if (/gilgit|skardu/.test(key)) return "Gilgit-Baltistan"
-  if (/muzaffarabad|mirpur|ajk/.test(key)) return "Azad Jammu and Kashmir"
-  return fallback
+  if (/karachi|hyderabad|sukkur|larkana|nawabshah/.test(key)) return "SINDH"
+  if (/peshawar|mardan|abbottabad|swat|kohat|nowshera/.test(key)) return "KHYBER PAKHTUNKHWA"
+  if (/quetta|gwadar|turbat/.test(key)) return "BALOCHISTAN"
+  if (/islamabad|ict/.test(key)) return "CAPITAL TERRITORY"
+  if (/gilgit|skardu/.test(key)) return "GILGIT BALTISTAN"
+  if (/muzaffarabad|mirpur|ajk/.test(key)) return "AZAD JAMMU AND KASHMIR"
+  return normalizeFbrProvince(fallback)
 }
 
 function mapUom(unit: string): string {
@@ -178,14 +215,14 @@ export function buildFbrSaleInvoicePayload(
     return qty * price
   })
   const exclParts = allocate(exclNet, weights)
-  const taxParts = allocate(tax, weights)
   const discountParts = allocate(discountAmt, weights)
   const rate = taxRateLabel(gstPercent)
 
   const fbrItems: FbrInvoiceItemPayload[] = items.map((item, index) => {
     const qty = roundMoney(Math.max(0, Number(item.qty) || 0))
     const excl = exclParts[index] || 0
-    const st = taxParts[index] || 0
+    // FBR 0104: ST must equal exclusive × rate, not the GST-inclusive remainder.
+    const st = roundMoney((excl * gstPercent) / 100)
     const discount = discountParts[index] || 0
     const hsCode = String((item as OrderItem & { hsCode?: string }).hsCode || "").trim() || config.defaultHsCode
     return {
@@ -222,14 +259,14 @@ export function buildFbrSaleInvoicePayload(
     String(order.deliveryAddress || "").trim() ||
     buyerCity ||
     config.sellerAddress
-  const buyerProvince = provinceFromCity(buyerCity, "Punjab")
+  const buyerProvince = normalizeFbrProvince(provinceFromCity(buyerCity, "PUNJAB"))
 
   const payload: FbrSaleInvoicePayload = {
     invoiceType: "Sale Invoice",
     invoiceDate: invoiceDateFrom(order.createdAt),
     sellerNTNCNIC: config.sellerNTN,
     sellerBusinessName: config.sellerBusinessName,
-    sellerProvince: config.sellerProvince,
+    sellerProvince: normalizeFbrProvince(config.sellerProvince),
     sellerAddress: config.sellerAddress,
     buyerBusinessName: buyerName,
     buyerProvince,
@@ -277,9 +314,21 @@ export function parseFbrPostResponse(httpOk: boolean, body: unknown): FbrPostRes
   )
   const statusCode = pickString(validation?.statusCode, validation?.StatusCode, root?.statusCode)
   const status = pickString(validation?.status, validation?.Status, root?.status)
+  const invoiceStatuses = Array.isArray(validation?.invoiceStatuses)
+    ? validation.invoiceStatuses
+    : Array.isArray(validation?.InvoiceStatuses)
+      ? validation.InvoiceStatuses
+      : []
+  const itemErrors = invoiceStatuses
+    .map((row) => {
+      const rec = asRecord(row)
+      return pickString(rec?.error, rec?.Error, rec?.errorCode, rec?.ErrorCode)
+    })
+    .filter(Boolean)
   const error = pickString(
     validation?.error,
     validation?.Error,
+    itemErrors[0],
     validation?.errorCode,
     root?.error,
     root?.message,
@@ -302,7 +351,9 @@ export function parseFbrPostResponse(httpOk: boolean, body: unknown): FbrPostRes
     return { ok: true, invoiceNumber, qr: invoiceNumber, error: "", raw: body }
   }
 
-  const fallback = error || (httpOk ? "FBR rejected this invoice" : "FBR request failed")
+  const fallback =
+    [error, ...itemErrors.slice(error && itemErrors[0] === error ? 1 : 0)].filter(Boolean).join(" · ") ||
+    (httpOk ? "FBR rejected this invoice" : "FBR request failed")
   return { ok: false, invoiceNumber, qr: "", error: fallback.slice(0, 1000), raw: body }
 }
 
@@ -311,7 +362,7 @@ export async function postFbrSaleInvoice(
   config: FbrConfig,
 ): Promise<FbrPostResult> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 25000)
+  const timer = setTimeout(() => controller.abort(), 45000)
   try {
     const res = await fetch(config.postUrl, {
       method: "POST",

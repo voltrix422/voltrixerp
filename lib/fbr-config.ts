@@ -34,7 +34,7 @@ export function getFbrConfig(): FbrConfig {
       "VOLTRIX BATTERIES (PRIVATE) LIMITED",
     sellerProvince:
       String(process.env.FBR_SELLER_PROVINCE || "").trim() ||
-      "Islamabad Capital Territory",
+      "CAPITAL TERRITORY",
     sellerAddress:
       String(process.env.FBR_SELLER_ADDRESS || "").trim() ||
       "Plot 73, Street 14, I-9/2, Islamabad",
