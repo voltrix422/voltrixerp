@@ -108,7 +108,19 @@ export async function processTodoRecurrenceAndReminders() {
       if (donePeriod !== currentPeriod) {
         await prisma.erpTodo.update({
           where: { id: row.id },
-          data: { status: "open", completedAt: null, completedBy: "" },
+          data: {
+            status: "open",
+            completedAt: null,
+            completedBy: "",
+            submittedAt: null,
+            approvedAt: null,
+            approvedBy: "",
+            approvedById: null,
+            latePenaltyPoints: 0,
+            latePenaltyAt: null,
+            extendedAt: null,
+            extendedBy: "",
+          },
         })
         reopened += 1
         row.status = "open"

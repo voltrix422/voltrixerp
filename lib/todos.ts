@@ -1,5 +1,5 @@
 export type TodoCadence = "daily" | "weekly" | "monthly" | "once"
-export type TodoStatus = "open" | "in_progress" | "done"
+export type TodoStatus = "open" | "in_progress" | "pending_approval" | "done"
 
 export type TodoUpdate = {
   id: string
@@ -10,6 +10,14 @@ export type TodoUpdate = {
   createdBy: string
   createdByUserId: string | null
   createdAt: string
+}
+
+export type LatePenaltyInfo = {
+  applied: boolean
+  points: number
+  oldPoints?: number
+  newPoints?: number
+  waived?: boolean
 }
 
 export type Todo = {
@@ -26,11 +34,20 @@ export type Todo = {
   assignedAt: string
   completedAt: string | null
   completedBy: string
+  submittedAt: string | null
+  approvedAt: string | null
+  approvedBy: string
+  approvedById: string | null
+  latePenaltyPoints: number
+  latePenaltyAt: string | null
+  extendedAt: string | null
+  extendedBy: string
   reminderTime: string
   lastRemindedAt: string | null
   createdAt: string
   updatedAt: string
   updates: TodoUpdate[]
+  latePenalty?: LatePenaltyInfo
 }
 
 function urls(value: unknown): string[] {
@@ -69,11 +86,22 @@ function mapTodo(row: Record<string, unknown>): Todo {
     assignedAt: String(row.assignedAt || ""),
     completedAt: row.completedAt ? String(row.completedAt) : null,
     completedBy: String(row.completedBy || ""),
+    submittedAt: row.submittedAt ? String(row.submittedAt) : null,
+    approvedAt: row.approvedAt ? String(row.approvedAt) : null,
+    approvedBy: String(row.approvedBy || ""),
+    approvedById: row.approvedById ? String(row.approvedById) : null,
+    latePenaltyPoints: Number(row.latePenaltyPoints) || 0,
+    latePenaltyAt: row.latePenaltyAt ? String(row.latePenaltyAt) : null,
+    extendedAt: row.extendedAt ? String(row.extendedAt) : null,
+    extendedBy: String(row.extendedBy || ""),
     reminderTime: String(row.reminderTime || ""),
     lastRemindedAt: row.lastRemindedAt ? String(row.lastRemindedAt) : null,
     createdAt: String(row.createdAt || ""),
     updatedAt: String(row.updatedAt || ""),
     updates,
+    latePenalty: row.latePenalty && typeof row.latePenalty === "object"
+      ? (row.latePenalty as LatePenaltyInfo)
+      : undefined,
   }
 }
 
@@ -139,6 +167,54 @@ export async function deleteTodo(id: string): Promise<void> {
   if (!res.ok) throw new Error(data.error || "Failed to delete todo")
 }
 
+export async function approveTodo(input: {
+  id: string
+  message?: string
+  createdBy?: string
+  createdByUserId?: string
+}): Promise<Todo> {
+  const res = await fetch("/api/db/todos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "approve", ...input }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Failed to approve todo")
+  return mapTodo(data)
+}
+
+export async function rejectTodo(input: {
+  id: string
+  message?: string
+  createdBy?: string
+  createdByUserId?: string
+}): Promise<Todo> {
+  const res = await fetch("/api/db/todos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "reject", ...input }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Failed to reject todo")
+  return mapTodo(data)
+}
+
+export async function extendTodoDue(input: {
+  id: string
+  dueAt: string
+  createdBy?: string
+  createdByUserId?: string
+}): Promise<Todo> {
+  const res = await fetch("/api/db/todos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "extend", ...input }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || "Failed to extend due date")
+  return mapTodo(data)
+}
+
 export async function setTodoReminder(id: string, reminderTime: string): Promise<Todo> {
   const res = await fetch("/api/db/todos", {
     method: "POST",
@@ -177,6 +253,7 @@ export function cadenceLabel(c: string) {
 
 export function statusLabel(s: string) {
   if (s === "in_progress") return "in progress"
+  if (s === "pending_approval") return "pending approval"
   if (s === "done") return "done"
   return "open"
 }

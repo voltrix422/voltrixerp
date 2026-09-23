@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import {
   ArrowLeft,
+  CalendarClock,
   CheckSquare,
   ChevronRight,
   ClipboardList,
@@ -21,18 +22,22 @@ import { uploadFiles } from "@/lib/upload"
 import {
   TODO_CADENCE_OPTIONS,
   addTodoUpdate,
+  approveTodo,
   cadenceLabel,
   createTodo,
   deleteTodo,
+  extendTodoDue,
   formatReminderTime,
   isRecurringCadence,
   listTodos,
+  rejectTodo,
   setTodoReminder,
   statusLabel,
   type Todo,
   type TodoCadence,
   type TodoStatus,
 } from "@/lib/todos"
+import { isoToDatetimeLocal } from "@/lib/todo-due"
 
 function fmtWhen(iso: string | null) {
   if (!iso) return "—"
@@ -43,8 +48,22 @@ function fmtWhen(iso: string | null) {
 
 function statusClass(status: string) {
   if (status === "done") return "bg-emerald-500/15 text-emerald-700"
+  if (status === "pending_approval") return "bg-violet-500/15 text-violet-800"
   if (status === "in_progress") return "bg-sky-500/15 text-sky-800"
   return "bg-amber-500/15 text-amber-800"
+}
+
+function draftStatus(row: Todo): TodoStatus {
+  if (row.status === "done" || row.status === "pending_approval" || row.status === "open" || row.status === "in_progress") {
+    return row.status
+  }
+  return "in_progress"
+}
+
+function isOverdue(todo: Todo) {
+  if (todo.status === "done" || !todo.dueAt) return false
+  const due = new Date(todo.dueAt)
+  return !Number.isNaN(due.getTime()) && due.getTime() < Date.now()
 }
 
 function ymdLocal(d: Date) {
@@ -164,6 +183,8 @@ export function TodosDashboard() {
     assigneeUserId: "",
   })
   const [reminderDraft, setReminderDraft] = useState("")
+  const [extendDraft, setExtendDraft] = useState("")
+  const [reviewNote, setReviewNote] = useState("")
 
   const [updateForm, setUpdateForm] = useState({
     message: "",
@@ -241,22 +262,27 @@ export function TodosDashboard() {
   const peopleGroups = useMemo(() => {
     const map = new Map<
       string,
-      { userId: string; name: string; items: Todo[]; open: number; done: number }
+      { userId: string; name: string; items: Todo[]; open: number; pending: number; done: number }
     >()
     for (const t of filteredTodos) {
       const key = t.assigneeUserId || t.assigneeName
       const existing = map.get(key)
+      const pending = t.status === "pending_approval" ? 1 : 0
+      const done = t.status === "done" ? 1 : 0
+      const open = done || pending ? 0 : 1
       if (existing) {
         existing.items.push(t)
-        if (t.status === "done") existing.done += 1
-        else existing.open += 1
+        existing.open += open
+        existing.pending += pending
+        existing.done += done
       } else {
         map.set(key, {
           userId: t.assigneeUserId,
           name: t.assigneeName,
           items: [t],
-          open: t.status === "done" ? 0 : 1,
-          done: t.status === "done" ? 1 : 0,
+          open,
+          pending,
+          done,
         })
       }
     }
@@ -291,8 +317,9 @@ export function TodosDashboard() {
   const stats = useMemo(() => {
     const open = filteredTodos.filter((t) => t.status === "open").length
     const progress = filteredTodos.filter((t) => t.status === "in_progress").length
+    const pending = filteredTodos.filter((t) => t.status === "pending_approval").length
     const done = filteredTodos.filter((t) => t.status === "done").length
-    return { count: filteredTodos.length, open, progress, done }
+    return { count: filteredTodos.length, open, progress, pending, done }
   }, [filteredTodos])
 
   useEffect(() => {
@@ -314,7 +341,9 @@ export function TodosDashboard() {
 
   useEffect(() => {
     setReminderDraft(selected?.reminderTime || "")
-  }, [selected?.id, selected?.reminderTime])
+    setExtendDraft(isoToDatetimeLocal(selected?.dueAt))
+    setReviewNote("")
+  }, [selected?.id, selected?.reminderTime, selected?.dueAt])
 
   function openPerson(userId: string) {
     const person = peopleGroups.find((p) => p.userId === userId)
@@ -323,7 +352,7 @@ export function TodosDashboard() {
     setMobileDetail(true)
     setUpdateForm({
       message: "",
-      status: person?.items[0]?.status === "done" ? "done" : "in_progress",
+      status: person?.items[0] ? draftStatus(person.items[0]) : "in_progress",
     })
     attachFiles.forEach((f) => {
       if (f.file.type.startsWith("image/")) URL.revokeObjectURL(f.preview)
@@ -354,7 +383,7 @@ export function TodosDashboard() {
     setMobileDetail(true)
     setUpdateForm({
       message: "",
-      status: row.status === "done" ? "done" : "in_progress",
+      status: draftStatus(row),
     })
     attachFiles.forEach((f) => {
       if (f.file.type.startsWith("image/")) URL.revokeObjectURL(f.preview)
@@ -411,7 +440,7 @@ export function TodosDashboard() {
             "todo-attachments",
           )
         : []
-      await addTodoUpdate({
+      const updated = await addTodoUpdate({
         id: selected.id,
         message: updateForm.message.trim(),
         status: updateForm.status,
@@ -419,9 +448,20 @@ export function TodosDashboard() {
         createdBy: user?.name || "",
         createdByUserId: user?.id,
       })
+      const submitted =
+        updateForm.status === "done" || updateForm.status === "pending_approval"
       toast({
-        title: updateForm.status === "done" ? "Marked done" : "Update saved",
-        type: "success",
+        title: submitted
+          ? updated.status === "pending_approval"
+            ? "Submitted for approval"
+            : "Marked done"
+          : "Update saved",
+        message: updated.latePenalty?.applied
+          ? `Late submission · −${updated.latePenalty.points} HRM point${updated.latePenalty.points === 1 ? "" : "s"}`
+          : submitted && updated.status === "pending_approval"
+            ? "An admin will review this before it is marked done."
+            : undefined,
+        type: updated.latePenalty?.applied ? "warning" : "success",
       })
       attachFiles.forEach((f) => {
         if (f.file.type.startsWith("image/")) URL.revokeObjectURL(f.preview)
@@ -463,9 +503,202 @@ export function TodosDashboard() {
     }
   }
 
+  async function submitApprove(todo: Todo) {
+    setSaving(true)
+    try {
+      const updated = await approveTodo({
+        id: todo.id,
+        message: reviewNote.trim(),
+        createdBy: user?.name || "",
+        createdByUserId: user?.id,
+      })
+      toast({
+        title: "To-do approved",
+        message: updated.latePenalty?.applied
+          ? `Late · −${updated.latePenalty.points} HRM points`
+          : undefined,
+        type: updated.latePenalty?.applied ? "warning" : "success",
+      })
+      setReviewNote("")
+      await load()
+    } catch (err) {
+      toast({
+        title: "Approve failed",
+        message: err instanceof Error ? err.message : "Try again",
+        type: "error",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function submitReject(todo: Todo) {
+    setSaving(true)
+    try {
+      const updated = await rejectTodo({
+        id: todo.id,
+        message: reviewNote.trim(),
+        createdBy: user?.name || "",
+        createdByUserId: user?.id,
+      })
+      toast({
+        title: "Sent back",
+        message: updated.latePenalty?.waived
+          ? `Late penalty waived (+${updated.latePenalty.points} pts)`
+          : "Assignee can update and resubmit.",
+        type: "success",
+      })
+      setReviewNote("")
+      await load()
+    } catch (err) {
+      toast({
+        title: "Could not send back",
+        message: err instanceof Error ? err.message : "Try again",
+        type: "error",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function submitExtend(todo: Todo) {
+    if (!extendDraft) {
+      toast({ title: "Pick a new due date", type: "error" })
+      return
+    }
+    setSaving(true)
+    try {
+      const updated = await extendTodoDue({
+        id: todo.id,
+        dueAt: extendDraft,
+        createdBy: user?.name || "",
+        createdByUserId: user?.id,
+      })
+      toast({
+        title: "Due date extended",
+        message: updated.latePenalty?.waived
+          ? `Late penalty waived (+${updated.latePenalty.points} pts)`
+          : `New due ${fmtWhen(updated.dueAt)}`,
+        type: "success",
+      })
+      await load()
+    } catch (err) {
+      toast({
+        title: "Could not extend",
+        message: err instanceof Error ? err.message : "Try again",
+        type: "error",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function cadenceLine(row: Todo) {
     const reminder = formatReminderTime(row.reminderTime)
     return `${cadenceLabel(row.cadence)}${reminder ? ` · reminder ${reminder}` : ""}${row.dueAt ? ` · due ${fmtWhen(row.dueAt)}` : ""}`
+  }
+
+  function renderFlags(todo: Todo) {
+    return (
+      <div className="space-y-1.5">
+        {todo.status === "pending_approval" && (
+          <p className="text-[11px] rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-violet-900">
+            Submitted for admin approval
+            {todo.submittedAt ? ` · ${fmtWhen(todo.submittedAt)}` : ""}.
+          </p>
+        )}
+        {todo.latePenaltyPoints > 0 && (
+          <p className="text-[11px] rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
+            Late submission — {todo.latePenaltyPoints} HRM performance point
+            {todo.latePenaltyPoints === 1 ? "" : "s"} deducted.
+          </p>
+        )}
+        {isOverdue(todo) && todo.status !== "pending_approval" && (
+          <p className="text-[11px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-900">
+            Overdue — submitting now deducts HRM points unless an admin extends the due date.
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  function renderAdminReview(todo: Todo) {
+    if (!isAdmin || todo.status === "done") return null
+    return (
+      <div className="rounded-xl border border-[#1faca6]/30 bg-[#1faca6]/5 px-3 py-3 space-y-2.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#17857f]">
+          Admin review
+        </p>
+        {todo.status === "pending_approval" && (
+          <>
+            <textarea
+              value={reviewNote}
+              onChange={(e) => setReviewNote(e.target.value)}
+              rows={2}
+              className="w-full rounded-md border px-3 py-2 text-sm resize-none"
+              placeholder="Approval or send-back note (optional)…"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
+                disabled={saving}
+                onClick={() => void submitApprove(todo)}
+              >
+                Approve
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 text-xs"
+                disabled={saving}
+                onClick={() => void submitReject(todo)}
+              >
+                Send back
+              </Button>
+            </div>
+          </>
+        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[180px] flex-1">
+            <label className="text-[11px] font-medium">Extend due date</label>
+            <input
+              type="datetime-local"
+              value={extendDraft}
+              onChange={(e) => setExtendDraft(e.target.value)}
+              className="mt-1 w-full h-9 rounded-md border px-3 text-sm"
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-9 text-xs gap-1"
+            disabled={saving}
+            onClick={() => void submitExtend(todo)}
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            Extend
+          </Button>
+        </div>
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          Extending past the submit time waives an already-applied late penalty.
+        </p>
+      </div>
+    )
+  }
+
+  function statusOptions(admin: boolean) {
+    return (
+      <>
+        <option value="open">Open</option>
+        <option value="in_progress">In progress</option>
+        <option value="pending_approval">Submit for approval</option>
+        {admin ? <option value="done">Done (admin)</option> : null}
+      </>
+    )
   }
 
   function renderReminder(todo: Todo) {
@@ -508,8 +741,8 @@ export function TodosDashboard() {
           </div>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
             {isAdmin
-              ? "Assign one-time or recurring tasks. Recurring work reopens automatically and notifies the employee at the reminder time."
-              : "Your assigned tasks. Recurring work reminds you at the time set on the task."}
+              ? "Assign tasks, approve submissions, and extend due dates. Late submits deduct HRM performance points unless you grant an extension."
+              : "Your assigned tasks. Submit for admin approval. Late submits automatically deduct HRM performance points."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px]">
@@ -524,6 +757,10 @@ export function TodosDashboard() {
           <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
             <span className="text-[hsl(var(--muted-foreground))]">In progress </span>
             <strong className="text-sky-700">{stats.progress}</strong>
+          </div>
+          <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
+            <span className="text-[hsl(var(--muted-foreground))]">Pending </span>
+            <strong className="text-violet-700">{stats.pending}</strong>
           </div>
           <div className="rounded-lg border px-3 py-1.5 bg-[hsl(var(--card))]">
             <span className="text-[hsl(var(--muted-foreground))]">Done </span>
@@ -668,6 +905,12 @@ export function TodosDashboard() {
                             {person.items.length} to-do{person.items.length === 1 ? "" : "s"}
                             {" · "}
                             <span className="text-amber-700">{person.open} open</span>
+                            {person.pending > 0 ? (
+                              <>
+                                {" · "}
+                                <span className="text-violet-700">{person.pending} pending</span>
+                              </>
+                            ) : null}
                             {" · "}
                             <span className="text-emerald-700">{person.done} done</span>
                           </p>
@@ -764,7 +1007,7 @@ export function TodosDashboard() {
                             setSelectedId(row.id)
                             setUpdateForm({
                               message: "",
-                              status: row.status === "done" ? "done" : "in_progress",
+                              status: draftStatus(row),
                             })
                             attachFiles.forEach((f) => {
                               if (f.file.type.startsWith("image/")) URL.revokeObjectURL(f.preview)
@@ -817,7 +1060,9 @@ export function TodosDashboard() {
                               </Button>
                             </div>
 
+                            {renderFlags(selected)}
                             {renderReminder(selected)}
+                            {renderAdminReview(selected)}
 
                             {canUpdate(selected) && selected.status !== "done" && (
                               <form onSubmit={submitUpdate} className="space-y-3">
@@ -834,9 +1079,7 @@ export function TodosDashboard() {
                                     }
                                     className="mt-1 w-full h-10 rounded-md border px-3 text-sm"
                                   >
-                                    <option value="open">Open</option>
-                                    <option value="in_progress">In progress</option>
-                                    <option value="done">Done</option>
+                                    {statusOptions(Boolean(isAdmin))}
                                   </select>
                                 </div>
                                 <div>
@@ -866,7 +1109,11 @@ export function TodosDashboard() {
                                   ) : (
                                     <CheckSquare className="h-4 w-4" />
                                   )}
-                                  Save update
+                                  {updateForm.status === "pending_approval"
+                                    ? "Submit for approval"
+                                    : updateForm.status === "done"
+                                      ? "Mark done"
+                                      : "Save update"}
                                 </Button>
                               </form>
                             )}
@@ -984,7 +1231,9 @@ export function TodosDashboard() {
                   )}
                 </div>
 
+                {renderFlags(selected)}
                 {renderReminder(selected)}
+                {renderAdminReview(selected)}
 
                 {canUpdate(selected) && selected.status !== "done" && (
                   <form
@@ -1004,9 +1253,7 @@ export function TodosDashboard() {
                         }
                         className="mt-1 w-full h-10 rounded-md border px-3 text-sm"
                       >
-                        <option value="open">Open</option>
-                        <option value="in_progress">In progress</option>
-                        <option value="done">Done</option>
+                        {statusOptions(Boolean(isAdmin))}
                       </select>
                     </div>
                     <div>
@@ -1034,7 +1281,11 @@ export function TodosDashboard() {
                       ) : (
                         <CheckSquare className="h-4 w-4" />
                       )}
-                      Save update
+                      {updateForm.status === "pending_approval"
+                        ? "Submit for approval"
+                        : updateForm.status === "done"
+                          ? "Mark done"
+                          : "Save update"}
                     </Button>
                   </form>
                 )}

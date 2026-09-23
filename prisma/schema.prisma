@@ -1695,13 +1695,23 @@ model ErpTodo {
   dueAt           DateTime? @map("due_at")
   assigneeUserId  String    @map("assignee_user_id")
   assigneeName    String    @map("assignee_name")
-  /// open | in_progress | done
+  /// open | in_progress | pending_approval | done
   status          String    @default("open")
   assignedBy      String    @default("") @map("assigned_by")
   assignedById    String?   @map("assigned_by_id")
   assignedAt      DateTime  @default(now()) @map("assigned_at")
   completedAt     DateTime? @map("completed_at")
   completedBy     String    @default("") @map("completed_by")
+  /// When the assignee submitted work for admin approval
+  submittedAt     DateTime? @map("submitted_at")
+  approvedAt      DateTime? @map("approved_at")
+  approvedBy      String    @default("") @map("approved_by")
+  approvedById    String?   @map("approved_by_id")
+  /// HRM points taken for a late submit (0 = none / waived)
+  latePenaltyPoints Int     @default(0) @map("late_penalty_points")
+  latePenaltyAt   DateTime? @map("late_penalty_at")
+  extendedAt      DateTime? @map("extended_at")
+  extendedBy      String    @default("") @map("extended_by")
   /// HH:mm in Asia/Karachi — employee is notified at this time each period
   reminderTime    String    @default("") @map("reminder_time")
   lastRemindedAt  DateTime? @map("last_reminded_at")
