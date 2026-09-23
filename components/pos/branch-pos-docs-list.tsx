@@ -52,6 +52,7 @@ import {
 import { PosDeliverScanDialog } from "@/components/pos/pos-deliver-scan-dialog"
 import { PosOrderWarrantyPanel } from "@/components/pos/pos-order-warranty-panel"
 import { canRetryFbrPost, fbrStatusLabel, normalizeFbrStatus } from "@/lib/fbr-status"
+import { FbrInvoiceQr } from "@/components/pos/fbr-invoice-qr"
 
 type DocKind = "order" | "quotation"
 type CreditFilter = "all" | "credit" | "paid" | "returned"
@@ -453,6 +454,9 @@ function DocDetailModal({
               <FbrStatusBadge order={order} />
               {order.fbrError ? (
                 <p className="text-xs text-red-600">{order.fbrError}</p>
+              ) : null}
+              {normalizeFbrStatus(order.fbrStatus) === "sent" && order.fbrInvoiceNumber ? (
+                <FbrInvoiceQr invoiceNumber={order.fbrInvoiceNumber} />
               ) : null}
             </div>
           )}

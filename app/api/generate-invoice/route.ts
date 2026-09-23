@@ -14,6 +14,7 @@ import {
   invoiceClientFromRecord,
   type InvoiceClientProfile,
 } from '@/lib/invoice-client-details'
+import { fbrInvoiceQrPngDataUrl } from '@/lib/fbr-invoice-qr'
 
 async function resolveInvoiceClient(order: {
   clientId?: string
@@ -103,6 +104,11 @@ export async function POST(request: NextRequest) {
     const hasTax = Math.abs(taxAmount) > 0.004
 
     const orderSourceLabel = await getOrderSourcePdfLabelServer(order)
+    const fbrInvoiceNumber = String(
+      (order as { fbrInvoiceNumber?: string; fbrQr?: string }).fbrInvoiceNumber ||
+        (order as { fbrQr?: string }).fbrQr ||
+        "",
+    ).trim()
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     registerGeist(doc)
@@ -199,6 +205,7 @@ export async function POST(request: NextRequest) {
       ['Prepared by', order.createdBy || '—'],
       ['Source', orderSourceLabel],
       ...(pay.showPaymentSection ? [['Payment', pay.paymentStatusLabel]] : []),
+      ...(fbrInvoiceNumber ? [['FBR invoice', fbrInvoiceNumber]] : []),
     ]
     const detailRowH = 5.6
     const billContentH = Math.max(42, 24 + companyLine * 5.5 + clientDetailRows.length * detailRowH)
@@ -493,8 +500,10 @@ export async function POST(request: NextRequest) {
     doc.text(`PKR ${Number(order.total).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`, totX + totW - 6, ry + 4.5, { align: 'right' })
 
     // ── Payment / credit block ────────────────────────────────────────────────
+    let afterBlocksY = y + totBoxH + 5
     if (pay.showPaymentSection) {
       const payY = ensurePageSpace(doc, y + totBoxH + 5, payBoxH, pageH)
+      afterBlocksY = payY + payBoxH + 5
       const payW = pageW - mL - mR
       doc.setFillColor(...lightBg)
       doc.setDrawColor(...teal)
@@ -601,6 +610,34 @@ export async function POST(request: NextRequest) {
           py + 6,
         )
       }
+    }
+
+    if (fbrInvoiceNumber) {
+      const qrUrl = await fbrInvoiceQrPngDataUrl(fbrInvoiceNumber)
+      const fbrBoxH = 34
+      const fbrY = ensurePageSpace(doc, afterBlocksY, fbrBoxH, pageH)
+      const fbrW = pageW - mL - mR
+      doc.setFillColor(...lightBg)
+      doc.setDrawColor(...teal)
+      doc.setLineWidth(0.4)
+      doc.roundedRect(mL, fbrY, fbrW, fbrBoxH, 2, 2, "FD")
+      doc.addImage(qrUrl, "PNG", mL + 3, fbrY + 4, 26, 26)
+      doc.setFont(FONT, "bold")
+      doc.setFontSize(8)
+      doc.setTextColor(...tealDark)
+      doc.text("FBR DIGITAL INVOICE", mL + 33, fbrY + 9)
+      doc.setFont(FONT, "bold")
+      doc.setFontSize(10)
+      doc.setTextColor(...black)
+      doc.text(fbrInvoiceNumber, mL + 33, fbrY + 16)
+      doc.setFont(FONT, "normal")
+      doc.setFontSize(7.5)
+      doc.setTextColor(...gray)
+      const verifyLines = doc.splitTextToSize(
+        "Scan this QR in Tax Asaan (FBR POS → Verify Invoice), or SMS INV + CNIC + this FBR number to 9966.",
+        fbrW - 40,
+      )
+      doc.text(verifyLines, mL + 33, fbrY + 22)
     }
 
     stampFootersOnAllPages(doc, pageW, pageH, FONT, teal, white)
