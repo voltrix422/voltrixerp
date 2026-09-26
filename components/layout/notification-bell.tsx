@@ -107,6 +107,9 @@ export function NotificationBell() {
           tag: `erp-${n.id}`,
         })),
       )
+      if (incoming.some((n) => String(n.link || "").includes("/todos"))) {
+        window.dispatchEvent(new Event("voltrix-todos-refresh"))
+      }
     }
     for (const n of list) seenIdsRef.current.add(n.id)
     if (seenIdsRef.current.size > 400) {

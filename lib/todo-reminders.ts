@@ -148,7 +148,7 @@ export async function processTodoRecurrenceAndReminders() {
         title: "Recurring task reminder",
         message: `${row.title} · ${row.cadence}${when ? ` · ${when}` : ""}`,
         type: "info",
-        link: "/todos",
+        link: `/todos?todo=${row.id}`,
       })
       reminded += 1
     } catch (err) {

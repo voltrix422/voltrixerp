@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
             ? `${row.title} (${cadence}) · reminder ${reminderTime}`
             : `${row.title} (${cadence})`,
           type: "info",
-          link: "/todos",
+          link: `/todos?todo=${row.id}`,
         })
       } catch (notifyErr) {
         console.error("[todos] notify failed", notifyErr)
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
               latePenaltyPoints > 0 ? ` · −${latePenaltyPoints} pts` : ""
             }`,
             type: latePenaltyPoints > 0 ? "warning" : "info",
-            link: "/todos",
+            link: `/todos?todo=${existing.id}`,
           })
         } catch (notifyErr) {
           console.error("[todos] notify assigner failed", notifyErr)
@@ -321,7 +321,7 @@ export async function POST(req: NextRequest) {
             title: nextStatus === "done" ? "To-do completed" : "To-do updated",
             message: `${existing.title} · ${existing.assigneeName}`,
             type: "info",
-            link: "/todos",
+            link: `/todos?todo=${existing.id}`,
           })
         } catch (notifyErr) {
           console.error("[todos] notify assigner failed", notifyErr)
@@ -390,7 +390,7 @@ export async function POST(req: NextRequest) {
             title: "To-do due date extended",
             message: `${existing.title} · new due ${dueAt.toLocaleString("en-GB", { timeZone: "Asia/Karachi" })}`,
             type: "info",
-            link: "/todos",
+            link: `/todos?todo=${existing.id}`,
           })
         } catch (notifyErr) {
           console.error("[todos] notify extend failed", notifyErr)
@@ -429,7 +429,7 @@ export async function POST(req: NextRequest) {
             title: "To-do sent back",
             message: note ? `${existing.title} · ${note}` : existing.title,
             type: "warning",
-            link: "/todos",
+            link: `/todos?todo=${existing.id}`,
           })
         } catch (notifyErr) {
           console.error("[todos] notify reject failed", notifyErr)
@@ -471,7 +471,7 @@ export async function POST(req: NextRequest) {
               ? `${existing.title} · approved · −${late.points} late points`
               : existing.title,
           type: "success",
-          link: "/todos",
+          link: `/todos?todo=${existing.id}`,
         })
       } catch (notifyErr) {
         console.error("[todos] notify approve failed", notifyErr)

@@ -82,6 +82,18 @@ function todoDayKey(todo: Todo) {
   return ymdLocal(d)
 }
 
+function assignedDayKey(todo: Todo) {
+  if (!todo.assignedAt) return ""
+  const d = new Date(todo.assignedAt)
+  if (Number.isNaN(d.getTime())) return ""
+  return ymdLocal(d)
+}
+
+function readTodoQueryId() {
+  if (typeof window === "undefined") return ""
+  return new URLSearchParams(window.location.search).get("todo")?.trim() || ""
+}
+
 function inDateRange(todo: Todo, from: string, to: string) {
   if (!from && !to) return true
   const key = todoDayKey(todo)
@@ -192,8 +204,8 @@ export function TodosDashboard() {
   })
   const [attachFiles, setAttachFiles] = useState<LocalFile[]>([])
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (opts?: { silent?: boolean; selectId?: string }) => {
+    if (!opts?.silent) setLoading(true)
     try {
       const mine = !isAdmin || view === "mine"
       const [rows, userRows] = await Promise.all([
@@ -202,23 +214,53 @@ export function TodosDashboard() {
       ])
       setTodos(rows)
       setUsers(userRows)
+      const wantId = opts?.selectId || readTodoQueryId()
       setSelectedId((prev) => {
+        if (wantId && rows.some((t) => t.id === wantId)) return wantId
         if (prev && rows.some((t) => t.id === prev)) return prev
         return rows[0]?.id ?? null
       })
+      if (wantId) {
+        const hit = rows.find((t) => t.id === wantId)
+        if (hit) {
+          setSelectedPersonId(hit.assigneeUserId)
+          setMobileDetail(true)
+        }
+      }
     } catch (err) {
-      toast({
-        title: "Could not load to-dos",
-        message: err instanceof Error ? err.message : "Try again",
-        type: "error",
-      })
+      if (!opts?.silent) {
+        toast({
+          title: "Could not load to-dos",
+          message: err instanceof Error ? err.message : "Try again",
+          type: "error",
+        })
+      }
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
     }
   }, [toast, user?.id, view, isAdmin])
 
   useEffect(() => {
     void load()
+  }, [load])
+
+  useEffect(() => {
+    const onRefresh = () => {
+      void load({ silent: true, selectId: readTodoQueryId() })
+    }
+    const onVisible = () => {
+      if (document.visibilityState === "visible") onRefresh()
+    }
+    window.addEventListener("focus", onRefresh)
+    window.addEventListener("voltrix-todos-refresh", onRefresh)
+    document.addEventListener("visibilitychange", onVisible)
+    const interval = window.setInterval(onRefresh, 12000)
+    return () => {
+      window.removeEventListener("focus", onRefresh)
+      window.removeEventListener("voltrix-todos-refresh", onRefresh)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.clearInterval(interval)
+    }
   }, [load])
 
   const todayKey = ymdLocal(new Date())
@@ -245,10 +287,15 @@ export function TodosDashboard() {
           }
           return true
         }
+        if (t.status === "done") {
+          return todoDayKey(t) === todayKey
+        }
+        // Assigned today, due today, overdue, or no due date — all stay on Today
+        if (assignedDayKey(t) === todayKey) return true
         const day = todoDayKey(t)
         if (day === todayKey) return true
-        // overdue open / in-progress still on Today
-        if (t.status !== "done" && t.dueAt) {
+        if (!t.dueAt) return true
+        if (t.dueAt) {
           const due = new Date(t.dueAt)
           if (!Number.isNaN(due.getTime()) && ymdLocal(due) < todayKey) return true
         }
