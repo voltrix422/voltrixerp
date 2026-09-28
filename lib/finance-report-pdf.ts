@@ -7,6 +7,7 @@ import type {
   FinancePosRow,
   FinancePurchaseRow,
 } from "@/lib/finance-report-details"
+import type { MoneyOutDetailLine } from "@/lib/finance-money-out-details"
 import { dateRangeLabel, downloadPlainReportPdf, pct, pkr, type PlainTable } from "@/lib/plain-report-pdf"
 
 type OverviewLike = {
@@ -16,6 +17,9 @@ type OverviewLike = {
       moneyIn?: Record<string, number | undefined>
       moneyOut?: Record<string, number | undefined>
     }
+  }
+  moneyOutDetails?: {
+    salaryAdvances?: MoneyOutDetailLine[]
   }
   posSales?: FinancePosRow[]
   orders?: FinanceOrderRow[]
@@ -67,7 +71,7 @@ const HIDE_IF_CHILD: Record<string, string[]> = {
   importCharges: ["importChargesCombined"],
 }
 
-/** Same buckets as finance overview moneyOut — salary/supplier advances are recovered in payroll/PO, not cash out. */
+/** Same buckets as finance overview moneyOut (salary advances given in the period are cash out). */
 const MONEY_OUT_COUNTED = new Set([
   "expenses",
   "loansGiven",
@@ -82,6 +86,7 @@ const MONEY_OUT_COUNTED = new Set([
   "cashback",
   "clientRefunds",
   "fuelPetrol",
+  "salaryAdvances",
 ])
 
 function moneyRows(
@@ -260,6 +265,28 @@ export async function downloadFinanceOverviewPdf(
       ],
       rows: outRows,
       foot: ["Total", pkr(moneyOut), "100%"],
+    })
+  }
+
+  const salaryAdvanceLines = data.moneyOutDetails?.salaryAdvances || []
+  if (salaryAdvanceLines.length) {
+    const advTotal = salaryAdvanceLines.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+    tables.push({
+      title: "Salary advances",
+      newPage: true,
+      columns: [
+        { header: "Date", width: 24 },
+        { header: "Staff", width: 40 },
+        { header: "Detail", width: 80, small: true },
+        { header: "Amount", align: "right", width: 32 },
+      ],
+      rows: salaryAdvanceLines.map((r) => [
+        r.date || "—",
+        r.label,
+        r.sublabel || "—",
+        pkr(r.amount),
+      ]),
+      foot: ["", "", String(salaryAdvanceLines.length), pkr(advTotal)],
     })
   }
 

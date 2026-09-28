@@ -37,6 +37,7 @@ import {
   buildImportPswDetails,
   buildPettyCashApprovedDetails,
   buildPurchaseLedgerPaymentDetails,
+  buildSalaryAdvanceDetails,
 } from "@/lib/finance-money-out-details"
 import { importChargesSplitInPeriod } from "@/lib/finance-import-outflows"
 import {
@@ -173,8 +174,8 @@ export async function GET(req: NextRequest) {
       prisma.erpAdvanceAccount.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.hrmSalaryAdvance.findMany({
         where: { status: { not: "cancelled" } },
+        include: { staff: { select: { name: true } } },
         orderBy: { givenAt: "desc" },
-        take: 500,
       }),
       prisma.erpImportShipment.findMany({
         where: { archived: false },
@@ -460,7 +461,7 @@ export async function GET(req: NextRequest) {
     const ledgerReport = buildLedgerReport(purchaseLedger, start, end)
 
     // Supplier advances are already reflected in local purchase ledger payments — exclude from money-out.
-    // Salary advances are recovered inside payroll, so exclude them from finance money-out totals.
+    // Salary advances given in the period are cash leaving (Advance history).
     let supplierAdvancesInPeriod = 0
     for (const account of advanceAccounts) {
       const txns = Array.isArray(account.transactions)
@@ -572,7 +573,8 @@ export async function GET(req: NextRequest) {
       breakdown.moneyOut.importChargesCombined +
       breakdown.moneyOut.cashback +
       breakdown.moneyOut.clientRefunds +
-      breakdown.moneyOut.fuelPetrol
+      breakdown.moneyOut.fuelPetrol +
+      breakdown.moneyOut.salaryAdvances
     const netCashFlow = moneyIn - moneyOut
 
     // Last 6 months trend (default buckets: exclude imported)
@@ -664,6 +666,9 @@ export async function GET(req: NextRequest) {
         mEnd,
       )
       mo += monthImportCharges.combinedPkr
+      for (const adv of salaryAdvances) {
+        if (inRange(new Date(adv.givenAt), mStart, mEnd)) mo += Number(adv.amount) || 0
+      }
       monthlyTrend.push({ month: monthLabel, moneyIn: mi, moneyOut: mo })
     }
 
@@ -782,6 +787,7 @@ export async function GET(req: NextRequest) {
       expenses: expenseReport.details,
       purchaseLedgerPurchases: buildPurchaseLedgerPaymentDetails(purchaseLedger, start, end, "purchase"),
       purchaseLedgerRents: buildPurchaseLedgerPaymentDetails(purchaseLedger, start, end, "rent"),
+      salaryAdvances: buildSalaryAdvanceDetails(salaryAdvances, start, end),
     }
     const moneyInDetails = {
       posSales: posSalesReport.details,

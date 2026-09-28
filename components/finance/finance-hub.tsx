@@ -165,6 +165,14 @@ function buildMoneyOutDisplayRows(
     })
   }
   if (b.salaries > 0.004) rows.push({ label: "Salaries", amount: b.salaries })
+  const salaryAdvances = b.salaryAdvances ?? 0
+  if (salaryAdvances > 0.004) {
+    rows.push({
+      label: "Salary advances",
+      amount: salaryAdvances,
+      details: details?.salaryAdvances,
+    })
+  }
 
   const ledgerPurchases = b.purchaseLedgerPurchases ?? b.purchaseLedger
   const ledgerRents = b.purchaseLedgerRents ?? 0

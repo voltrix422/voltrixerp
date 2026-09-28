@@ -333,6 +333,42 @@ export function buildPurchaseLedgerPaymentDetails(
   return lines.sort((a, b) => b.amount - a.amount)
 }
 
+export function buildSalaryAdvanceDetails(
+  advances: Array<{
+    id: string
+    amount: number
+    reason: string
+    notes?: string | null
+    status: string
+    givenBy: string
+    givenAt: Date | string
+    proofUrl?: string | null
+    staff?: { name: string } | null
+  }>,
+  start: Date,
+  end: Date,
+): MoneyOutDetailLine[] {
+  const lines: MoneyOutDetailLine[] = []
+  for (const adv of advances) {
+    if (String(adv.status || "").toLowerCase() === "cancelled") continue
+    const amount = Number(adv.amount) || 0
+    if (amount <= 0) continue
+    const givenAt = adv.givenAt instanceof Date ? adv.givenAt : new Date(adv.givenAt)
+    if (Number.isNaN(givenAt.getTime()) || !inRange(givenAt, start, end)) continue
+    const reason = String(adv.reason || "").trim()
+    const by = String(adv.givenBy || "").trim()
+    lines.push({
+      id: adv.id,
+      label: adv.staff?.name || "Staff",
+      sublabel: [reason, by ? `By ${by}` : "", adv.status].filter(Boolean).join(" · ") || undefined,
+      amount,
+      date: fmtDate(givenAt.toISOString()),
+      href: adv.proofUrl || undefined,
+    })
+  }
+  return lines.sort((a, b) => b.amount - a.amount)
+}
+
 export type MoneyOutDetailsPayload = {
   clientRefunds: MoneyOutDetailLine[]
   cashback: MoneyOutDetailLine[]
@@ -344,6 +380,7 @@ export type MoneyOutDetailsPayload = {
   expenses?: MoneyOutDetailLine[]
   purchaseLedgerPurchases?: MoneyOutDetailLine[]
   purchaseLedgerRents?: MoneyOutDetailLine[]
+  salaryAdvances?: MoneyOutDetailLine[]
 }
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
@@ -362,4 +399,5 @@ export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload>
   "Petty cash (approved)": "pettyCash",
   "Purchases (ledger)": "purchaseLedgerPurchases",
   "Rents (ledger)": "purchaseLedgerRents",
+  "Salary advances": "salaryAdvances",
 }
