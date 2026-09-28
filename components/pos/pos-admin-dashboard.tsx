@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
+  FileDown,
   Loader2,
   Package,
   RefreshCw,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/components/ui/toast"
+import { getSession } from "@/lib/auth"
 import { localDateISO, localDaysAgoISO } from "@/lib/website-analytics"
 import {
   formatPosPkr,
@@ -19,6 +22,7 @@ import {
   type PosAdminProductSummary,
   type PosAdminSummary,
 } from "@/lib/pos-admin"
+import { downloadPosAdminReportPdf } from "@/lib/generate-pos-admin-report-pdf"
 import { PosAdminOrderDetailModal } from "@/components/pos/pos-admin-order-detail"
 import { loadInventoryProductOptions, type InventoryProductOption } from "@/lib/inventory-product-options"
 
@@ -129,6 +133,7 @@ const td = "px-2 py-1.5 align-top"
 const tdR = cn(td, "text-right tabular-nums")
 
 export function PosAdminDashboard() {
+  const { toast } = useToast()
   const [mode, setMode] = useState<RangeMode>("month")
   const [from, setFrom] = useState(() => rangeForMode("month").from)
   const [to, setTo] = useState(() => rangeForMode("month").to)
@@ -145,6 +150,7 @@ export function PosAdminDashboard() {
   const [selectedProductId, setSelectedProductId] = useState("")
   const [inventoryProducts, setInventoryProducts] = useState<InventoryProductOption[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadInventoryProductOptions()
@@ -258,6 +264,52 @@ export function PosAdminDashboard() {
     setBranchDetail(null)
   }
 
+  async function exportPdf() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const summary = await getPosAdminSummary({
+        from,
+        to,
+        branchId: view === "branch" ? selectedBranchId || undefined : undefined,
+        detail: true,
+        full: true,
+        productQuery: selectedProductOption?.displayName || productQuery || undefined,
+        productMatchTerms: selectedProductOption?.matchTerms,
+      })
+      if (!summary) throw new Error("Could not load POS data")
+
+      const branch = view === "branch" ? summary.byBranch[0] || null : null
+      const orders = branch
+        ? branch.orders || []
+        : summary.byBranch.flatMap((b) => b.orders || [])
+      const receipts = branch
+        ? branch.receipts || []
+        : summary.byBranch.flatMap((b) => b.receipts || [])
+
+      await downloadPosAdminReportPdf({
+        from: summary.from,
+        to: summary.to,
+        scopeLabel: branch?.branchName || "All POS",
+        combined: branch || summary.combined,
+        branches: branch ? undefined : summary.byBranch,
+        orders,
+        receipts,
+        productSummary: summary.productSummary,
+        productFilter: selectedProductOption?.displayName || productQuery || "",
+        exportedBy: getSession()?.name,
+      })
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        message: err instanceof Error ? err.message : "Could not build PDF",
+        type: "error",
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const combined = data?.combined
   const selectedMeta = data?.byBranch.find((b) => b.branchId === selectedBranchId)
 
@@ -281,6 +333,17 @@ export function PosAdminDashboard() {
           >
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             <span className="ml-1">Refresh</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs rounded-sm shadow-none"
+            onClick={() => void exportPdf()}
+            disabled={exporting || loading}
+          >
+            {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+            <span className="ml-1">{view === "branch" ? "Export PDF" : "Export All POS"}</span>
           </Button>
         </div>
         <div>

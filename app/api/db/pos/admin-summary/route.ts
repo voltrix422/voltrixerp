@@ -138,6 +138,7 @@ export async function GET(req: NextRequest) {
     const { from, to, fromDate, toDate } = parseRange(req)
     const branchIdFilter = req.nextUrl.searchParams.get("branchId")?.trim() || null
     const detail = req.nextUrl.searchParams.get("detail") === "1"
+    const full = req.nextUrl.searchParams.get("full") === "1"
     const productQuery = req.nextUrl.searchParams.get("productQuery")?.trim() || ""
     const productMatchTermsRaw = req.nextUrl.searchParams.get("productMatchTerms")?.trim() || ""
     let productMatchTerms: string[] | undefined
@@ -299,10 +300,16 @@ export async function GET(req: NextRequest) {
         combinedSaleTotal: sellTotal + receiptTotal,
         stockSkuCount: stock.skuCount,
         stockQty: stock.totalQty,
-        ...(detail
+        ...(detail || full
           ? {
-              orders: branchOrders.slice(0, 200).map(mapOrderBrief),
-              receipts: branchSales.slice(0, 200).map(mapSaleBrief),
+              orders: (full ? branchOrders : branchOrders.slice(0, 200)).map((o) => ({
+                ...mapOrderBrief(o),
+                branchName,
+              })),
+              receipts: (full ? branchSales : branchSales.slice(0, 200)).map((s) => ({
+                ...mapSaleBrief(s),
+                branchName,
+              })),
             }
           : {}),
       }

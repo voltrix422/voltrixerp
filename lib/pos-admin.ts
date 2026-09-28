@@ -128,6 +128,7 @@ export async function getPosAdminSummary(params: {
   to: string
   branchId?: string
   detail?: boolean
+  full?: boolean
   productQuery?: string
   productMatchTerms?: string[]
 }): Promise<PosAdminSummary | null> {
@@ -137,6 +138,7 @@ export async function getPosAdminSummary(params: {
   })
   if (params.branchId) qs.set("branchId", params.branchId)
   if (params.detail) qs.set("detail", "1")
+  if (params.full) qs.set("full", "1")
   if (params.productQuery?.trim()) qs.set("productQuery", params.productQuery.trim())
   if (params.productMatchTerms?.length) {
     qs.set("productMatchTerms", JSON.stringify(params.productMatchTerms))
