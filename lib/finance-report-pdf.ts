@@ -67,14 +67,33 @@ const HIDE_IF_CHILD: Record<string, string[]> = {
   importCharges: ["importChargesCombined"],
 }
 
+/** Same buckets as finance overview moneyOut — salary/supplier advances are recovered in payroll/PO, not cash out. */
+const MONEY_OUT_COUNTED = new Set([
+  "expenses",
+  "loansGiven",
+  "salaries",
+  "purchaseLedger",
+  "purchaseLedgerPurchases",
+  "purchaseLedgerRents",
+  "pettyCash",
+  "importChargesCombined",
+  "importPsw",
+  "importCharges",
+  "cashback",
+  "clientRefunds",
+  "fuelPetrol",
+])
+
 function moneyRows(
   obj: Record<string, number | undefined> | undefined,
   labels: Record<string, string>,
   total: number,
+  countedKeys?: Set<string>,
 ): (string | number)[][] {
   if (!obj) return []
   return Object.entries(obj)
     .filter(([k, n]) => {
+      if (countedKeys && !countedKeys.has(k)) return false
       if (typeof n !== "number" || Math.abs(n) <= 0.004) return false
       const children = HIDE_IF_CHILD[k]
       if (!children) return true
@@ -212,7 +231,7 @@ export async function downloadFinanceOverviewPdf(
   const orderTotal = orders.reduce((sum, r) => sum + r.total, 0)
 
   const inRows = moneyRows(s.breakdown?.moneyIn, MONEY_IN_LABELS, moneyIn)
-  const outRows = moneyRows(s.breakdown?.moneyOut, MONEY_OUT_LABELS, moneyOut)
+  const outRows = moneyRows(s.breakdown?.moneyOut, MONEY_OUT_LABELS, moneyOut, MONEY_OUT_COUNTED)
   const methodTotal = methods.reduce((n, r) => n + r.amount, 0)
 
   const tables: PlainTable[] = []
