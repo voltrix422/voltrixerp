@@ -1,7 +1,7 @@
 import type { Order } from "@/lib/orders"
 
 /** Orders allowed to edit invoice line items and totals after confirmation. */
-export const INVOICE_EDITABLE_ORDER_NUMBERS = new Set(["ORD-00048", "ORD-00109"])
+export const INVOICE_EDITABLE_ORDER_NUMBERS = new Set(["ORD-00048", "ORD-00109", "ORD-00171"])
 
 const INVOICE_EDITABLE_STATUSES = new Set([
   "finalized",
