@@ -25,10 +25,10 @@ import { CrmExcelExportButton } from "@/components/crm/crm-excel-export-button"
 import { downloadOrdersExcel } from "@/lib/crm-excel-export"
 import { ClientExcludePicker, ClientLedgerPicker, ClientLedgerSummary } from "@/components/crm/client-ledger-panel"
 import {
-  findLedgerClient,
+  findLedgerClients,
   listLedgerClients,
+  ledgerClientsLabel,
   orderBelongsToAnyClient,
-  orderBelongsToClient,
 } from "@/lib/client-order-ledger"
 import { useSalesAgentUserIds } from "@/hooks/use-sales-agent-user-ids"
 import { PaymentCapture } from "@/components/crm/payment-capture"
@@ -360,7 +360,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   const [includeOutstandingInTotal, setIncludeOutstandingInTotal] = useState(false)
   const [moneyReceivedOpen, setMoneyReceivedOpen] = useState(false)
   const [orderSummaryOpen, setOrderSummaryOpen] = useState(false)
-  const [ledgerClientId, setLedgerClientId] = useState("")
+  const [ledgerClientIds, setLedgerClientIds] = useState<string[]>([])
   const [referrerFilter, setReferrerFilter] = useState("")
   const [excludedClientIds, setExcludedClientIds] = useState<string[]>([])
 
@@ -404,10 +404,9 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   }, [])
 
   const ledgerOptions = listLedgerClients(clients, orders)
-  const ledgerClient = findLedgerClient(ledgerOptions, ledgerClientId)
-  const excludedClients = excludedClientIds
-    .map((id) => findLedgerClient(ledgerOptions, id))
-    .filter((c): c is NonNullable<typeof c> => Boolean(c))
+  const ledgerClients = findLedgerClients(ledgerOptions, ledgerClientIds)
+  const excludedClients = findLedgerClients(ledgerOptions, excludedClientIds)
+  const ledgerLabel = ledgerClientsLabel(ledgerClients)
 
   const filtered = orders.filter(o => {
     const q = search.toLowerCase()
@@ -421,8 +420,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
     const matchesPayment = orderMatchesPaymentFilter(o, paymentFilter)
     const matchesDateRange = orderMatchesDateRange(o.createdAt, fromDate, toDate)
-    const matchesClient = ledgerClient
-      ? orderBelongsToClient(o, ledgerClient)
+    const matchesClient = ledgerClients.length
+      ? orderBelongsToAnyClient(o, ledgerClients)
       : excludedClients.length === 0 || !orderBelongsToAnyClient(o, excludedClients)
     const matchesReferrer =
       !referrerFilter ||
@@ -440,7 +439,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   ).sort((a, b) => a.localeCompare(b))
 
   const hasActiveFilters = Boolean(
-    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all" || ledgerClientId || referrerFilter || excludedClientIds.length > 0,
+    search || fromDate || toDate || statusFilter !== "all" || paymentFilter !== "all" || ledgerClientIds.length > 0 || referrerFilter || excludedClientIds.length > 0,
   )
 
   function applyDatePreset(preset: DatePreset) {
@@ -464,14 +463,15 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     setStatusFilter("all")
     setPaymentFilter("all")
     setDatePreset("")
-    setLedgerClientId("")
+    setLedgerClientIds([])
     setReferrerFilter("")
     setExcludedClientIds([])
   }
 
-  function selectLedgerClient(id: string) {
-    setLedgerClientId(id)
-    if (!id) return
+  function selectLedgerClients(ids: string[]) {
+    const firstPick = ledgerClientIds.length === 0 && ids.length > 0
+    setLedgerClientIds(ids)
+    if (!firstPick) return
     setSearch("")
     setFromDate("")
     setToDate("")
@@ -508,7 +508,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         dateTo: toDate,
         exportedBy: currentUser,
         salesAgentUserIds: salesAgentUserIds ?? undefined,
-        clientName: ledgerClient?.name,
+        clientName: ledgerLabel || undefined,
         includeOutstanding: includeOutstandingInTotal,
       })
       toast({
@@ -619,7 +619,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
             excludedIds={excludedClientIds}
             onChange={(ids) => {
               setExcludedClientIds(ids)
-              if (ids.length) setLedgerClientId("")
+              if (ids.length) setLedgerClientIds([])
             }}
           />
 
@@ -746,8 +746,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           <ClientLedgerPicker
             clients={clients}
             orders={orders}
-            selectedId={ledgerClientId}
-            onSelect={selectLedgerClient}
+            selectedIds={ledgerClientIds}
+            onChange={selectLedgerClients}
           />
           <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
           <CrmExcelExportButton
@@ -783,8 +783,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         </div>
       ) : (
         <>
-          {ledgerClient && (
-            <ClientLedgerSummary client={ledgerClient} orders={filtered} currentUser={currentUser} />
+          {ledgerClients.length > 0 && (
+            <ClientLedgerSummary clients={ledgerClients} orders={filtered} currentUser={currentUser} />
           )}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -792,8 +792,8 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {orders.length === 0
               ? "No orders found"
-              : ledgerClient
-                ? `No orders for ${ledgerClient.name}`
+              : ledgerClients.length
+                ? `No orders for ${ledgerLabel}`
               : hasActiveFilters
                 ? "No orders match your filters"
                 : "No orders found"}

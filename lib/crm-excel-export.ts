@@ -334,21 +334,27 @@ export function downloadClientLedgerExcel(payload: ClientLedgerPayload) {
   const lines: string[] = []
   lines.push(exportMetaHeader(payload.generatedBy).trimEnd())
   lines.push("")
-  lines.push([escCsvCell("CLIENT LEDGER"), escCsvCell(client.name)].join(","))
+  const combined = (payload.clients?.length || 0) > 1
+  lines.push([escCsvCell(combined ? "COMBINED CLIENT LEDGER" : "CLIENT LEDGER"), escCsvCell(client.name)].join(","))
   lines.push([escCsvCell("Generated"), escCsvCell(payload.generatedAt)].join(","))
   lines.push("")
   lines.push(
     rowsToCsv(
       ["Field", "Value"],
-      [
-        ["Name", client.name],
-        ["Company", client.company],
-        ["Contact person", client.contactPerson],
-        ["Phone", client.phone],
-        ["Email", client.email],
-        ["NTN", client.ntn],
-        ["Address", [client.address, client.city, client.country].filter(Boolean).join(", ")],
-      ],
+      combined
+        ? [
+            ["Clients", payload.clients.length],
+            ["Names", payload.clients.map((c) => c.name).join(" · ")],
+          ]
+        : [
+            ["Name", client.name],
+            ["Company", client.company],
+            ["Contact person", client.contactPerson],
+            ["Phone", client.phone],
+            ["Email", client.email],
+            ["NTN", client.ntn],
+            ["Address", [client.address, client.city, client.country].filter(Boolean).join(", ")],
+          ],
     ),
   )
   lines.push("")
@@ -374,20 +380,39 @@ export function downloadClientLedgerExcel(payload: ClientLedgerPayload) {
   lines.push("")
   lines.push(
     rowsToCsv(
-      ["Order #", "Date", "Status", "Qty", "Items", "Total (PKR)", "Paid (PKR)", "Balance (PKR)", "Payment", "Created by", "Notes"],
-      payload.orders.map((row) => [
-        row.orderNumber,
-        row.date,
-        row.status,
-        row.qtyLabel,
-        row.items,
-        row.billed,
-        row.paid,
-        row.balance,
-        row.paymentLabel,
-        row.createdBy,
-        row.notes,
-      ]),
+      combined
+        ? ["Order #", "Date", "Client", "Status", "Qty", "Items", "Total (PKR)", "Paid (PKR)", "Balance (PKR)", "Payment", "Created by", "Notes"]
+        : ["Order #", "Date", "Status", "Qty", "Items", "Total (PKR)", "Paid (PKR)", "Balance (PKR)", "Payment", "Created by", "Notes"],
+      payload.orders.map((row) =>
+        combined
+          ? [
+              row.orderNumber,
+              row.date,
+              row.clientName,
+              row.status,
+              row.qtyLabel,
+              row.items,
+              row.billed,
+              row.paid,
+              row.balance,
+              row.paymentLabel,
+              row.createdBy,
+              row.notes,
+            ]
+          : [
+              row.orderNumber,
+              row.date,
+              row.status,
+              row.qtyLabel,
+              row.items,
+              row.billed,
+              row.paid,
+              row.balance,
+              row.paymentLabel,
+              row.createdBy,
+              row.notes,
+            ],
+      ),
     ),
   )
   lines.push("")
@@ -407,5 +432,6 @@ export function downloadClientLedgerExcel(payload: ClientLedgerPayload) {
         : [["—", "", "No payments recorded", "", "", "", ""]],
     ),
   )
-  downloadCsv(`client-ledger-${slugClientName(client.name)}-${new Date().toISOString().slice(0, 10)}.csv`, lines.join("\r\n"))
+  const fileLabel = combined ? `combined-${payload.clients.length}` : slugClientName(client.name)
+  downloadCsv(`client-ledger-${fileLabel}-${new Date().toISOString().slice(0, 10)}.csv`, lines.join("\r\n"))
 }

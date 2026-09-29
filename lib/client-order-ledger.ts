@@ -34,6 +34,7 @@ export type LedgerClientRef = {
 export type ClientLedgerOrderRow = {
   orderNumber: string
   date: string
+  clientName: string
   status: string
   qtyLabel: string
   items: string
@@ -57,6 +58,7 @@ export type ClientLedgerPaymentRow = {
 
 export type ClientLedgerPayload = {
   client: LedgerClientRef
+  clients: LedgerClientRef[]
   generatedBy: string
   generatedAt: string
   stats: OrderPaymentAggregate
@@ -130,6 +132,35 @@ export function findLedgerClient(clients: LedgerClientRef[], id: string): Ledger
   return clients.find((c) => c.id === id) || null
 }
 
+export function findLedgerClients(clients: LedgerClientRef[], ids: string[]): LedgerClientRef[] {
+  return ids
+    .map((id) => clients.find((c) => c.id === id) || null)
+    .filter((c): c is LedgerClientRef => Boolean(c))
+}
+
+export function ledgerClientsLabel(clients: LedgerClientRef[]): string {
+  if (clients.length === 0) return ""
+  if (clients.length === 1) return clients[0].name
+  if (clients.length === 2) return `${clients[0].name}, ${clients[1].name}`
+  return `${clients.slice(0, 2).map((c) => c.name).join(", ")} + ${clients.length - 2} more`
+}
+
+export function combinedLedgerClientRef(clients: LedgerClientRef[]): LedgerClientRef {
+  if (clients.length === 1) return clients[0]
+  return {
+    id: clients.map((c) => c.id).sort().join("|"),
+    name: clients.map((c) => c.name).join(", "),
+    company: `${clients.length} clients`,
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    country: "",
+    ntn: "",
+    contactPerson: "",
+  }
+}
+
 export function orderBelongsToAnyClient(
   order: Order,
   clients: Pick<LedgerClientRef, "id" | "name">[],
@@ -188,10 +219,23 @@ function paymentStatusLabel(status: string) {
 }
 
 export function buildClientLedgerPayload(
-  client: LedgerClientRef,
+  client: LedgerClientRef | LedgerClientRef[],
   orders: Order[],
   generatedBy: string,
 ): ClientLedgerPayload {
+  const clients = (Array.isArray(client) ? client : [client]).filter(Boolean)
+  const primary = clients.length ? combinedLedgerClientRef(clients) : {
+    id: "",
+    name: "Clients",
+    company: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    country: "",
+    ntn: "",
+    contactPerson: "",
+  }
   const sorted = [...orders].sort((a, b) => {
     const da = new Date(a.createdAt).getTime()
     const db = new Date(b.createdAt).getTime()
@@ -201,6 +245,7 @@ export function buildClientLedgerPayload(
   const orderRows: ClientLedgerOrderRow[] = sorted.map((order) => ({
     orderNumber: order.orderNumber || "—",
     date: formatDate(order.createdAt),
+    clientName: (order.clientName || "").trim() || "—",
     status: STATUS_LABELS[order.status] || order.status,
     qtyLabel: qtySummary(order),
     items: itemsSummary(order),
@@ -257,7 +302,8 @@ export function buildClientLedgerPayload(
   })
 
   return {
-    client,
+    client: primary,
+    clients,
     generatedBy: generatedBy.trim() || "CRM",
     generatedAt: new Date().toLocaleString("en-PK"),
     stats,

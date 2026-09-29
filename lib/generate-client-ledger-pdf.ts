@@ -91,6 +91,7 @@ export async function downloadClientLedgerPdf(data: ClientLedgerPayload) {
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as JsDoc
   const pageW = doc.internal.pageSize.getWidth()
   const { client, stats } = data
+  const combined = (data.clients?.length || 0) > 1
 
   doc.setFillColor(...TEAL_DARK)
   doc.rect(0, 0, pageW, 32, "F")
@@ -115,31 +116,40 @@ export async function downloadClientLedgerPdf(data: ClientLedgerPayload) {
 
   doc.setFont("helvetica", "bold")
   doc.setFontSize(11)
-  doc.text("CLIENT LEDGER", pageW - MARGIN, 13, { align: "right" })
+  doc.text(combined ? "COMBINED LEDGER" : "CLIENT LEDGER", pageW - MARGIN, 13, { align: "right" })
   doc.setFont("helvetica", "normal")
   doc.setFontSize(7)
-  doc.text("Account statement  ·  Official copy", pageW - MARGIN, 19, { align: "right" })
+  doc.text(
+    combined ? `${data.clients.length} clients  ·  Official copy` : "Account statement  ·  Official copy",
+    pageW - MARGIN,
+    19,
+    { align: "right" },
+  )
 
   let y = 40
   doc.setTextColor(...SLATE)
   doc.setFont("helvetica", "bold")
   doc.setFontSize(14)
-  doc.text(safeText(client.name, 52), MARGIN, y)
+  doc.text(combined ? "Combined client ledger" : safeText(client.name, 52), MARGIN, y)
   y += 5
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.setTextColor(...MUTED)
   const meta: string[] = []
-  if (client.company) meta.push(client.company)
-  if (client.contactPerson) meta.push(client.contactPerson)
-  if (client.phone) meta.push(client.phone)
-  if (client.email) meta.push(client.email)
-  if (client.ntn) meta.push(`NTN ${client.ntn}`)
+  if (combined) {
+    meta.push(data.clients.map((c) => c.name).join("  ·  "))
+  } else {
+    if (client.company) meta.push(client.company)
+    if (client.contactPerson) meta.push(client.contactPerson)
+    if (client.phone) meta.push(client.phone)
+    if (client.email) meta.push(client.email)
+    if (client.ntn) meta.push(`NTN ${client.ntn}`)
+  }
   doc.text(meta.length ? meta.join("  ·  ") : "No extra contact details on file", MARGIN, y, {
     maxWidth: pageW - MARGIN * 2,
   })
-  y += 5
-  const place = [client.address, client.city, client.country].filter(Boolean).join(", ")
+  y += combined ? 8 : 5
+  const place = combined ? "" : [client.address, client.city, client.country].filter(Boolean).join(", ")
   if (place) {
     doc.text(place, MARGIN, y, { maxWidth: pageW - MARGIN * 2 })
     y += 5
@@ -197,40 +207,82 @@ export async function downloadClientLedgerPdf(data: ClientLedgerPayload) {
     },
     alternateRowStyles: { fillColor: [248, 250, 250] },
     margin: { left: MARGIN, right: MARGIN, bottom: 14 },
-    head: [["Order #", "Date", "Status", "Qty", "Total", "Paid", "Balance", "Payment"]],
+    head: [combined
+      ? ["Order #", "Date", "Client", "Status", "Qty", "Total", "Paid", "Balance", "Payment"]
+      : ["Order #", "Date", "Status", "Qty", "Total", "Paid", "Balance", "Payment"]],
     body:
       data.orders.length > 0
-        ? data.orders.map((row) => [
-            row.orderNumber,
-            row.date,
-            safeText(row.status, 28),
-            safeText(row.qtyLabel, 28),
-            fmt(row.billed),
-            fmt(row.paid),
-            fmt(row.balance),
-            safeText(row.paymentLabel, 22),
-          ])
-        : [["—", "No orders", "", "", "", "", "", ""]],
-    columnStyles: {
-      0: { cellWidth: 24 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 24 },
-      4: { cellWidth: 22, halign: "right" },
-      5: { cellWidth: 22, halign: "right" },
-      6: { cellWidth: 22, halign: "right" },
-      7: { cellWidth: 20 },
-    },
-    foot: [[
-      "TOTAL",
-      "",
-      "",
-      `${data.orders.length} order${data.orders.length === 1 ? "" : "s"}`,
-      fmt(stats.totalOrderValue),
-      fmt(stats.totalReceived),
-      fmt(stats.totalOutstanding),
-      "",
-    ]],
+        ? data.orders.map((row) =>
+            combined
+              ? [
+                  row.orderNumber,
+                  row.date,
+                  safeText(row.clientName, 28),
+                  safeText(row.status, 22),
+                  safeText(row.qtyLabel, 22),
+                  fmt(row.billed),
+                  fmt(row.paid),
+                  fmt(row.balance),
+                  safeText(row.paymentLabel, 18),
+                ]
+              : [
+                  row.orderNumber,
+                  row.date,
+                  safeText(row.status, 28),
+                  safeText(row.qtyLabel, 28),
+                  fmt(row.billed),
+                  fmt(row.paid),
+                  fmt(row.balance),
+                  safeText(row.paymentLabel, 22),
+                ],
+          )
+        : [combined
+            ? ["—", "No orders", "", "", "", "", "", "", ""]
+            : ["—", "No orders", "", "", "", "", "", ""]],
+    columnStyles: combined
+      ? {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 16 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 24 },
+          4: { cellWidth: 18 },
+          5: { cellWidth: 20, halign: "right" },
+          6: { cellWidth: 20, halign: "right" },
+          7: { cellWidth: 20, halign: "right" },
+          8: { cellWidth: 18 },
+        }
+      : {
+          0: { cellWidth: 24 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 32 },
+          3: { cellWidth: 24 },
+          4: { cellWidth: 22, halign: "right" },
+          5: { cellWidth: 22, halign: "right" },
+          6: { cellWidth: 22, halign: "right" },
+          7: { cellWidth: 20 },
+        },
+    foot: [combined
+      ? [
+          "TOTAL",
+          "",
+          `${data.clients.length} clients`,
+          "",
+          `${data.orders.length} order${data.orders.length === 1 ? "" : "s"}`,
+          fmt(stats.totalOrderValue),
+          fmt(stats.totalReceived),
+          fmt(stats.totalOutstanding),
+          "",
+        ]
+      : [
+          "TOTAL",
+          "",
+          "",
+          `${data.orders.length} order${data.orders.length === 1 ? "" : "s"}`,
+          fmt(stats.totalOrderValue),
+          fmt(stats.totalReceived),
+          fmt(stats.totalOutstanding),
+          "",
+        ]],
     footStyles: {
       fillColor: [241, 245, 249],
       textColor: SLATE,
@@ -314,5 +366,8 @@ export async function downloadClientLedgerPdf(data: ClientLedgerPayload) {
   )
 
   drawFooter(doc)
-  doc.save(`Voltrix-Client-Ledger-${slugLedgerClientName(client.name)}.pdf`)
+  const fileLabel = combined
+    ? `combined-${data.clients.length}`
+    : slugLedgerClientName(client.name)
+  doc.save(`Voltrix-Client-Ledger-${fileLabel}.pdf`)
 }

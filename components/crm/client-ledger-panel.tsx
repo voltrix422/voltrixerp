@@ -22,20 +22,24 @@ function formatPkr(amount: number) {
 export function ClientLedgerPicker({
   clients,
   orders,
-  selectedId,
-  onSelect,
+  selectedIds,
+  onChange,
 }: {
   clients: Client[]
   orders: Order[]
-  selectedId: string
-  onSelect: (id: string) => void
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const options = useMemo(() => listLedgerClients(clients, orders), [clients, orders])
-  const selected = findLedgerClient(options, selectedId)
+  const selected = useMemo(
+    () => selectedIds.map((id) => findLedgerClient(options, id)).filter((c): c is LedgerClientRef => Boolean(c)),
+    [options, selectedIds],
+  )
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const q = search.trim().toLowerCase()
-  const matches = q
+  const filteredMatches = q
     ? options.filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
@@ -44,29 +48,42 @@ export function ClientLedgerPicker({
           c.ntn.toLowerCase().includes(q),
       )
     : options
+  const matches = q ? filteredMatches : filteredMatches.slice(0, 80)
+  const label =
+    selected.length === 0
+      ? "Select client ledger..."
+      : selected.length === 1
+        ? selected[0].name
+        : `${selected.length} clients selected`
+
+  function toggle(id: string) {
+    if (!id) return
+    onChange(selectedIds.includes(id) ? selectedIds.filter((item) => item !== id) : [...selectedIds, id])
+    setSearch("")
+  }
 
   return (
-    <div className="relative min-w-0 flex-1">
+    <div className="relative min-w-0 flex-1 space-y-1.5">
       <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="flex-1 h-8 min-w-0 rounded border bg-[hsl(var(--background))] px-2.5 text-xs text-left flex items-center justify-between gap-2 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
         >
-          <span className={`truncate ${selected ? "font-medium" : "text-[hsl(var(--muted-foreground))]"}`}>
-            {selected ? selected.name : "Select client ledger..."}
+          <span className={`truncate ${selected.length ? "font-medium" : "text-[hsl(var(--muted-foreground))]"}`}>
+            {label}
           </span>
           <svg className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        {selectedId && (
+        {selectedIds.length > 0 && (
           <button
             type="button"
             className="h-8 w-8 shrink-0 rounded border inline-flex items-center justify-center cursor-pointer hover:bg-[hsl(var(--muted))]/40"
-            title="Clear client"
+            title="Clear clients"
             onClick={() => {
-              onSelect("")
+              onChange([])
               setSearch("")
               setOpen(false)
             }}
@@ -75,39 +92,66 @@ export function ClientLedgerPicker({
           </button>
         )}
       </div>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggle(c.id)}
+              className="inline-flex h-7 max-w-full items-center gap-1 rounded-md border border-[#1faca6] bg-[#1faca6] px-2 text-xs font-medium text-white cursor-pointer"
+              title={`Remove ${c.name}`}
+            >
+              <span className="truncate">{c.name}</span>
+              <X className="h-3 w-3 shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 w-full mt-1 max-h-64 overflow-auto rounded-md border bg-[hsl(var(--background))] shadow-lg">
-            <div className="p-2 border-b sticky top-0 bg-[hsl(var(--background))]">
+          <div className="absolute z-20 w-full mt-1 max-h-72 overflow-auto rounded-md border bg-[hsl(var(--background))] shadow-lg">
+            <div className="p-2 border-b sticky top-0 bg-[hsl(var(--background))] space-y-1">
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, company, phone..."
+                placeholder="Search and add more than one client..."
                 autoFocus
                 className="w-full h-8 rounded border bg-[hsl(var(--background))] px-2.5 text-xs focus:outline-none"
               />
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                {selected.length
+                  ? `${selected.length} selected · keep searching to add more`
+                  : "Pick one or more clients — their orders stay on this tab"}
+              </p>
             </div>
             {matches.length === 0 ? (
               <p className="px-3 py-3 text-xs text-[hsl(var(--muted-foreground))]">No clients match.</p>
             ) : (
-              matches.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/40 border-t"
-                  onClick={() => {
-                    onSelect(c.id)
-                    setOpen(false)
-                    setSearch("")
-                  }}
-                >
-                  <span className="font-medium">{c.name}</span>
-                  {c.company && (
-                    <span className="text-[hsl(var(--muted-foreground))] ml-1.5">({c.company})</span>
-                  )}
-                </button>
-              ))
+              matches.map((c) => {
+                const on = selectedSet.has(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`w-full text-left px-3 py-2 text-xs cursor-pointer hover:bg-[hsl(var(--muted))]/40 border-t flex items-center gap-2 ${on ? "bg-[#1faca6]/10" : ""}`}
+                    onClick={() => toggle(c.id)}
+                  >
+                    <span
+                      className={`h-3.5 w-3.5 shrink-0 rounded border inline-flex items-center justify-center ${on ? "border-[#1faca6] bg-[#1faca6] text-white" : "border-[hsl(var(--border))]"}`}
+                    >
+                      {on ? "✓" : ""}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="font-medium">{c.name}</span>
+                      {c.company && (
+                        <span className="text-[hsl(var(--muted-foreground))] ml-1.5">({c.company})</span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })
             )}
           </div>
         </>
@@ -232,11 +276,11 @@ export function ClientExcludePicker({
 }
 
 export function ClientLedgerSummary({
-  client,
+  clients: selectedClients,
   orders,
   currentUser,
 }: {
-  client: LedgerClientRef
+  clients: LedgerClientRef[]
   orders: Order[]
   currentUser: string
 }) {
@@ -244,13 +288,16 @@ export function ClientLedgerSummary({
   const [exportingPdf, setExportingPdf] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
   const payload = useMemo(
-    () => buildClientLedgerPayload(client, orders, currentUser),
-    [client, orders, currentUser],
+    () => buildClientLedgerPayload(selectedClients, orders, currentUser),
+    [selectedClients, orders, currentUser],
   )
-  const { stats } = payload
-  const contact = [client.company, client.phone, client.ntn ? `NTN ${client.ntn}` : ""]
-    .filter(Boolean)
-    .join(" · ")
+  const { stats, client } = payload
+  const combined = selectedClients.length > 1
+  const contact = combined
+    ? selectedClients.map((c) => c.name).join(" · ")
+    : [client.company, client.phone, client.ntn ? `NTN ${client.ntn}` : ""]
+        .filter(Boolean)
+        .join(" · ")
 
   async function exportPdf() {
     setExportingPdf(true)
@@ -280,7 +327,9 @@ export function ClientLedgerSummary({
     <section className="rounded-lg border overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 px-4 py-3 border-b bg-[hsl(var(--muted))]/20">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#1faca6]">Client ledger</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#1faca6]">
+            {combined ? `Client ledger · ${selectedClients.length} clients` : "Client ledger"}
+          </p>
           <p className="text-sm font-semibold truncate">{client.name}</p>
           {contact && <p className="text-[11px] text-[hsl(var(--muted-foreground))] truncate">{contact}</p>}
         </div>
