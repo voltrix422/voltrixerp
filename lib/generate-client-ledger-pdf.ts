@@ -172,7 +172,7 @@ export async function downloadClientLedgerPdf(data: ClientLedgerPayload) {
   doc.setFontSize(7)
   doc.setTextColor(...MUTED)
   doc.text(
-    `Fully paid ${data.fullyPaidCount}  ·  Partial ${data.partialCount}  ·  On credit ${data.onCreditCount}  ·  Returned ${stats.returnedCount}`,
+    `Fully paid ${data.fullyPaidCount}  ·  Partial ${data.partialCount}  ·  Returned ${stats.returnedCount}`,
     MARGIN,
     y,
   )
