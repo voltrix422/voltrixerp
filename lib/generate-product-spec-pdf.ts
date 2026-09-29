@@ -366,7 +366,7 @@ export async function generateProductSpecPDF(product: ProductSpecsPayload): Prom
 
   await drawBrandHeader(doc, logo)
 
-  let y = 36
+  let y = 46
   doc.setTextColor(...INK)
   doc.setFont("helvetica", "bold")
   doc.setFontSize(18)
@@ -376,7 +376,7 @@ export async function generateProductSpecPDF(product: ProductSpecsPayload): Prom
     y += 7.5
   }
 
-  y += 1
+  y += 3
   y = drawMetaChips(doc, y, [
     { label: "Category", value: categoryLabel },
     { label: "Warranty", value: String(product.warranty || "").trim() },
