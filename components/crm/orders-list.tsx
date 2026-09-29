@@ -485,7 +485,22 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   function exportListExcel() {
     setExportingExcel(true)
     try {
-      downloadOrdersExcel(filtered, currentUser, salesAgentUserIds ?? undefined)
+      downloadOrdersExcel(filtered, {
+        exportedBy: currentUser,
+        salesAgentUserIds: salesAgentUserIds ?? undefined,
+        dateFrom: fromDate,
+        dateTo: toDate,
+        clientName: ledgerLabel || undefined,
+        clients: ledgerClients.map((c) => ({
+          name: c.name,
+          company: c.company,
+          phone: c.phone,
+          email: c.email,
+          ntn: c.ntn,
+          address: c.address,
+          city: c.city,
+        })),
+      })
       toast({
         title: "Download started",
         message: `${filtered.length} order(s) exported for Excel.`,

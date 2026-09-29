@@ -1,12 +1,21 @@
 import type { Client } from "@/lib/crm"
 import type { CrmLeadRow } from "@/lib/crm-leads"
 import { buildLeadsExportCsv, type LeadsExportMeta } from "@/lib/csv-leads"
-import type { Order } from "@/lib/orders"
+import type { Order, OrderItem } from "@/lib/orders"
 import type { ClientLedgerPayload } from "@/lib/client-order-ledger"
-import { STATUS_LABELS as ORDER_STATUS_LABELS, getOrderSourcePdfLabel } from "@/lib/orders"
+import {
+  getBalanceSubmittedPayments,
+  getOrderAmountPaid,
+  getOrderCreditBalance,
+  hasOutstandingCredit,
+  isOrderOnCredit,
+} from "@/lib/orders"
 import type { Quotation } from "@/lib/quotations"
 import { STATUS_LABELS as QUOTATION_STATUS_LABELS } from "@/lib/quotations"
 import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
+import { aggregateOrderPaymentStats } from "@/lib/order-payment-stats"
+import { dateRangeLabel, pkr } from "@/lib/plain-report-pdf"
+import type { CrmOrdersPdfClient } from "@/lib/crm-orders-report-pdf"
 
 export function escCsvCell(value: string | number | null | undefined): string {
   const s = String(value ?? "").replace(/"/g, '""')
@@ -50,76 +59,201 @@ function rowsToCsv(headers: string[], rows: (string | number)[][]): string {
   ].join("\r\n")
 }
 
+function kvRow(label: string, value: string | number) {
+  return `${escCsvCell(label)},${escCsvCell(value)}`
+}
+
+function blankLine() {
+  return ""
+}
+
+function sectionTitle(title: string) {
+  return escCsvCell(title)
+}
+
 function exportMetaHeader(exportedBy?: string) {
   if (!exportedBy?.trim()) return ""
   const when = new Date().toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" })
   return `${escCsvCell("Exported by")},${escCsvCell(exportedBy.trim())}\r\n${escCsvCell("Export time")},${escCsvCell(when)}\r\n\r\n`
 }
 
-export function downloadOrdersExcel(
-  orders: Order[],
-  exportedBy?: string,
+function shortDate(value?: string) {
+  const raw = String(value || "").trim()
+  if (!raw) return "—"
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1].slice(2)}`
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return raw
+  const dd = String(parsed.getDate()).padStart(2, "0")
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0")
+  const yy = String(parsed.getFullYear()).slice(2)
+  return `${dd}/${mm}/${yy}`
+}
+
+function amt(n: number) {
+  return Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })
+}
+
+function fullItems(items: OrderItem[] | undefined) {
+  if (!items?.length) return "—"
+  return items
+    .map((item) => {
+      const name = String(item.description || item.model || "Item")
+        .replace(/\s+/g, " ")
+        .trim()
+      const qty = item.qty > 0 ? `${item.qty}× ` : ""
+      return `${qty}${name}`
+    })
+    .join("\n")
+}
+
+function paymentLabel(order: Order) {
+  if (order.status === "payment_added") return "Pend"
+  if (order.status === "returned") return "Ret"
+  if (hasOutstandingCredit(order)) return "Credit"
+  if (!isOrderOnCredit(order) || getOrderCreditBalance(order) <= 0.004) return "Paid"
+  return "Paid"
+}
+
+function paidWithDates(order: Order) {
+  const paid = getOrderAmountPaid(order)
+  const lines = getBalanceSubmittedPayments(order.payments, order.status)
+    .filter((p) => (Number(p.amount) || 0) > 0.004)
+    .map((p) => `${amt(p.amount)} · ${shortDate(p.date || p.createdAt)}`)
+
+  if (!lines.length) return paid > 0.004 ? amt(paid) : "0"
+  if (lines.length === 1) return lines[0]
+  return [`Total ${amt(paid)}`, ...lines].join("\n")
+}
+
+export type OrdersExcelOpts = {
+  exportedBy?: string
   salesAgentUserIds?: ReadonlySet<string>
-) {
-  const sourceOpts = salesAgentUserIds ? { salesAgentUserIds } : undefined
-  const headers = [
-    "Order #",
-    "Source",
-    "Client",
-    "Warranty Name",
-    "Client ID",
-    "Line Count",
-    "Total Qty",
-    "Line Items",
-    "Subtotal",
-    "Tax %",
-    "Tax",
-    "Transport",
-    "Other Cost",
-    "Shipping",
-    "Discount",
-    "Total (PKR)",
-    "Status",
-    "Date",
-    "Created By",
-    "Referrer",
-    "Sales Agent ID",
-    "Delivery Address",
-    "Delivery Date",
-    "Notes",
-    "Dispatcher",
-    "Payments Count",
-  ]
-  const rows = orders.map(o => [
-    o.orderNumber,
-    getOrderSourcePdfLabel(o, sourceOpts),
-    o.clientName,
-    o.warrantyHolderName || "",
-    o.clientId,
-    o.items?.length ?? 0,
-    getCrmItemsTotalQty(o.items),
-    formatItemsLine(o.items),
-    o.subtotal ?? 0,
-    o.taxPercent ?? 0,
-    o.tax ?? 0,
-    o.transportCostValue ?? o.transportCost ?? 0,
-    o.otherCostValue ?? o.otherCost ?? 0,
-    o.shipping ?? 0,
-    o.discountValue ?? o.discount ?? 0,
-    o.total ?? 0,
-    ORDER_STATUS_LABELS[o.status] || o.status,
-    formatDate(o.createdAt),
-    o.createdBy,
-    o.referrerName || "",
-    o.ownerUserId ?? "",
-    o.deliveryAddress ?? "",
-    o.deliveryDate ?? "",
-    o.notes ?? "",
-    o.dispatcher || o.fulfillmentDispatcher || "",
-    (o.payments || []).length,
+  dateFrom?: string
+  dateTo?: string
+  clientName?: string
+  clients?: CrmOrdersPdfClient[]
+}
+
+/** Clean CRM Orders report Excel — same layout as the PDF. */
+export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | string, salesAgentUserIds?: ReadonlySet<string>) {
+  const options: OrdersExcelOpts =
+    typeof opts === "string"
+      ? { exportedBy: opts, salesAgentUserIds }
+      : { ...(opts || {}), salesAgentUserIds: opts?.salesAgentUserIds ?? salesAgentUserIds }
+
+  const stats = aggregateOrderPaymentStats(orders)
+  const totalQty = orders.reduce((sum, order) => sum + getCrmItemsTotalQty(order.items), 0)
+  const moneyReceived = stats.totalReceived
+  const outstanding = stats.totalOutstanding
+  const orderValue = stats.totalOrderValue || orders.reduce((sum, order) => sum + (order.total || 0), 0)
+  const range = dateRangeLabel(options.dateFrom || "", options.dateTo || "")
+  const clients = (options.clients || []).filter((c) => c.name?.trim())
+  const clientLabel =
+    clients.length > 1
+      ? `${clients.length} clients`
+      : clients[0]?.name || options.clientName || ""
+
+  const generated = new Date().toLocaleString("en-PK", {
+    timeZone: "Asia/Karachi",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+
+  const lines: string[] = []
+  lines.push(escCsvCell("VOLTRIX BATTERIES PVT. LTD."))
+  lines.push(escCsvCell("CRM ORDERS REPORT"))
+  lines.push(blankLine())
+  lines.push(kvRow("Period", range))
+  lines.push(
+    kvRow(
+      "Scope",
+      clientLabel
+        ? `ERP orders only · ${clientLabel}${options.exportedBy ? ` · ${options.exportedBy}` : ""}`
+        : `ERP orders only · Branch POS excluded${options.exportedBy ? ` · ${options.exportedBy}` : ""}`,
+    ),
+  )
+  lines.push(
+    kvRow(
+      "Generated",
+      `${generated} (Pakistan time) · Received ${pkr(moneyReceived)} · Due ${pkr(outstanding)}`,
+    ),
+  )
+  lines.push(blankLine())
+
+  if (clients.length > 0) {
+    lines.push(sectionTitle(clients.length > 1 ? `Client details · ${clients.length} clients` : "Client details"))
+    const detailRows: (string | number)[][] = []
+    clients.forEach((client, index) => {
+      if (clients.length > 1) detailRows.push([`Client ${index + 1}`, client.name || "—"])
+      else detailRows.push(["Name", client.name || "—"])
+      if (client.company?.trim()) detailRows.push(["Company", client.company.trim()])
+      if (client.phone?.trim()) detailRows.push(["Phone", client.phone.trim()])
+      if (client.email?.trim()) detailRows.push(["Email", client.email.trim()])
+      if (client.ntn?.trim()) detailRows.push(["NTN", client.ntn.trim()])
+      const place = [client.address, client.city].map((s) => String(s || "").trim()).filter(Boolean).join(", ")
+      if (place) detailRows.push(["Address", place])
+      if (clients.length > 1 && index < clients.length - 1) detailRows.push(["", ""])
+    })
+    lines.push(rowsToCsv(["Field", "Detail"], detailRows))
+    lines.push(blankLine())
+  } else if (options.clientName?.trim()) {
+    lines.push(sectionTitle("Client details"))
+    lines.push(rowsToCsv(["Field", "Detail"], [["Name", options.clientName.trim()]]))
+    lines.push(blankLine())
+  }
+
+  lines.push(sectionTitle("Totals"))
+  lines.push(
+    rowsToCsv(
+      ["Item", "Amount"],
+      [
+        ["Total order value", pkr(orderValue)],
+        ["Received", pkr(moneyReceived)],
+        ["Outstanding", pkr(outstanding)],
+        ["Total order qty", `${totalQty} pcs`],
+        ["Orders", String(orders.length)],
+      ],
+    ),
+  )
+  lines.push(blankLine())
+
+  lines.push(sectionTitle("ERP client orders"))
+  const orderHeaders = ["Date", "Order", "Client", "Items", "Pay", "Total", "Paid", "Credit"]
+  const orderRows = orders.map((order) => {
+    const by = order.createdBy?.trim()
+    const client = by ? `${order.clientName || "—"} · ${by}` : order.clientName || "—"
+    return [
+      shortDate(order.createdAt),
+      order.orderNumber || "—",
+      client,
+      fullItems(order.items),
+      paymentLabel(order),
+      amt(order.total || 0),
+      paidWithDates(order),
+      amt(getOrderCreditBalance(order)),
+    ]
+  })
+  orderRows.push([
+    "",
+    "",
+    "",
+    String(orders.length),
+    "",
+    amt(orderValue),
+    amt(moneyReceived),
+    amt(outstanding),
   ])
-  const csv = exportMetaHeader(exportedBy) + rowsToCsv(headers, rows)
-  downloadCsv(`orders-export-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+  lines.push(rowsToCsv(orderHeaders, orderRows))
+  lines.push(blankLine())
+  lines.push(escCsvCell("Voltrix Batteries Pvt. Ltd."))
+
+  const from = options.dateFrom || "all"
+  const to = options.dateTo || "all"
+  downloadCsv(`crm-orders-${from}-to-${to}.csv`, lines.join("\r\n"))
 }
 
 export function downloadQuotationsExcel(quotations: Quotation[], exportedBy?: string) {
@@ -368,10 +502,9 @@ export function downloadClientLedgerExcel(payload: ClientLedgerPayload) {
         ["Outstanding (PKR)", stats.totalOutstanding],
         ["Fully paid orders", payload.fullyPaidCount],
         ["Partial orders", payload.partialCount],
-        ["On credit orders", payload.onCreditCount],
         ["Returned orders", stats.returnedCount],
         ["Partial received (PKR)", stats.partialPaymentsReceived],
-        ["Credit still owed (PKR)", stats.creditOutstanding],
+        ["Still owed (PKR)", stats.creditOutstanding],
         ["Refunds (PKR)", stats.returnedRefundAmount],
         ["Cashback (PKR)", stats.cashbackAmount],
       ],
