@@ -9,6 +9,7 @@ import {
   getReturnedLinesSummary,
   getItemRemainingReturnableQty,
   getItemOriginalQty,
+  getOrderPaymentProofUrls,
   hasOutstandingCredit,
   normalizeOrderPaymentTerms,
   saveOrder,
@@ -148,6 +149,14 @@ function DocDetailModal({
   const [payNotes, setPayNotes] = useState("")
   const [payFiles, setPayFiles] = useState<File[]>([])
 
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
+  const [editAmount, setEditAmount] = useState(0)
+  const [editMethod, setEditMethod] = useState<string>("Cash")
+  const [editDate, setEditDate] = useState("")
+  const [editNotes, setEditNotes] = useState("")
+  const [editFiles, setEditFiles] = useState<File[]>([])
+  const [editProofUrls, setEditProofUrls] = useState<string[]>([])
+
   const paid = order ? getOrderAmountPaid(order) : 0
   const debt = order ? getOrderCreditBalance(order) : 0
   const onCredit = order ? hasOutstandingCredit(order) : false
@@ -155,6 +164,55 @@ function DocDetailModal({
   const hasReturns = order ? orderHasAnyReturns(order) : false
   const canReturn = order ? canReturnOrder(order) : false
   const canReturnPay = order ? canAddReturnPayment(order) : false
+
+  function applyPaymentTerms(base: Order, nextPayments: OrderPayment[]): Order {
+    let updated: Order = {
+      ...base,
+      payments: nextPayments,
+      status: base.status === "draft" || base.status === "confirmed" ? "payment_added" : base.status,
+    }
+    const dueAfter = getOrderCreditBalance(updated)
+    if (dueAfter <= 0.004) {
+      updated = {
+        ...updated,
+        paymentTerms: "full",
+        creditNote: base.creditNote,
+      }
+    } else {
+      updated = {
+        ...updated,
+        paymentTerms: "credit",
+        creditApprovedAt: base.creditApprovedAt || new Date().toISOString(),
+        creditApprovedBy: base.creditApprovedBy || userName,
+      }
+    }
+    return normalizeOrderPaymentTerms(updated)
+  }
+
+  function resetAddPaymentForm() {
+    setAddingPayment(false)
+    setPayAmount(0)
+    setPayNotes("")
+    setPayFiles([])
+    setPayMethod("Cash")
+  }
+
+  function cancelEditPayment() {
+    setEditingPaymentId(null)
+    setEditFiles([])
+    setEditProofUrls([])
+  }
+
+  function startEditPayment(payment: OrderPayment) {
+    setAddingPayment(false)
+    setEditingPaymentId(payment.id)
+    setEditAmount(Number(payment.amount) || 0)
+    setEditMethod(payment.method || "Cash")
+    setEditDate((payment.date || "").slice(0, 10) || new Date().toISOString().slice(0, 10))
+    setEditNotes(payment.notes || "")
+    setEditFiles([])
+    setEditProofUrls(getOrderPaymentProofUrls(payment))
+  }
 
   async function handleDownloadPdf() {
     setExportingPdf(true)
@@ -253,37 +311,87 @@ function DocDetailModal({
         createdAt: new Date().toISOString(),
         createdBy: userName,
       }
-      const nextPayments = [...(order.payments || []), payment]
-      let updated: Order = {
-        ...order,
-        payments: nextPayments,
-        status: order.status === "draft" || order.status === "confirmed" ? "payment_added" : order.status,
-      }
-      const dueAfter = getOrderCreditBalance(updated)
-      if (dueAfter <= 0.004) {
-        updated = {
-          ...updated,
-          paymentTerms: "full",
-          creditNote: order.creditNote,
-        }
-      } else {
-        updated = {
-          ...updated,
-          paymentTerms: "credit",
-          creditApprovedAt: order.creditApprovedAt || new Date().toISOString(),
-          creditApprovedBy: order.creditApprovedBy || userName,
-        }
-      }
-      updated = normalizeOrderPaymentTerms(updated)
+      const updated = applyPaymentTerms(order, [...(order.payments || []), payment])
       const saved = await saveOrder(updated)
       toast({ type: "success", title: "Payment added" })
-      setAddingPayment(false)
-      setPayAmount(0)
-      setPayNotes("")
-      setPayFiles([])
+      resetAddPaymentForm()
       onSaved?.(saved)
     } catch (err) {
       toast({ type: "error", title: "Could not add payment", message: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSavePaymentEdit() {
+    if (!order || !editingPaymentId) return
+    const amount = Math.max(0, Number(editAmount) || 0)
+    if (amount <= 0 && editProofUrls.length === 0 && editFiles.length === 0) {
+      toast({ type: "error", title: "Enter a payment amount or keep at least one proof" })
+      return
+    }
+    setSaving(true)
+    try {
+      let proofUrls = [...editProofUrls]
+      if (editFiles.length > 0) {
+        const uploaded = await uploadFiles(editFiles, "payment-proofs")
+        proofUrls = [...proofUrls, ...uploaded]
+      }
+      const nextPayments = (order.payments || []).map((p) =>
+        p.id === editingPaymentId
+          ? {
+              ...p,
+              amount,
+              method: editMethod,
+              date: editDate || p.date,
+              notes: editNotes.trim() || p.notes || "POS payment",
+              proofUrls: proofUrls.length ? proofUrls : undefined,
+              proofUrl: proofUrls[0],
+              submissionStatus: p.submissionStatus || ("approved" as const),
+            }
+          : p,
+      )
+      const updated = applyPaymentTerms(order, nextPayments)
+      const saved = await saveOrder(updated)
+      toast({ type: "success", title: "Payment updated" })
+      cancelEditPayment()
+      onSaved?.(saved)
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not update payment",
+        message: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDeletePayment(paymentId: string) {
+    if (!order) return
+    const payment = order.payments?.find((p) => p.id === paymentId)
+    if (!payment) return
+    const ok = await confirm({
+      type: "confirm",
+      title: "Delete payment?",
+      message: `Remove ${payment.method || "payment"} of ${formatPkr(payment.amount)}? Order balance will update.`,
+      confirmLabel: "Delete payment",
+    })
+    if (!ok) return
+    setSaving(true)
+    try {
+      const nextPayments = (order.payments || []).filter((p) => p.id !== paymentId)
+      const updated = applyPaymentTerms(order, nextPayments)
+      const saved = await saveOrder(updated)
+      toast({ type: "success", title: "Payment removed" })
+      if (editingPaymentId === paymentId) cancelEditPayment()
+      onSaved?.(saved)
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not delete payment",
+        message: err instanceof Error ? err.message : undefined,
+      })
     } finally {
       setSaving(false)
     }
@@ -478,25 +586,165 @@ function DocDetailModal({
             <div>
               <p className="text-[10px] uppercase font-semibold text-[hsl(var(--muted-foreground))] mb-2">Payments</p>
               <ul className="space-y-2">
-                {order.payments!.map((p) => (
-                  <li key={p.id} className="rounded-md border px-3 py-2 text-xs space-y-1">
-                    <div className="flex justify-between gap-2">
-                      <span className="font-medium capitalize">{p.method || "Payment"}</span>
-                      <span className="tabular-nums font-semibold">{formatPkr(p.amount)}</span>
-                    </div>
-                    <p className="text-[hsl(var(--muted-foreground))]">{p.date} · {p.createdBy}</p>
-                    {p.notes && <p>{p.notes}</p>}
-                    {(p.proofUrls?.length || p.proofUrl) && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {(p.proofUrls?.length ? p.proofUrls : p.proofUrl ? [p.proofUrl] : []).map((url) => (
-                          <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[#1faca6] underline">
-                            View attachment
-                          </a>
-                        ))}
+                {order.payments!.map((p) => {
+                  const isEditing = editingPaymentId === p.id
+                  const proofUrls = isEditing ? editProofUrls : getOrderPaymentProofUrls(p)
+                  return (
+                  <li key={p.id} className="rounded-md border px-3 py-2 text-xs space-y-2">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold">Edit payment</p>
+                        <div className="grid sm:grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Amount (PKR)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={editAmount || ""}
+                              onChange={(e) => setEditAmount(Number(e.target.value) || 0)}
+                              className="w-full h-9 rounded-md border px-2 text-sm"
+                            />
+                            <button
+                              type="button"
+                              className="text-[10px] text-[#1faca6] underline"
+                              onClick={() =>
+                                setEditAmount(Math.round(debt + (Number(p.amount) || 0) > 0 ? debt + (Number(p.amount) || 0) : order.total))
+                              }
+                            >
+                              Fill remaining due
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Method</label>
+                            <select
+                              value={editMethod}
+                              onChange={(e) => setEditMethod(e.target.value)}
+                              className="w-full h-9 rounded-md border px-2 text-sm bg-[hsl(var(--background))]"
+                            >
+                              {PAYMENT_METHODS.map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Payment date</label>
+                          <input
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="w-full h-9 rounded-md border px-2 text-sm"
+                          />
+                        </div>
+                        <input
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          placeholder="Payment notes"
+                          className="w-full h-9 rounded-md border px-2 text-sm"
+                        />
+                        {proofUrls.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Proofs</p>
+                            {proofUrls.map((url) => (
+                              <div key={url} className="flex items-center justify-between gap-2 rounded border px-2 py-1.5">
+                                <a href={url} target="_blank" rel="noreferrer" className="text-[#1faca6] underline truncate">
+                                  View attachment
+                                </a>
+                                <button
+                                  type="button"
+                                  className="text-red-600 hover:underline shrink-0"
+                                  onClick={() => setEditProofUrls((prev) => prev.filter((u) => u !== url))}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase text-[hsl(var(--muted-foreground))]">Add proof</label>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            multiple
+                            onChange={(e) => setEditFiles(Array.from(e.target.files || []))}
+                            className="w-full text-xs"
+                          />
+                          {editFiles.length > 0 && (
+                            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                              {editFiles.length} new file{editFiles.length === 1 ? "" : "s"} ready to upload
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 text-xs bg-[#1faca6] hover:bg-[#17857f] text-white"
+                            disabled={saving}
+                            onClick={() => void handleSavePaymentEdit()}
+                          >
+                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                            Save changes
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            disabled={saving}
+                            onClick={cancelEditPayment}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between gap-2 items-start">
+                          <div className="min-w-0">
+                            <div className="flex justify-between gap-2">
+                              <span className="font-medium capitalize">{p.method || "Payment"}</span>
+                              <span className="tabular-nums font-semibold">{formatPkr(p.amount)}</span>
+                            </div>
+                            <p className="text-[hsl(var(--muted-foreground))]">{p.date} · {p.createdBy}</p>
+                            {p.notes && <p>{p.notes}</p>}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={saving || addingPayment}
+                              onClick={() => startEditPayment(p)}
+                              className="p-1.5 rounded border hover:bg-[hsl(var(--muted))]/40 cursor-pointer disabled:opacity-50"
+                              title="Edit payment"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void handleDeletePayment(p.id)}
+                              className="p-1.5 rounded border text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer disabled:opacity-50"
+                              title="Delete payment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {proofUrls.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {proofUrls.map((url) => (
+                              <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[#1faca6] underline">
+                                View attachment
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             </div>
           )}
@@ -546,7 +794,7 @@ function DocDetailModal({
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
                   Save payment
                 </Button>
-                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={saving} onClick={() => setAddingPayment(false)}>
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={saving} onClick={resetAddPaymentForm}>
                   Cancel
                 </Button>
               </div>
@@ -660,7 +908,7 @@ function DocDetailModal({
         </div>
 
         <div className="flex flex-wrap gap-2 px-4 py-3 border-t shrink-0 bg-[hsl(var(--muted))]/10">
-          {!editing && !addingPayment && !showReturn && !showReturnPayment && (
+          {!editing && !addingPayment && !editingPaymentId && !showReturn && !showReturnPayment && (
             <Button
               type="button"
               size="sm"
@@ -673,12 +921,22 @@ function DocDetailModal({
               {kind === "order" ? "Download invoice" : "Download PDF"}
             </Button>
           )}
-          {kind === "order" && order && !editing && !addingPayment && (
+          {kind === "order" && order && !editing && !addingPayment && !editingPaymentId && (
             <>
               <Button type="button" size="sm" variant="outline" className="h-9 text-xs" disabled={busy || saving} onClick={() => setEditing(true)}>
                 <Pencil className="h-3.5 w-3.5" /> Edit
               </Button>
-              <Button type="button" size="sm" variant="outline" className="h-9 text-xs" disabled={busy || saving} onClick={() => setAddingPayment(true)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 text-xs"
+                disabled={busy || saving}
+                onClick={() => {
+                  cancelEditPayment()
+                  setAddingPayment(true)
+                }}
+              >
                 <DollarSign className="h-3.5 w-3.5" /> Add payment
               </Button>
               {canReturn && (
@@ -712,7 +970,7 @@ function DocDetailModal({
               </Button>
             </>
           )}
-          {onDelete && !editing && !addingPayment && (
+          {onDelete && !editing && !addingPayment && !editingPaymentId && (
             <Button type="button" size="sm" variant="ghost" className="h-9 text-xs text-red-600" disabled={busy || saving} onClick={onDelete}>
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </Button>
