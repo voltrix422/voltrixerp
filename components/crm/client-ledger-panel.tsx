@@ -376,13 +376,12 @@ export function ClientLedgerSummary({
       <div className="px-4 py-2 text-[11px] text-[hsl(var(--muted-foreground))] flex flex-wrap gap-x-3 gap-y-1">
         <span>Fully paid {payload.fullyPaidCount}</span>
         <span>Partial {payload.partialCount}</span>
-        <span>On credit {payload.onCreditCount}</span>
         <span>Returned {stats.returnedCount}</span>
         {stats.partialPaymentsReceived > 0.004 && (
           <span className="tabular-nums">Partial received {formatPkr(stats.partialPaymentsReceived)}</span>
         )}
         {stats.creditOutstanding > 0.004 && (
-          <span className="tabular-nums">Credit still owed {formatPkr(stats.creditOutstanding)}</span>
+          <span className="tabular-nums">Still owed {formatPkr(stats.creditOutstanding)}</span>
         )}
       </div>
     </section>

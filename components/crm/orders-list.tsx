@@ -509,6 +509,15 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
         exportedBy: currentUser,
         salesAgentUserIds: salesAgentUserIds ?? undefined,
         clientName: ledgerLabel || undefined,
+        clients: ledgerClients.map((c) => ({
+          name: c.name,
+          company: c.company,
+          phone: c.phone,
+          email: c.email,
+          ntn: c.ntn,
+          address: c.address,
+          city: c.city,
+        })),
         includeOutstanding: includeOutstandingInTotal,
       })
       toast({
