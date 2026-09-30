@@ -221,6 +221,8 @@ export interface Order {
 
 export type OrderReplacementDisposition = "main" | "faulty"
 
+export type OrderReplacementStockApprovalStatus = "pending" | "approved" | "rejected"
+
 export interface OrderReplacementLine {
   id: string
   orderItemId: string
@@ -235,6 +237,20 @@ export interface OrderReplacementLine {
   description?: string
   model?: string
   unit?: string
+  /** Returned unit waits for inventory receive/approve before main or faulty stock increases. */
+  stockApprovalStatus?: OrderReplacementStockApprovalStatus
+  stockApprovedAt?: string
+  stockApprovedBy?: string
+  stockApprovalNote?: string
+}
+
+export function isReplacementStockPending(line: Pick<OrderReplacementLine, "stockApprovalStatus">) {
+  return line.stockApprovalStatus === "pending"
+}
+
+export function isReplacementStockApproved(line: Pick<OrderReplacementLine, "stockApprovalStatus">) {
+  // Legacy rows (no status) already restored stock at replace time.
+  return !line.stockApprovalStatus || line.stockApprovalStatus === "approved"
 }
 
 export type PaymentSubmissionStatus = "draft" | "pending_approval" | "approved"

@@ -113,13 +113,9 @@ export function OrderItemReplacement({
       })
       onComplete(rowToOrder(updated))
       toast({
-        title: "Item replaced",
+        title: "Replacement submitted",
         message:
-          requiresSerial
-            ? `${oldSerial.trim()} → ${newSerial.trim()} on ${order.orderNumber}`
-            : newSerial.trim()
-            ? `1 unit replaced · new SN ${newSerial.trim()} linked on ${order.orderNumber}`
-            : `1 unit replaced on ${order.orderNumber}`,
+          "New unit dispatched. Returned unit is waiting in Inventory → Approvals — stock increases only after inventory receives and approves it.",
         type: "success",
       })
       onClose()
@@ -335,6 +331,9 @@ export function OrderItemReplacement({
                 <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">Goes to Faulty tab only</p>
               </button>
             </div>
+            <p className="mt-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-2">
+              Returned unit does not increase stock yet. After submit it goes to <span className="font-semibold">Inventory → Approvals</span>. Inventory must receive the item and approve — then it is added to Main or Faulty.
+            </p>
           </div>
 
           <div>

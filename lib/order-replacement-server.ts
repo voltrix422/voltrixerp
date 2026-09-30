@@ -13,10 +13,11 @@ import {
 } from "@/lib/manual-inventory-server"
 import type { OrderFulfillmentSerialAllocation } from "@/lib/order-fulfillment-serials"
 import type { OrderReplacementDisposition, OrderReplacementLine } from "@/lib/orders"
-import { resolveOrderItemModel } from "@/lib/orders"
+import { isReplacementStockPending, resolveOrderItemModel } from "@/lib/orders"
 import { parseProductQrPayload } from "@/lib/parse-product-qr"
 import { addYears } from "@/lib/warranty-activation"
 import { warrantyYearsForProduct } from "@/lib/warranty-policy"
+import { notifyUsersByModule } from "@/lib/notifications-server"
 
 export type ReplaceOrderItemInput = {
   orderId: string
@@ -469,6 +470,50 @@ async function dispatchNewSerialUnit(params: {
   return created
 }
 
+function makePendingReplacement(params: {
+  orderItemId: string
+  oldSerialNumber?: string
+  newSerialNumber?: string
+  disposition: OrderReplacementDisposition
+  reason: string
+  photoUrls: string[]
+  replacedBy: string
+  description: string
+  model: string
+  unit: string
+}): OrderReplacementLine {
+  return {
+    id: `repl-${Date.now()}`,
+    orderItemId: params.orderItemId,
+    oldSerialNumber: params.oldSerialNumber || undefined,
+    newSerialNumber: params.newSerialNumber || undefined,
+    qty: 1,
+    disposition: params.disposition,
+    reason: params.reason,
+    photoUrls: params.photoUrls,
+    replacedAt: new Date().toISOString(),
+    replacedBy: params.replacedBy,
+    description: params.description,
+    model: params.model,
+    unit: params.unit,
+    stockApprovalStatus: "pending",
+  }
+}
+
+async function notifyPendingReplacementReturn(orderNumber: string, description: string, disposition: string, replacedBy: string) {
+  const dest = disposition === "faulty" ? "Faulty / damaged" : "Main inventory"
+  try {
+    await notifyUsersByModule("inventory", {
+      title: "Replacement return awaiting approval",
+      message: `${orderNumber}: ${description} → ${dest}. Submitted by ${replacedBy}. Receive the unit, then approve in Inventory → Approvals.`,
+      type: "warning",
+      link: "/inventory?tab=approvals",
+    })
+  } catch {
+    /* notification failure must not block replace */
+  }
+}
+
 export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
   const order = await prisma.erpOrder.findUnique({ where: { id: input.orderId } })
   if (!order) throw new Error("Order not found")
@@ -500,6 +545,9 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
     model: typeof orderItem.model === "string" ? orderItem.model : undefined,
     inventoryItemId: typeof orderItem.inventoryItemId === "string" ? orderItem.inventoryItemId : undefined,
   }
+  const existingReplacements = Array.isArray(order.replacementLines)
+    ? (order.replacementLines as unknown as OrderReplacementLine[])
+    : []
 
   if (lineAllocations.length > 0) {
     if (!oldSn) throw new Error("Scan or select the old serial number being returned")
@@ -514,17 +562,7 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
 
     const registeredNew = await assertNewSerialCanDispatch(newSn, lineForStock)
 
-    await restoreOldSerialUnit({
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      serialNumber: oldSn,
-      disposition: input.disposition,
-      replacedBy: input.replacedBy,
-      reason,
-      photoUrls,
-      orderItem: lineForStock,
-    })
-
+    // Dispatch replacement to customer immediately; returned unit waits for inventory approval.
     const dispatched = await dispatchNewSerialUnit({
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -548,25 +586,18 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         },
       ])
 
-    const replacement: OrderReplacementLine = {
-      id: `repl-${Date.now()}`,
+    const replacement = makePendingReplacement({
       orderItemId: input.orderItemId,
       oldSerialNumber: oldSn,
       newSerialNumber: newSn,
-      qty: 1,
       disposition: input.disposition,
       reason,
       photoUrls,
-      replacedAt: new Date().toISOString(),
       replacedBy: input.replacedBy,
       description: String(orderItem.description || ""),
       model: dispatchModel,
       unit: String(orderItem.unit || "pcs"),
-    }
-
-    const existingReplacements = Array.isArray(order.replacementLines)
-      ? (order.replacementLines as unknown as OrderReplacementLine[])
-      : []
+    })
 
     const updated = await prisma.erpOrder.update({
       where: { id: order.id },
@@ -575,37 +606,19 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         replacementLines: [...existingReplacements, replacement] as unknown as Prisma.InputJsonValue,
       },
     })
-
+    await notifyPendingReplacementReturn(
+      order.orderNumber,
+      String(orderItem.description || ""),
+      input.disposition,
+      input.replacedBy,
+    )
     return updated
   }
 
   // Qty-only line (no serial allocations)
-  // Old unit received by qty; new unit can optionally be a scanned serial or plain qty
   const qtyReplace = lineAllocations.length === 0
 
   if (qtyReplace) {
-    if (oldSn) {
-      await restoreOldSerialUnit({
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        serialNumber: oldSn,
-        disposition: input.disposition,
-        replacedBy: input.replacedBy,
-        reason,
-        photoUrls,
-        orderItem: lineForStock,
-      })
-    } else {
-      await restoreOldQtyUnit({
-        orderItem: orderItem as never,
-        orderNumber: order.orderNumber,
-        disposition: input.disposition,
-        replacedBy: input.replacedBy,
-        reason,
-        photoUrls,
-      })
-    }
-
     if (newSn) {
       const registeredNew = await assertNewSerialCanDispatch(newSn, lineForStock)
       const dispatched = await dispatchNewSerialUnit({
@@ -630,7 +643,6 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
           serialNumber: newSn,
           unitId: dispatched.id,
         }
-        // Keep at most line qty serials for this item (drop oldest extras).
         const nextLine =
           lineQty > 0 && line.length >= lineQty
             ? [...line.slice(-(lineQty - 1)), added]
@@ -638,36 +650,36 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
         return [...other, ...nextLine]
       })()
 
-      const replacement: OrderReplacementLine = {
-        id: `repl-${Date.now()}`,
+      const replacement = makePendingReplacement({
         orderItemId: input.orderItemId,
         oldSerialNumber: oldSn || undefined,
         newSerialNumber: newSn,
-        qty: 1,
         disposition: input.disposition,
         reason,
         photoUrls,
-        replacedAt: new Date().toISOString(),
         replacedBy: input.replacedBy,
         description: String(orderItem.description || ""),
         model: dispatchModel,
         unit: String(orderItem.unit || "pcs"),
-      }
+      })
 
-      const existingReplacements = Array.isArray(order.replacementLines)
-        ? (order.replacementLines as unknown as OrderReplacementLine[])
-        : []
-
-      return prisma.erpOrder.update({
+      const updated = await prisma.erpOrder.update({
         where: { id: order.id },
         data: {
           fulfillmentSerialAllocations: nextAllocations as unknown as Prisma.InputJsonValue,
           replacementLines: [...existingReplacements, replacement] as unknown as Prisma.InputJsonValue,
         },
       })
+      await notifyPendingReplacementReturn(
+        order.orderNumber,
+        String(orderItem.description || ""),
+        input.disposition,
+        input.replacedBy,
+      )
+      return updated
     }
 
-    // No new serial — plain qty swap (deduct 1 fresh unit from stock)
+    // No new serial — plain qty swap (deduct 1 fresh unit from stock now; return waits for approval)
     const manual = await resolveManualInventoryForOrderLine(orderItem as never)
     if (manual) {
       await decrementManualInventoryByModel(manual.model, 1)
@@ -682,32 +694,161 @@ export async function replaceOrderItemServer(input: ReplaceOrderItemInput) {
       })
     }
 
-    const replacement: OrderReplacementLine = {
-      id: `repl-${Date.now()}`,
+    const replacement = makePendingReplacement({
       orderItemId: input.orderItemId,
       oldSerialNumber: oldSn || undefined,
-      qty: 1,
       disposition: input.disposition,
       reason,
       photoUrls,
-      replacedAt: new Date().toISOString(),
       replacedBy: input.replacedBy,
       description: String(orderItem.description || ""),
       model,
       unit: String(orderItem.unit || "pcs"),
-    }
+    })
 
-    const existingReplacements = Array.isArray(order.replacementLines)
-      ? (order.replacementLines as unknown as OrderReplacementLine[])
-      : []
-
-    return prisma.erpOrder.update({
+    const updated = await prisma.erpOrder.update({
       where: { id: order.id },
       data: {
         replacementLines: [...existingReplacements, replacement] as unknown as Prisma.InputJsonValue,
       },
     })
+    await notifyPendingReplacementReturn(
+      order.orderNumber,
+      String(orderItem.description || ""),
+      input.disposition,
+      input.replacedBy,
+    )
+    return updated
   }
 
   throw new Error("This order line requires serial numbers for replacement")
+}
+
+export type PendingReplacementApproval = {
+  orderId: string
+  orderNumber: string
+  clientName: string
+  replacement: OrderReplacementLine
+}
+
+export async function listPendingReplacementApprovalsServer(): Promise<PendingReplacementApproval[]> {
+  const orders = await prisma.erpOrder.findMany({
+    where: {
+      NOT: { source: "branch_pos" },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  })
+  const pending: PendingReplacementApproval[] = []
+  for (const order of orders) {
+    const lines = Array.isArray(order.replacementLines)
+      ? (order.replacementLines as unknown as OrderReplacementLine[])
+      : []
+    for (const line of lines) {
+      if (!isReplacementStockPending(line)) continue
+      pending.push({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        clientName: order.clientName,
+        replacement: line,
+      })
+    }
+  }
+  pending.sort((a, b) => String(b.replacement.replacedAt || "").localeCompare(String(a.replacement.replacedAt || "")))
+  return pending
+}
+
+export async function reviewReplacementReturnServer(input: {
+  orderId: string
+  replacementId: string
+  decision: "approved" | "rejected"
+  reviewedBy: string
+  note?: string
+}) {
+  const order = await prisma.erpOrder.findUnique({ where: { id: input.orderId } })
+  if (!order) throw new Error("Order not found")
+
+  const lines = Array.isArray(order.replacementLines)
+    ? (order.replacementLines as unknown as OrderReplacementLine[])
+    : []
+  const idx = lines.findIndex((l) => l.id === input.replacementId)
+  if (idx < 0) throw new Error("Replacement record not found")
+  const line = lines[idx]
+  if (!isReplacementStockPending(line)) {
+    throw new Error("This return is not awaiting inventory approval")
+  }
+
+  if (input.decision === "rejected") {
+    const next = [...lines]
+    next[idx] = {
+      ...line,
+      stockApprovalStatus: "rejected",
+      stockApprovedAt: new Date().toISOString(),
+      stockApprovedBy: input.reviewedBy,
+      stockApprovalNote: input.note?.trim() || "Rejected — returned unit not taken into stock",
+    }
+    return prisma.erpOrder.update({
+      where: { id: order.id },
+      data: { replacementLines: next as unknown as Prisma.InputJsonValue },
+    })
+  }
+
+  const items = Array.isArray(order.items) ? (order.items as Array<Record<string, unknown>>) : []
+  const orderItem = items.find((item) => String(item.id || "") === line.orderItemId)
+  const lineForStock: OrderLineForStock | undefined = orderItem
+    ? {
+        id: String(orderItem.id || ""),
+        description: String(orderItem.description || line.description || ""),
+        unit: String(orderItem.unit || line.unit || "pcs"),
+        isCustom: Boolean(orderItem.isCustom),
+        model: typeof orderItem.model === "string" ? orderItem.model : line.model,
+        inventoryItemId: typeof orderItem.inventoryItemId === "string" ? orderItem.inventoryItemId : undefined,
+      }
+    : line.description
+      ? {
+          id: line.orderItemId,
+          description: line.description,
+          unit: line.unit || "pcs",
+          model: line.model,
+        }
+      : undefined
+
+  const oldSn = (line.oldSerialNumber || "").trim()
+  if (oldSn) {
+    await restoreOldSerialUnit({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      serialNumber: oldSn,
+      disposition: line.disposition,
+      replacedBy: input.reviewedBy,
+      reason: line.reason,
+      photoUrls: line.photoUrls,
+      orderItem: lineForStock,
+    })
+  } else if (lineForStock) {
+    await restoreOldQtyUnit({
+      orderItem: lineForStock,
+      orderNumber: order.orderNumber,
+      disposition: line.disposition,
+      replacedBy: input.reviewedBy,
+      reason: line.reason,
+      photoUrls: line.photoUrls,
+    })
+  } else {
+    throw new Error("Cannot restore stock — order line details missing")
+  }
+
+  const next = [...lines]
+  next[idx] = {
+    ...line,
+    stockApprovalStatus: "approved",
+    stockApprovedAt: new Date().toISOString(),
+    stockApprovedBy: input.reviewedBy,
+    stockApprovalNote: input.note?.trim() || undefined,
+  }
+
+  return prisma.erpOrder.update({
+    where: { id: order.id },
+    data: { replacementLines: next as unknown as Prisma.InputJsonValue },
+  })
 }
