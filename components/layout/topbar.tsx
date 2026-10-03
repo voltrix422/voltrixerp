@@ -35,6 +35,7 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
   }, [])
 
   const initials = user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
+  const investor = isInvestorUser(user?.role)
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-[hsl(var(--background))] px-4 md:px-6">
@@ -49,17 +50,21 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
 
       <div className="flex items-center gap-1.5">
         {action && <>{action}</>}
-        <ActiveUsersCounter />
-        <DBStatusIndicator />
+        {!investor && <ActiveUsersCounter />}
+        {!investor && <DBStatusIndicator />}
         <ThemeToggle />
-        <Separator orientation="vertical" className="h-5 mx-1" />
-        <InstallErpButton />
-        <TestNotificationButton />
-        <MessagesIcon />
-        <NotificationBell />
+        {!investor && (
+          <>
+            <Separator orientation="vertical" className="h-5 mx-1" />
+            <InstallErpButton />
+            <TestNotificationButton />
+            <MessagesIcon />
+            <NotificationBell />
+          </>
+        )}
 
         {/* Dashboard quick-link for pending approvals */}
-        {pendingCount !== undefined && pendingCount > 0 && (
+        {!investor && pendingCount !== undefined && pendingCount > 0 && (
           <button
             onClick={onPendingClick}
             className="relative flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))] transition-colors"

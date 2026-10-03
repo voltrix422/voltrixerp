@@ -81,7 +81,7 @@ function InvestorTermsFields({
         </label>
       </div>
       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-        They receive investment × ROI% × period (3 months = 1/4 of annual, 6 months = 1/2). Sales in CRM 2 stay the same for all investors.
+        They receive investment × ROI% × period (3 months = 1/4 of annual, 6 months = 1/2). Sales in CRM Investor stay the same for all investors.
       </p>
     </div>
   )
@@ -390,7 +390,7 @@ function AddUserForm({
         {isInvestorUser(role) && (
           <>
             <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-              Give them this email and password. They cannot open the staff ERP — only the investor dashboard and CRM 2.
+              Give them this email and password. They cannot open the staff ERP — only the investor dashboard and CRM Investor.
             </p>
             <InvestorTermsFields
               investment={investorInvestment}

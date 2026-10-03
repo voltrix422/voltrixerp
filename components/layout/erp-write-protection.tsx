@@ -28,7 +28,13 @@ function isWriteActionTarget(target: EventTarget | null) {
   return false
 }
 
-export function ErpWriteProtection({ children }: { children: React.ReactNode }) {
+export function ErpWriteProtection({
+  children,
+  hideBanner = false,
+}: {
+  children: React.ReactNode
+  hideBanner?: boolean
+}) {
   const { readOnly } = useAuthWithRole()
   const { toast } = useToast()
 
@@ -72,12 +78,14 @@ export function ErpWriteProtection({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-900 dark:text-amber-100 flex items-center gap-2">
-        <Eye className="h-3.5 w-3.5 shrink-0" />
-        <span>
-          <strong>View only</strong> — you can open assigned pages and browse data, but cannot create, edit, or delete anything.
-        </span>
-      </div>
+      {!hideBanner && (
+        <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-900 dark:text-amber-100 flex items-center gap-2">
+          <Eye className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            <strong>View only</strong> — you can open assigned pages and browse data, but cannot create, edit, or delete anything.
+          </span>
+        </div>
+      )}
       {children}
     </>
   )

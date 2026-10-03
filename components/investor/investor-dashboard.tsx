@@ -36,10 +36,6 @@ export function InvestorDashboardView() {
     <>
       <Topbar title="Company progress" description="Investor dashboard" />
       <div className="flex-1 overflow-auto p-3 sm:p-6 space-y-4 max-w-6xl">
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Welcome{user?.name ? `, ${user.name}` : ""}. Sales below are the CRM 2 book shared with all investors.
-        </p>
-
         <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#1a9f9a]">Your returns</p>
           {configured ? (
@@ -51,8 +47,9 @@ export function InvestorDashboardView() {
                 <PayStat label="You receive" value={formatInvestorRs(due)} accent />
               </div>
               <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                You receive = investment × {roi}%{periodScale} for this {investorRoiPeriodLabel(period).toLowerCase()} term.
-                CRM 2 sales are company figures only and do not change your payout.
+                You receive = investment × {roi}%{periodScale} for this{" "}
+                {investorRoiPeriodLabel(period).toLowerCase()} term. CRM Investor sales are company figures
+                only and do not change your payout.
               </p>
             </>
           ) : (
@@ -64,7 +61,7 @@ export function InvestorDashboardView() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <PayStat label="CRM 2 sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
+          <PayStat label="CRM Investor sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
           <PayStat label="July" value={formatInvestorRs(stats.jul)} />
           <PayStat label="August" value={formatInvestorRs(stats.aug)} />
           <PayStat label="Sep–Oct" value={formatInvestorRs(stats.sep + stats.oct)} />
@@ -101,7 +98,9 @@ export function InvestorDashboardView() {
 
 function PayStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className={`rounded-lg border px-3 py-2 ${accent ? "border-[#1a9f9a] bg-[#1a9f9a]/5" : "bg-[hsl(var(--card))]"}`}>
+    <div
+      className={`rounded-lg border px-3 py-2 ${accent ? "border-[#1a9f9a] bg-[#1a9f9a]/5" : "bg-[hsl(var(--card))]"}`}
+    >
       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</p>
       <p className={`text-sm font-semibold mt-0.5 ${accent ? "text-[#1a9f9a]" : ""}`}>{value}</p>
     </div>

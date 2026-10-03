@@ -2,21 +2,65 @@
 
 import { useMemo, useState } from "react"
 import { Topbar } from "@/components/layout/topbar"
-import { useAuth } from "@/components/auth-provider"
 import {
   INVESTOR_CRM2_FROM,
   INVESTOR_CRM2_ORDERS,
   INVESTOR_CRM2_TO,
-  investorCrm2Clients,
-  investorCrm2Stats,
+  type InvestorCrm2Order,
 } from "@/lib/investor-fake-crm"
 import { formatInvestorCrore, formatInvestorRs } from "@/lib/investor-payout"
 
+function formatPeriodLabel(from: string, to: string) {
+  const fmt = (iso: string) => {
+    const d = new Date(`${iso}T12:00:00`)
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+  }
+  return `${fmt(from)} – ${fmt(to)}`
+}
+
+function formatSalesRangeLabel(from: string, to: string) {
+  const month = (iso: string) =>
+    new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { month: "short" })
+  const a = month(from)
+  const b = month(to)
+  return a === b ? `Sales (${a})` : `Sales (${a}–${b})`
+}
+
+function clientsFromOrders(orders: InvestorCrm2Order[]) {
+  const map = new Map<string, { name: string; orders: number; spent: number }>()
+  for (const o of orders) {
+    const prev = map.get(o.clientName) || { name: o.clientName, orders: 0, spent: 0 }
+    prev.orders += 1
+    prev.spent += o.total
+    map.set(o.clientName, prev)
+  }
+  return Array.from(map.values()).sort((a, b) => b.spent - a.spent)
+}
+
 export function InvestorCrm2View() {
-  const { user } = useAuth()
   const [tab, setTab] = useState<"orders" | "clients">("orders")
-  const stats = useMemo(() => investorCrm2Stats(), [])
-  const clients = useMemo(() => investorCrm2Clients(), [])
+  const [fromDate, setFromDate] = useState(INVESTOR_CRM2_FROM)
+  const [toDate, setToDate] = useState(INVESTOR_CRM2_TO)
+
+  const filteredOrders = useMemo(() => {
+    const from = fromDate || INVESTOR_CRM2_FROM
+    const to = toDate || INVESTOR_CRM2_TO
+    return INVESTOR_CRM2_ORDERS.filter((o) => o.date >= from && o.date <= to)
+  }, [fromDate, toDate])
+
+  const stats = useMemo(() => {
+    const total = filteredOrders.reduce((s, o) => s + o.total, 0)
+    const clients = clientsFromOrders(filteredOrders)
+    return {
+      total,
+      orderCount: filteredOrders.length,
+      clientCount: clients.length,
+    }
+  }, [filteredOrders])
+
+  const clients = useMemo(() => clientsFromOrders(filteredOrders), [filteredOrders])
+
+  const periodLabel = formatPeriodLabel(fromDate || INVESTOR_CRM2_FROM, toDate || INVESTOR_CRM2_TO)
 
   const tabClass = (active: boolean) =>
     `px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors relative cursor-pointer shrink-0 ${
@@ -25,20 +69,60 @@ export function InvestorCrm2View() {
         : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
     }`
 
+  function clearRange() {
+    setFromDate(INVESTOR_CRM2_FROM)
+    setToDate(INVESTOR_CRM2_TO)
+  }
+
   return (
     <>
-      <Topbar title="CRM 2" description="Investor sales book — Jul–Oct 2026" />
+      <Topbar title="CRM Investor" description="Sales book" />
       <div className="flex-1 overflow-auto">
-        <div className="p-3 sm:p-6 max-w-6xl space-y-4">
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Signed in as {user?.name}. This sales book is the same for every investor. Line amounts use CRM product prices
-            (dealership / wholesale / retail by client type).
-          </p>
+        <div className="p-3 sm:p-6 max-w-6xl space-y-4" data-readonly-allow>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2 sm:gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] font-semibold">
+                From
+              </label>
+              <input
+                type="date"
+                value={fromDate}
+                min={INVESTOR_CRM2_FROM}
+                max={INVESTOR_CRM2_TO}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] font-semibold">
+                To
+              </label>
+              <input
+                type="date"
+                value={toDate}
+                min={INVESTOR_CRM2_FROM}
+                max={INVESTOR_CRM2_TO}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={clearRange}
+              className="h-8 px-3 rounded-md border text-xs font-medium hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
+            >
+              All dates
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Stat label="Sales (Jul–Oct)" value={`${formatInvestorCrore(stats.total)} PKR`} />
+            <Stat
+              label={formatSalesRangeLabel(fromDate || INVESTOR_CRM2_FROM, toDate || INVESTOR_CRM2_TO)}
+              value={`${formatInvestorCrore(stats.total)} PKR`}
+            />
             <Stat label="Orders" value={String(stats.orderCount)} />
             <Stat label="Clients" value={String(stats.clientCount)} />
-            <Stat label="Period" value="1 Jul – 2 Oct 2026" />
+            <Stat label="Period" value={periodLabel} />
           </div>
 
           <div className="flex items-center gap-1 border-b overflow-x-auto">
@@ -60,37 +144,47 @@ export function InvestorCrm2View() {
                     <th className="text-left font-medium px-3 py-2">Order</th>
                     <th className="text-left font-medium px-3 py-2">Date</th>
                     <th className="text-left font-medium px-3 py-2">Client</th>
-                    <th className="text-left font-medium px-3 py-2">City</th>
                     <th className="text-left font-medium px-3 py-2">Items</th>
                     <th className="text-right font-medium px-3 py-2">Amount</th>
                     <th className="text-left font-medium px-3 py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {INVESTOR_CRM2_ORDERS.map((o) => (
-                    <tr key={o.orderNumber} className="border-t">
-                      <td className="px-3 py-2 font-mono font-medium">{o.orderNumber}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{o.date}</td>
-                      <td className="px-3 py-2">{o.clientName}</td>
-                      <td className="px-3 py-2">{o.city}</td>
-                      <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
-                        {o.items.map((it) => `${it.qty}× ${it.product}`).join("; ")}
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatInvestorRs(o.total)}</td>
-                      <td className="px-3 py-2">
-                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                          Paid · Delivered
-                        </span>
+                  {filteredOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
+                        No orders in this date range.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredOrders.map((o) => (
+                      <tr key={o.orderNumber} className="border-t">
+                        <td className="px-3 py-2 font-mono font-medium">{o.orderNumber}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{o.date}</td>
+                        <td className="px-3 py-2">{o.clientName}</td>
+                        <td className="px-3 py-2 text-[hsl(var(--muted-foreground))]">
+                          {o.items.map((it) => `${it.qty}× ${it.product}`).join("; ")}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                          {formatInvestorRs(o.total)}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            Paid · Delivered
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-[hsl(var(--muted))]/40">
-                    <td className="px-3 py-2 font-semibold" colSpan={5}>
-                      Total ({INVESTOR_CRM2_FROM} to {INVESTOR_CRM2_TO})
+                    <td className="px-3 py-2 font-semibold" colSpan={4}>
+                      Total ({periodLabel})
                     </td>
-                    <td className="px-3 py-2 text-right font-bold tabular-nums">{formatInvestorRs(stats.total)}</td>
+                    <td className="px-3 py-2 text-right font-bold tabular-nums">
+                      {formatInvestorRs(stats.total)}
+                    </td>
                     <td />
                   </tr>
                 </tfoot>
@@ -104,22 +198,28 @@ export function InvestorCrm2View() {
                 <thead className="bg-[hsl(var(--muted))]/50 text-[hsl(var(--muted-foreground))]">
                   <tr>
                     <th className="text-left font-medium px-3 py-2">Client</th>
-                    <th className="text-left font-medium px-3 py-2">City</th>
-                    <th className="text-left font-medium px-3 py-2">Phone</th>
                     <th className="text-right font-medium px-3 py-2">Orders</th>
                     <th className="text-right font-medium px-3 py-2">Purchased</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {clients.map((c) => (
-                    <tr key={`${c.name}-${c.city}`} className="border-t">
-                      <td className="px-3 py-2 font-medium">{c.name}</td>
-                      <td className="px-3 py-2">{c.city}</td>
-                      <td className="px-3 py-2 font-mono">{c.phone}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{c.orders}</td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatInvestorRs(c.spent)}</td>
+                  {clients.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-8 text-center text-[hsl(var(--muted-foreground))]">
+                        No clients in this date range.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    clients.map((c) => (
+                      <tr key={c.name} className="border-t">
+                        <td className="px-3 py-2 font-medium">{c.name}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{c.orders}</td>
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                          {formatInvestorRs(c.spent)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
