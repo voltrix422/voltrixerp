@@ -139,7 +139,7 @@ export function InvestorCrm2View() {
               <tfoot>
                 <tr className="border-t bg-[hsl(var(--muted))]/40">
                   <td className="px-3 py-2 font-semibold" colSpan={4}>
-                    Total ({periodLabel})
+                    Total
                     {stats.outstandingCount > 0 && (
                       <span className="ml-2 font-normal text-[hsl(var(--muted-foreground))]">
                         · {stats.outstandingCount} on credit
