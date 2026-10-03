@@ -4,8 +4,10 @@ import type { MouseEvent } from "react"
 import {
   getOrderAmountPaid,
   getOrderCreditBalance,
+  getOrderNetSalesValue,
   hasOutstandingCredit,
   isOrderOnCredit,
+  isOrderReturned,
   type Order,
 } from "@/lib/orders"
 import { OrderStatusBadge } from "@/components/crm/order-status-badge"
@@ -36,8 +38,10 @@ export function CrmOrdersListCards({
       {orders.map((order) => {
         const paid = getOrderAmountPaid(order)
         const due = getOrderCreditBalance(order)
+        const netTotal = getOrderNetSalesValue(order)
         const onCredit = hasOutstandingCredit(order)
         const notCredit = !isOrderOnCredit(order)
+        const returned = isOrderReturned(order)
         return (
           <button
             key={order.id}
@@ -75,8 +79,8 @@ export function CrmOrdersListCards({
               </div>
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-              <span>{formatCrmItemsQtyLabel(order.items)}</span>
-              <span className="font-semibold text-[hsl(var(--foreground))]">{formatPkr(order.total || 0)}</span>
+              <span>{returned ? "0" : formatCrmItemsQtyLabel(order.items)}</span>
+              <span className="font-semibold text-[hsl(var(--foreground))]">{formatPkr(netTotal)}</span>
               <span className="text-emerald-700">Paid {formatPkr(paid)}</span>
               <span className="text-amber-700">Credit {formatPkr(due)}</span>
               <span>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}</span>

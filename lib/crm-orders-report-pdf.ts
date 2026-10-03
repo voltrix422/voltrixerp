@@ -3,6 +3,7 @@ import {
   getBalanceSubmittedPayments,
   getOrderAmountPaid,
   getOrderCreditBalance,
+  getOrderNetSalesValue,
   hasOutstandingCredit,
   isOrderOnCredit,
   type Order,
@@ -181,7 +182,7 @@ export async function downloadCrmOrdersReportPdf(
         client,
         fullItems(order.items),
         paymentLabel(order),
-        amt(order.total || 0),
+        amt(getOrderNetSalesValue(order)),
         paidWithDates(order),
         amt(credit),
       ]

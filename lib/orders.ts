@@ -342,9 +342,23 @@ export function getOrderEffectivePaid(
 }
 
 export function getOrderCreditBalance(
-  order: Pick<Order, "total" | "payments" | "status" | "returnPayments" | "cashbackPayments">,
+  order: Pick<
+    Order,
+    | "total"
+    | "payments"
+    | "status"
+    | "returnPayments"
+    | "cashbackPayments"
+    | "items"
+    | "returnLines"
+    | "taxPercent"
+    | "returnMerchandiseApplied"
+  >,
 ) {
-  return Math.max(0, Number(order.total) - getOrderEffectivePaid(order))
+  // Fully returned orders have no remaining merchandise to collect.
+  if (isOrderReturned(order)) return 0
+  const billable = getOrderNetSalesValue(order)
+  return Math.max(0, billable - getOrderEffectivePaid(order))
 }
 
 /** Max cashback from this order: payments received minus refunds and prior order cashback. */
@@ -657,15 +671,44 @@ export function getOrderNetSalesValue(
     | "returnMerchandiseApplied"
   >,
 ) {
+  // Status "returned" means the full order was returned — nothing left to bill.
+  if (isOrderReturned(order)) return 0
   const total = Number(order.total) || 0
   // Totals already exclude returned lines once merchandise was applied.
   if (order.returnMerchandiseApplied) return total
-  if (isOrderReturned(order) && !(order.returnLines || []).length) {
-    return Math.max(0, total - getOrderReturnAmount(order))
-  }
   const returnedMerch = getOrderReturnedMerchandiseValue(order)
   if (returnedMerch <= 0.004) return total
   return Math.max(0, total - returnedMerch)
+}
+
+/**
+ * Heal inconsistent full returns where returnLines exist but items/total were never cleared
+ * (shows fake Credit = Total after a full refund). Safe when already applied correctly.
+ */
+export function healReturnedOrderMerchandise(order: Order): Order {
+  if (!isOrderReturned(order)) {
+    if (!order.returnMerchandiseApplied && (order.returnLines || []).length > 0) {
+      return applyReturnMerchandiseToOrder(order)
+    }
+    return order
+  }
+  const total = Number(order.total) || 0
+  const hasLines = (order.returnLines || []).length > 0
+  const hasItems = (order.items || []).some((i) => Math.floor(Number(i.qty) || 0) > 0)
+  if (total <= 0.004 && !hasItems) {
+    return order.returnMerchandiseApplied ? order : { ...order, returnMerchandiseApplied: true }
+  }
+  if (hasLines) {
+    return applyReturnMerchandiseToOrder({
+      ...order,
+      returnMerchandiseApplied: false,
+    })
+  }
+  // Legacy full return without returnLines — clear remaining items.
+  return {
+    ...recalculateOrderFinancials({ ...order, items: [] }),
+    returnMerchandiseApplied: true,
+  }
 }
 
 export function getOrderReturnPaymentProofUrls(payment: OrderReturnPayment): string[] {
@@ -956,7 +999,7 @@ export async function getOrders(options?: {
     const res = await fetch(`/api/db/orders${qs ? `?${qs}` : ""}`)
     if (!res.ok) return []
     const data = await res.json()
-    return (data ?? []).map(rowToOrder)
+    return (data ?? []).map((row: Record<string, unknown>) => healReturnedOrderMerchandise(rowToOrder(row)))
   } catch { return [] }
 }
 

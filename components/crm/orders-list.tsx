@@ -87,7 +87,7 @@ function orderMatchesPaymentFilter(order: Order, filter: PaymentFilter): boolean
   if (filter === "all") return true
   if (filter === "cashback") return orderHasCashback(order)
   if (filter === "on_credit") return hasOutstandingCredit(order)
-  if (filter === "paid") return getOrderCreditBalance(order) <= 0.004
+  if (filter === "paid") return !isOrderReturned(order) && getOrderCreditBalance(order) <= 0.004
   if (filter === "not_credit") return !isOrderOnCredit(order)
   return true
 }
@@ -828,7 +828,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           <div className="space-y-3">
             <CollapsibleSection
               title="Money received"
-              subtitle="Sum of Paid column · excl. returned · matches Finance"
+              subtitle="Sum of Paid column (gross collections; refunds are money out) · matches Finance"
               summary={formatOrderPkr(headlineTotal)}
               open={moneyReceivedOpen}
               onToggle={() => setMoneyReceivedOpen(v => !v)}
@@ -1016,8 +1016,10 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
               {filtered.map(order => {
                 const paid = getOrderAmountPaid(order)
                 const due = getOrderCreditBalance(order)
+                const netTotal = getOrderNetSalesValue(order)
                 const onCredit = hasOutstandingCredit(order)
                 const notCredit = !isOrderOnCredit(order)
+                const returned = isOrderReturned(order)
                 return (
                 <tr key={order.id} className="hover:bg-[hsl(var(--muted))]/30 transition-colors">
                   <td className="px-4 py-2.5 text-xs font-semibold text-[hsl(var(--primary))] cursor-pointer" onClick={() => setSelected(order)}>
@@ -1038,10 +1040,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-center cursor-pointer" onClick={() => setSelected(order)}>
-                    <CrmItemsQtyCell items={order.items} />
+                    {returned ? (
+                      <span className="text-[hsl(var(--muted-foreground))]">0</span>
+                    ) : (
+                      <CrmItemsQtyCell items={order.items} />
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-xs text-right font-semibold cursor-pointer" onClick={() => setSelected(order)}>
-                    {formatOrderPkr(order.total || 0)}
+                    {formatOrderPkr(netTotal)}
                   </td>
                   <td className="px-4 py-2.5 text-xs text-right tabular-nums text-emerald-700 cursor-pointer" onClick={() => setSelected(order)}>
                     {formatOrderPkr(paid)}
@@ -2518,7 +2524,14 @@ function OrderDetail({
             </div>
             <div className="text-sm">
               <p className="font-medium text-blue-900 dark:text-blue-100">
-                Total Amount: PKR {detailOrder.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                Total Amount: PKR{" "}
+                {getOrderNetSalesValue(detailOrder).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {isOrderReturned(detailOrder) && Number(detailOrder.total) > 0.004 && (
+                  <span className="text-xs font-normal text-blue-700 dark:text-blue-300">
+                    {" "}
+                    (original PKR {detailOrder.total.toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                  </span>
+                )}
               </p>
               {(detailOrder.payments?.length ?? 0) > 0 || cashbackFromOrder > 0 || returnAmount > 0 ? (
                 <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
@@ -2529,9 +2542,11 @@ function OrderDetail({
                   {returnAmount > 0 && (
                     <> · Refunded PKR {returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
                   )}
-                  {creditBalance > 0.004 && (
+                  {creditBalance > 0.004 ? (
                     <> · Balance PKR {creditBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</>
-                  )}
+                  ) : returnAmount > 0.004 || isOrderReturned(detailOrder) ? (
+                    <> · Balance PKR 0.00</>
+                  ) : null}
                 </p>
               ) : null}
               {detailOrder.payments && detailOrder.payments.length > 0 ? (

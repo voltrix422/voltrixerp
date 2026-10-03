@@ -7,6 +7,7 @@ import {
   getBalanceSubmittedPayments,
   getOrderAmountPaid,
   getOrderCreditBalance,
+  getOrderNetSalesValue,
   hasOutstandingCredit,
   isOrderOnCredit,
 } from "@/lib/orders"
@@ -232,7 +233,7 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
       client,
       fullItems(order.items),
       paymentLabel(order),
-      amt(order.total || 0),
+      amt(getOrderNetSalesValue(order)),
       paidWithDates(order),
       amt(getOrderCreditBalance(order)),
     ]
