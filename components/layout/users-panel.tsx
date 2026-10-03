@@ -2,12 +2,7 @@
 import { useState, useEffect } from "react"
 import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
-import {
-  formatInvestorCrmRangeLabel,
-  INVESTOR_CRM2_FROM,
-  INVESTOR_CRM2_TO,
-  investorCrm2SalesInRange,
-} from "@/lib/investor-fake-crm"
+import { investorCrm2SalesForInvestPeriod } from "@/lib/investor-fake-crm"
 import {
   formatInvestorCrore,
   formatInvestorDay,
@@ -52,15 +47,18 @@ function InvestorTermsFields({
   editing: boolean
   onChange: (next: InvestorTermsNext) => void
 }) {
-  // Same CRM sales window for every investor: 1 Jul → till Oct.
-  const salesAmount = investorCrm2SalesInRange(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO)
-  const salesLabel = formatInvestorCrmRangeLabel(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO)
   const investLabel = investorRoiRangeLabel(investedAt, period, investedUntil)
+  const { from: termFrom, to: termTo } = (() => {
+    const from = investedAt
+    const to = investedUntil || (investedAt ? investorRoiEndDate(investedAt, period) : "")
+    return { from, to }
+  })()
+  const salesForPeriod = investorCrm2SalesForInvestPeriod(termFrom, termTo)
   const summary = investorPayoutSummary({
     investment,
     poolSharePercent: roiPercent,
-    salesAmount,
-    salesLabel,
+    salesAmount: salesForPeriod.salesAmount,
+    salesLabel: salesForPeriod.salesLabel,
   })
   const patch = (partial: Partial<InvestorTermsNext>) =>
     onChange({
@@ -162,7 +160,7 @@ function InvestorTermsFields({
           : ""}
       </p>
       <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-        CRM sales for ROI (all investors): {salesLabel}
+        CRM sales counted for ROI: {salesForPeriod.salesLabel}
       </p>
       {summary.configured ? (
         <div className="rounded border border-[#1a9f9a]/40 bg-[hsl(var(--background))]/80 px-2.5 py-2 space-y-0.5">
@@ -170,14 +168,15 @@ function InvestorTermsFields({
             They receive {formatInvestorRs(summary.due)}
           </p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            ROI = {formatInvestorCrore(salesAmount)} × {INVESTOR_SALES_POOL_RATE}% × {roiPercent}% ={" "}
+            ROI = sales in invest period ({salesForPeriod.salesLabel}){" "}
+            {formatInvestorCrore(salesForPeriod.salesAmount)} × {INVESTOR_SALES_POOL_RATE}% × {roiPercent}% ={" "}
             {formatInvestorRs(summary.due)}
           </p>
         </div>
       ) : (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Set Investment (PKR), pool share %, and invest from/to dates. ROI uses Jul–Oct CRM sales ×{" "}
-          {INVESTOR_SALES_POOL_RATE}% × pool share %.
+          Set Investment (PKR), pool share %, and invest from/to. ROI = CRM sales inside that investment
+          period × {INVESTOR_SALES_POOL_RATE}% × pool share %.
         </p>
       )}
     </div>

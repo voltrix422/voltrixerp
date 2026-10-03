@@ -20,6 +20,7 @@ import {
   INVESTOR_CRM2_FROM,
   INVESTOR_CRM2_ORDERS,
   INVESTOR_CRM2_TO,
+  investorCrm2SalesForInvestPeriod,
   investorCrm2SalesInRange,
   investorCrm2Stats,
 } from "@/lib/investor-fake-crm"
@@ -49,12 +50,6 @@ export function InvestorDashboardView() {
   const to = toDate || INVESTOR_CRM2_TO
   const rangeSales = useMemo(() => investorCrm2SalesInRange(from, to), [from, to])
   const rangeLabel = formatInvestorCrmRangeLabel(from, to)
-  // ROI sales window is the same for every investor: 1 Jul → till Oct.
-  const bookSales = useMemo(
-    () => investorCrm2SalesInRange(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO),
-    [],
-  )
-  const bookSalesLabel = formatInvestorCrmRangeLabel(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO)
 
   const byDay = useMemo(() => {
     const map = new Map<string, number>()
@@ -80,11 +75,15 @@ export function InvestorDashboardView() {
   const investedAt = normalizeInvestorInvestedAt(user?.investorInvestedAt)
   const investedUntil = normalizeInvestorInvestedAt(user?.investorInvestedUntil)
   const investLabel = investorRoiRangeLabel(investedAt, investPeriod, investedUntil)
+  const salesForPeriod = useMemo(
+    () => investorCrm2SalesForInvestPeriod(investedAt, investedUntil),
+    [investedAt, investedUntil],
+  )
   const summary = investorPayoutSummary({
     investment,
     poolSharePercent: poolShare,
-    salesAmount: bookSales,
-    salesLabel: bookSalesLabel,
+    salesAmount: salesForPeriod.salesAmount,
+    salesLabel: salesForPeriod.salesLabel,
   })
 
   const axisFill = isDark ? "#a3a3a3" : "#737373"
@@ -111,8 +110,9 @@ export function InvestorDashboardView() {
                 {summary.configured ? formatInvestorRs(summary.due) : "Your returns"}
               </h1>
               <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-                Sales {bookSalesLabel}
-                {investedAt && investedUntil ? ` · Invested ${investLabel}` : ""}
+                {investedAt && investedUntil
+                  ? `Your investment period: ${investLabel}`
+                  : `Sales ${rangeLabel}`}
               </p>
             </motion.div>
             <InvestorDateFilter
@@ -137,7 +137,10 @@ export function InvestorDashboardView() {
             <Metric label="Invested" value={formatInvestorRs(investment)} />
             <Metric label="Pool share" value={`${poolShare || 0}%`} />
             <Metric label="Invest period" value={investedAt && investedUntil ? investLabel : "—"} />
-            <Metric label="Sales (Jul–Oct)" value={`${formatInvestorCrore(bookSales)} PKR`} />
+            <Metric
+              label="Sales in period"
+              value={`${formatInvestorCrore(salesForPeriod.salesAmount)} PKR`}
+            />
             <Metric
               label="You receive"
               value={summary.configured ? formatInvestorRs(summary.due) : "—"}
@@ -152,11 +155,13 @@ export function InvestorDashboardView() {
               transition={{ delay: 0.15 }}
               className="rounded-2xl border border-[#1a9f9a]/20 bg-[hsl(var(--card))]/90 px-4 py-3 text-xs text-[hsl(var(--muted-foreground))] backdrop-blur"
             >
-              {formatInvestorCrore(bookSales)} × {INVESTOR_SALES_POOL_RATE}% × {poolShare}% ={" "}
-              <span className="font-semibold text-[#1a9f9a]">{formatInvestorRs(summary.due)}</span>
-              {investedAt && investedUntil ? (
-                <span className="block mt-1">Your investment period: {investLabel}</span>
-              ) : null}
+              Your investment period: {investLabel}
+              <span className="block mt-1">
+                Sales counted ({salesForPeriod.salesLabel}):{" "}
+                {formatInvestorCrore(salesForPeriod.salesAmount)} × {INVESTOR_SALES_POOL_RATE}% ×{" "}
+                {poolShare}% ={" "}
+                <span className="font-semibold text-[#1a9f9a]">{formatInvestorRs(summary.due)}</span>
+              </span>
             </motion.p>
           )}
 

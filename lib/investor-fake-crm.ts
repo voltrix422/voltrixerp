@@ -447,6 +447,7 @@ export function investorCrm2Clients(): InvestorCrm2Client[] {
 export function investorCrm2SalesInRange(from?: string, to?: string): number {
   const start = from && from >= INVESTOR_CRM2_FROM ? from : INVESTOR_CRM2_FROM
   const end = to && to <= INVESTOR_CRM2_TO ? to : INVESTOR_CRM2_TO
+  if (start > end) return 0
   return INVESTOR_CRM2_ORDERS.filter((o) => o.date >= start && o.date <= end).reduce(
     (s, o) => s + o.total,
     0,
@@ -463,6 +464,54 @@ export function formatInvestorCrmRangeLabel(from?: string, to?: string): string 
       year: "numeric",
     })
   return `${fmt(start)} – ${fmt(end)}`
+}
+
+/**
+ * CRM sales overlapping an investor's invest-from / invest-to window.
+ * Clamped to available book dates (Jul → till Oct). Future invest-to dates
+ * only count sales that exist in the book.
+ */
+export function investorCrm2SalesForInvestPeriod(
+  investedAt?: string,
+  investedUntil?: string,
+): {
+  salesAmount: number
+  salesFrom: string
+  salesTo: string
+  salesLabel: string
+  investFrom: string
+  investTo: string
+} {
+  const investFrom = String(investedAt || "").trim()
+  const investTo = String(investedUntil || "").trim()
+  const hasPeriod = /^\d{4}-\d{2}-\d{2}$/.test(investFrom) && /^\d{4}-\d{2}-\d{2}$/.test(investTo)
+
+  if (!hasPeriod || investFrom > investTo) {
+    return {
+      salesAmount: investorCrm2SalesInRange(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO),
+      salesFrom: INVESTOR_CRM2_FROM,
+      salesTo: INVESTOR_CRM2_TO,
+      salesLabel: formatInvestorCrmRangeLabel(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO),
+      investFrom: investFrom || INVESTOR_CRM2_FROM,
+      investTo: investTo || INVESTOR_CRM2_TO,
+    }
+  }
+
+  const salesFrom = investFrom < INVESTOR_CRM2_FROM ? INVESTOR_CRM2_FROM : investFrom
+  const salesTo = investTo > INVESTOR_CRM2_TO ? INVESTOR_CRM2_TO : investTo
+  const salesAmount =
+    salesFrom > salesTo || salesFrom > INVESTOR_CRM2_TO || salesTo < INVESTOR_CRM2_FROM
+      ? 0
+      : investorCrm2SalesInRange(salesFrom, salesTo)
+
+  return {
+    salesAmount,
+    salesFrom,
+    salesTo,
+    salesLabel: formatInvestorCrmRangeLabel(salesFrom, salesTo),
+    investFrom,
+    investTo,
+  }
 }
 
 export function investorCrm2Stats() {

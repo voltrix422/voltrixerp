@@ -10,7 +10,7 @@ import {
   INVESTOR_CRM2_FROM,
   INVESTOR_CRM2_ORDERS,
   INVESTOR_CRM2_TO,
-  investorCrm2SalesInRange,
+  investorCrm2SalesForInvestPeriod,
 } from "@/lib/investor-fake-crm"
 import {
   formatInvestorCrore,
@@ -50,19 +50,18 @@ export function InvestorCrm2View() {
     fromDate || INVESTOR_CRM2_FROM,
     toDate || INVESTOR_CRM2_TO,
   )
-  const bookSales = investorCrm2SalesInRange(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO)
-  const bookSalesLabel = formatInvestorCrmRangeLabel(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO)
   const poolShare = Number(user?.investorRoiPercent) || 0
   const investment = Number(user?.investorInvestment) || 0
   const investPeriod = normalizeInvestorRoiPeriod(user?.investorRoiPeriod)
   const investedAt = normalizeInvestorInvestedAt(user?.investorInvestedAt)
   const investedUntil = normalizeInvestorInvestedAt(user?.investorInvestedUntil)
   const investLabel = investorRoiRangeLabel(investedAt, investPeriod, investedUntil)
+  const salesForPeriod = investorCrm2SalesForInvestPeriod(investedAt, investedUntil)
   const summary = investorPayoutSummary({
     investment,
     poolSharePercent: poolShare,
-    salesAmount: bookSales,
-    salesLabel: bookSalesLabel,
+    salesAmount: salesForPeriod.salesAmount,
+    salesLabel: salesForPeriod.salesLabel,
   })
 
   return (
@@ -118,7 +117,8 @@ export function InvestorCrm2View() {
 
           {summary.configured && (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              ROI on {bookSalesLabel}: {formatInvestorCrore(bookSales)} × {INVESTOR_SALES_POOL_RATE}% ×{" "}
+              ROI for {investLabel}: sales {salesForPeriod.salesLabel}{" "}
+              {formatInvestorCrore(salesForPeriod.salesAmount)} × {INVESTOR_SALES_POOL_RATE}% ×{" "}
               {poolShare}% ={" "}
               <span className="font-semibold text-[#1a9f9a]">{formatInvestorRs(summary.due)}</span>
             </p>
