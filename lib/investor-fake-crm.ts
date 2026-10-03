@@ -1,17 +1,19 @@
 /**
  * Investor CRM 2 only. Never imported by staff CRM, orders APIs, inventory, or finance.
  * Fake delivered sales using the same unit prices as CRM Product Prices (dealership / wholesale / retail).
- * Period: 1 Aug 2026 – 22 Sep 2026 · target ≈ Rs. 123,100,000 (12.31 crore).
+ * Book: 1 Jul 2026 – 22 Sep 2026 (July for fuller record; Aug+Sep ≈ Rs. 123,100,000 / 12.31 crore).
  */
 
-const INVESTOR_CRM2_TARGET = 123_100_000
-export const INVESTOR_CRM2_FROM = "2026-08-01"
+/** Aug–Sep headline target only (does not include July). */
+const INVESTOR_CRM2_AUG_SEP_TARGET = 123_100_000
+export const INVESTOR_CRM2_FROM = "2026-07-01"
 export const INVESTOR_CRM2_TO = "2026-09-22"
+export const INVESTOR_CRM2_AUG_SEP_FROM = "2026-08-01"
 
 /** Company update shown on investor dashboard (Aug–Sep rainy / off-season period). */
 export const INVESTOR_PERIOD_UPDATE = {
   salesTargetLabel: "12.31 Cr",
-  salesFrom: INVESTOR_CRM2_FROM,
+  salesFrom: INVESTOR_CRM2_AUG_SEP_FROM,
   salesTo: INVESTOR_CRM2_TO,
   /** Shared period ROI communicated for Aug–Sep (Rs. 1.50 lac). */
   periodRoiPkr: 150_000,
@@ -233,10 +235,35 @@ function buildBasket(rand: () => number, tier: ClientTier, size: "small" | "mid"
 
 function buildOrders(): InvestorCrm2Order[] {
   const rand = mulberry32(20260711)
-  const spanDays = daysBetween(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO) + 1
-  const orders: InvestorCrm2Order[] = []
+  const augSepSpan = daysBetween(INVESTOR_CRM2_AUG_SEP_FROM, INVESTOR_CRM2_TO) + 1
+  const julyOrders: InvestorCrm2Order[] = []
+  const augSepOrders: InvestorCrm2Order[] = []
 
-  // Staged generation: Aug + Sep (to 22nd) ≈ 12.31 Cr with exact CRM unit prices.
+  // July: modest delivered volume so the book has prior-month activity (not in 12.31 Cr).
+  const julyStage = { fromDay: 0, days: 31, count: 16, largeShare: 0.22 }
+  for (let i = 0; i < julyStage.count; i++) {
+    const dayOffset = julyStage.fromDay + Math.floor(rand() * julyStage.days)
+    const date = addDays(INVESTOR_CRM2_FROM, Math.min(30, dayOffset))
+    const client = CLIENTS[i % CLIENTS.length]
+    const roll = rand()
+    const size: "small" | "mid" | "large" =
+      roll < julyStage.largeShare ? "large" : roll < julyStage.largeShare + 0.5 ? "mid" : "small"
+    const items = buildBasket(rand, client.tier, size)
+    const total = items.reduce((s, it) => s + it.total, 0)
+    julyOrders.push({
+      orderNumber: `CRM2-TEMP`,
+      date,
+      clientName: client.name,
+      city: client.city,
+      phone: client.phone,
+      status: "delivered",
+      payment: "paid",
+      items,
+      total,
+    })
+  }
+
+  // Aug + Sep (to 22nd) ≈ 12.31 Cr with exact CRM unit prices.
   const stages: { fromDay: number; days: number; count: number; largeShare: number }[] = [
     { fromDay: 0, days: 31, count: 38, largeShare: 0.38 }, // August
     { fromDay: 31, days: 22, count: 34, largeShare: 0.4 }, // Sep 1–22
@@ -246,14 +273,14 @@ function buildOrders(): InvestorCrm2Order[] {
   for (const stage of stages) {
     for (let i = 0; i < stage.count; i++) {
       const dayOffset = stage.fromDay + Math.floor(rand() * stage.days)
-      const date = addDays(INVESTOR_CRM2_FROM, Math.min(spanDays - 1, dayOffset))
+      const date = addDays(INVESTOR_CRM2_AUG_SEP_FROM, Math.min(augSepSpan - 1, dayOffset))
       const client = CLIENTS[seq % CLIENTS.length]
       const roll = rand()
       const size: "small" | "mid" | "large" =
         roll < stage.largeShare ? "large" : roll < stage.largeShare + 0.45 ? "mid" : "small"
       const items = buildBasket(rand, client.tier, size)
       const total = items.reduce((s, it) => s + it.total, 0)
-      orders.push({
+      augSepOrders.push({
         orderNumber: `CRM2-${pad(++seq)}`,
         date,
         clientName: client.name,
@@ -267,28 +294,28 @@ function buildOrders(): InvestorCrm2Order[] {
     }
   }
 
-  orders.sort((a, b) => a.date.localeCompare(b.date) || a.orderNumber.localeCompare(b.orderNumber))
-  orders.forEach((o, idx) => {
-    o.orderNumber = `CRM2-${pad(idx + 1)}`
-  })
+  augSepOrders.sort((a, b) => a.date.localeCompare(b.date) || a.orderNumber.localeCompare(b.orderNumber))
 
-  let sum = orders.reduce((s, o) => s + o.total, 0)
+  let sum = augSepOrders.reduce((s, o) => s + o.total, 0)
 
-  // Trim oversized book from the end while keeping August volume.
-  while (sum > INVESTOR_CRM2_TARGET + 300_000 && orders.length > 40) {
-    const idx = orders.length - 1
-    if (orders[idx].date.startsWith("2026-08") && orders.filter((o) => o.date.startsWith("2026-08")).length <= 20) {
+  // Trim oversized Aug–Sep book from the end while keeping August volume.
+  while (sum > INVESTOR_CRM2_AUG_SEP_TARGET + 300_000 && augSepOrders.length > 40) {
+    const idx = augSepOrders.length - 1
+    if (
+      augSepOrders[idx].date.startsWith("2026-08") &&
+      augSepOrders.filter((o) => o.date.startsWith("2026-08")).length <= 20
+    ) {
       break
     }
-    sum -= orders[idx].total
-    orders.pop()
+    sum -= augSepOrders[idx].total
+    augSepOrders.pop()
   }
 
-  // Top up with a few mid/large exact-price orders (not dozens of tiny lines).
+  // Top up Aug–Sep with a few mid/large exact-price orders.
   let guard = 0
-  while (sum < INVESTOR_CRM2_TARGET - 560_000 && guard < 30) {
+  while (sum < INVESTOR_CRM2_AUG_SEP_TARGET - 560_000 && guard < 30) {
     guard++
-    const remaining = INVESTOR_CRM2_TARGET - sum
+    const remaining = INVESTOR_CRM2_AUG_SEP_TARGET - sum
     const client = pick(rand, CLIENTS)
     const useLarge = remaining > 2_500_000 && rand() > 0.4
     const items = useLarge
@@ -300,9 +327,9 @@ function buildOrders(): InvestorCrm2Order[] {
       const smallTotal = smallItems.reduce((s, it) => s + it.total, 0)
       if (smallTotal > remaining) break
       const day = 20 + Math.floor(rand() * 32)
-      orders.push({
+      augSepOrders.push({
         orderNumber: `CRM2-TEMP`,
-        date: addDays(INVESTOR_CRM2_FROM, Math.min(spanDays - 1, day)),
+        date: addDays(INVESTOR_CRM2_AUG_SEP_FROM, Math.min(augSepSpan - 1, day)),
         clientName: client.name,
         city: client.city,
         phone: client.phone,
@@ -314,10 +341,10 @@ function buildOrders(): InvestorCrm2Order[] {
       sum += smallTotal
       continue
     }
-    const day = 8 + Math.floor(rand() * (spanDays - 8))
-    orders.push({
+    const day = 8 + Math.floor(rand() * (augSepSpan - 8))
+    augSepOrders.push({
       orderNumber: `CRM2-TEMP`,
-      date: addDays(INVESTOR_CRM2_FROM, Math.min(spanDays - 1, day)),
+      date: addDays(INVESTOR_CRM2_AUG_SEP_FROM, Math.min(augSepSpan - 1, day)),
       clientName: client.name,
       city: client.city,
       phone: client.phone,
@@ -329,17 +356,14 @@ function buildOrders(): InvestorCrm2Order[] {
     sum += total
   }
 
-  orders.sort((a, b) => a.date.localeCompare(b.date) || a.clientName.localeCompare(b.clientName))
-  orders.forEach((o, idx) => {
-    o.orderNumber = `CRM2-${pad(idx + 1)}`
-  })
+  augSepOrders.sort((a, b) => a.date.localeCompare(b.date) || a.clientName.localeCompare(b.clientName))
 
-  // Exact finish with dealership TL100Ah (57,000) units — never alter unit prices.
-  sum = orders.reduce((s, o) => s + o.total, 0)
-  let gap = INVESTOR_CRM2_TARGET - sum
+  // Exact finish Aug–Sep with dealership TL100Ah units — never alter unit prices.
+  sum = augSepOrders.reduce((s, o) => s + o.total, 0)
+  let gap = INVESTOR_CRM2_AUG_SEP_TARGET - sum
   const small = CATALOG[9]
   const smallPrice = unitPriceFor(small, "dealership")
-  const last = orders[orders.length - 1]
+  const last = augSepOrders[augSepOrders.length - 1]
   if (last && gap > 0 && smallPrice > 0) {
     const qty = Math.floor(gap / smallPrice)
     if (qty > 0) {
@@ -349,6 +373,12 @@ function buildOrders(): InvestorCrm2Order[] {
       gap -= extra.total
     }
   }
+
+  const orders = [...julyOrders, ...augSepOrders]
+  orders.sort((a, b) => a.date.localeCompare(b.date) || a.clientName.localeCompare(b.clientName))
+  orders.forEach((o, idx) => {
+    o.orderNumber = `CRM2-${pad(idx + 1)}`
+  })
 
   // ~1 in 5 mid/large orders on credit (outstanding); keep small cash-looking ones paid.
   for (let i = 0; i < orders.length; i++) {
@@ -419,7 +449,8 @@ export function investorCrm2Stats() {
     oct,
     augSep: aug + sep,
     periodRoiPkr: INVESTOR_PERIOD_UPDATE.periodRoiPkr,
-    periodLabel: "1 Aug – 22 Sep 2026",
+    periodLabel: "1 Jul – 22 Sep 2026",
+    augSepLabel: "1 Aug – 22 Sep 2026",
     batteries,
     inverters,
     kits,
