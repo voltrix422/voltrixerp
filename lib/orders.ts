@@ -342,22 +342,20 @@ export function getOrderEffectivePaid(
 }
 
 export function getOrderCreditBalance(
-  order: Pick<
-    Order,
-    | "total"
-    | "payments"
-    | "status"
-    | "returnPayments"
-    | "cashbackPayments"
-    | "items"
-    | "returnLines"
-    | "taxPercent"
-    | "returnMerchandiseApplied"
-  >,
+  order: Pick<Order, "total" | "payments" | "status" | "returnPayments" | "cashbackPayments"> &
+    Partial<Pick<Order, "items" | "returnLines" | "taxPercent" | "returnMerchandiseApplied">>,
 ) {
   // Fully returned orders have no remaining merchandise to collect.
   if (isOrderReturned(order)) return 0
-  const billable = getOrderNetSalesValue(order)
+  const billable = getOrderNetSalesValue({
+    total: order.total,
+    status: order.status,
+    returnPayments: order.returnPayments,
+    items: order.items || [],
+    returnLines: order.returnLines || [],
+    taxPercent: order.taxPercent || 0,
+    returnMerchandiseApplied: order.returnMerchandiseApplied,
+  })
   return Math.max(0, billable - getOrderEffectivePaid(order))
 }
 
