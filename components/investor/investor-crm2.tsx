@@ -58,13 +58,7 @@ export function InvestorCrm2View() {
   return (
     <>
       <Topbar title="CRM" description="Sales book" />
-      <div
-        className="flex-1 overflow-auto"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(26,159,154,0.08) 0%, rgba(248,250,250,1) 24%, #f8fafa 100%)",
-        }}
-      >
+      <div className="flex-1 overflow-auto bg-[linear-gradient(180deg,rgba(26,159,154,0.10)_0%,hsl(var(--background))_28%)] dark:bg-[linear-gradient(180deg,rgba(26,159,154,0.14)_0%,hsl(var(--background))_34%)]">
         <div className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6" data-readonly-allow>
           <div className="flex items-start justify-between gap-3">
             <motion.div
@@ -75,10 +69,10 @@ export function InvestorCrm2View() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1a9f9a]">
                 Sales book
               </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">
                 {formatInvestorCrore(stats.total)} PKR
               </h1>
-              <p className="mt-1 text-sm text-neutral-500">{rangeLabel}</p>
+              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{rangeLabel}</p>
             </motion.div>
             <InvestorDateFilter
               fromDate={fromDate}
@@ -110,7 +104,7 @@ export function InvestorCrm2View() {
           </motion.div>
 
           {summary.configured && (
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
               {formatInvestorCrore(stats.total)} × {INVESTOR_SALES_POOL_RATE}% × {poolShare}% ={" "}
               <span className="font-semibold text-[#1a9f9a]">{formatInvestorRs(summary.due)}</span>
             </p>
@@ -120,12 +114,12 @@ export function InvestorCrm2View() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.1 }}
-            className="overflow-hidden rounded-3xl border border-[#1a9f9a]/15 bg-white shadow-sm shadow-[#1a9f9a]/5"
+            className="overflow-hidden rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm"
           >
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-xs">
                 <thead>
-                  <tr className="border-b border-[#1a9f9a]/10 bg-[#1a9f9a]/[0.04] text-left text-[10px] uppercase tracking-wider text-neutral-500">
+                  <tr className="border-b border-[hsl(var(--border))] bg-[#1a9f9a]/5 text-left text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))] dark:bg-[#1a9f9a]/10">
                     <th className="px-4 py-3 font-semibold">Order</th>
                     <th className="px-3 py-3 font-semibold">Date</th>
                     <th className="px-3 py-3 font-semibold">Client</th>
@@ -137,7 +131,7 @@ export function InvestorCrm2View() {
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-neutral-500">
+                      <td colSpan={6} className="px-4 py-12 text-center text-[hsl(var(--muted-foreground))]">
                         No orders in this date range.
                       </td>
                     </tr>
@@ -150,25 +144,29 @@ export function InvestorCrm2View() {
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.25, delay: Math.min(idx * 0.012, 0.35) }}
-                          className="border-b border-neutral-100 last:border-0 hover:bg-[#1a9f9a]/[0.03]"
+                          className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[#1a9f9a]/5"
                         >
-                          <td className="px-4 py-2.5 font-mono text-[11px] font-medium text-neutral-800">
+                          <td className="px-4 py-2.5 font-mono text-[11px] font-medium text-[hsl(var(--foreground))]">
                             {o.orderNumber}
                           </td>
-                          <td className="whitespace-nowrap px-3 py-2.5 text-neutral-600">{o.date}</td>
-                          <td className="px-3 py-2.5 font-medium text-neutral-800">{o.clientName}</td>
-                          <td className="max-w-[280px] truncate px-3 py-2.5 text-neutral-500">
+                          <td className="whitespace-nowrap px-3 py-2.5 text-[hsl(var(--muted-foreground))]">
+                            {o.date}
+                          </td>
+                          <td className="px-3 py-2.5 font-medium text-[hsl(var(--foreground))]">
+                            {o.clientName}
+                          </td>
+                          <td className="max-w-[280px] truncate px-3 py-2.5 text-[hsl(var(--muted-foreground))]">
                             {o.items.map((it) => `${it.qty}× ${it.product}`).join("; ")}
                           </td>
-                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-neutral-900">
+                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-[hsl(var(--foreground))]">
                             {formatInvestorRs(o.total)}
                           </td>
                           <td className="px-4 py-2.5">
                             <span
                               className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                 credit
-                                  ? "bg-amber-50 text-amber-800"
-                                  : "bg-emerald-50 text-emerald-700"
+                                  ? "bg-amber-500/15 text-amber-800 dark:text-amber-200"
+                                  : "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
                               }`}
                             >
                               {credit ? "Credit" : "Paid"}
@@ -180,11 +178,11 @@ export function InvestorCrm2View() {
                   )}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-[#1a9f9a]/[0.06]">
-                    <td className="px-4 py-3 font-semibold text-neutral-800" colSpan={4}>
+                  <tr className="bg-[#1a9f9a]/10 dark:bg-[#1a9f9a]/15">
+                    <td className="px-4 py-3 font-semibold text-[hsl(var(--foreground))]" colSpan={4}>
                       Total
                       {stats.outstandingCount > 0 && (
-                        <span className="ml-2 font-normal text-neutral-500">
+                        <span className="ml-2 font-normal text-[hsl(var(--muted-foreground))]">
                           · {stats.outstandingCount} on credit
                         </span>
                       )}
@@ -218,10 +216,14 @@ function Metric({
       className={`rounded-2xl border px-3 py-3 ${
         accent
           ? "border-[#1a9f9a]/40 bg-[#1a9f9a] text-white shadow-md shadow-[#1a9f9a]/25"
-          : "border-[#1a9f9a]/12 bg-white/90"
+          : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
       }`}
     >
-      <p className={`text-[10px] uppercase tracking-wide ${accent ? "text-white/75" : "text-neutral-500"}`}>
+      <p
+        className={`text-[10px] uppercase tracking-wide ${
+          accent ? "text-white/75" : "text-[hsl(var(--muted-foreground))]"
+        }`}
+      >
         {label}
       </p>
       <p className="mt-1 text-sm font-semibold tabular-nums sm:text-base">{value}</p>

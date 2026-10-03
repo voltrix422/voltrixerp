@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts"
 import { motion } from "motion/react"
+import { useTheme } from "next-themes"
 import { Topbar } from "@/components/layout/topbar"
 import { useAuth } from "@/components/auth-provider"
 import { InvestorDateFilter } from "@/components/investor/investor-date-filter"
@@ -31,6 +32,8 @@ import {
 
 export function InvestorDashboardView() {
   const { user, refreshUser } = useAuth()
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
   const bookStats = useMemo(() => investorCrm2Stats(), [])
   const [fromDate, setFromDate] = useState(INVESTOR_CRM2_FROM)
   const [toDate, setToDate] = useState(INVESTOR_CRM2_TO)
@@ -71,16 +74,16 @@ export function InvestorDashboardView() {
     salesLabel: rangeLabel,
   })
 
+  const axisFill = isDark ? "#a3a3a3" : "#737373"
+  const gridStroke = isDark ? "#404040" : "#e5e7eb"
+  const tipBg = isDark ? "#171717" : "#ffffff"
+  const tipBorder = isDark ? "rgba(26,159,154,0.35)" : "rgba(26,159,154,0.2)"
+  const tipColor = isDark ? "#f5f5f5" : "#171717"
+
   return (
     <>
       <Topbar title="Dashboard" description="Your returns" />
-      <div
-        className="flex-1 overflow-auto"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(26,159,154,0.08) 0%, rgba(248,250,250,1) 28%, #f8fafa 100%)",
-        }}
-      >
+      <div className="flex-1 overflow-auto bg-[linear-gradient(180deg,rgba(26,159,154,0.10)_0%,hsl(var(--background))_32%)] dark:bg-[linear-gradient(180deg,rgba(26,159,154,0.14)_0%,hsl(var(--background))_36%)]">
         <div className="mx-auto max-w-6xl space-y-5 p-3 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <motion.div
@@ -91,10 +94,10 @@ export function InvestorDashboardView() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1a9f9a]">
                 Voltrix investor
               </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))] sm:text-3xl">
                 {summary.configured ? formatInvestorRs(summary.due) : "Your returns"}
               </h1>
-              <p className="mt-1 text-sm text-neutral-500">{rangeLabel}</p>
+              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{rangeLabel}</p>
             </motion.div>
             <InvestorDateFilter
               fromDate={fromDate}
@@ -130,7 +133,7 @@ export function InvestorDashboardView() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.15 }}
-              className="rounded-2xl border border-[#1a9f9a]/15 bg-white/80 px-4 py-3 text-xs text-neutral-600 backdrop-blur"
+              className="rounded-2xl border border-[#1a9f9a]/20 bg-[hsl(var(--card))]/90 px-4 py-3 text-xs text-[hsl(var(--muted-foreground))] backdrop-blur"
             >
               {formatInvestorCrore(rangeSales)} × {INVESTOR_SALES_POOL_RATE}% × {poolShare}% ={" "}
               <span className="font-semibold text-[#1a9f9a]">{formatInvestorRs(summary.due)}</span>
@@ -141,16 +144,16 @@ export function InvestorDashboardView() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.1 }}
-            className="overflow-hidden rounded-3xl border border-[#1a9f9a]/15 bg-white p-4 shadow-sm shadow-[#1a9f9a]/5 sm:p-5"
+            className="overflow-hidden rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-sm sm:p-5"
           >
             <div className="mb-3 flex items-end justify-between gap-2">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1a9f9a]">
                   Daily sales
                 </p>
-                <p className="text-sm text-neutral-500">Delivered volume in range</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">Delivered volume in range</p>
               </div>
-              <p className="text-sm font-semibold tabular-nums text-neutral-900">
+              <p className="text-sm font-semibold tabular-nums text-[hsl(var(--foreground))]">
                 {formatInvestorCrore(rangeSales)} Cr
               </p>
             </div>
@@ -159,21 +162,21 @@ export function InvestorDashboardView() {
                 <AreaChart data={byDay} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="investorSalesFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#1a9f9a" stopOpacity={0.45} />
+                      <stop offset="0%" stopColor="#1a9f9a" stopOpacity={isDark ? 0.35 : 0.45} />
                       <stop offset="100%" stopColor="#1a9f9a" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 6" vertical={false} stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 6" vertical={false} stroke={gridStroke} />
                   <XAxis
                     dataKey="label"
-                    tick={{ fontSize: 10, fill: "#737373" }}
+                    tick={{ fontSize: 10, fill: axisFill }}
                     tickLine={false}
                     axisLine={false}
                     interval="preserveStartEnd"
                     minTickGap={28}
                   />
                   <YAxis
-                    tick={{ fontSize: 10, fill: "#737373" }}
+                    tick={{ fontSize: 10, fill: axisFill }}
                     tickLine={false}
                     axisLine={false}
                     width={48}
@@ -187,9 +190,12 @@ export function InvestorDashboardView() {
                   <Tooltip
                     contentStyle={{
                       borderRadius: 12,
-                      border: "1px solid rgba(26,159,154,0.2)",
-                      boxShadow: "0 8px 24px rgba(26,159,154,0.12)",
+                      border: `1px solid ${tipBorder}`,
+                      background: tipBg,
+                      color: tipColor,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
                     }}
+                    labelStyle={{ color: tipColor }}
                     formatter={(v) => [formatInvestorRs(Number(v ?? 0)), "Sales"]}
                   />
                   <Area
@@ -201,7 +207,12 @@ export function InvestorDashboardView() {
                     animationDuration={900}
                     animationEasing="ease-out"
                     dot={false}
-                    activeDot={{ r: 4, fill: "#1a9f9a", stroke: "#fff", strokeWidth: 2 }}
+                    activeDot={{
+                      r: 4,
+                      fill: "#1a9f9a",
+                      stroke: isDark ? "#171717" : "#fff",
+                      strokeWidth: 2,
+                    }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -242,10 +253,14 @@ function Metric({
       className={`rounded-2xl border px-3 py-3 ${
         accent
           ? "border-[#1a9f9a]/40 bg-[#1a9f9a] text-white shadow-md shadow-[#1a9f9a]/25"
-          : "border-[#1a9f9a]/12 bg-white/90"
+          : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
       } ${compact ? "py-2.5" : ""}`}
     >
-      <p className={`text-[10px] uppercase tracking-wide ${accent ? "text-white/75" : "text-neutral-500"}`}>
+      <p
+        className={`text-[10px] uppercase tracking-wide ${
+          accent ? "text-white/75" : "text-[hsl(var(--muted-foreground))]"
+        }`}
+      >
         {label}
       </p>
       <p className={`mt-1 font-semibold tabular-nums ${compact ? "text-sm" : "text-base"}`}>{value}</p>
