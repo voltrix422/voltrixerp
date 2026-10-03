@@ -39,7 +39,7 @@ export function InvestorCrm2View() {
 
   return (
     <>
-      <Topbar title="CRM Investor" description="Sales book" />
+      <Topbar title="CRM" description="Sales book" />
       <div className="flex-1 overflow-auto">
         <div className="p-3 sm:p-6 max-w-6xl space-y-4" data-readonly-allow>
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2 sm:gap-3">

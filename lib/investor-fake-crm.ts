@@ -257,7 +257,7 @@ function buildOrders(): InvestorCrm2Order[] {
     const items = buildBasket(rand, client.tier, size)
     const total = items.reduce((s, it) => s + it.total, 0)
     julyOrders.push({
-      orderNumber: `CRM2-TEMP`,
+      orderNumber: `CRM-TEMP`,
       date,
       clientName: client.name,
       city: client.city,
@@ -287,7 +287,7 @@ function buildOrders(): InvestorCrm2Order[] {
       const items = buildBasket(rand, client.tier, size)
       const total = items.reduce((s, it) => s + it.total, 0)
       augSepOrders.push({
-        orderNumber: `CRM2-${pad(++seq)}`,
+        orderNumber: `CRM-${pad(++seq)}`,
         date,
         clientName: client.name,
         city: client.city,
@@ -334,7 +334,7 @@ function buildOrders(): InvestorCrm2Order[] {
       if (smallTotal > remaining) break
       const day = 20 + Math.floor(rand() * 32)
       augSepOrders.push({
-        orderNumber: `CRM2-TEMP`,
+        orderNumber: `CRM-TEMP`,
         date: addDays(INVESTOR_CRM2_AUG_SEP_FROM, Math.min(augSepSpan - 1, day)),
         clientName: client.name,
         city: client.city,
@@ -349,7 +349,7 @@ function buildOrders(): InvestorCrm2Order[] {
     }
     const day = 8 + Math.floor(rand() * (augSepSpan - 8))
     augSepOrders.push({
-      orderNumber: `CRM2-TEMP`,
+      orderNumber: `CRM-TEMP`,
       date: addDays(INVESTOR_CRM2_AUG_SEP_FROM, Math.min(augSepSpan - 1, day)),
       clientName: client.name,
       city: client.city,
@@ -393,7 +393,7 @@ function buildOrders(): InvestorCrm2Order[] {
     const items = buildBasket(rand, client.tier, size)
     const total = items.reduce((s, it) => s + it.total, 0)
     octOrders.push({
-      orderNumber: `CRM2-TEMP`,
+      orderNumber: `CRM-TEMP`,
       date,
       clientName: client.name,
       city: client.city,
@@ -408,7 +408,7 @@ function buildOrders(): InvestorCrm2Order[] {
   const orders = [...julyOrders, ...augSepOrders, ...octOrders]
   orders.sort((a, b) => a.date.localeCompare(b.date) || a.clientName.localeCompare(b.clientName))
   orders.forEach((o, idx) => {
-    o.orderNumber = `CRM2-${pad(idx + 1)}`
+    o.orderNumber = `CRM-${pad(idx + 1)}`
   })
 
   // ~1 in 5 mid/large orders on credit (outstanding); keep small cash-looking ones paid.

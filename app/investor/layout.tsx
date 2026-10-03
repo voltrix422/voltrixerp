@@ -9,7 +9,7 @@ import { ErpWriteProtection } from "@/components/layout/erp-write-protection"
 
 const NAV = [
   { href: "/investor", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/investor/crm", label: "CRM Investor", icon: Users2 },
+  { href: "/investor/crm", label: "CRM", icon: Users2 },
 ]
 
 export default function InvestorLayout({ children }: { children: React.ReactNode }) {

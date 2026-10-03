@@ -2,11 +2,12 @@
 import { useState, useEffect } from "react"
 import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
+import { investorCrm2Stats } from "@/lib/investor-fake-crm"
 import {
+  formatInvestorCrore,
   formatInvestorRs,
   investorPayoutSummary,
-  investorRoiEndDate,
-  INVESTOR_ROI_PERIODS,
+  INVESTOR_SALES_POOL_RATE,
   normalizeInvestorInvestedAt,
   normalizeInvestorRoiPeriod,
   type InvestorRoiPeriod,
@@ -34,6 +35,7 @@ function InvestorTermsFields({
   onChange,
 }: {
   investment: number
+  /** Stored as investorRoiPercent — share of investor pool (%). */
   roiPercent: number
   period: InvestorRoiPeriod
   investedAt: string
@@ -41,12 +43,12 @@ function InvestorTermsFields({
   editing: boolean
   onChange: (next: InvestorTermsNext) => void
 }) {
+  const salesAmount = investorCrm2Stats().augSep
   const summary = investorPayoutSummary({
     investment,
-    roiPercent,
-    period,
-    investedAt,
-    investedUntil,
+    poolSharePercent: roiPercent,
+    salesAmount,
+    salesLabel: "Aug–Sep sales",
   })
   const patch = (partial: Partial<InvestorTermsNext>) =>
     onChange({
@@ -58,21 +60,12 @@ function InvestorTermsFields({
       ...partial,
     })
 
-  function applyTerm(nextPeriod: InvestorRoiPeriod) {
-    const from = investedAt || new Date().toISOString().slice(0, 10)
-    patch({
-      investorRoiPeriod: nextPeriod,
-      investorInvestedAt: from,
-      investorInvestedUntil: investorRoiEndDate(from, nextPeriod),
-    })
-  }
-
   return (
     <div className="rounded-md border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-2.5 space-y-2">
       <p className="text-[10px] font-semibold text-[#1a9f9a]">Investor returns (their dashboard only)</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-        <label className="space-y-0.5 sm:col-span-1">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount invested (PKR)</span>
+      <div className="grid grid-cols-2 gap-1.5">
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Investment (PKR)</span>
           <input
             type="number"
             min={0}
@@ -83,57 +76,15 @@ function InvestorTermsFields({
           />
         </label>
         <label className="space-y-0.5">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">ROI % (annual)</span>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Share of investor pool (%)</span>
           <input
             type="number"
             min={0}
-            step="0.1"
+            max={100}
+            step="0.01"
             disabled={!editing}
             value={roiPercent || ""}
             onChange={(e) => patch({ investorRoiPercent: Number(e.target.value) || 0 })}
-            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
-          />
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Quick term</span>
-          <select
-            disabled={!editing}
-            value={period}
-            onChange={(e) => applyTerm(normalizeInvestorRoiPeriod(e.target.value))}
-            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
-          >
-            {INVESTOR_ROI_PERIODS.map((p) => (
-              <option key={p.id} value={p.id}>{p.label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Invest from</span>
-          <input
-            type="date"
-            disabled={!editing}
-            value={investedAt || ""}
-            onChange={(e) => {
-              const from = normalizeInvestorInvestedAt(e.target.value)
-              const until =
-                investedUntil && investedUntil >= from
-                  ? investedUntil
-                  : from
-                    ? investorRoiEndDate(from, period)
-                    : ""
-              patch({ investorInvestedAt: from, investorInvestedUntil: until })
-            }}
-            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
-          />
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Invest to</span>
-          <input
-            type="date"
-            disabled={!editing}
-            min={investedAt || undefined}
-            value={investedUntil || ""}
-            onChange={(e) => patch({ investorInvestedUntil: normalizeInvestorInvestedAt(e.target.value) })}
             className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
           />
         </label>
@@ -143,18 +94,15 @@ function InvestorTermsFields({
           <p className="text-xs font-semibold text-[#1a9f9a]">
             They receive {formatInvestorRs(summary.due)}
           </p>
-          <p className="text-[10px] text-[hsl(var(--foreground))]">
-            For {summary.rangeLabel} · {summary.monthsLabel}
-          </p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            ROI calc: {formatInvestorRs(investment)} × {roiPercent}% annual × ({summary.monthsLabel} ÷ 12)
-            {" "}= {formatInvestorRs(summary.due)}
+            ROI = {formatInvestorCrore(salesAmount)} × {INVESTOR_SALES_POOL_RATE}% × {roiPercent}% ={" "}
+            {formatInvestorRs(summary.due)}
           </p>
         </div>
       ) : (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Set amount, invest from/to dates, and ROI %. Payout = investment × annual ROI% × (months in range ÷ 12).
-          Quick term fills the end date for you.
+          Set Investment (PKR) and Share of investor pool (%). ROI = Aug–Sep sales ×{" "}
+          {INVESTOR_SALES_POOL_RATE}% × pool share %.
         </p>
       )}
     </div>
@@ -321,7 +269,13 @@ function UserRow({
           investedAt={normalizeInvestorInvestedAt(draft.investorInvestedAt)}
           investedUntil={normalizeInvestorInvestedAt(draft.investorInvestedUntil)}
           editing={editing}
-          onChange={(next) => setDraft((d) => ({ ...d, ...next }))}
+          onChange={(next) =>
+            setDraft((d) => ({
+              ...d,
+              investorInvestment: next.investorInvestment,
+              investorRoiPercent: next.investorRoiPercent,
+            }))
+          }
         />
       )}
       {editing && u.role !== "superadmin" && (
@@ -409,11 +363,9 @@ function AddUserForm({
   const [showPw, setShowPw] = useState(false)
   const [investorInvestment, setInvestorInvestment] = useState(0)
   const [investorRoiPercent, setInvestorRoiPercent] = useState(0)
-  const [investorRoiPeriod, setInvestorRoiPeriod] = useState<InvestorRoiPeriod>("annual")
-  const [investorInvestedAt, setInvestorInvestedAt] = useState(() => new Date().toISOString().slice(0, 10))
-  const [investorInvestedUntil, setInvestorInvestedUntil] = useState(() =>
-    investorRoiEndDate(new Date().toISOString().slice(0, 10), "annual"),
-  )
+  const [investorRoiPeriod] = useState<InvestorRoiPeriod>("annual")
+  const [investorInvestedAt] = useState("")
+  const [investorInvestedUntil] = useState("")
 
   function toggleModule(m: Module) {
     setModules(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
@@ -478,7 +430,7 @@ function AddUserForm({
         {isInvestorUser(role) && (
           <>
             <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-              Give them this email and password. They cannot open the staff ERP — only the investor dashboard and CRM Investor.
+              Give them this email and password. They cannot open the staff ERP — only the investor dashboard and CRM.
             </p>
             <InvestorTermsFields
               investment={investorInvestment}
@@ -490,9 +442,6 @@ function AddUserForm({
               onChange={(next) => {
                 setInvestorInvestment(next.investorInvestment)
                 setInvestorRoiPercent(next.investorRoiPercent)
-                setInvestorRoiPeriod(next.investorRoiPeriod)
-                setInvestorInvestedAt(next.investorInvestedAt)
-                setInvestorInvestedUntil(next.investorInvestedUntil)
               }}
             />
           </>

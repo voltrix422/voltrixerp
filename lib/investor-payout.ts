@@ -1,5 +1,8 @@
 export type InvestorRoiPeriod = "3m" | "6m" | "annual"
 
+/** Share of sales that funds the investor pool (1.25%). */
+export const INVESTOR_SALES_POOL_RATE = 1.25
+
 export const INVESTOR_ROI_PERIODS: { id: InvestorRoiPeriod; label: string; months: number }[] = [
   { id: "3m", label: "3 months", months: 3 },
   { id: "6m", label: "6 months", months: 6 },
@@ -78,19 +81,15 @@ export function resolveInvestorTermDates(
   return { from, to, months }
 }
 
-/** Annual ROI% scaled to the actual date range (or preset term if no dates). */
-export function investorPayoutDue(
-  investment: number,
-  roiPercent: number,
-  period: InvestorRoiPeriod,
-  investedAt?: string,
-  investedUntil?: string,
-): number {
-  const inv = Number(investment) || 0
-  const roi = Number(roiPercent) || 0
-  const { months } = resolveInvestorTermDates(investedAt || "", period, investedUntil)
-  const m = months > 0 ? months : investorPeriodMonths(period)
-  return Math.round(inv * (roi / 100) * (m / 12))
+/**
+ * Investor ROI = Sales Amount × 1.25% × (Share of Investor Pool %).
+ * Sale value = 1.25% of sales; then × investor pool share %.
+ */
+export function investorPayoutDue(salesAmount: number, poolSharePercent: number): number {
+  const sales = Number(salesAmount) || 0
+  const share = Number(poolSharePercent) || 0
+  const saleValue = sales * (INVESTOR_SALES_POOL_RATE / 100)
+  return Math.round(saleValue * (share / 100))
 }
 
 export function investorRoiRangeLabel(
@@ -107,37 +106,26 @@ export function investorRoiRangeLabel(
 
 export function investorPayoutSummary(opts: {
   investment: number
-  roiPercent: number
-  period: InvestorRoiPeriod
-  investedAt?: string
-  investedUntil?: string
+  /** Share of investor pool (%). Stored as investorRoiPercent. */
+  poolSharePercent: number
+  salesAmount: number
+  salesLabel?: string
 }) {
-  const { from, to, months } = resolveInvestorTermDates(
-    opts.investedAt || "",
-    opts.period,
-    opts.investedUntil,
-  )
-  const due = investorPayoutDue(
-    opts.investment,
-    opts.roiPercent,
-    opts.period,
-    opts.investedAt,
-    opts.investedUntil,
-  )
-  const m = months > 0 ? months : investorPeriodMonths(opts.period)
-  const rangeLabel = investorRoiRangeLabel(opts.investedAt || "", opts.period, opts.investedUntil)
-  const monthsLabel =
-    Math.abs(m - Math.round(m)) < 0.05
-      ? `${Math.round(m)} month${Math.round(m) === 1 ? "" : "s"}`
-      : `${m.toLocaleString("en-PK", { maximumFractionDigits: 1 })} months`
+  const salesAmount = Number(opts.salesAmount) || 0
+  const poolSharePercent = Number(opts.poolSharePercent) || 0
+  const investment = Number(opts.investment) || 0
+  const saleValue = salesAmount * (INVESTOR_SALES_POOL_RATE / 100)
+  const due = investorPayoutDue(salesAmount, poolSharePercent)
+  const salesLabel = opts.salesLabel || "period sales"
   return {
     due,
-    from,
-    to,
-    months: m,
-    monthsLabel,
-    rangeLabel,
-    configured: Number(opts.investment) > 0 && Number(opts.roiPercent) > 0,
+    salesAmount,
+    saleValue,
+    poolSharePercent,
+    investment,
+    salesLabel,
+    poolRate: INVESTOR_SALES_POOL_RATE,
+    configured: investment > 0 && poolSharePercent > 0 && salesAmount > 0,
   }
 }
 
