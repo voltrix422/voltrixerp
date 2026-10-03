@@ -27,17 +27,18 @@ export function InvestorCrm2View() {
 
   return (
     <>
-      <Topbar title="CRM 2" description="Investor sales book — Aug–Sep 2026" />
+      <Topbar title="CRM 2" description="Investor sales book — Jul–Oct 2026" />
       <div className="flex-1 overflow-auto">
         <div className="p-3 sm:p-6 max-w-6xl space-y-4">
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Signed in as {user?.name}. This sales book is the same for every investor.
+            Signed in as {user?.name}. This sales book is the same for every investor. Line amounts use CRM product prices
+            (dealership / wholesale / retail by client type).
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Stat label="Sales (2 months)" value={`${formatInvestorCrore(stats.total)} PKR`} />
+            <Stat label="Sales (Jul–Oct)" value={`${formatInvestorCrore(stats.total)} PKR`} />
             <Stat label="Orders" value={String(stats.orderCount)} />
             <Stat label="Clients" value={String(stats.clientCount)} />
-            <Stat label="Period" value="1 Aug – 22 Sep 2026" />
+            <Stat label="Period" value="1 Jul – 2 Oct 2026" />
           </div>
 
           <div className="flex items-center gap-1 border-b overflow-x-auto">

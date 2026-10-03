@@ -65,9 +65,9 @@ export function InvestorDashboardView() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           <PayStat label="CRM 2 sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
+          <PayStat label="July" value={formatInvestorRs(stats.jul)} />
           <PayStat label="August" value={formatInvestorRs(stats.aug)} />
-          <PayStat label="September" value={formatInvestorRs(stats.sep)} />
-          <PayStat label="Paid orders" value={String(stats.orderCount)} />
+          <PayStat label="Sep–Oct" value={formatInvestorRs(stats.sep + stats.oct)} />
         </div>
 
         <div className="rounded-lg border bg-[hsl(var(--card))] p-3 h-72">
