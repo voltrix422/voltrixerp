@@ -394,7 +394,7 @@ function UserRow({
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages</span>
         ) : isInvestorUser(draft.role) ? (
           <span className="text-[10px] text-[#1a9f9a]">
-            Login: {draft.email} + password at /investor/login
+            Login: {draft.email} + password at /login
           </span>
         ) : ALL_MODULES.map(m => {
           const has = draft.modules.includes(m)
@@ -473,7 +473,7 @@ function AddUserForm({
       <p className="font-semibold text-xs">{isInvestorUser(role) ? "New investor" : "New User"}</p>
       {isInvestorUser(role) && (
         <p className="text-[10px] text-[#1a9f9a]">
-          They sign in at /investor/login with this email and password. Each investor gets their own login.
+          They sign in at /login with this email and password — same as staff. They only see the investor portal.
         </p>
       )}
       <input required placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
@@ -553,7 +553,7 @@ function AddUserForm({
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">All pages — full access to every module</p>
       ) : isInvestorUser(role) ? (
         <p className="text-[10px] text-[#1a9f9a]">
-          Investor portal login: /investor/login
+          Investor login: /login (opens investor portal)
         </p>
       ) : (
       <div className="flex flex-wrap gap-1">
@@ -633,7 +633,7 @@ export function UsersManager() {
           <div>
             <h2 className="text-base font-semibold">User Accounts</h2>
             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-              Staff ERP users, plus investors who sign in at /investor/login with the email and password you set
+              Staff ERP users, plus investors who sign in at /login with the email and password you set
             </p>
           </div>
           <div className="flex items-center gap-2">

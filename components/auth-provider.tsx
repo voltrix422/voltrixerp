@@ -111,8 +111,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (pathname.startsWith("/pos")) {
         router.replace("/pos/login")
-      } else if (isInvestorPortalPath(pathname)) {
-        router.replace("/investor/login")
       } else {
         router.replace("/login")
       }

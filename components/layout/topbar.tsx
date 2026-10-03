@@ -96,7 +96,7 @@ export function Topbar({ title, description, action, pendingCount, onPendingClic
                 <p className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">{user?.email}</p>
               </div>
               <button
-                onClick={() => { setOpen(false); logout(isInvestorUser(user?.role) ? "/investor/login" : "/login") }}
+                onClick={() => { setOpen(false); logout("/login") }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-[hsl(var(--accent))] transition-colors cursor-pointer"
               >
                 <LogOut className="h-4 w-4" />
