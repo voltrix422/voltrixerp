@@ -10,12 +10,16 @@ import {
   INVESTOR_CRM2_FROM,
   INVESTOR_CRM2_ORDERS,
   INVESTOR_CRM2_TO,
+  investorCrm2SalesInRange,
 } from "@/lib/investor-fake-crm"
 import {
   formatInvestorCrore,
   formatInvestorRs,
   investorPayoutSummary,
+  investorRoiRangeLabel,
   INVESTOR_SALES_POOL_RATE,
+  normalizeInvestorInvestedAt,
+  normalizeInvestorRoiPeriod,
 } from "@/lib/investor-payout"
 
 export function InvestorCrm2View() {
@@ -46,13 +50,19 @@ export function InvestorCrm2View() {
     fromDate || INVESTOR_CRM2_FROM,
     toDate || INVESTOR_CRM2_TO,
   )
+  const bookSales = investorCrm2SalesInRange(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO)
+  const bookSalesLabel = formatInvestorCrmRangeLabel(INVESTOR_CRM2_FROM, INVESTOR_CRM2_TO)
   const poolShare = Number(user?.investorRoiPercent) || 0
   const investment = Number(user?.investorInvestment) || 0
+  const investPeriod = normalizeInvestorRoiPeriod(user?.investorRoiPeriod)
+  const investedAt = normalizeInvestorInvestedAt(user?.investorInvestedAt)
+  const investedUntil = normalizeInvestorInvestedAt(user?.investorInvestedUntil)
+  const investLabel = investorRoiRangeLabel(investedAt, investPeriod, investedUntil)
   const summary = investorPayoutSummary({
     investment,
     poolSharePercent: poolShare,
-    salesAmount: stats.total,
-    salesLabel: rangeLabel,
+    salesAmount: bookSales,
+    salesLabel: bookSalesLabel,
   })
 
   return (
@@ -72,7 +82,10 @@ export function InvestorCrm2View() {
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">
                 {formatInvestorCrore(stats.total)} PKR
               </h1>
-              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{rangeLabel}</p>
+              <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+                {rangeLabel}
+                {investedAt && investedUntil ? ` · Invested ${investLabel}` : ""}
+              </p>
             </motion.div>
             <InvestorDateFilter
               fromDate={fromDate}
@@ -105,7 +118,8 @@ export function InvestorCrm2View() {
 
           {summary.configured && (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {formatInvestorCrore(stats.total)} × {INVESTOR_SALES_POOL_RATE}% × {poolShare}% ={" "}
+              ROI on {bookSalesLabel}: {formatInvestorCrore(bookSales)} × {INVESTOR_SALES_POOL_RATE}% ×{" "}
+              {poolShare}% ={" "}
               <span className="font-semibold text-[#1a9f9a]">{formatInvestorRs(summary.due)}</span>
             </p>
           )}
