@@ -2,7 +2,12 @@
 import { useState, useEffect } from "react"
 import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_ROLES, ROLE_LABELS, roleHasAllModules, modulesForRole, isViewOnlyUser, isInvestorUser, normalizePurchaseScopes, type User, type Module, type UserRole } from "@/lib/auth"
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
-import { investorCrm2Stats } from "@/lib/investor-fake-crm"
+import {
+  formatInvestorCrmRangeLabel,
+  INVESTOR_CRM2_FROM,
+  INVESTOR_CRM2_TO,
+  investorCrm2SalesInRange,
+} from "@/lib/investor-fake-crm"
 import {
   formatInvestorCrore,
   formatInvestorRs,
@@ -43,12 +48,17 @@ function InvestorTermsFields({
   editing: boolean
   onChange: (next: InvestorTermsNext) => void
 }) {
-  const salesAmount = investorCrm2Stats().augSep
+  const [salesFrom, setSalesFrom] = useState(INVESTOR_CRM2_FROM)
+  const [salesTo, setSalesTo] = useState(INVESTOR_CRM2_TO)
+  const from = salesFrom || INVESTOR_CRM2_FROM
+  const to = salesTo || INVESTOR_CRM2_TO
+  const salesAmount = investorCrm2SalesInRange(from, to)
+  const rangeLabel = formatInvestorCrmRangeLabel(from, to)
   const summary = investorPayoutSummary({
     investment,
     poolSharePercent: roiPercent,
     salesAmount,
-    salesLabel: "Aug–Sep sales",
+    salesLabel: rangeLabel,
   })
   const patch = (partial: Partial<InvestorTermsNext>) =>
     onChange({
@@ -88,6 +98,30 @@ function InvestorTermsFields({
             className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
           />
         </label>
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Sales from</span>
+          <input
+            type="date"
+            disabled={!editing}
+            min={INVESTOR_CRM2_FROM}
+            max={INVESTOR_CRM2_TO}
+            value={salesFrom}
+            onChange={(e) => setSalesFrom(e.target.value || INVESTOR_CRM2_FROM)}
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
+          />
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Sales to</span>
+          <input
+            type="date"
+            disabled={!editing}
+            min={INVESTOR_CRM2_FROM}
+            max={INVESTOR_CRM2_TO}
+            value={salesTo}
+            onChange={(e) => setSalesTo(e.target.value || INVESTOR_CRM2_TO)}
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
+          />
+        </label>
       </div>
       {summary.configured ? (
         <div className="rounded border border-[#1a9f9a]/40 bg-[hsl(var(--background))]/80 px-2.5 py-2 space-y-0.5">
@@ -95,13 +129,13 @@ function InvestorTermsFields({
             They receive {formatInvestorRs(summary.due)}
           </p>
           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            ROI = {formatInvestorCrore(salesAmount)} × {INVESTOR_SALES_POOL_RATE}% × {roiPercent}% ={" "}
-            {formatInvestorRs(summary.due)}
+            ROI ({rangeLabel}) = {formatInvestorCrore(salesAmount)} × {INVESTOR_SALES_POOL_RATE}% ×{" "}
+            {roiPercent}% = {formatInvestorRs(summary.due)}
           </p>
         </div>
       ) : (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Set Investment (PKR) and Share of investor pool (%). ROI = Aug–Sep sales ×{" "}
+          Set Investment (PKR) and Share of investor pool (%). ROI = CRM sales in selected date range ×{" "}
           {INVESTOR_SALES_POOL_RATE}% × pool share %.
         </p>
       )}

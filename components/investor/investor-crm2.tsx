@@ -2,14 +2,22 @@
 
 import { useMemo, useState } from "react"
 import { Topbar } from "@/components/layout/topbar"
+import { useAuth } from "@/components/auth-provider"
 import {
+  formatInvestorCrmRangeLabel,
   INVESTOR_CRM2_FROM,
   INVESTOR_CRM2_ORDERS,
   INVESTOR_CRM2_TO,
 } from "@/lib/investor-fake-crm"
-import { formatInvestorCrore, formatInvestorRs } from "@/lib/investor-payout"
+import {
+  formatInvestorCrore,
+  formatInvestorRs,
+  investorPayoutSummary,
+  INVESTOR_SALES_POOL_RATE,
+} from "@/lib/investor-payout"
 
 export function InvestorCrm2View() {
+  const { user } = useAuth()
   const [fromDate, setFromDate] = useState(INVESTOR_CRM2_FROM)
   const [toDate, setToDate] = useState(INVESTOR_CRM2_TO)
 
@@ -31,6 +39,19 @@ export function InvestorCrm2View() {
       outstandingCount: filteredOrders.filter((o) => o.payment === "outstanding").length,
     }
   }, [filteredOrders])
+
+  const rangeLabel = formatInvestorCrmRangeLabel(
+    fromDate || INVESTOR_CRM2_FROM,
+    toDate || INVESTOR_CRM2_TO,
+  )
+  const poolShare = Number(user?.investorRoiPercent) || 0
+  const investment = Number(user?.investorInvestment) || 0
+  const summary = investorPayoutSummary({
+    investment,
+    poolSharePercent: poolShare,
+    salesAmount: stats.total,
+    salesLabel: rangeLabel,
+  })
 
   function clearRange() {
     setFromDate(INVESTOR_CRM2_FROM)
@@ -78,14 +99,23 @@ export function InvestorCrm2View() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <Stat label="Sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
             <Stat label="Orders" value={String(stats.orderCount)} />
             <Stat
               label="Outstanding"
               value={`${formatInvestorCrore(stats.outstanding)} PKR`}
             />
+            {summary.configured && (
+              <Stat label="Your ROI (range)" value={formatInvestorRs(summary.due)} />
+            )}
           </div>
+          {summary.configured && (
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              ROI ({rangeLabel}) = {formatInvestorCrore(stats.total)} × {INVESTOR_SALES_POOL_RATE}% ×{" "}
+              {poolShare}% = {formatInvestorRs(summary.due)}
+            </p>
+          )}
 
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-xs">

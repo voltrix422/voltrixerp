@@ -68,7 +68,7 @@ export default function InvestorLoginPage() {
             portal
           </h1>
           <p className="text-white/80 text-sm max-w-sm leading-relaxed">
-            Follow company progress and review CRM sales. Your return is Aug–Sep sales × 1.25% × your pool share.
+            Follow company progress and review CRM sales. Your return is sales in the selected date range × 1.25% × your pool share.
           </p>
         </div>
         <p className="text-xs text-white/50">© 2026 Voltrix</p>

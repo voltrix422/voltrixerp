@@ -443,6 +443,28 @@ export function investorCrm2Clients(): InvestorCrm2Client[] {
   return Array.from(map.values()).sort((a, b) => b.spent - a.spent)
 }
 
+/** Sales total for orders in [from, to] (inclusive ISO dates). */
+export function investorCrm2SalesInRange(from?: string, to?: string): number {
+  const start = from && from >= INVESTOR_CRM2_FROM ? from : INVESTOR_CRM2_FROM
+  const end = to && to <= INVESTOR_CRM2_TO ? to : INVESTOR_CRM2_TO
+  return INVESTOR_CRM2_ORDERS.filter((o) => o.date >= start && o.date <= end).reduce(
+    (s, o) => s + o.total,
+    0,
+  )
+}
+
+export function formatInvestorCrmRangeLabel(from?: string, to?: string): string {
+  const start = from || INVESTOR_CRM2_FROM
+  const end = to || INVESTOR_CRM2_TO
+  const fmt = (iso: string) =>
+    new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+  return `${fmt(start)} – ${fmt(end)}`
+}
+
 export function investorCrm2Stats() {
   const orders = INVESTOR_CRM2_ORDERS
   const total = orders.reduce((s, o) => s + o.total, 0)
