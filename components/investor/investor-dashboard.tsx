@@ -123,17 +123,18 @@ export function InvestorDashboardView() {
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
             Company CRM Investor sales · {stats.periodLabel}
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
             <PayStat label="Total sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
             <PayStat label="July" value={formatInvestorRs(stats.jul)} />
             <PayStat label="August" value={formatInvestorRs(stats.aug)} />
             <PayStat label="September" value={formatInvestorRs(stats.sep)} />
+            <PayStat label="October (to date)" value={formatInvestorRs(stats.oct)} />
             <PayStat label="Orders" value={String(stats.orderCount)} />
           </div>
         </div>
 
         <div className="rounded-lg border bg-[hsl(var(--card))] p-3 h-72">
-          <p className="text-xs font-medium mb-2">Daily delivered sales (1 Jul – 22 Sep)</p>
+          <p className="text-xs font-medium mb-2">Daily delivered sales (1 Jul – 3 Oct)</p>
           <ResponsiveContainer width="100%" height="90%">
             <AreaChart data={stats.byDay} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
               <defs>

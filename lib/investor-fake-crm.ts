@@ -1,20 +1,24 @@
 /**
  * Investor CRM 2 only. Never imported by staff CRM, orders APIs, inventory, or finance.
  * Fake delivered sales using the same unit prices as CRM Product Prices (dealership / wholesale / retail).
- * Book: 1 Jul 2026 – 22 Sep 2026 (July for fuller record; Aug+Sep ≈ Rs. 123,100,000 / 12.31 crore).
+ * Book: 1 Jul 2026 – today (Oct till-date filler); Aug+Sep locked ≈ Rs. 123,100,000 / 12.31 crore.
  */
 
-/** Aug–Sep headline target only (does not include July). */
+/** Aug–Sep headline target only (does not include July or October). */
 const INVESTOR_CRM2_AUG_SEP_TARGET = 123_100_000
 export const INVESTOR_CRM2_FROM = "2026-07-01"
-export const INVESTOR_CRM2_TO = "2026-09-22"
+/** Book end = till date (fake Oct activity after locked Aug–Sep). */
+export const INVESTOR_CRM2_TO = "2026-10-03"
 export const INVESTOR_CRM2_AUG_SEP_FROM = "2026-08-01"
+/** Locked Aug–Sep window for the 12.31 Cr headline (do not extend). */
+export const INVESTOR_CRM2_AUG_SEP_TO = "2026-09-22"
+export const INVESTOR_CRM2_OCT_FROM = "2026-10-01"
 
 /** Company update shown on investor dashboard (Aug–Sep rainy / off-season period). */
 export const INVESTOR_PERIOD_UPDATE = {
   salesTargetLabel: "12.31 Cr",
   salesFrom: INVESTOR_CRM2_AUG_SEP_FROM,
-  salesTo: INVESTOR_CRM2_TO,
+  salesTo: INVESTOR_CRM2_AUG_SEP_TO,
   /** Shared period ROI communicated for Aug–Sep (Rs. 1.50 lac). */
   periodRoiPkr: 150_000,
   noteTitle: "Sales & ROI update — August to 22 September",
@@ -235,9 +239,11 @@ function buildBasket(rand: () => number, tier: ClientTier, size: "small" | "mid"
 
 function buildOrders(): InvestorCrm2Order[] {
   const rand = mulberry32(20260711)
-  const augSepSpan = daysBetween(INVESTOR_CRM2_AUG_SEP_FROM, INVESTOR_CRM2_TO) + 1
+  const augSepSpan = daysBetween(INVESTOR_CRM2_AUG_SEP_FROM, INVESTOR_CRM2_AUG_SEP_TO) + 1
+  const octSpan = daysBetween(INVESTOR_CRM2_OCT_FROM, INVESTOR_CRM2_TO) + 1
   const julyOrders: InvestorCrm2Order[] = []
   const augSepOrders: InvestorCrm2Order[] = []
+  const octOrders: InvestorCrm2Order[] = []
 
   // July: modest delivered volume so the book has prior-month activity (not in 12.31 Cr).
   const julyStage = { fromDay: 0, days: 31, count: 16, largeShare: 0.22 }
@@ -263,7 +269,7 @@ function buildOrders(): InvestorCrm2Order[] {
     })
   }
 
-  // Aug + Sep (to 22nd) ≈ 12.31 Cr with exact CRM unit prices.
+  // Aug + Sep (to 22nd) ≈ 12.31 Cr — locked window; do not add later Sep/Oct here.
   const stages: { fromDay: number; days: number; count: number; largeShare: number }[] = [
     { fromDay: 0, days: 31, count: 38, largeShare: 0.38 }, // August
     { fromDay: 31, days: 22, count: 34, largeShare: 0.4 }, // Sep 1–22
@@ -374,7 +380,32 @@ function buildOrders(): InvestorCrm2Order[] {
     }
   }
 
-  const orders = [...julyOrders, ...augSepOrders]
+  // October till-date filler only (does not touch Aug–Sep 12.31 Cr).
+  const octStage = { count: 5, largeShare: 0.2 }
+  for (let i = 0; i < octStage.count; i++) {
+    // Spread across Oct 1…today; last order lands on till-date.
+    const dayOffset = i === octStage.count - 1 ? octSpan - 1 : Math.floor(rand() * Math.max(1, octSpan - 1))
+    const date = addDays(INVESTOR_CRM2_OCT_FROM, Math.min(octSpan - 1, dayOffset))
+    const client = CLIENTS[(i + 3) % CLIENTS.length]
+    const roll = rand()
+    const size: "small" | "mid" | "large" =
+      roll < octStage.largeShare ? "large" : roll < octStage.largeShare + 0.55 ? "mid" : "small"
+    const items = buildBasket(rand, client.tier, size)
+    const total = items.reduce((s, it) => s + it.total, 0)
+    octOrders.push({
+      orderNumber: `CRM2-TEMP`,
+      date,
+      clientName: client.name,
+      city: client.city,
+      phone: client.phone,
+      status: "delivered",
+      payment: "paid",
+      items,
+      total,
+    })
+  }
+
+  const orders = [...julyOrders, ...augSepOrders, ...octOrders]
   orders.sort((a, b) => a.date.localeCompare(b.date) || a.clientName.localeCompare(b.clientName))
   orders.forEach((o, idx) => {
     o.orderNumber = `CRM2-${pad(idx + 1)}`
@@ -449,7 +480,7 @@ export function investorCrm2Stats() {
     oct,
     augSep: aug + sep,
     periodRoiPkr: INVESTOR_PERIOD_UPDATE.periodRoiPkr,
-    periodLabel: "1 Jul – 22 Sep 2026",
+    periodLabel: "1 Jul – 3 Oct 2026",
     augSepLabel: "1 Aug – 22 Sep 2026",
     batteries,
     inverters,
