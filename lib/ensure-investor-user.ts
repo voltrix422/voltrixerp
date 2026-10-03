@@ -46,6 +46,7 @@ async function ensureNamedInvestor(inv: (typeof NAMED_INVESTORS)[number]) {
         investorRoiPercent: 0,
         investorRoiPeriod: "annual",
         investorInvestedAt: "",
+        investorInvestedUntil: "",
       },
     })
   } catch {

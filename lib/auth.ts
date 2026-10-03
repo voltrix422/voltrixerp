@@ -28,6 +28,7 @@ export interface User {
   investorRoiPercent?: number
   investorRoiPeriod?: InvestorRoiPeriod
   investorInvestedAt?: string
+  investorInvestedUntil?: string
 }
 
 export const DEFAULT_PURCHASE_SCOPE = "P1"
@@ -245,6 +246,7 @@ function mapRow(row: Record<string, unknown>): User {
     investorRoiPercent: Number(row.investorRoiPercent) || 0,
     investorRoiPeriod: normalizeInvestorRoiPeriod(row.investorRoiPeriod),
     investorInvestedAt: normalizeInvestorInvestedAt(row.investorInvestedAt),
+    investorInvestedUntil: normalizeInvestorInvestedAt(row.investorInvestedUntil),
   }
 }
 

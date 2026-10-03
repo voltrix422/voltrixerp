@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { ensureDefaultInvestorUser } from "@/lib/ensure-investor-user"
-import { normalizeInvestorInvestedAt, normalizeInvestorRoiPeriod } from "@/lib/investor-payout"
+import {
+  investorRoiEndDate,
+  normalizeInvestorInvestedAt,
+  normalizeInvestorRoiPeriod,
+} from "@/lib/investor-payout"
 
 export async function GET() {
   await ensureDefaultInvestorUser()
@@ -13,6 +17,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   if (String(body.role || "").toLowerCase() === "investor") {
     body.modules = ["dashboard", "crm"]
+  }
+  const investedAt = normalizeInvestorInvestedAt(body.investorInvestedAt)
+  let investedUntil = normalizeInvestorInvestedAt(body.investorInvestedUntil)
+  const roiPeriod = normalizeInvestorRoiPeriod(body.investorRoiPeriod)
+  if (investedAt && !investedUntil) {
+    investedUntil = investorRoiEndDate(investedAt, roiPeriod)
   }
   const user = await prisma.erpUser.upsert({
     where: { id: body.id ?? "__new__" },
@@ -33,8 +43,9 @@ export async function POST(req: NextRequest) {
       purchaseScopes: body.purchaseScopes ?? [],
       investorInvestment: Number(body.investorInvestment) || 0,
       investorRoiPercent: Number(body.investorRoiPercent) || 0,
-      investorRoiPeriod: normalizeInvestorRoiPeriod(body.investorRoiPeriod),
-      investorInvestedAt: normalizeInvestorInvestedAt(body.investorInvestedAt),
+      investorRoiPeriod: roiPeriod,
+      investorInvestedAt: investedAt,
+      investorInvestedUntil: investedUntil,
     },
     create: {
       id: body.id,
@@ -54,8 +65,9 @@ export async function POST(req: NextRequest) {
       purchaseScopes: body.purchaseScopes ?? [],
       investorInvestment: Number(body.investorInvestment) || 0,
       investorRoiPercent: Number(body.investorRoiPercent) || 0,
-      investorRoiPeriod: normalizeInvestorRoiPeriod(body.investorRoiPeriod),
-      investorInvestedAt: normalizeInvestorInvestedAt(body.investorInvestedAt),
+      investorRoiPeriod: roiPeriod,
+      investorInvestedAt: investedAt,
+      investorInvestedUntil: investedUntil,
     },
   })
   return NextResponse.json(user)

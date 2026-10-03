@@ -44,6 +44,7 @@ function mapRow(row: Record<string, unknown>): any {
     investorRoiPercent: Number(row.investorRoiPercent) || 0,
     investorRoiPeriod: row.investorRoiPeriod || "annual",
     investorInvestedAt: String(row.investorInvestedAt || ""),
+    investorInvestedUntil: String(row.investorInvestedUntil || ""),
   }
 }
 

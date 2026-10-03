@@ -4,8 +4,8 @@ import { getUsers, saveUser, deleteUser, ALL_MODULES, MODULE_LABELS, ASSIGNABLE_
 import { getPurchaseScopes, formatPurchaseScope, type PurchaseScope } from "@/lib/purchase-scopes"
 import {
   formatInvestorRs,
-  investorPayoutDue,
-  investorRoiRangeLabel,
+  investorPayoutSummary,
+  investorRoiEndDate,
   INVESTOR_ROI_PERIODS,
   normalizeInvestorInvestedAt,
   normalizeInvestorRoiPeriod,
@@ -21,6 +21,7 @@ type InvestorTermsNext = {
   investorRoiPercent: number
   investorRoiPeriod: InvestorRoiPeriod
   investorInvestedAt: string
+  investorInvestedUntil: string
 }
 
 function InvestorTermsFields({
@@ -28,6 +29,7 @@ function InvestorTermsFields({
   roiPercent,
   period,
   investedAt,
+  investedUntil,
   editing,
   onChange,
 }: {
@@ -35,25 +37,41 @@ function InvestorTermsFields({
   roiPercent: number
   period: InvestorRoiPeriod
   investedAt: string
+  investedUntil: string
   editing: boolean
   onChange: (next: InvestorTermsNext) => void
 }) {
-  const due = investorPayoutDue(investment, roiPercent, period)
-  const range = investorRoiRangeLabel(investedAt, period)
+  const summary = investorPayoutSummary({
+    investment,
+    roiPercent,
+    period,
+    investedAt,
+    investedUntil,
+  })
   const patch = (partial: Partial<InvestorTermsNext>) =>
     onChange({
       investorInvestment: investment,
       investorRoiPercent: roiPercent,
       investorRoiPeriod: period,
       investorInvestedAt: investedAt,
+      investorInvestedUntil: investedUntil,
       ...partial,
     })
 
+  function applyTerm(nextPeriod: InvestorRoiPeriod) {
+    const from = investedAt || new Date().toISOString().slice(0, 10)
+    patch({
+      investorRoiPeriod: nextPeriod,
+      investorInvestedAt: from,
+      investorInvestedUntil: investorRoiEndDate(from, nextPeriod),
+    })
+  }
+
   return (
-    <div className="rounded-md border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-2 space-y-1.5">
+    <div className="rounded-md border border-[#1a9f9a]/30 bg-[#1a9f9a]/5 p-2.5 space-y-2">
       <p className="text-[10px] font-semibold text-[#1a9f9a]">Investor returns (their dashboard only)</p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-        <label className="space-y-0.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+        <label className="space-y-0.5 sm:col-span-1">
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Amount invested (PKR)</span>
           <input
             type="number"
@@ -61,16 +79,6 @@ function InvestorTermsFields({
             disabled={!editing}
             value={investment || ""}
             onChange={(e) => patch({ investorInvestment: Number(e.target.value) || 0 })}
-            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
-          />
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Invested date</span>
-          <input
-            type="date"
-            disabled={!editing}
-            value={investedAt || ""}
-            onChange={(e) => patch({ investorInvestedAt: normalizeInvestorInvestedAt(e.target.value) })}
             className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
           />
         </label>
@@ -87,11 +95,11 @@ function InvestorTermsFields({
           />
         </label>
         <label className="space-y-0.5">
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Term</span>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Quick term</span>
           <select
             disabled={!editing}
             value={period}
-            onChange={(e) => patch({ investorRoiPeriod: normalizeInvestorRoiPeriod(e.target.value) })}
+            onChange={(e) => applyTerm(normalizeInvestorRoiPeriod(e.target.value))}
             className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
           >
             {INVESTOR_ROI_PERIODS.map((p) => (
@@ -99,16 +107,54 @@ function InvestorTermsFields({
             ))}
           </select>
         </label>
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Invest from</span>
+          <input
+            type="date"
+            disabled={!editing}
+            value={investedAt || ""}
+            onChange={(e) => {
+              const from = normalizeInvestorInvestedAt(e.target.value)
+              const until =
+                investedUntil && investedUntil >= from
+                  ? investedUntil
+                  : from
+                    ? investorRoiEndDate(from, period)
+                    : ""
+              patch({ investorInvestedAt: from, investorInvestedUntil: until })
+            }}
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
+          />
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Invest to</span>
+          <input
+            type="date"
+            disabled={!editing}
+            min={investedAt || undefined}
+            value={investedUntil || ""}
+            onChange={(e) => patch({ investorInvestedUntil: normalizeInvestorInvestedAt(e.target.value) })}
+            className="w-full h-7 rounded border bg-[hsl(var(--background))] px-2 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))] disabled:opacity-70"
+          />
+        </label>
       </div>
-      {investment > 0 && roiPercent > 0 ? (
-        <p className="text-[10px] font-medium text-[#1a9f9a]">
-          They receive {formatInvestorRs(due)} for {range}
-          {" "}(investment × {roiPercent}% annual × term).
-        </p>
+      {summary.configured ? (
+        <div className="rounded border border-[#1a9f9a]/40 bg-[hsl(var(--background))]/80 px-2.5 py-2 space-y-0.5">
+          <p className="text-xs font-semibold text-[#1a9f9a]">
+            They receive {formatInvestorRs(summary.due)}
+          </p>
+          <p className="text-[10px] text-[hsl(var(--foreground))]">
+            For {summary.rangeLabel} · {summary.monthsLabel}
+          </p>
+          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            ROI calc: {formatInvestorRs(investment)} × {roiPercent}% annual × ({summary.monthsLabel} ÷ 12)
+            {" "}= {formatInvestorRs(summary.due)}
+          </p>
+        </div>
       ) : (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Set amount, invested date, ROI %, and term. Payout = investment × annual ROI% scaled to the term
-          (3 months = 1/4, 6 months = 1/2).
+          Set amount, invest from/to dates, and ROI %. Payout = investment × annual ROI% × (months in range ÷ 12).
+          Quick term fills the end date for you.
         </p>
       )}
     </div>
@@ -176,6 +222,10 @@ function UserRow({
   const [editing, setEditing] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [draft, setDraft] = useState<User>(u)
+
+  useEffect(() => {
+    setDraft(u)
+  }, [u])
 
   function toggleModule(m: Module) {
     setDraft(d => ({
@@ -269,6 +319,7 @@ function UserRow({
           roiPercent={draft.investorRoiPercent || 0}
           period={normalizeInvestorRoiPeriod(draft.investorRoiPeriod)}
           investedAt={normalizeInvestorInvestedAt(draft.investorInvestedAt)}
+          investedUntil={normalizeInvestorInvestedAt(draft.investorInvestedUntil)}
           editing={editing}
           onChange={(next) => setDraft((d) => ({ ...d, ...next }))}
         />
@@ -360,6 +411,9 @@ function AddUserForm({
   const [investorRoiPercent, setInvestorRoiPercent] = useState(0)
   const [investorRoiPeriod, setInvestorRoiPeriod] = useState<InvestorRoiPeriod>("annual")
   const [investorInvestedAt, setInvestorInvestedAt] = useState(() => new Date().toISOString().slice(0, 10))
+  const [investorInvestedUntil, setInvestorInvestedUntil] = useState(() =>
+    investorRoiEndDate(new Date().toISOString().slice(0, 10), "annual"),
+  )
 
   function toggleModule(m: Module) {
     setModules(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
@@ -381,6 +435,7 @@ function AddUserForm({
       investorRoiPercent: isInvestorUser(role) ? investorRoiPercent : 0,
       investorRoiPeriod: isInvestorUser(role) ? investorRoiPeriod : "annual",
       investorInvestedAt: isInvestorUser(role) ? normalizeInvestorInvestedAt(investorInvestedAt) : "",
+      investorInvestedUntil: isInvestorUser(role) ? normalizeInvestorInvestedAt(investorInvestedUntil) : "",
     })
   }
 
@@ -430,12 +485,14 @@ function AddUserForm({
               roiPercent={investorRoiPercent}
               period={investorRoiPeriod}
               investedAt={investorInvestedAt}
+              investedUntil={investorInvestedUntil}
               editing
               onChange={(next) => {
                 setInvestorInvestment(next.investorInvestment)
                 setInvestorRoiPercent(next.investorRoiPercent)
                 setInvestorRoiPeriod(next.investorRoiPeriod)
                 setInvestorInvestedAt(next.investorInvestedAt)
+                setInvestorInvestedUntil(next.investorInvestedUntil)
               }}
             />
           </>
