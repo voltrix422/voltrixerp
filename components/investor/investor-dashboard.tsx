@@ -18,6 +18,8 @@ import {
   formatInvestorRs,
   investorPayoutDue,
   investorRoiPeriodLabel,
+  investorRoiRangeLabel,
+  normalizeInvestorInvestedAt,
   normalizeInvestorRoiPeriod,
 } from "@/lib/investor-payout"
 
@@ -27,7 +29,9 @@ export function InvestorDashboardView() {
   const period = normalizeInvestorRoiPeriod(user?.investorRoiPeriod)
   const investment = Number(user?.investorInvestment) || 0
   const roi = Number(user?.investorRoiPercent) || 0
+  const investedAt = normalizeInvestorInvestedAt(user?.investorInvestedAt)
   const due = investorPayoutDue(investment, roi, period)
+  const rangeLabel = investorRoiRangeLabel(investedAt, period)
   const configured = investment > 0 && roi > 0
   const periodScale =
     period === "3m" ? " × 3/12" : period === "6m" ? " × 6/12" : ""
@@ -43,13 +47,14 @@ export function InvestorDashboardView() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <PayStat label="Your investment" value={formatInvestorRs(investment)} />
                 <PayStat label="ROI" value={`${roi}% annual`} />
-                <PayStat label="Period" value={investorRoiPeriodLabel(period)} />
+                <PayStat label="Term" value={rangeLabel} />
                 <PayStat label="You receive" value={formatInvestorRs(due)} accent />
               </div>
               <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
                 You receive = investment × {roi}%{periodScale} for this{" "}
-                {investorRoiPeriodLabel(period).toLowerCase()} term. CRM Investor sales are company figures
-                only and do not change your payout.
+                {investorRoiPeriodLabel(period).toLowerCase()} term
+                {investedAt ? ` starting ${rangeLabel.split(" – ")[0]}` : ""}. CRM Investor sales are company
+                figures only and do not change your payout.
               </p>
             </>
           ) : (

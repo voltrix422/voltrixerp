@@ -1,4 +1,5 @@
 import {
+  normalizeInvestorInvestedAt,
   normalizeInvestorRoiPeriod,
   type InvestorRoiPeriod,
 } from "@/lib/investor-payout"
@@ -26,6 +27,7 @@ export interface User {
   investorInvestment?: number
   investorRoiPercent?: number
   investorRoiPeriod?: InvestorRoiPeriod
+  investorInvestedAt?: string
 }
 
 export const DEFAULT_PURCHASE_SCOPE = "P1"
@@ -242,6 +244,7 @@ function mapRow(row: Record<string, unknown>): User {
     investorInvestment: Number(row.investorInvestment) || 0,
     investorRoiPercent: Number(row.investorRoiPercent) || 0,
     investorRoiPeriod: normalizeInvestorRoiPeriod(row.investorRoiPeriod),
+    investorInvestedAt: normalizeInvestorInvestedAt(row.investorInvestedAt),
   }
 }
 

@@ -26,6 +26,7 @@ model ErpUser {
   investorInvestment        Float    @default(0) @map("investor_investment")
   investorRoiPercent        Float    @default(0) @map("investor_roi_percent")
   investorRoiPeriod         String   @default("annual") @map("investor_roi_period")
+  investorInvestedAt        String   @default("") @map("investor_invested_at")
   createdAt                 DateTime @default(now()) @map("created_at")
 
   @@index([role])

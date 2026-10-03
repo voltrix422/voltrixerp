@@ -13,16 +13,56 @@ export function normalizeInvestorRoiPeriod(raw: unknown): InvestorRoiPeriod {
   return "annual"
 }
 
+export function normalizeInvestorInvestedAt(raw: unknown): string {
+  const v = String(raw || "").trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+  return ""
+}
+
 export function investorRoiPeriodLabel(period: InvestorRoiPeriod): string {
   return INVESTOR_ROI_PERIODS.find((p) => p.id === period)?.label || "Annual"
 }
 
+export function investorPeriodMonths(period: InvestorRoiPeriod): number {
+  return INVESTOR_ROI_PERIODS.find((p) => p.id === period)?.months ?? 12
+}
+
 /** Annual ROI% scaled to the selected period. */
 export function investorPayoutDue(investment: number, roiPercent: number, period: InvestorRoiPeriod): number {
-  const months = INVESTOR_ROI_PERIODS.find((p) => p.id === period)?.months ?? 12
+  const months = investorPeriodMonths(period)
   const inv = Number(investment) || 0
   const roi = Number(roiPercent) || 0
   return Math.round(inv * (roi / 100) * (months / 12))
+}
+
+/** End date of the ROI term (investedAt + period months, inclusive calendar). */
+export function investorRoiEndDate(investedAt: string, period: InvestorRoiPeriod): string {
+  const start = normalizeInvestorInvestedAt(investedAt)
+  if (!start) return ""
+  const d = new Date(`${start}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return ""
+  d.setMonth(d.getMonth() + investorPeriodMonths(period))
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+export function formatInvestorDay(iso: string): string {
+  const v = normalizeInvestorInvestedAt(iso)
+  if (!v) return "—"
+  return new Date(`${v}T12:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+export function investorRoiRangeLabel(investedAt: string, period: InvestorRoiPeriod): string {
+  const from = formatInvestorDay(investedAt)
+  const to = formatInvestorDay(investorRoiEndDate(investedAt, period))
+  if (from === "—" || to === "—") return investorRoiPeriodLabel(period)
+  return `${from} – ${to}`
 }
 
 export function formatInvestorRs(value: number): string {
