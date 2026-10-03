@@ -9,22 +9,6 @@ import {
 } from "@/lib/investor-fake-crm"
 import { formatInvestorCrore, formatInvestorRs } from "@/lib/investor-payout"
 
-function formatPeriodLabel(from: string, to: string) {
-  const fmt = (iso: string) => {
-    const d = new Date(`${iso}T12:00:00`)
-    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-  }
-  return `${fmt(from)} – ${fmt(to)}`
-}
-
-function formatSalesRangeLabel(from: string, to: string) {
-  const month = (iso: string) =>
-    new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { month: "short" })
-  const a = month(from)
-  const b = month(to)
-  return a === b ? `Sales (${a})` : `Sales (${a}–${b})`
-}
-
 export function InvestorCrm2View() {
   const [fromDate, setFromDate] = useState(INVESTOR_CRM2_FROM)
   const [toDate, setToDate] = useState(INVESTOR_CRM2_TO)
@@ -47,8 +31,6 @@ export function InvestorCrm2View() {
       outstandingCount: filteredOrders.filter((o) => o.payment === "outstanding").length,
     }
   }, [filteredOrders])
-
-  const periodLabel = formatPeriodLabel(fromDate || INVESTOR_CRM2_FROM, toDate || INVESTOR_CRM2_TO)
 
   function clearRange() {
     setFromDate(INVESTOR_CRM2_FROM)
@@ -96,17 +78,13 @@ export function InvestorCrm2View() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Stat
-              label={formatSalesRangeLabel(fromDate || INVESTOR_CRM2_FROM, toDate || INVESTOR_CRM2_TO)}
-              value={`${formatInvestorCrore(stats.total)} PKR`}
-            />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <Stat label="Sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
             <Stat label="Orders" value={String(stats.orderCount)} />
             <Stat
               label="Outstanding"
               value={`${formatInvestorCrore(stats.outstanding)} PKR`}
             />
-            <Stat label="Period" value={periodLabel} />
           </div>
 
           <div className="overflow-x-auto rounded-lg border">
