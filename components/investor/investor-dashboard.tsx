@@ -10,8 +10,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { motion } from "motion/react"
 import { Topbar } from "@/components/layout/topbar"
 import { useAuth } from "@/components/auth-provider"
+import { InvestorDateFilter } from "@/components/investor/investor-date-filter"
 import {
   formatInvestorCrmRangeLabel,
   INVESTOR_CRM2_FROM,
@@ -69,145 +71,184 @@ export function InvestorDashboardView() {
     salesLabel: rangeLabel,
   })
 
-  function clearRange() {
-    setFromDate(INVESTOR_CRM2_FROM)
-    setToDate(INVESTOR_CRM2_TO)
-  }
-
   return (
     <>
-      <Topbar title="Your returns" description="Personal investment summary" />
-      <div className="flex-1 overflow-auto p-3 sm:p-6 space-y-4 max-w-6xl">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2 sm:gap-3">
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] font-semibold">
-              From
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              min={INVESTOR_CRM2_FROM}
-              max={INVESTOR_CRM2_TO}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))] font-semibold">
-              To
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              min={INVESTOR_CRM2_FROM}
-              max={INVESTOR_CRM2_TO}
-              onChange={(e) => setToDate(e.target.value)}
-              className="h-8 rounded-md border bg-[hsl(var(--background))] px-2.5 text-xs"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={clearRange}
-            className="h-8 px-3 rounded-md border text-xs font-medium hover:bg-[hsl(var(--muted))]/40 cursor-pointer"
-          >
-            All dates
-          </button>
-        </div>
-
-        <div className="rounded-xl border border-[#1a9f9a]/35 bg-[hsl(var(--card))] p-4 sm:p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#1a9f9a]">
-                Your ROI
+      <Topbar title="Dashboard" description="Your returns" />
+      <div
+        className="flex-1 overflow-auto"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(26,159,154,0.08) 0%, rgba(248,250,250,1) 28%, #f8fafa 100%)",
+        }}
+      >
+        <div className="mx-auto max-w-6xl space-y-5 p-3 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1a9f9a]">
+                Voltrix investor
               </p>
-              <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">
-                {user?.name ? `${user.name} · ` : ""}
-                Sales in selected range × {INVESTOR_SALES_POOL_RATE}% × your pool share
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
+                {summary.configured ? formatInvestorRs(summary.due) : "Your returns"}
+              </h1>
+              <p className="mt-1 text-sm text-neutral-500">{rangeLabel}</p>
+            </motion.div>
+            <InvestorDateFilter
+              fromDate={fromDate}
+              toDate={toDate}
+              onFromChange={setFromDate}
+              onToChange={setToDate}
+              onClear={() => {
+                setFromDate(INVESTOR_CRM2_FROM)
+                setToDate(INVESTOR_CRM2_TO)
+              }}
+              rangeLabel={rangeLabel}
+            />
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.05 }}
+            className="grid grid-cols-2 gap-2 md:grid-cols-4"
+          >
+            <Metric label="Invested" value={formatInvestorRs(investment)} />
+            <Metric label="Pool share" value={`${poolShare || 0}%`} />
+            <Metric label="Sales" value={`${formatInvestorCrore(rangeSales)} PKR`} />
+            <Metric
+              label="You receive"
+              value={summary.configured ? formatInvestorRs(summary.due) : "—"}
+              accent
+            />
+          </motion.div>
+
+          {summary.configured && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.15 }}
+              className="rounded-2xl border border-[#1a9f9a]/15 bg-white/80 px-4 py-3 text-xs text-neutral-600 backdrop-blur"
+            >
+              {formatInvestorCrore(rangeSales)} × {INVESTOR_SALES_POOL_RATE}% × {poolShare}% ={" "}
+              <span className="font-semibold text-[#1a9f9a]">{formatInvestorRs(summary.due)}</span>
+            </motion.p>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+            className="overflow-hidden rounded-3xl border border-[#1a9f9a]/15 bg-white p-4 shadow-sm shadow-[#1a9f9a]/5 sm:p-5"
+          >
+            <div className="mb-3 flex items-end justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1a9f9a]">
+                  Daily sales
+                </p>
+                <p className="text-sm text-neutral-500">Delivered volume in range</p>
+              </div>
+              <p className="text-sm font-semibold tabular-nums text-neutral-900">
+                {formatInvestorCrore(rangeSales)} Cr
               </p>
             </div>
-            {summary.configured && (
-              <p className="text-2xl sm:text-3xl font-semibold tabular-nums text-[#1a9f9a]">
-                {formatInvestorRs(summary.due)}
-              </p>
-            )}
-          </div>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={byDay} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="investorSalesFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#1a9f9a" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#1a9f9a" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 6" vertical={false} stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: "#737373" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={28}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#737373" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    tickFormatter={(v) => {
+                      const n = Number(v) || 0
+                      if (n <= 0) return ""
+                      if (n >= 10_000_000) return `${(n / 10_000_000).toFixed(1)}Cr`
+                      return `${Math.round(n / 100_000) / 10}M`
+                    }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid rgba(26,159,154,0.2)",
+                      boxShadow: "0 8px 24px rgba(26,159,154,0.12)",
+                    }}
+                    formatter={(v) => [formatInvestorRs(Number(v ?? 0)), "Sales"]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="amount"
+                    stroke="#1a9f9a"
+                    strokeWidth={2.5}
+                    fill="url(#investorSalesFill)"
+                    animationDuration={900}
+                    animationEasing="ease-out"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "#1a9f9a", stroke: "#fff", strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
 
-          {summary.configured ? (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <PayStat label="Invested" value={formatInvestorRs(investment)} />
-                <PayStat label="Pool share" value={`${poolShare}%`} />
-                <PayStat label="Sales (range)" value={`${formatInvestorCrore(rangeSales)} PKR`} />
-                <PayStat label="You receive" value={formatInvestorRs(summary.due)} accent />
-              </div>
-              <div className="rounded-lg border border-[#1a9f9a]/25 bg-[#1a9f9a]/5 px-3 py-2.5">
-                <p className="text-sm font-semibold text-[#1a9f9a]">
-                  You receive {formatInvestorRs(summary.due)}
-                </p>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                  Calc ({rangeLabel}): {formatInvestorCrore(rangeSales)} × {INVESTOR_SALES_POOL_RATE}% ×{" "}
-                  {poolShare}% = {formatInvestorRs(summary.due)}
-                </p>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Your investment amount and pool share are not set yet. Ask Voltrix to set them in Manage
-              Users.
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-            Company CRM sales · {bookStats.periodLabel}
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-            <PayStat label="Total sales" value={`${formatInvestorCrore(bookStats.total)} PKR`} />
-            <PayStat label="July" value={formatInvestorRs(bookStats.jul)} />
-            <PayStat label="August" value={formatInvestorRs(bookStats.aug)} />
-            <PayStat label="September" value={formatInvestorRs(bookStats.sep)} />
-            <PayStat label="October (to date)" value={formatInvestorRs(bookStats.oct)} />
-            <PayStat label="Orders" value={String(bookStats.orderCount)} />
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-[hsl(var(--card))] p-3 h-72">
-          <p className="text-xs font-medium mb-2">Daily delivered sales ({rangeLabel})</p>
-          <ResponsiveContainer width="100%" height="90%">
-            <AreaChart data={byDay} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="investorSalesFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#1a9f9a" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#1a9f9a" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval={3} />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                width={42}
-                tickFormatter={(v) => `${Math.round(Number(v) / 1_000_000)}M`}
-              />
-              <Tooltip formatter={(v) => formatInvestorRs(Number(v ?? 0))} />
-              <Area type="monotone" dataKey="amount" stroke="#1a9f9a" strokeWidth={2} fill="url(#investorSalesFill)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.16 }}
+            className="grid grid-cols-2 gap-2 md:grid-cols-5"
+          >
+            <Metric label="July" value={formatInvestorRs(bookStats.jul)} compact />
+            <Metric label="August" value={formatInvestorRs(bookStats.aug)} compact />
+            <Metric label="September" value={formatInvestorRs(bookStats.sep)} compact />
+            <Metric label="October" value={formatInvestorRs(bookStats.oct)} compact />
+            <Metric label="Orders" value={String(bookStats.orderCount)} compact />
+          </motion.div>
         </div>
       </div>
     </>
   )
 }
 
-function PayStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function Metric({
+  label,
+  value,
+  accent,
+  compact,
+}: {
+  label: string
+  value: string
+  accent?: boolean
+  compact?: boolean
+}) {
   return (
     <div
-      className={`rounded-lg border px-3 py-2 ${accent ? "border-[#1a9f9a] bg-[#1a9f9a]/5" : "bg-[hsl(var(--card))]"}`}
+      className={`rounded-2xl border px-3 py-3 ${
+        accent
+          ? "border-[#1a9f9a]/40 bg-[#1a9f9a] text-white shadow-md shadow-[#1a9f9a]/25"
+          : "border-[#1a9f9a]/12 bg-white/90"
+      } ${compact ? "py-2.5" : ""}`}
     >
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</p>
-      <p className={`text-sm font-semibold mt-0.5 ${accent ? "text-[#1a9f9a]" : ""}`}>{value}</p>
+      <p className={`text-[10px] uppercase tracking-wide ${accent ? "text-white/75" : "text-neutral-500"}`}>
+        {label}
+      </p>
+      <p className={`mt-1 font-semibold tabular-nums ${compact ? "text-sm" : "text-base"}`}>{value}</p>
     </div>
   )
 }
