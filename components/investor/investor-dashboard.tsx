@@ -12,7 +12,7 @@ import {
 } from "recharts"
 import { Topbar } from "@/components/layout/topbar"
 import { useAuth } from "@/components/auth-provider"
-import { investorCrm2Stats } from "@/lib/investor-fake-crm"
+import { INVESTOR_PERIOD_UPDATE, investorCrm2Stats } from "@/lib/investor-fake-crm"
 import {
   formatInvestorCrore,
   formatInvestorRs,
@@ -28,6 +28,7 @@ export function InvestorDashboardView() {
   useEffect(() => {
     void refreshUser()
   }, [refreshUser])
+
   const period = normalizeInvestorRoiPeriod(user?.investorRoiPeriod)
   const investment = Number(user?.investorInvestment) || 0
   const roi = Number(user?.investorRoiPercent) || 0
@@ -45,6 +46,36 @@ export function InvestorDashboardView() {
     <>
       <Topbar title="Your returns" description="Personal investment summary" />
       <div className="flex-1 overflow-auto p-3 sm:p-6 space-y-4 max-w-6xl">
+        <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 dark:bg-amber-950/20 p-4 sm:p-5 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded">
+              Urgent update
+            </span>
+            <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+              {INVESTOR_PERIOD_UPDATE.noteTitle}
+            </p>
+          </div>
+          <p className="text-sm leading-relaxed text-amber-950/90 dark:text-amber-100/90">
+            {INVESTOR_PERIOD_UPDATE.noteBody}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <PayStat
+              label="Sales (Aug–Sep)"
+              value={`${formatInvestorCrore(stats.augSep || stats.total)} PKR`}
+            />
+            <PayStat label="August" value={formatInvestorRs(stats.aug)} />
+            <PayStat label="September (to 22nd)" value={formatInvestorRs(stats.sep)} />
+            <PayStat
+              label="Period ROI"
+              value={formatInvestorRs(INVESTOR_PERIOD_UPDATE.periodRoiPkr)}
+              accent
+            />
+          </div>
+          <p className="text-[11px] text-amber-900/70 dark:text-amber-200/70">
+            Timeline: {stats.periodLabel} · Period ROI Rs. 1.50 lac as per current sales
+          </p>
+        </div>
+
         <div className="rounded-xl border border-[#1a9f9a]/35 bg-[hsl(var(--card))] p-4 sm:p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <div>
@@ -52,7 +83,7 @@ export function InvestorDashboardView() {
                 Your ROI
               </p>
               <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5">
-                {user?.name ? `${user.name} · ` : ""}Only your investment terms — not company CRM sales.
+                {user?.name ? `${user.name} · ` : ""}Your personal terms from Manage Users.
               </p>
             </div>
             {summary.configured && (
@@ -82,26 +113,26 @@ export function InvestorDashboardView() {
             </>
           ) : (
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Your investment and ROI have not been set yet. Ask Voltrix to enter amount, dates, and ROI % in
-              Manage Users for this login.
+              Your personal investment terms are not set yet. Company period ROI above is Rs. 1.50 lac for 1
+              Aug – 22 Sep. Ask Voltrix to set your amount and ROI % in Manage Users.
             </p>
           )}
         </div>
 
         <div className="space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-            Company CRM Investor sales
+            Company CRM Investor sales · {stats.periodLabel}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <PayStat label="CRM Investor sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
-            <PayStat label="July" value={formatInvestorRs(stats.jul)} />
+            <PayStat label="Total sales" value={`${formatInvestorCrore(stats.total)} PKR`} />
             <PayStat label="August" value={formatInvestorRs(stats.aug)} />
-            <PayStat label="Sep–Oct" value={formatInvestorRs(stats.sep + stats.oct)} />
+            <PayStat label="September" value={formatInvestorRs(stats.sep)} />
+            <PayStat label="Orders" value={String(stats.orderCount)} />
           </div>
         </div>
 
         <div className="rounded-lg border bg-[hsl(var(--card))] p-3 h-72">
-          <p className="text-xs font-medium mb-2">Daily delivered sales (company book)</p>
+          <p className="text-xs font-medium mb-2">Daily delivered sales (1 Aug – 22 Sep)</p>
           <ResponsiveContainer width="100%" height="90%">
             <AreaChart data={stats.byDay} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
               <defs>
@@ -111,7 +142,7 @@ export function InvestorDashboardView() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval={4} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval={3} />
               <YAxis
                 tick={{ fontSize: 10 }}
                 tickLine={false}
