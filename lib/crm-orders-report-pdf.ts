@@ -38,7 +38,7 @@ function shortDate(value?: string) {
   return `${dd}/${mm}/${yy}`
 }
 
-/** Full product names, one line each — no abbreviations. */
+/** Full product names on one compact line — no mid-word wrapping. */
 function fullItems(items: OrderItem[] | undefined) {
   if (!items?.length) return "—"
   return items
@@ -49,7 +49,7 @@ function fullItems(items: OrderItem[] | undefined) {
       const qty = item.qty > 0 ? `${item.qty}× ` : ""
       return `${qty}${name}`
     })
-    .join("\n")
+    .join("; ")
 }
 
 function paymentLabel(order: Order) {
@@ -69,7 +69,7 @@ function paidWithDates(order: Order) {
 
   if (!lines.length) return paid > 0.004 ? amt(paid) : "0"
   if (lines.length === 1) return lines[0]
-  return [`Total ${amt(paid)}`, ...lines].join("\n")
+  return `Total ${amt(paid)}; ${lines.join("; ")}`
 }
 
 function clientDetailRows(clients: CrmOrdersPdfClient[]): (string | number)[][] {
@@ -162,19 +162,19 @@ export async function downloadCrmOrdersReportPdf(
   tables.push({
     title: "ERP client orders",
     columns: [
-      { header: "Date", width: 16, minWidth: 16 },
-      { header: "Order", width: 20, minWidth: 20 },
-      { header: "Client", width: 28 },
-      { header: "Items", width: 58 },
-      { header: "Pay", width: 14, minWidth: 14 },
-      { header: "Total", align: "right", width: 24 },
-      { header: "Paid", align: "right", width: 32 },
-      { header: "Credit", align: "right", width: 22 },
+      { header: "Date", width: 15, minWidth: 14 },
+      { header: "Order", width: 18, minWidth: 16 },
+      { header: "Client", width: 26, minWidth: 22 },
+      { header: "Items", width: 72, minWidth: 58 },
+      { header: "Pay", width: 12, minWidth: 11 },
+      { header: "Total", align: "right", width: 18, minWidth: 16 },
+      { header: "Paid", align: "right", width: 22, minWidth: 18 },
+      { header: "Credit", align: "right", width: 16, minWidth: 14 },
     ],
     rows: orders.map((order) => {
       const credit = getOrderCreditBalance(order)
       const by = order.createdBy?.trim()
-      const client = by ? `${order.clientName || "—"}\n${by}` : order.clientName || "—"
+      const client = by ? `${order.clientName || "—"} · ${by}` : order.clientName || "—"
       return [
         shortDate(order.createdAt),
         order.orderNumber || "—",
