@@ -23,7 +23,7 @@ export type InvestorCrm2Order = {
   city: string
   phone: string
   status: "delivered"
-  payment: "paid"
+  payment: "paid" | "outstanding"
   items: InvestorCrm2Line[]
   total: number
 }
@@ -338,6 +338,13 @@ function buildOrders(): InvestorCrm2Order[] {
       last.total += extra.total
       gap -= extra.total
     }
+  }
+
+  // ~1 in 5 mid/large orders on credit (outstanding); keep small cash-looking ones paid.
+  for (let i = 0; i < orders.length; i++) {
+    const o = orders[i]
+    if (o.total < 400_000) continue
+    if (i % 5 === 2 || i % 7 === 0) o.payment = "outstanding"
   }
 
   return orders
