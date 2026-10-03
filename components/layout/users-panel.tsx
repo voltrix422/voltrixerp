@@ -13,7 +13,7 @@ import {
 } from "@/lib/investor-payout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Copy } from "lucide-react"
+import { X, Plus, Eye, EyeOff, Pencil, Check, Trash2, Copy, Search } from "lucide-react"
 import { NotificationEmailsEditor } from "@/components/settings/notification-emails-editor"
 
 type InvestorTermsNext = {
@@ -500,6 +500,7 @@ export function UsersManager() {
   const [purchaseScopes, setPurchaseScopes] = useState<PurchaseScope[]>([])
   const [adding, setAdding] = useState<"user" | "investor" | false>(false)
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
 
   useEffect(() => {
     setLoading(true)
@@ -526,6 +527,19 @@ export function UsersManager() {
     setAdding(false)
   }
 
+  const q = search.trim().toLowerCase()
+  const filteredUsers = !q
+    ? users
+    : users.filter((u) => {
+        const roleLabel = (ROLE_LABELS[u.role] ?? u.role).toLowerCase()
+        return (
+          u.name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
+          roleLabel.includes(q) ||
+          String(u.role).toLowerCase().includes(q)
+        )
+      })
+
   return (
     <div className="flex-1 overflow-auto">
       <div className="p-6 max-w-3xl">
@@ -550,6 +564,26 @@ export function UsersManager() {
             </Button>
           </div>
         </div>
+        <div className="relative mb-3">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, or role…"
+            className="w-full h-8 rounded-md border bg-[hsl(var(--background))] pl-8 pr-8 text-xs focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
         <div className="space-y-3">
           {loading && <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">Loading...</p>}
           {adding && (
@@ -561,7 +595,12 @@ export function UsersManager() {
               purchaseScopes={purchaseScopes}
             />
           )}
-          {!loading && users.map(u => (
+          {!loading && filteredUsers.length === 0 && (
+            <p className="text-xs text-center text-[hsl(var(--muted-foreground))] py-8">
+              {q ? `No users match “${search.trim()}”.` : "No users yet."}
+            </p>
+          )}
+          {!loading && filteredUsers.map(u => (
             <UserRow key={u.id} u={u} onSave={handleSave} onDelete={handleDelete} purchaseScopes={purchaseScopes} />
           ))}
         </div>
