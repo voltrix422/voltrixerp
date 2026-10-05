@@ -57,24 +57,22 @@ export function applySandboxScenarioToItems(
 
     switch (scenarioId) {
       case "SN017": {
-        // FBR validates HS against sale type; 0101.2100 often fails (0052).
-        // Prefer a known FED-capable code when the order still has the default catalog HS.
-        const hs =
-          item.hsCode && item.hsCode !== "8507.6000" && item.hsCode !== "0101.2100"
-            ? item.hsCode
-            : "2402.2000"
-        const st = roundMoney(excl * 0.08)
+        // Sandbox requires FED-in-ST HS + compound rate (not the old 8%/0101.2100 sample).
+        const qty = Math.max(1, Number(item.quantity) || 1)
+        const st = roundMoney(excl * 0.18 + 80 * qty)
         return {
           ...item,
-          hsCode: hs,
-          rate: "8%",
+          hsCode: "2710.1240",
+          productDescription: item.productDescription || "White Spirit SN017",
+          rate: "18% and Rs. 80 per Liter",
+          uoM: "Liter",
           saleType: "Goods (FED in ST Mode)",
           valueSalesExcludingST: excl,
           salesTaxApplicable: st,
           fedPayable: 0,
           extraTax: 0,
           furtherTax: 0,
-          totalValues: roundMoney(excl + st),
+          totalValues: 0,
           discount,
           sroScheduleNo: "",
           sroItemSerialNo: "",
