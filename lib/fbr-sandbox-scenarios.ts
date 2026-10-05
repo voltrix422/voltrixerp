@@ -57,10 +57,16 @@ export function applySandboxScenarioToItems(
 
     switch (scenarioId) {
       case "SN017": {
+        // FBR validates HS against sale type; 0101.2100 often fails (0052).
+        // Prefer a known FED-capable code when the order still has the default catalog HS.
+        const hs =
+          item.hsCode && item.hsCode !== "8507.6000" && item.hsCode !== "0101.2100"
+            ? item.hsCode
+            : "2402.2000"
         const st = roundMoney(excl * 0.08)
         return {
           ...item,
-          hsCode: item.hsCode || "0101.2100",
+          hsCode: hs,
           rate: "8%",
           saleType: "Goods (FED in ST Mode)",
           valueSalesExcludingST: excl,

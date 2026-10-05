@@ -1,5 +1,5 @@
 /**
- * Post one FBR sandbox invoice for scenario SN017 (FED in ST mode).
+ * Post FBR sandbox SN017 (FED in ST Mode), trying HS codes until one validates.
  * Run on VPS: node scripts/fbr-post-sn017.mjs
  */
 import { readFileSync } from "node:fs"
@@ -23,7 +23,7 @@ if (!token) {
   process.exit(1)
 }
 
-const payload = {
+const seller = {
   invoiceType: "Sale Invoice",
   invoiceDate: new Date().toISOString().slice(0, 10),
   sellerNTNCNIC: String(env.FBR_SELLER_NTN || "").trim(),
@@ -37,49 +37,84 @@ const payload = {
   buyerRegistrationType: "Unregistered",
   invoiceRefNo: "",
   scenarioId: "SN017",
-  items: [
-    {
-      hsCode: "0101.2100",
-      productDescription: "POS sandbox SN017 test",
-      rate: "8%",
-      uoM: "Numbers, pieces, units",
-      quantity: 1,
-      valueSalesExcludingST: 100,
-      fixedNotifiedValueOrRetailPrice: 0,
-      salesTaxApplicable: 8,
-      salesTaxWithheldAtSource: 0,
-      extraTax: 0,
-      furtherTax: 0,
-      fedPayable: 0,
-      discount: 0,
-      totalValues: 108,
-      saleType: "Goods (FED in ST Mode)",
-      sroScheduleNo: "",
-      sroItemSerialNo: "",
+}
+
+const hsCandidates = [
+  "2402.2000",
+  "2402.1000",
+  "2202.1010",
+  "2202.1090",
+  "2203.0000",
+  "2710.1921",
+  "2710.1992",
+  "2523.2900",
+  "8703.2329",
+  "8507.6000",
+  "0101.2100",
+  "8471.3000",
+]
+
+async function post(hsCode) {
+  const payload = {
+    ...seller,
+    items: [
+      {
+        hsCode,
+        productDescription: "POS sandbox SN017 FED in ST Mode",
+        rate: "8%",
+        uoM: "Numbers, pieces, units",
+        quantity: 1,
+        valueSalesExcludingST: 100,
+        fixedNotifiedValueOrRetailPrice: 0,
+        salesTaxApplicable: 8,
+        salesTaxWithheldAtSource: 0,
+        extraTax: 0,
+        furtherTax: 0,
+        fedPayable: 0,
+        discount: 0,
+        totalValues: 108,
+        saleType: "Goods (FED in ST Mode)",
+        sroScheduleNo: "",
+        sroItemSerialNo: "",
+      },
+    ],
+  }
+  const res = await fetch("https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
-  ],
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(45000),
+  })
+  const text = await res.text()
+  let body = text
+  try {
+    body = text ? JSON.parse(text) : {}
+  } catch {
+    body = { message: text.slice(0, 500) }
+  }
+  const invoice = String(body.invoiceNumber || body.InvoiceNumber || "").trim()
+  const status = String(body.validationResponse?.status || "").trim()
+  const error = String(
+    body.validationResponse?.error ||
+      body.validationResponse?.errorCode ||
+      body.message ||
+      "",
+  ).slice(0, 240)
+  return { hsCode, http: res.status, invoice, status, error, ok: Boolean(invoice) && status.toLowerCase() !== "invalid" }
 }
 
-const res = await fetch("https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  body: JSON.stringify(payload),
-  signal: AbortSignal.timeout(45000),
-})
-
-const text = await res.text()
-let body = text
-try {
-  body = text ? JSON.parse(text) : {}
-} catch {
-  body = { message: text.slice(0, 500) }
+for (const hs of hsCandidates) {
+  const result = await post(hs)
+  console.log([result.hsCode, result.ok ? "OK" : "FAIL", result.invoice || "-", result.error || ""].join(" | "))
+  if (result.ok) {
+    console.log(JSON.stringify(result, null, 2))
+    process.exit(0)
+  }
+  await new Promise((r) => setTimeout(r, 1500))
 }
 
-const invoice = String(body.invoiceNumber || body.InvoiceNumber || "").trim()
-const status = String(body.validationResponse?.status || "").trim()
-console.log(JSON.stringify({ http: res.status, invoice, status, body }, null, 2))
-process.exit(invoice && status.toLowerCase() !== "invalid" ? 0 : 1)
+process.exit(1)
