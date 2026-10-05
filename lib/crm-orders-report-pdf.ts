@@ -172,6 +172,7 @@ export async function downloadCrmOrdersReportPdf(
 
   tables.push({
     title: "Totals",
+    sectionStart: "Money in",
     columns: [
       { header: "Item", width: 120 },
       { header: "Amount", align: "right", width: 66 },

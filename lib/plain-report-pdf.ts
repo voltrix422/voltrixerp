@@ -13,6 +13,8 @@ export type PlainTable = {
   rows: (string | number)[][]
   foot?: (string | number)[]
   newPage?: boolean
+  /** Starts a report section (e.g. Money in / Money out). Forces a new page when not the first table. */
+  sectionStart?: string
 }
 
 type JsDoc = import("jspdf").jsPDF & { lastAutoTable?: { finalY: number } }
@@ -212,7 +214,22 @@ export async function downloadPlainReportPdf(opts: {
 
   let tableIndex = 0
   for (const table of opts.tables) {
-    const forceNewPage = table.newPage || (pagePerTable && tableIndex > 0)
+    if (table.sectionStart) {
+      if (tableIndex > 0) {
+        doc.addPage()
+        y = headerBottom + 4
+      } else {
+        y += compact ? 2 : 3
+      }
+      doc.setFont(TITLE_FONT, "bold")
+      doc.setFontSize(compact ? 13 : 16)
+      doc.setTextColor(...INK)
+      y = drawSectionTitle(doc, table.sectionStart, m, y, pageW, m, false)
+      y += compact ? 1.5 : 2.5
+    }
+
+    const forceNewPage =
+      !table.sectionStart && (table.newPage || (pagePerTable && tableIndex > 0))
     if (forceNewPage && y > 36) {
       doc.addPage()
       y = headerBottom + 4

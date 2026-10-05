@@ -178,7 +178,6 @@ function personDetailTable(
   const total = lines.reduce((s, r) => s + (Number(r.amount) || 0), 0)
   return {
     title,
-    newPage: true,
     columns: [
       { header: "Date", width: 24 },
       { header: personHeader, width: 44 },
@@ -201,7 +200,6 @@ function purchaseOrderTables(title: string, rows: FinancePurchaseRow[]): PlainTa
   const tables: PlainTable[] = [
     {
       title,
-      newPage: true,
       columns: [
         { header: "Date", width: 22 },
         { header: "PO no.", width: 28 },
@@ -234,7 +232,6 @@ function purchaseOrderTables(title: string, rows: FinancePurchaseRow[]): PlainTa
   if (items.length) {
     tables.push({
       title: `${title} — items`,
-      newPage: true,
       columns: [
         { header: "PO no.", width: 26 },
         { header: "Supplier", width: 36 },
@@ -283,11 +280,13 @@ export async function downloadFinanceOverviewPdf(
   const outRows = moneyRows(s.breakdown?.moneyOut, MONEY_OUT_LABELS, moneyOut, MONEY_OUT_COUNTED)
   const methodTotal = methods.reduce((n, r) => n + r.amount, 0)
 
-  const tables: PlainTable[] = []
+  const moneyInTables: PlainTable[] = []
+  const moneyOutTables: PlainTable[] = []
 
   if (inRows.length) {
-    tables.push({
-      title: "Money in",
+    moneyInTables.push({
+      title: "Summary",
+      sectionStart: "Money in",
       columns: [
         { header: "Source", width: 120 },
         { header: "Amount", align: "right", width: 44 },
@@ -296,12 +295,89 @@ export async function downloadFinanceOverviewPdf(
       rows: inRows,
       foot: ["Total", pkr(moneyIn), "100%"],
     })
+  } else {
+    moneyInTables.push({
+      title: "Summary",
+      sectionStart: "Money in",
+      columns: [
+        { header: "Source", width: 120 },
+        { header: "Amount", align: "right", width: 44 },
+        { header: "%", align: "right", width: 18 },
+      ],
+      rows: [["—", "—", "—"]],
+    })
+  }
+
+  const loanInTable = personDetailTable(
+    "Loans in — from whom",
+    data.moneyInDetails?.loans || [],
+    "From",
+  )
+  if (loanInTable) moneyInTables.push(loanInTable)
+
+  if (orders.length) {
+    moneyInTables.push({
+      title: "CRM client payments received",
+      columns: [
+        { header: "Date", width: 22, minWidth: 22 },
+        { header: "Order no.", width: 24 },
+        { header: "Client", width: 28 },
+        { header: "Items", width: 40, small: true },
+        { header: "Payment", width: 40, small: true },
+        { header: "Received", align: "right", width: 28 },
+      ],
+      rows: orders.map((r) => [
+        shortDate(r.date),
+        r.orderNumber,
+        r.clientName,
+        compactItems(r.items),
+        orderCashLabel(r),
+        pkr(r.receivedInPeriod),
+      ]),
+      foot: ["", "", "", "", `${orders.length}`, pkr(orderReceivedTotal)],
+    })
+  }
+
+  if (methods.length) {
+    moneyInTables.push({
+      title: "CRM payments by method",
+      columns: [
+        { header: "Method", width: 100 },
+        { header: "Amount", align: "right", width: 46 },
+        { header: "%", align: "right", width: 40 },
+      ],
+      rows: methods.map((r) => [prettyMethod(r.method), pkr(r.amount), pct(r.amount, methodTotal)]),
+      foot: ["Total", pkr(methodTotal), "100%"],
+    })
+  }
+
+  if (posSales.length) {
+    moneyInTables.push({
+      title: "POS sales",
+      columns: [
+        { header: "Date", width: 22, minWidth: 22 },
+        { header: "Sale no.", width: 24 },
+        { header: "Customer", width: 28 },
+        { header: "Items", width: 48, small: true },
+        { header: "Payment", width: 36, small: true },
+        { header: "Amount", align: "right", width: 28 },
+      ],
+      rows: posSales.map((r) => [
+        shortDate(r.date),
+        r.number,
+        r.customer,
+        compactItems(r.items),
+        payLabel(r.total, r.paidTotal ?? r.total, r.method),
+        pkr(r.total),
+      ]),
+      foot: ["", "", "", "", `${posSales.length}`, pkr(posTotal)],
+    })
   }
 
   if (outRows.length) {
-    tables.push({
-      title: "Money out",
-      newPage: true,
+    moneyOutTables.push({
+      title: "Summary",
+      sectionStart: "Money out",
       columns: [
         { header: "Source", width: 120 },
         { header: "Amount", align: "right", width: 44 },
@@ -310,17 +386,23 @@ export async function downloadFinanceOverviewPdf(
       rows: outRows,
       foot: ["Total", pkr(moneyOut), "100%"],
     })
+  } else {
+    moneyOutTables.push({
+      title: "Summary",
+      sectionStart: "Money out",
+      columns: [
+        { header: "Source", width: 120 },
+        { header: "Amount", align: "right", width: 44 },
+        { header: "%", align: "right", width: 18 },
+      ],
+      rows: [["—", "—", "—"]],
+    })
   }
-
-  const loanInLines = data.moneyInDetails?.loans || []
-  const loanInTable = personDetailTable("Loans in — from whom", loanInLines, "From")
-  if (loanInTable) tables.push(loanInTable)
 
   if (expenseLines.length) {
     const expTotal = expenseLines.reduce((sum, r) => sum + r.amount, 0)
-    tables.push({
+    moneyOutTables.push({
       title: "Expenses — paid to",
-      newPage: true,
       columns: [
         { header: "Date", width: 22 },
         { header: "Paid to", width: 36 },
@@ -343,7 +425,7 @@ export async function downloadFinanceOverviewPdf(
       data.moneyOutDetails?.expenses || [],
       "Paid to",
     )
-    if (expenseDetail) tables.push(expenseDetail)
+    if (expenseDetail) moneyOutTables.push(expenseDetail)
   }
 
   const salaryTable = personDetailTable(
@@ -351,14 +433,13 @@ export async function downloadFinanceOverviewPdf(
     data.moneyOutDetails?.salaries || [],
     "Staff",
   )
-  if (salaryTable) tables.push(salaryTable)
+  if (salaryTable) moneyOutTables.push(salaryTable)
 
   const salaryAdvanceLines = data.moneyOutDetails?.salaryAdvances || []
   if (salaryAdvanceLines.length) {
     const advTotal = salaryAdvanceLines.reduce((s, r) => s + (Number(r.amount) || 0), 0)
-    tables.push({
+    moneyOutTables.push({
       title: "Salary advances — paid to",
-      newPage: true,
       columns: [
         { header: "Date", width: 24 },
         { header: "Staff", width: 40 },
@@ -380,82 +461,19 @@ export async function downloadFinanceOverviewPdf(
     data.moneyOutDetails?.fuelPetrol || [],
     "Person",
   )
-  if (fuelTable) tables.push(fuelTable)
+  if (fuelTable) moneyOutTables.push(fuelTable)
 
   const loansGivenTable = personDetailTable(
     "Loans given — to whom",
     data.moneyOutDetails?.loansGiven || [],
     "To",
   )
-  if (loansGivenTable) tables.push(loansGivenTable)
-
-  if (orders.length) {
-    tables.push({
-      title: "CRM client payments received",
-      newPage: true,
-      columns: [
-        { header: "Date", width: 22, minWidth: 22 },
-        { header: "Order no.", width: 24 },
-        { header: "Client", width: 28 },
-        { header: "Items", width: 40, small: true },
-        { header: "Payment", width: 40, small: true },
-        { header: "Received", align: "right", width: 28 },
-      ],
-      rows: orders.map((r) => [
-        shortDate(r.date),
-        r.orderNumber,
-        r.clientName,
-        compactItems(r.items),
-        orderCashLabel(r),
-        pkr(r.receivedInPeriod),
-      ]),
-      foot: ["", "", "", "", `${orders.length}`, pkr(orderReceivedTotal)],
-    })
-  }
-
-  if (methods.length) {
-    tables.push({
-      title: "CRM payments by method",
-      newPage: true,
-      columns: [
-        { header: "Method", width: 100 },
-        { header: "Amount", align: "right", width: 46 },
-        { header: "%", align: "right", width: 40 },
-      ],
-      rows: methods.map((r) => [prettyMethod(r.method), pkr(r.amount), pct(r.amount, methodTotal)]),
-      foot: ["Total", pkr(methodTotal), "100%"],
-    })
-  }
-
-  if (posSales.length) {
-    tables.push({
-      title: "POS sales",
-      newPage: true,
-      columns: [
-        { header: "Date", width: 22, minWidth: 22 },
-        { header: "Sale no.", width: 24 },
-        { header: "Customer", width: 28 },
-        { header: "Items", width: 48, small: true },
-        { header: "Payment", width: 36, small: true },
-        { header: "Amount", align: "right", width: 28 },
-      ],
-      rows: posSales.map((r) => [
-        shortDate(r.date),
-        r.number,
-        r.customer,
-        compactItems(r.items),
-        payLabel(r.total, r.paidTotal ?? r.total, r.method),
-        pkr(r.total),
-      ]),
-      foot: ["", "", "", "", `${posSales.length}`, pkr(posTotal)],
-    })
-  }
+  if (loansGivenTable) moneyOutTables.push(loansGivenTable)
 
   if (ledgerByPerson.length) {
     const paidEntries = ledgerByPerson.reduce((n, r) => n + r.count, 0)
-    tables.push({
+    moneyOutTables.push({
       title: "Purchase ledger — paid by",
-      newPage: true,
       columns: [
         { header: "Entered by", width: 80 },
         { header: "Paid entries", align: "right", width: 28 },
@@ -468,9 +486,8 @@ export async function downloadFinanceOverviewPdf(
   }
 
   if (paidLedgerLines.length) {
-    tables.push({
+    moneyOutTables.push({
       title: "Purchase ledger — Main Office bills",
-      newPage: true,
       columns: [
         { header: "Date", width: 22, minWidth: 22 },
         { header: "Ledger", width: 22 },
@@ -492,9 +509,8 @@ export async function downloadFinanceOverviewPdf(
   }
 
   if (pettyByPerson.length) {
-    tables.push({
+    moneyOutTables.push({
       title: "Petty cash — by employee",
-      newPage: true,
       columns: [
         { header: "Employee", width: 80 },
         { header: "Receipts", align: "right", width: 28 },
@@ -507,9 +523,8 @@ export async function downloadFinanceOverviewPdf(
   }
 
   if (pettyLines.length) {
-    tables.push({
+    moneyOutTables.push({
       title: "Petty cash",
-      newPage: true,
       columns: [
         { header: "Date", width: 22 },
         { header: "Employee", width: 40 },
@@ -522,8 +537,10 @@ export async function downloadFinanceOverviewPdf(
     })
   }
 
-  tables.push(...purchaseOrderTables("Local purchase orders", localPurchases))
-  tables.push(...purchaseOrderTables("Imported purchase orders", importedPurchases))
+  moneyOutTables.push(...purchaseOrderTables("Local purchase orders", localPurchases))
+  moneyOutTables.push(...purchaseOrderTables("Imported purchase orders", importedPurchases))
+
+  const tables: PlainTable[] = [...moneyInTables, ...moneyOutTables]
 
   const generated = new Date().toLocaleString("en-PK", {
     timeZone: "Asia/Karachi",
@@ -543,7 +560,7 @@ export async function downloadFinanceOverviewPdf(
       `Money in  ${pkr(moneyIn)}      Money out  ${pkr(moneyOut)}      Net  ${pkr(net)}`,
     ],
     filename: `finance-report-${new Date().toISOString().slice(0, 10)}.pdf`,
-    pagePerTable: true,
+    pagePerTable: false,
     tables,
   })
 }
