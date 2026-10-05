@@ -369,6 +369,106 @@ export function buildSalaryAdvanceDetails(
   return lines.sort((a, b) => b.amount - a.amount)
 }
 
+export function buildSalaryPayoutDetails(
+  slips: Array<{
+    id: string
+    staffName: string
+    staffRole?: string | null
+    month: string
+    netSalary: number
+    paidAt?: Date | string | null
+    generatedDate: Date | string
+  }>,
+  salaryRecords: Array<{
+    id: string
+    title: string
+    amount: number
+    category: string
+    createdAt: Date | string
+    supplier_name?: string | null
+    receipt_person_name?: string | null
+    purpose?: string | null
+  }>,
+  start: Date,
+  end: Date,
+  cashDate: (slip: { paidAt?: Date | string | null; generatedDate: Date | string }) => Date,
+): MoneyOutDetailLine[] {
+  const lines: MoneyOutDetailLine[] = []
+
+  for (const slip of slips) {
+    const amount = Number(slip.netSalary) || 0
+    if (amount <= 0) continue
+    const when = cashDate(slip)
+    if (Number.isNaN(when.getTime()) || !inRange(when, start, end)) continue
+    const role = String(slip.staffRole || "").trim()
+    lines.push({
+      id: `slip-${slip.id}`,
+      label: String(slip.staffName || "").trim() || "Staff",
+      sublabel: [slip.month ? `Salary · ${slip.month}` : "Salary", role].filter(Boolean).join(" · ") || undefined,
+      amount,
+      date: fmtDate(when.toISOString()),
+      href: "/hrm",
+    })
+  }
+
+  for (const r of salaryRecords) {
+    if (r.category !== "Salary") continue
+    const amount = Number(r.amount) || 0
+    if (amount <= 0) continue
+    const d = new Date(r.createdAt)
+    if (!inRange(d, start, end)) continue
+    const person =
+      String(r.supplier_name || "").trim() ||
+      String(r.receipt_person_name || "").trim() ||
+      String(r.title || "").trim() ||
+      "Salary"
+    const purpose = String(r.purpose || "").trim()
+    lines.push({
+      id: `sal-rec-${r.id}`,
+      label: person,
+      sublabel: [purpose || "Salary record", r.title !== person ? r.title : ""].filter(Boolean).join(" · ") || undefined,
+      amount,
+      date: fmtDate(d.toISOString()),
+      href: "/finance?tab=manage&section=finance",
+    })
+  }
+
+  return lines.sort((a, b) => b.amount - a.amount)
+}
+
+export function buildFuelPetrolDetails(
+  allotments: Array<{
+    id: string
+    personName: string
+    amountPkr: number
+    allottedAt: Date | string
+    status?: string | null
+    notes?: string | null
+    vehicle?: { name?: string | null; plate?: string | null } | null
+  }>,
+  start: Date,
+  end: Date,
+): MoneyOutDetailLine[] {
+  const lines: MoneyOutDetailLine[] = []
+  for (const a of allotments) {
+    const amount = Number(a.amountPkr) || 0
+    if (amount <= 0) continue
+    const d = new Date(a.allottedAt)
+    if (!inRange(d, start, end)) continue
+    const vehicle = [a.vehicle?.name, a.vehicle?.plate].map((x) => String(x || "").trim()).filter(Boolean).join(" · ")
+    const notes = String(a.notes || "").trim()
+    lines.push({
+      id: `fuel-${a.id}`,
+      label: String(a.personName || "").trim() || "Fuel allotment",
+      sublabel: [vehicle, notes, a.status].filter(Boolean).join(" · ") || undefined,
+      amount,
+      date: fmtDate(d.toISOString()),
+      href: "/petrol",
+    })
+  }
+  return lines.sort((a, b) => b.amount - a.amount)
+}
+
 export type MoneyOutDetailsPayload = {
   clientRefunds: MoneyOutDetailLine[]
   cashback: MoneyOutDetailLine[]
@@ -381,6 +481,8 @@ export type MoneyOutDetailsPayload = {
   purchaseLedgerPurchases?: MoneyOutDetailLine[]
   purchaseLedgerRents?: MoneyOutDetailLine[]
   salaryAdvances?: MoneyOutDetailLine[]
+  salaries?: MoneyOutDetailLine[]
+  fuelPetrol?: MoneyOutDetailLine[]
 }
 
 /** Map breakdown row labels to detail lists for hover tooltips. */
@@ -400,4 +502,7 @@ export const MONEY_OUT_DETAIL_KEYS: Record<string, keyof MoneyOutDetailsPayload>
   "Purchases (ledger)": "purchaseLedgerPurchases",
   "Rents (ledger)": "purchaseLedgerRents",
   "Salary advances": "salaryAdvances",
+  Salaries: "salaries",
+  "Petrol / fuel": "fuelPetrol",
+  Petrol: "fuelPetrol",
 }

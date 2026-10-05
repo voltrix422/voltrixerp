@@ -164,7 +164,13 @@ function buildMoneyOutDisplayRows(
       details: details?.loansGiven,
     })
   }
-  if (b.salaries > 0.004) rows.push({ label: "Salaries", amount: b.salaries })
+  if (b.salaries > 0.004) {
+    rows.push({
+      label: "Salaries",
+      amount: b.salaries,
+      details: details?.salaries,
+    })
+  }
   const salaryAdvances = b.salaryAdvances ?? 0
   if (salaryAdvances > 0.004) {
     rows.push({
@@ -192,7 +198,11 @@ function buildMoneyOutDisplayRows(
   }
   const fuelPetrol = b.fuelPetrol ?? 0
   if (fuelPetrol > 0.004) {
-    rows.push({ label: "Petrol / fuel", amount: fuelPetrol })
+    rows.push({
+      label: "Petrol / fuel",
+      amount: fuelPetrol,
+      details: details?.fuelPetrol,
+    })
   }
   if (b.pettyCash > 0.004) {
     rows.push({
@@ -513,6 +523,7 @@ export function FinanceHub({
   const [moneyInDetails, setMoneyInDetails] = useState<{
     posSales?: MoneyOutDetailLine[]
     clientOrders?: MoneyOutDetailLine[]
+    loans?: MoneyOutDetailLine[]
   } | null>(null)
   const [loans, setLoans] = useState<LoanSnapshot | null>(null)
   const [togglesOpen, setTogglesOpen] = useState(false)
@@ -603,8 +614,23 @@ export function FinanceHub({
     if (mi.incomeRecords > 0.004) rows.push({ label: "Income records", amount: mi.incomeRecords })
     const received = mi.loansReceived ?? (mi.loans - (mi.loanRecoveries ?? 0))
     const recovered = mi.loanRecoveries ?? 0
-    if (received > 0.004) rows.push({ label: "Loans received", amount: received })
-    if (recovered > 0.004) rows.push({ label: "Returned to us", amount: recovered })
+    if (received > 0.004 || recovered > 0.004) {
+      const loanLines = moneyInDetails?.loans || []
+      if (received > 0.004) {
+        rows.push({
+          label: "Loans received",
+          amount: received,
+          details: loanLines.filter((l) => (l.sublabel || "").includes("Loan received")),
+        })
+      }
+      if (recovered > 0.004) {
+        rows.push({
+          label: "Returned to us",
+          amount: recovered,
+          details: loanLines.filter((l) => (l.sublabel || "").includes("Returned to us")),
+        })
+      }
+    }
     return rows
   }, [breakdown.moneyIn, moneyInDetails])
 

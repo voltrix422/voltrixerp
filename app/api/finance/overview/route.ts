@@ -32,15 +32,18 @@ import { sumApprovedReceiptsInPeriod } from "@/lib/petty-cash-display"
 import {
   buildCashbackDetails,
   buildClientRefundDetails,
+  buildFuelPetrolDetails,
   buildImportChargeStepDetails,
   buildImportCombinedDetails,
   buildImportPswDetails,
   buildPettyCashApprovedDetails,
   buildPurchaseLedgerPaymentDetails,
   buildSalaryAdvanceDetails,
+  buildSalaryPayoutDetails,
 } from "@/lib/finance-money-out-details"
 import { importChargesSplitInPeriod } from "@/lib/finance-import-outflows"
 import {
+  buildLoanInDetails,
   buildLoanOutDetails,
   isLoanCategory,
   summarizeLoans,
@@ -128,8 +131,9 @@ function inRange(d: Date, start: Date, end: Date) {
   return d >= start && d <= end
 }
 
-function salaryCashDate(slip: { paidAt?: Date | null; generatedDate: Date }) {
-  return slip.paidAt || slip.generatedDate
+function salaryCashDate(slip: { paidAt?: Date | string | null; generatedDate: Date | string }) {
+  const raw = slip.paidAt || slip.generatedDate
+  return raw instanceof Date ? raw : new Date(raw)
 }
 
 function pkShiftedMonth(y: number, m: number, delta: number) {
@@ -206,10 +210,26 @@ export async function GET(req: NextRequest) {
       }),
       prisma.erpSalarySlip.findMany({
         where: { status: "finalized" },
-        select: { netSalary: true, month: true, paidAt: true, generatedDate: true },
+        select: {
+          id: true,
+          staffName: true,
+          staffRole: true,
+          netSalary: true,
+          month: true,
+          paidAt: true,
+          generatedDate: true,
+        },
       }),
       prisma.erpFuelAllotment.findMany({
-        select: { amountPkr: true, allottedAt: true, status: true },
+        select: {
+          id: true,
+          amountPkr: true,
+          allottedAt: true,
+          status: true,
+          notes: true,
+          personName: true,
+          vehicle: { select: { name: true, plate: true } },
+        },
         orderBy: { allottedAt: "desc" },
       }),
     ])
@@ -788,10 +808,13 @@ export async function GET(req: NextRequest) {
       purchaseLedgerPurchases: buildPurchaseLedgerPaymentDetails(purchaseLedger, start, end, "purchase"),
       purchaseLedgerRents: buildPurchaseLedgerPaymentDetails(purchaseLedger, start, end, "rent"),
       salaryAdvances: buildSalaryAdvanceDetails(salaryAdvances, start, end),
+      salaries: buildSalaryPayoutDetails(payrollSalarySlips, records, start, end, salaryCashDate),
+      fuelPetrol: buildFuelPetrolDetails(fuelAllotments, start, end),
     }
     const moneyInDetails = {
       posSales: posSalesReport.details,
       clientOrders: orderReport.details,
+      loans: buildLoanInDetails(loanRecords, start, end),
     }
 
     return NextResponse.json({

@@ -24,6 +24,8 @@ export type FinanceExpenseLine = {
   amount: number
   createdBy: string
   receiptPerson: string
+  /** Payee / supplier the money went to */
+  paidTo: string
 }
 
 export type FinanceExpenseByPerson = {
@@ -58,7 +60,7 @@ export type FinanceOrderRow = {
   items: FinancePdfItem[]
 }
 
-const EXPENSE_CATEGORIES = new Set(["Expense", "Payment", "Tax", "Other", "Salary"])
+const EXPENSE_CATEGORIES = new Set(["Expense", "Payment", "Tax", "Other"])
 
 function inRange(d: Date, start: Date, end: Date) {
   return d >= start && d <= end
@@ -148,6 +150,7 @@ export function buildExpenseReport(
     createdAt: Date | string
     created_by?: string | null
     receipt_person_name?: string | null
+    supplier_name?: string | null
     purpose?: string | null
   }>,
   start: Date,
@@ -164,24 +167,27 @@ export function buildExpenseReport(
     if (!inRange(new Date(r.createdAt), start, end)) continue
     const amount = num(r.amount)
     if (amount <= 0) continue
-    const createdBy = String(r.created_by || "").trim() || "â€”"
+    const createdBy = String(r.created_by || "").trim() || "—"
     const receiptPerson = String(r.receipt_person_name || "").trim()
+    const supplier = String(r.supplier_name || "").trim()
+    const paidTo = supplier || receiptPerson
     const purpose = String(r.purpose || "").trim()
     lines.push({
       id: r.id,
       date: fmtDay(r.createdAt),
-      title: purpose ? `${r.title} Â· ${purpose}` : r.title,
+      title: purpose ? `${r.title} · ${purpose}` : r.title,
       category: r.category,
       amount,
       createdBy,
       receiptPerson,
+      paidTo,
     })
   }
   lines.sort((a, b) => b.amount - a.amount)
 
   const byMap = new Map<string, FinanceExpenseByPerson>()
   for (const line of lines) {
-    const name = line.createdBy
+    const name = line.paidTo || line.createdBy
     const row = byMap.get(name) || { name, count: 0, amount: 0 }
     row.count += 1
     row.amount += line.amount
@@ -191,10 +197,15 @@ export function buildExpenseReport(
   const total = lines.reduce((s, l) => s + l.amount, 0)
   const details: MoneyOutDetailLine[] = lines.map((line) => ({
     id: `exp-${line.id}`,
-    label: line.title,
-    sublabel: [line.createdBy, line.receiptPerson ? `Receipt ${line.receiptPerson}` : "", line.category]
+    label: line.paidTo || line.title,
+    sublabel: [
+      line.paidTo ? line.title : "",
+      line.createdBy ? `By ${line.createdBy}` : "",
+      line.receiptPerson && line.receiptPerson !== line.paidTo ? `Receipt ${line.receiptPerson}` : "",
+      line.category,
+    ]
       .filter(Boolean)
-      .join(" Â· "),
+      .join(" · "),
     amount: line.amount,
     date: line.date,
   }))
@@ -280,7 +291,7 @@ export function buildPosSalesReport(
   const details: MoneyOutDetailLine[] = rows.map((row) => ({
     id: `pos-${row.id}`,
     label: row.number,
-    sublabel: `${row.kind} Â· ${row.customer} Â· ${row.cashier}`,
+    sublabel: `${row.kind} · ${row.customer} · ${row.cashier}`,
     amount: row.total,
     date: row.date,
     items: itemDetailLines(row.items),
@@ -319,18 +330,22 @@ export function buildOrderReport(
     }
     const payments = parseOrderPayments(order.payments)
     let receivedInPeriod = 0
+    let lastPaymentInPeriod: Date | null = null
     for (const p of payments) {
       const amount = approvedBalancePaymentAmount(p, order.status as Order["status"])
       if (amount <= 0) continue
       const d = new Date(p.date || order.createdAt)
-      if (inRange(d, start, end)) receivedInPeriod += amount
+      if (inRange(d, start, end)) {
+        receivedInPeriod += amount
+        if (!lastPaymentInPeriod || d > lastPaymentInPeriod) lastPaymentInPeriod = d
+      }
     }
     const createdInPeriod = inRange(new Date(order.createdAt), start, end)
     if (!createdInPeriod && receivedInPeriod <= 0.004) continue
 
     rows.push({
       id: order.id,
-      date: fmtDay(order.createdAt),
+      date: fmtDay(lastPaymentInPeriod || order.createdAt),
       orderNumber: order.orderNumber,
       clientName: order.clientName,
       status: order.status,
@@ -348,7 +363,7 @@ export function buildOrderReport(
   const details: MoneyOutDetailLine[] = rows.map((row) => ({
     id: `ord-${row.id}`,
     label: row.orderNumber,
-    sublabel: `${row.clientName} Â· ${row.status} Â· ${row.createdBy}`,
+    sublabel: `${row.clientName} · ${row.status} · ${row.createdBy}`,
     amount: row.receivedInPeriod || row.total,
     date: row.date,
     items: itemDetailLines(row.items),

@@ -102,6 +102,11 @@ const OUT_LABEL: Record<string, string> = {
   "Loan Repayment": "Returned by us",
 }
 
+const IN_LABEL: Record<string, string> = {
+  Loan: "Loan received",
+  "Loan Recovery": "Returned to us",
+}
+
 export function buildLoanOutDetails(
   records: LoanFinanceRecord[],
   start: Date,
@@ -120,6 +125,33 @@ export function buildLoanOutDetails(
       id: r.id,
       label: person || r.title,
       sublabel: [OUT_LABEL[r.category] ?? r.category, tag || r.notes].filter(Boolean).join(" · ") || undefined,
+      amount,
+      date: fmtDate(r.createdAt),
+      href: "/finance?tab=manage&section=finance",
+    })
+  }
+  return lines.sort((a, b) => b.amount - a.amount)
+}
+
+/** Loans received / recoveries in the period — label is the person the money came from. */
+export function buildLoanInDetails(
+  records: LoanFinanceRecord[],
+  start: Date,
+  end: Date,
+): MoneyOutDetailLine[] {
+  const lines: MoneyOutDetailLine[] = []
+  for (const r of records) {
+    if (!LOAN_IN_CATEGORIES.has(r.category)) continue
+    const d = new Date(r.createdAt)
+    if (!inRange(d, start, end)) continue
+    const amount = Number(r.amount) || 0
+    if (amount <= 0) continue
+    const person = loanPersonName(r)
+    const tag = (r.tag || "").trim()
+    lines.push({
+      id: r.id,
+      label: person || r.title,
+      sublabel: [IN_LABEL[r.category] ?? r.category, tag || r.notes].filter(Boolean).join(" · ") || undefined,
       amount,
       date: fmtDate(r.createdAt),
       href: "/finance?tab=manage&section=finance",
