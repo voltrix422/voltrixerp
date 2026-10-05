@@ -25,12 +25,25 @@ if (!token) {
   process.exit(1)
 }
 
+function normalizeProvince(raw) {
+  const key = String(raw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+  if (/ISLAMABAD|ICT|CAPITAL/.test(key)) return "CAPITAL TERRITORY"
+  if (["BALOCHISTAN", "AZAD JAMMU AND KASHMIR", "CAPITAL TERRITORY", "KHYBER PAKHTUNKHWA", "PUNJAB", "SINDH", "GILGIT BALTISTAN"].includes(key)) {
+    return key
+  }
+  return "CAPITAL TERRITORY"
+}
+
 const payload = {
   invoiceType: "Sale Invoice",
   invoiceDate: new Date().toISOString().slice(0, 10),
   sellerNTNCNIC: String(env.FBR_SELLER_NTN || "").trim(),
   sellerBusinessName: String(env.FBR_SELLER_NAME || "").trim(),
-  sellerProvince: String(env.FBR_SELLER_PROVINCE || "CAPITAL TERRITORY").trim() || "CAPITAL TERRITORY",
+  sellerProvince: normalizeProvince(env.FBR_SELLER_PROVINCE),
   sellerAddress: String(env.FBR_SELLER_ADDRESS || "").trim(),
   buyerNTNCNIC: "7000009",
   buyerBusinessName: "Walk-in customer",
