@@ -1,5 +1,12 @@
 import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
 import {
+  crmOrdersReportMoney,
+  crmPeriodBounds,
+  orderLastPaymentInPeriod,
+  orderPeriodPaymentLines,
+  orderReceivedInPeriod,
+} from "@/lib/crm-order-period"
+import {
   getBalanceSubmittedPayments,
   getOrderAmountPaid,
   getOrderCreditBalance,
@@ -9,7 +16,6 @@ import {
   type Order,
   type OrderItem,
 } from "@/lib/orders"
-import { aggregateOrderPaymentStats } from "@/lib/order-payment-stats"
 import { dateRangeLabel, downloadPlainReportPdf, pkr, type PlainTable } from "@/lib/plain-report-pdf"
 
 export type CrmOrdersPdfClient = {
@@ -26,7 +32,14 @@ function amt(n: number) {
   return Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })
 }
 
-function shortDate(value?: string) {
+function shortDate(value?: string | Date) {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "—"
+    const dd = String(value.getDate()).padStart(2, "0")
+    const mm = String(value.getMonth() + 1).padStart(2, "0")
+    const yy = String(value.getFullYear()).slice(2)
+    return `${dd}/${mm}/${yy}`
+  }
   const raw = String(value || "").trim()
   if (!raw) return "—"
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
@@ -61,8 +74,19 @@ function paymentLabel(order: Order) {
   return "Paid"
 }
 
-/** Paid total plus each payment amount with its date. */
-function paidWithDates(order: Order) {
+/** Paid cell: period payments when a date range is set, otherwise lifetime. */
+function paidWithDates(order: Order, dateFrom?: string, dateTo?: string) {
+  const bounds = crmPeriodBounds(dateFrom, dateTo)
+  if (bounds) {
+    const lines = orderPeriodPaymentLines(order, bounds.start, bounds.end).map(
+      (p) => `${amt(p.amount)} · ${shortDate(p.date)}`,
+    )
+    const paid = orderReceivedInPeriod(order, bounds.start, bounds.end)
+    if (!lines.length) return paid > 0.004 ? amt(paid) : "0"
+    if (lines.length === 1) return lines[0]
+    return `Total ${amt(paid)}; ${lines.join("; ")}`
+  }
+
   const paid = getOrderAmountPaid(order)
   const lines = getBalanceSubmittedPayments(order.payments, order.status)
     .filter((p) => (Number(p.amount) || 0) > 0.004)
@@ -106,12 +130,13 @@ export async function downloadCrmOrdersReportPdf(
     includeOutstanding?: boolean
   },
 ) {
-  const stats = aggregateOrderPaymentStats(orders)
+  const money = crmOrdersReportMoney(orders, opts?.dateFrom, opts?.dateTo)
+  const bounds = crmPeriodBounds(opts?.dateFrom, opts?.dateTo)
   const totalQty = orders.reduce((sum, order) => sum + getCrmItemsTotalQty(order.items), 0)
-  const moneyReceived = stats.totalReceived
-  const outstanding = stats.totalOutstanding
+  const moneyReceived = money.moneyReceived
+  const outstanding = money.outstanding
+  const orderValue = money.orderValue
   const range = dateRangeLabel(opts?.dateFrom || "", opts?.dateTo || "")
-  const orderValue = stats.totalOrderValue || orders.reduce((sum, order) => sum + (order.total || 0), 0)
   const clients = (opts?.clients || []).filter((c) => c.name?.trim())
 
   const generated = new Date().toLocaleString("en-PK", {
@@ -153,7 +178,7 @@ export async function downloadCrmOrdersReportPdf(
     ],
     rows: [
       ["Total order value", pkr(orderValue)],
-      ["Received", pkr(moneyReceived)],
+      [money.periodScoped ? "Received in period" : "Received", pkr(moneyReceived)],
       ["Outstanding", pkr(outstanding)],
       ["Total order qty", `${totalQty} pcs`],
       ["Orders", String(orders.length)],
@@ -161,29 +186,30 @@ export async function downloadCrmOrdersReportPdf(
   })
 
   tables.push({
-    title: "ERP client orders",
+    title: money.periodScoped ? "ERP client payments received" : "ERP client orders",
     columns: [
       { header: "Date", width: 15, minWidth: 14 },
       { header: "Order", width: 18, minWidth: 16 },
       { header: "Client", width: 26, minWidth: 22 },
       { header: "Items", width: 72, minWidth: 58 },
       { header: "Pay", width: 12, minWidth: 11 },
-      { header: "Total", align: "right", width: 18, minWidth: 16 },
-      { header: "Paid", align: "right", width: 22, minWidth: 18 },
+      { header: "Order total", align: "right", width: 18, minWidth: 16 },
+      { header: money.periodScoped ? "Received" : "Paid", align: "right", width: 22, minWidth: 18 },
       { header: "Credit", align: "right", width: 16, minWidth: 14 },
     ],
     rows: orders.map((order) => {
       const credit = getOrderCreditBalance(order)
       const by = order.createdBy?.trim()
       const client = by ? `${order.clientName || "—"} · ${by}` : order.clientName || "—"
+      const paymentDate = bounds ? orderLastPaymentInPeriod(order, bounds.start, bounds.end) : null
       return [
-        shortDate(order.createdAt),
+        shortDate(paymentDate || order.createdAt),
         order.orderNumber || "—",
         client,
         fullItems(order.items),
         paymentLabel(order),
         amt(getOrderNetSalesValue(order)),
-        paidWithDates(order),
+        paidWithDates(order, opts?.dateFrom, opts?.dateTo),
         amt(credit),
       ]
     }),
@@ -208,7 +234,9 @@ export async function downloadCrmOrdersReportPdf(
     clientLabel
       ? `ERP orders only · ${clientLabel}${opts?.exportedBy ? ` · ${opts.exportedBy}` : ""}`
       : `ERP orders only · Branch POS excluded${opts?.exportedBy ? ` · ${opts.exportedBy}` : ""}`,
-    `Generated  ${generated}  (Pakistan time) · Received ${pkr(moneyReceived)} · Due ${pkr(outstanding)}`,
+    money.periodScoped
+      ? `Generated  ${generated}  (Pakistan time) · Received in period ${pkr(moneyReceived)} · Due ${pkr(outstanding)}`
+      : `Generated  ${generated}  (Pakistan time) · Received ${pkr(moneyReceived)} · Due ${pkr(outstanding)}`,
   ]
 
   const from = opts?.dateFrom || "all"

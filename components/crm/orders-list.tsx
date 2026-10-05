@@ -55,10 +55,17 @@ import {
 } from "@/lib/crm-product-prices"
 import {
   aggregateOrderPaymentStats,
+  aggregateOrderPaymentsInPeriod,
   isApprovedAwaitingPaymentOrder,
   isDeliveredFullyPaidOrder,
   isPartiallyPaidOrder,
 } from "@/lib/order-payment-stats"
+import {
+  crmOrdersReportMoney,
+  crmPeriodBounds,
+  orderMatchesCrmDateRange,
+  orderReceivedInPeriod,
+} from "@/lib/crm-order-period"
 
 type OrderStatusFilter = "all" | "delivered" | "approved" | "confirmed" | "returned"
 type PaymentFilter = "all" | "on_credit" | "paid" | "not_credit" | "cashback"
@@ -329,13 +336,8 @@ function getDatePresetRange(preset: DatePreset): { from: string; to: string } | 
   }
 }
 
-function orderMatchesDateRange(createdAt: string | undefined, fromDate: string, toDate: string): boolean {
-  if (!fromDate && !toDate) return true
-  if (!createdAt) return false
-  const d = new Date(createdAt)
-  if (fromDate && d < startOfDay(new Date(fromDate))) return false
-  if (toDate && d > endOfDay(new Date(toDate))) return false
-  return true
+function orderMatchesDateRange(order: Pick<Order, "createdAt" | "payments" | "status">, fromDate: string, toDate: string): boolean {
+  return orderMatchesCrmDateRange(order, fromDate, toDate)
 }
 
 export function OrdersList({ currentUser, currentUserId, workspace }: { currentUser: string; currentUserId?: string; workspace?: CrmWorkspaceScope }) {
@@ -419,7 +421,7 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
 
     const matchesStatus = statusFilter === "all" || o.status === statusFilter
     const matchesPayment = orderMatchesPaymentFilter(o, paymentFilter)
-    const matchesDateRange = orderMatchesDateRange(o.createdAt, fromDate, toDate)
+    const matchesDateRange = orderMatchesDateRange(o, fromDate, toDate)
     const matchesClient = ledgerClients.length
       ? orderBelongsToAnyClient(o, ledgerClients)
       : excludedClients.length === 0 || !orderBelongsToAnyClient(o, excludedClients)
@@ -548,7 +550,14 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
   }
 
   // Payment stats — shared logic with Finance overview (lib/order-payment-stats).
+  // When a date range is set, "Money received" uses payments dated in that range
+  // (so credit collections show only the amount received then, not the full order).
   const paymentStats = aggregateOrderPaymentStats(filtered)
+  const periodBounds = crmPeriodBounds(fromDate, toDate)
+  const periodMoney = crmOrdersReportMoney(filtered, fromDate, toDate)
+  const periodPaymentStats = periodBounds
+    ? aggregateOrderPaymentsInPeriod(filtered, periodBounds.start, periodBounds.end)
+    : null
   const totalOrderValue = paymentStats.totalOrderValue
   const totalOrderQty = filtered.reduce((sum, o) => sum + getCrmItemsTotalQty(o.items), 0)
 
@@ -560,19 +569,29 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
     .filter(isPartiallyPaid)
     .map((order) => ({
       order,
-      paid: getOrderAmountPaid(order),
+      paid: periodBounds
+        ? orderReceivedInPeriod(order, periodBounds.start, periodBounds.end)
+        : getOrderAmountPaid(order),
       balance: getOrderCreditBalance(order),
     }))
     .sort((a, b) => b.paid - a.paid)
 
-  const totalReceived = paymentStats.totalReceived
+  const totalReceived = periodMoney.moneyReceived
   const totalOutstanding = paymentStats.totalOutstanding
-  const deliveredFullyPaidReceived = paymentStats.deliveredFullyPaidReceived
+  const deliveredFullyPaidReceived = periodPaymentStats
+    ? periodPaymentStats.deliveredFullyPaidInPeriod
+    : paymentStats.deliveredFullyPaidReceived
   const onCreditAmount = paymentStats.creditOutstanding
-  const creditPaymentsReceived = paymentStats.creditPaymentsReceived
+  const creditPaymentsReceived = periodPaymentStats
+    ? periodPaymentStats.partialPaymentsInPeriod
+    : paymentStats.creditPaymentsReceived
   const approvedUnpaidAmount = paymentStats.approvedUnpaidOutstanding
-  const partialPaymentAmount = paymentStats.partialPaymentsReceived
-  const otherPaymentsReceived = paymentStats.otherPaymentsReceived
+  const partialPaymentAmount = periodPaymentStats
+    ? periodPaymentStats.partialPaymentsInPeriod
+    : paymentStats.partialPaymentsReceived
+  const otherPaymentsReceived = periodPaymentStats
+    ? periodPaymentStats.otherPaymentsInPeriod
+    : paymentStats.otherPaymentsReceived
   const returnedRefundAmount = paymentStats.returnedRefundAmount
   const cashbackOrders = filtered.filter(orderHasCashback)
   const cashbackAmount = paymentStats.cashbackAmount
@@ -828,7 +847,11 @@ export function OrdersList({ currentUser, currentUserId, workspace }: { currentU
           <div className="space-y-3">
             <CollapsibleSection
               title="Money received"
-              subtitle="Sum of Paid column (gross collections; refunds are money out) · matches Finance"
+              subtitle={
+                periodMoney.periodScoped
+                  ? "Payments received in the selected date range (credit collections = amount received then, not full order)"
+                  : "Sum of Paid column (gross collections; refunds are money out) · matches Finance"
+              }
               summary={formatOrderPkr(headlineTotal)}
               open={moneyReceivedOpen}
               onToggle={() => setMoneyReceivedOpen(v => !v)}

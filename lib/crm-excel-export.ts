@@ -14,7 +14,13 @@ import {
 import type { Quotation } from "@/lib/quotations"
 import { STATUS_LABELS as QUOTATION_STATUS_LABELS } from "@/lib/quotations"
 import { getCrmItemsTotalQty } from "@/lib/crm-line-items-summary"
-import { aggregateOrderPaymentStats } from "@/lib/order-payment-stats"
+import {
+  crmOrdersReportMoney,
+  crmPeriodBounds,
+  orderLastPaymentInPeriod,
+  orderPeriodPaymentLines,
+  orderReceivedInPeriod,
+} from "@/lib/crm-order-period"
 import { dateRangeLabel, pkr } from "@/lib/plain-report-pdf"
 import type { CrmOrdersPdfClient } from "@/lib/crm-orders-report-pdf"
 
@@ -78,7 +84,14 @@ function exportMetaHeader(exportedBy?: string) {
   return `${escCsvCell("Exported by")},${escCsvCell(exportedBy.trim())}\r\n${escCsvCell("Export time")},${escCsvCell(when)}\r\n\r\n`
 }
 
-function shortDate(value?: string) {
+function shortDate(value?: string | Date | null) {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "—"
+    const dd = String(value.getDate()).padStart(2, "0")
+    const mm = String(value.getMonth() + 1).padStart(2, "0")
+    const yy = String(value.getFullYear()).slice(2)
+    return `${dd}/${mm}/${yy}`
+  }
   const raw = String(value || "").trim()
   if (!raw) return "—"
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
@@ -116,7 +129,18 @@ function paymentLabel(order: Order) {
   return "Paid"
 }
 
-function paidWithDates(order: Order) {
+function paidWithDates(order: Order, dateFrom?: string, dateTo?: string) {
+  const bounds = crmPeriodBounds(dateFrom, dateTo)
+  if (bounds) {
+    const lines = orderPeriodPaymentLines(order, bounds.start, bounds.end).map(
+      (p) => `${amt(p.amount)} · ${shortDate(p.date)}`,
+    )
+    const paid = orderReceivedInPeriod(order, bounds.start, bounds.end)
+    if (!lines.length) return paid > 0.004 ? amt(paid) : "0"
+    if (lines.length === 1) return lines[0]
+    return [`Total ${amt(paid)}`, ...lines].join("\n")
+  }
+
   const paid = getOrderAmountPaid(order)
   const lines = getBalanceSubmittedPayments(order.payments, order.status)
     .filter((p) => (Number(p.amount) || 0) > 0.004)
@@ -143,11 +167,12 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
       ? { exportedBy: opts, salesAgentUserIds }
       : { ...(opts || {}), salesAgentUserIds: opts?.salesAgentUserIds ?? salesAgentUserIds }
 
-  const stats = aggregateOrderPaymentStats(orders)
+  const money = crmOrdersReportMoney(orders, options.dateFrom, options.dateTo)
+  const bounds = crmPeriodBounds(options.dateFrom, options.dateTo)
   const totalQty = orders.reduce((sum, order) => sum + getCrmItemsTotalQty(order.items), 0)
-  const moneyReceived = stats.totalReceived
-  const outstanding = stats.totalOutstanding
-  const orderValue = stats.totalOrderValue || orders.reduce((sum, order) => sum + (order.total || 0), 0)
+  const moneyReceived = money.moneyReceived
+  const outstanding = money.outstanding
+  const orderValue = money.orderValue
   const range = dateRangeLabel(options.dateFrom || "", options.dateTo || "")
   const clients = (options.clients || []).filter((c) => c.name?.trim())
   const clientLabel =
@@ -180,7 +205,9 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
   lines.push(
     kvRow(
       "Generated",
-      `${generated} (Pakistan time) · Received ${pkr(moneyReceived)} · Due ${pkr(outstanding)}`,
+      money.periodScoped
+        ? `${generated} (Pakistan time) · Received in period ${pkr(moneyReceived)} · Due ${pkr(outstanding)}`
+        : `${generated} (Pakistan time) · Received ${pkr(moneyReceived)} · Due ${pkr(outstanding)}`,
     ),
   )
   lines.push(blankLine())
@@ -213,7 +240,7 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
       ["Item", "Amount"],
       [
         ["Total order value", pkr(orderValue)],
-        ["Received", pkr(moneyReceived)],
+        [money.periodScoped ? "Received in period" : "Received", pkr(moneyReceived)],
         ["Outstanding", pkr(outstanding)],
         ["Total order qty", `${totalQty} pcs`],
         ["Orders", String(orders.length)],
@@ -222,19 +249,29 @@ export function downloadOrdersExcel(orders: Order[], opts?: OrdersExcelOpts | st
   )
   lines.push(blankLine())
 
-  lines.push(sectionTitle("ERP client orders"))
-  const orderHeaders = ["Date", "Order", "Client", "Items", "Pay", "Total", "Paid", "Credit"]
+  lines.push(sectionTitle(money.periodScoped ? "ERP client payments received" : "ERP client orders"))
+  const orderHeaders = [
+    "Date",
+    "Order",
+    "Client",
+    "Items",
+    "Pay",
+    "Order total",
+    money.periodScoped ? "Received" : "Paid",
+    "Credit",
+  ]
   const orderRows = orders.map((order) => {
     const by = order.createdBy?.trim()
     const client = by ? `${order.clientName || "—"} · ${by}` : order.clientName || "—"
+    const paymentDate = bounds ? orderLastPaymentInPeriod(order, bounds.start, bounds.end) : null
     return [
-      shortDate(order.createdAt),
+      shortDate(paymentDate || order.createdAt),
       order.orderNumber || "—",
       client,
       fullItems(order.items),
       paymentLabel(order),
       amt(getOrderNetSalesValue(order)),
-      paidWithDates(order),
+      paidWithDates(order, options.dateFrom, options.dateTo),
       amt(getOrderCreditBalance(order)),
     ]
   })
