@@ -1,5 +1,11 @@
 import { DEFAULT_GST_PERCENT } from "@/lib/gst-inclusive-pricing"
 import type { FbrConfig } from "@/lib/fbr-config"
+import {
+  applySandboxScenarioToItems,
+  defaultSandboxScenarioId,
+  parseSandboxScenarioId,
+  type FbrSandboxScenarioId,
+} from "@/lib/fbr-sandbox-scenarios"
 import type { Order, OrderItem } from "@/lib/orders"
 
 export type FbrBuyerProfile = {
@@ -191,6 +197,7 @@ export function buildFbrSaleInvoicePayload(
   >,
   buyer: FbrBuyerProfile | null,
   config: FbrConfig,
+  opts?: { sandboxScenarioId?: string },
 ): FbrSaleInvoicePayload {
   const items = taxableItems(order.items || [])
   const subtotal = Math.max(0, Number(order.subtotal) || 0)
@@ -218,7 +225,7 @@ export function buildFbrSaleInvoicePayload(
   const discountParts = allocate(discountAmt, weights)
   const rate = taxRateLabel(gstPercent)
 
-  const fbrItems: FbrInvoiceItemPayload[] = items.map((item, index) => {
+  let fbrItems: FbrInvoiceItemPayload[] = items.map((item, index) => {
     const qty = roundMoney(Math.max(0, Number(item.qty) || 0))
     const excl = exclParts[index] || 0
     // FBR 0104: ST must equal exclusive × rate, not the GST-inclusive remainder.
@@ -236,7 +243,7 @@ export function buildFbrSaleInvoicePayload(
       fixedNotifiedValueOrRetailPrice: 0,
       salesTaxApplicable: st,
       salesTaxWithheldAtSource: 0,
-      extraTax: "",
+      extraTax: 0,
       furtherTax: 0,
       sroScheduleNo: "",
       fedPayable: 0,
@@ -248,6 +255,13 @@ export function buildFbrSaleInvoicePayload(
 
   const buyerNtn = usableBuyerRegistration(buyer?.ntn)
   const registered = buyerNtn.length > 0
+  let sandboxScenario: FbrSandboxScenarioId | "" =
+    parseSandboxScenarioId(opts?.sandboxScenarioId) ||
+    parseSandboxScenarioId(config.sandboxScenarioId)
+
+  if (config.env === "sandbox" && sandboxScenario) {
+    fbrItems = applySandboxScenarioToItems(sandboxScenario, fbrItems)
+  }
   const buyerName =
     String(buyer?.company || "").trim() ||
     String(buyer?.name || "").trim() ||
@@ -284,8 +298,10 @@ export function buildFbrSaleInvoicePayload(
   }
 
   if (config.env === "sandbox") {
-    payload.scenarioId =
-      config.sandboxScenarioId || (registered ? "SN001" : "SN002")
+    if (!sandboxScenario) {
+      sandboxScenario = defaultSandboxScenarioId(registered)
+    }
+    payload.scenarioId = sandboxScenario
   }
 
   return payload

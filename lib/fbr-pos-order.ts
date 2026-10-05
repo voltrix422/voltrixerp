@@ -90,7 +90,10 @@ async function saveFbrFields(
  * Never throws to the caller for FBR/network errors — those are stored on the order.
  * Does not change order totals. Old orders are left blank unless retry is requested.
  */
-export async function postBranchPosOrderToFbr(orderId: string): Promise<FbrOrderRow | null> {
+export async function postBranchPosOrderToFbr(
+  orderId: string,
+  opts?: { sandboxScenarioId?: string },
+): Promise<FbrOrderRow | null> {
   const order = toFbrOrderRow(await prisma.erpOrder.findUnique({ where: { id: orderId } }))
   if (!order) return null
   if (!isBranchPosOrderSource(order.source) || !String(order.branchId || "").trim()) {
@@ -159,6 +162,7 @@ export async function postBranchPosOrderToFbr(orderId: string): Promise<FbrOrder
     },
     client,
     config,
+    { sandboxScenarioId: opts?.sandboxScenarioId },
   )
 
   const result = await postFbrSaleInvoice(payload, config)

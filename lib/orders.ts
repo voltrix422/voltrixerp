@@ -1027,11 +1027,17 @@ export async function getCrmApprovalOrders(): Promise<CrmApprovalOrdersPayload> 
   }
 }
 
-export async function postOrderToFbr(orderId: string): Promise<Order> {
+export async function postOrderToFbr(
+  orderId: string,
+  opts?: { sandboxScenarioId?: string },
+): Promise<Order> {
   const res = await fetch("/api/db/orders/fbr-post", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({
+      orderId,
+      sandboxScenarioId: opts?.sandboxScenarioId || undefined,
+    }),
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))

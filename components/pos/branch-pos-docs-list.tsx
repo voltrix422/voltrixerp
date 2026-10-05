@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   deleteOrder,
   getOrderAmountPaid,
@@ -138,6 +138,14 @@ function DocDetailModal({
   const [exportingPdf, setExportingPdf] = useState(false)
   const [deletingRefundId, setDeletingRefundId] = useState<string | null>(null)
   const [postingFbr, setPostingFbr] = useState(false)
+  const [fbrSandbox, setFbrSandbox] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/fbr/settings")
+      .then((r) => r.json())
+      .then((d) => setFbrSandbox(d?.env === "sandbox"))
+      .catch(() => setFbrSandbox(false))
+  }, [])
 
   const [deliveryAddress, setDeliveryAddress] = useState(order?.deliveryAddress || doc.deliveryAddress || "")
   const [deliveryDate, setDeliveryDate] = useState(order?.deliveryDate || "")
@@ -397,18 +405,22 @@ function DocDetailModal({
     }
   }
 
-  async function handleRetryFbr() {
+  async function handleRetryFbr(sandboxScenarioId?: string) {
     if (!order) return
     setPostingFbr(true)
     try {
-      const updated = await postOrderToFbr(order.id)
+      const updated = await postOrderToFbr(order.id, {
+        sandboxScenarioId: sandboxScenarioId || undefined,
+      })
       onSaved?.(updated)
       const status = normalizeFbrStatus(updated.fbrStatus)
       toast({
         type: status === "failed" ? "error" : "success",
         title:
           status === "sent"
-            ? "Sent to FBR"
+            ? sandboxScenarioId
+              ? `FBR ${sandboxScenarioId} sent`
+              : "Sent to FBR"
             : status === "pending"
               ? "FBR still pending"
               : "FBR post failed",
@@ -545,18 +557,35 @@ function DocDetailModal({
             <div className="rounded-md border px-3 py-2.5 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[10px] uppercase font-semibold text-[hsl(var(--muted-foreground))]">FBR invoice</p>
-                {canRetryFbrPost(order.fbrStatus) && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[10px] px-2"
-                    disabled={postingFbr || saving || busy}
-                    onClick={() => void handleRetryFbr()}
-                  >
-                    {postingFbr ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                    Retry FBR
-                  </Button>
+                {(canRetryFbrPost(order.fbrStatus) || fbrSandbox) && (
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {canRetryFbrPost(order.fbrStatus) ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] px-2"
+                        disabled={postingFbr || saving || busy}
+                        onClick={() => void handleRetryFbr()}
+                      >
+                        {postingFbr ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                        Retry FBR
+                      </Button>
+                    ) : null}
+                    {fbrSandbox ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] px-2 border-[#1a9f9a] text-[#1a9f9a]"
+                        disabled={postingFbr || saving || busy}
+                        onClick={() => void handleRetryFbr("SN017")}
+                        title="FBR sandbox: Sale of Goods where FED is Charged in ST Mode"
+                      >
+                        Post SN017
+                      </Button>
+                    ) : null}
+                  </div>
                 )}
               </div>
               <FbrStatusBadge order={order} />

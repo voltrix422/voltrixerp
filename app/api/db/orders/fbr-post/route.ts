@@ -32,11 +32,19 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
     }
-    if (normalizeFbrStatus(existingFbr.fbrStatus) === "sent" && existingFbr.fbrInvoiceNumber) {
+    const sandboxScenarioId = String(body.sandboxScenarioId ?? "").trim()
+    const allowResubmit = Boolean(sandboxScenarioId)
+    if (
+      !allowResubmit &&
+      normalizeFbrStatus(existingFbr.fbrStatus) === "sent" &&
+      existingFbr.fbrInvoiceNumber
+    ) {
       return NextResponse.json(existing)
     }
 
-    const order = await postBranchPosOrderToFbr(orderId)
+    const order = await postBranchPosOrderToFbr(orderId, {
+      sandboxScenarioId: sandboxScenarioId || undefined,
+    })
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 })
     }
