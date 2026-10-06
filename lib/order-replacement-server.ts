@@ -732,15 +732,17 @@ export type PendingReplacementApproval = {
 }
 
 export async function listPendingReplacementApprovalsServer(): Promise<PendingReplacementApproval[]> {
+  // Include source=null (legacy ERP orders). Prisma `NOT source=branch_pos` drops NULLs in SQL.
   const orders = await prisma.erpOrder.findMany({
     where: {
-      NOT: { source: "branch_pos" },
+      OR: [{ source: null }, { source: { not: "branch_pos" } }],
     },
     orderBy: { createdAt: "desc" },
-    take: 500,
+    take: 2000,
   })
   const pending: PendingReplacementApproval[] = []
   for (const order of orders) {
+    if (String(order.source || "").trim().toLowerCase() === "branch_pos") continue
     const lines = Array.isArray(order.replacementLines)
       ? (order.replacementLines as unknown as OrderReplacementLine[])
       : []
