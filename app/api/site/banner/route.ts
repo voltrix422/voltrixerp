@@ -3,35 +3,27 @@ import {
   readWebsiteBannerConfig,
   writeWebsiteBannerConfig,
   type WebsiteBannerConfig,
-  type WebsiteBannerDealItem,
 } from "@/lib/website-banner-server"
 
 export const dynamic = "force-dynamic"
 
-function parseItems(body: Partial<WebsiteBannerConfig>): WebsiteBannerDealItem[] {
-  const items: WebsiteBannerDealItem[] = []
+function parseProductIds(body: Partial<WebsiteBannerConfig>): string[] {
+  const ids: string[] = []
+  const push = (id: string) => {
+    const t = id.trim()
+    if (!t || ids.includes(t)) return
+    ids.push(t)
+  }
+  if (Array.isArray(body.productIds)) {
+    for (const id of body.productIds) push(String(id))
+  }
   if (Array.isArray(body.items)) {
     for (const row of body.items) {
-      if (!row || typeof row !== "object") continue
-      const productId = String(row.productId || "").trim()
-      if (!productId) continue
-      if (items.some((x) => x.productId === productId)) continue
-      const rawDeal = (row as { dealPrice?: unknown }).dealPrice
-      const dealN =
-        rawDeal == null || rawDeal === ""
-          ? NaN
-          : Number(rawDeal)
-      items.push({
-        productId,
-        dealPrice: Number.isFinite(dealN) && dealN > 0 ? Math.round(dealN) : null,
-      })
-      if (items.length >= 4) break
+      if (row && typeof row === "object") push(String(row.productId || ""))
     }
   }
-  if (items.length === 0 && body.productId) {
-    items.push({ productId: String(body.productId), dealPrice: null })
-  }
-  return items
+  if (body.productId) push(String(body.productId))
+  return ids.slice(0, 4)
 }
 
 export async function GET() {
@@ -41,24 +33,37 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const body = (await request.json()) as Partial<WebsiteBannerConfig>
-    const items = parseItems(body)
+    const body = (await request.json()) as Partial<WebsiteBannerConfig> & {
+      bundleDealPrice?: unknown
+    }
+    const productIds = parseProductIds(body)
+    const rawBundle = (body as { bundleDealPrice?: unknown }).bundleDealPrice
+    const bundleN =
+      rawBundle == null || rawBundle === "" ? NaN : Number(rawBundle)
     const config: WebsiteBannerConfig = {
       enabled: Boolean(body.enabled),
-      productId: items[0]?.productId ?? null,
-      items,
+      productId: productIds[0] ?? null,
+      productIds,
+      items: productIds.map((productId) => ({ productId })),
+      bundleDealPrice: Number.isFinite(bundleN) && bundleN > 0 ? Math.round(bundleN) : null,
       headline: body.headline != null ? String(body.headline).trim().slice(0, 80) : "",
     }
-    if (config.enabled && config.items.length === 0) {
+    if (config.enabled && config.productIds.length === 0) {
       return NextResponse.json(
-        { error: "Select at least one product for the homepage deal popup." },
+        { error: "Select at least one product for the homepage deal." },
+        { status: 400 },
+      )
+    }
+    if (config.enabled && config.bundleDealPrice == null) {
+      return NextResponse.json(
+        { error: "Enter one bundle deal price for the selected products." },
         { status: 400 },
       )
     }
     await writeWebsiteBannerConfig(config)
     return NextResponse.json(config)
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Failed to save banner settings"
+    const msg = error instanceof Error ? error.message : "Failed to save deal settings"
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

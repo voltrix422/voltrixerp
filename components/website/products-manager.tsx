@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import {
   Loader2, Plus, Trash2, Upload, X, ImageIcon,
-  Globe, EyeOff, RefreshCw, Star, Check, GripVertical, Megaphone
+  Globe, EyeOff, RefreshCw, Star, Check, GripVertical
 } from "lucide-react"
 import ProductBrochureField from "@/components/website/product-brochure-field"
 import ProductUserManualField from "@/components/website/product-user-manual-field"
@@ -77,43 +77,16 @@ export default function ProductsManager() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [bannerEnabled, setBannerEnabled] = useState(false)
-  const [bannerItems, setBannerItems] = useState<{ productId: string; dealPrice: string }[]>([])
-  const [bannerHeadline, setBannerHeadline] = useState("")
-  const [bannerSaving, setBannerSaving] = useState(false)
-  const [bannerOk, setBannerOk] = useState(false)
   const fileRef                       = useRef<HTMLInputElement>(null)
   const dragIdx                       = useRef<number | null>(null)
 
   const fetchAll = async () => {
     setLoading(true)
     try {
-      const [productsRes, bannerRes] = await Promise.all([
-        fetch('/api/products'),
-        fetch('/api/site/banner'),
-      ])
+      const productsRes = await fetch('/api/products')
       const data = await productsRes.json()
       const sorted = (data || []).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
       setProducts(sorted)
-
-      if (bannerRes.ok) {
-        const banner = await bannerRes.json()
-        setBannerEnabled(Boolean(banner.enabled))
-        setBannerHeadline(banner.headline ? String(banner.headline) : "")
-        const items = Array.isArray(banner.items) ? banner.items : []
-        if (items.length > 0) {
-          setBannerItems(
-            items.map((row: { productId?: string; dealPrice?: number | null }) => ({
-              productId: String(row.productId || ""),
-              dealPrice: row.dealPrice != null && Number(row.dealPrice) > 0 ? String(row.dealPrice) : "",
-            })).filter((row: { productId: string }) => row.productId),
-          )
-        } else if (banner.productId) {
-          setBannerItems([{ productId: String(banner.productId), dealPrice: "" }])
-        } else {
-          setBannerItems([])
-        }
-      }
     } catch (error) {
       console.error('Error fetching products:', error)
       setProducts([])
@@ -391,216 +364,10 @@ export default function ProductsManager() {
     }).catch(err => console.error('Error saving order:', err))
   }
 
-  const saveBanner = async () => {
-    const cleaned = bannerItems
-      .filter((row) => row.productId)
-      .slice(0, 4)
-      .map((row) => {
-        const dealN = Number(String(row.dealPrice).replace(/,/g, ""))
-        return {
-          productId: row.productId,
-          dealPrice: Number.isFinite(dealN) && dealN > 0 ? Math.round(dealN) : null,
-        }
-      })
-    if (bannerEnabled && cleaned.length === 0) {
-      setSaveError("Select at least one product for the homepage deal popup.")
-      return
-    }
-    setBannerSaving(true)
-    setBannerOk(false)
-    setSaveError("")
-    try {
-      const res = await fetch('/api/site/banner', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enabled: bannerEnabled,
-          items: cleaned,
-          headline: bannerHeadline.trim(),
-          productId: cleaned[0]?.productId || null,
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(String(data?.error || 'Failed to save banner settings'))
-      }
-      setBannerOk(true)
-      setTimeout(() => setBannerOk(false), 3000)
-    } catch (error: unknown) {
-      setSaveError(error instanceof Error ? error.message : 'Failed to save banner settings')
-    } finally {
-      setBannerSaving(false)
-    }
-  }
-
-  const toggleBannerProduct = (productId: string) => {
-    setBannerItems((prev) => {
-      const exists = prev.some((row) => row.productId === productId)
-      if (exists) return prev.filter((row) => row.productId !== productId)
-      if (prev.length >= 4) return prev
-      return [...prev, { productId, dealPrice: "" }]
-    })
-    setBannerEnabled(true)
-  }
-
-  const setBannerDealPrice = (productId: string, dealPrice: string) => {
-    setBannerItems((prev) =>
-      prev.map((row) => (row.productId === productId ? { ...row, dealPrice } : row)),
-    )
-  }
-
-  const bannerDealLabel =
-    bannerItems.length === 1
-      ? "Flash Deal"
-      : bannerItems.length === 2
-        ? "Combo Deal"
-        : bannerItems.length === 3
-          ? "Triple Deal"
-          : bannerItems.length >= 4
-            ? "Bundle Deal"
-            : "Deal"
-
   const allImages = [...form.images, ...pendingImgs.map(p => p.preview)]
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Homepage deal popup settings */}
-      <div className="shrink-0 border-b bg-gradient-to-r from-teal-50/80 via-white to-emerald-50/50 px-4 py-3">
-        <div className="mx-auto flex max-w-5xl flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1a9f9a]/10 text-[#1a9f9a]">
-                <Megaphone className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Homepage deal popup</p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  Opens on site visit — pick 1–4 products, set deal prices (was price is crossed out)
-                </p>
-              </div>
-            </div>
-
-            <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium">
-              <input
-                type="checkbox"
-                checked={bannerEnabled}
-                onChange={(e) => setBannerEnabled(e.target.checked)}
-                className="rounded border-neutral-300 text-[#1a9f9a] focus:ring-[#1a9f9a]"
-              />
-              Enable popup
-            </label>
-
-            {bannerItems.length > 0 && (
-              <span className="rounded-full bg-[#1a9f9a]/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0d7370]">
-                {bannerDealLabel}
-              </span>
-            )}
-
-            <input
-              type="text"
-              value={bannerHeadline}
-              onChange={(e) => setBannerHeadline(e.target.value)}
-              placeholder="Optional headline (e.g. Weekend solar deal)"
-              maxLength={80}
-              className="h-8 min-w-[200px] flex-1 rounded-lg border bg-white px-3 text-xs outline-none focus:border-[#1a9f9a]"
-            />
-
-            <button
-              type="button"
-              onClick={saveBanner}
-              disabled={bannerSaving}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-              style={{ backgroundColor: "#1a9f9a" }}
-            >
-              {bannerSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              Save deal
-            </button>
-
-            {bannerOk && (
-              <span className="shrink-0 text-[11px] font-medium text-emerald-600">Deal saved</span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {products.filter((p) => p.published).map((p) => {
-              const display = getProductDisplayName({ name: p.name, model: p.model })
-              const selectedInBanner = bannerItems.some((row) => row.productId === p.id)
-              const disabledAdd = !selectedInBanner && bannerItems.length >= 4
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  disabled={disabledAdd}
-                  onClick={() => toggleBannerProduct(p.id)}
-                  title={display.model ? `${display.title} · ${display.model}` : display.title}
-                  className={`inline-flex max-w-[220px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-                    selectedInBanner
-                      ? "border-[#1a9f9a] bg-[#1a9f9a] text-white"
-                      : "border-neutral-200 bg-white text-neutral-700 hover:border-[#1a9f9a]/40"
-                  } ${disabledAdd ? "cursor-not-allowed opacity-40" : ""}`}
-                >
-                  <span className="truncate">{display.title}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          {bannerItems.length > 0 && (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {bannerItems.map((row) => {
-                const p = products.find((x) => x.id === row.productId)
-                if (!p) return null
-                const display = getProductDisplayName({ name: p.name, model: p.model })
-                const catalog = Number(p.price)
-                return (
-                  <div
-                    key={row.productId}
-                    className="flex items-center gap-2 rounded-lg border bg-white px-2.5 py-2"
-                  >
-                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border bg-neutral-50">
-                      {p.images?.[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.images[0]} alt="" className="h-full w-full object-contain p-0.5" />
-                      ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold">{display.title}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Catalog{" "}
-                        {Number.isFinite(catalog) && catalog > 0
-                          ? `Rs. ${catalog.toLocaleString()}`
-                          : "—"}
-                      </p>
-                    </div>
-                    <div className="shrink-0">
-                      <label className="block text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Deal price
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={row.dealPrice}
-                        onChange={(e) => setBannerDealPrice(row.productId, e.target.value)}
-                        placeholder="e.g. 450000"
-                        className="h-7 w-[110px] rounded border px-2 text-xs outline-none focus:border-[#1a9f9a]"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => toggleBannerProduct(row.productId)}
-                      className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
-                      aria-label="Remove from deal"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
     <div className="flex flex-1 overflow-hidden">
 
       {/* ── Sidebar ── */}
@@ -655,11 +422,6 @@ export default function ProductsManager() {
                 {p.published
                   ? <Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   : <EyeOff className="w-3.5 h-3.5 text-muted-foreground opacity-40 shrink-0" />}
-                {bannerEnabled && bannerItems.some((row) => row.productId === p.id) && (
-                  <span title="In homepage deal popup">
-                    <Megaphone className="w-3.5 h-3.5 text-[#1a9f9a] shrink-0" />
-                  </span>
-                )}
               </button>
               )
             })}

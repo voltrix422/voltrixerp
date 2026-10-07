@@ -6,8 +6,9 @@ import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 // DB access via /api/db routes (Prisma)
 import { Badge } from "@/components/ui/badge"
-import { Loader2, RefreshCw, ExternalLink, Package, Trash2, Shield, FileText, Briefcase, MapPin, Store, BarChart3 } from "lucide-react"
+import { Loader2, RefreshCw, ExternalLink, Package, Trash2, Shield, FileText, Briefcase, MapPin, Store, BarChart3, Megaphone } from "lucide-react"
 import ProductsManager from "@/components/website/products-manager"
+import WebsiteDealPopupManager from "@/components/website/website-deal-popup-manager"
 import OutletsManager from "@/components/website/outlets-manager"
 import DealershipsManager from "@/components/website/dealerships-manager"
 import WebsiteAnalyticsDashboard from "@/components/website/website-analytics-dashboard"
@@ -42,10 +43,10 @@ const statusColors: Record<string, string> = {
 
 const statusOptions = ["new", "in_review", "quoted", "closed"]
 
-type WebsiteTab = "quotations" | "products" | "outlets" | "dealerships" | "warranty" | "blog" | "careers" | "analytics"
+type WebsiteTab = "quotations" | "products" | "deal" | "outlets" | "dealerships" | "warranty" | "blog" | "careers" | "analytics"
 
 function parseWebsiteTab(value: string | null): WebsiteTab {
-  const allowed: WebsiteTab[] = ["quotations", "products", "outlets", "dealerships", "warranty", "blog", "careers", "analytics"]
+  const allowed: WebsiteTab[] = ["quotations", "products", "deal", "outlets", "dealerships", "warranty", "blog", "careers", "analytics"]
   if (value && (allowed as string[]).includes(value)) return value as WebsiteTab
   return "quotations"
 }
@@ -141,6 +142,10 @@ export default function WebsitePage() {
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "products" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <Package className="w-3.5 h-3.5" /> Products
         </button>
+        <button onClick={() => selectTab("deal")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "deal" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <Megaphone className="w-3.5 h-3.5" /> Deal popup
+        </button>
         <button onClick={() => selectTab("outlets")}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${tab === "outlets" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           <MapPin className="w-3.5 h-3.5" /> Outlets
@@ -171,6 +176,10 @@ export default function WebsitePage() {
         <WebsiteAnalyticsDashboard />
       ) : tab === "products" ? (
         <ProductsManager />
+      ) : tab === "deal" ? (
+        <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
+          <WebsiteDealPopupManager />
+        </div>
       ) : tab === "outlets" ? (
         <div className="flex-1 overflow-auto bg-[hsl(var(--background))]">
           <div className="p-6 max-w-6xl">

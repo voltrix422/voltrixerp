@@ -10,8 +10,10 @@ export async function GET() {
       enabled: false,
       headline: "",
       dealLabel: "",
+      bundleWasTotal: null,
+      bundleDealPrice: null,
+      bundlePctOff: null,
       products: [],
-      // legacy single-product fields
       product: null,
       publicPath: null,
     })
@@ -21,15 +23,17 @@ export async function GET() {
     enabled: true,
     headline: deal.headline,
     dealLabel: deal.dealLabel,
+    bundleWasTotal: deal.bundleWasTotal,
+    bundleDealPrice: deal.bundleDealPrice,
+    bundlePctOff: deal.bundlePctOff,
     products: deal.products,
-    // legacy single-product fields (first item)
     product: first
       ? {
           id: first.id,
           name: first.name,
           model: first.model,
-          price: first.dealPrice ?? first.price,
-          compareAtPrice: first.wasPrice ?? first.compareAtPrice,
+          price: deal.bundleDealPrice ?? first.price,
+          compareAtPrice: deal.bundleWasTotal,
           quoteMode: first.quoteMode,
           images: first.images,
           published: true,
