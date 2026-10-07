@@ -1,4 +1,6 @@
 {
   "enabled": false,
-  "productId": null
+  "productId": null,
+  "items": [],
+  "headline": ""
 }

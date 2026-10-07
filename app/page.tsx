@@ -16,6 +16,7 @@ import AboutSection from "@/components/landing/about-section"
 import ContactSection from "@/components/landing/contact-section"
 import Footer from "@/components/landing/footer"
 import WhatsappButton from "@/components/landing/whatsapp-button"
+import HomeProductBanner from "@/components/landing/home-product-banner"
 import { JsonLd } from "@/components/landing/site-json-ld"
 import { buildPageMetadata, faqJsonLd, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo"
 
@@ -85,6 +86,7 @@ export default function Home() {
       </SectionBlur>
       <Footer />
       <WhatsappButton />
+      <HomeProductBanner />
     </main>
   )
 }
