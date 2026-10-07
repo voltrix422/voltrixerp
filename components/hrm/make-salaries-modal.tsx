@@ -335,8 +335,10 @@ function PaidProofsDialog({
   paidBy,
   paidAt,
   saving,
+  unmarking,
   onClose,
   onSave,
+  onUnmarkPaid,
 }: {
   staffName: string
   month: string
@@ -345,12 +347,14 @@ function PaidProofsDialog({
   paidBy?: string | null
   paidAt?: string | null
   saving: boolean
+  unmarking?: boolean
   onClose: () => void
   onSave: (payload: {
     paymentNotes: string
     attachments: ProofEditItem[]
     newFiles: PendingAttachment[]
   }) => void | Promise<void>
+  onUnmarkPaid?: () => void | Promise<void>
 }) {
   const [paymentNotes, setPaymentNotes] = useState(notes)
   const [existing, setExisting] = useState<ProofEditItem[]>(
@@ -585,24 +589,38 @@ function PaidProofsDialog({
             )}
           </div>
         </div>
-        <div className="flex gap-2 px-4 py-3 border-t bg-muted/10">
-          <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            className="flex-1 gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
-            disabled={saving}
-            onClick={() =>
-              void onSave({
-                paymentNotes,
-                attachments: existing,
-                newFiles,
-              })
-            }
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving…" : "Save changes"}
-          </Button>
+        <div className="flex flex-col gap-2 px-4 py-3 border-t bg-muted/10">
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving || unmarking}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 gap-2 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+              disabled={saving || unmarking}
+              onClick={() =>
+                void onSave({
+                  paymentNotes,
+                  attachments: existing,
+                  newFiles,
+                })
+              }
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+          {onUnmarkPaid && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+              disabled={saving || unmarking}
+              onClick={() => void onUnmarkPaid()}
+            >
+              {unmarking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {unmarking ? "Marking unpaid…" : "Mark unpaid"}
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -632,6 +650,7 @@ export function MakeSalariesModal({
   const [finalizing, setFinalizing] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
+  const [unmarkingPaidId, setUnmarkingPaidId] = useState<string | null>(null)
   const [updatingProofs, setUpdatingProofs] = useState(false)
   const [payingStaffId, setPayingStaffId] = useState<string | null>(null)
   const [viewProofsStaffId, setViewProofsStaffId] = useState<string | null>(null)
@@ -1052,12 +1071,42 @@ export function MakeSalariesModal({
     }
   }
 
+  async function handleUnmarkPaid(row: SalaryRow) {
+    const slip = getFinalizedSlip(row)
+    if (!slip?.id) {
+      alert("Could not find the paid salary slip for this employee.")
+      return
+    }
+    const ok = confirm(
+      `Mark ${row.staffName} as unpaid for ${monthLabel(month)}?\n\nThis removes the paid record and payment proofs for that month. Any salary advance recovered on this slip will be reopened.`,
+    )
+    if (!ok) return
+
+    setUnmarkingPaidId(row.staffId)
+    try {
+      const res = await fetch(`/api/hrm/salary-slips?id=${encodeURIComponent(slip.id)}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(err.error || "Failed to mark as unpaid.")
+      }
+      if (viewProofsStaffId === row.staffId) setViewProofsStaffId(null)
+      await onSaved()
+      alert(`${row.staffName} is unpaid again for ${monthLabel(month)}. You can mark them paid when ready.`)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to mark as unpaid.")
+    } finally {
+      setUnmarkingPaidId(null)
+    }
+  }
+
   function copyAccountNumber(accountNumber: string) {
     if (!accountNumber.trim()) return
     void navigator.clipboard.writeText(accountNumber.trim())
   }
 
-  const busy = saving || finalizing || !!markingPaidId || updatingProofs
+  const busy = saving || finalizing || !!markingPaidId || !!unmarkingPaidId || updatingProofs
 
   return (
     <div
@@ -1072,7 +1121,7 @@ export function MakeSalariesModal({
           <div>
             <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Make Salaries</h3>
             <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Uncheck employees to exclude them from export and payroll. Mark each employee as paid one by one with payment notes and attachments.
+              Uncheck employees to exclude them from export and payroll. Mark each employee as paid one by one with payment notes and attachments. Use Mark unpaid to reverse a mistaken paid status.
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
@@ -1282,6 +1331,19 @@ export function MakeSalariesModal({
                             <Eye className="h-3 w-3" />
                             {proofs.length > 0 || slip?.paymentNotes ? "View / edit proof" : "Add proof"}
                           </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-[10px] text-red-600 hover:underline disabled:opacity-50"
+                            disabled={busy}
+                            onClick={() => void handleUnmarkPaid(row)}
+                          >
+                            {unmarkingPaidId === row.staffId ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                            {unmarkingPaidId === row.staffId ? "Unmarking…" : "Mark unpaid"}
+                          </button>
                         </div>
                       ) : (
                         <Button
@@ -1310,7 +1372,7 @@ export function MakeSalariesModal({
 
         <div className="border-t border-[hsl(var(--border))] px-6 py-4 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xl">
-            Use Mark paid per employee to record payment with attachments and notes. Bulk finalize still available without per-row proofs. {includedRows.length} of {computed.length} selected.
+            Use Mark paid per employee to record payment with attachments and notes. Mark unpaid reverses a paid slip (and reopens advances recovered on it). Bulk finalize still available without per-row proofs. {includedRows.length} of {computed.length} selected.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={onClose}>
@@ -1373,10 +1435,15 @@ export function MakeSalariesModal({
           paidBy={proofSlip.paidBy}
           paidAt={proofSlip.paidAt}
           saving={updatingProofs}
+          unmarking={unmarkingPaidId === viewProofsStaffId}
           onClose={() => {
-            if (!updatingProofs) setViewProofsStaffId(null)
+            if (!updatingProofs && !unmarkingPaidId) setViewProofsStaffId(null)
           }}
           onSave={handleUpdatePaymentProofs}
+          onUnmarkPaid={async () => {
+            const row = computed.find((c) => c.row.staffId === viewProofsStaffId)?.row
+            if (row) await handleUnmarkPaid(row)
+          }}
         />
       )}
     </div>
