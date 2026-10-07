@@ -1,5 +1,5 @@
-import { DM_Sans } from "next/font/google"
 import type { Metadata } from "next"
+import { dmSans } from "@/lib/fonts/dm-sans"
 import { notFound, permanentRedirect } from "next/navigation"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
@@ -21,12 +21,6 @@ import { normalizeSpecRows } from "@/lib/product-specs"
 import { isProductPublished } from "@/lib/product-published"
 import ProductDetailClient from "./product-detail-client"
 import { ProductSeoSections } from "@/components/products/product-seo-sections"
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-dm-sans",
-})
 
 const categoryColors: Record<string, string> = {
   Residential: "bg-blue-50 text-blue-600 border-blue-100",

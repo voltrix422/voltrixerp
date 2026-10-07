@@ -17,12 +17,18 @@ git rebase --abort 2>/dev/null || true
 
 PRODUCTS_LIVE="/tmp/erpvoltrix-products-live.json"
 PRODUCTS_BACKUP="data/products.json.vps-backup-$(date +%Y%m%d-%H%M%S)"
+BANNER_LIVE="/tmp/erpvoltrix-website-banner-live.json"
 
 # Always preserve the live catalog file (admin edits on the server).
 if [ -f data/products.json ]; then
   cp data/products.json "$PRODUCTS_LIVE"
   cp data/products.json "$PRODUCTS_BACKUP"
   echo "==> Backed up live data/products.json ($PRODUCTS_BACKUP)"
+fi
+
+if [ -f data/website-banner.json ]; then
+  cp data/website-banner.json "$BANNER_LIVE"
+  echo "==> Backed up live data/website-banner.json"
 fi
 
 echo "==> git fetch + reset to origin/main (code only; products restored after)"
@@ -32,7 +38,14 @@ git reset --hard origin/main
 if [ -f "$PRODUCTS_LIVE" ]; then
   cp "$PRODUCTS_LIVE" data/products.json
   echo "==> Restored live data/products.json"
-elif [ ! -f data/products.json ]; then
+fi
+
+if [ -f "$BANNER_LIVE" ]; then
+  cp "$BANNER_LIVE" data/website-banner.json
+  echo "==> Restored live data/website-banner.json"
+fi
+
+if [ ! -f data/products.json ]; then
   mkdir -p data
   echo '[]' > data/products.json
   echo "==> Created empty data/products.json"

@@ -1,5 +1,5 @@
-import { DM_Sans } from "next/font/google"
 import type { Metadata } from "next"
+import { dmSans } from "@/lib/fonts/dm-sans"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { Zap, Shield, Thermometer, Cpu, Battery, Leaf } from "lucide-react"
@@ -11,8 +11,6 @@ export const metadata: Metadata = buildPageMetadata({
     "Explore Voltrix LiFePO₄ battery technology — fast charging, long cycle life, multi-layer safety, Smart BMS, and sustainable chemistry.",
   path: "/technology",
 })
-
-const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-dm-sans" })
 
 const pillars = [
   { icon: Zap, title: "Ultra-fast charging", desc: "Proprietary nano-cell architecture delivers 80% charge in under 12 minutes without degrading cell life over thousands of cycles." },

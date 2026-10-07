@@ -1,5 +1,5 @@
-import { DM_Sans } from "next/font/google"
 import type { Metadata } from "next"
+import { dmSans } from "@/lib/fonts/dm-sans"
 import Navbar from "@/components/landing/navbar"
 import Footer from "@/components/landing/footer"
 import { FlaskConical, Factory, Microscope, Cog, BarChart3, Globe } from "lucide-react"
@@ -11,8 +11,6 @@ export const metadata: Metadata = buildPageMetadata({
     "How Voltrix partners with global manufacturers for LiFePO₄ chemistry, Smart BMS, quality assurance, and certified safety standards.",
   path: "/rd",
 })
-
-const dmSans = DM_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-dm-sans" })
 
 const areas = [
   { icon: FlaskConical, title: "Partner Cell Chemistry", desc: "We source proven LiFePO₄ chemistries from trusted Chinese manufacturing partners selected for energy density, cycle life, and safety." },
