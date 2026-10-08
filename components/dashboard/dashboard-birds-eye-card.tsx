@@ -52,10 +52,10 @@ export function DashboardBirdsEyeCard() {
         <div className="min-w-0">
           <p className="text-sm font-semibold flex items-center gap-2">
             <Eye className="h-4 w-4 text-[#1faca6]" />
-            Bird&apos;s-eye report
+            Financial summary
           </p>
           <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-            Sales (CRM + POS) · PSW &amp; charges · Petty cash · Ledger · Salaries — one sheet, totals only
+            Sales · Imports · Expenses — one page, totals only
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
