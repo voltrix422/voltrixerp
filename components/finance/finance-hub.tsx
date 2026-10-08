@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button"
 import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
 import { downloadFinanceSalesReportPdf } from "@/lib/generate-finance-sales-report-pdf"
 import { downloadFinanceSalesReportExcel } from "@/lib/generate-finance-sales-report-excel"
+import {
+  downloadFinanceOperatingExpensesExcel,
+  downloadFinanceOperatingExpensesPdf,
+} from "@/lib/generate-finance-operating-expenses-report"
 import type { FinanceOrderRow, FinancePosRow } from "@/lib/finance-report-details"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 import {
@@ -522,6 +526,11 @@ export function FinanceHub({
   const [showSalesReport, setShowSalesReport] = useState(false)
   const [salesIncludeCrm, setSalesIncludeCrm] = useState(true)
   const [salesIncludePos, setSalesIncludePos] = useState(true)
+  const [opexExportBusy, setOpexExportBusy] = useState<"pdf" | "excel" | null>(null)
+  const [showOpexReport, setShowOpexReport] = useState(false)
+  const [opexIncludePetty, setOpexIncludePetty] = useState(true)
+  const [opexIncludeLedger, setOpexIncludeLedger] = useState(true)
+  const [opexIncludeSalaries, setOpexIncludeSalaries] = useState(true)
   const [error, setError] = useState("")
   const [periodLabel, setPeriodLabel] = useState("This month")
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -707,6 +716,42 @@ export function FinanceHub({
     }
   }
 
+  async function downloadOpexReport(format: "pdf" | "excel") {
+    if (!opexIncludePetty && !opexIncludeLedger && !opexIncludeSalaries) {
+      setError("Select at least one source for the operating expenses report.")
+      return
+    }
+    setOpexExportBusy(format)
+    setError("")
+    const payload = {
+      pettyCash: moneyOutDetails?.pettyCash || [],
+      purchaseLedgerPurchases: moneyOutDetails?.purchaseLedgerPurchases || [],
+      purchaseLedgerRents: moneyOutDetails?.purchaseLedgerRents || [],
+      salaries: moneyOutDetails?.salaries || [],
+    }
+    const opts = {
+      includePettyCash: opexIncludePetty,
+      includePurchaseLedger: opexIncludeLedger,
+      includeSalaries: opexIncludeSalaries,
+      periodLabel,
+      dateFrom,
+      dateTo,
+      exportedBy: user?.name || "Finance",
+    }
+    try {
+      if (format === "excel") {
+        await downloadFinanceOperatingExpensesExcel(payload, opts)
+      } else {
+        await downloadFinanceOperatingExpensesPdf(payload, opts)
+      }
+      setShowOpexReport(false)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setOpexExportBusy(null)
+    }
+  }
+
   const setSide = (side: "in" | "out", on: boolean) => {
     setEnabled(prev => {
       const next = { ...prev }
@@ -773,7 +818,7 @@ export function FinanceHub({
               </button>
             ))}
           </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <Button
             size="sm"
             variant="outline"
@@ -784,6 +829,17 @@ export function FinanceHub({
           >
             <FileSpreadsheet className="h-3 w-3" />
             Sales report
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 gap-1 text-[11px]"
+            onClick={() => setShowOpexReport(true)}
+            disabled={loading}
+            title="Petty cash, purchase ledger & salaries — PDF or Excel (advances excluded)"
+          >
+            <FileSpreadsheet className="h-3 w-3" />
+            Operating expenses
           </Button>
           <Button
             size="sm"
@@ -908,6 +964,155 @@ export function FinanceHub({
                   className="w-full h-8 text-xs"
                   disabled={!!salesExportBusy}
                   onClick={() => setShowSalesReport(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {showOpexReport &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+            onClick={() => {
+              if (!opexExportBusy) setShowOpexReport(false)
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div>
+                  <p className="text-sm font-semibold">Operating expenses</p>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                    Petty cash · Purchase ledger · Salaries · {periodLabel}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!!opexExportBusy}
+                  onClick={() => setShowOpexReport(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="p-4 space-y-3">
+                <label className="flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-[hsl(var(--muted))]/20">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={opexIncludePetty}
+                    onChange={(e) => setOpexIncludePetty(e.target.checked)}
+                  />
+                  <span>
+                    <span className="text-sm font-medium block">Petty cash (approved)</span>
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      {(moneyOutDetails?.pettyCash || []).length} receipt
+                      {(moneyOutDetails?.pettyCash || []).length === 1 ? "" : "s"} ·{" "}
+                      {fmt(
+                        (moneyOutDetails?.pettyCash || []).reduce(
+                          (s, r) => s + (Number(r.amount) || 0),
+                          0,
+                        ),
+                      )}
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-[hsl(var(--muted))]/20">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={opexIncludeLedger}
+                    onChange={(e) => setOpexIncludeLedger(e.target.checked)}
+                  />
+                  <span>
+                    <span className="text-sm font-medium block">Purchase ledger</span>
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      Purchases + rents paid in period ·{" "}
+                      {fmt(
+                        [...(moneyOutDetails?.purchaseLedgerPurchases || []), ...(moneyOutDetails?.purchaseLedgerRents || [])].reduce(
+                          (s, r) => s + (Number(r.amount) || 0),
+                          0,
+                        ),
+                      )}
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-[hsl(var(--muted))]/20">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={opexIncludeSalaries}
+                    onChange={(e) => setOpexIncludeSalaries(e.target.checked)}
+                  />
+                  <span>
+                    <span className="text-sm font-medium block">Salaries (payroll)</span>
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      {(moneyOutDetails?.salaries || []).length} slip
+                      {(moneyOutDetails?.salaries || []).length === 1 ? "" : "s"} ·{" "}
+                      {fmt(
+                        (moneyOutDetails?.salaries || []).reduce(
+                          (s, r) => s + (Number(r.amount) || 0),
+                          0,
+                        ),
+                      )}
+                    </span>
+                  </span>
+                </label>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Salary advances are excluded — they settle into payroll. Same date range as Overview.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    disabled={
+                      !!opexExportBusy ||
+                      (!opexIncludePetty && !opexIncludeLedger && !opexIncludeSalaries)
+                    }
+                    onClick={() => void downloadOpexReport("excel")}
+                  >
+                    {opexExportBusy === "excel" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4" />
+                    )}
+                    {opexExportBusy === "excel" ? "Building…" : "Download Excel"}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1 gap-1.5 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+                    disabled={
+                      !!opexExportBusy ||
+                      (!opexIncludePetty && !opexIncludeLedger && !opexIncludeSalaries)
+                    }
+                    onClick={() => void downloadOpexReport("pdf")}
+                  >
+                    {opexExportBusy === "pdf" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    {opexExportBusy === "pdf" ? "Building…" : "Download PDF"}
+                  </Button>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full h-8 text-xs"
+                  disabled={!!opexExportBusy}
+                  onClick={() => setShowOpexReport(false)}
                 >
                   Cancel
                 </Button>
