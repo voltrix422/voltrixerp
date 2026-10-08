@@ -27,6 +27,7 @@ import {
   RangeToggle,
 } from "@/components/dashboard/dashboard-ui"
 import { useDashboardOverview } from "@/components/dashboard/use-dashboard-data"
+import { DashboardBirdsEyeCard } from "@/components/dashboard/dashboard-birds-eye-card"
 
 export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | "investor" }) {
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14)
@@ -81,6 +82,8 @@ export function DashboardOverviewPanel({ variant = "erp" }: { variant?: "erp" | 
 
   return (
     <>
+      {variant === "erp" ? <DashboardBirdsEyeCard /> : null}
+
       <DashboardMetricsStrip
         items={stripItems}
         loading={loading}
