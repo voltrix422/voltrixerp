@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import {
   Plus, Search, Loader2, Ship, ArrowLeft, Trash2, Lock, Calculator,
   ChevronRight, Package, Save, CheckCircle2, HelpCircle, BookMarked, Hash,
-  Maximize2, Minimize2, PanelsTopLeft, FileDown, AlertTriangle, Archive, ArchiveRestore, X,
+  Maximize2, Minimize2, PanelsTopLeft, FileDown, FileSpreadsheet, AlertTriangle, Archive, ArchiveRestore, X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -67,6 +67,10 @@ import { ImportAttachments } from "@/components/purchase/import-attachments"
 import { ImportShipmentManual } from "@/components/purchase/import-shipment-manual"
 import { ImportSroDrawer } from "@/components/purchase/import-sro-drawer"
 import { downloadImportShipmentReportPDF } from "@/lib/generate-import-shipment-report-pdf"
+import {
+  downloadImportsPswChargesExcel,
+  downloadImportsPswChargesPdf,
+} from "@/lib/generate-imports-psw-charges-report"
 
 function statusVariant(s: ImportShipmentStatus): "default" | "secondary" | "outline" | "destructive" {
   if (s === "landed" || s === "received" || s === "closed") return "default"
@@ -131,6 +135,7 @@ export function ImportedPurchasesTab({
   const [archiveTarget, setArchiveTarget] = useState<ImportShipment | null>(null)
   const [archiveRemark, setArchiveRemark] = useState("")
   const [archiveBusy, setArchiveBusy] = useState(false)
+  const [pswExportBusy, setPswExportBusy] = useState<"excel" | "pdf" | null>(null)
 
   const importedSuppliers = useMemo(
     () => suppliers.filter(s => s.type === "imported" || s.type === "trade"),
@@ -196,6 +201,39 @@ export function ImportedPurchasesTab({
 
   const activeCount = useMemo(() => shipments.filter(s => !s.archived).length, [shipments])
   const archivedCount = useMemo(() => shipments.filter(s => !!s.archived).length, [shipments])
+
+  async function exportPswCharges(format: "excel" | "pdf") {
+    if (!filtered.length) {
+      toast({ type: "error", title: "Nothing to export", message: "No imports in the current list." })
+      return
+    }
+    setPswExportBusy(format)
+    try {
+      const scopeLabel =
+        listTab === "archived"
+          ? `Archived imports${search.trim() ? ` · filter: ${search.trim()}` : ""}`
+          : `Active imports${search.trim() ? ` · filter: ${search.trim()}` : ""}`
+      const opts = {
+        exportedBy: user?.name || user?.email || "",
+        scopeLabel,
+      }
+      if (format === "excel") await downloadImportsPswChargesExcel(filtered, opts)
+      else await downloadImportsPswChargesPdf(filtered, opts)
+      toast({
+        type: "success",
+        title: format === "excel" ? "Excel downloaded" : "PDF downloaded",
+        message: `PSW & charges for ${filtered.length} import${filtered.length === 1 ? "" : "s"}`,
+      })
+    } catch (e) {
+      toast({
+        type: "error",
+        title: "Export failed",
+        message: e instanceof Error ? e.message : "Could not build report",
+      })
+    } finally {
+      setPswExportBusy(null)
+    }
+  }
 
   async function confirmArchive() {
     if (!archiveTarget?.id) return
@@ -528,6 +566,38 @@ export function ImportedPurchasesTab({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={`h-8 text-xs ${btnHover}`}
+            disabled={!!pswExportBusy || !filtered.length}
+            onClick={() => void exportPswCharges("excel")}
+            title="Download Excel of PSW duties & charges for the list below"
+          >
+            {pswExportBusy === "excel" ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
+            )}
+            Excel · PSW & charges
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={`h-8 text-xs ${btnHover}`}
+            disabled={!!pswExportBusy || !filtered.length}
+            onClick={() => void exportPswCharges("pdf")}
+            title="Download PDF of PSW duties & charges for the list below"
+          >
+            {pswExportBusy === "pdf" ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <FileDown className="h-3.5 w-3.5 mr-1" />
+            )}
+            PDF · PSW & charges
+          </Button>
           <Button
             type="button"
             size="sm"
