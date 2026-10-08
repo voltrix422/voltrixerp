@@ -34,7 +34,14 @@ function orderRows(orders: PosAdminOrderBrief[], withBranch: boolean): (string |
       shortWhen(row.createdAt),
     ]
     if (withBranch) cells.push(row.branchName || "—")
-    cells.push(row.clientName || "—", prettyStatus(row.status), pkr(row.sellAmount), pkr(row.profit))
+    cells.push(
+      row.clientName || "—",
+      prettyStatus(row.status),
+      pkr(row.sellAmount),
+      pkr(Number(row.receivedAmount) || 0),
+      pkr(Number(row.creditAmount) || 0),
+      pkr(row.profit),
+    )
     return cells
   })
 }
@@ -131,35 +138,45 @@ export async function downloadPosAdminReportPdf(opts: {
 
   const orderCols = withBranch
     ? [
-        { header: "Order", width: 22 },
-        { header: "Date", width: 28 },
-        { header: "Branch", width: 28, small: true },
-        { header: "Client", width: 40 },
-        { header: "Status", width: 22 },
-        { header: "Sale", align: "right" as const, width: 26 },
-        { header: "Profit", align: "right" as const, width: 22 },
+        { header: "Order", width: 18 },
+        { header: "Date", width: 22 },
+        { header: "Branch", width: 20, small: true },
+        { header: "Client", width: 28 },
+        { header: "Status", width: 16 },
+        { header: "Sale", align: "right" as const, width: 20 },
+        { header: "Received", align: "right" as const, width: 20 },
+        { header: "Credit", align: "right" as const, width: 18 },
+        { header: "Profit", align: "right" as const, width: 18 },
       ]
     : [
-        { header: "Order", width: 24 },
-        { header: "Date", width: 32 },
-        { header: "Client", width: 48 },
-        { header: "Status", width: 24 },
-        { header: "Sale", align: "right" as const, width: 28 },
-        { header: "Profit", align: "right" as const, width: 24 },
+        { header: "Order", width: 20 },
+        { header: "Date", width: 24 },
+        { header: "Client", width: 36 },
+        { header: "Status", width: 18 },
+        { header: "Sale", align: "right" as const, width: 22 },
+        { header: "Received", align: "right" as const, width: 22 },
+        { header: "Credit", align: "right" as const, width: 20 },
+        { header: "Profit", align: "right" as const, width: 20 },
       ]
 
   const saleSum = opts.orders.reduce((s, o) => s + (Number(o.sellAmount) || 0), 0)
+  const receivedSum = opts.orders.reduce((s, o) => s + (Number(o.receivedAmount) || 0), 0)
+  const creditSum = opts.orders.reduce((s, o) => s + (Number(o.creditAmount) || 0), 0)
   const profitSum = opts.orders.reduce((s, o) => s + (Number(o.profit) || 0), 0)
   const orderFoot = withBranch
-    ? ["", "", "", String(opts.orders.length), "", pkr(saleSum), pkr(profitSum)]
-    : ["", "", String(opts.orders.length), "", pkr(saleSum), pkr(profitSum)]
+    ? ["", "", "", String(opts.orders.length), "", pkr(saleSum), pkr(receivedSum), pkr(creditSum), pkr(profitSum)]
+    : ["", "", String(opts.orders.length), "", pkr(saleSum), pkr(receivedSum), pkr(creditSum), pkr(profitSum)]
 
   tables.push({
     title: `Orders · ${opts.scopeLabel}`,
     columns: orderCols,
     rows: opts.orders.length
       ? orderRows(opts.orders, withBranch)
-      : [withBranch ? ["No orders", "", "", "", "", "", ""] : ["No orders", "", "", "", "", ""]],
+      : [
+          withBranch
+            ? ["No orders", "", "", "", "", "", "", "", ""]
+            : ["No orders", "", "", "", "", "", "", ""],
+        ],
     foot: opts.orders.length ? orderFoot : undefined,
   })
 
@@ -204,7 +221,7 @@ export async function downloadPosAdminReportPdf(opts: {
     subtitle: range,
     meta: [
       `Branch POS only${productNote}${opts.exportedBy ? ` · ${opts.exportedBy}` : ""}`,
-      `Generated  ${generated}  (Pakistan time) · Sales ${pkr(totals.combinedSaleTotal)} · Profit ${pkr(totals.orderProfitTotal)}`,
+      `Generated  ${generated}  (Pakistan time) · Sales ${pkr(totals.combinedSaleTotal)} · Received ${pkr(receivedSum)} · Credit ${pkr(creditSum)} · Profit ${pkr(totals.orderProfitTotal)}`,
     ],
     filename: `pos-${slug}-${opts.from}-to-${opts.to}.pdf`,
     compact: true,

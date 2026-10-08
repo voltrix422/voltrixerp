@@ -3,15 +3,18 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins, Download } from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins, Download, FileSpreadsheet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
+import { downloadFinanceSalesReportPdf } from "@/lib/generate-finance-sales-report-pdf"
+import type { FinanceOrderRow, FinancePosRow } from "@/lib/finance-report-details"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 import {
   type MoneyOutDetailLine,
   type MoneyOutDetailsPayload,
 } from "@/lib/finance-money-out-details"
 import type { LoanSnapshot } from "@/lib/finance-loans"
+import { useAuth } from "@/components/auth-provider"
 
 type OrderPaymentsPayload = {
   allTime: OrderPaymentAggregate
@@ -512,7 +515,12 @@ export function FinanceHub({
   const [periodLocal, setPeriodLocal] = useState("month")
   const period = periodProp ?? periodLocal
   const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [salesPdfBusy, setSalesPdfBusy] = useState(false)
+  const [showSalesReport, setShowSalesReport] = useState(false)
+  const [salesIncludeCrm, setSalesIncludeCrm] = useState(true)
+  const [salesIncludePos, setSalesIncludePos] = useState(true)
   const [error, setError] = useState("")
   const [periodLabel, setPeriodLabel] = useState("This month")
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -525,6 +533,8 @@ export function FinanceHub({
     clientOrders?: MoneyOutDetailLine[]
     loans?: MoneyOutDetailLine[]
   } | null>(null)
+  const [crmOrders, setCrmOrders] = useState<FinanceOrderRow[]>([])
+  const [posSaleRows, setPosSaleRows] = useState<FinancePosRow[]>([])
   const [loans, setLoans] = useState<LoanSnapshot | null>(null)
   const [togglesOpen, setTogglesOpen] = useState(false)
   const [detailsModal, setDetailsModal] = useState<{
@@ -552,6 +562,8 @@ export function FinanceHub({
       setOrderPayments(data.orderPayments ?? null)
       setMoneyOutDetails(data.moneyOutDetails ?? null)
       setMoneyInDetails(data.moneyInDetails ?? null)
+      setCrmOrders(Array.isArray(data.orders) ? data.orders : [])
+      setPosSaleRows(Array.isArray(data.posSales) ? data.posSales : [])
       setLoans(data.summary?.loans ?? null)
     } catch (e) {
       setError((e as Error).message)
@@ -665,6 +677,30 @@ export function FinanceHub({
     }
   }
 
+  async function downloadSalesReport() {
+    if (!salesIncludeCrm && !salesIncludePos) {
+      setError("Select CRM orders and/or POS sales for the sales report.")
+      return
+    }
+    setSalesPdfBusy(true)
+    setError("")
+    try {
+      await downloadFinanceSalesReportPdf(crmOrders, posSaleRows, {
+        includeCrm: salesIncludeCrm,
+        includePos: salesIncludePos,
+        periodLabel,
+        dateFrom,
+        dateTo,
+        exportedBy: user?.name || "Finance",
+      })
+      setShowSalesReport(false)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSalesPdfBusy(false)
+    }
+  }
+
   const setSide = (side: "in" | "out", on: boolean) => {
     setEnabled(prev => {
       const next = { ...prev }
@@ -736,6 +772,17 @@ export function FinanceHub({
             size="sm"
             variant="outline"
             className="h-7 px-2 gap-1 text-[11px]"
+            onClick={() => setShowSalesReport(true)}
+            disabled={loading}
+            title="Build a clean CRM / POS sales PDF with received and credit"
+          >
+            <FileSpreadsheet className="h-3 w-3" />
+            Sales report
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 gap-1 text-[11px]"
             onClick={() => void downloadPdf()}
             disabled={pdfBusy}
           >
@@ -754,6 +801,99 @@ export function FinanceHub({
           </Button>
         </div>
       </div>
+
+      {showSalesReport &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+            onClick={() => {
+              if (!salesPdfBusy) setShowSalesReport(false)
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div>
+                  <p className="text-sm font-semibold">Sales report</p>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                    Choose sources · {periodLabel}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={salesPdfBusy}
+                  onClick={() => setShowSalesReport(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="p-4 space-y-3">
+                <label className="flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-[hsl(var(--muted))]/20">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={salesIncludeCrm}
+                    onChange={(e) => setSalesIncludeCrm(e.target.checked)}
+                  />
+                  <span>
+                    <span className="text-sm font-medium block">CRM orders</span>
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      {crmOrders.length} order{crmOrders.length === 1 ? "" : "s"} · total, received &amp; credit
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-[hsl(var(--muted))]/20">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={salesIncludePos}
+                    onChange={(e) => setSalesIncludePos(e.target.checked)}
+                  />
+                  <span>
+                    <span className="text-sm font-medium block">POS sales</span>
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      {posSaleRows.length} sale{posSaleRows.length === 1 ? "" : "s"} · total, received &amp; credit
+                    </span>
+                  </span>
+                </label>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Uses the same date range as the Finance overview above.
+                </p>
+              </div>
+              <div className="flex gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={salesPdfBusy}
+                  onClick={() => setShowSalesReport(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 gap-1.5 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+                  disabled={salesPdfBusy || (!salesIncludeCrm && !salesIncludePos)}
+                  onClick={() => void downloadSalesReport()}
+                >
+                  {salesPdfBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {salesPdfBusy ? "Building…" : "Download PDF"}
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Hero: In / Out / Net — always visible */}
       <section className="grid grid-cols-3 gap-px rounded-lg border overflow-hidden bg-[hsl(var(--border))]">

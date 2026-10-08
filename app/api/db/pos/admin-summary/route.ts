@@ -6,6 +6,7 @@ import {
   getPosOrderSellAmount,
 } from "@/lib/branch-pos-profit"
 import type { OrderItem } from "@/lib/orders"
+import { getOrderAmountPaid, getOrderCreditBalance } from "@/lib/orders"
 import { aggregatePosProductSales } from "@/lib/pos-product-sales"
 import type { ProductFilter } from "@/lib/order-product-search"
 
@@ -29,6 +30,13 @@ type OrderRow = {
   deliveryDate: string | null
   fulfillmentDate: string | null
   paymentTerms: string | null
+  payments?: unknown
+  returnPayments?: unknown
+  cashbackPayments?: unknown
+  returnLines?: unknown
+  taxPercent?: number | null
+  returnMerchandiseApplied?: boolean | null
+  creditApprovedAt?: Date | string | null
 }
 
 type SaleRow = {
@@ -92,6 +100,21 @@ function orderProfit(order: OrderRow) {
 
 function mapOrderBrief(order: OrderRow) {
   const items = asItems(order.items)
+  const orderLike = {
+    total: Number(order.total) || 0,
+    status: order.status as import("@/lib/orders").Order["status"],
+    payments: Array.isArray(order.payments) ? order.payments : [],
+    returnPayments: Array.isArray(order.returnPayments) ? order.returnPayments : [],
+    cashbackPayments: Array.isArray(order.cashbackPayments) ? order.cashbackPayments : [],
+    items,
+    returnLines: Array.isArray(order.returnLines) ? order.returnLines : [],
+    taxPercent: Number(order.taxPercent) || 0,
+    returnMerchandiseApplied: Boolean(order.returnMerchandiseApplied),
+    paymentTerms: (order.paymentTerms || "full") as import("@/lib/orders").Order["paymentTerms"],
+    creditApprovedAt: order.creditApprovedAt
+      ? String(order.creditApprovedAt)
+      : undefined,
+  }
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -101,6 +124,8 @@ function mapOrderBrief(order: OrderRow) {
     sellAmount: orderSell(order),
     companyAmount: orderCompany(order),
     profit: orderProfit(order),
+    receivedAmount: getOrderAmountPaid(orderLike),
+    creditAmount: getOrderCreditBalance(orderLike),
     itemCount: items.reduce((s, i) => s + (Number(i.qty) || 0), 0),
     notes: order.notes || "",
     branchId: order.branchId,

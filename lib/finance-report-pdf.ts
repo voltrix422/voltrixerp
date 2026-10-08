@@ -316,15 +316,21 @@ export async function downloadFinanceOverviewPdf(
   if (loanInTable) moneyInTables.push(loanInTable)
 
   if (orders.length) {
+    const crmCreditTotal = orders.reduce(
+      (s, r) => s + Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal) || 0)),
+      0,
+    )
     moneyInTables.push({
       title: "CRM client payments received",
       columns: [
-        { header: "Date", width: 22, minWidth: 22 },
-        { header: "Order no.", width: 24 },
-        { header: "Client", width: 28 },
-        { header: "Items", width: 40, small: true },
-        { header: "Payment", width: 40, small: true },
-        { header: "Received", align: "right", width: 28 },
+        { header: "Date", width: 18, minWidth: 16 },
+        { header: "Order no.", width: 20 },
+        { header: "Client", width: 26 },
+        { header: "Items", width: 32, small: true },
+        { header: "Payment", width: 28, small: true },
+        { header: "Total", align: "right", width: 20 },
+        { header: "Received", align: "right", width: 22 },
+        { header: "Credit", align: "right", width: 18 },
       ],
       rows: orders.map((r) => [
         shortDate(r.date),
@@ -332,9 +338,11 @@ export async function downloadFinanceOverviewPdf(
         r.clientName,
         compactItems(r.items),
         orderCashLabel(r),
+        pkr(r.total),
         pkr(r.receivedInPeriod),
+        pkr(Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal) || 0))),
       ]),
-      foot: ["", "", "", "", `${orders.length}`, pkr(orderReceivedTotal)],
+      foot: ["", "", "", "", `${orders.length}`, "", pkr(orderReceivedTotal), pkr(crmCreditTotal)],
     })
   }
 
@@ -352,15 +360,22 @@ export async function downloadFinanceOverviewPdf(
   }
 
   if (posSales.length) {
+    const posReceivedTotal = posSales.reduce((s, r) => s + (Number(r.paidTotal ?? r.total) || 0), 0)
+    const posCreditTotal = posSales.reduce(
+      (s, r) => s + Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal ?? r.total) || 0)),
+      0,
+    )
     moneyInTables.push({
       title: "POS sales",
       columns: [
-        { header: "Date", width: 22, minWidth: 22 },
-        { header: "Sale no.", width: 24 },
-        { header: "Customer", width: 28 },
-        { header: "Items", width: 48, small: true },
-        { header: "Payment", width: 36, small: true },
-        { header: "Amount", align: "right", width: 28 },
+        { header: "Date", width: 18, minWidth: 16 },
+        { header: "Sale no.", width: 22 },
+        { header: "Customer", width: 26 },
+        { header: "Items", width: 36, small: true },
+        { header: "Payment", width: 28, small: true },
+        { header: "Total", align: "right", width: 20 },
+        { header: "Received", align: "right", width: 22 },
+        { header: "Credit", align: "right", width: 18 },
       ],
       rows: posSales.map((r) => [
         shortDate(r.date),
@@ -369,8 +384,10 @@ export async function downloadFinanceOverviewPdf(
         compactItems(r.items),
         payLabel(r.total, r.paidTotal ?? r.total, r.method),
         pkr(r.total),
+        pkr(r.paidTotal ?? r.total),
+        pkr(Math.max(0, (Number(r.total) || 0) - (Number(r.paidTotal ?? r.total) || 0))),
       ]),
-      foot: ["", "", "", "", `${posSales.length}`, pkr(posTotal)],
+      foot: ["", "", "", "", `${posSales.length}`, pkr(posTotal), pkr(posReceivedTotal), pkr(posCreditTotal)],
     })
   }
 

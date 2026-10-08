@@ -15,6 +15,10 @@ export type PosAdminOrderBrief = {
   sellAmount: number
   companyAmount: number
   profit: number
+  /** Lifetime approved payments received */
+  receivedAmount: number
+  /** Outstanding credit balance */
+  creditAmount: number
   itemCount: number
   notes: string
   branchId: string | null
