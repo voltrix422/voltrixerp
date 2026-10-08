@@ -127,7 +127,7 @@ export async function downloadDashboardBirdsEyePdf(payload: BirdsEyePayload) {
         rows: [
           ["CRM orders", pkr(payload.crm.sale), pkr(payload.crm.received), pkr(payload.crm.credit)],
           ["POS sales", pkr(payload.pos.sale), pkr(payload.pos.received), pkr(payload.pos.credit)],
-          ["Combined", pkr(t.sale), pkr(t.received), pkr(t.credit)],
+          ["Total", pkr(t.sale), pkr(t.received), pkr(t.credit)],
         ],
       },
       {
@@ -139,7 +139,7 @@ export async function downloadDashboardBirdsEyePdf(payload: BirdsEyePayload) {
         rows: [
           ["PSW / customs duties", pkr(payload.pswDuties)],
           ["Landing & other charges", pkr(payload.charges)],
-          ["Combined · PSW + charges", pkr(t.imports)],
+          ["Total · PSW + charges", pkr(t.imports)],
         ],
       },
       {
@@ -152,7 +152,7 @@ export async function downloadDashboardBirdsEyePdf(payload: BirdsEyePayload) {
           ["Petty cash (approved)", pkr(payload.pettyCash)],
           ["Purchase ledger", pkr(payload.purchaseLedger)],
           ["Salaries (payroll)", pkr(payload.salaries)],
-          ["Combined · expenses", pkr(t.expenses)],
+          ["Total · expenses", pkr(t.expenses)],
         ],
       },
     ],
@@ -228,7 +228,7 @@ export async function downloadDashboardBirdsEyeExcel(payload: BirdsEyePayload) {
   money(posRow.getCell(2))
   money(posRow.getCell(3))
   money(posRow.getCell(4))
-  const saleTot = ws.addRow(["COMBINED", t.sale, t.received, t.credit])
+  const saleTot = ws.addRow(["TOTAL", t.sale, t.received, t.credit])
   money(saleTot.getCell(2))
   money(saleTot.getCell(3))
   money(saleTot.getCell(4))
@@ -241,7 +241,7 @@ export async function downloadDashboardBirdsEyeExcel(payload: BirdsEyePayload) {
   money(psw.getCell(2))
   const chg = ws.addRow(["Landing & other charges", payload.charges])
   money(chg.getCell(2))
-  const impTot = ws.addRow(["COMBINED · PSW + charges", t.imports])
+  const impTot = ws.addRow(["TOTAL · PSW + charges", t.imports])
   money(impTot.getCell(2))
   highlight(impTot)
 
@@ -254,7 +254,7 @@ export async function downloadDashboardBirdsEyeExcel(payload: BirdsEyePayload) {
   money(pl.getCell(2))
   const sal = ws.addRow(["Salaries (payroll)", payload.salaries])
   money(sal.getCell(2))
-  const expTot = ws.addRow(["COMBINED · expenses", t.expenses])
+  const expTot = ws.addRow(["TOTAL · expenses", t.expenses])
   money(expTot.getCell(2))
   highlight(expTot)
 
