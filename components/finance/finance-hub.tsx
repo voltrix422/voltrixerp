@@ -7,6 +7,7 @@ import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins, Downlo
 import { Button } from "@/components/ui/button"
 import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
 import { downloadFinanceSalesReportPdf } from "@/lib/generate-finance-sales-report-pdf"
+import { downloadFinanceSalesReportExcel } from "@/lib/generate-finance-sales-report-excel"
 import type { FinanceOrderRow, FinancePosRow } from "@/lib/finance-report-details"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 import {
@@ -517,7 +518,7 @@ export function FinanceHub({
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
   const [pdfBusy, setPdfBusy] = useState(false)
-  const [salesPdfBusy, setSalesPdfBusy] = useState(false)
+  const [salesExportBusy, setSalesExportBusy] = useState<"pdf" | "excel" | null>(null)
   const [showSalesReport, setShowSalesReport] = useState(false)
   const [salesIncludeCrm, setSalesIncludeCrm] = useState(true)
   const [salesIncludePos, setSalesIncludePos] = useState(true)
@@ -677,27 +678,32 @@ export function FinanceHub({
     }
   }
 
-  async function downloadSalesReport() {
+  async function downloadSalesReport(format: "pdf" | "excel") {
     if (!salesIncludeCrm && !salesIncludePos) {
       setError("Select CRM orders and/or POS sales for the sales report.")
       return
     }
-    setSalesPdfBusy(true)
+    setSalesExportBusy(format)
     setError("")
+    const opts = {
+      includeCrm: salesIncludeCrm,
+      includePos: salesIncludePos,
+      periodLabel,
+      dateFrom,
+      dateTo,
+      exportedBy: user?.name || "Finance",
+    }
     try {
-      await downloadFinanceSalesReportPdf(crmOrders, posSaleRows, {
-        includeCrm: salesIncludeCrm,
-        includePos: salesIncludePos,
-        periodLabel,
-        dateFrom,
-        dateTo,
-        exportedBy: user?.name || "Finance",
-      })
+      if (format === "excel") {
+        await downloadFinanceSalesReportExcel(crmOrders, posSaleRows, opts)
+      } else {
+        await downloadFinanceSalesReportPdf(crmOrders, posSaleRows, opts)
+      }
       setShowSalesReport(false)
     } catch (e) {
       setError((e as Error).message)
     } finally {
-      setSalesPdfBusy(false)
+      setSalesExportBusy(null)
     }
   }
 
@@ -774,7 +780,7 @@ export function FinanceHub({
             className="h-7 px-2 gap-1 text-[11px]"
             onClick={() => setShowSalesReport(true)}
             disabled={loading}
-            title="Build a clean CRM / POS sales PDF with received and credit"
+            title="Build CRM / POS sales cash report (PDF or Excel) with received and credit"
           >
             <FileSpreadsheet className="h-3 w-3" />
             Sales report
@@ -808,7 +814,7 @@ export function FinanceHub({
           <div
             className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
             onClick={() => {
-              if (!salesPdfBusy) setShowSalesReport(false)
+              if (!salesExportBusy) setShowSalesReport(false)
             }}
           >
             <div
@@ -817,9 +823,9 @@ export function FinanceHub({
             >
               <div className="flex items-center justify-between px-4 py-3 border-b">
                 <div>
-                  <p className="text-sm font-semibold">Sales report</p>
+                  <p className="text-sm font-semibold">Sales cash report</p>
                   <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
-                    Choose sources · {periodLabel}
+                    Choose sources · {periodLabel} · PDF or Excel
                   </p>
                 </div>
                 <Button
@@ -827,7 +833,7 @@ export function FinanceHub({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  disabled={salesPdfBusy}
+                  disabled={!!salesExportBusy}
                   onClick={() => setShowSalesReport(false)}
                 >
                   <X className="h-4 w-4" />
@@ -863,31 +869,47 @@ export function FinanceHub({
                   </span>
                 </label>
                 <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                  Uses the same date range as the Finance overview above.
+                  Excel has separate sheets for CRM and POS, plus a Combined totals sheet. Same date range as Overview.
                 </p>
               </div>
-              <div className="flex gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10">
+              <div className="flex flex-col gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    disabled={!!salesExportBusy || (!salesIncludeCrm && !salesIncludePos)}
+                    onClick={() => void downloadSalesReport("excel")}
+                  >
+                    {salesExportBusy === "excel" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4" />
+                    )}
+                    {salesExportBusy === "excel" ? "Building…" : "Download Excel"}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1 gap-1.5 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+                    disabled={!!salesExportBusy || (!salesIncludeCrm && !salesIncludePos)}
+                    onClick={() => void downloadSalesReport("pdf")}
+                  >
+                    {salesExportBusy === "pdf" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                    {salesExportBusy === "pdf" ? "Building…" : "Download PDF"}
+                  </Button>
+                </div>
                 <Button
                   type="button"
-                  variant="outline"
-                  className="flex-1"
-                  disabled={salesPdfBusy}
+                  variant="ghost"
+                  className="w-full h-8 text-xs"
+                  disabled={!!salesExportBusy}
                   onClick={() => setShowSalesReport(false)}
                 >
                   Cancel
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1 gap-1.5 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
-                  disabled={salesPdfBusy || (!salesIncludeCrm && !salesIncludePos)}
-                  onClick={() => void downloadSalesReport()}
-                >
-                  {salesPdfBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  {salesPdfBusy ? "Building…" : "Download PDF"}
                 </Button>
               </div>
             </div>
