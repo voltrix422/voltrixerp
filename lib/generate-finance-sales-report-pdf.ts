@@ -50,6 +50,12 @@ export async function downloadFinanceSalesReportPdf(
   const posReceived = pos.reduce((s, r) => s + (Number(r.paidTotal ?? r.total) || 0), 0)
   const posCredit = pos.reduce((s, r) => s + creditOf(r.total, r.paidTotal ?? r.total), 0)
 
+  const combinedSale = (opts.includeCrm ? crmTotal : 0) + (opts.includePos ? posTotal : 0)
+  const combinedReceived =
+    (opts.includeCrm ? crmReceived : 0) + (opts.includePos ? posReceived : 0)
+  const combinedCredit =
+    (opts.includeCrm ? crmCredit : 0) + (opts.includePos ? posCredit : 0)
+
   const sources = [
     opts.includeCrm ? "CRM orders" : null,
     opts.includePos ? "POS sales" : null,
@@ -95,18 +101,6 @@ export async function downloadFinanceSalesReportPdf(
               ["POS · sales", String(pos.length)],
             ]
           : []),
-        [
-          "Combined · sale value",
-          pkr((opts.includeCrm ? crmTotal : 0) + (opts.includePos ? posTotal : 0)),
-        ],
-        [
-          "Combined · received",
-          pkr((opts.includeCrm ? crmReceived : 0) + (opts.includePos ? posReceived : 0)),
-        ],
-        [
-          "Combined · credit",
-          pkr((opts.includeCrm ? crmCredit : 0) + (opts.includePos ? posCredit : 0)),
-        ],
       ],
     },
   ]
@@ -188,5 +182,13 @@ export async function downloadFinanceSalesReportPdf(
     compact: true,
     pagePerTable: false,
     tables,
+    closingBanner: {
+      title: "Combined totals",
+      lines: [
+        { label: "Combined · sale value", value: pkr(combinedSale) },
+        { label: "Combined · received", value: pkr(combinedReceived) },
+        { label: "Combined · credit", value: pkr(combinedCredit) },
+      ],
+    },
   })
 }

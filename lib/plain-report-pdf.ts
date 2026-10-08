@@ -139,6 +139,11 @@ function drawSectionTitle(doc: JsDoc, title: string, x: number, y: number, pageW
   return y + (compact ? 5.5 : 8)
 }
 
+export type PlainClosingBanner = {
+  title?: string
+  lines: { label: string; value: string }[]
+}
+
 export async function downloadPlainReportPdf(opts: {
   title: string
   subtitle?: string
@@ -148,6 +153,8 @@ export async function downloadPlainReportPdf(opts: {
   landscape?: boolean
   pagePerTable?: boolean
   compact?: boolean
+  /** Large highlighted totals block drawn after all tables. */
+  closingBanner?: PlainClosingBanner
 }) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
@@ -314,6 +321,48 @@ export async function downloadPlainReportPdf(opts: {
     })
     y = (doc.lastAutoTable?.finalY || y) + (compact ? 5 : 10)
     tableIndex += 1
+  }
+
+  if (opts.closingBanner?.lines?.length) {
+    const banner = opts.closingBanner
+    const lineH = 14
+    const titleH = banner.title ? 10 : 4
+    const boxH = titleH + banner.lines.length * lineH + 8
+    const usable = pageW - m * 2
+    if (y + boxH > pageH - 16) {
+      doc.addPage()
+      y = headerBottom + 6
+    }
+    y += 4
+    // Teal highlight panel
+    doc.setFillColor(232, 247, 246)
+    doc.setDrawColor(26, 159, 154)
+    doc.setLineWidth(1.1)
+    doc.roundedRect(m, y, usable, boxH, 2.5, 2.5, "FD")
+
+    let by = y + 7
+    if (banner.title) {
+      doc.setFont(TITLE_FONT, "bold")
+      doc.setFontSize(11)
+      doc.setTextColor(13, 115, 112)
+      doc.text(banner.title.toUpperCase(), m + 5, by)
+      by += 8
+    } else {
+      by += 2
+    }
+
+    for (const line of banner.lines) {
+      doc.setFont(TITLE_FONT, "bold")
+      doc.setFontSize(11)
+      doc.setTextColor(...MUTED)
+      doc.text(line.label, m + 5, by)
+      doc.setFont(TITLE_FONT, "bold")
+      doc.setFontSize(16)
+      doc.setTextColor(13, 115, 112)
+      doc.text(line.value, pageW - m - 5, by, { align: "right" })
+      by += lineH
+    }
+    y = y + boxH + 6
   }
 
   const pages = doc.getNumberOfPages()
