@@ -7,6 +7,7 @@ import {
   CheckSquare,
   ChevronRight,
   ClipboardList,
+  Download,
   Loader2,
   Paperclip,
   Plus,
@@ -38,6 +39,7 @@ import {
   type TodoStatus,
 } from "@/lib/todos"
 import { isoToDatetimeLocal } from "@/lib/todo-due"
+import { downloadTodosOverviewPdf } from "@/lib/generate-todos-overview-pdf"
 
 function fmtWhen(iso: string | null) {
   if (!iso) return "—"
@@ -179,6 +181,7 @@ export function TodosDashboard() {
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [todos, setTodos] = useState<Todo[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -368,6 +371,47 @@ export function TodosDashboard() {
     const done = filteredTodos.filter((t) => t.status === "done").length
     return { count: filteredTodos.length, open, progress, pending, done }
   }, [filteredTodos])
+
+  /** Full bird's-eye set: respects person + date filters, includes every status (not Today/Done tabs). */
+  const exportTodos = useMemo(() => {
+    return todos.filter((t) => {
+      if (filterUserId !== "all" && t.assigneeUserId !== filterUserId) return false
+      if (dateFrom || dateTo) return inDateRange(t, dateFrom, dateTo)
+      return true
+    })
+  }, [todos, filterUserId, dateFrom, dateTo])
+
+  async function handleExportPdf() {
+    if (!isAdmin) return
+    if (exportTodos.length === 0) {
+      toast({ title: "Nothing to export", message: "No to-dos match the current filters.", type: "error" })
+      return
+    }
+    setExportingPdf(true)
+    try {
+      const person =
+        filterUserId !== "all"
+          ? users.find((u) => u.id === filterUserId)?.name || "Selected user"
+          : "All people"
+      const range =
+        dateFrom || dateTo
+          ? `Date ${dateFrom || "…"} → ${dateTo || "…"}`
+          : "All dates"
+      await downloadTodosOverviewPdf(exportTodos, {
+        exportedBy: user?.name || "Admin",
+        filterLabel: `${person} · ${range} · ${exportTodos.length} to-do${exportTodos.length === 1 ? "" : "s"}`,
+      })
+      toast({ title: "PDF downloaded", message: "Bird's-eye to-do overview ready.", type: "success" })
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        message: err instanceof Error ? err.message : "Could not create PDF",
+        type: "error",
+      })
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   useEffect(() => {
     if (teamMode) {
@@ -873,13 +917,30 @@ export function TodosDashboard() {
           </select>
         )}
         {isAdmin && (
-          <Button
-            size="sm"
-            className="ml-auto h-9 text-xs gap-1 bg-[#1faca6] hover:bg-[#17857f] text-white"
-            onClick={() => setShowCreate(true)}
-          >
-            <Plus className="h-3.5 w-3.5" /> Assign to-do
-          </Button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs gap-1"
+              disabled={exportingPdf || loading}
+              onClick={() => void handleExportPdf()}
+              title="Download PDF overview of people, statuses, overdue, and pending approvals"
+            >
+              {exportingPdf ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              {exportingPdf ? "Exporting…" : "Export PDF"}
+            </Button>
+            <Button
+              size="sm"
+              className="h-9 text-xs gap-1 bg-[#1faca6] hover:bg-[#17857f] text-white"
+              onClick={() => setShowCreate(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> Assign to-do
+            </Button>
+          </div>
         )}
       </div>
 
