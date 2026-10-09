@@ -1746,3 +1746,36 @@ model ErpTodoUpdate {
   @@index([createdAt])
   @@map("erp_todo_updates")
 }
+
+/// Periodic client stock / sales / credit audit (dealer consignment style).
+model ErpClientAudit {
+  id               String   @id @default(cuid())
+  clientId         String   @map("client_id")
+  clientName       String   @default("") @map("client_name")
+  auditDate        DateTime @default(now()) @map("audit_date")
+  /// draft | finalized
+  status           String   @default("draft")
+  notes            String   @default("") @db.Text
+  signedByName     String   @default("") @map("signed_by_name")
+  signatureDataUrl String?  @map("signature_data_url") @db.Text
+  createdBy        String   @default("") @map("created_by")
+  createdByUserId  String?  @map("created_by_user_id")
+  /// Per-item lines: opening, given, sold (multi-rate), left
+  lines            Json     @default("[]")
+  /// Snapshot of orders considered (ids) for reference
+  orderIds         Json     @default("[]") @map("order_ids")
+  stockGivenQty    Float    @default(0) @map("stock_given_qty")
+  stockSoldQty     Float    @default(0) @map("stock_sold_qty")
+  stockLeftQty     Float    @default(0) @map("stock_left_qty")
+  soldAmount       Float    @default(0) @map("sold_amount")
+  leftAmount       Float    @default(0) @map("left_amount")
+  creditAmount     Float    @default(0) @map("credit_amount")
+  previousAuditId  String?  @map("previous_audit_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([auditDate])
+  @@index([status])
+  @@map("erp_client_audits")
+}
