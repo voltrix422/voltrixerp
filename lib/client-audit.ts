@@ -1,5 +1,10 @@
-import { getOrderAmountPaid } from "@/lib/orders"
-import type { Order, OrderItem } from "@/lib/orders"
+import {
+  getOrderAmountPaid,
+  getPaymentSubmissionStatus,
+  isProofOnlyPayment,
+  type Order,
+  type OrderItem,
+} from "@/lib/orders"
 
 /** Statuses where stock is considered given / with the client. */
 export const CLIENT_AUDIT_GIVEN_STATUSES = new Set([
@@ -57,6 +62,14 @@ export type ClientAuditRecord = {
   updatedAt: string
 }
 
+export type ClientAuditPaymentLine = {
+  id: string
+  amount: number
+  date: string
+  method: string
+  status: string
+}
+
 export type ClientAuditOrderSummary = {
   id: string
   orderNumber: string
@@ -68,6 +81,8 @@ export type ClientAuditOrderSummary = {
   paid: number
   credit: number
   itemCount: number
+  /** Individual payments that count toward balance, with dates */
+  payments: ClientAuditPaymentLine[]
 }
 
 export type ClientStockSnapshot = {
@@ -263,6 +278,20 @@ export function buildClientStockSnapshot(opts: {
     .map((o) => {
       const paid = getOrderAmountPaid(o)
       const total = num(o.total)
+      const payments: ClientAuditPaymentLine[] = (o.payments || [])
+        .filter((p) => {
+          if (isProofOnlyPayment(p)) return false
+          const st = getPaymentSubmissionStatus(p, o.status)
+          return (st === "approved" || st === "pending_approval") && num(p.amount) > 0
+        })
+        .map((p) => ({
+          id: String(p.id || ""),
+          amount: num(p.amount),
+          date: String(p.date || p.createdAt || ""),
+          method: String(p.method || "").trim() || "—",
+          status: getPaymentSubmissionStatus(p, o.status),
+        }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       return {
         id: o.id,
         orderNumber: o.orderNumber,
@@ -274,6 +303,7 @@ export function buildClientStockSnapshot(opts: {
         paid,
         credit: Math.max(0, total - paid),
         itemCount: (o.items || []).reduce((s, i) => s + Math.max(0, num(i.qty)), 0),
+        payments,
       }
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
