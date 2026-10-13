@@ -10,6 +10,7 @@ import {
   monthDateBounds,
   normalizeStaffPayLines,
   periodStartForJoinDate,
+  resolveBasicSalary,
   type StaffPayLine,
 } from "@/lib/hrm-salary-calc"
 import {
@@ -144,17 +145,23 @@ function buildRows(
 ): SalaryRow[] {
   const bounds = monthDateBounds(month)
   return staff
-    .filter((s) => s.status === "active" && s.salary > 0)
+    .filter((s) => {
+      if (s.status !== "active") return false
+      // Include when either contract salary or basic salary is set (Furqan-style profiles).
+      return resolveBasicSalary(s.salary, s.basic_salary) > 0
+    })
     .map((s) => {
       const saved = findSlipForStaff(existing, s.id, s.name, month)
+      const basicSalary = Number(s.basic_salary) || 0
+      const monthlySalary = resolveBasicSalary(s.salary, basicSalary) || Number(s.salary) || 0
       return {
         staffId: s.id,
         staffName: s.name,
         role: s.role,
         department: s.department,
         currency: s.currency || "PKR",
-        monthlySalary: s.salary,
-        basicSalary: Number(s.basic_salary) || 0,
+        monthlySalary,
+        basicSalary,
         medicalAllowance: Number(s.medical_allowance) || 0,
         medicalEnabled: Boolean(s.medical_enabled),
         taxAmount: Number(s.tax_amount) || 0,
