@@ -8,6 +8,7 @@ export type DashboardApprovalCounts = {
   purchaseOrders: number
   transfers: number
   pettyCash: number
+  cashRequests: number
   total: number
 }
 
@@ -16,6 +17,7 @@ const EMPTY: DashboardApprovalCounts = {
   purchaseOrders: 0,
   transfers: 0,
   pettyCash: 0,
+  cashRequests: 0,
   total: 0,
 }
 
@@ -27,7 +29,7 @@ export function useDashboardApprovalCounts(enabled = true) {
       const data = await fetchJson<DashboardApprovalCounts>("/api/dashboard/approval-counts", {
         timeoutMs: 15_000,
       })
-      setCounts(data)
+      setCounts({ ...EMPTY, ...data })
     } catch {
       /* keep last known counts */
     }

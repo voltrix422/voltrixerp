@@ -485,6 +485,7 @@ model ErpStaff {
   kpiSettlements HrmKpiSettlement[]
   dailyReports   HrmDailyReport[]
   salaryAdvances HrmSalaryAdvance[]
+  cashRequests   ErpCashRequest[]
 
   @@index([email])
   @@index([erpUserId])
@@ -1778,4 +1779,43 @@ model ErpClientAudit {
   @@index([auditDate])
   @@index([status])
   @@map("erp_client_audits")
+}
+
+/// Employee cash / payment requests sent to admin for approval (must be filed a day before needed).
+model ErpCashRequest {
+  id                String    @id @default(cuid())
+  staffId           String?   @map("staff_id")
+  staff             ErpStaff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  userId            String    @map("user_id")
+  requesterName     String    @map("requester_name")
+  requesterEmail    String    @default("") @map("requester_email")
+  department        String    @default("")
+  amount            Float
+  currency          String    @default("PKR")
+  neededOn          String    @map("needed_on")
+  purpose           String
+  category          String    @default("Other")
+  paymentMethod     String    @default("cash") @map("payment_method")
+  bankName          String    @default("") @map("bank_name")
+  bankAccountNumber String    @default("") @map("bank_account_number")
+  bankAccountTitle  String    @default("") @map("bank_account_title")
+  location          String    @default("")
+  itemBreakdown     Json      @default("[]") @map("item_breakdown")
+  notes             String    @default("")
+  attachmentUrl     String    @default("") @map("attachment_url")
+  attachmentName    String    @default("") @map("attachment_name")
+  status            String    @default("pending")
+  adminNotes        String    @default("") @map("admin_notes")
+  reviewedBy        String    @default("") @map("reviewed_by")
+  reviewedByUserId  String?   @map("reviewed_by_user_id")
+  reviewedAt        DateTime? @map("reviewed_at")
+  financeRecordId   String?   @map("finance_record_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@index([staffId])
+  @@index([neededOn])
+  @@map("erp_cash_requests")
 }

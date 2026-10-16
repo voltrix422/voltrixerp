@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/toast"
 import { ClientOrdersApproval } from "@/components/dashboard/client-orders-approval"
 import { DashboardBranchTransferApprovals } from "@/components/dashboard/branch-transfer-approvals-panel"
 import { DashboardPettyCashApprovals } from "@/components/dashboard/petty-cash-approvals"
+import { FinanceApprovalPanel } from "@/components/finance/finance-approval-panel"
 import { DashboardOverviewPanel } from "@/components/dashboard/dashboard-overview-panel"
 import { FinanceReportPanel } from "@/components/dashboard/finance-report-panel"
 import { FullBackupCard } from "@/components/dashboard/full-backup-card"
@@ -246,7 +247,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mainTab, setMainTab] = useState<DashboardMainTab>("overview")
-  const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty">("orders")
+  const [approvalTab, setApprovalTab] = useState<"orders" | "po" | "transfers" | "petty" | "cash">("orders")
   const [showPOFilters, setShowPOFilters] = useState(false)
   const approvalCounts = useDashboardApprovalCounts(!!user && isErpAdmin(user.role))
 
@@ -287,6 +288,7 @@ export default function DashboardPage() {
                 { label: "purchase orders", count: approvalCounts.purchaseOrders },
                 { label: "transfers", count: approvalCounts.transfers },
                 { label: "petty cash", count: approvalCounts.pettyCash },
+                { label: "cash requests", count: approvalCounts.cashRequests },
               ]}
             />
           )}
@@ -303,7 +305,7 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">Pending approvals</h2>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                Review client orders, purchase orders, branch transfers, and petty cash requests.
+                Review client orders, purchase orders, branch transfers, petty cash, and employee cash requests.
               </p>
             </div>
 
@@ -315,6 +317,7 @@ export default function DashboardPage() {
                 { id: "po", label: "Purchase Orders", count: approvalCounts.purchaseOrders },
                 { id: "transfers", label: "Branch Transfers", count: approvalCounts.transfers },
                 { id: "petty", label: "Petty Cash", count: approvalCounts.pettyCash },
+                { id: "cash", label: "Cash requests", count: approvalCounts.cashRequests },
               ]}
             />
 
@@ -330,6 +333,9 @@ export default function DashboardPage() {
               </div>
               <div className={approvalTab === "petty" ? "" : "hidden"}>
                 <DashboardPettyCashApprovals />
+              </div>
+              <div className={approvalTab === "cash" ? "" : "hidden"}>
+                <FinanceApprovalPanel />
               </div>
             </div>
           </section>

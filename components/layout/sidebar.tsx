@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import { UnreadMessagesBadge } from "@/components/layout/messages-icon"
 import type { Module } from "@/lib/auth"
-import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
+import { hasModuleAccess, isErpAdmin, isSuperadmin, roleHasAllModules } from "@/lib/auth"
 
 const NAV_ORDER: Array<{
   key: string
@@ -55,10 +55,19 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const { user } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
+  const [financeOpen, setFinanceOpen] = useState(
+    pathname === "/finance" ||
+      pathname?.startsWith("/finance/") ||
+      false,
+  )
 
   const isSuperadminUser = isSuperadmin(user?.role)
+  const isAdminUser = isErpAdmin(user?.role)
   const showCrmMain = canAccessCrmMain(user)
   const showSalesAgents = canAccessSalesAgentsArea(user)
+  const showFinanceOverview = hasModuleAccess(user, "finance")
+  const showCashRequest = !!user && user.role !== "investor"
+  const showFinanceApproval = isAdminUser
 
   function hasModule(module: Module): boolean {
     return roleHasAllModules(user?.role) || (user?.modules.includes(module) ?? false)
@@ -69,7 +78,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       return hasModule("crm") && (showCrmMain || showSalesAgents)
     }
     if (item.kind === "finance") {
-      return hasModule("finance")
+      return showFinanceOverview || showCashRequest || showFinanceApproval
     }
     if (!item.module) return true
     return hasModule(item.module)
@@ -138,16 +147,51 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           }
 
           if (item.kind === "finance") {
+            const financeActive =
+              pathname === "/finance" || !!pathname?.startsWith("/finance/")
             return (
-              <Link
-                key={item.key}
-                href="/finance"
-                onClick={onNavigate}
-                className={linkClass(pathname?.startsWith("/finance") || false)}
-              >
-                <DollarSign className="h-4 w-4 shrink-0" />
-                <span className="flex-1 truncate">{item.label}</span>
-              </Link>
+              <div key={item.key} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setFinanceOpen((open) => !open)}
+                  className={cn(linkClass(financeActive), "w-full cursor-pointer")}
+                >
+                  <DollarSign className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 truncate text-left">{item.label}</span>
+                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", financeOpen && "rotate-180")} />
+                </button>
+                {financeOpen && (
+                  <div className="ml-6 space-y-1">
+                    {showFinanceOverview && (
+                      <Link
+                        href="/finance"
+                        onClick={onNavigate}
+                        className={subLinkClass(pathname === "/finance")}
+                      >
+                        Overview
+                      </Link>
+                    )}
+                    {showCashRequest && (
+                      <Link
+                        href="/finance/cash-requests"
+                        onClick={onNavigate}
+                        className={subLinkClass(!!pathname?.startsWith("/finance/cash-requests"))}
+                      >
+                        Request cash
+                      </Link>
+                    )}
+                    {showFinanceApproval && (
+                      <Link
+                        href="/finance/approvals"
+                        onClick={onNavigate}
+                        className={subLinkClass(!!pathname?.startsWith("/finance/approvals"))}
+                      >
+                        Finance Approval
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </div>
             )
           }
 

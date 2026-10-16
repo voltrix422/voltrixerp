@@ -9,6 +9,11 @@ import {
 } from "@/lib/hrm-salary-calc"
 import { Download, X } from "lucide-react"
 import { useMemo, useState } from "react"
+import { useAuth } from "@/components/auth-provider"
+import { isErpAdmin } from "@/lib/auth"
+import { EmployeeCashRequests } from "@/components/finance/employee-cash-requests"
+import { downloadCashRequestReportExcel } from "@/lib/generate-cash-request-report-excel"
+import { fetchCashRequests } from "@/lib/finance-cash-requests"
 
 export type StaffDetailMember = {
   id: string
@@ -43,12 +48,13 @@ export type StaffDetailMember = {
   bank_account_title?: string
 }
 
-type DetailTab = "overview" | "compensation" | "payroll" | "performance" | "documents"
+type DetailTab = "overview" | "compensation" | "payroll" | "performance" | "documents" | "cash"
 
 const TABS: { id: DetailTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "compensation", label: "Compensation" },
   { id: "payroll", label: "Payroll" },
+  { id: "cash", label: "Cash requests" },
   { id: "performance", label: "Performance" },
   { id: "documents", label: "Documents" },
 ]
@@ -162,6 +168,12 @@ export function StaffEmployeeDetail({
   monthLabel: (month: string) => string
 }) {
   const [tab, setTab] = useState<DetailTab>("overview")
+  const { user } = useAuth()
+  const ownRecord =
+    !!user &&
+    ((member.email && user.email && member.email.toLowerCase() === user.email.toLowerCase()) ||
+      false)
+  const canRequestCash = ownRecord || isErpAdmin(user?.role)
   const breakdown = useMemo(
     () =>
       computeStaffCompensation({
@@ -441,6 +453,37 @@ export function StaffEmployeeDetail({
                 </span>
               </div>
             </>
+          )}
+
+          {tab === "cash" && (
+            <div className="space-y-3">
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-[11px]"
+                    onClick={async () => {
+                      const list = await fetchCashRequests({ staffId: member.id })
+                      await downloadCashRequestReportExcel(list, {
+                        title: `${member.name} cash requests`,
+                        employeeName: member.name,
+                      })
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download report
+                  </Button>
+                </div>
+              )}
+              <EmployeeCashRequests
+                staffId={member.id}
+                userId={user?.id || member.id}
+                requesterName={ownRecord ? user?.name || member.name : member.name}
+                requesterEmail={member.email}
+                department={member.department}
+                canRequest={canRequestCash}
+              />
+            </div>
           )}
 
           {tab === "payroll" && (

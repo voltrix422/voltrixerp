@@ -4,7 +4,7 @@ import { PERSONAL_LEDGER_MARKER, PERSONAL_LEDGER_PURPOSE } from "@/lib/petty-cas
 
 export async function GET() {
   try {
-    const [crmOrders, purchaseOrders, transfers, pettyRequests, pettyReceipts] = await Promise.all([
+    const [crmOrders, purchaseOrders, transfers, pettyRequests, pettyReceipts, cashRequests] = await Promise.all([
       prisma.erpOrder.count({ where: { status: "pending_approval" } }),
       prisma.erpPurchaseOrder.count({ where: { status: "sent_to_admin" } }),
       prisma.erpBranchTransferRequest.count({ where: { status: "pending" } }),
@@ -18,6 +18,7 @@ export async function GET() {
         },
       }),
       prisma.erpPettyCashReceipt.count({ where: { status: "pending" } }),
+      prisma.erpCashRequest.count({ where: { status: "pending" } }),
     ])
 
     const pettyCash = pettyRequests + pettyReceipts
@@ -27,7 +28,8 @@ export async function GET() {
       purchaseOrders,
       transfers,
       pettyCash,
-      total: crmOrders + purchaseOrders + transfers + pettyCash,
+      cashRequests,
+      total: crmOrders + purchaseOrders + transfers + pettyCash + cashRequests,
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
