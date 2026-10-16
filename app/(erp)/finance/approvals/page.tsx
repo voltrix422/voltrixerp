@@ -27,12 +27,9 @@ export default function FinanceApprovalsPage() {
 
   return (
     <>
-      <Topbar
-        title="Finance Approval"
-        description="Review employee cash requests, approve or reject, and download each user’s report"
-      />
+      <Topbar title="Finance Approval" description="Open a request to review, then approve or reject" />
       <div className="flex-1 overflow-auto">
-        <div className="p-3 sm:p-4 md:p-6 max-w-5xl">
+        <div className="p-3 sm:p-4 max-w-5xl">
           <FinanceApprovalPanel />
         </div>
       </div>
