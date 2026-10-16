@@ -174,7 +174,13 @@ export function CashRequestForm({
         </label>
         <label className="text-[11px] space-y-1">
           <span className="text-[hsl(var(--muted-foreground))]">Location / branch</span>
-          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} placeholder="Where you need it" />
+          <input
+            value={location}
+            maxLength={80}
+            onChange={(e) => setLocation(e.target.value)}
+            className={inputCls}
+            placeholder="e.g. Islamabad office"
+          />
         </label>
       </div>
 

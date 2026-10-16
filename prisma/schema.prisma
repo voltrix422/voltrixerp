@@ -1806,6 +1806,8 @@ model ErpCashRequest {
   attachmentName    String    @default("") @map("attachment_name")
   status            String    @default("pending")
   adminNotes        String    @default("") @map("admin_notes")
+  adminAttachmentUrl  String  @default("") @map("admin_attachment_url")
+  adminAttachmentName String  @default("") @map("admin_attachment_name")
   reviewedBy        String    @default("") @map("reviewed_by")
   reviewedByUserId  String?   @map("reviewed_by_user_id")
   reviewedAt        DateTime? @map("reviewed_at")

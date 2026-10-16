@@ -12,7 +12,7 @@ import { useMemo, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { isErpAdmin } from "@/lib/auth"
 import { EmployeeCashRequests } from "@/components/finance/employee-cash-requests"
-import { downloadCashRequestReportExcel } from "@/lib/generate-cash-request-report-excel"
+import { downloadCashRequestReportPdf } from "@/lib/generate-cash-request-report-pdf"
 import { fetchCashRequests } from "@/lib/finance-cash-requests"
 
 export type StaffDetailMember = {
@@ -465,7 +465,7 @@ export function StaffEmployeeDetail({
                     className="h-7 px-2.5 text-[11px]"
                     onClick={async () => {
                       const list = await fetchCashRequests({ staffId: member.id })
-                      await downloadCashRequestReportExcel(list, {
+                      await downloadCashRequestReportPdf(list, {
                         title: `${member.name} cash requests`,
                         employeeName: member.name,
                       })

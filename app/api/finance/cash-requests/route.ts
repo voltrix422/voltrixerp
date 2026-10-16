@@ -5,6 +5,7 @@ import { isErpAdmin } from "@/lib/auth"
 import {
   earliestNeededOn,
   karachiToday,
+  sanitizeCashText,
   type CashRequestLine,
 } from "@/lib/finance-cash-requests"
 
@@ -43,6 +44,8 @@ function mapRow(r: {
   attachmentName: string
   status: string
   adminNotes: string
+  adminAttachmentUrl?: string
+  adminAttachmentName?: string
   reviewedBy: string
   reviewedByUserId: string | null
   reviewedAt: Date | null
@@ -67,13 +70,15 @@ function mapRow(r: {
     bankName: r.bankName,
     bankAccountNumber: r.bankAccountNumber,
     bankAccountTitle: r.bankAccountTitle,
-    location: r.location,
+    location: sanitizeCashText(r.location, 80),
     itemBreakdown: parseLines(r.itemBreakdown),
-    notes: r.notes,
+    notes: sanitizeCashText(r.notes, 400),
     attachmentUrl: r.attachmentUrl,
     attachmentName: r.attachmentName,
     status: r.status,
     adminNotes: r.adminNotes,
+    adminAttachmentUrl: r.adminAttachmentUrl || "",
+    adminAttachmentName: r.adminAttachmentName || "",
     reviewedBy: r.reviewedBy,
     reviewedByUserId: r.reviewedByUserId,
     reviewedAt: r.reviewedAt?.toISOString() ?? null,
@@ -201,9 +206,9 @@ export async function POST(req: NextRequest) {
         bankName: String(body.bankName || "").trim(),
         bankAccountNumber: String(body.bankAccountNumber || "").trim(),
         bankAccountTitle: String(body.bankAccountTitle || "").trim(),
-        location: String(body.location || "").trim(),
+        location: sanitizeCashText(String(body.location || ""), 80),
         itemBreakdown: lines,
-        notes: String(body.notes || "").trim(),
+        notes: sanitizeCashText(String(body.notes || ""), 400),
         attachmentUrl: String(body.attachmentUrl || "").trim(),
         attachmentName: String(body.attachmentName || "").trim(),
         status: "pending",
@@ -234,6 +239,8 @@ export async function PUT(req: NextRequest) {
     const reviewedByUserId = String(body.reviewedByUserId || "").trim() || null
     const adminNotes = String(body.adminNotes || "").trim()
     const actorRole = String(body.actorRole || "").trim()
+    const adminAttachmentUrl = String(body.adminAttachmentUrl || "").trim()
+    const adminAttachmentName = String(body.adminAttachmentName || "").trim()
 
     if (!id || (action !== "approve" && action !== "reject")) {
       return NextResponse.json({ error: "Invalid review action" }, { status: 400 })
@@ -268,8 +275,8 @@ export async function PUT(req: NextRequest) {
           petty_cash_allocation_id: "",
           petty_cash_receipt_id: "",
           petty_cash_label: "",
-          proof_url: existing.attachmentUrl,
-          proof_name: existing.attachmentName,
+          proof_url: adminAttachmentUrl || existing.attachmentUrl,
+          proof_name: adminAttachmentName || existing.attachmentName,
           notes: [
             `Needed on ${existing.neededOn}`,
             `Method: ${existing.paymentMethod}`,
@@ -291,6 +298,8 @@ export async function PUT(req: NextRequest) {
       data: {
         status: action === "approve" ? "approved" : "rejected",
         adminNotes,
+        adminAttachmentUrl,
+        adminAttachmentName,
         reviewedBy,
         reviewedByUserId,
         reviewedAt: new Date(),

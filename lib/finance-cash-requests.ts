@@ -44,6 +44,8 @@ export type CashRequest = {
   attachmentName: string
   status: CashRequestStatus
   adminNotes: string
+  adminAttachmentUrl: string
+  adminAttachmentName: string
   reviewedBy: string
   reviewedByUserId: string | null
   reviewedAt: string | null
@@ -103,6 +105,22 @@ export function paymentMethodLabel(method: string) {
   return method === "bank" ? "Bank transfer" : "Cash"
 }
 
+export function sanitizeCashText(value: string, max = 120) {
+  const text = String(value || "").trim()
+  if (!text) return ""
+  const lower = text.toLowerCase()
+  if (
+    lower.includes("fill every cash detail") ||
+    lower.includes("send request to admin") ||
+    lower.includes("attachment (optional)") ||
+    lower.includes("how should admin pay")
+  ) {
+    return ""
+  }
+  if (text.length > max) return text.slice(0, max).trim()
+  return text
+}
+
 export async function fetchCashRequests(params: {
   staffId?: string
   userId?: string
@@ -141,6 +159,8 @@ export async function reviewCashRequest(input: {
   reviewedByUserId?: string
   adminNotes?: string
   actorRole?: string
+  adminAttachmentUrl?: string
+  adminAttachmentName?: string
 }): Promise<CashRequest> {
   const res = await fetch("/api/finance/cash-requests", {
     method: "PUT",
