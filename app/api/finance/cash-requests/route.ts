@@ -127,11 +127,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const userId = String(body.userId || "").trim()
     const requesterName = String(body.requesterName || "").trim()
-    const purpose = String(body.purpose || "").trim()
     const neededOn = String(body.neededOn || "").trim()
     const category = String(body.category || "Other").trim() || "Other"
     const paymentMethod = String(body.paymentMethod || "cash").trim() || "cash"
-    const lines = parseLines(body.itemBreakdown)
+    const purpose = String(body.purpose || "").trim()
+    const lines = parseLines(body.itemBreakdown).map((l) => ({
+      ...l,
+      description: l.description || purpose,
+    }))
     const amount = Number(body.amount) || lines.reduce((s, l) => s + l.amount, 0)
 
     if (!userId || !requesterName) {

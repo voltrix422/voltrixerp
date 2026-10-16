@@ -71,10 +71,14 @@ export function CashRequestForm({
       })
       return
     }
-    if (amount <= 0 || lines.some((l) => !l.description.trim() || !(Number(l.amount) > 0))) {
+    const filledLines = lines.map((l) => ({
+      ...l,
+      description: l.description.trim() || purpose.trim(),
+    }))
+    if (amount <= 0 || filledLines.some((l) => !l.description || !(Number(l.amount) > 0))) {
       toast({
         title: "Cash details required",
-        message: "Add every item with a description and amount.",
+        message: "In Cash details, type what the money is for (left box) and the amount in PKR (right box).",
         type: "error",
       })
       return
@@ -107,7 +111,7 @@ export function CashRequestForm({
         bankAccountNumber,
         bankAccountTitle,
         location: location.trim(),
-        itemBreakdown: lines,
+        itemBreakdown: filledLines,
         notes: notes.trim(),
         attachmentUrl,
         attachmentName,
@@ -193,13 +197,21 @@ export function CashRequestForm({
             <Plus className="h-3 w-3" /> Add line
           </button>
         </div>
+        <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+          Left box: what the money is for. Right box: amount in PKR. Add extra lines if the cash is for more than one thing.
+        </p>
+        <div className="hidden sm:flex gap-2 text-[10px] uppercase text-[hsl(var(--muted-foreground))]">
+          <span className="flex-1">What for</span>
+          <span className="w-28">Amount</span>
+          {lines.length > 1 ? <span className="w-9" /> : null}
+        </div>
         {lines.map((line) => (
           <div key={line.id} className="flex gap-2">
             <input
               value={line.description}
               onChange={(e) => updateLine(line.id, { description: e.target.value })}
               className={`${inputCls} flex-1`}
-              placeholder="What is this amount for?"
+              placeholder={purpose.trim() || "e.g. Client lunch, taxi, printing"}
             />
             <input
               type="number"
