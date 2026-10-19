@@ -8,7 +8,7 @@ import {
   type PurchaseLedgerEntry,
 } from "@/lib/purchase-ledger"
 
-const STATUS_MARK = "☐ Accept    ☐ Reject"
+const SIGN_SPACE = "Accept ______    Reject ______"
 
 function fmtWhen(iso: string) {
   if (!iso) return "—"
@@ -89,14 +89,14 @@ export async function downloadMoneyApprovalPdf(opts: {
         { header: "Employee", width: 32 },
         { header: "Purpose", width: 58 },
         { header: "Amount", align: "right", width: 24 },
-        { header: "Status", width: 38, small: true },
+        { header: "Sign", width: 48 },
       ],
       rows: pending.map((r) => [
         fmtWhen(r.allocatedAt),
         r.employeeName || "—",
         r.purpose || "—",
         pkr(r.amount),
-        STATUS_MARK,
+        SIGN_SPACE,
       ]),
       foot: ["", "", `${pending.length} waiting`, pkr(pendingTotal), ""],
     })
@@ -111,7 +111,7 @@ export async function downloadMoneyApprovalPdf(opts: {
         { header: "Supplier(s)", width: 32 },
         { header: "Items", width: 40 },
         { header: "Due", align: "right", width: 22 },
-        { header: "Status", width: 38, small: true },
+        { header: "Sign", width: 48 },
       ],
       rows: ledgerDues.map((e) => [
         e.ledgerNumber || "—",
@@ -119,7 +119,7 @@ export async function downloadMoneyApprovalPdf(opts: {
         formatLedgerSuppliers(e) || "—",
         formatLedgerItemsSummary(e),
         pkr(e.amountDue),
-        STATUS_MARK,
+        SIGN_SPACE,
       ]),
       foot: ["", "", "", `${ledgerDues.length} due`, pkr(dueTotal), ""],
     })
