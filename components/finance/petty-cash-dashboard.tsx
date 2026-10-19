@@ -369,7 +369,7 @@ export function PettyCashDashboard() {
                 onClick={async () => {
                   setPendingPdfBusy(true)
                   try {
-                    await downloadMoneyApprovalPdf({ pendingRequests })
+                    await downloadMoneyApprovalPdf({ pendingRequests, includeLedgerDues: false })
                   } catch (error) {
                     toast({
                       title: "PDF failed",

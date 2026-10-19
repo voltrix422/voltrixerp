@@ -8,6 +8,8 @@ import {
   type PurchaseLedgerEntry,
 } from "@/lib/purchase-ledger"
 
+const STATUS_MARK = "☐ Accept    ☐ Reject"
+
 function fmtWhen(iso: string) {
   if (!iso) return "—"
   return new Date(iso).toLocaleString("en-PK", { timeZone: "Asia/Karachi" })
@@ -34,25 +36,30 @@ function dueEntries(rows: PurchaseLedgerEntry[]) {
 export async function downloadMoneyApprovalPdf(opts: {
   pendingRequests?: PettyCashAllocation[]
   ledgerDues?: PurchaseLedgerEntry[]
+  /** When false, skip purchase-ledger dues even if they exist. Petty Cash PDF uses this. */
+  includeLedgerDues?: boolean
   scopeLabel?: string
 } = {}) {
+  const includeLedger = opts.includeLedgerDues === true || opts.ledgerDues != null
   const pending =
     opts.pendingRequests != null
       ? pendingCash(opts.pendingRequests)
       : pendingCash(await getPettyCashAllocations())
-  const ledgerDues =
-    opts.ledgerDues != null
-      ? dueEntries(opts.ledgerDues)
-      : dueEntries(await getPurchaseLedgerEntries())
+  const ledgerDues = includeLedger
+    ? dueEntries(opts.ledgerDues ?? (await getPurchaseLedgerEntries()))
+    : []
 
   if (pending.length === 0 && ledgerDues.length === 0) {
-    throw new Error("No pending petty cash and no purchase amounts due")
+    throw new Error(includeLedger
+      ? "No pending petty cash and no purchase amounts due"
+      : "No pending petty cash requests")
   }
 
   const pendingTotal = pending.reduce((s, r) => s + (Number(r.amount) || 0), 0)
   const dueTotal = ledgerDues.reduce((s, e) => s + (Number(e.amountDue) || 0), 0)
   const stamp = new Date().toISOString().slice(0, 10)
   const scope = opts.scopeLabel?.trim()
+  const pettyOnly = !includeLedger
 
   const tables: PlainTable[] = [
     {
@@ -61,11 +68,16 @@ export async function downloadMoneyApprovalPdf(opts: {
         { header: "Item", width: 90 },
         { header: "Amount", align: "right", width: 40 },
       ],
-      rows: [
-        ["Pending petty cash requests", `${pending.length} · ${pkr(pendingTotal)}`],
-        ["Purchase ledger due", `${ledgerDues.length} · ${pkr(dueTotal)}`],
-        ["Combined to approve", pkr(pendingTotal + dueTotal)],
-      ],
+      rows: pettyOnly
+        ? [
+            ["Pending petty cash requests", `${pending.length} · ${pkr(pendingTotal)}`],
+            ["Total to approve", pkr(pendingTotal)],
+          ]
+        : [
+            ["Pending petty cash requests", `${pending.length} · ${pkr(pendingTotal)}`],
+            ["Purchase ledger due", `${ledgerDues.length} · ${pkr(dueTotal)}`],
+            ["Combined to approve", pkr(pendingTotal + dueTotal)],
+          ],
     },
   ]
 
@@ -73,18 +85,20 @@ export async function downloadMoneyApprovalPdf(opts: {
     tables.push({
       title: "Petty cash pending requests",
       columns: [
-        { header: "Requested on", width: 38 },
-        { header: "Employee", width: 40 },
-        { header: "Purpose", width: 78 },
-        { header: "Amount", align: "right", width: 28 },
+        { header: "Requested on", width: 32 },
+        { header: "Employee", width: 32 },
+        { header: "Purpose", width: 58 },
+        { header: "Amount", align: "right", width: 24 },
+        { header: "Status", width: 38, small: true },
       ],
       rows: pending.map((r) => [
         fmtWhen(r.allocatedAt),
         r.employeeName || "—",
         r.purpose || "—",
         pkr(r.amount),
+        STATUS_MARK,
       ]),
-      foot: ["", "", `${pending.length} waiting`, pkr(pendingTotal)],
+      foot: ["", "", `${pending.length} waiting`, pkr(pendingTotal), ""],
     })
   }
 
@@ -92,35 +106,35 @@ export async function downloadMoneyApprovalPdf(opts: {
     tables.push({
       title: "Purchase ledger due",
       columns: [
-        { header: "Ledger No.", width: 22 },
-        { header: "Date", width: 22 },
-        { header: "Supplier(s)", width: 40 },
-        { header: "Items", width: 58 },
-        { header: "Total", align: "right", width: 24 },
-        { header: "Paid", align: "right", width: 24 },
-        { header: "Due", align: "right", width: 24 },
+        { header: "Ledger No.", width: 20 },
+        { header: "Date", width: 20 },
+        { header: "Supplier(s)", width: 32 },
+        { header: "Items", width: 40 },
+        { header: "Due", align: "right", width: 22 },
+        { header: "Status", width: 38, small: true },
       ],
       rows: ledgerDues.map((e) => [
         e.ledgerNumber || "—",
         fmtDay(e.transactionDate),
         formatLedgerSuppliers(e) || "—",
         formatLedgerItemsSummary(e),
-        pkr(e.totalAmount),
-        pkr(e.amountPaid),
         pkr(e.amountDue),
+        STATUS_MARK,
       ]),
-      foot: ["", "", "", `${ledgerDues.length} due`, "", "", pkr(dueTotal)],
+      foot: ["", "", "", `${ledgerDues.length} due`, pkr(dueTotal), ""],
     })
   }
 
   await downloadPlainReportPdf({
-    title: "Money approval",
+    title: pettyOnly ? "Petty cash requests" : "Money approval",
     subtitle: dateRangeLabel("", ""),
     meta: [
       `Generated ${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}`,
-      scope ? `Purchase ledger ${scope}` : "",
+      pettyOnly ? "" : (scope ? `Purchase ledger ${scope}` : ""),
     ].filter(Boolean),
-    filename: `voltrix-money-approval-${stamp}.pdf`,
+    filename: pettyOnly
+      ? `voltrix-petty-cash-requests-${stamp}.pdf`
+      : `voltrix-money-approval-${stamp}.pdf`,
     tables,
     compact: true,
     signatures: [
@@ -131,5 +145,5 @@ export async function downloadMoneyApprovalPdf(opts: {
 }
 
 export async function downloadPendingPettyCashPdf(rows: PettyCashAllocation[]) {
-  await downloadMoneyApprovalPdf({ pendingRequests: rows })
+  await downloadMoneyApprovalPdf({ pendingRequests: rows, includeLedgerDues: false })
 }
