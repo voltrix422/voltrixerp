@@ -370,7 +370,7 @@ export async function notifyOnPettyCashPending(
     title: `${label} pending review`,
     message: `${employeeName} — Rs ${amount.toLocaleString()} for ${purpose}.`,
     type: "info",
-    link: "/finance",
+    link: "/purchase?tab=petty-cash",
   })
 }
 
@@ -387,7 +387,7 @@ export async function notifyOnPettyCashReviewed(
       ? `Your petty cash ${type} has been approved.`
       : `Your petty cash ${type} was rejected.`,
     type: approved ? "success" : "error",
-    link: "/petty-cash",
+    link: "/purchase?tab=petty-cash",
   })
 }
 

@@ -8,9 +8,10 @@ import { SuppliersTab } from "@/components/purchase/suppliers-tab"
 import { AdvanceAccountsTab } from "@/components/purchase/advance-accounts-tab"
 import { ClientProjectsTab } from "@/components/purchase/client-projects-tab"
 import { ImportedPurchasesTab } from "@/components/purchase/imported-purchases-tab"
-import { BookOpen, Users, Wallet, FolderKanban, FolderLock, Ship } from "lucide-react"
+import { BookOpen, Users, Wallet, FolderKanban, FolderLock, Ship, Banknote } from "lucide-react"
+import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
 import { useAuth } from "@/components/auth-provider"
-import { normalizePurchaseScopes, roleHasAllModules } from "@/lib/auth"
+import { hasModuleAccess, normalizePurchaseScopes, roleHasAllModules } from "@/lib/auth"
 import { getPurchaseScopes, purchaseScopeLabel, type PurchaseScope } from "@/lib/purchase-scopes"
 
 export default function PurchasePage() {
@@ -24,10 +25,11 @@ export default function PurchasePage() {
     tabParam === "suppliers" ||
     tabParam === "advances" ||
     tabParam === "projects" ||
+    tabParam === "petty-cash" ||
     tabParam === "ledger"
       ? tabParam
       : "ledger"
-  const [tab, setTab] = useState<"ledger" | "imports" | "suppliers" | "advances" | "projects">(initialTab)
+  const [tab, setTab] = useState<"ledger" | "imports" | "suppliers" | "advances" | "projects" | "petty-cash">(initialTab)
   const [allScopes, setAllScopes] = useState<PurchaseScope[]>([])
   const isAdminLike = roleHasAllModules(user?.role)
   const allowedScopes = useMemo(() => {
@@ -36,6 +38,7 @@ export default function PurchasePage() {
   }, [allScopes, isAdminLike, user?.purchaseScopes])
   const [scopeId, setScopeId] = useState("P1")
   const hasPurchaseAccess = isAdminLike || allowedScopes.length > 0
+  const canUsePurchaseModule = hasModuleAccess(user, "purchase")
 
   useEffect(() => {
     void getPurchaseScopes().then(setAllScopes)
@@ -47,6 +50,7 @@ export default function PurchasePage() {
       tabParam === "suppliers" ||
       tabParam === "advances" ||
       tabParam === "projects" ||
+      tabParam === "petty-cash" ||
       tabParam === "ledger"
     ) {
       setTab(tabParam)
@@ -60,6 +64,12 @@ export default function PurchasePage() {
     }
   }, [allowedScopes, scopeId])
 
+  useEffect(() => {
+    if (!user || canUsePurchaseModule || tab === "petty-cash") return
+    setTab("petty-cash")
+    router.replace("/purchase?tab=petty-cash", { scroll: false })
+  }, [user, canUsePurchaseModule, tab, router])
+
   const activeScopeName = purchaseScopeLabel(scopeId, allScopes)
 
   function selectTab(next: typeof tab) {
@@ -70,21 +80,27 @@ export default function PurchasePage() {
     router.replace(`/purchase?${params.toString()}`, { scroll: false })
   }
 
-  const tabs = [
+  const allTabs = [
     { key: "ledger" as const, label: "Purchase Ledger", icon: BookOpen },
+    { key: "petty-cash" as const, label: "Petty Cash", icon: Banknote },
     { key: "imports" as const, label: "Imported Purchases", icon: Ship },
     { key: "suppliers" as const, label: "Suppliers", icon: Users },
     { key: "advances" as const, label: "Advances", icon: Wallet },
     { key: "projects" as const, label: "Client Projects", icon: FolderKanban },
   ]
+  const tabs = !user || canUsePurchaseModule ? allTabs : allTabs.filter(t => t.key === "petty-cash")
 
   return (
-    <ModuleGuard module="purchase">
+    <>
       <Topbar
         title="Purchase"
-        description={activeScopeName
-          ? `Purchase ledger for ${activeScopeName}`
-          : "Purchase ledger, suppliers, and payment tracking"}
+        description={
+          tab === "petty-cash"
+            ? "Request cash, add expense receipts, and track your balance"
+            : activeScopeName
+              ? `Purchase ledger for ${activeScopeName}`
+              : "Purchase ledger, suppliers, and payment tracking"
+        }
       />
       <div className="flex-1 overflow-auto">
         <div className="max-w-[1400px] mx-auto w-full">
@@ -110,6 +126,7 @@ export default function PurchasePage() {
                   )
                 })}
               </div>
+              {tab !== "petty-cash" && canUsePurchaseModule && (
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <span className="text-[11px] text-[hsl(var(--muted-foreground))] shrink-0">Purchase ledger</span>
                 <select
@@ -124,9 +141,16 @@ export default function PurchasePage() {
                   ))}
                 </select>
               </div>
+              )}
             </div>
           </div>
 
+          {tab === "petty-cash" ? (
+            <div className="p-4 sm:p-6 pt-4">
+              <PettyCashDashboard />
+            </div>
+          ) : (
+          <ModuleGuard module="purchase">
           {!hasPurchaseAccess ? (
             <div className="p-4 sm:p-6">
               <div className="rounded-lg border border-dashed px-4 sm:px-6 py-10 text-center">
@@ -153,8 +177,10 @@ export default function PurchasePage() {
           ) : (
             <SuppliersTab purchaseScopeId={scopeId || "P1"} />
           )}
+          </ModuleGuard>
+          )}
         </div>
       </div>
-    </ModuleGuard>
+    </>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Topbar } from "@/components/layout/topbar"
 import { ModuleGuard } from "@/components/layout/module-guard"
 import { FinanceHub } from "@/components/finance/finance-hub"
@@ -8,18 +8,16 @@ import { FinanceReports } from "@/components/finance/finance-reports"
 import { ClientOrdersFinance, type ClientOrdersCreditFilter } from "@/components/finance/client-orders-finance"
 import { PurchaseOrdersFinance } from "@/components/finance/purchase-orders-finance"
 import { FinanceManager } from "@/components/finance/finance-manager"
-import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
 import { FinancePayroll } from "@/components/finance/finance-payroll"
 import { Search, Calendar } from "lucide-react"
 
 type Tab = "overview" | "manage" | "client" | "purchase" | "payroll" | "reports"
 type PayrollSection = "staff" | "sales"
-type ManageSection = "finance" | "petty-cash"
 
 export default function FinancePage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>("overview")
-  const [manageSection, setManageSection] = useState<ManageSection>("finance")
   const [reportPeriod, setReportPeriod] = useState("month")
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -46,11 +44,13 @@ export default function FinancePage() {
     } else if (add === "loan") {
       setActiveTab("manage")
     }
-    if (section === "petty-cash" || section === "finance") setManageSection(section)
-    else if (add === "loan") setManageSection("finance")
+    if (section === "petty-cash") {
+      router.replace("/purchase?tab=petty-cash")
+      return
+    }
     if (payroll === "sales" || payroll === "staff") setPayrollSection(payroll)
     else if (tab === "sales-salaries") setPayrollSection("sales")
-  }, [searchParams])
+  }, [searchParams, router])
 
   const hasFilters = search || dateFrom || dateTo || clientCreditFilter !== "all"
 
@@ -72,7 +72,7 @@ export default function FinancePage() {
     { id: "client", label: "Client Orders", shortLabel: "Orders" },
     { id: "purchase", label: "Purchase Orders", shortLabel: "PO" },
     { id: "payroll", label: "Salaries & Payroll", shortLabel: "Payroll" },
-    { id: "manage", label: "Records & Petty Cash", shortLabel: "Records" },
+    { id: "manage", label: "Records", shortLabel: "Records" },
     { id: "reports", label: "Reports", shortLabel: "Reports" },
   ]
 
@@ -189,35 +189,12 @@ export default function FinancePage() {
           )}
 
           {activeTab === "manage" && (
-            <div>
-              <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                {[
-                  { id: "finance" as const, label: "Finance Records" },
-                  { id: "petty-cash" as const, label: "Petty Cash" },
-                ].map((section) => (
-                  <button
-                    key={section.id}
-                    onClick={() => setManageSection(section.id)}
-                    className={`h-9 sm:h-8 w-full sm:w-auto px-3 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
-                      manageSection === section.id
-                        ? "bg-[#1faca6] text-white border-[#1faca6]"
-                        : "bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))]"
-                    }`}
-                  >
-                    {section.label}
-                  </button>
-                ))}
-              </div>
-              {manageSection === "finance" && (
-                <FinanceManager
-                  search={search}
-                  dateFrom={dateFrom}
-                  dateTo={dateTo}
-                  openAddLoan={searchParams?.get("add") === "loan"}
-                />
-              )}
-              {manageSection === "petty-cash" && <PettyCashDashboard />}
-            </div>
+            <FinanceManager
+              search={search}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              openAddLoan={searchParams?.get("add") === "loan"}
+            />
           )}
 
           {activeTab === "client" && (

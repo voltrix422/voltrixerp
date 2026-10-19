@@ -104,7 +104,7 @@ export const HELP_SECTIONS: HelpSection[] = [
             <InfoRow label="Ship to client" value="Inventory → Client Orders → Fulfill / Dispatch" />
             <InfoRow label="Send stock to branch" value="Inventory → Branches → Send" />
             <InfoRow label="Add stock manually" value="Inventory → Manual added inventory" />
-            <InfoRow label="Request petty cash" value="Finance → Records & Petty Cash → Request Cash" />
+            <InfoRow label="Request petty cash" value="Purchase → Petty Cash → Request Cash" />
             <InfoRow label="Buy from supplier" value="Purchase → + New PO" />
             <InfoRow label="Check what's owed" value="Finance → Client Orders → filter Outstanding credit" />
           </GuideBody>
@@ -329,7 +329,7 @@ export const HELP_SECTIONS: HelpSection[] = [
               "Client Orders — payments & credit for sales orders",
               "Purchase Orders — payments owed to suppliers for POs",
               "Salaries & Payroll — staff and sales agent salaries",
-              "Records & Petty Cash — general expenses and petty cash (see Petty Cash guide)",
+              "Records — general expenses (petty cash is under Purchase → Petty Cash)",
               "Reports — financial reports by period",
             ]} />
           </GuideBody>
@@ -393,7 +393,7 @@ export const HELP_SECTIONS: HelpSection[] = [
           <GuideBody>
             <p>For general company expenses (not petty cash claims):</p>
             <NumberedSteps steps={[
-              "Finance → Records & Petty Cash → Finance Records section.",
+              "Finance → Records.",
               '+ Add Record → title, amount, category, tag, notes.',
               "Upload proof (image/PDF).",
               "Use Filters to search by date, category, or tag.",
@@ -429,7 +429,7 @@ export const HELP_SECTIONS: HelpSection[] = [
               "Staff <strong>spend</strong> and upload <strong>receipts</strong> for each expense",
               "When done, the allocation is <strong>settled</strong> — accounts are closed",
             ]} />
-            <p className="mt-2">Open: <strong>Finance → Records & Petty Cash</strong> (Petty Cash section at the bottom).</p>
+            <p className="mt-2">Open: <strong>Purchase → Petty Cash</strong> (also linked from the sidebar as Petty Cash).</p>
           </GuideBody>
         ),
       },
@@ -457,8 +457,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         content: (
           <GuideBody>
             <NumberedSteps steps={[
-              "Go to Finance → Records & Petty Cash.",
-              "Scroll to the Petty Cash section.",
+              "Go to Purchase → Petty Cash (or Petty Cash in the sidebar).",
+              "Open the Petty Cash tab.",
               'Click "Request Cash" (top-right of petty cash area).',
               "Enter the amount you need (PKR).",
               "Enter purpose — e.g. Office tea & snacks for Lahore trip.",
@@ -487,7 +487,7 @@ export const HELP_SECTIONS: HelpSection[] = [
             ]} />
             <p className="font-semibold mt-4">Option B — Petty Cash page</p>
             <NumberedSteps steps={[
-              "Finance → Records & Petty Cash → Petty Cash section.",
+              "Purchase → Petty Cash.",
               "See Pending requests banner at the top.",
               'Click "Approve" on the request.',
               "Upload bank transfer proof or record cash payout details.",
@@ -504,7 +504,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         content: (
           <GuideBody>
             <NumberedSteps steps={[
-              "Finance → Records & Petty Cash → Petty Cash section.",
+              "Purchase → Petty Cash.",
               'Click "Add Receipt".',
               "Select your active allocation (the approved cash amount).",
               "Enter expense title — e.g. Petrol for delivery van.",

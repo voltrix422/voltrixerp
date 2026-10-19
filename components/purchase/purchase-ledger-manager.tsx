@@ -640,7 +640,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
   const [filterDueFrom, setFilterDueFrom] = useState("")
   const [filterDueTo, setFilterDueTo] = useState("")
   const [exporting, setExporting] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [showRentForm, setShowRentForm] = useState(false)
   const [petrolStats, setPetrolStats] = useState({
     count: 0,
@@ -1596,7 +1596,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
         <button
           type="button"
           onClick={() => setFiltersOpen(open => !open)}
-          className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer border-b border-[hsl(var(--border))]/60"
+          className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[hsl(var(--muted))]/20 transition-colors cursor-pointer ${filtersOpen ? "border-b border-[hsl(var(--border))]/60" : ""}`}
         >
           <SlidersHorizontal className="h-3.5 w-3.5 text-[#1faca6] shrink-0" />
           <span className="text-xs font-semibold">Filters & summary</span>
@@ -1617,6 +1617,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
           </span>
         </button>
 
+        {filtersOpen && (
         <div className="p-3 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
@@ -1635,8 +1636,7 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
             )}
           </div>
 
-          {filtersOpen && (
-            <div className="space-y-3 pt-1 border-t border-[hsl(var(--border))]/60">
+          <div className="space-y-3 pt-1 border-t border-[hsl(var(--border))]/60">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
                 <select value={filterLinkMode} onChange={e => setFilterLinkMode(e.target.value)} className={filterSelectCls}>
                   <option value="all">All link types</option>
@@ -1698,11 +1698,11 @@ export function PurchaseLedgerManager({ purchaseScopeId }: { purchaseScopeId: st
                   <input type="date" value={filterDueTo} onChange={e => setFilterDueTo(e.target.value)} className={filterSelectCls + " flex-1 min-w-[120px]"} />
                 </div>
               </div>
-            </div>
-          )}
+          </div>
 
           <LedgerFilterSummary stats={filterStats} petrol={petrolStats} />
         </div>
+        )}
       </section>
 
       {showForm && (

@@ -1,11 +1,11 @@
 "use client"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Wallet, ChevronDown, Target, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, Target, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -37,7 +37,7 @@ const NAV_ORDER: Array<{
   { key: "hrm", href: "/hrm", label: "HRM", icon: UserCog, module: "hrm", kind: "link" },
   { key: "tickets", href: "/tickets", label: "After Sale", icon: Ticket, module: "tickets", kind: "link" },
   { key: "messages", href: "/messages", label: "Messages", icon: MessageSquare, kind: "link" },
-  { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Wallet, kind: "link" },
+  { key: "petty-cash", href: "/purchase?tab=petty-cash", label: "Petty Cash", icon: Banknote, kind: "link" },
   { key: "petrol", href: "/petrol", label: "Petrol", icon: Fuel, kind: "link" },
   { key: "todos", href: "/todos", label: "To-do", icon: ClipboardList, kind: "link" },
 ]
@@ -53,6 +53,7 @@ const navSecondary = [
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
   const [financeOpen, setFinanceOpen] = useState(
@@ -196,7 +197,14 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           }
 
           const Icon = item.icon
-          const active = pathname?.startsWith(item.href!) || false
+          const purchaseTab = searchParams?.get("tab")
+          const isPettyCashTab = pathname === "/purchase" && purchaseTab === "petty-cash"
+          let active = pathname?.startsWith(item.href!.split("?")[0]) || false
+          if (item.key === "petty-cash") {
+            active = isPettyCashTab || pathname === "/petty-cash"
+          } else if (item.key === "purchase") {
+            active = !!pathname?.startsWith("/purchase") && purchaseTab !== "petty-cash"
+          }
           return (
             <Link key={item.key} href={item.href!} onClick={onNavigate} className={linkClass(active)}>
               <Icon className="h-4 w-4 shrink-0" />
