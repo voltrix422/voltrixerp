@@ -8,7 +8,7 @@ import {
   type PurchaseLedgerEntry,
 } from "@/lib/purchase-ledger"
 
-const SIGN_SPACE = "Accept ______    Reject ______"
+const SIGN_SPACE = "Mustafa Ali ______    Ejaz ______"
 
 function fmtWhen(iso: string) {
   if (!iso) return "—"
@@ -87,9 +87,9 @@ export async function downloadMoneyApprovalPdf(opts: {
       columns: [
         { header: "Requested on", width: 32 },
         { header: "Employee", width: 32 },
-        { header: "Purpose", width: 58 },
-        { header: "Amount", align: "right", width: 24 },
-        { header: "Sign", width: 48 },
+        { header: "Purpose", width: 50 },
+        { header: "Amount", align: "right", width: 22 },
+        { header: "Sign", width: 56 },
       ],
       rows: pending.map((r) => [
         fmtWhen(r.allocatedAt),
@@ -109,9 +109,9 @@ export async function downloadMoneyApprovalPdf(opts: {
         { header: "Ledger No.", width: 20 },
         { header: "Date", width: 20 },
         { header: "Supplier(s)", width: 32 },
-        { header: "Items", width: 40 },
-        { header: "Due", align: "right", width: 22 },
-        { header: "Sign", width: 48 },
+        { header: "Items", width: 34 },
+        { header: "Due", align: "right", width: 20 },
+        { header: "Sign", width: 56 },
       ],
       rows: ledgerDues.map((e) => [
         e.ledgerNumber || "—",
