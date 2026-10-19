@@ -32,7 +32,7 @@ export default function FinanceCashRequestsPage() {
 
   return (
     <>
-      <Topbar title="Request cash" description="Ask admin for cash at least one day before you need it" />
+      <Topbar title="Request cash" description="Send an amount and description to admin. This is not petty cash." />
       <div className="flex-1 overflow-auto">
         <div className="p-3 sm:p-4 md:p-6 max-w-3xl">
           <EmployeeCashRequests

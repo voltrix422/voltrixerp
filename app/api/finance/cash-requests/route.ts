@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db"
 import { notifyUsersByModule } from "@/lib/notifications-server"
 import { isErpAdmin } from "@/lib/auth"
 import {
-  earliestNeededOn,
   karachiToday,
   sanitizeCashText,
   type CashRequestLine,
@@ -132,47 +131,29 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const userId = String(body.userId || "").trim()
     const requesterName = String(body.requesterName || "").trim()
-    const neededOn = String(body.neededOn || "").trim()
+    const purpose = String(body.purpose || body.description || "").trim()
+    const amount = Number(body.amount)
+    const neededOn = /^\d{4}-\d{2}-\d{2}$/.test(String(body.neededOn || ""))
+      ? String(body.neededOn)
+      : karachiToday()
     const category = String(body.category || "Other").trim() || "Other"
     const paymentMethod = String(body.paymentMethod || "cash").trim() || "cash"
-    const purpose = String(body.purpose || "").trim()
-    const lines = parseLines(body.itemBreakdown).map((l) => ({
+    let lines = parseLines(body.itemBreakdown).map((l) => ({
       ...l,
       description: l.description || purpose,
     }))
-    const amount = Number(body.amount) || lines.reduce((s, l) => s + l.amount, 0)
+    if (lines.length === 0 && purpose && Number.isFinite(amount) && amount > 0) {
+      lines = [{ id: "line-1", description: purpose, amount }]
+    }
 
     if (!userId || !requesterName) {
       return NextResponse.json({ error: "Requester is required" }, { status: 400 })
     }
     if (!purpose) {
-      return NextResponse.json({ error: "Purpose is required" }, { status: 400 })
-    }
-    if (!neededOn || !/^\d{4}-\d{2}-\d{2}$/.test(neededOn)) {
-      return NextResponse.json({ error: "Needed date is required" }, { status: 400 })
-    }
-    if (neededOn < earliestNeededOn()) {
-      return NextResponse.json(
-        { error: "Cash must be requested at least one day before you need it" },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: "Description is required" }, { status: 400 })
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "Amount must be greater than zero" }, { status: 400 })
-    }
-    if (lines.length === 0) {
-      return NextResponse.json({ error: "Add at least one cash detail line" }, { status: 400 })
-    }
-    if (lines.some((l) => !l.description || l.amount <= 0)) {
-      return NextResponse.json({ error: "Each cash detail needs a description and amount" }, { status: 400 })
-    }
-    if (paymentMethod === "bank") {
-      const bankName = String(body.bankName || "").trim()
-      const bankAccountNumber = String(body.bankAccountNumber || "").trim()
-      const bankAccountTitle = String(body.bankAccountTitle || "").trim()
-      if (!bankName || !bankAccountNumber || !bankAccountTitle) {
-        return NextResponse.json({ error: "Bank name, account number, and title are required" }, { status: 400 })
-      }
     }
 
     let staffId = String(body.staffId || "").trim() || null
@@ -218,7 +199,7 @@ export async function POST(req: NextRequest) {
 
     await notifyUsersByModule("finance", {
       title: "Cash request pending approval",
-      message: `${requesterName} requested PKR ${amount.toLocaleString()} for ${neededOn} — ${purpose.slice(0, 80)}`,
+      message: `${requesterName} requested PKR ${amount.toLocaleString()} — ${purpose.slice(0, 80)}`,
       type: "warning",
       link: "/finance/approvals",
     }).catch(() => {})

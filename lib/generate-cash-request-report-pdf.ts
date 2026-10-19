@@ -1,9 +1,5 @@
 import { dateRangeLabel, downloadPlainReportPdf, pkr, type PlainTable } from "@/lib/plain-report-pdf"
-import {
-  cashRequestStatusLabel,
-  paymentMethodLabel,
-  type CashRequest,
-} from "@/lib/finance-cash-requests"
+import { cashRequestStatusLabel, type CashRequest } from "@/lib/finance-cash-requests"
 
 function fmtDay(iso: string) {
   if (!iso) return "—"
@@ -11,11 +7,6 @@ function fmtDay(iso: string) {
   const [y, m, d] = day.split("-")
   if (!y || !m || !d) return iso
   return `${d}/${m}/${y}`
-}
-
-function detailsLine(r: CashRequest) {
-  if (!r.itemBreakdown?.length) return r.purpose || "—"
-  return r.itemBreakdown.map((l) => `${l.description} ${pkr(l.amount)}`).join("; ")
 }
 
 export async function downloadCashRequestReportPdf(
@@ -54,47 +45,24 @@ export async function downloadCashRequestReportPdf(
       ],
     },
     {
-      title: "Cash requests",
+      title: "Requests",
       columns: [
-        { header: "Requested", width: 22 },
-        { header: "Needed", width: 22 },
-        { header: "Employee", width: 32 },
-        { header: "Purpose", width: 42 },
-        { header: "Category", width: 22 },
-        { header: "Pay", width: 18 },
-        { header: "Status", width: 18 },
+        { header: "Date", width: 24 },
+        { header: "Employee", width: 36 },
+        { header: "Description", width: 70 },
+        { header: "Status", width: 20 },
+        { header: "Admin note", width: 36, small: true },
         { header: "Amount", align: "right", width: 24 },
       ],
       rows: rows.map((r) => [
         fmtDay(r.createdAt),
-        fmtDay(r.neededOn),
         r.staffName || r.requesterName,
         r.purpose || "—",
-        r.category,
-        paymentMethodLabel(r.paymentMethod),
         cashRequestStatusLabel(r.status),
-        pkr(r.amount),
-      ]),
-      foot: ["", "", "", "", "", "", String(rows.length), pkr(sum(rows))],
-    },
-    {
-      title: "Cash details",
-      columns: [
-        { header: "Employee", width: 32 },
-        { header: "Needed", width: 22 },
-        { header: "Details", width: 70, small: true },
-        { header: "Location", width: 24 },
-        { header: "Admin notes", width: 36, small: true },
-        { header: "Amount", align: "right", width: 22 },
-      ],
-      rows: rows.map((r) => [
-        r.staffName || r.requesterName,
-        fmtDay(r.neededOn),
-        detailsLine(r),
-        r.location || "—",
         r.adminNotes || "—",
         pkr(r.amount),
       ]),
+      foot: ["", "", "", "", String(rows.length), pkr(sum(rows))],
     },
   ]
 

@@ -27,7 +27,11 @@ export function EmployeeCashRequests({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const list = await fetchCashRequests(staffId ? { staffId } : { userId })
+      const list = await fetchCashRequests({
+        userId,
+        staffId: staffId || undefined,
+        mine: true,
+      })
       setRows(list)
     } finally {
       setLoading(false)
