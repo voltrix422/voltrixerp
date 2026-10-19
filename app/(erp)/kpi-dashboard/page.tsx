@@ -1,18 +1,14 @@
 "use client"
 
-import { Topbar } from "@/components/layout/topbar"
-import { MyKpiPortal } from "@/components/hrm/my-kpi-portal"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 export default function KpiDashboardPage() {
-  return (
-    <>
-      <Topbar title="My KPI Dashboard" />
-      <div className="flex-1 overflow-auto">
-        <div className="p-6 max-w-6xl">
-          <MyKpiPortal />
-        </div>
-      </div>
-    </>
-  )
-}
+  const router = useRouter()
 
+  useEffect(() => {
+    router.replace("/dashboard")
+  }, [router])
+
+  return null
+}

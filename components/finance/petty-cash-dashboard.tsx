@@ -14,7 +14,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useToast } from "@/components/ui/toast"
 import { useAuthWithRole } from "@/components/auth-provider"
 import { MODULE_LABELS, isErpAdmin } from "@/lib/auth"
-import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive, FileText } from "lucide-react"
+import { Plus, DollarSign, Receipt, Eye, CheckCircle, XCircle, Clock, AlertCircle, Archive, FileText, FileDown } from "lucide-react"
+import { downloadPendingPettyCashPdf } from "@/lib/generate-petty-cash-pending-pdf"
 import { isPettyCashHistoryAllocation } from "@/lib/petty-cash-history"
 import {
   allocationBelongsToUser,
@@ -79,6 +80,7 @@ export function PettyCashDashboard() {
   } | null>(null)
   const [migratingFinance, setMigratingFinance] = useState(false)
   const [reviewingReceiptId, setReviewingReceiptId] = useState<string | null>(null)
+  const [pendingPdfBusy, setPendingPdfBusy] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -353,12 +355,37 @@ export function PettyCashDashboard() {
 
       {canManagePettyCash && pendingRequests.length > 0 && (
         <div className="rounded-lg border bg-[hsl(var(--card))] p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold">Pending requests</h3>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Approve requests with bank proof or record a cash payout before settlement starts.</p>
             </div>
-            <span className="text-xs font-medium text-yellow-700 bg-yellow-100 px-2.5 py-1 rounded-full">{pendingRequests.length} waiting</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                disabled={pendingPdfBusy}
+                onClick={async () => {
+                  setPendingPdfBusy(true)
+                  try {
+                    await downloadPendingPettyCashPdf(pendingRequests)
+                  } catch (error) {
+                    toast({
+                      title: "PDF failed",
+                      message: error instanceof Error ? error.message : "Could not download PDF.",
+                      type: "error",
+                    })
+                  } finally {
+                    setPendingPdfBusy(false)
+                  }
+                }}
+              >
+                <FileDown className="h-3.5 w-3.5 mr-1.5" />
+                {pendingPdfBusy ? "PDF..." : "PDF"}
+              </Button>
+              <span className="text-xs font-medium text-yellow-700 bg-yellow-100 px-2.5 py-1 rounded-full">{pendingRequests.length} waiting</span>
+            </div>
           </div>
           <div className="space-y-2">
             {pendingRequests.map((allocation) => (

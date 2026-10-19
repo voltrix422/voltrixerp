@@ -275,12 +275,12 @@ export function InstallErpButton({ className }: { className?: string }) {
       onClick={() => void install()}
       className={
         className ??
-        "inline-flex h-8 items-center gap-1.5 rounded-md bg-[#1a9f9a] px-2.5 text-[11px] font-semibold text-white hover:bg-[#158a85] shrink-0"
+        "inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#1a9f9a]/40 bg-[#1a9f9a]/10 text-[#0d6b67] hover:bg-[#1a9f9a]/20 shrink-0"
       }
-      title="Install Voltrix ERP on this phone"
+      title={iosHelp ? "Add Voltrix ERP to Home Screen" : "Install Voltrix ERP"}
+      aria-label={iosHelp ? "Add Voltrix ERP to Home Screen" : "Install Voltrix ERP"}
     >
-      <Download className="h-3.5 w-3.5" />
-      <span className="hidden xs:inline sm:inline">{iosHelp ? "Add ERP" : "Install app"}</span>
+      <Download className="h-4 w-4" />
     </button>
   )
 }

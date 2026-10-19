@@ -276,7 +276,7 @@ export function buildPettyCashApprovedDetails(
       sublabel: [cat, desc].filter(Boolean).join(" · ") || undefined,
       amount,
       date: fmtDate(typeof raw === "string" ? raw : raw.toISOString()),
-      href: "/purchase?tab=petty-cash",
+      href: "/petty-cash",
     })
   }
   return lines.sort((a, b) => b.amount - a.amount)

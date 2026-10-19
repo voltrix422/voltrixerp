@@ -1,14 +1,22 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { Topbar } from "@/components/layout/topbar"
+import { PettyCashDashboard } from "@/components/finance/petty-cash-dashboard"
+import { useAuth } from "@/components/auth-provider"
 
 export default function PettyCashPage() {
-  const router = useRouter()
+  const { user } = useAuth()
 
-  useEffect(() => {
-    router.replace("/purchase?tab=petty-cash")
-  }, [router])
+  if (!user) return null
 
-  return null
+  return (
+    <>
+      <Topbar title="Petty Cash" description="Request cash, add expense receipts, and track your balance" />
+      <div className="flex-1 overflow-auto">
+        <div className="p-6 max-w-6xl">
+          <PettyCashDashboard />
+        </div>
+      </div>
+    </>
+  )
 }

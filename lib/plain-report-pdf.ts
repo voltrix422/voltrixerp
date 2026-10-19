@@ -144,6 +144,11 @@ export type PlainClosingBanner = {
   lines: { label: string; value: string }[]
 }
 
+export type PlainSignature = {
+  name: string
+  role?: string
+}
+
 export async function downloadPlainReportPdf(opts: {
   title: string
   subtitle?: string
@@ -155,6 +160,8 @@ export async function downloadPlainReportPdf(opts: {
   compact?: boolean
   /** Large highlighted totals block drawn after all tables. */
   closingBanner?: PlainClosingBanner
+  /** Hand-sign boxes for printed hard copies. */
+  signatures?: PlainSignature[]
 }) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
@@ -363,6 +370,51 @@ export async function downloadPlainReportPdf(opts: {
       by += lineH
     }
     y = y + boxH + 6
+  }
+
+  if (opts.signatures?.length) {
+    const count = opts.signatures.length
+    const gap = 8
+    const usable = pageW - m * 2
+    const boxW = (usable - gap * Math.max(count - 1, 0)) / count
+    const boxH = 46
+    if (y + boxH + 18 > pageH - 12) {
+      doc.addPage()
+      y = headerBottom + 8
+    }
+    y += 4
+    doc.setFont(TITLE_FONT, "bold")
+    doc.setFontSize(10)
+    doc.setTextColor(...INK)
+    doc.text("Hard-copy approval — both officers sign below", m, y)
+    y += 5
+    opts.signatures.forEach((sig, i) => {
+      const x = m + i * (boxW + gap)
+      doc.setDrawColor(...RULE)
+      doc.setLineWidth(0.25)
+      doc.rect(x, y, boxW, boxH)
+      doc.setFont(TITLE_FONT, "bold")
+      doc.setFontSize(10)
+      doc.setTextColor(...INK)
+      doc.text(`${i + 1}. ${sig.name}`, x + 4, y + 8)
+      if (sig.role) {
+        doc.setFont(TITLE_FONT, "normal")
+        doc.setFontSize(8)
+        doc.setTextColor(...MUTED)
+        doc.text(sig.role, x + 4, y + 13)
+        doc.setTextColor(...INK)
+      }
+      doc.setFont(TITLE_FONT, "normal")
+      doc.setFontSize(8)
+      doc.text("Signature", x + 4, y + 22)
+      doc.setDrawColor(...RULE)
+      doc.setLineWidth(0.35)
+      doc.line(x + 4, y + 30, x + boxW - 4, y + 30)
+      doc.setFontSize(8)
+      doc.text("Date", x + 4, y + 37)
+      doc.line(x + 16, y + 37, x + boxW - 4, y + 37)
+    })
+    y += boxH + 4
   }
 
   const pages = doc.getNumberOfPages()

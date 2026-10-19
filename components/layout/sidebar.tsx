@@ -1,11 +1,11 @@
 "use client"
 import Link from "next/link"
-import { usePathname, useSearchParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { Suspense, useState } from "react"
 import {
   LayoutDashboard, ShoppingCart, DollarSign, Users2,
-  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, Target, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
+  BookOpen, Globe, Package, Settings, HelpCircle, Menu, X, UserCog, Truck, Ticket, Banknote, ChevronDown, MessageSquare, Store, Fuel, ClipboardList, ClipboardCheck,
 } from "lucide-react"
 import { canAccessCrmMain, canAccessSalesAgentsArea } from "@/lib/crm-workspace"
 import { cn } from "@/lib/utils"
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import { UnreadMessagesBadge } from "@/components/layout/messages-icon"
 import type { Module } from "@/lib/auth"
-import { hasModuleAccess, isErpAdmin, isSuperadmin, roleHasAllModules } from "@/lib/auth"
+import { hasModuleAccess, isSuperadmin, roleHasAllModules } from "@/lib/auth"
 
 const NAV_ORDER: Array<{
   key: string
@@ -24,8 +24,7 @@ const NAV_ORDER: Array<{
   kind: "link" | "crm" | "finance"
 }> = [
   { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: "dashboard", kind: "link" },
-  { key: "kpi", href: "/kpi-dashboard", label: "KPI Dashboard", icon: Target, kind: "link" },
-  { key: "finance", label: "Finance", icon: DollarSign, module: "finance", kind: "finance" },
+  { key: "finance", href: "/finance", label: "Finance", icon: DollarSign, module: "finance", kind: "link" },
   { key: "crm", label: "CRM", icon: Users2, module: "crm", kind: "crm" },
   { key: "client-audit", href: "/client-audit", label: "Client audit", icon: ClipboardCheck, module: "crm", kind: "link" },
   { key: "inventory", href: "/inventory", label: "Inventory", icon: Package, module: "inventory", kind: "link" },
@@ -37,7 +36,7 @@ const NAV_ORDER: Array<{
   { key: "hrm", href: "/hrm", label: "HRM", icon: UserCog, module: "hrm", kind: "link" },
   { key: "tickets", href: "/tickets", label: "After Sale", icon: Ticket, module: "tickets", kind: "link" },
   { key: "messages", href: "/messages", label: "Messages", icon: MessageSquare, kind: "link" },
-  { key: "petty-cash", href: "/purchase?tab=petty-cash", label: "Petty Cash", icon: Banknote, kind: "link" },
+  { key: "petty-cash", href: "/petty-cash", label: "Petty Cash", icon: Banknote, kind: "link" },
   { key: "petrol", href: "/petrol", label: "Petrol", icon: Fuel, kind: "link" },
   { key: "todos", href: "/todos", label: "To-do", icon: ClipboardList, kind: "link" },
 ]
@@ -53,22 +52,12 @@ const navSecondary = [
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [crmOpen, setCrmOpen] = useState(pathname?.startsWith("/crm") || false)
-  const [financeOpen, setFinanceOpen] = useState(
-    pathname === "/finance" ||
-      pathname?.startsWith("/finance/") ||
-      false,
-  )
 
   const isSuperadminUser = isSuperadmin(user?.role)
-  const isAdminUser = isErpAdmin(user?.role)
   const showCrmMain = canAccessCrmMain(user)
   const showSalesAgents = canAccessSalesAgentsArea(user)
-  const showFinanceOverview = hasModuleAccess(user, "finance")
-  const showCashRequest = !!user && user.role !== "investor"
-  const showFinanceApproval = isAdminUser
 
   function hasModule(module: Module): boolean {
     return roleHasAllModules(user?.role) || (user?.modules.includes(module) ?? false)
@@ -77,9 +66,6 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   function canShowNavItem(item: (typeof NAV_ORDER)[number]): boolean {
     if (item.kind === "crm") {
       return hasModule("crm") && (showCrmMain || showSalesAgents)
-    }
-    if (item.kind === "finance") {
-      return showFinanceOverview || showCashRequest || showFinanceApproval
     }
     if (!item.module) return true
     return hasModule(item.module)
@@ -147,64 +133,8 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             )
           }
 
-          if (item.kind === "finance") {
-            const financeActive =
-              pathname === "/finance" || !!pathname?.startsWith("/finance/")
-            return (
-              <div key={item.key} className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => setFinanceOpen((open) => !open)}
-                  className={cn(linkClass(financeActive), "w-full cursor-pointer")}
-                >
-                  <DollarSign className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 truncate text-left">{item.label}</span>
-                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", financeOpen && "rotate-180")} />
-                </button>
-                {financeOpen && (
-                  <div className="ml-6 space-y-1">
-                    {showFinanceOverview && (
-                      <Link
-                        href="/finance"
-                        onClick={onNavigate}
-                        className={subLinkClass(pathname === "/finance")}
-                      >
-                        Overview
-                      </Link>
-                    )}
-                    {showCashRequest && (
-                      <Link
-                        href="/finance/cash-requests"
-                        onClick={onNavigate}
-                        className={subLinkClass(!!pathname?.startsWith("/finance/cash-requests"))}
-                      >
-                        Request cash
-                      </Link>
-                    )}
-                    {showFinanceApproval && (
-                      <Link
-                        href="/finance/approvals"
-                        onClick={onNavigate}
-                        className={subLinkClass(!!pathname?.startsWith("/finance/approvals"))}
-                      >
-                        Finance Approval
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          }
-
           const Icon = item.icon
-          const purchaseTab = searchParams?.get("tab")
-          const isPettyCashTab = pathname === "/purchase" && purchaseTab === "petty-cash"
-          let active = pathname?.startsWith(item.href!.split("?")[0]) || false
-          if (item.key === "petty-cash") {
-            active = isPettyCashTab || pathname === "/petty-cash"
-          } else if (item.key === "purchase") {
-            active = !!pathname?.startsWith("/purchase") && purchaseTab !== "petty-cash"
-          }
+          const active = pathname?.startsWith(item.href!.split("?")[0]) || false
           return (
             <Link key={item.key} href={item.href!} onClick={onNavigate} className={linkClass(active)}>
               <Icon className="h-4 w-4 shrink-0" />

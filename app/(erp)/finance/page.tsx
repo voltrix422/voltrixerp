@@ -45,7 +45,7 @@ export default function FinancePage() {
       setActiveTab("manage")
     }
     if (section === "petty-cash") {
-      router.replace("/purchase?tab=petty-cash")
+      router.replace("/petty-cash")
       return
     }
     if (payroll === "sales" || payroll === "staff") setPayrollSection(payroll)
