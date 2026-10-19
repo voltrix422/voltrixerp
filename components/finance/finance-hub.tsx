@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins, Download, FileSpreadsheet } from "lucide-react"
+import { ArrowRight, Loader2, RefreshCw, Plus, ChevronDown, X, HandCoins, Download, FileSpreadsheet, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
 import { downloadFinanceSalesReportPdf } from "@/lib/generate-finance-sales-report-pdf"
@@ -12,6 +12,7 @@ import {
   downloadFinanceOperatingExpensesExcel,
   downloadFinanceOperatingExpensesPdf,
 } from "@/lib/generate-finance-operating-expenses-report"
+import { downloadIfrsFinancialStatementsPdf } from "@/lib/generate-ifrs-financial-statements-pdf"
 import type { FinanceOrderRow, FinancePosRow } from "@/lib/finance-report-details"
 import type { OrderPaymentAggregate, OrderPaymentPeriodBreakdown } from "@/lib/order-payment-stats"
 import {
@@ -531,6 +532,8 @@ export function FinanceHub({
   const [opexIncludePetty, setOpexIncludePetty] = useState(true)
   const [opexIncludeLedger, setOpexIncludeLedger] = useState(true)
   const [opexIncludeSalaries, setOpexIncludeSalaries] = useState(true)
+  const [ifrsBusy, setIfrsBusy] = useState(false)
+  const [showIfrs, setShowIfrs] = useState(false)
   const [error, setError] = useState("")
   const [periodLabel, setPeriodLabel] = useState("This month")
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -716,6 +719,44 @@ export function FinanceHub({
     }
   }
 
+  async function downloadIfrsStatements() {
+    setIfrsBusy(true)
+    setError("")
+    try {
+      const params = new URLSearchParams()
+      if (dateFrom || dateTo) {
+        if (dateFrom) params.set("from", dateFrom)
+        if (dateTo) params.set("to", dateTo)
+      } else {
+        params.set("period", period)
+      }
+      const res = await fetch(`/api/finance/overview?${params.toString()}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Could not load IFRS statements")
+      let priorData: Record<string, unknown> | null = null
+      let priorPeriodLabel = "Prior period"
+      if (!dateFrom && !dateTo && period === "month") {
+        const priorRes = await fetch("/api/finance/overview?period=last_month")
+        if (priorRes.ok) {
+          priorData = await priorRes.json()
+          priorPeriodLabel = String((priorData as { periodLabel?: string }).periodLabel || "Last month")
+        }
+      }
+      await downloadIfrsFinancialStatementsPdf(data, {
+        dateFrom,
+        dateTo,
+        exportedBy: user?.name || "Finance",
+        priorData,
+        priorPeriodLabel,
+      })
+      setShowIfrs(false)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setIfrsBusy(false)
+    }
+  }
+
   async function downloadOpexReport(format: "pdf" | "excel") {
     if (!opexIncludePetty && !opexIncludeLedger && !opexIncludeSalaries) {
       setError("Select at least one source for the operating expenses report.")
@@ -840,6 +881,17 @@ export function FinanceHub({
           >
             <FileSpreadsheet className="h-3 w-3" />
             Operating expenses
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 gap-1 text-[11px]"
+            onClick={() => setShowIfrs(true)}
+            disabled={loading}
+            title="IAS 1 profit or loss, financial position, and IAS 7 cash flows"
+          >
+            <Scale className="h-3 w-3" />
+            IFRS statements
           </Button>
           <Button
             size="sm"
@@ -1113,6 +1165,77 @@ export function FinanceHub({
                   className="w-full h-8 text-xs"
                   disabled={!!opexExportBusy}
                   onClick={() => setShowOpexReport(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {showIfrs &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+            onClick={() => {
+              if (!ifrsBusy) setShowIfrs(false)
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-xl border bg-[hsl(var(--card))] shadow-xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div>
+                  <p className="text-sm font-semibold">IFRS financial statements</p>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                    IAS 1 · IAS 7 · IFRS 15 · {periodLabel}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={ifrsBusy}
+                  onClick={() => setShowIfrs(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="p-4 space-y-2 text-[12px] text-[hsl(var(--muted-foreground))] leading-relaxed">
+                <p>
+                  The PDF is a complete set under <strong className="text-[hsl(var(--foreground))]">IAS 1.10</strong> (IFRS Accounting Standards):
+                </p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Statement of financial position as at period end</li>
+                  <li>Statement of profit or loss and other comprehensive income</li>
+                  <li>Statement of changes in equity</li>
+                  <li>Statement of cash flows (IAS 7 direct method)</li>
+                  <li>Notes — material accounting policies and explanations</li>
+                </ul>
+                <p className="text-[10px]">
+                  Same date range as Overview. This month also fills a prior-period column (IAS 1.38). These are IFRS-presented management accounts from Voltrix, not a statutory audit pack.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 px-4 py-3 border-t bg-[hsl(var(--muted))]/10">
+                <Button
+                  type="button"
+                  className="w-full gap-1.5 bg-[#1a9f9a] hover:bg-[#158a85] text-white"
+                  disabled={ifrsBusy}
+                  onClick={() => void downloadIfrsStatements()}
+                >
+                  {ifrsBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {ifrsBusy ? "Building…" : "Download IFRS PDF"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full h-8 text-xs"
+                  disabled={ifrsBusy}
+                  onClick={() => setShowIfrs(false)}
                 >
                   Cancel
                 </Button>

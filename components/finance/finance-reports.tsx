@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { Loader2, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { downloadFinanceOverviewPdf } from "@/lib/finance-report-pdf"
+import { downloadIfrsFinancialStatementsPdf } from "@/lib/generate-ifrs-financial-statements-pdf"
 
 type OverviewData = {
   periodLabel: string
@@ -30,6 +31,7 @@ export function FinanceReports({
 }) {
   const [loading, setLoading] = useState(true)
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [ifrsBusy, setIfrsBusy] = useState(false)
   const [data, setData] = useState<OverviewData | null>(null)
 
   const load = useCallback(async () => {
@@ -81,6 +83,30 @@ export function FinanceReports({
     }
   }
 
+  async function exportIfrsPdf() {
+    if (!data) return
+    setIfrsBusy(true)
+    try {
+      let priorData: Record<string, unknown> | null = null
+      let priorPeriodLabel = "Prior period"
+      if (!dateFrom && !dateTo && period === "month") {
+        const priorRes = await fetch("/api/finance/overview?period=last_month")
+        if (priorRes.ok) {
+          priorData = await priorRes.json()
+          priorPeriodLabel = String((priorData as { periodLabel?: string }).periodLabel || "Last month")
+        }
+      }
+      await downloadIfrsFinancialStatementsPdf(data as unknown as Record<string, unknown>, {
+        dateFrom,
+        dateTo,
+        priorData,
+        priorPeriodLabel,
+      })
+    } finally {
+      setIfrsBusy(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -96,6 +122,10 @@ export function FinanceReports({
   return (
     <div className="space-y-5 sm:space-y-6">
       <div className="flex justify-stretch sm:justify-end gap-2">
+        <Button size="sm" variant="outline" className="w-full sm:w-auto h-9 sm:h-8" onClick={() => void exportIfrsPdf()} disabled={ifrsBusy}>
+          {ifrsBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+          IFRS statements
+        </Button>
         <Button size="sm" variant="outline" className="w-full sm:w-auto h-9 sm:h-8" onClick={() => void exportPdf()} disabled={pdfBusy}>
           {pdfBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
           Download PDF
